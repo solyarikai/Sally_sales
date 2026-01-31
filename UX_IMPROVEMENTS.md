@@ -365,3 +365,80 @@ Keep notifications SHORT and actionable. Current format is too verbose.
 - ✅ Quoted draft snippet  
 - ✅ Action buttons
 
+
+---
+
+## SMARTLEAD INBOX LINK (IMPORTANT!)
+
+Every notification MUST include a direct link to Smartlead inbox.
+
+### Link Format:
+```
+https://app.smartlead.ai/app/email-accounts/leads/{lead_id}
+```
+
+Or campaign-based:
+```
+https://app.smartlead.ai/app/email-accounts/{campaign_id}/leads/{lead_id}
+```
+
+### In Slack Message:
+
+1. **Name is clickable link:**
+   ```
+   🟢 *Interested* | <https://app.smartlead.ai/.../leads/123|John Doe> @ Acme
+   ```
+
+2. **Add 'Open Inbox' button:**
+   ```json
+   {
+     "type": "button",
+     "text": {"type": "plain_text", "text": "📬 Open Inbox"},
+     "url": "https://app.smartlead.ai/app/email-accounts/leads/{lead_id}"
+   }
+   ```
+
+### Target Format (Updated):
+```
+🟢 Interested | John Doe @ Acme     ← Name is clickable link to inbox
+> "Message preview..."
+💡 "Draft preview..."
+[✅ OK] [✏️ Edit] [📬 Open Inbox]   ← Open Inbox is also a link
+```
+
+### Backend: Store lead_id and campaign_id
+
+When processing webhook, save:
+- `smartlead_lead_id` - for direct inbox link
+- `smartlead_campaign_id` - for campaign context
+
+
+### Smartlead Webhook Provides the Link!
+
+The Smartlead webhook payload includes:
+```json
+{
+  "body": {
+    "ui_master_inbox_link": "https://app.smartlead.ai/app/master-inbox/..."
+  }
+}
+```
+
+**Backend must:**
+1. Extract `ui_master_inbox_link` from webhook payload
+2. Store it in ProcessedReply model: `inbox_link`
+3. Include it in Slack notification
+
+### Updated Slack Format:
+```
+🟢 Interested | <{inbox_link}|John Doe> @ Acme
+> "Message preview..."
+💡 "Draft preview..."
+[✅ OK] [✏️ Edit] [📬 Open Inbox]  ← links to {inbox_link}
+```
+
+The link format from n8n:
+```
+<{{ webhook.body.ui_master_inbox_link }}|🔗 Open in Smartlead>
+```
+

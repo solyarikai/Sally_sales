@@ -268,19 +268,26 @@ async def process_reply_webhook(
         session.add(processed_reply)
         await session.flush()
         
-        # Send Slack notification if automation configured
-        if automation_id:
-            from app.services.notification_service import send_slack_notification
-            # Use channel from automation or default test channel
-            channel_id = automation.slack_channel or "C09REGUQWTG"
-            slack_sent = await send_slack_notification(
-                channel_id=channel_id,
-                reply=processed_reply,
-                webhook_url=automation.slack_webhook_url  # Fallback
-            )
-            if slack_sent:
-                processed_reply.sent_to_slack = True
-                processed_reply.slack_sent_at = datetime.utcnow()
+        # Send Slack notification
+        from app.services.notification_service import send_slack_notification
+        
+        # Determine channel - use automation config or default test channel
+        channel_id = "C09REGUQWTG"  # Default: #c-replies-test
+        webhook_url = None
+        
+        if automation_id and automation:
+            channel_id = automation.slack_channel or channel_id
+            webhook_url = automation.slack_webhook_url
+        
+        # Always send notification (even without automation for testing)
+        slack_sent = await send_slack_notification(
+            channel_id=channel_id,
+            reply=processed_reply,
+            webhook_url=webhook_url
+        )
+        if slack_sent:
+            processed_reply.sent_to_slack = True
+            processed_reply.slack_sent_at = datetime.utcnow()
         
         await session.commit()
         logger.info(f"Processed reply {processed_reply.id} - category: {classification['category']}")
