@@ -14,6 +14,7 @@ from .sync import router as sync_router
 from .environments import router as environments_router
 from .smartlead import router as smartlead_router
 from .replies import router as replies_router
+from .slack_interactions import router as slack_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -37,5 +38,6 @@ api_router.include_router(environments_router)
 # Reply Automation
 api_router.include_router(smartlead_router)
 api_router.include_router(replies_router)
+api_router.include_router(slack_router)
 
 __all__ = ["api_router"]

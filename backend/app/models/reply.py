@@ -101,6 +101,11 @@ class ProcessedReply(Base, TimestampMixin):
     slack_sent_at = Column(DateTime, nullable=True)
     slack_message_ts = Column(String(50), nullable=True)  # Slack message ID
     
+    # Approval workflow
+    approval_status = Column(String(50), nullable=True, index=True)  # pending, approved, dismissed, edited
+    approved_by = Column(String(100), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    
     # Full webhook payload for debugging
     raw_webhook_data = Column(JSON, nullable=True)
     

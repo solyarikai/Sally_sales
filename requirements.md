@@ -1,3 +1,28 @@
+# ⚠️ NEXT PHASE: UX IMPROVEMENTS
+
+**Read UX_IMPROVEMENTS.md for detailed requirements**
+
+## CRITICAL SAFETY (MUST IMPLEMENT FIRST)
+
+1. **Google Sheets: CREATE NEW ONLY**
+   - NEVER modify existing sheets
+   - Always suggest creating new sheet
+   - Safe append-only operations
+
+2. **Smartlead: READ-ONLY MODE**  
+   - NO send capabilities in code
+   - Only fetch campaigns/leads/messages
+   - Hardcode safety blocks
+
+## UX PRIORITIES
+
+1. Add Slack interactive buttons (Approve/Edit/Dismiss)
+2. Chat-style setup wizard (4 simple steps)
+3. Approval shows success modal + copies draft
+4. Dashboard shows reply status
+
+---
+
 # ⚠️ PRIORITY: READ TESTING_PRIORITY.md FIRST
 
 **Current Phase: TESTING**

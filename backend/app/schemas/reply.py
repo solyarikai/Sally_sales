@@ -99,6 +99,11 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     sent_to_slack: bool = False
     slack_sent_at: Optional[datetime] = None
     
+    # Approval workflow
+    approval_status: Optional[str] = None  # pending, approved, dismissed, edited
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    
     created_at: datetime
     
     class Config:

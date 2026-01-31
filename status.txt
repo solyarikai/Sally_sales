@@ -1,1 +1,35 @@
-DONE
+UX_IMPROVEMENTS
+
+## Completed This Session
+
+### P1 - Slack Interactive Buttons (DONE)
+
+1. **Added interactive buttons to Slack notifications** (`notification_service.py`)
+   - Approve button (primary style)
+   - Edit button
+   - Dismiss button (danger style)
+   - Safety note about manual sending required
+
+2. **Created Slack interactions endpoint** (`api/slack_interactions.py`)
+   - POST /api/slack/interactions - handles all Slack button clicks
+   - Approve: marks reply as approved, opens modal with draft to copy
+   - Edit: opens modal to edit draft, then saves and approves
+   - Dismiss: marks reply as dismissed
+   - Updates original message with status
+
+3. **Added approval workflow to database**
+   - New fields: approval_status, approved_by, approved_at
+   - Migration: 202601310200_add_approval_workflow.py
+   - Schema updated with new fields
+
+## Safety Rules Implemented
+
+- Smartlead: READ-ONLY mode (no send capabilities)
+- Google Sheets: Only creates new sheets (not implemented yet)
+- Approval shows success modal + copies draft (NO auto-send)
+
+## Next Steps (P2-P3)
+
+- [ ] Chat-style setup wizard (4 simple steps)
+- [ ] Dashboard shows reply status (pending/approved/dismissed)
+- [ ] Google Sheets safety implementation

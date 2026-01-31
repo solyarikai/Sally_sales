@@ -125,6 +125,46 @@ def format_slack_message(reply) -> Dict[str, Any]:
             ]
         })
     
+    # Add interactive buttons for approval flow
+    reply_id = getattr(reply, 'id', 0)
+    blocks.append({
+        "type": "actions",
+        "block_id": f"reply_actions_{reply_id}",
+        "elements": [
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "✅ Approve", "emoji": True},
+                "style": "primary",
+                "action_id": "approve_reply",
+                "value": str(reply_id)
+            },
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "✏️ Edit", "emoji": True},
+                "action_id": "edit_reply",
+                "value": str(reply_id)
+            },
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "❌ Dismiss", "emoji": True},
+                "style": "danger",
+                "action_id": "dismiss_reply",
+                "value": str(reply_id)
+            }
+        ]
+    })
+    
+    # Add safety note
+    blocks.append({
+        "type": "context",
+        "elements": [
+            {
+                "type": "mrkdwn",
+                "text": "⚠️ _Approval prepares reply for review. Manual sending required in Smartlead._"
+            }
+        ]
+    })
+    
     return {
         "blocks": blocks,
         "text": f"{emoji} New reply from {lead_info}: {category.replace('_', ' ').title()}"  # Fallback text
