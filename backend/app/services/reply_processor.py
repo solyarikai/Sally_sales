@@ -226,6 +226,7 @@ async def process_reply_webhook(
         
         # Find matching automation (if any)
         automation_id = None
+        automation = None
         if campaign_id:
             result = await session.execute(
                 select(ReplyAutomation).where(
