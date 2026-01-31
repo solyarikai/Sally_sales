@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     INSTANTLY_API_KEY: Optional[str] = None
     INSTANTLY_BASE_URL: str = "https://api.instantly.ai/api/v2"
     
+    # Google Sheets Integration
+    # Either set GOOGLE_SERVICE_ACCOUNT_JSON (JSON string) or GOOGLE_APPLICATION_CREDENTIALS (path to JSON file)
+    GOOGLE_SERVICE_ACCOUNT_JSON: Optional[str] = None
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
+    
     # CORS - comma-separated list of allowed origins
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
     

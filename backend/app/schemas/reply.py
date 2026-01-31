@@ -24,6 +24,8 @@ class ReplyAutomationBase(BaseModel):
     campaign_ids: List[str] = Field(default_factory=list)
     slack_webhook_url: Optional[str] = None
     slack_channel: Optional[str] = None
+    google_sheet_id: Optional[str] = None
+    google_sheet_name: Optional[str] = None
     auto_classify: bool = True
     auto_generate_reply: bool = True
     active: bool = True
@@ -33,6 +35,8 @@ class ReplyAutomationCreate(ReplyAutomationBase):
     """Schema for creating a reply automation."""
     company_id: Optional[int] = None
     environment_id: Optional[int] = None
+    create_google_sheet: bool = False  # If true, create a new Google Sheet
+    share_sheet_with_email: Optional[str] = None  # Email to share the sheet with
 
 
 class ReplyAutomationUpdate(BaseModel):
@@ -41,6 +45,8 @@ class ReplyAutomationUpdate(BaseModel):
     campaign_ids: Optional[List[str]] = None
     slack_webhook_url: Optional[str] = None
     slack_channel: Optional[str] = None
+    google_sheet_id: Optional[str] = None
+    google_sheet_name: Optional[str] = None
     auto_classify: Optional[bool] = None
     auto_generate_reply: Optional[bool] = None
     active: Optional[bool] = None

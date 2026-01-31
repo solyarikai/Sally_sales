@@ -298,6 +298,31 @@ async def process_reply_webhook(
             processed_reply.sent_to_slack = True
             processed_reply.slack_sent_at = datetime.utcnow()
         
+        # Log to Google Sheets if automation has a sheet configured
+        if automation and automation.google_sheet_id:
+            try:
+                from app.services.google_sheets_service import google_sheets_service
+                reply_data = {
+                    'lead_email': lead_email,
+                    'lead_first_name': payload.get("first_name"),
+                    'lead_last_name': payload.get("last_name"),
+                    'lead_company': payload.get("company_name"),
+                    'campaign_id': campaign_id,
+                    'campaign_name': payload.get("campaign_name"),
+                    'category': classification["category"],
+                    'category_confidence': classification["confidence"],
+                    'email_subject': subject,
+                    'email_body': body,
+                    'draft_subject': draft["subject"],
+                    'draft_reply': draft["body"],
+                    'classification_reasoning': classification["reasoning"],
+                    'inbox_link': inbox_link,
+                }
+                google_sheets_service.append_reply(automation.google_sheet_id, reply_data)
+                logger.info(f"Logged reply {processed_reply.id} to Google Sheet {automation.google_sheet_id}")
+            except Exception as e:
+                logger.error(f"Failed to log reply to Google Sheets: {e}")
+        
         await session.commit()
         logger.info(f"Processed reply {processed_reply.id} - category: {classification['category']}")
         

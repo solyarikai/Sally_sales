@@ -41,6 +41,10 @@ class ReplyAutomation(Base, SoftDeleteMixin, TimestampMixin):
     slack_webhook_url = Column(String(500), nullable=True)
     slack_channel = Column(String(100), nullable=True)
     
+    # Google Sheets logging
+    google_sheet_id = Column(String(100), nullable=True)
+    google_sheet_name = Column(String(255), nullable=True)
+    
     # Processing settings
     auto_classify = Column(Boolean, default=True, nullable=False)
     auto_generate_reply = Column(Boolean, default=True, nullable=False)

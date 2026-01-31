@@ -3,7 +3,7 @@ import {
   MessageSquare, Search, RefreshCw, Plus, Settings2, 
   Send, Bell, X, Copy, ChevronDown, Check, AlertCircle,
   Zap, Hash, Calendar, Clock, ExternalLink, Mail, Building2,
-  TestTube2
+  TestTube2, FileSpreadsheet, SkipForward
 } from 'lucide-react';
 import { 
   repliesApi, 
@@ -14,7 +14,8 @@ import {
   type SmartleadCampaign,
   type ReplyAutomationCreate,
   type SimulateReplyPayload,
-  type SimulateReplyResponse
+  type SimulateReplyResponse,
+  type GoogleSheetsStatus
 } from '../api/replies';
 import { cn, formatNumber } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';

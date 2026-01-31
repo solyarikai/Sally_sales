@@ -19,6 +19,7 @@ from app.schemas.reply import (
     ProcessedReplyStats,
 )
 from app.services.notification_service import send_test_notification, send_slack_notification
+from app.services.google_sheets_service import google_sheets_service
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,26 @@ async def create_automation(
     session: AsyncSession = Depends(get_session)
 ):
     """Create a new reply automation."""
+    
+    # Handle Google Sheet creation if requested
+    google_sheet_id = data.google_sheet_id
+    google_sheet_name = data.google_sheet_name
+    
+    if data.create_google_sheet and not google_sheet_id:
+        if google_sheets_service.is_configured():
+            sheet_result = google_sheets_service.create_reply_sheet(
+                name=data.name,
+                share_with_email=data.share_sheet_with_email
+            )
+            if sheet_result:
+                google_sheet_id = sheet_result['sheet_id']
+                google_sheet_name = f"Reply Log - {data.name}"
+                logger.info(f"Created Google Sheet {google_sheet_id} for automation {data.name}")
+            else:
+                logger.warning(f"Failed to create Google Sheet for automation {data.name}")
+        else:
+            logger.warning("Google Sheets not configured, skipping sheet creation")
+    
     automation = ReplyAutomation(
         name=data.name,
         company_id=data.company_id,
@@ -112,6 +133,8 @@ async def create_automation(
         campaign_ids=data.campaign_ids,
         slack_webhook_url=data.slack_webhook_url,
         slack_channel=data.slack_channel,
+        google_sheet_id=google_sheet_id,
+        google_sheet_name=google_sheet_name,
         auto_classify=data.auto_classify,
         auto_generate_reply=data.auto_generate_reply,
         active=data.active
@@ -463,3 +486,139 @@ async def resend_notification(
         return {"success": True, "message": "Notification sent"}
     else:
         return {"success": False, "message": "Failed to send notification"}
+
+
+# ============= Google Sheets =============
+
+@router.get("/google-sheets/status")
+async def get_google_sheets_status():
+    """Check if Google Sheets integration is configured and available."""
+    is_configured = google_sheets_service.is_configured()
+    service_account_email = google_sheets_service.get_service_account_email() if is_configured else None
+    
+    return {
+        "configured": is_configured,
+        "service_account_email": service_account_email,
+        "message": "Google Sheets is ready" if is_configured else "Google Sheets not configured. Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS."
+    }
+
+
+@router.post("/google-sheets/create")
+async def create_google_sheet(
+    name: str = Query(..., description="Name for the new spreadsheet"),
+    share_with_email: Optional[str] = Query(None, description="Email to share the sheet with"),
+    automation_id: Optional[int] = Query(None, description="Automation ID to link the sheet to"),
+    session: AsyncSession = Depends(get_session)
+):
+    """Create a NEW Google Sheet for logging replies.
+    
+    SAFETY: Only creates new sheets, never modifies existing ones.
+    """
+    if not google_sheets_service.is_configured():
+        raise HTTPException(
+            status_code=503, 
+            detail="Google Sheets integration not configured. Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS."
+        )
+    
+    result = google_sheets_service.create_reply_sheet(name, share_with_email)
+    
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to create Google Sheet")
+    
+    # If automation_id provided, update the automation with the sheet ID
+    if automation_id:
+        auto_result = await session.execute(
+            select(ReplyAutomation).where(
+                ReplyAutomation.id == automation_id,
+                ReplyAutomation.is_active == True
+            )
+        )
+        automation = auto_result.scalar_one_or_none()
+        
+        if automation:
+            automation.google_sheet_id = result['sheet_id']
+            automation.google_sheet_name = f"Reply Log - {name}"
+            automation.updated_at = datetime.utcnow()
+            await session.flush()
+            logger.info(f"Linked Google Sheet {result['sheet_id']} to automation {automation_id}")
+    
+    return {
+        "success": True,
+        "sheet_id": result['sheet_id'],
+        "sheet_url": result['sheet_url'],
+        "message": f"Created new sheet: Reply Log - {name}"
+    }
+
+
+@router.get("/google-sheets/{sheet_id}/info")
+async def get_sheet_info(sheet_id: str):
+    """Get information about a Google Sheet."""
+    if not google_sheets_service.is_configured():
+        raise HTTPException(
+            status_code=503, 
+            detail="Google Sheets integration not configured"
+        )
+    
+    info = google_sheets_service.get_sheet_info(sheet_id)
+    
+    if not info:
+        raise HTTPException(status_code=404, detail="Sheet not found or not accessible")
+    
+    return {
+        "sheet_id": sheet_id,
+        "title": info['title'],
+        "url": info['url']
+    }
+
+
+@router.post("/google-sheets/{sheet_id}/log-reply/{reply_id}")
+async def log_reply_to_sheet(
+    sheet_id: str,
+    reply_id: int,
+    session: AsyncSession = Depends(get_session)
+):
+    """Log a specific reply to a Google Sheet.
+    
+    SAFETY: Append-only operation.
+    """
+    if not google_sheets_service.is_configured():
+        raise HTTPException(
+            status_code=503, 
+            detail="Google Sheets integration not configured"
+        )
+    
+    # Get the reply
+    result = await session.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    reply = result.scalar_one_or_none()
+    
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+    
+    # Convert reply to dict for logging
+    reply_data = {
+        'lead_email': reply.lead_email,
+        'lead_first_name': reply.lead_first_name,
+        'lead_last_name': reply.lead_last_name,
+        'lead_company': reply.lead_company,
+        'campaign_id': reply.campaign_id,
+        'campaign_name': reply.campaign_name,
+        'category': reply.category,
+        'category_confidence': reply.category_confidence,
+        'email_subject': reply.email_subject,
+        'email_body': reply.email_body,
+        'reply_text': reply.reply_text,
+        'draft_subject': reply.draft_subject,
+        'draft_reply': reply.draft_reply,
+        'classification_reasoning': reply.classification_reasoning,
+        'approval_status': reply.approval_status,
+        'inbox_link': reply.inbox_link,
+    }
+    
+    success = google_sheets_service.append_reply(sheet_id, reply_data)
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to log reply to sheet")
+    
+    return {"success": True, "message": f"Reply {reply_id} logged to sheet"}

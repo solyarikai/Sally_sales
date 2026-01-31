@@ -19,6 +19,8 @@ export interface ReplyAutomation {
   campaign_ids: string[];
   slack_webhook_url: string | null;
   slack_channel: string | null;
+  google_sheet_id: string | null;
+  google_sheet_name: string | null;
   auto_classify: boolean;
   auto_generate_reply: boolean;
   active: boolean;
@@ -34,9 +36,27 @@ export interface ReplyAutomationCreate {
   campaign_ids: string[];
   slack_webhook_url?: string;
   slack_channel?: string;
+  google_sheet_id?: string;
+  google_sheet_name?: string;
+  create_google_sheet?: boolean;
+  share_sheet_with_email?: string;
   auto_classify?: boolean;
   auto_generate_reply?: boolean;
   active?: boolean;
+}
+
+// Google Sheets types
+export interface GoogleSheetsStatus {
+  configured: boolean;
+  service_account_email: string | null;
+  message: string;
+}
+
+export interface GoogleSheetCreateResponse {
+  success: boolean;
+  sheet_id: string;
+  sheet_url: string;
+  message: string;
 }
 
 export interface ReplyAutomationUpdate {
@@ -204,6 +224,28 @@ export async function simulateReply(payload: SimulateReplyPayload): Promise<Simu
   return response.data;
 }
 
+// ============= Google Sheets =============
+
+export async function getGoogleSheetsStatus(): Promise<GoogleSheetsStatus> {
+  const response = await api.get('/replies/google-sheets/status');
+  return response.data;
+}
+
+export async function createGoogleSheet(
+  name: string, 
+  shareWithEmail?: string,
+  automationId?: number
+): Promise<GoogleSheetCreateResponse> {
+  const response = await api.post('/replies/google-sheets/create', null, {
+    params: { 
+      name, 
+      share_with_email: shareWithEmail,
+      automation_id: automationId 
+    }
+  });
+  return response.data;
+}
+
 // Export all functions as named object for consistency
 export const repliesApi = {
   // Smartlead
@@ -224,4 +266,7 @@ export const repliesApi = {
   resendNotification,
   // Testing
   simulateReply,
+  // Google Sheets
+  getGoogleSheetsStatus,
+  createGoogleSheet,
 };
