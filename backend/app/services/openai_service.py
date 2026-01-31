@@ -31,6 +31,10 @@ class OpenAIService:
         self.api_key = api_key
         self.client = AsyncOpenAI(api_key=api_key)
     
+    def is_connected(self) -> bool:
+        """Check if OpenAI client is configured with an API key."""
+        return bool(self.api_key and self.client)
+    
     def render_prompt(self, template: str, row_data: Dict[str, Any]) -> str:
         """Replace {{column_name}} placeholders with actual values"""
         result = template
@@ -208,6 +212,53 @@ class OpenAIService:
         if result["success"]:
             return result["result"]
         raise Exception(result.get("error", "Unknown error"))
+    
+    async def complete(
+        self,
+        prompt: str,
+        model: str = "gpt-4o-mini",
+        temperature: float = 0.7,
+        max_tokens: int = 500,
+        system_prompt: Optional[str] = None,
+    ) -> str:
+        """Complete a prompt and return the text response.
+        
+        Args:
+            prompt: The user prompt to complete
+            model: OpenAI model to use
+            temperature: Sampling temperature (0-2)
+            max_tokens: Maximum tokens in response
+            system_prompt: Optional system message
+            
+        Returns:
+            The completion text
+        """
+        if not self.client:
+            raise Exception("OpenAI client not configured")
+        
+        await self._rate_limit_wait(model)
+        
+        config = self._get_model_config(model)
+        messages = []
+        
+        if system_prompt and config.get("supports_system", True):
+            messages.append({"role": "system", "content": system_prompt})
+        
+        messages.append({"role": "user", "content": prompt})
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            
+            return response.choices[0].message.content or ""
+            
+        except Exception as e:
+            logger.error(f"OpenAI completion error: {e}")
+            raise
 
     async def test_connection(self) -> bool:
         """Test if the API key is valid"""

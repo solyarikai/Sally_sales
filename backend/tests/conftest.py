@@ -9,14 +9,18 @@ Provides:
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
+
+# Configure pytest-asyncio
+pytest_plugins = ('pytest_asyncio',)
 from typing import AsyncGenerator, Generator
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from app.main import app
 from app.db import Base, get_session
-from app.models import User, Company, Environment, Dataset, DataRow, Prospect
+from app.models import User, Company, Environment, Dataset, DataRow, Prospect, ReplyAutomation, ProcessedReply, ReplyCategory
 
 
 # Test database URL - in-memory SQLite
@@ -31,7 +35,7 @@ def event_loop() -> Generator:
     loop.close()
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def engine():
     """Create a test database engine."""
     engine = create_async_engine(
@@ -51,7 +55,7 @@ async def engine():
     await engine.dispose()
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def db_session(engine) -> AsyncGenerator[AsyncSession, None]:
     """Create a test database session."""
     async_session_maker = async_sessionmaker(
@@ -67,7 +71,7 @@ async def db_session(engine) -> AsyncGenerator[AsyncSession, None]:
         await session.rollback()
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Create a test client with overridden database session."""
     
@@ -87,7 +91,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 # ============ Factory Fixtures ============
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_user(db_session: AsyncSession) -> User:
     """Create a test user."""
     user = User(
@@ -101,7 +105,7 @@ async def test_user(db_session: AsyncSession) -> User:
     return user
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_environment(db_session: AsyncSession, test_user: User) -> Environment:
     """Create a test environment."""
     env = Environment(
@@ -117,7 +121,7 @@ async def test_environment(db_session: AsyncSession, test_user: User) -> Environ
     return env
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_company(db_session: AsyncSession, test_user: User, test_environment: Environment) -> Company:
     """Create a test company."""
     company = Company(
@@ -135,7 +139,7 @@ async def test_company(db_session: AsyncSession, test_user: User, test_environme
     return company
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_dataset(db_session: AsyncSession, test_company: Company) -> Dataset:
     """Create a test dataset."""
     dataset = Dataset(
@@ -152,7 +156,7 @@ async def test_dataset(db_session: AsyncSession, test_company: Company) -> Datas
     return dataset
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_data_rows(db_session: AsyncSession, test_dataset: Dataset) -> list[DataRow]:
     """Create test data rows."""
     rows = []
@@ -179,7 +183,7 @@ async def test_data_rows(db_session: AsyncSession, test_dataset: Dataset) -> lis
     return rows
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_prospect(db_session: AsyncSession, test_company: Company) -> Prospect:
     """Create a test prospect."""
     prospect = Prospect(
