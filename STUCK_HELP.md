@@ -1,4 +1,4 @@
-# SESSION 40 - NO CHANGES DETECTED
+# SESSION 44 - NO CHANGES DETECTED
 
 ## Problem
 You've had 1 session(s) with no code changes. The supervisor detected this.
@@ -14,10 +14,10 @@ STOP READING. START WRITING. Pick the smallest possible task and do it NOW. Even
 ## Quick Wins (pick ONE)
 - Add a console.log to any .tsx file
 - Add a print statement to any .py file  
-- Create a new file called test_40.py with "print('session 40 works')"
+- Create a new file called test_44.py with "print('session 44 works')"
 - Fix any syntax error you see
 
 ## After ANY change
-Update status.txt with: "Session 40: [what you changed]"
+Update status.txt with: "Session 44: [what you changed]"
 
 DO NOT just read files. WRITE something.
