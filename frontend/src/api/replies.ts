@@ -1,0 +1,194 @@
+import { api } from './client';
+
+// Types
+export type ReplyCategory = 
+  | 'interested' 
+  | 'meeting_request' 
+  | 'not_interested' 
+  | 'out_of_office' 
+  | 'wrong_person' 
+  | 'unsubscribe' 
+  | 'question' 
+  | 'other';
+
+export interface ReplyAutomation {
+  id: number;
+  name: string;
+  company_id: number | null;
+  environment_id: number | null;
+  campaign_ids: string[];
+  slack_webhook_url: string | null;
+  slack_channel: string | null;
+  auto_classify: boolean;
+  auto_generate_reply: boolean;
+  active: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReplyAutomationCreate {
+  name: string;
+  company_id?: number;
+  environment_id?: number;
+  campaign_ids: string[];
+  slack_webhook_url?: string;
+  slack_channel?: string;
+  auto_classify?: boolean;
+  auto_generate_reply?: boolean;
+  active?: boolean;
+}
+
+export interface ReplyAutomationUpdate {
+  name?: string;
+  campaign_ids?: string[];
+  slack_webhook_url?: string;
+  slack_channel?: string;
+  auto_classify?: boolean;
+  auto_generate_reply?: boolean;
+  active?: boolean;
+}
+
+export interface ProcessedReply {
+  id: number;
+  automation_id: number | null;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  lead_email: string;
+  lead_first_name: string | null;
+  lead_last_name: string | null;
+  lead_company: string | null;
+  email_subject: string | null;
+  email_body: string | null;
+  reply_text: string | null;
+  received_at: string | null;
+  category: ReplyCategory | null;
+  category_confidence: string | null;
+  classification_reasoning: string | null;
+  draft_reply: string | null;
+  draft_subject: string | null;
+  processed_at: string;
+  sent_to_slack: boolean;
+  slack_sent_at: string | null;
+  created_at: string;
+}
+
+export interface ProcessedReplyStats {
+  total: number;
+  by_category: Record<string, number>;
+  today: number;
+  this_week: number;
+  sent_to_slack: number;
+}
+
+export interface SmartleadCampaign {
+  id: string;
+  name: string;
+  status?: string;
+  created_at?: string;
+}
+
+// API Functions
+
+// ============= Smartlead =============
+
+export async function getSmartleadCampaigns(): Promise<SmartleadCampaign[]> {
+  const response = await api.get('/smartlead/campaigns');
+  return response.data.campaigns || [];
+}
+
+export async function getCampaignLeads(campaignId: string, offset = 0, limit = 100) {
+  const response = await api.get(`/smartlead/campaigns/${campaignId}/leads`, {
+    params: { offset, limit }
+  });
+  return response.data;
+}
+
+export async function getCampaignStatistics(campaignId: string) {
+  const response = await api.get(`/smartlead/campaigns/${campaignId}/statistics`);
+  return response.data;
+}
+
+// ============= Reply Automations =============
+
+export async function getAutomations(activeOnly = true): Promise<ReplyAutomation[]> {
+  const response = await api.get('/replies/automations', {
+    params: { active_only: activeOnly }
+  });
+  return response.data.automations || [];
+}
+
+export async function getAutomation(id: number): Promise<ReplyAutomation> {
+  const response = await api.get(`/replies/automations/${id}`);
+  return response.data;
+}
+
+export async function createAutomation(data: ReplyAutomationCreate): Promise<ReplyAutomation> {
+  const response = await api.post('/replies/automations', data);
+  return response.data;
+}
+
+export async function updateAutomation(id: number, data: ReplyAutomationUpdate): Promise<ReplyAutomation> {
+  const response = await api.patch(`/replies/automations/${id}`, data);
+  return response.data;
+}
+
+export async function deleteAutomation(id: number): Promise<void> {
+  await api.delete(`/replies/automations/${id}`);
+}
+
+export async function testAutomationWebhook(id: number): Promise<{ success: boolean; message: string }> {
+  const response = await api.post(`/replies/automations/${id}/test-webhook`);
+  return response.data;
+}
+
+// ============= Processed Replies =============
+
+export async function getReplies(params: {
+  automation_id?: number;
+  campaign_id?: string;
+  category?: ReplyCategory;
+  page?: number;
+  page_size?: number;
+}): Promise<{ replies: ProcessedReply[]; total: number; page: number; page_size: number }> {
+  const response = await api.get('/replies/', { params });
+  return response.data;
+}
+
+export async function getReply(id: number): Promise<ProcessedReply> {
+  const response = await api.get(`/replies/${id}`);
+  return response.data;
+}
+
+export async function getReplyStats(params?: {
+  automation_id?: number;
+  campaign_id?: string;
+}): Promise<ProcessedReplyStats> {
+  const response = await api.get('/replies/stats', { params });
+  return response.data;
+}
+
+export async function resendNotification(replyId: number): Promise<{ success: boolean; message: string }> {
+  const response = await api.post(`/replies/${replyId}/resend-notification`);
+  return response.data;
+}
+
+// Export all functions as named object for consistency
+export const repliesApi = {
+  // Smartlead
+  getSmartleadCampaigns,
+  getCampaignLeads,
+  getCampaignStatistics,
+  // Automations
+  getAutomations,
+  getAutomation,
+  createAutomation,
+  updateAutomation,
+  deleteAutomation,
+  testAutomationWebhook,
+  // Replies
+  getReplies,
+  getReply,
+  getReplyStats,
+  resendNotification,
+};

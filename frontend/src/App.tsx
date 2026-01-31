@@ -6,6 +6,7 @@ import { TemplatesPage } from './pages/TemplatesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import KnowledgeBasePage from './pages/KnowledgeBasePage';
 import { AllProspectsPage } from './pages/AllProspectsPage';
+import { RepliesPage } from './pages/RepliesPage';
 
 function App() {
   return (
@@ -21,9 +22,17 @@ function App() {
               <Route path="data" element={<DatasetsPage />} />
               <Route path="prospects" element={<AllProspectsPage />} />
               <Route path="knowledge-base" element={<KnowledgeBasePage />} />
+              <Route path="replies" element={<RepliesPage />} />
               {/* Redirect root to data */}
               <Route path="" element={<Navigate to="data" replace />} />
             </Routes>
+          </Layout>
+        } />
+        
+        {/* Global replies page (not company-scoped) */}
+        <Route path="/replies" element={
+          <Layout>
+            <RepliesPage />
           </Layout>
         } />
         

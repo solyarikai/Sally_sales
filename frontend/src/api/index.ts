@@ -9,6 +9,7 @@ export { exportApi } from './export';
 export { integrationsApi } from './integrations';
 export * as knowledgeBaseApi from './knowledgeBase';
 export { prospectsApi } from './prospects';
+export { repliesApi } from './replies';
 export type { 
   Prospect, 
   ProspectsListResponse, 

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft } from 'lucide-react';
+import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft, MessageSquare } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -25,6 +25,7 @@ export function Layout({ children }: LayoutProps) {
     { path: `${companyPrefix}/data`, icon: Database, label: 'Data' },
     { path: `${companyPrefix}/prospects`, icon: Users, label: 'All Prospects' },
     { path: `${companyPrefix}/knowledge-base`, icon: BookOpen, label: 'Knowledge Base' },
+    { path: '/replies', icon: MessageSquare, label: 'Replies' },
     { path: '/templates', icon: FileText, label: 'Prompt Templates' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];

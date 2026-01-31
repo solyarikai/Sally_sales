@@ -43,6 +43,11 @@ function shouldSkipCompanyHeader(url: string | undefined): boolean {
     return true;
   }
   
+  // Reply automation is user-level (monitors across all campaigns)
+  if (url.startsWith('/replies') || url.startsWith('/smartlead')) {
+    return true;
+  }
+  
   return false;
 }
 
