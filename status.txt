@@ -1,0 +1,13 @@
+SMARTLEAD_INTEGRATION
+
+Phase 1 Complete:
+- Extended SmartleadService with get_campaign_leads, get_lead_by_email, get_email_thread methods
+- Created /api/smartlead/* endpoints (campaigns, leads, webhook)
+- Created ReplyAutomation and ProcessedReply models
+- Created reply schemas (Pydantic)
+- Created /api/replies/* endpoints (automations CRUD, replies list/stats)
+- Created reply_processor service (AI classification + draft generation)
+- Created notification_service (Slack webhooks)
+- Created Alembic migration for new tables
+
+Next: Phase 2 - Reply Processing (test AI classification)

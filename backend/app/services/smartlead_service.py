@@ -213,6 +213,154 @@ class SmartleadService:
             logger.error(f"Error fetching Smartlead campaign: {e}")
             return None
 
+    async def get_campaign_leads(
+        self, 
+        campaign_id: str, 
+        offset: int = 0, 
+        limit: int = 100
+    ) -> Dict[str, Any]:
+        """Get leads for a specific campaign.
+        
+        Args:
+            campaign_id: Campaign ID
+            offset: Pagination offset
+            limit: Number of leads to fetch
+            
+        Returns:
+            Dict with leads list and pagination info
+        """
+        if not self._api_key:
+            raise ValueError("API key not set")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{self.base_url}/campaigns/{campaign_id}/leads",
+                    params={
+                        "api_key": self._api_key,
+                        "offset": offset,
+                        "limit": limit
+                    }
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if isinstance(data, list):
+                        return {"leads": data, "total": len(data)}
+                    return data
+                else:
+                    logger.error(f"Failed to fetch campaign leads: {response.status_code}")
+                    return {"leads": [], "total": 0}
+        except Exception as e:
+            logger.error(f"Error fetching Smartlead campaign leads: {e}")
+            return {"leads": [], "total": 0}
+
+    async def get_lead_by_email(
+        self, 
+        campaign_id: str, 
+        email: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get a specific lead by email from a campaign.
+        
+        Args:
+            campaign_id: Campaign ID
+            email: Lead's email address
+            
+        Returns:
+            Lead object or None
+        """
+        if not self._api_key:
+            raise ValueError("API key not set")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{self.base_url}/campaigns/{campaign_id}/leads",
+                    params={
+                        "api_key": self._api_key,
+                        "email": email
+                    }
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    leads = data if isinstance(data, list) else data.get("leads", [])
+                    for lead in leads:
+                        if lead.get("email", "").lower() == email.lower():
+                            return lead
+                    return None
+                else:
+                    logger.error(f"Failed to fetch lead: {response.status_code}")
+                    return None
+        except Exception as e:
+            logger.error(f"Error fetching Smartlead lead: {e}")
+            return None
+
+    async def get_email_thread(
+        self, 
+        campaign_id: str, 
+        email: str
+    ) -> List[Dict[str, Any]]:
+        """Get email thread/conversation for a lead.
+        
+        Args:
+            campaign_id: Campaign ID
+            email: Lead's email address
+            
+        Returns:
+            List of email messages in the thread
+        """
+        if not self._api_key:
+            raise ValueError("API key not set")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Smartlead API endpoint for email history
+                response = await client.get(
+                    f"{self.base_url}/campaigns/{campaign_id}/leads/{email}/message-history",
+                    params={"api_key": self._api_key}
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if isinstance(data, list):
+                        return data
+                    return data.get("messages", data.get("history", []))
+                else:
+                    logger.error(f"Failed to fetch email thread: {response.status_code}")
+                    return []
+        except Exception as e:
+            logger.error(f"Error fetching email thread: {e}")
+            return []
+
+    async def get_campaign_statistics(self, campaign_id: str) -> Dict[str, Any]:
+        """Get statistics for a campaign.
+        
+        Args:
+            campaign_id: Campaign ID
+            
+        Returns:
+            Campaign statistics
+        """
+        if not self._api_key:
+            raise ValueError("API key not set")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{self.base_url}/campaigns/{campaign_id}/analytics",
+                    params={"api_key": self._api_key}
+                )
+                
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.error(f"Failed to fetch campaign statistics: {response.status_code}")
+                    return {}
+        except Exception as e:
+            logger.error(f"Error fetching campaign statistics: {e}")
+            return {}
+
 
 # Global instance
 smartlead_service = SmartleadService()

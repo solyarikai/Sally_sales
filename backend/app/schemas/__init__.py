@@ -76,6 +76,22 @@ from .prospect import (
     CORE_FIELDS,
     CORE_FIELD_NAMES,
 )
+from .reply import (
+    ReplyCategoryEnum,
+    ReplyAutomationBase,
+    ReplyAutomationCreate,
+    ReplyAutomationUpdate,
+    ReplyAutomationResponse,
+    ReplyAutomationListResponse,
+    ProcessedReplyBase,
+    ProcessedReplyResponse,
+    ProcessedReplyListResponse,
+    ProcessedReplyStats,
+    SmartleadWebhookPayload,
+    ClassificationResult,
+    DraftReplyResult,
+    ReplyProcessingResult,
+)
 
 __all__ = [
     # User & Company schemas
@@ -153,4 +169,19 @@ __all__ = [
     "GoogleSheetsExportRequest",
     "CORE_FIELDS",
     "CORE_FIELD_NAMES",
+    # Reply Automation schemas
+    "ReplyCategoryEnum",
+    "ReplyAutomationBase",
+    "ReplyAutomationCreate",
+    "ReplyAutomationUpdate",
+    "ReplyAutomationResponse",
+    "ReplyAutomationListResponse",
+    "ProcessedReplyBase",
+    "ProcessedReplyResponse",
+    "ProcessedReplyListResponse",
+    "ProcessedReplyStats",
+    "SmartleadWebhookPayload",
+    "ClassificationResult",
+    "DraftReplyResult",
+    "ReplyProcessingResult",
 ]

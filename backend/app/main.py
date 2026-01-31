@@ -14,6 +14,7 @@ from app.models import user  # noqa
 from app.models import dataset  # noqa
 from app.models import knowledge_base  # noqa
 from app.models import prospect  # noqa
+from app.models import reply  # noqa
 from app.models import User, Company
 
 # Configure logging

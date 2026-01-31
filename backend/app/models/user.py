@@ -106,6 +106,9 @@ class Company(Base):
     voice_tones = relationship("VoiceTone", back_populates="company", cascade="all, delete-orphan")
     booking_links = relationship("BookingLink", back_populates="company", cascade="all, delete-orphan")
     blocklist = relationship("Blocklist", back_populates="company", cascade="all, delete-orphan")
+    
+    # Reply Automation
+    reply_automations = relationship("ReplyAutomation", back_populates="company", cascade="all, delete-orphan")
 
 
 class UserActivityLog(Base):

@@ -6,6 +6,7 @@ from .knowledge_base import (
     Competitor, CaseStudy, VoiceTone, Blocklist, BookingLink
 )
 from .prospect import Prospect, ProspectActivity
+from .reply import ReplyAutomation, ProcessedReply, ReplyCategory
 
 __all__ = [
     # User & Multi-tenancy
@@ -17,5 +18,7 @@ __all__ = [
     "Product", "Segment", "SegmentColumn", "DEFAULT_SEGMENT_COLUMNS",
     "Competitor", "CaseStudy", "VoiceTone", "Blocklist", "BookingLink",
     # Prospects
-    "Prospect", "ProspectActivity"
+    "Prospect", "ProspectActivity",
+    # Reply Automation
+    "ReplyAutomation", "ProcessedReply", "ReplyCategory"
 ]
