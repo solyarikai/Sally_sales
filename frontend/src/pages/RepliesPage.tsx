@@ -742,7 +742,7 @@ function ReplyDetailPanel({ reply, onClose, onCopyDraft, onResend }: ReplyDetail
   );
 }
 
-// Create Automation Modal
+// Create Automation Modal - Chat-Style 4-Step Wizard
 interface CreateAutomationModalProps {
   campaigns: SmartleadCampaign[];
   campaignsLoading: boolean;
@@ -750,6 +750,45 @@ interface CreateAutomationModalProps {
   onClose: () => void;
   onCreated: () => void;
   onRetryCampaigns: () => void;
+}
+
+// Step indicator component
+function WizardSteps({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
+  const stepNames = ['Campaigns', 'Google Sheet', 'Slack', 'Review'];
+  return (
+    <div className="flex items-center justify-center gap-1 px-4 py-2 bg-neutral-50">
+      {Array.from({ length: totalSteps }).map((_, i) => {
+        const stepNum = i + 1;
+        const isComplete = stepNum < currentStep;
+        const isCurrent = stepNum === currentStep;
+        return (
+          <div key={stepNum} className="flex items-center gap-1">
+            <div className={cn(
+              "w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors",
+              isComplete && "bg-emerald-500 text-white",
+              isCurrent && "bg-violet-600 text-white",
+              !isComplete && !isCurrent && "bg-neutral-200 text-neutral-500"
+            )}>
+              {isComplete ? <Check className="w-4 h-4" /> : stepNum}
+            </div>
+            <span className={cn(
+              "text-xs hidden sm:block",
+              isCurrent && "text-violet-600 font-medium",
+              !isCurrent && "text-neutral-400"
+            )}>
+              {stepNames[i]}
+            </span>
+            {stepNum < totalSteps && (
+              <div className={cn(
+                "w-6 h-0.5 mx-1",
+                stepNum < currentStep ? "bg-emerald-500" : "bg-neutral-200"
+              )} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function CreateAutomationModal({ 
@@ -761,15 +800,42 @@ function CreateAutomationModal({
   onRetryCampaigns 
 }: CreateAutomationModalProps) {
   const [step, setStep] = useState(1);
+  const TOTAL_STEPS = 4;
+  
+  // Step 1: Campaign selection
   const [name, setName] = useState('');
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
+  const [searchCampaigns, setSearchCampaigns] = useState('');
+  
+  // Step 2: Google Sheets
+  const [createGoogleSheet, setCreateGoogleSheet] = useState(false);
+  const [shareSheetEmail, setShareSheetEmail] = useState('');
+  const [sheetsStatus, setSheetsStatus] = useState<GoogleSheetsStatus | null>(null);
+  const [loadingSheetsStatus, setLoadingSheetsStatus] = useState(false);
+  
+  // Step 3: Slack
   const [slackWebhook, setSlackWebhook] = useState('');
   const [slackChannel, setSlackChannel] = useState('');
+  const [testResult, setTestResult] = useState<{success: boolean; message: string} | null>(null);
+  
+  // Step 4: Review settings
   const [autoClassify, setAutoClassify] = useState(true);
   const [autoGenerateReply, setAutoGenerateReply] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [searchCampaigns, setSearchCampaigns] = useState('');
-  const [testResult, setTestResult] = useState<{success: boolean; message: string} | null>(null);
+
+  // Load Google Sheets status when entering step 2
+  useEffect(() => {
+    if (step === 2 && !sheetsStatus && !loadingSheetsStatus) {
+      setLoadingSheetsStatus(true);
+      repliesApi.getGoogleSheetsStatus()
+        .then(setSheetsStatus)
+        .catch(err => {
+          console.error('Failed to get Google Sheets status:', err);
+          setSheetsStatus({ configured: false, service_account_email: null, message: 'Failed to check status' });
+        })
+        .finally(() => setLoadingSheetsStatus(false));
+    }
+  }, [step, sheetsStatus, loadingSheetsStatus]);
 
   const filteredCampaigns = campaigns.filter(c => 
     c.name?.toLowerCase().includes(searchCampaigns.toLowerCase()) ||
@@ -786,6 +852,8 @@ function CreateAutomationModal({
         campaign_ids: selectedCampaigns,
         slack_webhook_url: slackWebhook || undefined,
         slack_channel: slackChannel || undefined,
+        create_google_sheet: createGoogleSheet,
+        share_sheet_with_email: shareSheetEmail || undefined,
         auto_classify: autoClassify,
         auto_generate_reply: autoGenerateReply,
         active: true,
@@ -804,13 +872,28 @@ function CreateAutomationModal({
   const handleTestWebhook = async () => {
     if (!slackWebhook) return;
     
-    // For testing, we need to create a temporary automation or call test endpoint directly
-    // For now, just validate the URL format
     if (!slackWebhook.startsWith('https://hooks.slack.com/')) {
       setTestResult({ success: false, message: 'Invalid Slack webhook URL format' });
       return;
     }
-    setTestResult({ success: true, message: 'URL format looks valid. Test after creation.' });
+    setTestResult({ success: true, message: 'URL format looks valid!' });
+  };
+
+  const canProceed = () => {
+    switch (step) {
+      case 1: return name.trim() && selectedCampaigns.length > 0;
+      case 2: return true; // Optional step
+      case 3: return true; // Optional step
+      case 4: return true;
+      default: return false;
+    }
+  };
+
+  const getSelectedCampaignNames = () => {
+    return selectedCampaigns
+      .map(id => campaigns.find(c => c.id === id)?.name || id)
+      .slice(0, 3)
+      .join(', ') + (selectedCampaigns.length > 3 ? ` +${selectedCampaigns.length - 3} more` : '');
   };
 
   return (
@@ -825,7 +908,7 @@ function CreateAutomationModal({
             </div>
             <div>
               <h2 className="text-lg font-semibold">Create Reply Automation</h2>
-              <p className="text-sm text-neutral-500">Step {step} of 3</p>
+              <p className="text-sm text-neutral-500">Configure your automation</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg">
@@ -833,10 +916,24 @@ function CreateAutomationModal({
           </button>
         </div>
 
+        {/* Step indicator */}
+        <WizardSteps currentStep={step} totalSteps={TOTAL_STEPS} />
+
         {/* Content */}
         <div className="flex-1 overflow-auto p-6">
+          {/* Step 1: Select Campaigns */}
           {step === 1 && (
             <div className="space-y-4">
+              <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <MessageSquare className="w-5 h-5 text-violet-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-violet-800 font-medium">Which campaigns should I monitor?</p>
+                    <p className="text-xs text-violet-600 mt-1">Select the Smartlead campaigns to track for incoming replies.</p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
                   Automation Name
@@ -853,7 +950,7 @@ function CreateAutomationModal({
 
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Select Smartlead Campaigns
+                  Select Campaigns
                 </label>
                 
                 {smartleadError ? (
@@ -889,7 +986,7 @@ function CreateAutomationModal({
                       />
                     </div>
                     
-                    <div className="border border-neutral-200 rounded-xl max-h-60 overflow-auto">
+                    <div className="border border-neutral-200 rounded-xl max-h-48 overflow-auto">
                       {filteredCampaigns.length === 0 ? (
                         <div className="p-4 text-center text-neutral-500 text-sm">
                           No campaigns found
@@ -910,7 +1007,7 @@ function CreateAutomationModal({
                                   setSelectedCampaigns(selectedCampaigns.filter(id => id !== campaign.id));
                                 }
                               }}
-                              className="rounded"
+                              className="rounded text-violet-600"
                             />
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium truncate">{campaign.name || campaign.id}</div>
@@ -923,7 +1020,7 @@ function CreateAutomationModal({
                       )}
                     </div>
                     {selectedCampaigns.length > 0 && (
-                      <div className="text-sm text-neutral-500 mt-2">
+                      <div className="text-sm text-violet-600 mt-2 font-medium">
                         {selectedCampaigns.length} campaign{selectedCampaigns.length !== 1 ? 's' : ''} selected
                       </div>
                     )}
@@ -933,11 +1030,126 @@ function CreateAutomationModal({
             </div>
           )}
 
+          {/* Step 2: Google Sheets */}
           {step === 2 && (
             <div className="space-y-4">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-emerald-800 font-medium">Want to log replies to a Google Sheet?</p>
+                    <p className="text-xs text-emerald-600 mt-1">I can create a new sheet and automatically log every reply for you.</p>
+                  </div>
+                </div>
+              </div>
+
+              {loadingSheetsStatus ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-5 h-5 animate-spin text-neutral-400" />
+                  <span className="ml-2 text-sm text-neutral-500">Checking Google Sheets status...</span>
+                </div>
+              ) : !sheetsStatus?.configured ? (
+                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-amber-800 font-medium">Google Sheets not configured</p>
+                      <p className="text-xs text-amber-600 mt-1">
+                        {sheetsStatus?.message || 'Set up service account credentials to enable this feature.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Choice cards */}
+                  <div 
+                    onClick={() => setCreateGoogleSheet(true)}
+                    className={cn(
+                      "p-4 rounded-xl border-2 cursor-pointer transition-all",
+                      createGoogleSheet 
+                        ? "border-emerald-500 bg-emerald-50" 
+                        : "border-neutral-200 hover:border-emerald-300"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                        createGoogleSheet ? "border-emerald-500 bg-emerald-500" : "border-neutral-300"
+                      )}>
+                        {createGoogleSheet && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-neutral-900">Create new Google Sheet</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">Automatically log all replies to a spreadsheet</p>
+                      </div>
+                      <FileSpreadsheet className="w-5 h-5 text-emerald-500" />
+                    </div>
+                  </div>
+
+                  <div 
+                    onClick={() => setCreateGoogleSheet(false)}
+                    className={cn(
+                      "p-4 rounded-xl border-2 cursor-pointer transition-all",
+                      !createGoogleSheet 
+                        ? "border-violet-500 bg-violet-50" 
+                        : "border-neutral-200 hover:border-violet-300"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                        !createGoogleSheet ? "border-violet-500 bg-violet-500" : "border-neutral-300"
+                      )}>
+                        {!createGoogleSheet && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-neutral-900">Skip for now</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">You can add a sheet later</p>
+                      </div>
+                      <SkipForward className="w-5 h-5 text-violet-500" />
+                    </div>
+                  </div>
+
+                  {/* Share email input - only show if creating sheet */}
+                  {createGoogleSheet && (
+                    <div className="mt-4 p-4 bg-neutral-50 rounded-xl">
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">
+                        Share sheet with (optional)
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="team@yourcompany.com"
+                        value={shareSheetEmail}
+                        onChange={(e) => setShareSheetEmail(e.target.value)}
+                        className="input w-full text-sm"
+                      />
+                      <p className="text-xs text-neutral-400 mt-1">
+                        The sheet will be shared with editor access
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 3: Slack */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <Bell className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-blue-800 font-medium">Where should I send notifications?</p>
+                    <p className="text-xs text-blue-600 mt-1">Get instant Slack alerts when new replies come in with approve/reject buttons.</p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Slack Webhook URL (optional)
+                  Slack Webhook URL
                 </label>
                 <input
                   type="url"
@@ -947,21 +1159,23 @@ function CreateAutomationModal({
                   className="input w-full"
                 />
                 <p className="text-xs text-neutral-400 mt-1">
-                  Get this from Slack App settings &gt; Incoming Webhooks
+                  Create an Incoming Webhook in your Slack workspace settings
                 </p>
                 {slackWebhook && (
                   <button 
+                    type="button"
                     onClick={handleTestWebhook}
-                    className="text-sm text-violet-600 mt-2"
+                    className="text-sm text-violet-600 hover:underline mt-2"
                   >
-                    Test webhook
+                    Validate URL format
                   </button>
                 )}
                 {testResult && (
                   <div className={cn(
-                    "mt-2 text-sm",
+                    "mt-2 text-sm flex items-center gap-1",
                     testResult.success ? "text-emerald-600" : "text-red-600"
                   )}>
+                    {testResult.success ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                     {testResult.message}
                   </div>
                 )}
@@ -969,68 +1183,99 @@ function CreateAutomationModal({
 
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Slack Channel (optional)
+                  Channel Name (optional)
                 </label>
-                <input
-                  type="text"
-                  placeholder="#sales-replies"
-                  value={slackChannel}
-                  onChange={(e) => setSlackChannel(e.target.value)}
-                  className="input w-full"
-                />
+                <div className="relative">
+                  <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                  <input
+                    type="text"
+                    placeholder="sales-replies"
+                    value={slackChannel}
+                    onChange={(e) => setSlackChannel(e.target.value)}
+                    className="input pl-9 w-full"
+                  />
+                </div>
+                <p className="text-xs text-neutral-400 mt-1">
+                  Just for display purposes (webhook already targets a channel)
+                </p>
               </div>
+
+              {!slackWebhook && (
+                <div className="p-3 bg-neutral-50 rounded-xl">
+                  <p className="text-xs text-neutral-500">
+                    <strong>Tip:</strong> You can skip this step and add Slack later. Replies will still be classified and stored.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
-          {step === 3 && (
-            <div className="space-y-6">
-              <div className="text-center py-4">
-                <div className="w-16 h-16 rounded-xl bg-violet-100 flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-8 h-8 text-violet-600" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Review & Create</h3>
-              </div>
-
-              <div className="space-y-4 p-4 bg-neutral-50 rounded-xl">
-                <div className="flex justify-between">
-                  <span className="text-neutral-600">Name</span>
-                  <span className="font-medium">{name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-neutral-600">Campaigns</span>
-                  <span className="font-medium">{selectedCampaigns.length} selected</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-neutral-600">Slack</span>
-                  <span className="font-medium">{slackWebhook ? 'Enabled' : 'Not configured'}</span>
+          {/* Step 4: Review & Activate */}
+          {step === 4 && (
+            <div className="space-y-4">
+              <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <Check className="w-5 h-5 text-violet-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-violet-800 font-medium">Ready to activate!</p>
+                    <p className="text-xs text-violet-600 mt-1">Review your settings and create the automation.</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 p-3 bg-neutral-50 rounded-xl cursor-pointer">
+              {/* Summary */}
+              <div className="border border-neutral-200 rounded-xl divide-y divide-neutral-100">
+                <div className="p-4">
+                  <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Name</div>
+                  <div className="font-medium">{name}</div>
+                </div>
+                <div className="p-4">
+                  <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Campaigns</div>
+                  <div className="font-medium text-sm">{getSelectedCampaignNames()}</div>
+                </div>
+                <div className="p-4 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Google Sheet</div>
+                    <div className="font-medium">{createGoogleSheet ? 'Create new sheet' : 'Not configured'}</div>
+                  </div>
+                  <FileSpreadsheet className={cn("w-5 h-5", createGoogleSheet ? "text-emerald-500" : "text-neutral-300")} />
+                </div>
+                <div className="p-4 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Slack Notifications</div>
+                    <div className="font-medium">{slackWebhook ? (slackChannel || 'Configured') : 'Not configured'}</div>
+                  </div>
+                  <Bell className={cn("w-5 h-5", slackWebhook ? "text-blue-500" : "text-neutral-300")} />
+                </div>
+              </div>
+
+              {/* AI Features toggles */}
+              <div className="space-y-2">
+                <p className="text-xs text-neutral-500 uppercase tracking-wide">AI Features</p>
+                <label className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-amber-500" />
+                    <span className="text-sm font-medium">Auto-classify replies</span>
+                  </div>
                   <input
                     type="checkbox"
                     checked={autoClassify}
                     onChange={(e) => setAutoClassify(e.target.checked)}
-                    className="rounded"
+                    className="rounded text-violet-600"
                   />
-                  <div>
-                    <div className="text-sm font-medium">Auto-classify replies</div>
-                    <div className="text-xs text-neutral-500">Use AI to categorize incoming replies</div>
-                  </div>
                 </label>
                 
-                <label className="flex items-center gap-3 p-3 bg-neutral-50 rounded-xl cursor-pointer">
+                <label className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-cyan-500" />
+                    <span className="text-sm font-medium">Generate draft replies</span>
+                  </div>
                   <input
                     type="checkbox"
                     checked={autoGenerateReply}
                     onChange={(e) => setAutoGenerateReply(e.target.checked)}
-                    className="rounded"
+                    className="rounded text-violet-600"
                   />
-                  <div>
-                    <div className="text-sm font-medium">Generate draft replies</div>
-                    <div className="text-xs text-neutral-500">AI will suggest response drafts</div>
-                  </div>
                 </label>
               </div>
             </div>
@@ -1042,16 +1287,17 @@ function CreateAutomationModal({
           {step > 1 && (
             <button 
               onClick={() => setStep(s => s - 1)}
-              className="btn btn-secondary flex-1"
+              className="btn btn-secondary"
             >
               Back
             </button>
           )}
-          {step < 3 ? (
+          <div className="flex-1" />
+          {step < TOTAL_STEPS ? (
             <button 
               onClick={() => setStep(s => s + 1)}
-              disabled={step === 1 && (!name || selectedCampaigns.length === 0)}
-              className="btn btn-primary flex-1"
+              disabled={!canProceed()}
+              className="btn btn-primary"
             >
               Continue
             </button>
@@ -1059,9 +1305,19 @@ function CreateAutomationModal({
             <button 
               onClick={handleCreate}
               disabled={isCreating}
-              className="btn btn-primary flex-1"
+              className="btn btn-primary"
             >
-              {isCreating ? 'Creating...' : 'Create Automation'}
+              {isCreating ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  Activate Automation
+                </>
+              )}
             </button>
           )}
         </div>

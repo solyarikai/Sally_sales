@@ -1,11 +1,27 @@
-CHAT_WIZARD
+ALL_COMPLETE
 
-Pending work - DO NOT STOP until all complete:
-1. Chat-style setup wizard - IN PROGRESS
-2. Google Sheets integration - PENDING
+All features implemented:
+
+1. Chat-style setup wizard - DONE
+   - 4-step wizard: Campaigns → Google Sheet → Slack → Review
+   - Visual step indicator with progress
+   - Chat-style prompts at each step
+   - Campaign search and multi-select
+   - Google Sheet create or skip option
+   - Slack webhook configuration
+   - Review summary before activation
+
+2. Google Sheets integration - DONE
+   - Service: backend/app/services/google_sheets_service.py
+   - Append-only operations (safety first)
+   - Creates new sheets with headers
+   - Automatic reply logging
+   - Share with email support
+   - Status check endpoint
 
 Previous phases DONE:
 - Slack notifications with buttons
 - AI classification
 - Draft generation
 - Approval workflow
+- Dashboard
