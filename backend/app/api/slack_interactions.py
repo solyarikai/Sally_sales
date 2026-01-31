@@ -99,14 +99,15 @@ async def handle_approve(reply_id: str, user_name: str, response_url: str, trigg
         await session.commit()
         
         draft_text = reply.draft_reply or "(No draft available)"
+        inbox_link = reply.inbox_link  # Get the Smartlead inbox link
     
     # Update the original message to show approved status
     if response_url:
         await update_message_with_status(response_url, "approved", user_name)
     
-    # Open success modal with draft to copy
+    # Open success modal with draft to copy and inbox link
     if trigger_id and SLACK_BOT_TOKEN:
-        await open_approval_modal(trigger_id, draft_text, reply_id)
+        await open_approval_modal(trigger_id, draft_text, reply_id, inbox_link)
     
     return JSONResponse(content={"ok": True})
 
@@ -280,47 +281,64 @@ async def update_message_with_status(response_url: str, status: str, user_name: 
             logger.error(f"Failed to update Slack message: {response.status_code}")
 
 
-async def open_approval_modal(trigger_id: str, draft_text: str, reply_id: str):
+async def open_approval_modal(trigger_id: str, draft_text: str, reply_id: str, inbox_link: str = None):
     """Open a modal showing approval success and the draft to copy."""
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "✅ *Reply Approved!*\n\nThe suggested reply has been marked as approved."
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "*Copy this draft to send in Smartlead:*"
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"```{draft_text[:2900]}```"  # Slack limit
+            }
+        }
+    ]
+    
+    # Add "Open Inbox" button if we have the inbox link
+    if inbox_link:
+        blocks.append({
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "📬 Open in Smartlead", "emoji": True},
+                    "url": inbox_link,
+                    "style": "primary"
+                }
+            ]
+        })
+    
+    blocks.append({
+        "type": "context",
+        "elements": [
+            {
+                "type": "mrkdwn",
+                "text": "⚠️ _Auto-send is disabled for safety. Please copy and send manually in Smartlead._"
+            }
+        ]
+    })
+    
     modal = {
         "type": "modal",
         "title": {"type": "plain_text", "text": "Reply Approved"},
         "close": {"type": "plain_text", "text": "Done"},
-        "blocks": [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "✅ *Reply Approved!*\n\nThe suggested reply has been marked as approved."
-                }
-            },
-            {
-                "type": "divider"
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "*Copy this draft to send in Smartlead:*"
-                }
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"```{draft_text[:2900]}```"  # Slack limit
-                }
-            },
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": "⚠️ _Auto-send is disabled for safety. Please copy and send manually in Smartlead._"
-                    }
-                ]
-            }
-        ]
+        "blocks": blocks
     }
     
     async with httpx.AsyncClient() as client:

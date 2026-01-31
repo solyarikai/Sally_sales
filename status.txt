@@ -1,46 +1,48 @@
 UX IMPROVEMENTS - IN PROGRESS
 
-## Session 3 Summary
+## Session 4 Summary
 
-### Implemented: Smartlead Inbox Link
+### Implemented: Enhanced Approval Modal with Inbox Link
 
-1. **Database Migration** - `202601310300_add_inbox_link.py`
-   - Added `inbox_link` column to `processed_replies` table
-   - Stores Smartlead's `ui_master_inbox_link` from webhook
+1. **Approval Modal** - `backend/app/api/slack_interactions.py`
+   - Modal now includes "📬 Open in Smartlead" button
+   - Button links directly to Smartlead inbox (uses inbox_link from webhook)
+   - Primary blue styling for visibility
+   - Only shown when inbox_link is available
 
-2. **Model Update** - `backend/app/models/reply.py`
-   - Added `inbox_link = Column(String(500), nullable=True)`
+2. **Test Endpoint Updated** - `backend/app/api/replies.py`
+   - Mock reply now includes `inbox_link` for testing
+   - Tests the full notification flow with clickable name and inbox button
 
-3. **Reply Processor** - `backend/app/services/reply_processor.py`
-   - Extracts `ui_master_inbox_link` from webhook payload
-   - Handles both nested format (`body.ui_master_inbox_link`) and flat format
-   - Stores link in ProcessedReply record
+### Current Slack Notification Features ✅
 
-4. **Notification Service** - `backend/app/services/notification_service.py`
-   - Lead name is now clickable link to Smartlead inbox (if available)
-   - Added "📬 Inbox" button that links directly to Smartlead
-   - Format: `🟢 Interested | <link|John Doe> @ Acme`
+1. **Concise Format:**
+   - Line 1: Emoji + Category + Name (clickable) + Company
+   - Line 2-3: Message preview (max 100 chars)
+   - Line 4-5: Draft preview
+   - Line 6: Action buttons
 
-5. **Schema Update** - `backend/app/schemas/reply.py`
-   - Added `inbox_link: Optional[str]` to response schema
+2. **Interactive Buttons:**
+   - OK (approve) - Primary green
+   - Edit - Opens modal to edit draft
+   - Skip (dismiss) - Marks as dismissed
+   - 📬 Inbox - Links directly to Smartlead inbox
 
-### Slack Notification Format (Updated)
+3. **Approval Modal:**
+   - Shows success message
+   - Displays draft in code block for easy copy
+   - "📬 Open in Smartlead" button (when inbox_link available)
+   - Safety warning about manual send
 
-```
-🟢 Interested | John Doe @ Acme     ← Name is clickable link to inbox
-> "Message preview..."
-💡 "Draft preview..."
-[✅ OK] [✏️ Edit] [Skip] [📬 Inbox]  ← Inbox button links to Smartlead
-```
-
-### Already Working (from Session 2) ✅
+### Already Implemented (Sessions 2-3) ✅
 
 - Slack Bot Token integration
 - AI Classification with OpenAI gpt-4o-mini
 - Draft reply generation
 - Interactive buttons (Approve/Edit/Dismiss)
-- Approval modal with draft to copy
+- Edit modal to modify drafts
 - Database with approval workflow fields
+- inbox_link storage from webhook payload
 
 ### Safety Rules ✅
 
@@ -48,9 +50,20 @@ UX IMPROVEMENTS - IN PROGRESS
 - [x] No auto-send: Drafts only, manual copy required
 - [x] Slack: Using Bot Token (not just webhooks)
 
+### UX Improvements Checklist
+
+- [x] Slack notifications have Approve/Edit/Dismiss buttons
+- [x] Lead name is clickable link to Smartlead inbox
+- [x] "📬 Inbox" button in notification links to Smartlead
+- [x] Clicking Approve shows success modal + draft to copy
+- [x] Approval modal has "Open in Smartlead" button
+- [x] Dashboard shows reply status (pending/approved/dismissed)
+- [ ] Chat-style setup wizard (P2 - future)
+- [ ] Google Sheets integration (P2 - future)
+
 ### Next Steps
 
-1. Run migration: `alembic upgrade head`
-2. Restart backend
-3. Test with simulated reply including `ui_master_inbox_link`
-4. Verify inbox link appears in Slack notification
+1. Test end-to-end flow with simulated webhook
+2. Verify inbox link appears in Slack notification
+3. Test approval flow and modal
+4. Consider adding chat-style setup wizard (P2)

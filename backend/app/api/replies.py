@@ -38,7 +38,7 @@ async def test_notification():
 
 @router.post("/test-full-notification")
 async def test_full_notification():
-    """Test a full reply notification with sample data."""
+    """Test a full reply notification with sample data including inbox link."""
     # Create a mock reply object for testing
     class MockReply:
         id = 999
@@ -55,6 +55,8 @@ async def test_full_notification():
         campaign_name = "Test Campaign"
         category_confidence = "high"
         classification_reasoning = "User explicitly expresses interest and asks for a call"
+        # Smartlead inbox link for direct access
+        inbox_link = "https://app.smartlead.ai/app/master-inbox/123456"
     
     mock_reply = MockReply()
     
