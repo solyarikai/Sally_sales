@@ -173,6 +173,37 @@ export async function resendNotification(replyId: number): Promise<{ success: bo
   return response.data;
 }
 
+// ============= Testing =============
+
+export interface SimulateReplyPayload {
+  campaign_id?: string;
+  campaign_name?: string;
+  lead_email: string;
+  first_name?: string;
+  last_name?: string;
+  company_name?: string;
+  email_subject?: string;
+  email_body: string;
+}
+
+export interface SimulateReplyResponse {
+  success: boolean;
+  reply_id?: number;
+  category?: ReplyCategory;
+  confidence?: string;
+  reasoning?: string;
+  draft_subject?: string;
+  draft_reply?: string;
+  sent_to_slack?: boolean;
+  error?: string;
+  message?: string;
+}
+
+export async function simulateReply(payload: SimulateReplyPayload): Promise<SimulateReplyResponse> {
+  const response = await api.post('/smartlead/simulate-reply', payload);
+  return response.data;
+}
+
 // Export all functions as named object for consistency
 export const repliesApi = {
   // Smartlead
@@ -191,4 +222,6 @@ export const repliesApi = {
   getReply,
   getReplyStats,
   resendNotification,
+  // Testing
+  simulateReply,
 };

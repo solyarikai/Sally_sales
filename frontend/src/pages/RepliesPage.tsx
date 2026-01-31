@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { 
   MessageSquare, Search, RefreshCw, Plus, Settings2, 
   Send, Bell, X, Copy, ChevronDown, Check, AlertCircle,
-  Zap, Hash, Calendar, Clock, ExternalLink, Mail, Building2
+  Zap, Hash, Calendar, Clock, ExternalLink, Mail, Building2,
+  TestTube2
 } from 'lucide-react';
 import { 
   repliesApi, 
@@ -11,7 +12,9 @@ import {
   type ReplyAutomation,
   type ReplyCategory,
   type SmartleadCampaign,
-  type ReplyAutomationCreate
+  type ReplyAutomationCreate,
+  type SimulateReplyPayload,
+  type SimulateReplyResponse
 } from '../api/replies';
 import { cn, formatNumber } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -49,6 +52,7 @@ export function RepliesPage() {
   // UI state
   const [selectedReply, setSelectedReply] = useState<ProcessedReply | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showTestModal, setShowTestModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -207,6 +211,10 @@ export function RepliesPage() {
           <div className="flex items-center gap-2">
             <button onClick={handleRefresh} className="btn btn-secondary btn-sm">
               <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+            </button>
+            <button onClick={() => setShowTestModal(true)} className="btn btn-secondary">
+              <TestTube2 className="w-4 h-4" />
+              Test Reply
             </button>
             <button onClick={() => { loadCampaigns(); setShowCreateModal(true); }} className="btn btn-primary">
               <Plus className="w-4 h-4" />
@@ -432,6 +440,17 @@ export function RepliesPage() {
             loadAutomations();
           }}
           onRetryCampaigns={loadCampaigns}
+        />
+      )}
+
+      {/* Test Reply Modal */}
+      {showTestModal && (
+        <TestReplyModal
+          onClose={() => setShowTestModal(false)}
+          onSuccess={() => {
+            setShowTestModal(false);
+            handleRefresh();
+          }}
         />
       )}
 
@@ -1042,6 +1061,301 @@ function CreateAutomationModal({
               className="btn btn-primary flex-1"
             >
               {isCreating ? 'Creating...' : 'Create Automation'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Test Reply Modal
+interface TestReplyModalProps {
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function TestReplyModal({ onClose, onSuccess }: TestReplyModalProps) {
+  const [formData, setFormData] = useState<SimulateReplyPayload>({
+    lead_email: 'test@example.com',
+    first_name: 'John',
+    last_name: 'Doe',
+    company_name: 'Acme Corp',
+    email_subject: 'Re: Your offer',
+    email_body: "I'm interested in learning more about your services. Could you tell me more about pricing?"
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [result, setResult] = useState<SimulateReplyResponse | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.lead_email || !formData.email_body) return;
+
+    setIsSubmitting(true);
+    setResult(null);
+    
+    try {
+      const response = await repliesApi.simulateReply(formData);
+      setResult(response);
+    } catch (err: any) {
+      setResult({ 
+        success: false, 
+        error: err.response?.data?.detail || err.message || 'Failed to simulate reply'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const categoryConfig = result?.category ? CATEGORY_CONFIG[result.category] : null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center">
+              <TestTube2 className="w-5 h-5 text-cyan-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Test Reply Classification</h2>
+              <p className="text-sm text-neutral-500">Simulate an incoming email reply</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-auto p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  value={formData.lead_email}
+                  onChange={(e) => setFormData(prev => ({ ...prev, lead_email: e.target.value }))}
+                  className="input w-full"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Company
+                </label>
+                <input
+                  type="text"
+                  value={formData.company_name || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
+                  className="input w-full"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.first_name || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, first_name: e.target.value }))}
+                  className="input w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.last_name || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, last_name: e.target.value }))}
+                  className="input w-full"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">
+                Subject
+              </label>
+              <input
+                type="text"
+                value={formData.email_subject || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, email_subject: e.target.value }))}
+                className="input w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">
+                Reply Body *
+              </label>
+              <textarea
+                value={formData.email_body}
+                onChange={(e) => setFormData(prev => ({ ...prev, email_body: e.target.value }))}
+                className="input w-full h-32 resize-none"
+                placeholder="Enter the email reply text to classify..."
+                required
+              />
+            </div>
+
+            {/* Quick test examples */}
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs text-neutral-500">Quick tests:</span>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ 
+                  ...prev, 
+                  email_body: "I'm interested in learning more about your services. Could you send me pricing information?"
+                }))}
+                className="text-xs px-2 py-1 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100"
+              >
+                Interested
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ 
+                  ...prev, 
+                  email_body: "Can we schedule a call this week? I'd like to discuss this further."
+                }))}
+                className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+              >
+                Meeting Request
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ 
+                  ...prev, 
+                  email_body: "Thanks for reaching out, but we're not interested at this time."
+                }))}
+                className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100"
+              >
+                Not Interested
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ 
+                  ...prev, 
+                  email_body: "I'm currently out of the office until next Monday. I'll respond when I return."
+                }))}
+                className="text-xs px-2 py-1 bg-amber-50 text-amber-600 rounded hover:bg-amber-100"
+              >
+                Out of Office
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ 
+                  ...prev, 
+                  email_body: "Please remove me from your mailing list. Unsubscribe."
+                }))}
+                className="text-xs px-2 py-1 bg-neutral-100 text-neutral-600 rounded hover:bg-neutral-200"
+              >
+                Unsubscribe
+              </button>
+            </div>
+
+            <button 
+              type="submit"
+              disabled={isSubmitting || !formData.email_body}
+              className="btn btn-primary w-full"
+            >
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <TestTube2 className="w-4 h-4" />
+                  Classify Reply
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Results */}
+          {result && (
+            <div className="mt-6 space-y-4">
+              <div className="border-t border-neutral-200 pt-4">
+                <h3 className="font-semibold text-neutral-900 mb-3">Classification Result</h3>
+                
+                {result.success ? (
+                  <div className="space-y-4">
+                    {/* Category badge */}
+                    <div className="flex items-center gap-3">
+                      <span className={cn(
+                        "px-3 py-1.5 rounded-full text-sm font-medium border",
+                        categoryConfig?.color || 'bg-neutral-100'
+                      )}>
+                        {categoryConfig?.emoji} {categoryConfig?.label || result.category}
+                      </span>
+                      <span className="text-sm text-neutral-500">
+                        {result.confidence} confidence
+                      </span>
+                    </div>
+
+                    {/* Reasoning */}
+                    {result.reasoning && (
+                      <div className="p-3 bg-violet-50 rounded-xl border border-violet-100">
+                        <div className="text-xs font-medium text-violet-600 mb-1">AI Reasoning</div>
+                        <div className="text-sm text-violet-800">{result.reasoning}</div>
+                      </div>
+                    )}
+
+                    {/* Draft reply */}
+                    {result.draft_reply && (
+                      <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                        <div className="text-xs font-medium text-emerald-600 mb-1">Suggested Draft</div>
+                        {result.draft_subject && (
+                          <div className="text-sm font-medium text-emerald-800 mb-1">{result.draft_subject}</div>
+                        )}
+                        <div className="text-sm text-emerald-700 whitespace-pre-wrap">{result.draft_reply}</div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-sm text-neutral-500">
+                      <span>Reply ID: {result.reply_id}</span>
+                      {result.sent_to_slack && (
+                        <span className="flex items-center gap-1 text-emerald-600">
+                          <Check className="w-3 h-3" />
+                          Sent to Slack
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-medium text-red-700">Classification Failed</div>
+                        <div className="text-sm text-red-600">{result.error || result.message}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-neutral-200 flex gap-3">
+          <button onClick={onClose} className="btn btn-secondary flex-1">
+            Close
+          </button>
+          {result?.success && (
+            <button onClick={onSuccess} className="btn btn-primary flex-1">
+              View in Dashboard
             </button>
           )}
         </div>

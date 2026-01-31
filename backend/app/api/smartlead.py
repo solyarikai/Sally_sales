@@ -202,3 +202,92 @@ async def receive_webhook(
     )
     
     return {"status": "received", "message": "Webhook processed"}
+
+
+class SimulateReplyPayload(BaseModel):
+    """Payload for simulating a reply (for testing)."""
+    campaign_id: Optional[str] = None
+    campaign_name: Optional[str] = "Test Campaign"
+    lead_email: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    company_name: Optional[str] = None
+    email_subject: Optional[str] = "Re: Test Subject"
+    email_body: str
+    
+    class Config:
+        extra = "allow"
+
+
+@router.post("/simulate-reply")
+async def simulate_reply(
+    payload: SimulateReplyPayload,
+    session: AsyncSession = Depends(get_session)
+):
+    """Simulate an incoming reply for testing purposes.
+    
+    This endpoint processes a simulated reply synchronously
+    and returns the classification and draft reply immediately.
+    Use this to test the AI classification and draft generation
+    without needing actual Smartlead webhooks.
+    
+    Example request:
+    ```json
+    {
+        "lead_email": "test@example.com",
+        "first_name": "John",
+        "last_name": "Doe",
+        "company_name": "Acme Corp",
+        "email_subject": "Re: Your offer",
+        "email_body": "I'm interested in learning more about your services."
+    }
+    ```
+    """
+    logger.info(f"Simulating reply from: {payload.lead_email}")
+    
+    # Import here to avoid circular imports
+    from app.services.reply_processor import process_reply_webhook
+    
+    # Build webhook-like payload
+    webhook_payload = {
+        "event_type": "simulated_reply",
+        "campaign_id": payload.campaign_id,
+        "campaign_name": payload.campaign_name,
+        "lead_email": payload.lead_email,
+        "first_name": payload.first_name,
+        "last_name": payload.last_name,
+        "company_name": payload.company_name,
+        "email_subject": payload.email_subject,
+        "email_body": payload.email_body,
+        "reply_text": payload.email_body,
+    }
+    
+    try:
+        # Process synchronously for immediate feedback
+        processed_reply = await process_reply_webhook(
+            payload=webhook_payload,
+            session=session
+        )
+        
+        if processed_reply:
+            return {
+                "success": True,
+                "reply_id": processed_reply.id,
+                "category": processed_reply.category,
+                "confidence": processed_reply.category_confidence,
+                "reasoning": processed_reply.classification_reasoning,
+                "draft_subject": processed_reply.draft_subject,
+                "draft_reply": processed_reply.draft_reply,
+                "sent_to_slack": processed_reply.sent_to_slack
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to process reply"
+            }
+    except Exception as e:
+        logger.error(f"Error simulating reply: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
