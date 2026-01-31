@@ -1,3 +1,15 @@
+# ⚠️ PRIORITY: READ TESTING_PRIORITY.md FIRST
+
+**Current Phase: TESTING**
+
+Before doing anything else:
+1. Read TESTING_PRIORITY.md
+2. Fix Slack notification to use BOT TOKEN (not webhook)
+3. Test end-to-end flow
+4. Slack Channel: #c-replies-test (ID: C09REGUQWTG)
+
+---
+
 # Reply Automation Feature
 
 ## Overview

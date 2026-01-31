@@ -269,11 +269,14 @@ async def process_reply_webhook(
         await session.flush()
         
         # Send Slack notification if automation configured
-        if automation_id and automation.slack_webhook_url:
+        if automation_id:
             from app.services.notification_service import send_slack_notification
+            # Use channel from automation or default test channel
+            channel_id = automation.slack_channel or "C09REGUQWTG"
             slack_sent = await send_slack_notification(
-                webhook_url=automation.slack_webhook_url,
-                reply=processed_reply
+                channel_id=channel_id,
+                reply=processed_reply,
+                webhook_url=automation.slack_webhook_url  # Fallback
             )
             if slack_sent:
                 processed_reply.sent_to_slack = True

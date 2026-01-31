@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     
     # Database - PostgreSQL (use SQLite for fallback: sqlite+aiosqlite:///./leadgen.db)
-    DATABASE_URL: str = "postgresql+asyncpg://leadgen:leadgen_secret@localhost:5432/leadgen"
+    DATABASE_URL: str = "postgresql+asyncpg://leadgen:leadgen_secret@leadgen-postgres:5432/leadgen"
     
     # Database pool settings
     DB_POOL_SIZE: int = 5
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     DB_POOL_TIMEOUT: int = 30
     
     # Redis - for caching and rate limiting
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str = "redis://leadgen-redis:6379/0"
     CACHE_TTL_DEFAULT: int = 300  # 5 minutes
     CACHE_TTL_SHORT: int = 60     # 1 minute
     CACHE_TTL_LONG: int = 3600    # 1 hour

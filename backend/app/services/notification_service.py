@@ -1,9 +1,13 @@
 """Notification service for sending alerts to Slack and other channels."""
+import os
 import httpx
 import logging
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
+
+# Slack Bot Token from environment
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 
 
 # Category emoji mapping
@@ -128,41 +132,54 @@ def format_slack_message(reply) -> Dict[str, Any]:
 
 
 async def send_slack_notification(
-    webhook_url: str,
+    channel_id: str,
     reply,
-    channel: Optional[str] = None
+    webhook_url: Optional[str] = None
 ) -> bool:
-    """Send a notification to Slack webhook.
+    """Send a notification to Slack using Bot Token API.
     
     Args:
-        webhook_url: Slack incoming webhook URL
-        reply: ProcessedReply model instance
-        channel: Optional channel override
+        channel_id: Slack channel ID (e.g., C09REGUQWTG)
+        reply: ProcessedReply model instance or dict with reply data
+        webhook_url: Optional fallback webhook URL (deprecated)
         
     Returns:
         True if sent successfully
     """
-    if not webhook_url:
-        logger.warning("No Slack webhook URL provided")
+    if not SLACK_BOT_TOKEN:
+        logger.warning("No SLACK_BOT_TOKEN configured in environment")
+        # Fallback to webhook if available
+        if webhook_url:
+            return await send_slack_via_webhook(webhook_url, reply)
         return False
     
     try:
         message = format_slack_message(reply)
         
-        if channel:
-            message["channel"] = channel
+        payload = {
+            "channel": channel_id,
+            "text": message.get("text", "New email reply"),
+            "blocks": message.get("blocks", [])
+        }
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
-                webhook_url,
-                json=message
+                "https://slack.com/api/chat.postMessage",
+                headers={
+                    "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+                    "Content-Type": "application/json"
+                },
+                json=payload
             )
             
-            if response.status_code == 200:
-                logger.info(f"Slack notification sent for reply {reply.id}")
+            result = response.json()
+            
+            if result.get("ok"):
+                reply_id = getattr(reply, 'id', 'unknown')
+                logger.info(f"Slack notification sent for reply {reply_id}")
                 return True
             else:
-                logger.error(f"Slack notification failed: {response.status_code} - {response.text}")
+                logger.error(f"Slack API error: {result.get('error')}")
                 return False
                 
     except Exception as e:
@@ -170,44 +187,111 @@ async def send_slack_notification(
         return False
 
 
-async def send_test_notification(webhook_url: str) -> Dict[str, Any]:
-    """Send a test notification to verify webhook is working.
+async def send_slack_via_webhook(webhook_url: str, reply) -> bool:
+    """Fallback: Send notification via webhook URL.
     
     Args:
         webhook_url: Slack incoming webhook URL
+        reply: ProcessedReply model instance
         
     Returns:
-        Result dict with success status and message
+        True if sent successfully
     """
+    if not webhook_url:
+        return False
+    
     try:
-        message = {
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "✅ Test Notification",
-                        "emoji": True
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": "Your Reply Automation webhook is configured correctly!"
-                    }
-                }
-            ],
-            "text": "Test notification - Reply Automation webhook is working!"
-        }
+        message = format_slack_message(reply)
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(webhook_url, json=message)
             
             if response.status_code == 200:
-                return {"success": True, "message": "Test notification sent successfully"}
+                reply_id = getattr(reply, 'id', 'unknown')
+                logger.info(f"Slack webhook notification sent for reply {reply_id}")
+                return True
             else:
-                return {"success": False, "message": f"Slack returned: {response.status_code}"}
+                logger.error(f"Slack webhook failed: {response.status_code} - {response.text}")
+                return False
                 
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        logger.error(f"Error sending Slack webhook: {e}")
+        return False
+
+
+async def send_test_notification(channel_id: str = "C09REGUQWTG", webhook_url: Optional[str] = None) -> Dict[str, Any]:
+    """Send a test notification to verify Slack integration is working.
+    
+    Args:
+        channel_id: Slack channel ID (default: #c-replies-test)
+        webhook_url: Optional fallback webhook URL
+        
+    Returns:
+        Result dict with success status and message
+    """
+    message = {
+        "blocks": [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "✅ Test Notification",
+                    "emoji": True
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Your Reply Automation is configured correctly! 🎉"
+                }
+            }
+        ],
+        "text": "Test notification - Reply Automation is working!"
+    }
+    
+    # Try Bot Token first
+    if SLACK_BOT_TOKEN:
+        try:
+            payload = {
+                "channel": channel_id,
+                "text": message["text"],
+                "blocks": message["blocks"]
+            }
+            
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    "https://slack.com/api/chat.postMessage",
+                    headers={
+                        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+                        "Content-Type": "application/json"
+                    },
+                    json=payload
+                )
+                
+                result = response.json()
+                
+                if result.get("ok"):
+                    return {"success": True, "message": "Test notification sent successfully via Bot Token"}
+                else:
+                    error = result.get("error", "Unknown error")
+                    return {"success": False, "message": f"Slack API error: {error}"}
+                    
+        except Exception as e:
+            return {"success": False, "message": f"Error: {str(e)}"}
+    
+    # Fallback to webhook
+    if webhook_url:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(webhook_url, json=message)
+                
+                if response.status_code == 200:
+                    return {"success": True, "message": "Test notification sent via webhook"}
+                else:
+                    return {"success": False, "message": f"Slack returned: {response.status_code}"}
+                    
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
+    return {"success": False, "message": "No SLACK_BOT_TOKEN configured and no webhook URL provided"}

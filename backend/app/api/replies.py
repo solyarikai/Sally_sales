@@ -18,11 +18,55 @@ from app.schemas.reply import (
     ProcessedReplyListResponse,
     ProcessedReplyStats,
 )
-from app.services.notification_service import send_test_notification
+from app.services.notification_service import send_test_notification, send_slack_notification
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/replies", tags=["replies"])
+
+
+# ============= Test Endpoints =============
+
+@router.post("/test-notification")
+async def test_notification():
+    """Test the Slack notification with sample data to #c-replies-test channel."""
+    from app.services.notification_service import send_test_notification
+    
+    result = await send_test_notification(channel_id="C09REGUQWTG")
+    return {"slack_response": result}
+
+
+@router.post("/test-full-notification")
+async def test_full_notification():
+    """Test a full reply notification with sample data."""
+    # Create a mock reply object for testing
+    class MockReply:
+        id = 999
+        category = "interested"
+        lead_email = "test@example.com"
+        lead_first_name = "John"
+        lead_last_name = "Doe"
+        lead_company = "Example Corp"
+        email_subject = "Re: Partnership Opportunity"
+        email_body = "Hi, I am very interested in learning more about your services. When can we schedule a call?"
+        reply_text = None
+        draft_reply = "Thank you for your interest! I'd be happy to schedule a call. What times work best for you this week?"
+        campaign_id = "test-campaign"
+        campaign_name = "Test Campaign"
+        category_confidence = "high"
+        classification_reasoning = "User explicitly expresses interest and asks for a call"
+    
+    mock_reply = MockReply()
+    
+    success = await send_slack_notification(
+        channel_id="C09REGUQWTG",
+        reply=mock_reply
+    )
+    
+    return {
+        "success": success,
+        "message": "Full notification sent" if success else "Failed to send notification"
+    }
 
 
 # ============= Reply Automations =============
@@ -337,26 +381,30 @@ async def resend_notification(
     if not reply:
         raise HTTPException(status_code=404, detail="Reply not found")
     
-    # Get automation for webhook URL
+    # Get automation for channel/webhook config
+    channel_id = "C09REGUQWTG"  # Default test channel
+    webhook_url = None
+    
     if reply.automation_id:
         auto_result = await session.execute(
             select(ReplyAutomation).where(ReplyAutomation.id == reply.automation_id)
         )
         automation = auto_result.scalar_one_or_none()
         
-        if automation and automation.slack_webhook_url:
-            from app.services.notification_service import send_slack_notification
-            success = await send_slack_notification(
-                webhook_url=automation.slack_webhook_url,
-                reply=reply
-            )
-            
-            if success:
-                reply.sent_to_slack = True
-                reply.slack_sent_at = datetime.utcnow()
-                await session.flush()
-                return {"success": True, "message": "Notification sent"}
-            else:
-                return {"success": False, "message": "Failed to send notification"}
+        if automation:
+            channel_id = automation.slack_channel or channel_id
+            webhook_url = automation.slack_webhook_url
     
-    return {"success": False, "message": "No webhook configured for this reply"}
+    success = await send_slack_notification(
+        channel_id=channel_id,
+        reply=reply,
+        webhook_url=webhook_url
+    )
+    
+    if success:
+        reply.sent_to_slack = True
+        reply.slack_sent_at = datetime.utcnow()
+        await session.flush()
+        return {"success": True, "message": "Notification sent"}
+    else:
+        return {"success": False, "message": "Failed to send notification"}
