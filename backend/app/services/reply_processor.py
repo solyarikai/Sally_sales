@@ -213,6 +213,13 @@ async def process_reply_webhook(
         subject = payload.get("email_subject", "")
         body = payload.get("email_body") or payload.get("reply_text", "")
         
+        # Extract inbox link from nested webhook body (Smartlead format)
+        inbox_link = None
+        if "body" in payload and isinstance(payload["body"], dict):
+            inbox_link = payload["body"].get("ui_master_inbox_link")
+        elif "ui_master_inbox_link" in payload:
+            inbox_link = payload.get("ui_master_inbox_link")
+        
         if not lead_email:
             logger.warning("No lead_email in webhook payload, skipping")
             return None
@@ -262,6 +269,7 @@ async def process_reply_webhook(
             classification_reasoning=classification["reasoning"],
             draft_reply=draft["body"],
             draft_subject=draft["subject"],
+            inbox_link=inbox_link,  # Smartlead master inbox link
             raw_webhook_data=payload
         )
         

@@ -104,6 +104,9 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
     
+    # Smartlead inbox link
+    inbox_link: Optional[str] = None
+    
     created_at: datetime
     
     class Config:

@@ -1,81 +1,56 @@
-TESTING - E2E VERIFIED ✅
+UX IMPROVEMENTS - IN PROGRESS
 
-## Session 2 Summary
+## Session 3 Summary
 
-### Tested & Verified ✅
+### Implemented: Smartlead Inbox Link
 
-1. **Slack Bot Token Integration - WORKING**
-   - SLACK_BOT_TOKEN in .env: `xoxb-5059703821363-...`
-   - Test channel: #c-replies-test (ID: C09REGUQWTG)
-   - `POST /api/replies/test-notification` → "Test notification sent successfully via Bot Token" ✅
-   - `POST /api/replies/test-full-notification` → "Full notification sent" ✅
+1. **Database Migration** - `202601310300_add_inbox_link.py`
+   - Added `inbox_link` column to `processed_replies` table
+   - Stores Smartlead's `ui_master_inbox_link` from webhook
 
-2. **AI Classification - WORKING**
-   - OpenAI gpt-4o-mini classifies replies accurately
-   - Test: "interested in learning more + schedule call" → `meeting_request` (high confidence) ✅
-   - Categories: interested, meeting_request, not_interested, out_of_office, question, etc.
+2. **Model Update** - `backend/app/models/reply.py`
+   - Added `inbox_link = Column(String(500), nullable=True)`
 
-3. **Draft Generation - WORKING**
-   - Generates professional reply drafts based on category
-   - Includes placeholder for sender name/contact info
-   - Skips draft for out_of_office (no reply needed)
+3. **Reply Processor** - `backend/app/services/reply_processor.py`
+   - Extracts `ui_master_inbox_link` from webhook payload
+   - Handles both nested format (`body.ui_master_inbox_link`) and flat format
+   - Stores link in ProcessedReply record
 
-4. **Database - WORKING**
-   - 25 replies processed and stored
-   - Stats endpoint shows category breakdown
-   - Approval workflow fields in schema
+4. **Notification Service** - `backend/app/services/notification_service.py`
+   - Lead name is now clickable link to Smartlead inbox (if available)
+   - Added "📬 Inbox" button that links directly to Smartlead
+   - Format: `🟢 Interested | <link|John Doe> @ Acme`
 
-### Code Change Deployed
+5. **Schema Update** - `backend/app/schemas/reply.py`
+   - Added `inbox_link: Optional[str]` to response schema
 
-**File:** `backend/app/services/reply_processor.py`
+### Slack Notification Format (Updated)
 
-**Change:** Always send Slack notification when processing replies (not just when automation configured)
-- Before: Only sent if `automation_id` was set
-- After: Defaults to #c-replies-test channel if no automation
-- **Status:** Deployed, awaiting server restart to activate
-
-### After Server Restart
-
-Will enable:
-1. `POST /api/smartlead/simulate-reply` sends Slack notification with buttons
-2. `POST /api/slack/interactions` handles Approve/Edit/Dismiss clicks
-3. End-to-end flow from webhook → AI → Slack with buttons → approve/edit
-
-### Test Results
-
-```bash
-# Slack notification - WORKING ✅
-curl -X POST localhost:8000/api/replies/test-full-notification
-{"success": true, "message": "Full notification sent"}
-
-# AI classification - WORKING ✅  
-curl -X POST localhost:8000/api/smartlead/simulate-reply \
-  -d '{"lead_email":"john@acme.com","email_body":"Interested in a call!"}'
-{"success": true, "category": "meeting_request", "confidence": "high", 
- "draft_reply": "Hi John, Thank you for your interest..."}
-
-# Stats - WORKING ✅
-curl localhost:8000/api/replies/stats
-{"total": 25, "by_category": {"meeting_request": 2, "question": 1, ...}}
+```
+🟢 Interested | John Doe @ Acme     ← Name is clickable link to inbox
+> "Message preview..."
+💡 "Draft preview..."
+[✅ OK] [✏️ Edit] [Skip] [📬 Inbox]  ← Inbox button links to Smartlead
 ```
 
-### Next Steps
+### Already Working (from Session 2) ✅
 
-1. **Restart backend** (requires root/sudo):
-   ```bash
-   pkill -f "uvicorn app.main:app"
-   cd /path/to/backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
-   ```
+- Slack Bot Token integration
+- AI Classification with OpenAI gpt-4o-mini
+- Draft reply generation
+- Interactive buttons (Approve/Edit/Dismiss)
+- Approval modal with draft to copy
+- Database with approval workflow fields
 
-2. **Test full flow** after restart:
-   - Simulate reply → Slack notification with buttons
-   - Click Approve → Modal with draft to copy
-   - Verify status updated in API
-
-3. **Then mark DONE** when all verified
-
-## Safety Rules ✅
+### Safety Rules ✅
 
 - [x] Smartlead: READ-ONLY (no send API calls in code)
 - [x] No auto-send: Drafts only, manual copy required
 - [x] Slack: Using Bot Token (not just webhooks)
+
+### Next Steps
+
+1. Run migration: `alembic upgrade head`
+2. Restart backend
+3. Test with simulated reply including `ui_master_inbox_link`
+4. Verify inbox link appears in Slack notification

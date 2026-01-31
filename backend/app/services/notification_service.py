@@ -27,10 +27,10 @@ def format_slack_message(reply) -> Dict[str, Any]:
     """Format a ProcessedReply into a CONCISE Slack message.
     
     Per UX guidelines: Keep notifications SHORT and actionable.
-    - Line 1: Emoji + Category + Name + Company
+    - Line 1: Emoji + Category + Name (clickable link to inbox) + Company
     - Line 2-3: Message preview (max 100 chars)
     - Line 4-5: Draft preview (max 100 chars)
-    - Line 6: Buttons with short labels
+    - Line 6: Buttons with short labels + Open Inbox link
     
     Args:
         reply: ProcessedReply model instance
@@ -44,10 +44,20 @@ def format_slack_message(reply) -> Dict[str, Any]:
     
     # Build lead info (single line)
     lead_name = " ".join(filter(None, [reply.lead_first_name, reply.lead_last_name])) or reply.lead_email
-    lead_info = f"{lead_name} ({reply.lead_company})" if reply.lead_company else lead_name
     
-    # Concise header: Emoji + Category + Name + Company
-    header_text = f"{emoji} *{category_label}* - {lead_info}"
+    # Get inbox link if available
+    inbox_link = getattr(reply, 'inbox_link', None)
+    
+    # Make name clickable if we have inbox link
+    if inbox_link:
+        lead_name_display = f"<{inbox_link}|{lead_name}>"
+    else:
+        lead_name_display = lead_name
+    
+    lead_info = f"{lead_name_display} @ {reply.lead_company}" if reply.lead_company else lead_name_display
+    
+    # Concise header: Emoji + Category + Name (linked) + Company
+    header_text = f"{emoji} *{category_label}* | {lead_info}"
     
     # Truncate message preview (max 100 chars)
     message_text = (reply.email_body or reply.reply_text or "").strip()
@@ -89,31 +99,41 @@ def format_slack_message(reply) -> Dict[str, Any]:
             }
         })
     
-    # Line 6: Action buttons with SHORT labels (OK / Edit / Skip)
+    # Line 6: Action buttons with SHORT labels (OK / Edit / Skip / Open Inbox)
+    action_buttons = [
+        {
+            "type": "button",
+            "text": {"type": "plain_text", "text": "OK", "emoji": True},
+            "style": "primary",
+            "action_id": "approve_reply",
+            "value": str(reply_id)
+        },
+        {
+            "type": "button",
+            "text": {"type": "plain_text", "text": "Edit", "emoji": True},
+            "action_id": "edit_reply",
+            "value": str(reply_id)
+        },
+        {
+            "type": "button",
+            "text": {"type": "plain_text", "text": "Skip", "emoji": True},
+            "action_id": "dismiss_reply",
+            "value": str(reply_id)
+        }
+    ]
+    
+    # Add "Open Inbox" button if we have the link
+    if inbox_link:
+        action_buttons.append({
+            "type": "button",
+            "text": {"type": "plain_text", "text": "📬 Inbox", "emoji": True},
+            "url": inbox_link
+        })
+    
     blocks.append({
         "type": "actions",
         "block_id": f"reply_actions_{reply_id}",
-        "elements": [
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "OK", "emoji": True},
-                "style": "primary",
-                "action_id": "approve_reply",
-                "value": str(reply_id)
-            },
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "Edit", "emoji": True},
-                "action_id": "edit_reply",
-                "value": str(reply_id)
-            },
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "Skip", "emoji": True},
-                "action_id": "dismiss_reply",
-                "value": str(reply_id)
-            }
-        ]
+        "elements": action_buttons
     })
     
     return {

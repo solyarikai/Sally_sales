@@ -106,6 +106,9 @@ class ProcessedReply(Base, TimestampMixin):
     approved_by = Column(String(100), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     
+    # Smartlead inbox link (from webhook: ui_master_inbox_link)
+    inbox_link = Column(String(500), nullable=True)
+    
     # Full webhook payload for debugging
     raw_webhook_data = Column(JSON, nullable=True)
     
