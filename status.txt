@@ -22,14 +22,35 @@ UX_IMPROVEMENTS
    - Migration: 202601310200_add_approval_workflow.py
    - Schema updated with new fields
 
+### P2 - Concise Slack Notifications (DONE)
+
+4. **Made Slack notifications concise** (`notification_service.py`)
+   - Line 1: Emoji + Category + Name + Company (single line header)
+   - Line 2-3: Message preview (max 100 chars with truncation)
+   - Line 4-5: Draft preview (max 100 chars)
+   - Line 6: Short button labels (OK / Edit / Skip)
+   - Removed verbose headers, subjects, campaign info
+   - Per UX guidelines: "Keep notifications SHORT and actionable"
+
+### P3 - Dashboard Reply Status (DONE)
+
+5. **Added approval_status filtering to API** (`api/replies.py`)
+   - GET /api/replies/?approval_status=pending|approved|dismissed
+   - Dashboard can filter replies by status
+
+6. **Added status counts to stats endpoint** (`api/replies.py`)
+   - by_status: counts per approval status
+   - pending, approved, dismissed fields for quick access
+   - Schema updated: ProcessedReplyStats includes status counts
+
 ## Safety Rules Implemented
 
 - Smartlead: READ-ONLY mode (no send capabilities)
 - Google Sheets: Only creates new sheets (not implemented yet)
 - Approval shows success modal + copies draft (NO auto-send)
 
-## Next Steps (P2-P3)
+## Next Steps
 
-- [ ] Chat-style setup wizard (4 simple steps)
-- [ ] Dashboard shows reply status (pending/approved/dismissed)
+- [ ] Chat-style setup wizard (4 simple steps) - P2
 - [ ] Google Sheets safety implementation
+- [ ] End-to-end testing

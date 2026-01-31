@@ -24,7 +24,13 @@ CATEGORY_EMOJIS = {
 
 
 def format_slack_message(reply) -> Dict[str, Any]:
-    """Format a ProcessedReply into a Slack message.
+    """Format a ProcessedReply into a CONCISE Slack message.
+    
+    Per UX guidelines: Keep notifications SHORT and actionable.
+    - Line 1: Emoji + Category + Name + Company
+    - Line 2-3: Message preview (max 100 chars)
+    - Line 4-5: Draft preview (max 100 chars)
+    - Line 6: Buttons with short labels
     
     Args:
         reply: ProcessedReply model instance
@@ -34,140 +40,85 @@ def format_slack_message(reply) -> Dict[str, Any]:
     """
     category = reply.category or "other"
     emoji = CATEGORY_EMOJIS.get(category, "📧")
+    category_label = category.replace('_', ' ').title()
     
-    # Build lead info
+    # Build lead info (single line)
     lead_name = " ".join(filter(None, [reply.lead_first_name, reply.lead_last_name])) or reply.lead_email
-    lead_info = lead_name
-    if reply.lead_company:
-        lead_info = f"{lead_name} ({reply.lead_company})"
+    lead_info = f"{lead_name} ({reply.lead_company})" if reply.lead_company else lead_name
     
-    # Truncate long content
-    reply_preview = (reply.email_body or reply.reply_text or "")[:500]
-    if len(reply.email_body or reply.reply_text or "") > 500:
-        reply_preview += "..."
+    # Concise header: Emoji + Category + Name + Company
+    header_text = f"{emoji} *{category_label}* - {lead_info}"
     
-    draft_preview = (reply.draft_reply or "")[:500]
-    if len(reply.draft_reply or "") > 500:
-        draft_preview += "..."
+    # Truncate message preview (max 100 chars)
+    message_text = (reply.email_body or reply.reply_text or "").strip()
+    message_preview = message_text[:100] + "..." if len(message_text) > 100 else message_text
     
-    # Build Slack blocks
+    # Truncate draft preview (max 100 chars)
+    draft_text = (reply.draft_reply or "").strip()
+    draft_preview = draft_text[:100] + "..." if len(draft_text) > 100 else draft_text
+    
+    reply_id = getattr(reply, 'id', 0)
+    
+    # Build CONCISE Slack blocks
     blocks = [
-        {
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": f"{emoji} New Email Reply - {category.replace('_', ' ').title()}",
-                "emoji": True
-            }
-        },
-        {
-            "type": "section",
-            "fields": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"*From:*\n{lead_info}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Category:*\n{category.replace('_', ' ').title()}"
-                }
-            ]
-        },
-        {
-            "type": "section",
-            "fields": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Subject:*\n{reply.email_subject or '(no subject)'}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Campaign:*\n{reply.campaign_name or reply.campaign_id or 'Unknown'}"
-                }
-            ]
-        },
-        {
-            "type": "divider"
-        },
+        # Line 1: Header with emoji, category, name, company
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"*Reply:*\n```{reply_preview}```"
+                "text": header_text
+            }
+        },
+        # Lines 2-3: Quoted message preview
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f">{message_preview}"
             }
         }
     ]
     
-    # Add draft reply if available
+    # Lines 4-5: Draft preview (if available and not OOO)
     if draft_preview and draft_preview != "(No reply needed for out-of-office)":
-        blocks.extend([
-            {
-                "type": "divider"
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"*Suggested Draft:*\n```{draft_preview}```"
-                }
-            }
-        ])
-    
-    # Add confidence info if available
-    if reply.classification_reasoning:
         blocks.append({
-            "type": "context",
-            "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"_Classification: {reply.category_confidence or 'unknown'} confidence - {reply.classification_reasoning}_"
-                }
-            ]
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"💡 _{draft_preview}_"
+            }
         })
     
-    # Add interactive buttons for approval flow
-    reply_id = getattr(reply, 'id', 0)
+    # Line 6: Action buttons with SHORT labels (OK / Edit / Skip)
     blocks.append({
         "type": "actions",
         "block_id": f"reply_actions_{reply_id}",
         "elements": [
             {
                 "type": "button",
-                "text": {"type": "plain_text", "text": "✅ Approve", "emoji": True},
+                "text": {"type": "plain_text", "text": "OK", "emoji": True},
                 "style": "primary",
                 "action_id": "approve_reply",
                 "value": str(reply_id)
             },
             {
                 "type": "button",
-                "text": {"type": "plain_text", "text": "✏️ Edit", "emoji": True},
+                "text": {"type": "plain_text", "text": "Edit", "emoji": True},
                 "action_id": "edit_reply",
                 "value": str(reply_id)
             },
             {
                 "type": "button",
-                "text": {"type": "plain_text", "text": "❌ Dismiss", "emoji": True},
-                "style": "danger",
+                "text": {"type": "plain_text", "text": "Skip", "emoji": True},
                 "action_id": "dismiss_reply",
                 "value": str(reply_id)
             }
         ]
     })
     
-    # Add safety note
-    blocks.append({
-        "type": "context",
-        "elements": [
-            {
-                "type": "mrkdwn",
-                "text": "⚠️ _Approval prepares reply for review. Manual sending required in Smartlead._"
-            }
-        ]
-    })
-    
     return {
         "blocks": blocks,
-        "text": f"{emoji} New reply from {lead_info}: {category.replace('_', ' ').title()}"  # Fallback text
+        "text": f"{emoji} {category_label} - {lead_info}"  # Fallback text
     }
 
 

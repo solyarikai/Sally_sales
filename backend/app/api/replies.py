@@ -229,11 +229,15 @@ async def list_replies(
     automation_id: Optional[int] = None,
     campaign_id: Optional[str] = None,
     category: Optional[str] = None,
+    approval_status: Optional[str] = Query(None, description="Filter by status: pending, approved, dismissed"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     session: AsyncSession = Depends(get_session)
 ):
-    """List processed replies with filters."""
+    """List processed replies with filters.
+    
+    Dashboard can filter by approval_status to show pending/approved/dismissed replies.
+    """
     query = select(ProcessedReply)
     count_query = select(func.count(ProcessedReply.id))
     
@@ -249,6 +253,22 @@ async def list_replies(
     if category:
         query = query.where(ProcessedReply.category == category)
         count_query = count_query.where(ProcessedReply.category == category)
+    
+    # Filter by approval status (pending, approved, dismissed)
+    if approval_status:
+        if approval_status == "pending":
+            # Pending = null or explicitly set to pending
+            query = query.where(
+                (ProcessedReply.approval_status == None) | 
+                (ProcessedReply.approval_status == "pending")
+            )
+            count_query = count_query.where(
+                (ProcessedReply.approval_status == None) | 
+                (ProcessedReply.approval_status == "pending")
+            )
+        else:
+            query = query.where(ProcessedReply.approval_status == approval_status)
+            count_query = count_query.where(ProcessedReply.approval_status == approval_status)
     
     # Get total count
     total_result = await session.execute(count_query)
@@ -341,12 +361,45 @@ async def get_reply_stats(
     slack_result = await session.execute(slack_query)
     sent_to_slack = slack_result.scalar() or 0
     
+    # Count by approval status (for dashboard)
+    status_query = select(
+        ProcessedReply.approval_status,
+        func.count(ProcessedReply.id)
+    ).group_by(ProcessedReply.approval_status)
+    
+    if automation_id:
+        status_query = status_query.where(ProcessedReply.automation_id == automation_id)
+    if campaign_id:
+        status_query = status_query.where(ProcessedReply.campaign_id == campaign_id)
+    
+    status_result = await session.execute(status_query)
+    by_status = {}
+    pending_count = 0
+    approved_count = 0
+    dismissed_count = 0
+    
+    for row in status_result.all():
+        status_key = row[0] or "pending"  # null = pending
+        count = row[1]
+        by_status[status_key] = count
+        
+        if status_key in ("pending", None):
+            pending_count += count
+        elif status_key == "approved":
+            approved_count = count
+        elif status_key == "dismissed":
+            dismissed_count = count
+    
     return ProcessedReplyStats(
         total=total,
         by_category=by_category,
+        by_status=by_status,
         today=today,
         this_week=this_week,
-        sent_to_slack=sent_to_slack
+        sent_to_slack=sent_to_slack,
+        pending=pending_count,
+        approved=approved_count,
+        dismissed=dismissed_count
     )
 
 

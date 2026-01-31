@@ -329,3 +329,39 @@ def build_reply_notification(reply) -> dict:
 - [ ] Setup wizard is step-by-step (max 4 steps)
 - [ ] Dashboard shows reply status (pending/approved/dismissed)
 - [ ] All tested end-to-end
+
+---
+
+## CONCISE SLACK NOTIFICATIONS (IMPORTANT!)
+
+Keep notifications SHORT and actionable. Current format is too verbose.
+
+### Target Format (Max 6 lines total):
+
+
+
+### Formatting Rules:
+1. **Line 1:** Emoji + Category + Name + Company (one line)
+2. **Line 2-3:** Message preview (max 100 chars, truncate with ...)  
+3. **Line 4-5:** Draft preview (max 100 chars)
+4. **Line 6:** Buttons - use short labels: OK / Edit / Skip
+
+### Category Emojis (single emoji):
+- 🟢 Interested
+- 📅 Meeting
+- 🔴 Not interested
+- 🏖️ Out of office
+- ❓ Question
+- 📧 Other
+
+### NO verbose headers like:
+- ❌ New Email Reply - Meeting Request
+- ❌ From: ... Campaign: ... Subject: ...
+- ❌ Original Message: ... Suggested Reply: ...
+
+### YES concise format:
+- ✅ One-line header with all key info
+- ✅ Quoted message snippet
+- ✅ Quoted draft snippet  
+- ✅ Action buttons
+

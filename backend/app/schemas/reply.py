@@ -122,9 +122,13 @@ class ProcessedReplyStats(BaseModel):
     """Statistics for processed replies."""
     total: int = 0
     by_category: dict = Field(default_factory=dict)
+    by_status: dict = Field(default_factory=dict)  # pending, approved, dismissed counts
     today: int = 0
     this_week: int = 0
     sent_to_slack: int = 0
+    pending: int = 0  # Quick access to pending count
+    approved: int = 0
+    dismissed: int = 0
 
 
 # Webhook Schema
