@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic
 revision = '202601270100'
-down_revision = '202601250300_add_environments'
+down_revision = '202601250300'
 branch_labels = None
 depends_on = None
 

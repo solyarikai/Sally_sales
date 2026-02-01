@@ -17,7 +17,7 @@ from datetime import datetime
 
 
 revision = '202601250100'
-down_revision = '202601240600'
+down_revision = '0e8e38b346dc'
 branch_labels = None
 depends_on = None
 
