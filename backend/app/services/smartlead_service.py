@@ -365,6 +365,58 @@ class SmartleadService:
             logger.error(f"Error fetching campaign statistics: {e}")
             return {}
 
+    async def configure_campaign_webhook(
+        self,
+        campaign_id: str,
+        webhook_url: str,
+        webhook_name: str = "Auto-Replies Webhook"
+    ) -> bool:
+        """Configure a webhook for a Smartlead campaign."""
+        if not self.api_key:
+            logger.warning("Smartlead API key not configured")
+            return False
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                # Check if webhook already exists
+                resp = await client.get(
+                    f"{self.base_url}/campaigns/{campaign_id}/webhooks",
+                    params={"api_key": self.api_key},
+                    timeout=30.0
+                )
+                
+                if resp.status_code == 200:
+                    existing = resp.json()
+                    for wh in existing:
+                        if wh.get("webhook_url") == webhook_url:
+                            logger.info(f"Webhook already configured for campaign {campaign_id}")
+                            return True
+                
+                # Add new webhook
+                webhook_data = {
+                    "name": webhook_name,
+                    "webhook_url": webhook_url,
+                    "event_types": ["EMAIL_REPLY"]
+                }
+                
+                resp = await client.post(
+                    f"{self.base_url}/campaigns/{campaign_id}/webhooks",
+                    params={"api_key": self.api_key},
+                    json=webhook_data,
+                    timeout=30.0
+                )
+                
+                if resp.status_code == 200:
+                    logger.info(f"Webhook configured for campaign {campaign_id}")
+                    return True
+                else:
+                    logger.error(f"Failed to configure webhook: {resp.status_code} - {resp.text}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"Error configuring webhook for campaign {campaign_id}: {e}")
+            return False
+
 
 # Global instance
 smartlead_service = SmartleadService()

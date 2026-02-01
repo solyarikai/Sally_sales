@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Building2, Users, Database, FileText, Trash2, Pencil, MoreVertical, Layers, FolderOpen } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Plus, Building2, Users, Database, FileText, Trash2, Pencil, MoreVertical, Layers, FolderOpen, Search, ChevronLeft } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { companiesApi, environmentsApi } from '../api';
 import type { CompanyWithStats, EnvironmentWithStats } from '../types';
@@ -566,11 +566,16 @@ export function HomePage() {
     <div className="min-h-screen bg-[#fafafa]">
       {/* Header */}
       <header className="h-14 bg-white border-b border-neutral-200 flex items-center px-6">
+        <Link to="/" className="flex items-center gap-2 mr-4 text-neutral-600 hover:text-neutral-900">
+          <ChevronLeft className="w-4 h-4" />
+          <Search className="w-4 h-4" />
+          <span className="text-sm font-medium">Data Search</span>
+        </Link>
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-black flex items-center justify-center">
             <span className="text-white font-bold text-sm">S</span>
           </div>
-          <span className="font-semibold text-neutral-900 text-base tracking-tight">LeadGen</span>
+          <span className="font-semibold text-neutral-900 text-base tracking-tight">Companies</span>
         </div>
       </header>
 

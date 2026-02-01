@@ -7,10 +7,13 @@ import { ImportModal } from '../components/ImportModal';
 import { EnrichmentPanel } from '../components/EnrichmentPanel';
 import { ExportModal } from '../components/ExportModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { cn, formatNumber } from '../lib/utils';
+import { SectionErrorBoundary } from '../components/ErrorBoundary';
+import { useToast } from '../components/Toast';
+import { cn, formatNumber, getErrorMessage } from '../lib/utils';
 import type { Dataset, EnrichmentJob, DataRow, Folder as FolderType } from '../types';
 
 export function DatasetsPage() {
+  const toast = useToast();
   const {
     datasets,
     setDatasets,
@@ -100,11 +103,13 @@ export function DatasetsPage() {
     if (!newFolderName.trim()) return;
     try {
       await foldersApi.create(newFolderName.trim());
+      toast.success('Folder created', `"${newFolderName}" is ready`);
       setNewFolderName('');
       setCreatingFolder(false);
       loadFolders();
     } catch (err) {
       console.error('Failed to create folder:', err);
+      toast.error('Failed to create folder', getErrorMessage(err));
     }
   };
 
@@ -116,6 +121,7 @@ export function DatasetsPage() {
       loadFolders();
     } catch (err) {
       console.error('Failed to rename folder:', err);
+      toast.error('Failed to rename folder', getErrorMessage(err));
     }
   };
 
@@ -127,10 +133,12 @@ export function DatasetsPage() {
       onConfirm: async () => {
         try {
           await foldersApi.delete(folderId);
+          toast.success('Folder deleted', 'Datasets moved to root');
           loadFolders();
           loadDatasets();
         } catch (err) {
           console.error('Failed to delete folder:', err);
+          toast.error('Failed to delete folder', getErrorMessage(err));
         }
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
       },
@@ -143,6 +151,7 @@ export function DatasetsPage() {
       loadDatasets();
     } catch (err) {
       console.error('Failed to move dataset:', err);
+      toast.error('Failed to move dataset', getErrorMessage(err));
     }
   };
 
@@ -252,8 +261,10 @@ export function DatasetsPage() {
       updateDataset({ ...currentDataset, columns: updatedColumns });
       // Reload rows to reflect the renamed column
       await loadRows(currentDataset.id, allRowsLoaded);
+      toast.success('Column renamed', `"${oldName}" is now "${newName}"`);
     } catch (err) {
       console.error('Failed to rename column:', err);
+      toast.error('Failed to rename column', getErrorMessage(err));
     }
   };
 
@@ -266,10 +277,12 @@ export function DatasetsPage() {
       onConfirm: async () => {
         try {
           await datasetsApi.deleteColumn(currentDataset.id, columnName, isEnriched);
+          toast.success('Column deleted', `"${columnName}" removed`);
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           await loadRows(currentDataset.id, allRowsLoaded);
         } catch (err) {
           console.error('Failed to delete column:', err);
+          toast.error('Failed to delete column', getErrorMessage(err));
         }
       },
     });
@@ -291,10 +304,12 @@ export function DatasetsPage() {
       onConfirm: async () => {
         try {
           await datasetsApi.delete(dataset.id);
+          toast.success('Dataset deleted', `"${dataset.name}" removed`);
           removeDataset(dataset.id);
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         } catch (err) {
           console.error('Failed to delete dataset:', err);
+          toast.error('Failed to delete dataset', getErrorMessage(err));
         }
       },
     });
@@ -308,6 +323,7 @@ export function DatasetsPage() {
       setIsEditing(false);
     } catch (err) {
       console.error('Failed to rename dataset:', err);
+      toast.error('Failed to rename', getErrorMessage(err));
     }
   };
 
@@ -321,11 +337,13 @@ export function DatasetsPage() {
       onConfirm: async () => {
         try {
           await datasetsApi.deleteRows(currentDataset!.id, Array.from(selectedRowIds));
+          toast.success('Rows deleted', `${selectedRowIds.size} rows removed`);
           clearSelection();
           handleRefresh();
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         } catch (err) {
           console.error('Failed to delete rows:', err);
+          toast.error('Failed to delete rows', getErrorMessage(err));
         }
       },
     });
@@ -700,6 +718,7 @@ export function DatasetsPage() {
             <div className="flex-1 flex overflow-hidden">
               {/* Table */}
               <div className="flex-1 flex flex-col overflow-hidden p-4">
+                <SectionErrorBoundary>
                 <div className="flex-1 overflow-hidden card">
                   <DataTable
                     data={filterColumn && (filterValue || ['empty', 'not_empty'].includes(filterOperator)) ? filteredRows : rows}
@@ -722,6 +741,7 @@ export function DatasetsPage() {
                     </button>
                   </div>
                 )}
+                </SectionErrorBoundary>
               </div>
 
               {/* Enrichment panel - Sticky */}

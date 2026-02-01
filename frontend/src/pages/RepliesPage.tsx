@@ -21,6 +21,15 @@ import { cn, formatNumber } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 // Category configuration
+// Helper function to extract Google Sheet ID from URL
+const extractSheetId = (url: string): string => {
+  if (!url) return "";
+  const match = url.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (match) return match[1];
+  if (url.match(/^[a-zA-Z0-9-_]+$/)) return url;
+  return url;
+};
+
 const CATEGORY_CONFIG: Record<ReplyCategory, { label: string; color: string; emoji: string }> = {
   interested: { label: 'Interested', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', emoji: '🟢' },
   meeting_request: { label: 'Meeting Request', color: 'bg-blue-100 text-blue-700 border-blue-200', emoji: '📅' },
@@ -350,10 +359,18 @@ export function RepliesPage() {
                       </button>
                     </div>
                   </div>
-                  {automation.slack_webhook_url && (
+                  {automation.google_sheet_id && (
+                    <div className="flex items-center gap-1 text-xs text-neutral-500 mt-2">
+                      <FileSpreadsheet className="w-3 h-3" />
+                      <a href={`https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}`} target="_blank" rel="noopener" className="text-green-600 hover:underline truncate max-w-[180px]">
+                        {automation.google_sheet_name || "Google Sheet"}
+                      </a>
+                    </div>
+                  )}
+                  {(automation.slack_webhook_url || automation.slack_channel) && (
                     <div className="flex items-center gap-1 text-xs text-neutral-500 mt-2">
                       <Bell className="w-3 h-3" />
-                      Slack notifications enabled
+                      {automation.slack_channel ? `#${automation.slack_channel}` : "Slack notifications enabled"}
                     </div>
                   )}
                 </div>
@@ -755,6 +772,7 @@ interface CreateAutomationModalProps {
 // Step indicator component
 function WizardSteps({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
   const stepNames = ['Campaigns', 'Google Sheet', 'Slack', 'Review'];
+
   return (
     <div className="flex items-center justify-center gap-1 px-4 py-2 bg-neutral-50">
       {Array.from({ length: totalSteps }).map((_, i) => {
@@ -807,15 +825,37 @@ function CreateAutomationModal({
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const [searchCampaigns, setSearchCampaigns] = useState('');
   
+  // Fetch Slack channels when entering step 3
+  useEffect(() => {
+    if (step === 3 && slackChannels.length === 0 && !loadingSlackChannels) {
+      setLoadingSlackChannels(true);
+      repliesApi.getSlackChannels()
+        .then(res => {
+          if (res.channels) {
+            setSlackChannels(res.channels.map(c => ({ id: c.id, name: c.name })));
+          }
+        })
+        .catch(err => console.error('Failed to load Slack channels:', err))
+        .finally(() => setLoadingSlackChannels(false));
+    }
+  }, [step]);
+
   // Step 2: Google Sheets
   const [createGoogleSheet, setCreateGoogleSheet] = useState(false);
+  const [useExistingSheet, setUseExistingSheet] = useState(false);
+  const [existingSheetUrl, setExistingSheetUrl] = useState('');
   const [shareSheetEmail, setShareSheetEmail] = useState('');
   const [sheetsStatus, setSheetsStatus] = useState<GoogleSheetsStatus | null>(null);
   const [loadingSheetsStatus, setLoadingSheetsStatus] = useState(false);
   
   // Step 3: Slack
-  const [slackWebhook, setSlackWebhook] = useState('');
+  // Removed: webhook not needed when using channel selection
   const [slackChannel, setSlackChannel] = useState('');
+  const [slackChannels, setSlackChannels] = useState<Array<{id: string, name: string}>>([]);
+  const [loadingSlackChannels, setLoadingSlackChannels] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [creatingChannel, setCreatingChannel] = useState(false);
+  const [testingChannel, setTestingChannel] = useState(false);
   const [testResult, setTestResult] = useState<{success: boolean; message: string} | null>(null);
   
   // Step 4: Review settings
@@ -850,9 +890,11 @@ function CreateAutomationModal({
       const data: ReplyAutomationCreate = {
         name,
         campaign_ids: selectedCampaigns,
-        slack_webhook_url: slackWebhook || undefined,
+        // slack_webhook_url: not needed when using channel ID
         slack_channel: slackChannel || undefined,
-        create_google_sheet: createGoogleSheet,
+        create_google_sheet: createGoogleSheet && !useExistingSheet,
+        google_sheet_id: useExistingSheet ? extractSheetId(existingSheetUrl) : undefined,
+        google_sheet_name: useExistingSheet ? 'Existing Sheet' : undefined,
         share_sheet_with_email: shareSheetEmail || undefined,
         auto_classify: autoClassify,
         auto_generate_reply: autoGenerateReply,
@@ -869,14 +911,40 @@ function CreateAutomationModal({
     }
   };
 
-  const handleTestWebhook = async () => {
-    if (!slackWebhook) return;
-    
-    if (!slackWebhook.startsWith('https://hooks.slack.com/')) {
-      setTestResult({ success: false, message: 'Invalid Slack webhook URL format' });
-      return;
+
+
+  const handleCreateChannel = async () => {
+    if (!newChannelName) return;
+    setCreatingChannel(true);
+    setTestResult(null);
+    try {
+      const result = await repliesApi.createSlackChannel(newChannelName);
+      if (result.channel) {
+        const ch = result.channel;
+        setSlackChannels(prev => [...prev, { id: ch.id, name: ch.name }]);
+        setSlackChannel(ch.id);
+        setNewChannelName('');
+        setTestResult({ success: true, message: `Channel #${ch.name} created!` });
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: err.response?.data?.detail || 'Failed to create channel' });
+    } finally {
+      setCreatingChannel(false);
     }
-    setTestResult({ success: true, message: 'URL format looks valid!' });
+  };
+
+  const handleTestSlackChannel = async () => {
+    if (!slackChannel) return;
+    setTestingChannel(true);
+    setTestResult(null);
+    try {
+      const result = await repliesApi.testSlackChannel(slackChannel);
+      setTestResult(result);
+    } catch (err: any) {
+      setTestResult({ success: false, message: err.response?.data?.detail || 'Failed to send test message' });
+    } finally {
+      setTestingChannel(false);
+    }
   };
 
   const canProceed = () => {
@@ -1064,7 +1132,7 @@ function CreateAutomationModal({
                 <div className="space-y-4">
                   {/* Choice cards */}
                   <div 
-                    onClick={() => setCreateGoogleSheet(true)}
+                    onClick={() => { setCreateGoogleSheet(true); setUseExistingSheet(false); }}
                     className={cn(
                       "p-4 rounded-xl border-2 cursor-pointer transition-all",
                       createGoogleSheet 
@@ -1087,11 +1155,61 @@ function CreateAutomationModal({
                     </div>
                   </div>
 
+                  {/* Use existing sheet option */}
                   <div 
-                    onClick={() => setCreateGoogleSheet(false)}
+                    onClick={() => { setCreateGoogleSheet(false); setUseExistingSheet(true); }}
                     className={cn(
                       "p-4 rounded-xl border-2 cursor-pointer transition-all",
-                      !createGoogleSheet 
+                      useExistingSheet 
+                        ? "border-blue-500 bg-blue-50" 
+                        : "border-neutral-200 hover:border-blue-300"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                        useExistingSheet ? "border-blue-500 bg-blue-500" : "border-neutral-300"
+                      )}>
+                        {useExistingSheet && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-neutral-900">Use existing Google Sheet</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">Paste a sheet URL to log replies there</p>
+                      </div>
+                      <FileSpreadsheet className="w-5 h-5 text-blue-500" />
+                    </div>
+                  </div>
+
+                  {/* Existing sheet URL input */}
+                  {useExistingSheet && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-xl">
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">
+                        Google Sheet URL or ID
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                        value={existingSheetUrl}
+                        onChange={(e) => setExistingSheetUrl(e.target.value)}
+                        className="input w-full text-sm"
+                      />
+                      <p className="text-xs text-neutral-400 mt-1">
+                        Paste the full URL or just the sheet ID
+                      </p>
+                      {existingSheetUrl && (
+                        <p className="text-xs text-blue-600 mt-2">
+                          Sheet ID: {extractSheetId(existingSheetUrl)}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Skip option */}
+                  <div 
+                    onClick={() => { setCreateGoogleSheet(false); setUseExistingSheet(false); }}
+                    className={cn(
+                      "p-4 rounded-xl border-2 cursor-pointer transition-all",
+                      !createGoogleSheet && !useExistingSheet
                         ? "border-violet-500 bg-violet-50" 
                         : "border-neutral-200 hover:border-violet-300"
                     )}
@@ -1099,9 +1217,9 @@ function CreateAutomationModal({
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                        !createGoogleSheet ? "border-violet-500 bg-violet-500" : "border-neutral-300"
+                        !createGoogleSheet && !useExistingSheet ? "border-violet-500 bg-violet-500" : "border-neutral-300"
                       )}>
-                        {!createGoogleSheet && <Check className="w-3 h-3 text-white" />}
+                        {!createGoogleSheet && !useExistingSheet && <Check className="w-3 h-3 text-white" />}
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-neutral-900">Skip for now</p>
@@ -1147,60 +1265,78 @@ function CreateAutomationModal({
                 </div>
               </div>
 
+              {/* Channel Selection */}
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Slack Webhook URL
+                  Select Slack Channel
                 </label>
-                <input
-                  type="url"
-                  placeholder="https://hooks.slack.com/services/..."
-                  value={slackWebhook}
-                  onChange={(e) => { setSlackWebhook(e.target.value); setTestResult(null); }}
-                  className="input w-full"
-                />
-                <p className="text-xs text-neutral-400 mt-1">
-                  Create an Incoming Webhook in your Slack workspace settings
-                </p>
-                {slackWebhook && (
-                  <button 
-                    type="button"
-                    onClick={handleTestWebhook}
-                    className="text-sm text-violet-600 hover:underline mt-2"
-                  >
-                    Validate URL format
-                  </button>
-                )}
-                {testResult && (
-                  <div className={cn(
-                    "mt-2 text-sm flex items-center gap-1",
-                    testResult.success ? "text-emerald-600" : "text-red-600"
-                  )}>
-                    {testResult.success ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                    {testResult.message}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Channel Name (optional)
-                </label>
-                <div className="relative">
-                  <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                  <input
-                    type="text"
-                    placeholder="sales-replies"
+                {loadingSlackChannels ? (
+                  <div className="text-sm text-neutral-500 py-2">Loading channels...</div>
+                ) : (
+                  <select
                     value={slackChannel}
                     onChange={(e) => setSlackChannel(e.target.value)}
-                    className="input pl-9 w-full"
-                  />
-                </div>
-                <p className="text-xs text-neutral-400 mt-1">
-                  Just for display purposes (webhook already targets a channel)
-                </p>
+                    className="input w-full"
+                  >
+                    <option value="">Select a channel...</option>
+                    {slackChannels.map(ch => (
+                      <option key={ch.id} value={ch.id}>#{ch.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
-              {!slackWebhook && (
+              {/* Create New Channel */}
+              <div className="border-t border-neutral-100 pt-4">
+                <p className="text-sm font-medium text-neutral-700 mb-2">Or create a new channel</p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      type="text"
+                      placeholder="new-channel-name"
+                      value={newChannelName}
+                      onChange={(e) => setNewChannelName(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, "-"))}
+                      className="input pl-9 w-full"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCreateChannel}
+                    disabled={!newChannelName || creatingChannel}
+                    className="btn btn-secondary whitespace-nowrap"
+                  >
+                    {creatingChannel ? "Creating..." : "Create Channel"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Test Message */}
+              {slackChannel && (
+                <div className="border-t border-neutral-100 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleTestSlackChannel}
+                    disabled={testingChannel}
+                    className="btn btn-secondary w-full"
+                  >
+                    {testingChannel ? "Sending..." : "Send Test Message"}
+                  </button>
+                </div>
+              )}
+
+              {/* Test Result */}
+              {testResult && (
+                <div className={cn(
+                  "p-3 rounded-xl text-sm flex items-center gap-2",
+                  testResult.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                )}>
+                  {testResult.success ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                  {testResult.message}
+                </div>
+              )}
+
+              {!slackChannel && (
                 <div className="p-3 bg-neutral-50 rounded-xl">
                   <p className="text-xs text-neutral-500">
                     <strong>Tip:</strong> You can skip this step and add Slack later. Replies will still be classified and stored.
@@ -1243,9 +1379,9 @@ function CreateAutomationModal({
                 <div className="p-4 flex items-center justify-between">
                   <div>
                     <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Slack Notifications</div>
-                    <div className="font-medium">{slackWebhook ? (slackChannel || 'Configured') : 'Not configured'}</div>
+                    <div className="font-medium">{slackChannel ? `#${slackChannels.find(c => c.id === slackChannel)?.name || slackChannel}` : "Not configured"}</div>
                   </div>
-                  <Bell className={cn("w-5 h-5", slackWebhook ? "text-blue-500" : "text-neutral-300")} />
+                  <Bell className={cn("w-5 h-5", slackChannel ? "text-blue-500" : "text-neutral-300")} />
                 </div>
               </div>
 

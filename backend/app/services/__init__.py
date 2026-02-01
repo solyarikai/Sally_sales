@@ -10,6 +10,17 @@ from .prospects_service import prospects_service, ProspectsService
 from .activity_logger import ActivityLogger, get_activity_logger
 from .sync_service import sync_service, SyncService
 from .favicon_service import favicon_service, FaviconService
+from .google_drive_service import google_drive_service, GoogleDriveService
+from .reverse_engineering_service import (
+    reverse_engineering_service,
+    ReverseEngineeringService,
+    get_reverse_engineering_service
+)
+from .verification_service import (
+    verification_service,
+    VerificationService,
+    get_verification_service
+)
 
 __all__ = [
     "openai_service", "OpenAIService", 
@@ -24,4 +35,7 @@ __all__ = [
     "ActivityLogger", "get_activity_logger",
     "sync_service", "SyncService",
     "favicon_service", "FaviconService",
+    "google_drive_service", "GoogleDriveService",
+    "reverse_engineering_service", "ReverseEngineeringService", "get_reverse_engineering_service",
+    "verification_service", "VerificationService", "get_verification_service",
 ]

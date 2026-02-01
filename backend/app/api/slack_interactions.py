@@ -4,6 +4,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel
 import json
 import logging
 import os
@@ -11,12 +13,78 @@ import httpx
 
 from app.db import get_session
 from app.models.reply import ProcessedReply, ReplyAutomation
+from app.services.notification_service import list_slack_channels, send_test_notification
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/slack", tags=["slack"])
 
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
+
+
+class TestMessageRequest(BaseModel):
+    """Request body for test message endpoint."""
+    channel: str  # Channel name or ID
+
+
+# ============= Channel Management Endpoints =============
+
+@router.get("/channels")
+async def get_slack_channels():
+    """List Slack channels where the bot is a member.
+    
+    Uses users.conversations API to return only channels where the bot 
+    can actually send messages.
+    
+    Returns:
+        List of channels with id, name, and metadata
+    """
+    result = await list_slack_channels(include_private=True)
+    return result
+
+
+@router.post("/test-message")
+async def send_slack_test_message(request: TestMessageRequest):
+    """Send a test message to a Slack channel.
+    
+    Args:
+        request: TestMessageRequest with channel name or ID
+        
+    Returns:
+        Result of the test message send attempt
+    """
+    channel = request.channel
+    
+    # If channel name provided without #, add it; if it starts with C, it's an ID
+    if channel.startswith("C") or channel.startswith("#"):
+        channel_id = channel.lstrip("#")
+    else:
+        # It's a channel name, need to look up the ID
+        channels_result = await list_slack_channels(include_private=True)
+        if not channels_result.get("success"):
+            return {"ok": False, "error": channels_result.get("error", "Failed to list channels")}
+        
+        # Find the channel by name
+        channel_id = None
+        for ch in channels_result.get("channels", []):
+            if ch["name"] == channel or ch["name"] == channel.lstrip("#"):
+                channel_id = ch["id"]
+                break
+        
+        if not channel_id:
+            return {
+                "ok": False, 
+                "error": f"Channel '{channel}' not found. Make sure the bot is a member of this channel."
+            }
+    
+    # Send test message
+    result = await send_test_notification(channel_id=channel_id)
+    
+    # Normalize response format
+    if result.get("success"):
+        return {"ok": True, "message": result.get("message", "Test message sent")}
+    else:
+        return {"ok": False, "error": result.get("message", "Failed to send message")}
 
 
 @router.post("/interactions")

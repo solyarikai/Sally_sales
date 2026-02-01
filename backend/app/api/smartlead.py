@@ -1,5 +1,5 @@
 """Smartlead API endpoints for campaign and lead management."""
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from pydantic import BaseModel
@@ -47,8 +47,26 @@ class LeadsListResponse(BaseModel):
     limit: int
 
 
+class WebhookBody(BaseModel):
+    """Inner body of Smartlead webhook."""
+    from_email: Optional[str] = None
+    to_email: Optional[str] = None
+    preview_text: Optional[str] = None
+    email_text: Optional[str] = None
+    campaign_id: Optional[str] = None
+    campaign_name: Optional[str] = None
+    lead_id: Optional[str] = None
+    ui_master_inbox_link: Optional[str] = None
+    
+    class Config:
+        extra = "allow"
+
+
 class WebhookPayload(BaseModel):
     """Smartlead webhook payload for email replies."""
+    # Smartlead wraps data in body
+    body: Optional[WebhookBody] = None
+    # Also support flat format for testing
     event_type: Optional[str] = None
     campaign_id: Optional[str] = None
     lead_email: Optional[str] = None
@@ -56,7 +74,7 @@ class WebhookPayload(BaseModel):
     email_body: Optional[str] = None
     reply_text: Optional[str] = None
     received_at: Optional[str] = None
-    # Allow extra fields from webhook
+    
     class Config:
         extra = "allow"
 
@@ -170,9 +188,40 @@ async def get_lead_email_thread(campaign_id: str, email: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+@router.post("/webhook-raw")
+async def receive_webhook_raw(request: Request):
+    """Debug endpoint to log raw webhook payload."""
+    import json
+    from datetime import datetime
+    
+    # Log request details
+    logger.info("="*60)
+    logger.info(f"[WEBHOOK-RAW] Received at {datetime.now().isoformat()}")
+    logger.info(f"[WEBHOOK-RAW] Headers: {dict(request.headers)}")
+    logger.info(f"[WEBHOOK-RAW] Client: {request.client}")
+    
+    # Get raw body
+    body = await request.body()
+    body_str = body.decode() if body else "<empty>"
+    logger.info(f"[WEBHOOK-RAW] Body length: {len(body_str)} chars")
+    logger.info(f"[WEBHOOK-RAW] Raw body: {body_str[:2000]}")  # First 2000 chars
+    
+    # Try to parse as JSON
+    try:
+        data = await request.json()
+        logger.info(f"[WEBHOOK-RAW] Parsed JSON keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+        logger.info(f"[WEBHOOK-RAW] Full JSON: " + json.dumps(data, indent=2, default=str)[:3000])
+    except Exception as e:
+        logger.error(f"[WEBHOOK-RAW] JSON parse error: {e}")
+    
+    logger.info("="*60)
+    return {"status": "logged", "received_at": datetime.now().isoformat()}
+
+
 @router.post("/webhook")
 async def receive_webhook(
-    payload: WebhookPayload,
+    request: Request,
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session)
 ):
@@ -188,16 +237,99 @@ async def receive_webhook(
     3. Generate draft response
     4. Send Slack notification
     """
-    logger.info(f"Received Smartlead webhook: {payload.event_type}")
-    logger.info(f"Payload: campaign={payload.campaign_id}, email={payload.lead_email}")
+    import json
+    from datetime import datetime
+    
+    logger.info("="*60)
+    logger.info(f"[WEBHOOK] Received at {datetime.now().isoformat()}")
+    
+    # First get raw body for debugging
+    raw_body = await request.body()
+    logger.info(f"[WEBHOOK] Raw body: {raw_body.decode()[:2000]}")
+    
+    # Parse JSON manually
+    try:
+        data = await request.json()
+        logger.info(f"[WEBHOOK] Parsed keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+    except Exception as e:
+        logger.error(f"[WEBHOOK] JSON parse error: {e}")
+        return {"status": "error", "message": str(e)}
+    
+    # Convert to payload model
+    try:
+        payload = WebhookPayload(**data)
+    except Exception as e:
+        logger.warning(f"[WEBHOOK] Pydantic validation error: {e}")
+        logger.info(f"[WEBHOOK] Proceeding with raw data")
+        # Create minimal payload from raw data
+        # Smartlead sends different fields depending on webhook version
+        payload = WebhookPayload()
+        payload.campaign_id = str(data.get("campaign_id") or data.get("body", {}).get("campaign_id") or "")
+        
+        # Lead email: sl_lead_email or to_email (in flat format, to_email is the lead who receives)
+        payload.lead_email = data.get("sl_lead_email") or data.get("to_email") or data.get("body", {}).get("from_email")
+        
+        # Subject
+        payload.email_subject = data.get("subject")
+        
+        # Reply body: try multiple locations
+        reply_body = (
+            data.get("reply_body") or 
+            data.get("preview_text") or
+            (data.get("reply_message", {}) or {}).get("text") or
+            (data.get("reply_message", {}) or {}).get("html") or
+            data.get("body", {}).get("preview_text") or
+            data.get("body", {}).get("email_text")
+        )
+        payload.email_body = reply_body
+        payload.reply_text = reply_body
+        
+        # Store full conversation history if available
+        payload.received_at = data.get("time_replied") or data.get("event_timestamp")
+        payload.event_type = "EMAIL_REPLY"
+        
+        # Log extracted fields
+        logger.info(f"[WEBHOOK] Extracted fields: subject={payload.email_subject}, body_len={len(payload.email_body) if payload.email_body else 0}")
+    
+    logger.info(f"[WEBHOOK] Payload: campaign_id={payload.campaign_id}, lead_email={payload.lead_email}")
+    
+    # Handle both wrapped (body) and flat formats
+    if payload.body:
+        # Smartlead sends data wrapped in body
+        body = payload.body
+        logger.info(f"[WEBHOOK] Format: WRAPPED (body object detected)")
+        logger.info(f"[WEBHOOK] body.campaign_id={body.campaign_id}")
+        logger.info(f"[WEBHOOK] body.from_email={body.from_email}")
+        logger.info(f"[WEBHOOK] body.to_email={body.to_email}")
+        logger.info(f"[WEBHOOK] body.preview_text={body.preview_text[:200] if body.preview_text else None}")
+        logger.info(f"[WEBHOOK] body.campaign_name={body.campaign_name}")
+        
+        # Convert to flat format for processor
+        payload.campaign_id = str(body.campaign_id) if body.campaign_id else None
+        payload.lead_email = body.from_email  # to_email is our lead
+        payload.email_body = body.preview_text or body.email_text
+        payload.event_type = "EMAIL_REPLY"
+        logger.info(f"[WEBHOOK] Converted: campaign_id={payload.campaign_id}, lead_email={payload.lead_email}")
+    else:
+        logger.info(f"[WEBHOOK] Format: FLAT")
+        logger.info(f"[WEBHOOK] event_type={payload.event_type}")
+        logger.info(f"[WEBHOOK] campaign_id={payload.campaign_id}")
+        logger.info(f"[WEBHOOK] lead_email={payload.lead_email}")
+        logger.info(f"[WEBHOOK] email_body={payload.email_body[:200] if payload.email_body else None}")
+    
+    logger.info("="*60)
     
     # Import here to avoid circular imports
     from app.services.reply_processor import process_reply_webhook
     
     # Process in background to return quickly to Smartlead
+    # Merge raw data with payload so processor has access to all Smartlead fields
+    # (like sl_email_lead_map_id, to_name, preview_text, etc.)
+    full_payload = {**data, **payload.model_dump()}
+    
     background_tasks.add_task(
         process_reply_webhook,
-        payload=payload.model_dump(),
+        payload=full_payload,
         session=session
     )
     
@@ -291,3 +423,103 @@ async def simulate_reply(
             "success": False,
             "error": str(e)
         }
+
+
+@router.post("/test-campaign")
+async def create_test_campaign(
+    emails: list[str],
+    name: str = None,
+    launch: bool = False
+):
+    """Create a test campaign for automation testing"""
+    import httpx
+    from datetime import datetime
+    
+    api_key = settings.SMARTLEAD_API_KEY
+    timestamp = datetime.now().strftime("%H%M")
+    campaign_name = name or f"Test Campaign {timestamp}"
+    
+    async with httpx.AsyncClient() as client:
+        # 1. Create campaign
+        resp = await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/create?api_key={api_key}",
+            json={"name": campaign_name}
+        )
+        data = resp.json()
+        campaign_id = data.get("id")
+        if not campaign_id:
+            raise HTTPException(status_code=400, detail=f"Failed to create campaign: {data}")
+        
+        # 2. Add sequence
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/sequences?api_key={api_key}",
+            json={
+                "sequences": [{
+                    "seq_number": 1,
+                    "seq_delay_details": {"delay_in_days": 0},
+                    "subject": f"Test Email - {campaign_name}",
+                    "email_body": "<p>Hi {{first_name}},</p><p>This is a test email for automation testing.</p><p>Please reply to test the auto-reply system.</p><p>Best,<br>Test Bot</p>"
+                }]
+            }
+        )
+        
+        # 3. Set schedule (24/7)
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule?api_key={api_key}",
+            json={
+                "timezone": "UTC",
+                "days_of_the_week": [0,1,2,3,4,5,6],
+                "start_hour": "00:01",
+                "end_hour": "23:59",
+                "min_time_btw_emails": 3,
+                "max_new_leads_per_day": 100
+            }
+        )
+        
+        # 4. Settings
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/settings?api_key={api_key}",
+            json={
+                "track_settings": ["DONT_TRACK_EMAIL_OPEN", "DONT_TRACK_LINK_CLICK"],
+                "stop_lead_settings": "REPLY_TO_AN_EMAIL",
+                "send_as_plain_text": False,
+                "follow_up_percentage": 100
+            }
+        )
+        
+        # 5. Add leads
+        for email in emails:
+            first_name = email.split("@")[0].replace(".", " ").title().split()[0]
+            await client.post(
+                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads?api_key={api_key}",
+                json=[{"email": email, "first_name": first_name, "company": "Test Company"}]
+            )
+        
+        # 6. Launch if requested
+        if launch:
+            await client.post(
+                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status?api_key={api_key}",
+                json={"status": "START"}
+            )
+        
+        return {
+            "campaign_id": str(campaign_id),
+            "campaign_name": campaign_name,
+            "emails": emails,
+            "launched": launch,
+            "smartlead_url": f"https://app.smartlead.ai/app/email-campaign/{campaign_id}/overview"
+        }
+
+
+@router.post("/campaigns/{campaign_id}/launch")
+async def launch_campaign(campaign_id: str):
+    """Launch a campaign"""
+    import httpx
+    
+    api_key = settings.SMARTLEAD_API_KEY
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status?api_key={api_key}",
+            json={"status": "START"}
+        )
+        return resp.json()

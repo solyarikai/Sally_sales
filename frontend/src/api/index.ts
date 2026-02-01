@@ -10,6 +10,14 @@ export { integrationsApi } from './integrations';
 export * as knowledgeBaseApi from './knowledgeBase';
 export { prospectsApi } from './prospects';
 export { repliesApi } from './replies';
+export { contactsApi } from './contacts';
+export { dashboardApi } from './dashboard';
+export type { DashboardResponse, DashboardStats, ActivityItem, QuickStats } from './dashboard';
+export { tasksApi } from './tasks';
+export type { Task, SubTask, TasksResponse } from './tasks';
+export { dataSearchApi } from './dataSearch';
+export type { SearchFilter, CompanyResult, SearchResponse, ParsedQuery, ChatMessage } from './dataSearch';
+export type { Contact, ContactListResponse, ContactStats, Project, FilterOptions, AISDRProject, AISDRGenerationResult, ImportResult } from './contacts';
 export type { 
   Prospect, 
   ProspectsListResponse, 

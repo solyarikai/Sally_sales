@@ -108,14 +108,16 @@ class GoogleSheetsService:
         except Exception:
             return None
     
-    def create_reply_sheet(self, name: str, share_with_email: Optional[str] = None) -> Optional[Dict[str, str]]:
+    def create_reply_sheet(self, name: str, share_with_email: Optional[str] = None, use_drive_api: bool = True) -> Optional[Dict[str, str]]:
         """Create a NEW Google Sheet for logging replies.
         
         SAFETY: Only creates new sheets, never modifies existing ones.
+        Will try Drive API first as fallback for when Sheets API is disabled.
         
         Args:
             name: Name for the new spreadsheet
             share_with_email: Optional email to share the sheet with (editor access)
+            use_drive_api: Try Drive API first (recommended)
             
         Returns:
             Dict with 'sheet_id' and 'sheet_url' if successful, None otherwise
@@ -123,6 +125,13 @@ class GoogleSheetsService:
         if not self._initialize():
             logger.error("Google Sheets service not initialized")
             return None
+        
+        # Try Drive API first (works even if Sheets API is disabled)
+        if use_drive_api:
+            result = self.create_reply_sheet_via_drive(name, share_with_email)
+            if result:
+                return result
+            logger.warning("Drive API failed, trying Sheets API...")
             
         try:
             # Create the spreadsheet
@@ -341,6 +350,57 @@ class GoogleSheetsService:
             return None
         except Exception as e:
             logger.error(f"Error getting sheet info: {e}")
+            return None
+
+
+
+    def create_reply_sheet_via_drive(self, name: str, share_with_email: Optional[str] = None) -> Optional[Dict[str, str]]:
+        """Create a Google Sheet using Drive API (fallback if Sheets API is disabled)."""
+        if not self._initialize():
+            logger.error("Google Sheets service not initialized")
+            return None
+        
+        try:
+            drive_service = build('drive', 'v3', credentials=self.credentials)
+            
+            file_metadata = {
+                'name': f"Reply Log - {name}",
+                'mimeType': 'application/vnd.google-apps.spreadsheet'
+            }
+            
+            file = drive_service.files().create(
+                body=file_metadata,
+                fields='id,webViewLink'
+            ).execute()
+            
+            sheet_id = file.get('id')
+            sheet_url = file.get('webViewLink')
+            
+            if not sheet_id:
+                logger.error("Failed to get sheet ID from Drive API response")
+                return None
+            
+            try:
+                self._add_headers(sheet_id)
+                self._format_header_row(sheet_id)
+            except Exception as e:
+                logger.warning(f"Could not add headers: {e}")
+            
+            if share_with_email:
+                try:
+                    permission = {'type': 'user', 'role': 'writer', 'emailAddress': share_with_email}
+                    drive_service.permissions().create(fileId=sheet_id, body=permission, sendNotificationEmail=False).execute()
+                except Exception as e:
+                    logger.warning(f"Could not share sheet: {e}")
+            
+            logger.info(f"Created sheet via Drive API: {sheet_id}")
+            return {'sheet_id': sheet_id, 'sheet_url': sheet_url or f"https://docs.google.com/spreadsheets/d/{sheet_id}"}
+            
+        except HttpError as e:
+            logger.error(f"Drive API error creating sheet: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error creating sheet via Drive: {e}")
             return None
 
 

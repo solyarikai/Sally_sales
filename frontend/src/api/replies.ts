@@ -52,6 +52,49 @@ export interface GoogleSheetsStatus {
   message: string;
 }
 
+// Slack types
+export interface SlackChannel {
+  id: string;
+  name: string;
+  is_private: boolean;
+  is_member: boolean;
+  num_members: number;
+  topic?: string;
+  purpose?: string;
+}
+
+export interface SlackChannelsResponse {
+  success: boolean;
+  channels: SlackChannel[];
+  total?: number;
+  error?: string;
+  action_required?: string;
+}
+
+export interface SlackStatus {
+  configured: boolean;
+  bot_token: boolean;
+  valid?: boolean;
+  message: string;
+  missing_scopes: string[];
+  has_channels_read?: boolean;
+  has_chat_write?: boolean;
+  bot_user_id?: string;
+  team?: string;
+  team_id?: string;
+}
+
+export interface SlackCreateChannelResponse {
+  success: boolean;
+  channel?: {
+    id: string;
+    name: string;
+    is_private: boolean;
+  };
+  error?: string;
+  action_required?: string;
+}
+
 export interface GoogleSheetCreateResponse {
   success: boolean;
   sheet_id: string;
@@ -96,9 +139,41 @@ export interface ProcessedReply {
 export interface ProcessedReplyStats {
   total: number;
   by_category: Record<string, number>;
+  by_status: Record<string, number>;
   today: number;
   this_week: number;
   sent_to_slack: number;
+  pending: number;
+  approved: number;
+  dismissed: number;
+}
+
+export interface AutomationMonitoringStats {
+  automation_id: number;
+  automation_name: string;
+  active: boolean;
+  total_processed: number;
+  total_errors: number;
+  replies_today: number;
+  replies_this_week: number;
+  pending: number;
+  approved: number;
+  dismissed: number;
+  by_category: Record<string, number>;
+  last_run_at: string | null;
+  last_error_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  health_status: 'healthy' | 'warning' | 'error' | 'paused';
+}
+
+export interface AutomationMonitoringResponse {
+  automations: AutomationMonitoringStats[];
+  total: number;
+  total_active: number;
+  total_paused: number;
+  total_processed_all: number;
+  total_errors_all: number;
 }
 
 export interface SmartleadCampaign {
@@ -157,8 +232,33 @@ export async function deleteAutomation(id: number): Promise<void> {
   await api.delete(`/replies/automations/${id}`);
 }
 
+export async function addCampaignToAutomation(automationId: number, campaignId: string): Promise<ReplyAutomation> {
+  const response = await api.post(`/replies/automations/${automationId}/campaigns`, { campaign_id: campaignId });
+  return response.data;
+}
+
 export async function testAutomationWebhook(id: number): Promise<{ success: boolean; message: string }> {
   const response = await api.post(`/replies/automations/${id}/test-webhook`);
+  return response.data;
+}
+
+export async function pauseAutomation(id: number): Promise<{ success: boolean; message: string; active: boolean }> {
+  const response = await api.post(`/replies/automations/${id}/pause`);
+  return response.data;
+}
+
+export async function resumeAutomation(id: number): Promise<{ success: boolean; message: string; active: boolean }> {
+  const response = await api.post(`/replies/automations/${id}/resume`);
+  return response.data;
+}
+
+export async function getAutomationMonitoring(): Promise<AutomationMonitoringResponse> {
+  const response = await api.get('/replies/automations/monitoring');
+  return response.data;
+}
+
+export async function getSingleAutomationMonitoring(id: number): Promise<AutomationMonitoringStats> {
+  const response = await api.get(`/replies/automations/${id}/monitoring`);
   return response.data;
 }
 
@@ -246,6 +346,32 @@ export async function createGoogleSheet(
   return response.data;
 }
 
+// ============= Slack Integration =============
+
+export async function getSlackStatus(): Promise<SlackStatus> {
+  const response = await api.get('/replies/slack/status');
+  return response.data;
+}
+
+export async function getSlackChannels(includePrivate = false): Promise<SlackChannelsResponse> {
+  const response = await api.get('/replies/slack/channels', {
+    params: { include_private: includePrivate }
+  });
+  return response.data;
+}
+
+export async function createSlackChannel(name: string, isPrivate = false): Promise<SlackCreateChannelResponse> {
+  const response = await api.post('/replies/slack/channels/create', null, {
+    params: { name, is_private: isPrivate }
+  });
+  return response.data;
+}
+
+export async function testSlackChannel(channelId: string): Promise<{ success: boolean; message: string }> {
+  const response = await api.post(`/replies/slack/test-channel/${channelId}`);
+  return response.data;
+}
+
 // Export all functions as named object for consistency
 export const repliesApi = {
   // Smartlead
@@ -258,7 +384,12 @@ export const repliesApi = {
   createAutomation,
   updateAutomation,
   deleteAutomation,
+  addCampaignToAutomation,
   testAutomationWebhook,
+  pauseAutomation,
+  resumeAutomation,
+  getAutomationMonitoring,
+  getSingleAutomationMonitoring,
   // Replies
   getReplies,
   getReply,
@@ -269,4 +400,9 @@ export const repliesApi = {
   // Google Sheets
   getGoogleSheetsStatus,
   createGoogleSheet,
+  // Slack
+  getSlackStatus,
+  getSlackChannels,
+  createSlackChannel,
+  testSlackChannel,
 };

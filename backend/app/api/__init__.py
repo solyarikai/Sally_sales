@@ -15,6 +15,13 @@ from .environments import router as environments_router
 from .smartlead import router as smartlead_router
 from .replies import router as replies_router
 from .slack_interactions import router as slack_router
+from .contacts import router as contacts_router
+from .errors import router as errors_router
+from .drive import router as drive_router
+from .dashboard import router as dashboard_router
+from .tasks import router as tasks_router
+from .health import router as health_router
+from .data_search import router as data_search_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -39,5 +46,26 @@ api_router.include_router(environments_router)
 api_router.include_router(smartlead_router)
 api_router.include_router(replies_router)
 api_router.include_router(slack_router)
+
+# CRM
+api_router.include_router(contacts_router)
+
+# Google Drive
+api_router.include_router(drive_router)
+
+# Error logging
+api_router.include_router(errors_router)
+
+# Dashboard
+api_router.include_router(dashboard_router)
+
+# Tasks (from state/tasks.md)
+api_router.include_router(tasks_router)
+
+# Health checks (no prefix - /api/health)
+api_router.include_router(health_router)
+
+# Data Search (Explee-like natural language search)
+api_router.include_router(data_search_router)
 
 __all__ = ["api_router"]

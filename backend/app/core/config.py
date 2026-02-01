@@ -56,8 +56,12 @@ class Settings(BaseSettings):
     GOOGLE_SERVICE_ACCOUNT_JSON: Optional[str] = None
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     
+    # Google Drive Integration
+    # Shared Drive ID for uploading files (optional - if not set, files go to service account's My Drive)
+    SHARED_DRIVE_ID: Optional[str] = None
+    
     # CORS - comma-separated list of allowed origins
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,http://46.62.210.24,http://46.62.210.24:80,http://46.62.210.24:8000"
     
     class Config:
         env_file = ".env"

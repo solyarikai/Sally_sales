@@ -48,6 +48,11 @@ function shouldSkipCompanyHeader(url: string | undefined): boolean {
     return true;
   }
   
+  // Data search is user-level (not company-scoped)
+  if (url.startsWith('/data-search')) {
+    return true;
+  }
+  
   return false;
 }
 
@@ -69,11 +74,69 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor
+// Response interceptor with improved error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    // Extract user-friendly error message
+    let userMessage = 'An unexpected error occurred';
+    let technicalDetails = '';
+    
+    if (error.response) {
+      // Server responded with error status
+      const status = error.response.status;
+      const data = error.response.data;
+      
+      // Extract message from various response formats
+      if (data?.detail) {
+        userMessage = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+      } else if (data?.message) {
+        userMessage = data.message;
+      } else if (data?.error) {
+        userMessage = data.error;
+      }
+      
+      // Map status codes to user-friendly messages
+      if (status === 401) {
+        userMessage = 'Please log in to continue';
+      } else if (status === 403) {
+        userMessage = 'You do not have permission to perform this action';
+      } else if (status === 404) {
+        userMessage = userMessage === 'An unexpected error occurred' ? 'The requested resource was not found' : userMessage;
+      } else if (status === 422) {
+        userMessage = 'Please check your input and try again';
+        if (data?.detail && Array.isArray(data.detail)) {
+          technicalDetails = data.detail.map((d: any) => d.msg || d.message).join(', ');
+        }
+      } else if (status >= 500) {
+        userMessage = 'Server error. Please try again later';
+      }
+      
+      technicalDetails = technicalDetails || `Status: ${status}`;
+    } else if (error.request) {
+      // Request made but no response
+      userMessage = 'Unable to connect to server. Please check your internet connection';
+      technicalDetails = 'No response received';
+    } else {
+      // Request setup error
+      userMessage = 'Failed to make request';
+      technicalDetails = error.message;
+    }
+    
+    // Log to console for debugging
+    console.error('API Error:', {
+      message: userMessage,
+      technical: technicalDetails,
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
+    
+    // Attach user-friendly message to error for components to use
+    error.userMessage = userMessage;
+    error.technicalDetails = technicalDetails;
+    
     return Promise.reject(error);
   }
 );

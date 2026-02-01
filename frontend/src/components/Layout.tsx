@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft, MessageSquare } from 'lucide-react';
+import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft, MessageSquare, Contact, ListTodo, Search } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
 import { companiesApi } from '../api';
 import type { CompanyWithStats } from '../types';
+import { SectionErrorBoundary } from './ErrorBoundary';
 
 interface LayoutProps {
   children: ReactNode;
@@ -22,10 +23,13 @@ export function Layout({ children }: LayoutProps) {
   // Build nav items with company prefix
   const companyPrefix = companyId ? `/company/${companyId}` : '';
   const navItems = [
+    { path: '/', icon: Search, label: 'Data Search', global: true },
     { path: `${companyPrefix}/data`, icon: Database, label: 'Data' },
     { path: `${companyPrefix}/prospects`, icon: Users, label: 'All Prospects' },
+    { path: `${companyPrefix}/contacts`, icon: Contact, label: 'CRM' },
     { path: `${companyPrefix}/knowledge-base`, icon: BookOpen, label: 'Knowledge Base' },
     { path: '/replies', icon: MessageSquare, label: 'Replies' },
+    { path: '/tasks', icon: ListTodo, label: 'Tasks' },
     { path: '/templates', icon: FileText, label: 'Prompt Templates' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
@@ -87,6 +91,10 @@ export function Layout({ children }: LayoutProps) {
   };
 
   const isPathActive = (path: string) => {
+    // Exact match for root path (Data Search)
+    if (path === '/') {
+      return location.pathname === '/' || location.pathname === '/data-search';
+    }
     if (path === '/templates' || path === '/settings') {
       return location.pathname === path;
     }
@@ -163,7 +171,7 @@ export function Layout({ children }: LayoutProps) {
                 </div>
                 <div className="border-t border-neutral-100 pt-1">
                   <Link
-                    to="/"
+                    to="/companies"
                     onClick={() => setShowCompanyDropdown(false)}
                     className="w-full px-3 py-2 flex items-center gap-2 text-neutral-600 hover:bg-neutral-50 transition-colors text-sm"
                   >
@@ -179,7 +187,7 @@ export function Layout({ children }: LayoutProps) {
         {/* Navigation */}
         <nav className="flex items-center gap-1">
           {navItems.map((item) => {
-            // Skip company-scoped items if no company is selected
+            // Skip company-scoped items if no company is selected (except global items)
             if (!currentCompany && item.path.startsWith('/company')) {
               return null;
             }
@@ -209,7 +217,9 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto">
-        {children}
+        <SectionErrorBoundary>
+          {children}
+        </SectionErrorBoundary>
       </main>
     </div>
   );

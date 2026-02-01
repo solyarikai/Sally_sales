@@ -59,9 +59,32 @@ Respond with ONLY a JSON object:
 """
 
 
+def render_classification_prompt(
+    subject: str,
+    body: str,
+    custom_prompt: Optional[str] = None
+) -> str:
+    """Render the classification prompt with actual values.
+    
+    Args:
+        subject: Email subject
+        body: Email body/reply text
+        custom_prompt: Optional custom prompt template
+        
+    Returns:
+        The fully rendered prompt string
+    """
+    base_prompt = custom_prompt or CLASSIFICATION_PROMPT
+    return base_prompt.format(
+        subject=subject or "(no subject)",
+        body=body or "(empty)"
+    )
+
+
 async def classify_reply(
     subject: str,
-    body: str
+    body: str,
+    custom_prompt: Optional[str] = None
 ) -> Dict[str, Any]:
     """Classify an email reply using OpenAI.
     
@@ -81,10 +104,9 @@ async def classify_reply(
         }
     
     try:
-        prompt = CLASSIFICATION_PROMPT.format(
-            subject=subject or "(no subject)",
-            body=body or "(empty)"
-        )
+        prompt = render_classification_prompt(subject, body, custom_prompt)
+        
+        logger.debug(f"[PROMPT DEBUG] Classification prompt:\n{prompt[:500]}...")
         
         response = await openai_service.complete(
             prompt=prompt,
@@ -92,6 +114,8 @@ async def classify_reply(
             temperature=0.1,
             max_tokens=200
         )
+        
+        logger.debug(f"[PROMPT DEBUG] Classification response: {response}")
         
         # Parse JSON response
         import json
@@ -118,13 +142,48 @@ async def classify_reply(
         }
 
 
+def render_draft_prompt(
+    subject: str,
+    body: str,
+    category: str,
+    first_name: str = "",
+    last_name: str = "",
+    company: str = "",
+    custom_prompt: Optional[str] = None
+) -> str:
+    """Render the draft reply prompt with actual values.
+    
+    Args:
+        subject: Original email subject
+        body: Original reply body
+        category: Classified category
+        first_name: Lead's first name
+        last_name: Lead's last name
+        company: Lead's company
+        custom_prompt: Optional custom prompt template
+        
+    Returns:
+        The fully rendered prompt string
+    """
+    base_prompt = custom_prompt or DRAFT_REPLY_PROMPT
+    return base_prompt.format(
+        subject=subject or "(no subject)",
+        body=body or "(empty)",
+        category=category,
+        first_name=first_name or "",
+        last_name=last_name or "",
+        company=company or "their company"
+    )
+
+
 async def generate_draft_reply(
     subject: str,
     body: str,
     category: str,
     first_name: str = "",
     last_name: str = "",
-    company: str = ""
+    company: str = "",
+    custom_prompt: Optional[str] = None
 ) -> Dict[str, Any]:
     """Generate a draft reply using OpenAI.
     
@@ -156,14 +215,17 @@ async def generate_draft_reply(
         }
     
     try:
-        prompt = DRAFT_REPLY_PROMPT.format(
-            subject=subject or "(no subject)",
-            body=body or "(empty)",
+        prompt = render_draft_prompt(
+            subject=subject,
+            body=body,
             category=category,
-            first_name=first_name or "",
-            last_name=last_name or "",
-            company=company or "their company"
+            first_name=first_name,
+            last_name=last_name,
+            company=company,
+            custom_prompt=custom_prompt
         )
+        
+        logger.debug(f"[PROMPT DEBUG] Draft prompt:\n{prompt[:500]}...")
         
         response = await openai_service.complete(
             prompt=prompt,
@@ -171,6 +233,8 @@ async def generate_draft_reply(
             temperature=0.7,
             max_tokens=500
         )
+        
+        logger.debug(f"[PROMPT DEBUG] Draft response: {response}")
         
         # Parse JSON response
         import json
@@ -204,21 +268,78 @@ async def process_reply_webhook(
     Returns:
         Created ProcessedReply record
     """
-    logger.info(f"Processing webhook payload: {payload.get('event_type')}")
+    import json
+    logger.info("="*60)
+    logger.info(f"[PROCESSOR] Starting webhook processing")
+    logger.info(f"[PROCESSOR] Payload keys: {list(payload.keys())}")
+    logger.info(f"[PROCESSOR] event_type: {payload.get('event_type')}")
+    logger.info(f"[PROCESSOR] Full payload: {json.dumps(payload, default=str)[:2000]}")
     
     try:
-        # Extract data from payload
+        # Extract data from payload - handle Smartlead's various field names
         campaign_id = payload.get("campaign_id")
-        lead_email = payload.get("lead_email")
-        subject = payload.get("email_subject", "")
-        body = payload.get("email_body") or payload.get("reply_text", "")
         
-        # Extract inbox link from nested webhook body (Smartlead format)
-        inbox_link = None
-        if "body" in payload and isinstance(payload["body"], dict):
-            inbox_link = payload["body"].get("ui_master_inbox_link")
-        elif "ui_master_inbox_link" in payload:
-            inbox_link = payload.get("ui_master_inbox_link")
+        # Lead email: try multiple field names
+        lead_email = (
+            payload.get("lead_email") or 
+            payload.get("sl_lead_email") or 
+            payload.get("to_email")  # In Smartlead flat format, to_email is the lead
+        )
+        
+        # Subject
+        subject = payload.get("email_subject") or payload.get("subject", "")
+        
+        # Reply body: prefer plain text (preview_text is cleanest, no HTML)
+        body = (
+            payload.get("preview_text") or  # Cleanest - just the reply text
+            (payload.get("reply_message") or {}).get("text") or  # Full text version
+            payload.get("reply_body") or
+            (payload.get("body") or {}).get("preview_text") or
+            (payload.get("body") or {}).get("email_text") or
+            payload.get("email_body") or  # May contain HTML - last resort
+            ""
+        )
+        
+        # Strip HTML tags if body still contains them
+        if body and "<" in body and ">" in body:
+            import re
+            body = re.sub(r"<[^>]+>", " ", body)  # Remove HTML tags
+            body = re.sub(r"\s+", " ", body).strip()  # Clean whitespace
+            # Take just first part before quoted content
+            if "On " in body and " wrote:" in body:
+                body = body.split("On ")[0].strip()
+        
+        # Lead name - extract from to_name field
+        to_name = payload.get("to_name") or ""
+        lead_name_parts = to_name.split() if to_name else []
+        first_name = lead_name_parts[0] if len(lead_name_parts) > 0 else payload.get("first_name", "")
+        last_name = " ".join(lead_name_parts[1:]) if len(lead_name_parts) > 1 else payload.get("last_name", "")
+        logger.info(f"[PROCESSOR] Parsed name: first={first_name}, last={last_name} from to_name={to_name}")
+        
+        # Campaign name
+        campaign_name = payload.get("campaign_name", "")
+        
+        # Inbox link - construct lead-specific URL if we have leadMap ID
+        lead_map_id = (
+            payload.get("sl_email_lead_map_id") or 
+            payload.get("sl_email_lead_id") or
+            (payload.get("body") or {}).get("lead_id")
+        )
+        if lead_map_id:
+            inbox_link = f"https://app.smartlead.ai/app/master-inbox?action=INBOX&leadMap={lead_map_id}"
+            logger.info(f"[PROCESSOR] Built inbox link with leadMap={lead_map_id}")
+        else:
+            inbox_link = payload.get("ui_master_inbox_link") or (payload.get("body") or {}).get("ui_master_inbox_link")
+            logger.info(f"[PROCESSOR] Using generic inbox link")
+        
+        # Conversation history
+        lead_correspondence = payload.get("leadCorrespondence", [])
+        
+        logger.info(f"[PROCESSOR] Extracted: campaign_id={campaign_id}, lead_email={lead_email}")
+        logger.info(f"[PROCESSOR] Subject: {subject[:100] if subject else None}")
+        logger.info(f"[PROCESSOR] Body: {body[:200] if body else None}")
+        logger.info(f"[PROCESSOR] Name: {first_name} {last_name}")
+        logger.info(f"[PROCESSOR] Inbox: {inbox_link}")
         
         if not lead_email:
             logger.warning("No lead_email in webhook payload, skipping")
@@ -228,42 +349,57 @@ async def process_reply_webhook(
         automation_id = None
         automation = None
         if campaign_id:
+            # Query automations where campaign_ids JSON array contains the campaign_id
+            # Use raw SQL for JSON array containment since SQLAlchemy's .contains() 
+            # doesn't work well with PostgreSQL JSON arrays
+            from sqlalchemy import text, cast
+            from sqlalchemy.dialects.postgresql import JSONB
+            
             result = await session.execute(
                 select(ReplyAutomation).where(
                     ReplyAutomation.active == True,
                     ReplyAutomation.is_active == True,
-                    ReplyAutomation.campaign_ids.contains([campaign_id])
-                )
+                    cast(ReplyAutomation.campaign_ids, JSONB).contains([campaign_id])
+                ).order_by(ReplyAutomation.created_at.desc()).limit(1)
             )
-            automation = result.scalar_one_or_none()
+            automation = result.scalar()
             if automation:
                 automation_id = automation.id
+                logger.info(f"[PROCESSOR] Found automation: id={automation_id}, name={automation.name}")
+                logger.info(f"[PROCESSOR] Automation config: slack_channel={automation.slack_channel}, auto_classify={automation.auto_classify}")
+            else:
+                logger.info(f"[PROCESSOR] No automation found for campaign_id={campaign_id}")
         
         # Classify the reply
-        classification = await classify_reply(subject, body)
+        logger.info(f"[PROCESSOR] Starting classification...")
+        custom_classification_prompt = automation.classification_prompt if automation else None
+        classification = await classify_reply(subject, body, custom_prompt=custom_classification_prompt)
+        logger.info(f"[PROCESSOR] Classification: category={classification['category']}, confidence={classification['confidence']}")
         
         # Generate draft reply
+        custom_reply_prompt = automation.reply_prompt if automation else None
         draft = await generate_draft_reply(
             subject=subject,
             body=body,
             category=classification["category"],
-            first_name=payload.get("first_name", ""),
-            last_name=payload.get("last_name", ""),
-            company=payload.get("company_name", "")
+            first_name=first_name,
+            last_name=last_name,
+            company=payload.get("company_name", ""),
+            custom_prompt=custom_reply_prompt
         )
         
         # Create processed reply record
         processed_reply = ProcessedReply(
             automation_id=automation_id,
             campaign_id=campaign_id,
-            campaign_name=payload.get("campaign_name"),
+            campaign_name=campaign_name,
             lead_email=lead_email,
-            lead_first_name=payload.get("first_name"),
-            lead_last_name=payload.get("last_name"),
-            lead_company=payload.get("company_name"),
+            lead_first_name=first_name,
+            lead_last_name=last_name,
+            lead_company=payload.get("company_name", ""),
             email_subject=subject,
             email_body=body,
-            reply_text=payload.get("reply_text"),
+            reply_text=body,  # Store reply text same as body
             received_at=datetime.utcnow(),
             category=classification["category"],
             category_confidence=classification["confidence"],
@@ -323,6 +459,11 @@ async def process_reply_webhook(
             except Exception as e:
                 logger.error(f"Failed to log reply to Google Sheets: {e}")
         
+        # Update automation monitoring stats
+        if automation:
+            automation.last_run_at = datetime.utcnow()
+            automation.total_processed = (automation.total_processed or 0) + 1
+        
         await session.commit()
         logger.info(f"Processed reply {processed_reply.id} - category: {classification['category']}")
         
@@ -330,5 +471,14 @@ async def process_reply_webhook(
         
     except Exception as e:
         logger.error(f"Error processing webhook: {e}")
+        # Track error on automation if found
+        if automation:
+            try:
+                automation.total_errors = (automation.total_errors or 0) + 1
+                automation.last_error = str(e)[:500]  # Truncate long errors
+                automation.last_error_at = datetime.utcnow()
+                await session.commit()
+            except:
+                pass  # Don't fail if we can't log the error
         await session.rollback()
         raise

@@ -1,0 +1,12 @@
+{
+  "session_id": 1,
+  "started_at": "2026-02-01T23:20:01+00:00",
+  "last_updated": "2026-02-02T00:15:00+00:00",
+  "status": "completed",
+  "current_task": {
+    "name": "Task 5: Data Search Improvements (data300126)",
+    "current_subtask": "Crona + OpenAI verification pipeline - COMPLETED"
+  },
+  "auto_continue": true,
+  "recovery_notes": "Completed: Crona + OpenAI verification pipeline. Created verification_service.py, added API endpoints, updated frontend with verify button and status display."
+}

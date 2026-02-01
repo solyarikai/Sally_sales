@@ -109,6 +109,10 @@ class Company(Base):
     
     # Reply Automation
     reply_automations = relationship("ReplyAutomation", back_populates="company", cascade="all, delete-orphan")
+    
+    # CRM
+    projects = relationship("Project", back_populates="company", cascade="all, delete-orphan")
+    contacts = relationship("Contact", back_populates="company", cascade="all, delete-orphan")
 
 
 class UserActivityLog(Base):

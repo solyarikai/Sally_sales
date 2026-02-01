@@ -4,9 +4,49 @@ from typing import Dict, Any, List, Optional, Callable
 from openai import AsyncOpenAI
 from app.core.config import settings
 import logging
+import os
 import time
 
 logger = logging.getLogger(__name__)
+# Usage tracking - pricing per 1M tokens
+PRICING = {
+    "gpt-4o": {"input": 2.50, "output": 10.00},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "gpt-4-turbo": {"input": 10.00, "output": 30.00},
+    "gpt-4": {"input": 30.00, "output": 60.00},
+    "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
+}
+
+def track_openai_usage(model: str, input_tokens: int, output_tokens: int):
+    """Track OpenAI usage in PostgreSQL database"""
+    import psycopg2
+    try:
+        pricing = PRICING.get(model, PRICING.get("gpt-4o-mini"))
+        cost = (input_tokens / 1_000_000 * pricing["input"]) + (output_tokens / 1_000_000 * pricing["output"])
+        
+        # Direct connection using known credentials
+        conn = psycopg2.connect(
+            host="postgres",  # Docker network hostname
+            port=5432,
+            user="leadgen",
+            password="leadgen_secret",
+            database="leadgen"
+        )
+        cur = conn.cursor()
+        cur.execute("""INSERT INTO openai_usage (model, input_tokens, output_tokens, cost_usd, source)
+                     VALUES (%s, %s, %s, %s, 'backend')""",
+                  (model, input_tokens, output_tokens, cost))
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info(f"Tracked usage: {model} {input_tokens}in/{output_tokens}out = ${cost:.6f}")
+    except Exception as e:
+        logger.warning(f"Failed to track usage: {e}")
+
+# Placeholder to mark end of tracking code
+_TRACKING_LOADED = True
+
+
 
 
 # Model-specific configurations
@@ -253,6 +293,10 @@ class OpenAIService:
                 temperature=temperature,
                 max_tokens=max_tokens
             )
+            
+            # Track usage
+            if response.usage:
+                track_openai_usage(model, response.usage.prompt_tokens, response.usage.completion_tokens)
             
             return response.choices[0].message.content or ""
             

@@ -17,9 +17,18 @@ from app.schemas.reply import (
     ProcessedReplyResponse,
     ProcessedReplyListResponse,
     ProcessedReplyStats,
+    AutomationMonitoringStats,
+    AutomationMonitoringListResponse,
 )
-from app.services.notification_service import send_test_notification, send_slack_notification
+from app.services.notification_service import (
+    send_test_notification, 
+    send_slack_notification,
+    get_slack_token_status,
+    list_slack_channels,
+    create_slack_channel
+)
 from app.services.google_sheets_service import google_sheets_service
+from app.services.smartlead_service import smartlead_service
 
 logger = logging.getLogger(__name__)
 
@@ -144,8 +153,135 @@ async def create_automation(
     await session.flush()
     await session.refresh(automation)
     
+    # Auto-configure Smartlead webhooks for all campaigns
+    webhook_url = "http://46.62.210.24:8000/api/smartlead/webhook"
+    for campaign_id in data.campaign_ids:
+        try:
+            await smartlead_service.configure_campaign_webhook(
+                campaign_id=campaign_id,
+                webhook_url=webhook_url
+            )
+        except Exception as e:
+            logger.warning(f"Failed to configure webhook for campaign {campaign_id}: {e}")
+    
     logger.info(f"Created reply automation: {automation.id} - {automation.name}")
     return ReplyAutomationResponse.model_validate(automation)
+
+
+# IMPORTANT: This route must be before /automations/{automation_id} to avoid route conflicts
+@router.get("/automations/monitoring", response_model=AutomationMonitoringListResponse)
+async def get_automation_monitoring_list(
+    session: AsyncSession = Depends(get_session)
+):
+    """Get detailed monitoring stats for all automations."""
+    # Get all active (not soft-deleted) automations
+    result = await session.execute(
+        select(ReplyAutomation).where(ReplyAutomation.is_active == True).order_by(desc(ReplyAutomation.created_at))
+    )
+    automations = result.scalars().all()
+    
+    monitoring_stats = []
+    total_active = 0
+    total_paused = 0
+    total_processed_all = 0
+    total_errors_all = 0
+    
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    
+    for auto in automations:
+        # Today count
+        today_result = await session.execute(
+            select(func.count(ProcessedReply.id)).where(
+                ProcessedReply.automation_id == auto.id,
+                ProcessedReply.processed_at >= today_start
+            )
+        )
+        replies_today = today_result.scalar() or 0
+        
+        # Week count
+        week_result = await session.execute(
+            select(func.count(ProcessedReply.id)).where(
+                ProcessedReply.automation_id == auto.id,
+                ProcessedReply.processed_at >= week_start
+            )
+        )
+        replies_this_week = week_result.scalar() or 0
+        
+        # Status breakdown
+        status_result = await session.execute(
+            select(ProcessedReply.approval_status, func.count(ProcessedReply.id)).where(
+                ProcessedReply.automation_id == auto.id
+            ).group_by(ProcessedReply.approval_status)
+        )
+        pending = 0
+        approved = 0
+        dismissed = 0
+        for row in status_result.all():
+            status = row[0] or "pending"
+            count = row[1]
+            if status in ("pending", None):
+                pending += count
+            elif status == "approved":
+                approved = count
+            elif status == "dismissed":
+                dismissed = count
+        
+        # Category breakdown
+        cat_result = await session.execute(
+            select(ProcessedReply.category, func.count(ProcessedReply.id)).where(
+                ProcessedReply.automation_id == auto.id
+            ).group_by(ProcessedReply.category)
+        )
+        by_category = {row[0] or "unknown": row[1] for row in cat_result.all()}
+        
+        # Determine health status
+        health_status = "healthy"
+        if auto.total_errors and auto.total_errors > 0:
+            error_rate = auto.total_errors / max(auto.total_processed or 1, 1)
+            if error_rate > 0.5:
+                health_status = "error"
+            elif error_rate > 0.1:
+                health_status = "warning"
+        
+        if not auto.active:
+            health_status = "paused"
+        
+        monitoring_stats.append(AutomationMonitoringStats(
+            automation_id=auto.id,
+            automation_name=auto.name,
+            active=auto.active,
+            total_processed=auto.total_processed or 0,
+            total_errors=auto.total_errors or 0,
+            replies_today=replies_today,
+            replies_this_week=replies_this_week,
+            pending=pending,
+            approved=approved,
+            dismissed=dismissed,
+            by_category=by_category,
+            last_run_at=auto.last_run_at,
+            last_error_at=auto.last_error_at,
+            last_error=auto.last_error,
+            created_at=auto.created_at,
+            health_status=health_status
+        ))
+        
+        # Aggregate totals
+        if auto.active:
+            total_active += 1
+        else:
+            total_paused += 1
+        total_processed_all += auto.total_processed or 0
+        total_errors_all += auto.total_errors or 0
+    
+    return AutomationMonitoringListResponse(
+        automations=monitoring_stats,
+        total=len(monitoring_stats),
+        total_active=total_active,
+        total_paused=total_paused,
+        total_processed_all=total_processed_all,
+        total_errors_all=total_errors_all
+    )
 
 
 @router.get("/automations/{automation_id}", response_model=ReplyAutomationResponse)
@@ -222,6 +358,85 @@ async def delete_automation(
     logger.info(f"Deleted reply automation: {automation.id}")
     return {"message": "Automation deleted", "id": automation_id}
 
+
+
+
+@router.post("/automations/{automation_id}/campaigns")
+async def add_campaigns_to_automation(
+    automation_id: int,
+    campaign_ids: List[str],
+    session: AsyncSession = Depends(get_session)
+):
+    """Add campaigns to an existing automation.
+    
+    This appends to the existing campaign list without replacing.
+    """
+    result = await session.execute(
+        select(ReplyAutomation).where(
+            ReplyAutomation.id == automation_id,
+            ReplyAutomation.is_active == True
+        )
+    )
+    automation = result.scalar_one_or_none()
+    
+    if not automation:
+        raise HTTPException(status_code=404, detail="Automation not found")
+    
+    # Get existing campaigns and add new ones (dedup)
+    existing = automation.campaign_ids or []
+    updated = list(set(existing + campaign_ids))
+    automation.campaign_ids = updated
+    automation.updated_at = datetime.utcnow()
+    
+    await session.flush()
+    await session.refresh(automation)
+    
+    # Configure webhooks for new campaigns
+    from app.services.smartlead_service import smartlead_service
+    webhook_url = "http://46.62.210.24:8000/api/smartlead/webhook"
+    
+    for cid in campaign_ids:
+        if cid not in existing:  # Only configure new ones
+            try:
+                await smartlead_service.configure_campaign_webhook(
+                    campaign_id=cid,
+                    webhook_url=webhook_url,
+                    event_types=["EMAIL_REPLY"]
+                )
+                logger.info(f"Configured webhook for campaign {cid}")
+            except Exception as e:
+                logger.warning(f"Failed to configure webhook for campaign {cid}: {e}")
+    
+    logger.info(f"Added {len(campaign_ids)} campaigns to automation {automation_id}")
+    return {"automation_id": automation_id, "campaign_ids": updated, "added": campaign_ids}
+
+
+@router.delete("/automations/{automation_id}/campaigns/{campaign_id}")
+async def remove_campaign_from_automation(
+    automation_id: int,
+    campaign_id: str,
+    session: AsyncSession = Depends(get_session)
+):
+    """Remove a campaign from an automation."""
+    result = await session.execute(
+        select(ReplyAutomation).where(
+            ReplyAutomation.id == automation_id,
+            ReplyAutomation.is_active == True
+        )
+    )
+    automation = result.scalar_one_or_none()
+    
+    if not automation:
+        raise HTTPException(status_code=404, detail="Automation not found")
+    
+    existing = automation.campaign_ids or []
+    if campaign_id in existing:
+        existing.remove(campaign_id)
+        automation.campaign_ids = existing
+        automation.updated_at = datetime.utcnow()
+        await session.flush()
+    
+    return {"automation_id": automation_id, "campaign_ids": existing, "removed": campaign_id}
 
 @router.post("/automations/{automation_id}/test-webhook")
 async def test_automation_webhook(
@@ -428,6 +643,161 @@ async def get_reply_stats(
     )
 
 
+# ===== PROMPT TESTING ROUTES =====
+# These MUST be before /{reply_id} to avoid route conflicts
+
+@router.post("/test-prompt")
+async def test_prompt_endpoint(
+    subject: str = "",
+    body: str = "",
+    classification_prompt: Optional[str] = None,
+    reply_prompt: Optional[str] = None,
+    first_name: str = "",
+    last_name: str = "",
+    company: str = "",
+    show_prompts: bool = True
+):
+    """Test classification and reply prompts with sample data.
+    
+    Args:
+        subject: Email subject to test
+        body: Email body to test
+        classification_prompt: Custom classification prompt (optional)
+        reply_prompt: Custom reply prompt (optional)
+        first_name: Lead first name for reply generation
+        last_name: Lead last name for reply generation
+        company: Lead company for reply generation
+        show_prompts: Include the actual rendered prompts in response (for debugging)
+    
+    Returns:
+        Classification result, generated reply, and optionally the actual prompts used
+    """
+    from app.services.reply_processor import (
+        classify_reply, generate_draft_reply,
+        CLASSIFICATION_PROMPT, DRAFT_REPLY_PROMPT,
+        render_classification_prompt, render_draft_prompt
+    )
+    
+    # Get the actual rendered prompts for debugging
+    rendered_classification_prompt = render_classification_prompt(
+        subject=subject,
+        body=body,
+        custom_prompt=classification_prompt
+    )
+    
+    # Run classification
+    classification = await classify_reply(
+        subject=subject,
+        body=body,
+        custom_prompt=classification_prompt
+    )
+    
+    # Get the actual rendered draft prompt
+    rendered_draft_prompt = render_draft_prompt(
+        subject=subject,
+        body=body,
+        category=classification["category"],
+        first_name=first_name,
+        last_name=last_name,
+        company=company,
+        custom_prompt=reply_prompt
+    )
+    
+    # Generate reply
+    draft = await generate_draft_reply(
+        subject=subject,
+        body=body,
+        category=classification["category"],
+        first_name=first_name,
+        last_name=last_name,
+        company=company,
+        custom_prompt=reply_prompt
+    )
+    
+    result = {
+        "classification": classification,
+        "draft_reply": draft,
+        "input": {
+            "subject": subject,
+            "body": body,
+            "first_name": first_name,
+            "last_name": last_name,
+            "company": company
+        }
+    }
+    
+    # Include prompts for debugging if requested
+    if show_prompts:
+        result["debug"] = {
+            "classification_prompt": {
+                "template_used": "custom" if classification_prompt else "default",
+                "rendered": rendered_classification_prompt
+            },
+            "draft_prompt": {
+                "template_used": "custom" if reply_prompt else "default",
+                "rendered": rendered_draft_prompt
+            },
+            "default_templates": {
+                "classification": CLASSIFICATION_PROMPT,
+                "draft_reply": DRAFT_REPLY_PROMPT
+            }
+        }
+    
+    return result
+
+
+@router.get("/test/sample-replies")
+async def get_replies_for_testing_endpoint(
+    search: str = "",
+    limit: int = 20,
+    session: AsyncSession = Depends(get_session)
+):
+    """Get recent replies for prompt testing.
+    
+    Args:
+        search: Search term for filtering
+        limit: Max number of results
+    
+    Returns:
+        List of replies with subject, body, and lead info
+    """
+    from sqlalchemy import or_
+    
+    stmt = select(ProcessedReply).order_by(ProcessedReply.created_at.desc())
+    
+    if search:
+        search_term = f"%{search}%"
+        stmt = stmt.where(
+            or_(
+                ProcessedReply.email_subject.ilike(search_term),
+                ProcessedReply.email_body.ilike(search_term),
+                ProcessedReply.lead_email.ilike(search_term),
+                ProcessedReply.lead_first_name.ilike(search_term)
+            )
+        )
+    
+    stmt = stmt.limit(limit)
+    result = await session.execute(stmt)
+    replies = result.scalars().all()
+    
+    return [
+        {
+            "id": r.id,
+            "subject": r.email_subject,
+            "body": r.email_body,
+            "first_name": r.lead_first_name,
+            "last_name": r.lead_last_name,
+            "company": r.lead_company,
+            "email": r.lead_email,
+            "created_at": r.created_at.isoformat() if r.created_at else None
+        }
+        for r in replies
+    ]
+
+
+# ===== END PROMPT TESTING ROUTES =====
+
+
 @router.get("/{reply_id}", response_model=ProcessedReplyResponse)
 async def get_reply(
     reply_id: int,
@@ -622,3 +992,211 @@ async def log_reply_to_sheet(
         raise HTTPException(status_code=500, detail="Failed to log reply to sheet")
     
     return {"success": True, "message": f"Reply {reply_id} logged to sheet"}
+
+
+# ============= Slack Integration =============
+
+@router.get("/slack/status")
+async def get_slack_status():
+    """Check Slack Bot Token status and permissions.
+    
+    Returns information about whether Slack is configured correctly
+    and what permissions are available/missing.
+    """
+    status = await get_slack_token_status()
+    return status
+
+
+@router.get("/slack/channels")
+async def get_slack_channels(include_private: bool = False):
+    """List available Slack channels for notifications.
+    
+    Requires channels:read scope on the Slack Bot Token.
+    If permissions are missing, returns error with instructions.
+    """
+    result = await list_slack_channels(include_private)
+    
+    if not result["success"]:
+        # Return 200 with error info so frontend can show actionable message
+        return result
+    
+    return result
+
+
+@router.post("/slack/channels/create")
+async def create_new_slack_channel(
+    name: str = Query(..., description="Name for the new channel"),
+    is_private: bool = Query(False, description="Create as private channel")
+):
+    """Create a new Slack channel for notifications.
+    
+    Requires channels:write (or groups:write for private) scope.
+    """
+    result = await create_slack_channel(name, is_private)
+    
+    if not result["success"]:
+        return result
+    
+    return result
+
+
+@router.post("/slack/test-channel/{channel_id}")
+async def test_slack_channel(channel_id: str):
+    """Send a test message to a specific Slack channel.
+    
+    Args:
+        channel_id: Slack channel ID (e.g., C09REGUQWTG)
+    """
+    result = await send_test_notification(channel_id=channel_id)
+    return result
+
+# ============= Automation Controls =============
+
+@router.post("/automations/{automation_id}/pause")
+async def pause_automation(
+    automation_id: int,
+    session: AsyncSession = Depends(get_session)
+):
+    """Pause an automation (sets active=False)."""
+    result = await session.execute(
+        select(ReplyAutomation).where(
+            ReplyAutomation.id == automation_id,
+            ReplyAutomation.is_active == True
+        )
+    )
+    automation = result.scalar_one_or_none()
+    
+    if not automation:
+        raise HTTPException(status_code=404, detail="Automation not found")
+    
+    automation.active = False
+    automation.updated_at = datetime.utcnow()
+    await session.commit()
+    
+    logger.info(f"Paused automation {automation_id}")
+    return {"success": True, "message": f"Automation '{automation.name}' paused", "active": False}
+
+
+@router.post("/automations/{automation_id}/resume")
+async def resume_automation(
+    automation_id: int,
+    session: AsyncSession = Depends(get_session)
+):
+    """Resume a paused automation (sets active=True)."""
+    result = await session.execute(
+        select(ReplyAutomation).where(
+            ReplyAutomation.id == automation_id,
+            ReplyAutomation.is_active == True
+        )
+    )
+    automation = result.scalar_one_or_none()
+    
+    if not automation:
+        raise HTTPException(status_code=404, detail="Automation not found")
+    
+    automation.active = True
+    automation.updated_at = datetime.utcnow()
+    await session.commit()
+    
+    logger.info(f"Resumed automation {automation_id}")
+    return {"success": True, "message": f"Automation '{automation.name}' resumed", "active": True}
+
+
+@router.get("/automations/{automation_id}/monitoring", response_model=AutomationMonitoringStats)
+async def get_single_automation_monitoring(
+    automation_id: int,
+    session: AsyncSession = Depends(get_session)
+):
+    """Get detailed monitoring stats for a single automation."""
+    result = await session.execute(
+        select(ReplyAutomation).where(
+            ReplyAutomation.id == automation_id,
+            ReplyAutomation.is_active == True
+        )
+    )
+    auto = result.scalar_one_or_none()
+    
+    if not auto:
+        raise HTTPException(status_code=404, detail="Automation not found")
+    
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    
+    # Today count
+    today_result = await session.execute(
+        select(func.count(ProcessedReply.id)).where(
+            ProcessedReply.automation_id == auto.id,
+            ProcessedReply.processed_at >= today_start
+        )
+    )
+    replies_today = today_result.scalar() or 0
+    
+    # Week count
+    week_result = await session.execute(
+        select(func.count(ProcessedReply.id)).where(
+            ProcessedReply.automation_id == auto.id,
+            ProcessedReply.processed_at >= week_start
+        )
+    )
+    replies_this_week = week_result.scalar() or 0
+    
+    # Status breakdown
+    status_result = await session.execute(
+        select(ProcessedReply.approval_status, func.count(ProcessedReply.id)).where(
+            ProcessedReply.automation_id == auto.id
+        ).group_by(ProcessedReply.approval_status)
+    )
+    pending = 0
+    approved = 0
+    dismissed = 0
+    for row in status_result.all():
+        status = row[0] or "pending"
+        count = row[1]
+        if status in ("pending", None):
+            pending += count
+        elif status == "approved":
+            approved = count
+        elif status == "dismissed":
+            dismissed = count
+    
+    # Category breakdown
+    cat_result = await session.execute(
+        select(ProcessedReply.category, func.count(ProcessedReply.id)).where(
+            ProcessedReply.automation_id == auto.id
+        ).group_by(ProcessedReply.category)
+    )
+    by_category = {row[0] or "unknown": row[1] for row in cat_result.all()}
+    
+    # Determine health status
+    health_status = "healthy"
+    if auto.total_errors and auto.total_errors > 0:
+        error_rate = auto.total_errors / max(auto.total_processed or 1, 1)
+        if error_rate > 0.5:
+            health_status = "error"
+        elif error_rate > 0.1:
+            health_status = "warning"
+    
+    if not auto.active:
+        health_status = "paused"
+    
+    return AutomationMonitoringStats(
+        automation_id=auto.id,
+        automation_name=auto.name,
+        active=auto.active,
+        total_processed=auto.total_processed or 0,
+        total_errors=auto.total_errors or 0,
+        replies_today=replies_today,
+        replies_this_week=replies_this_week,
+        pending=pending,
+        approved=approved,
+        dismissed=dismissed,
+        by_category=by_category,
+        last_run_at=auto.last_run_at,
+        last_error_at=auto.last_error_at,
+        last_error=auto.last_error,
+        created_at=auto.created_at,
+        health_status=health_status
+    )
+
+
+

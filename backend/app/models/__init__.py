@@ -7,6 +7,7 @@ from .knowledge_base import (
 )
 from .prospect import Prospect, ProspectActivity
 from .reply import ReplyAutomation, ProcessedReply, ReplyCategory
+from .contact import Contact, Project
 
 __all__ = [
     # User & Multi-tenancy
@@ -20,5 +21,7 @@ __all__ = [
     # Prospects
     "Prospect", "ProspectActivity",
     # Reply Automation
-    "ReplyAutomation", "ProcessedReply", "ReplyCategory"
+    "ReplyAutomation", "ProcessedReply", "ReplyCategory",
+    # CRM
+    "Contact", "Project"
 ]

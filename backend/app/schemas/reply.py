@@ -28,6 +28,8 @@ class ReplyAutomationBase(BaseModel):
     google_sheet_name: Optional[str] = None
     auto_classify: bool = True
     auto_generate_reply: bool = True
+    classification_prompt: Optional[str] = None  # Custom prompt for classification
+    reply_prompt: Optional[str] = None  # Custom prompt for reply generation
     active: bool = True
 
 
@@ -49,6 +51,8 @@ class ReplyAutomationUpdate(BaseModel):
     google_sheet_name: Optional[str] = None
     auto_classify: Optional[bool] = None
     auto_generate_reply: Optional[bool] = None
+    classification_prompt: Optional[str] = None
+    reply_prompt: Optional[str] = None
     active: Optional[bool] = None
 
 
@@ -61,8 +65,59 @@ class ReplyAutomationResponse(ReplyAutomationBase):
     updated_at: datetime
     is_active: bool = True
     
+    # Monitoring fields
+    last_run_at: Optional[datetime] = None
+    total_processed: int = 0
+    total_errors: int = 0
+    last_error: Optional[str] = None
+    last_error_at: Optional[datetime] = None
+    
     class Config:
         from_attributes = True
+
+
+class AutomationMonitoringStats(BaseModel):
+    """Detailed monitoring stats for an automation."""
+    automation_id: int
+    automation_name: str
+    active: bool
+    
+    # Counts
+    total_processed: int = 0
+    total_errors: int = 0
+    
+    # Time-based stats
+    replies_today: int = 0
+    replies_this_week: int = 0
+    
+    # Status breakdown
+    pending: int = 0
+    approved: int = 0
+    dismissed: int = 0
+    
+    # Category breakdown
+    by_category: dict = Field(default_factory=dict)
+    
+    # Timestamps
+    last_run_at: Optional[datetime] = None
+    last_error_at: Optional[datetime] = None
+    last_error: Optional[str] = None
+    created_at: datetime
+    
+    # Health status
+    health_status: str = "healthy"  # healthy, warning, error
+
+
+class AutomationMonitoringListResponse(BaseModel):
+    """List of automation monitoring stats."""
+    automations: List[AutomationMonitoringStats]
+    total: int
+    
+    # Aggregate stats
+    total_active: int = 0
+    total_paused: int = 0
+    total_processed_all: int = 0
+    total_errors_all: int = 0
 
 
 class ReplyAutomationListResponse(BaseModel):

@@ -51,6 +51,8 @@ services:
       - REDIS_URL=redis://redis:6379
     volumes:
       - ./backend:/app
+      - ./google-credentials.json:/app/google-credentials.json:ro
+      - ./state:/app/state:ro
     depends_on:
       postgres:
         condition: service_healthy

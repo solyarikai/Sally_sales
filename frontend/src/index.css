@@ -11,6 +11,13 @@
     --radius: 12px;
   }
 
+  .dark {
+    --background: #171717;
+    --foreground: #fafafa;
+    --muted: #a3a3a3;
+    --border: #404040;
+  }
+
   * {
     box-sizing: border-box;
     margin: 0;
@@ -29,6 +36,11 @@
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  .dark body {
+    background: #171717;
+    color: #fafafa;
   }
 
   /* Minimal scrollbar */

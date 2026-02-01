@@ -2,12 +2,313 @@
 import os
 import httpx
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
 # Slack Bot Token from environment
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
+
+
+async def get_slack_token_status() -> Dict[str, Any]:
+    """Check if Slack Bot Token is configured and has required permissions.
+    
+    Returns:
+        Dict with configured status, scopes, and any missing permissions
+    """
+    if not SLACK_BOT_TOKEN:
+        return {
+            "configured": False,
+            "bot_token": False,
+            "message": "SLACK_BOT_TOKEN not set in environment",
+            "scopes": [],
+            "missing_scopes": ["channels:read", "chat:write"],
+            "bot_user_id": None,
+            "team": None
+        }
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                "https://slack.com/api/auth.test",
+                headers={
+                    "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+                    "Content-Type": "application/json"
+                }
+            )
+            
+            result = response.json()
+            
+            if not result.get("ok"):
+                error = result.get("error", "Unknown error")
+                return {
+                    "configured": True,
+                    "bot_token": True,
+                    "valid": False,
+                    "message": f"Slack token invalid: {error}",
+                    "scopes": [],
+                    "missing_scopes": ["channels:read", "chat:write"],
+                    "bot_user_id": None,
+                    "team": None
+                }
+            
+            # Get the scopes from token info
+            # Note: auth.test doesn't return scopes, we need to check via apps.permissions.info
+            # or just try to call the APIs and see if they work
+            
+            # Check if we can list channels (tests channels:read)
+            channels_response = await client.get(
+                "https://slack.com/api/conversations.list",
+                headers={
+                    "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+                    "Content-Type": "application/json"
+                },
+                params={"types": "public_channel", "limit": 1}
+            )
+            channels_result = channels_response.json()
+            
+            has_channels_read = channels_result.get("ok", False)
+            missing_scopes = []
+            
+            if not has_channels_read:
+                missing_scopes.append("channels:read")
+            
+            return {
+                "configured": True,
+                "bot_token": True,
+                "valid": True,
+                "message": "Slack Bot Token is valid" if not missing_scopes else f"Missing scopes: {', '.join(missing_scopes)}",
+                "scopes": [],  # Would need OAuth token info endpoint
+                "missing_scopes": missing_scopes,
+                "has_channels_read": has_channels_read,
+                "has_chat_write": True,  # Assume true if token is valid
+                "bot_user_id": result.get("user_id"),
+                "team": result.get("team"),
+                "team_id": result.get("team_id")
+            }
+            
+    except Exception as e:
+        logger.error(f"Error checking Slack token status: {e}")
+        return {
+            "configured": True,
+            "bot_token": True,
+            "valid": False,
+            "message": f"Error checking token: {str(e)}",
+            "scopes": [],
+            "missing_scopes": ["channels:read", "chat:write"],
+            "bot_user_id": None,
+            "team": None
+        }
+
+
+async def list_slack_channels(include_private: bool = False) -> Dict[str, Any]:
+    """List Slack channels where the bot is a member (using users.conversations API).
+    
+    IMPORTANT: Uses users.conversations instead of conversations.list to only return
+    channels where the bot can actually send messages.
+    
+    Args:
+        include_private: Whether to include private channels the bot is a member of
+        
+    Returns:
+        Dict with channels list or error message
+    """
+    if not SLACK_BOT_TOKEN:
+        return {
+            "success": False,
+            "channels": [],
+            "error": "SLACK_BOT_TOKEN not configured",
+            "action_required": "Set SLACK_BOT_TOKEN in environment variables"
+        }
+    
+    try:
+        channels = []
+        cursor = None
+        types = "public_channel,private_channel" if include_private else "public_channel"
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Paginate through all channels using users.conversations
+            # This returns ONLY channels where the bot is a member
+            while True:
+                params = {
+                    "types": types,
+                    "exclude_archived": "true",
+                    "limit": 200
+                }
+                if cursor:
+                    params["cursor"] = cursor
+                
+                # Use users.conversations instead of conversations.list
+                # This ensures we only get channels where the bot can post
+                response = await client.get(
+                    "https://slack.com/api/users.conversations",
+                    headers={
+                        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+                        "Content-Type": "application/json"
+                    },
+                    params=params
+                )
+                
+                result = response.json()
+                
+                if not result.get("ok"):
+                    error = result.get("error", "Unknown error")
+                    
+                    # Handle specific errors with user-friendly messages
+                    if error == "missing_scope":
+                        return {
+                            "success": False,
+                            "channels": [],
+                            "error": "Missing required Slack permission: channels:read",
+                            "action_required": "Go to api.slack.com/apps → Your App → OAuth & Permissions → Add 'channels:read' scope → Reinstall app"
+                        }
+                    elif error == "invalid_auth":
+                        return {
+                            "success": False,
+                            "channels": [],
+                            "error": "Slack Bot Token is invalid",
+                            "action_required": "Check SLACK_BOT_TOKEN in environment variables"
+                        }
+                    elif error == "token_revoked":
+                        return {
+                            "success": False,
+                            "channels": [],
+                            "error": "Slack Bot Token has been revoked",
+                            "action_required": "Reinstall the Slack app and update SLACK_BOT_TOKEN"
+                        }
+                    
+                    return {
+                        "success": False,
+                        "channels": [],
+                        "error": f"Slack API error: {error}",
+                        "action_required": None
+                    }
+                
+                # Process channels - all returned channels are ones the bot is a member of
+                for channel in result.get("channels", []):
+                    channels.append({
+                        "id": channel["id"],
+                        "name": channel["name"],
+                        "is_private": channel.get("is_private", False),
+                        "is_member": True,  # users.conversations only returns member channels
+                        "num_members": channel.get("num_members", 0),
+                        "topic": channel.get("topic", {}).get("value", ""),
+                        "purpose": channel.get("purpose", {}).get("value", "")
+                    })
+                
+                # Check for more pages
+                cursor = result.get("response_metadata", {}).get("next_cursor")
+                if not cursor:
+                    break
+        
+        # Sort by name
+        channels.sort(key=lambda x: x["name"])
+        
+        return {
+            "success": True,
+            "channels": channels,
+            "total": len(channels),
+            "error": None,
+            "action_required": None,
+            "note": "Only showing channels where bot is a member. Invite bot to other channels to see them here."
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing Slack channels: {e}")
+        return {
+            "success": False,
+            "channels": [],
+            "error": f"Failed to list channels: {str(e)}",
+            "action_required": None
+        }
+
+
+async def create_slack_channel(name: str, is_private: bool = False) -> Dict[str, Any]:
+    """Create a new Slack channel.
+    
+    Args:
+        name: Channel name (will be converted to lowercase, no spaces)
+        is_private: Whether to create a private channel
+        
+    Returns:
+        Dict with created channel info or error
+    """
+    if not SLACK_BOT_TOKEN:
+        return {
+            "success": False,
+            "channel": None,
+            "error": "SLACK_BOT_TOKEN not configured"
+        }
+    
+    # Normalize channel name
+    clean_name = name.lower().replace(" ", "-").replace("_", "-")
+    # Remove any non-alphanumeric characters except hyphens
+    clean_name = "".join(c for c in clean_name if c.isalnum() or c == "-")
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                "https://slack.com/api/conversations.create",
+                headers={
+                    "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "name": clean_name,
+                    "is_private": is_private
+                }
+            )
+            
+            result = response.json()
+            
+            if not result.get("ok"):
+                error = result.get("error", "Unknown error")
+                
+                if error == "missing_scope":
+                    scope_needed = "groups:write" if is_private else "channels:write"
+                    return {
+                        "success": False,
+                        "channel": None,
+                        "error": f"Missing required permission: {scope_needed}",
+                        "action_required": f"Go to api.slack.com/apps → Your App → OAuth & Permissions → Add '{scope_needed}' scope → Reinstall app"
+                    }
+                elif error == "name_taken":
+                    return {
+                        "success": False,
+                        "channel": None,
+                        "error": f"Channel name '{clean_name}' is already taken"
+                    }
+                elif error == "invalid_name":
+                    return {
+                        "success": False,
+                        "channel": None,
+                        "error": f"Invalid channel name: {clean_name}"
+                    }
+                
+                return {
+                    "success": False,
+                    "channel": None,
+                    "error": f"Failed to create channel: {error}"
+                }
+            
+            channel = result.get("channel", {})
+            return {
+                "success": True,
+                "channel": {
+                    "id": channel.get("id"),
+                    "name": channel.get("name"),
+                    "is_private": channel.get("is_private", False)
+                },
+                "error": None
+            }
+            
+    except Exception as e:
+        logger.error(f"Error creating Slack channel: {e}")
+        return {
+            "success": False,
+            "channel": None,
+            "error": f"Failed to create channel: {str(e)}"
+        }
 
 
 # Category emoji mapping
@@ -170,7 +471,9 @@ async def send_slack_notification(
         payload = {
             "channel": channel_id,
             "text": message.get("text", "New email reply"),
-            "blocks": message.get("blocks", [])
+            "blocks": message.get("blocks", []),
+            "unfurl_links": False,
+            "unfurl_media": False
         }
         
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -267,7 +570,9 @@ async def send_test_notification(channel_id: str = "C09REGUQWTG", webhook_url: O
             payload = {
                 "channel": channel_id,
                 "text": message["text"],
-                "blocks": message["blocks"]
+                "blocks": message["blocks"],
+                "unfurl_links": False,
+                "unfurl_media": False
             }
             
             async with httpx.AsyncClient(timeout=10.0) as client:

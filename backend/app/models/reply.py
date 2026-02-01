@@ -49,8 +49,19 @@ class ReplyAutomation(Base, SoftDeleteMixin, TimestampMixin):
     auto_classify = Column(Boolean, default=True, nullable=False)
     auto_generate_reply = Column(Boolean, default=True, nullable=False)
     
+    # Custom prompts (optional - uses defaults if not set)
+    classification_prompt = Column(Text, nullable=True)  # Custom classification prompt
+    reply_prompt = Column(Text, nullable=True)  # Custom reply generation prompt
+    
     # Status
     active = Column(Boolean, default=True, nullable=False)
+    
+    # Monitoring fields
+    last_run_at = Column(DateTime, nullable=True)  # Last time automation processed a reply
+    total_processed = Column(Integer, default=0, nullable=False)  # Total replies processed
+    total_errors = Column(Integer, default=0, nullable=False)  # Total processing errors
+    last_error = Column(Text, nullable=True)  # Last error message
+    last_error_at = Column(DateTime, nullable=True)  # Last error timestamp
     
     # Relationships
     company = relationship("Company", back_populates="reply_automations")
