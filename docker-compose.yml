@@ -4,6 +4,8 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: leadgen-postgres
+    env_file:
+      - .env
     environment:
       POSTGRES_DB: leadgen
       POSTGRES_USER: leadgen
@@ -42,6 +44,8 @@ services:
     container_name: leadgen-backend
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://leadgen:leadgen_secret@postgres:5432/leadgen
       - REDIS_URL=redis://redis:6379
@@ -69,6 +73,8 @@ services:
   redis-commander:
     image: rediscommander/redis-commander:latest
     container_name: leadgen-redis-commander
+    env_file:
+      - .env
     environment:
       - REDIS_HOSTS=local:redis:6379
     ports:

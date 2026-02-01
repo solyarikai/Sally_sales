@@ -6,6 +6,7 @@ Base URL: https://server.smartlead.ai/api/v1
 import httpx
 from typing import Optional, List, Dict, Any
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +15,11 @@ class SmartleadService:
     """Service for interacting with Smartlead API."""
     
     def __init__(self):
-        self._api_key: Optional[str] = None
+        # Try to load from environment first
+        self._api_key: Optional[str] = os.environ.get('SMARTLEAD_API_KEY')
         self.base_url = "https://server.smartlead.ai/api/v1"
+        if self._api_key:
+            logger.info("Smartlead API key loaded from environment")
     
     @property
     def api_key(self) -> Optional[str]:
