@@ -839,7 +839,7 @@ function CreateAutomationModal({
 
   const filteredCampaigns = campaigns.filter(c => 
     c.name?.toLowerCase().includes(searchCampaigns.toLowerCase()) ||
-    c.id?.toLowerCase().includes(searchCampaigns.toLowerCase())
+    String(c.id || "").toLowerCase().includes(searchCampaigns.toLowerCase())
   );
 
   const handleCreate = async () => {
