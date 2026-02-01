@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Key, Check, AlertCircle, Loader2, Zap, Link2, Send, RefreshCw, ChevronRight, X, Mail, Search } from 'lucide-react';
+import { Key, Check, AlertCircle, Loader2, Zap, Link2, Send, RefreshCw, ChevronRight, Mail, Search } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { settingsApi, integrationsApi } from '../api';
 import type { IntegrationStatus, InstantlyDetails, SmartleadDetails, FindymailDetails, MillionVerifierDetails } from '../api/integrations';
@@ -7,11 +7,8 @@ import { cn } from '../lib/utils';
 
 type Tab = 'openai' | 'integrations';
 
-interface Campaign {
-  id: string;
-  name: string;
-  status?: string;
-}
+// Campaign type used for Smartlead integration
+// Removed unused interface - campaigns are loaded dynamically from API
 
 // Integration card definitions
 const integrationCards = [

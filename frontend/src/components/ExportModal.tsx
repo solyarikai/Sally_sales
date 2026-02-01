@@ -40,8 +40,6 @@ export function ExportModal({ isOpen, onClose, dataset, selectedRowIds, onExport
   const [firstNameColumn, setFirstNameColumn] = useState('');
   const [lastNameColumn, setLastNameColumn] = useState('');
   const [companyColumn, setCompanyColumn] = useState('');
-  const [linkedinUrlColumn, setLinkedinUrlColumn] = useState('');
-  const [messageColumn, setMessageColumn] = useState('');
   
   // Mark as exported
   const [markAsExported, setMarkAsExported] = useState(false);
@@ -257,27 +255,13 @@ export function ExportModal({ isOpen, onClose, dataset, selectedRowIds, onExport
           setError(result.errors?.join(', ') || 'Failed to send leads');
         }
       } else {
-        // CSV download
+        // CSV or google_sheets download
         const request: ExportRequest = {
-          format: format as 'csv' | 'instantly' | 'smartlead',
+          format: 'csv',  // Only CSV format reaches this branch
           include_enriched: true,
           selected_row_ids: exportSelected && selectedRowIds.size > 0 
             ? Array.from(selectedRowIds) : undefined,
         };
-
-        if (format === 'instantly') {
-          request.email_column = emailColumn;
-          request.first_name_column = firstNameColumn || undefined;
-          request.last_name_column = lastNameColumn || undefined;
-          request.company_column = companyColumn || undefined;
-        } else if (format === 'smartlead') {
-          request.linkedin_url_column = linkedinUrlColumn || undefined;
-          request.first_name_column = firstNameColumn || undefined;
-          request.last_name_column = lastNameColumn || undefined;
-          request.company_column = companyColumn || undefined;
-          request.email_column = emailColumn || undefined;
-          request.message_column = messageColumn || undefined;
-        }
 
         const blob = await exportApi.downloadCsv(dataset.id, request);
         

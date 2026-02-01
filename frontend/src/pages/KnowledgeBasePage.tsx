@@ -285,9 +285,9 @@ function DocumentsView() {
     }
   };
 
-  const handleMoveToFolder = async (docId: number, folderId: number | null) => {
+  const handleMoveToFolder = async (docId: number, folderId: number | null | undefined) => {
     try {
-      const updated = await kb.updateDocument(docId, { folder_id: folderId });
+      const updated = await kb.updateDocument(docId, { folder_id: folderId ?? undefined });
       setDocuments(prev => prev.map(d => d.id === docId ? updated : d));
       setShowMoveMenu(null);
     } catch (e) {
@@ -754,7 +754,7 @@ type SegmentViewMode = 'table' | 'cards';
 
 function SegmentsView() {
   const [segments, setSegments] = useState<kb.Segment[]>([]);
-  const [columns, setColumns] = useState<kb.SegmentColumn[]>([]);
+  const [, setColumns] = useState<kb.SegmentColumn[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<SegmentViewMode>('table');
   const [expandedSegment, setExpandedSegment] = useState<number | null>(null);
@@ -858,7 +858,7 @@ function SegmentsView() {
       const col = await kb.createSegmentColumn({
         name: newColumnName.toLowerCase().replace(/\s+/g, '_'),
         display_name: newColumnName,
-        column_type: newColumnType
+        column_type: newColumnType as 'text' | 'number' | 'list' | 'rich_text' | 'case_select'
       });
       setColumns(prev => [...prev, col]);
       setNewColumnName('');

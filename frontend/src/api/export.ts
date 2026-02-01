@@ -1,7 +1,7 @@
 import api from './client';
 
 export interface ExportRequest {
-  format: 'csv' | 'instantly' | 'getsales';
+  format: 'csv' | 'instantly' | 'getsales' | 'smartlead';
   include_enriched?: boolean;
   selected_row_ids?: number[];
   email_column?: string;

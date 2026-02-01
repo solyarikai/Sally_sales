@@ -19,7 +19,6 @@ export function DatasetsPage() {
     rows,
     setRows,
     selectedRowIds,
-    selectAllRows,
     clearSelection,
     removeDataset,
     updateDataset,

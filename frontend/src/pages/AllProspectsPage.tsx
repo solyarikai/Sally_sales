@@ -23,9 +23,9 @@ import {
   Users, Search, Download, Trash2, RefreshCw, 
   Mail, Linkedin, Send, Copy, X, Tag, FileText, 
   ExternalLink, Building2, Briefcase, MapPin, Clock,
-  Settings2, ChevronDown, Plus, Upload, Eye, Save, Check
+  Settings2, Upload, Eye, Save, Check
 } from 'lucide-react';
-import { prospectsApi, type Prospect, type ProspectStats, type ProspectActivity, type LeadStatus } from '../api';
+import { prospectsApi, type Prospect, type ProspectStats, type ProspectActivity } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { cn, formatNumber } from '../lib/utils';
 
@@ -895,19 +895,19 @@ function ProspectDetailPanel({
 
         {/* Status badges */}
         <div className="flex flex-wrap gap-2">
-          {prospect.sent_to_instantly && (
+          {prospect.sent_to_email && (
             <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm flex items-center gap-1">
               <Send className="w-3 h-3" />
-              Sent to Instantly
-              {prospect.instantly_campaign_name && (
-                <span className="text-blue-500">• {prospect.instantly_campaign_name}</span>
+              Sent to {prospect.email_tool || 'Email'}
+              {prospect.email_campaign_name && (
+                <span className="text-blue-500">• {prospect.email_campaign_name}</span>
               )}
             </span>
           )}
-          {prospect.sent_to_smartlead && (
+          {prospect.sent_to_linkedin && (
             <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm flex items-center gap-1">
               <Send className="w-3 h-3" />
-              Sent to Smartlead
+              Sent to LinkedIn
             </span>
           )}
         </div>

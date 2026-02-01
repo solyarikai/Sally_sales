@@ -116,23 +116,6 @@ export function TagAutocomplete({ value, onChange, placeholder, rows = 4, classN
     setCursorPosition((e.target as HTMLTextAreaElement).selectionStart);
   };
 
-  // Parse tags in value for highlighting
-  const renderHighlightedValue = () => {
-    const parts = value.split(/(@\w+(?::\S+)?)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('@')) {
-        const matchingTag = tags.find(t => t.tag === part || part.startsWith(t.tag.split(':')[0]));
-        const type = matchingTag?.type || 'segment';
-        return (
-          <span key={i} className={cn("px-1 rounded", TYPE_COLORS[type])}>
-            {part}
-          </span>
-        );
-      }
-      return <span key={i}>{part}</span>;
-    });
-  };
-
   return (
     <div className="relative">
       <textarea

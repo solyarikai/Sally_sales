@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { 
   MessageSquare, Search, RefreshCw, Plus, Settings2, 
-  Send, Bell, X, Copy, ChevronDown, Check, AlertCircle,
-  Zap, Hash, Calendar, Clock, ExternalLink, Mail, Building2,
+  Send, Bell, X, Copy, Check, AlertCircle,
+  Zap, Hash, Calendar, Mail, Building2,
   TestTube2, FileSpreadsheet, SkipForward
 } from 'lucide-react';
 import { 

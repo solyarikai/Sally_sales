@@ -7,9 +7,9 @@ import {
   type Row,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Check, Circle, Loader2, X, Sparkles, Trash2, Edit2, Globe } from 'lucide-react';
+import { Check, Circle, Loader2, X, Sparkles, Trash2, Edit2 } from 'lucide-react';
 import type { DataRow } from '../types';
-import { cn, truncate } from '../lib/utils';
+import { truncate } from '../lib/utils';
 
 // Helper to check if column contains domains/websites
 const isWebsiteColumn = (colName: string) => {

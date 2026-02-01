@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Building2, Users, Database, FileText, Trash2, Pencil, MoreVertical, Layers, FolderOpen } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { companiesApi, environmentsApi } from '../api';
-import type { CompanyWithStats, Environment, EnvironmentWithStats } from '../types';
+import type { CompanyWithStats, EnvironmentWithStats } from '../types';
 
 // Pastel color palette
 const COLORS = [
