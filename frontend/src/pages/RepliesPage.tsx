@@ -852,6 +852,8 @@ function CreateAutomationModal({
   // Removed: webhook not needed when using channel selection
   const [slackChannel, setSlackChannel] = useState('');
   const [slackChannels, setSlackChannels] = useState<Array<{id: string, name: string}>>([]);
+  const [slackSearch, setSlackSearch] = useState('');
+  const [showChannelDropdown, setShowChannelDropdown] = useState(false);
   const [loadingSlackChannels, setLoadingSlackChannels] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [creatingChannel, setCreatingChannel] = useState(false);
@@ -1067,12 +1069,12 @@ function CreateAutomationModal({
                           >
                             <input
                               type="checkbox"
-                              checked={selectedCampaigns.includes(campaign.id)}
+                              checked={selectedCampaigns.includes(String(campaign.id))}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedCampaigns([...selectedCampaigns, campaign.id]);
+                                  setSelectedCampaigns([...selectedCampaigns, String(campaign.id)]);
                                 } else {
-                                  setSelectedCampaigns(selectedCampaigns.filter(id => id !== campaign.id));
+                                  setSelectedCampaigns(selectedCampaigns.filter(id => id !== String(campaign.id)));
                                 }
                               }}
                               className="rounded text-violet-600"
@@ -1265,24 +1267,50 @@ function CreateAutomationModal({
                 </div>
               </div>
 
-              {/* Channel Selection */}
-              <div>
+              {/* Channel Selection with Search */}
+              <div className="relative">
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
                   Select Slack Channel
                 </label>
                 {loadingSlackChannels ? (
                   <div className="text-sm text-neutral-500 py-2">Loading channels...</div>
                 ) : (
-                  <select
-                    value={slackChannel}
-                    onChange={(e) => setSlackChannel(e.target.value)}
-                    className="input w-full"
-                  >
-                    <option value="">Select a channel...</option>
-                    {slackChannels.map(ch => (
-                      <option key={ch.id} value={ch.id}>#{ch.name}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <div className="relative">
+                      <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                      <input
+                        type="text"
+                        placeholder="Search channels..."
+                        value={slackSearch || (slackChannel ? slackChannels.find(c => c.id === slackChannel)?.name || '' : '')}
+                        onChange={(e) => { setSlackSearch(e.target.value); setShowChannelDropdown(true); }}
+                        onFocus={() => setShowChannelDropdown(true)}
+                        className="input pl-9 w-full"
+                      />
+                    </div>
+                    {showChannelDropdown && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border border-neutral-200 rounded-xl shadow-lg max-h-48 overflow-auto">
+                        {slackChannels
+                          .filter(ch => !slackSearch || ch.name.toLowerCase().includes(slackSearch.toLowerCase()))
+                          .map(ch => (
+                            <div
+                              key={ch.id}
+                              onClick={() => { setSlackChannel(ch.id); setSlackSearch(''); setShowChannelDropdown(false); }}
+                              className={cn(
+                                "px-4 py-2 cursor-pointer hover:bg-neutral-50 flex items-center gap-2",
+                                slackChannel === ch.id && "bg-violet-50 text-violet-700"
+                              )}
+                            >
+                              <Hash className="w-3 h-3" />
+                              {ch.name}
+                              {slackChannel === ch.id && <Check className="w-4 h-4 ml-auto" />}
+                            </div>
+                          ))}
+                        {slackChannels.filter(ch => !slackSearch || ch.name.toLowerCase().includes(slackSearch.toLowerCase())).length === 0 && (
+                          <div className="px-4 py-2 text-sm text-neutral-500">No channels found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
