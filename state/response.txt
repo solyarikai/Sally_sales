@@ -1,47 +1,49 @@
-SUBTASK COMPLETED: Read backend/app/services/reply_processor.py and analyze error handling
+## Analysis: Error Handling in reply_processor.py
 
-## Error Handling Analysis for reply_processor.py
+### Summary
+The error handling in `reply_processor.py` is well-structured with multiple layers of protection.
 
-### Overview
-The file contains 3 main async functions with error handling patterns.
+### Error Handling Patterns Found:
 
-### Error Handling Summary:
+1. **classify_reply() (lines 84-142)**
+   - Checks if OpenAI is connected before making API call
+   - Returns safe default ("other" category with low confidence) if OpenAI unavailable
+   - Catches all exceptions and returns fallback classification with error reason
+   - Validates category against enum values, defaults to "other" if invalid
 
-#### 1. classify_reply() (lines 84-142)
-- **Pre-check**: Checks `openai_service.is_connected()` before calling API (line 98)
-- **Graceful fallback**: Returns default "other" category with low confidence if not connected
-- **Try/except**: Catches all exceptions (line 136)
-- **Recovery**: Returns safe default values on error with error message in reasoning field
-- **Status**: GOOD - graceful degradation, no crashes
+2. **generate_draft_reply() (lines 179-255)**
+   - Early return for out-of-office (no draft needed)
+   - Checks OpenAI connectivity
+   - Returns placeholder if OpenAI not configured
+   - Catches all exceptions, returns safe fallback with error message in body
 
-#### 2. generate_draft_reply() (lines 179-255)
-- **Early return**: Skips draft for out_of_office category (line 202)
-- **Pre-check**: Checks OpenAI connection (line 209)
-- **Graceful fallback**: Returns placeholder text if not connected
-- **Try/except**: Catches all exceptions (line 249)
-- **Recovery**: Returns error placeholder in body field with "error" tone
-- **Status**: GOOD - graceful degradation
+3. **process_reply_webhook() (lines 258-488)**
+   - Main function with comprehensive try/except
+   - Returns None gracefully if lead_email missing (line 344-346)
+   - Handles Google Sheets logging errors separately (lines 443-464) - doesn't fail whole process
+   - On error:
+     - Logs error message
+     - Updates automation error stats (total_errors, last_error, last_error_at)
+     - Rolls back transaction
+     - Re-raises exception for caller to handle
 
-#### 3. process_reply_webhook() (lines 258-488)
-- **Comprehensive logging**: Logs payload keys, event type, full payload (lines 272-276)
-- **Null safety**: Uses `or` chaining for field extraction (e.g., lines 283-287)
-- **HTML sanitization**: Strips HTML tags from body (lines 304-310)
-- **Early return**: Returns None if no lead_email (line 345-346)
-- **Try/except**: Main try block wraps entire processing (line 278)
-- **Error tracking**: On failure, updates automation.total_errors and last_error (lines 479-486)
-- **Nested try/except**: Google Sheets logging has its own error handling (line 463-464)
-- **Session management**: Calls session.rollback() on failure (line 487)
-- **Status**: GOOD - comprehensive with error tracking
+### Potential Improvements Identified:
 
-### Potential Issues Found:
-1. **Silent failures in nested operations**: Lines 485-486 use bare `except: pass` which swallows errors silently
-2. **No retry logic**: API calls to OpenAI fail once and give up
-3. **JSON parsing**: Lines 122 and 241 parse JSON without specific exception handling for JSONDecodeError
+1. **Silent failures in bare except (line 485)**
+   - `except:` without exception type is too broad
+   - Should be `except Exception:` at minimum
 
-### Recommendations:
-1. Add specific `json.JSONDecodeError` handling for more informative error messages
-2. Consider adding retry logic for transient OpenAI failures
-3. Replace bare `except: pass` with proper logging
+2. **Missing specific exception handling**
+   - JSON parsing errors (lines 121-122, 240-241) caught by generic Exception
+   - Could benefit from specific json.JSONDecodeError handling for better error messages
 
-### Conclusion:
-Error handling is generally robust with graceful degradation patterns. The code won't crash on errors and provides useful fallback values. The main webhook processor properly tracks errors on the automation record for monitoring.
+3. **Slack notification error not tracked**
+   - If Slack notification fails (line 428-436), no error is logged or tracked
+   - Should add try/except around send_slack_notification call
+
+4. **Telegram notification error not handled**
+   - Line 439 `notify_reply_needs_attention` has no error handling
+   - If it fails, the whole function could fail after DB commit
+
+### Overall Assessment
+The error handling is **good** - it gracefully degrades (returns safe defaults) rather than crashing. The main webhook processor properly rolls back on errors and tracks error stats on automations. Minor improvements could be made for more specific exception handling and protecting against notification service failures.
