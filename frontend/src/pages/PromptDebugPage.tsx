@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  Play, Save, Search, History, Trash2, ChevronDown, Zap, Copy
+  Play, Save, History, Trash2, ChevronDown, Zap, Copy, Loader2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import toast, { Toaster } from 'react-hot-toast';
@@ -19,6 +19,12 @@ interface RunHistoryItem {
   prompt: string;
   input: string;
   result: string;
+}
+
+interface SearchResult {
+  email: string;
+  campaign_name?: string;
+  campaign_id?: string;
 }
 
 const DEFAULT_CLASSIFICATION_PROMPT = `Analyze the following email reply and classify it into one of these categories:
@@ -56,7 +62,6 @@ export default function PromptDebugPage() {
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate | null>(null);
   const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
-  const [promptType, setPromptType] = useState<'classification' | 'reply'>('classification');
   
   // Editor state
   const [promptText, setPromptText] = useState(DEFAULT_CLASSIFICATION_PROMPT);
@@ -64,41 +69,105 @@ export default function PromptDebugPage() {
   const [result, setResult] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   
-  // Lead search
+  // Lead search with autocomplete
   const [leadSearch, setLeadSearch] = useState('');
-  // Search results not used yet
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLDivElement>(null);
   
   // Run history (saved in localStorage)
   const [runHistory, setRunHistory] = useState<RunHistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   
+  // Debounced search
+  const searchLeads = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setIsSearching(true);
+    try {
+      const resp = await fetch(`/api/replies/smartlead/search-leads?q=${encodeURIComponent(query)}`);
+      const data = await resp.json();
+      setSearchResults(data.results || []);
+      setShowSearchDropdown(true);
+    } catch (e) {
+      console.error('Search failed', e);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+  
+  const handleSearchInputChange = (value: string) => {
+    setLeadSearch(value);
+    
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Debounce search
+    searchTimeoutRef.current = setTimeout(() => {
+      searchLeads(value);
+    }, 300);
+  };
+  
+  const handleSelectLead = async (email: string) => {
+    setLeadSearch(email);
+    setShowSearchDropdown(false);
+    setIsSearching(true);
+    
+    try {
+      const resp = await fetch(`/api/replies/smartlead/lead-conversations/${encodeURIComponent(email)}`);
+      const data = await resp.json();
+      
+      if (data.messages && data.messages.length > 0) {
+        const formatted = data.messages.map((m: any) => 
+          `${m.type === 'SENT' ? 'bdm' : 'lead'}: ${m.body || m.text || ''}`
+        ).join('\n\n');
+        setConversationInput(formatted);
+        toast.success(`Loaded ${data.messages.length} messages`);
+      } else {
+        toast.error(data.message || 'No conversations found');
+      }
+    } catch (e) {
+      toast.error('Failed to load conversation');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+  
   // Load from localStorage and URL params on mount
   useEffect(() => {
-    // Check URL params first
     const params = new URLSearchParams(window.location.search);
     const inputFromUrl = params.get('input');
-    const typeFromUrl = params.get('type');
     
     if (inputFromUrl) {
       setConversationInput(decodeURIComponent(inputFromUrl));
     }
-    if (typeFromUrl === 'reply' || typeFromUrl === 'classification') {
-      setPromptType(typeFromUrl);
-    }
     
-    // Then load from localStorage (but don't override URL params)
     const saved = localStorage.getItem('promptDebugState');
     if (saved) {
       try {
         const state = JSON.parse(saved);
         if (state.promptText) setPromptText(state.promptText);
         if (!inputFromUrl && state.conversationInput) setConversationInput(state.conversationInput);
-        if (!typeFromUrl && state.promptType) setPromptType(state.promptType);
         if (state.runHistory) setRunHistory(state.runHistory);
       } catch (e) {}
     }
     loadTemplates();
+    
+    // Click outside handler for search dropdown
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchInputRef.current && !searchInputRef.current.contains(e.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
   // Save to localStorage on change
@@ -106,10 +175,9 @@ export default function PromptDebugPage() {
     localStorage.setItem('promptDebugState', JSON.stringify({
       promptText,
       conversationInput,
-      promptType,
       runHistory
     }));
-  }, [promptText, conversationInput, promptType, runHistory]);
+  }, [promptText, conversationInput, runHistory]);
   
   const loadTemplates = async () => {
     try {
@@ -130,6 +198,11 @@ export default function PromptDebugPage() {
     setIsRunning(true);
     setResult('');
     
+    // Detect prompt type from content
+    const isClassification = promptText.toLowerCase().includes('classify') || 
+                            promptText.toLowerCase().includes('category') ||
+                            promptText.toLowerCase().includes('categories');
+    
     try {
       const resp = await fetch('/api/replies/prompt-debug/run', {
         method: 'POST',
@@ -137,14 +210,13 @@ export default function PromptDebugPage() {
         body: JSON.stringify({
           prompt: promptText,
           conversation_history: conversationInput,
-          prompt_type: promptType
+          prompt_type: isClassification ? 'classification' : 'reply'
         })
       });
       
       const data = await resp.json();
       setResult(data.result || 'No result');
       
-      // Save to history
       const historyItem: RunHistoryItem = {
         id: Date.now().toString(),
         timestamp: new Date(),
@@ -166,13 +238,16 @@ export default function PromptDebugPage() {
     const name = prompt('Template name:', selectedTemplate?.name || 'My Template');
     if (!name) return;
     
+    const isClassification = promptText.toLowerCase().includes('classify') || 
+                            promptText.toLowerCase().includes('category');
+    
     try {
       const resp = await fetch('/api/replies/prompt-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
-          prompt_type: promptType,
+          prompt_type: isClassification ? 'classification' : 'reply',
           prompt_text: promptText,
           is_default: false
         })
@@ -190,33 +265,7 @@ export default function PromptDebugPage() {
   const handleSelectTemplate = (template: PromptTemplate) => {
     setSelectedTemplate(template);
     setPromptText(template.prompt_text);
-    setPromptType(template.prompt_type);
     setTemplateDropdownOpen(false);
-  };
-  
-  const handleSearchLead = async () => {
-    if (!leadSearch) return;
-    
-    setIsSearching(true);
-    try {
-      const resp = await fetch(`/api/replies/smartlead/lead-conversations/${encodeURIComponent(leadSearch)}`);
-      const data = await resp.json();
-      
-      if (data.messages && data.messages.length > 0) {
-        // Format conversation
-        const formatted = data.messages.map((m: any) => 
-          `${m.type === 'SENT' ? 'bdm' : 'lead'}: ${m.body || m.text || ''}`
-        ).join('\n\n');
-        setConversationInput(formatted);
-        toast.success(`Found ${data.messages.length} messages`);
-      } else {
-        toast.error(data.message || 'No conversations found');
-      }
-    } catch (e) {
-      toast.error('Search failed');
-    } finally {
-      setIsSearching(false);
-    }
   };
   
   const handleLoadHistoryItem = (item: RunHistoryItem) => {
@@ -282,14 +331,14 @@ export default function PromptDebugPage() {
                     <div className="fixed inset-0 z-10" onClick={() => setTemplateDropdownOpen(false)} />
                     <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-neutral-200 rounded-xl shadow-lg z-20 max-h-64 overflow-auto">
                       <div
-                        onClick={() => { setPromptText(DEFAULT_CLASSIFICATION_PROMPT); setPromptType('classification'); setSelectedTemplate(null); setTemplateDropdownOpen(false); }}
+                        onClick={() => { setPromptText(DEFAULT_CLASSIFICATION_PROMPT); setSelectedTemplate(null); setTemplateDropdownOpen(false); }}
                         className="px-4 py-2 hover:bg-neutral-50 cursor-pointer border-b"
                       >
                         <div className="font-medium">Default Classification</div>
                         <div className="text-xs text-neutral-500">Built-in template</div>
                       </div>
                       <div
-                        onClick={() => { setPromptText(DEFAULT_REPLY_PROMPT); setPromptType('reply'); setSelectedTemplate(null); setTemplateDropdownOpen(false); }}
+                        onClick={() => { setPromptText(DEFAULT_REPLY_PROMPT); setSelectedTemplate(null); setTemplateDropdownOpen(false); }}
                         className="px-4 py-2 hover:bg-neutral-50 cursor-pointer border-b"
                       >
                         <div className="font-medium">Default Reply</div>
@@ -310,27 +359,6 @@ export default function PromptDebugPage() {
                 )}
               </div>
               
-              <div className="flex items-center gap-2 bg-neutral-100 rounded-lg p-1">
-                <button
-                  onClick={() => setPromptType('classification')}
-                  className={cn(
-                    "px-3 py-1 rounded-md text-sm transition-colors",
-                    promptType === 'classification' ? "bg-white shadow text-violet-700" : "text-neutral-600"
-                  )}
-                >
-                  Classification
-                </button>
-                <button
-                  onClick={() => setPromptType('reply')}
-                  className={cn(
-                    "px-3 py-1 rounded-md text-sm transition-colors",
-                    promptType === 'reply' ? "bg-white shadow text-violet-700" : "text-neutral-600"
-                  )}
-                >
-                  Reply
-                </button>
-              </div>
-              
               <button onClick={handleSaveTemplate} className="btn btn-secondary">
                 <Save className="w-4 h-4" />
                 Save Template
@@ -341,25 +369,39 @@ export default function PromptDebugPage() {
           <div className="grid grid-cols-2 gap-6">
             {/* Left: Input */}
             <div className="space-y-4">
-              {/* Lead search */}
+              {/* Lead search with autocomplete */}
               <div className="bg-white rounded-xl border border-neutral-200 p-4">
                 <label className="block text-sm font-medium mb-2">Search Lead Conversation</label>
-                <div className="flex gap-2">
+                <div className="relative" ref={searchInputRef}>
                   <input
                     type="text"
                     value={leadSearch}
-                    onChange={(e) => setLeadSearch(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearchLead()}
-                    placeholder="Enter lead email..."
-                    className="input flex-1"
+                    onChange={(e) => handleSearchInputChange(e.target.value)}
+                    onFocus={() => searchResults.length > 0 && setShowSearchDropdown(true)}
+                    placeholder="Type email to search..."
+                    className="input w-full pr-8"
                   />
-                  <button
-                    onClick={handleSearchLead}
-                    disabled={isSearching}
-                    className="btn btn-secondary"
-                  >
-                    {isSearching ? '...' : <Search className="w-4 h-4" />}
-                  </button>
+                  {isSearching && (
+                    <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-neutral-400" />
+                  )}
+                  
+                  {/* Autocomplete dropdown */}
+                  {showSearchDropdown && searchResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 max-h-48 overflow-auto">
+                      {searchResults.map((r, i) => (
+                        <div
+                          key={i}
+                          onClick={() => handleSelectLead(r.email)}
+                          className="px-3 py-2 hover:bg-neutral-50 cursor-pointer"
+                        >
+                          <div className="text-sm font-medium">{r.email}</div>
+                          {r.campaign_name && (
+                            <div className="text-xs text-neutral-500">{r.campaign_name}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -374,7 +416,7 @@ export default function PromptDebugPage() {
                 <textarea
                   value={conversationInput}
                   onChange={(e) => setConversationInput(e.target.value)}
-                  placeholder="lead: Hi, I'm interested in learning more...\nbdm: Thanks for reaching out! ..."
+                  placeholder="lead: Hi, I'm interested in learning more...&#10;bdm: Thanks for reaching out! ..."
                   className="w-full h-40 p-3 border border-neutral-200 rounded-lg text-sm font-mono resize-none"
                 />
                 <p className="text-xs text-neutral-400 mt-1">Format: lead: message / bdm: message</p>

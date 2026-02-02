@@ -1633,6 +1633,57 @@ async def delete_reply_prompt_template(
     return {"success": True}
 
 
+
+@router.get(/smartlead/search-leads)
+async def search_leads(q: str = Query(..., min_length=2)):
+    Search for leads across campaigns by email.
+    import httpx
+    import os
+    
+    api_key = os.getenv('SMARTLEAD_API_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail='Smartlead API key not configured')
+    
+    results = []
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Get campaigns
+        campaigns_resp = await client.get(
+            'https://server.smartlead.ai/api/v1/campaigns',
+            params={'api_key': api_key}
+        )
+        campaigns = campaigns_resp.json() if campaigns_resp.status_code == 200 else []
+        
+        # Search in recent campaigns
+        for campaign in campaigns[:20]:
+            campaign_id = campaign.get('id')
+            campaign_name = campaign.get('name', '')
+            
+            # Search leads in this campaign
+            leads_resp = await client.get(
+                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
+                params={'api_key': api_key, 'search': q, 'limit': 5}
+            )
+            
+            if leads_resp.status_code == 200:
+                leads_data = leads_resp.json()
+                leads_list = leads_data.get('data', []) if isinstance(leads_data, dict) else []
+                
+                for lead in leads_list:
+                    email = lead.get('email', '')
+                    if q.lower() in email.lower():
+                        results.append({
+                            'email': email,
+                            'campaign_name': campaign_name,
+                            'campaign_id': str(campaign_id)
+                        })
+                        
+                        # Limit total results
+                        if len(results) >= 10:
+                            return {'results': results}
+    
+    return {'results': results}
+
 @router.get("/smartlead/lead-conversations/{lead_email}")
 async def get_lead_conversations(
     lead_email: str,
