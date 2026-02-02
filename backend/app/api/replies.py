@@ -1634,9 +1634,9 @@ async def delete_reply_prompt_template(
 
 
 
-@router.get(/smartlead/search-leads)
+@router.get('/smartlead/search-leads')
 async def search_leads(q: str = Query(..., min_length=2)):
-    Search for leads across campaigns by email.
+    """Search for leads across campaigns by email."""
     import httpx
     import os
     
