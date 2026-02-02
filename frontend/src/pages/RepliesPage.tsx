@@ -63,6 +63,10 @@ export function RepliesPage() {
   const [selectedReply, setSelectedReply] = useState<ProcessedReply | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<ReplyAutomation | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editGoogleSheetUrl, setEditGoogleSheetUrl] = useState('');
+  const [editSlackChannel, setEditSlackChannel] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -494,7 +498,15 @@ export function RepliesPage() {
                   <Bell className="w-4 h-4 text-blue-600" />
                   <span className="text-sm font-medium">Slack Notifications</span>
                 </div>
-                {editingAutomation.slack_channel ? (
+                {isEditMode ? (
+                  <input
+                    type="text"
+                    placeholder="Channel ID (e.g. C09REGUQWTG)"
+                    value={editSlackChannel}
+                    onChange={(e) => setEditSlackChannel(e.target.value)}
+                    className="input w-full text-sm"
+                  />
+                ) : editingAutomation.slack_channel ? (
                   <span className="text-sm text-blue-600">#{editingAutomation.slack_channel}</span>
                 ) : editingAutomation.slack_webhook_url ? (
                   <span className="text-sm text-blue-600">Webhook configured</span>
@@ -536,17 +548,46 @@ export function RepliesPage() {
             </div>
             <div className="px-6 py-4 border-t border-neutral-200 flex gap-2">
               <button 
-                onClick={() => { setAutomationFilter(editingAutomation.id); setEditingAutomation(null); }}
+                onClick={() => { setAutomationFilter(editingAutomation.id); setEditingAutomation(null); setIsEditMode(false); }}
                 className="btn btn-secondary flex-1"
               >
                 View Replies
               </button>
-              <button 
-                onClick={() => setEditingAutomation(null)}
-                className="btn btn-primary flex-1"
-              >
-                Close
-              </button>
+              {isEditMode ? (
+                <button 
+                  onClick={async () => {
+                    setSavingEdit(true);
+                    try {
+                      await repliesApi.updateAutomation(editingAutomation.id, {
+                        google_sheet_id: editGoogleSheetUrl ? extractSheetId(editGoogleSheetUrl) : undefined,
+                        slack_channel: editSlackChannel || undefined,
+                      });
+                      await loadAutomations();
+                      setIsEditMode(false);
+                      setEditingAutomation(null);
+                    } catch (err) {
+                      alert('Failed to save');
+                    } finally {
+                      setSavingEdit(false);
+                    }
+                  }}
+                  disabled={savingEdit}
+                  className="btn btn-primary flex-1"
+                >
+                  {savingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              ) : (
+                <button 
+                  onClick={() => {
+                    setIsEditMode(true);
+                    setEditGoogleSheetUrl(editingAutomation.google_sheet_id ? `https://docs.google.com/spreadsheets/d/\${editingAutomation.google_sheet_id}` : '');
+                    setEditSlackChannel(editingAutomation.slack_channel || '');
+                  }}
+                  className="btn btn-primary flex-1"
+                >
+                  Edit
+                </button>
+              )}
             </div>
           </div>
         </div>

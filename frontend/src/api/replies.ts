@@ -103,6 +103,8 @@ export interface GoogleSheetCreateResponse {
 }
 
 export interface ReplyAutomationUpdate {
+  google_sheet_id?: string;
+  google_sheet_name?: string;
   name?: string;
   campaign_ids?: string[];
   slack_webhook_url?: string;
