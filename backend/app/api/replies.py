@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import logging
 
 from app.db import get_session
-from app.models.reply import ReplyAutomation, ProcessedReply, ReplyPromptTemplateModel
+from app.models.reply import ReplyAutomation, ProcessedReply, ReplyPromptTemplateModel, WebhookEventModel
 from app.schemas.reply import (
     ReplyAutomationCreate,
     ReplyAutomationUpdate,
@@ -936,6 +936,115 @@ async def delete_reply_prompt_template(
     return {"success": True}
 
 
+
+
+# ============ Webhook History & Replay ============
+
+@router.get("/webhook-history")
+async def get_webhook_history(
+    limit: int = Query(50, le=200),
+    offset: int = Query(0),
+    processed: bool = Query(None),
+    campaign_id: str = Query(None),
+    db: AsyncSession = Depends(get_session)
+):
+    """Get webhook event history for debugging and replay."""
+    from app.models.reply import WebhookEventModel
+    
+    query = select(WebhookEventModel).order_by(WebhookEventModel.created_at.desc())
+    
+    if processed is not None:
+        query = query.where(WebhookEventModel.processed == processed)
+    if campaign_id:
+        query = query.where(WebhookEventModel.campaign_id == campaign_id)
+    
+    query = query.offset(offset).limit(limit)
+    
+    result = await db.execute(query)
+    events = result.scalars().all()
+    
+    return {
+        "events": [
+            {
+                "id": e.id,
+                "event_type": e.event_type,
+                "campaign_id": e.campaign_id,
+                "lead_email": e.lead_email,
+                "processed": e.processed,
+                "processed_at": e.processed_at.isoformat() if e.processed_at else None,
+                "error": e.error,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+                "payload_preview": e.payload[:200] + "..." if len(e.payload) > 200 else e.payload
+            }
+            for e in events
+        ],
+        "total": len(events),
+        "limit": limit,
+        "offset": offset
+    }
+
+
+@router.post("/webhook-history/{event_id}/replay")
+async def replay_webhook_event(
+    event_id: int,
+    db: AsyncSession = Depends(get_session)
+):
+    """Replay a webhook event to reprocess it."""
+    import json
+    from app.models.reply import WebhookEventModel
+    from app.services.reply_processor import process_reply_webhook
+    
+    result = await db.execute(
+        select(WebhookEventModel).where(WebhookEventModel.id == event_id)
+    )
+    event = result.scalar_one_or_none()
+    
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    try:
+        payload = json.loads(event.payload)
+        
+        # Process the webhook
+        process_result = await process_reply_webhook(payload, db)
+        
+        # Mark as reprocessed
+        event.processed = True
+        event.processed_at = datetime.utcnow()
+        event.error = None
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": "Event replayed successfully",
+            "result": process_result
+        }
+    except Exception as e:
+        event.error = str(e)
+        await db.commit()
+        return {
+            "success": False,
+            "message": f"Replay failed: {str(e)}"
+        }
+
+
+@router.delete("/webhook-history/clear")
+async def clear_webhook_history(
+    older_than_days: int = Query(30, description="Clear events older than N days"),
+    db: AsyncSession = Depends(get_session)
+):
+    """Clear old webhook history."""
+    from app.models.reply import WebhookEventModel
+    from sqlalchemy import delete
+    
+    cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+    
+    result = await db.execute(
+        delete(WebhookEventModel).where(WebhookEventModel.created_at < cutoff)
+    )
+    await db.commit()
+    
+    return {"deleted": result.rowcount, "older_than_days": older_than_days}
 
 
 @router.get("/{reply_id}", response_model=ProcessedReplyResponse)
@@ -2021,6 +2130,3 @@ async def get_single_automation_monitoring(
         created_at=auto.created_at,
         health_status=health_status
     )
-
-
-

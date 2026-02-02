@@ -74,6 +74,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to setup file sync: {e}")
     
+    # Sync Smartlead webhooks for active automations
+    try:
+        from app.services.smartlead_service import sync_webhooks_on_startup
+        result = await sync_webhooks_on_startup()
+        logger.info(f"Webhook sync: {result}")
+    except Exception as e:
+        logger.warning(f"Webhook sync failed: {e}")
+    
     yield
     
     # Shutdown

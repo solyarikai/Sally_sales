@@ -148,3 +148,18 @@ class ReplyPromptTemplateModel(Base):
     is_default = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WebhookEventModel(Base):
+    """Store webhook events for history and replay."""
+    __tablename__ = "webhook_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String(50), nullable=False)  # EMAIL_REPLY, etc.
+    campaign_id = Column(String(50), nullable=True)
+    lead_email = Column(String(255), nullable=True)
+    payload = Column(Text, nullable=False)  # JSON payload
+    processed = Column(Boolean, default=False)
+    processed_at = Column(DateTime, nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

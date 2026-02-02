@@ -247,6 +247,22 @@ async def receive_webhook(
     raw_body = await request.body()
     logger.info(f"[WEBHOOK] Raw body: {raw_body.decode()[:2000]}")
     
+    # Log event to history for replay capability
+    try:
+        from app.models.reply import WebhookEventModel
+        webhook_event = WebhookEventModel(
+            event_type="EMAIL_REPLY",
+            campaign_id=str(data.get("campaign_id", "") if isinstance(data, dict) else ""),
+            lead_email=data.get("sl_lead_email") or data.get("to_email") if isinstance(data, dict) else None,
+            payload=raw_body.decode(),
+            processed=False
+        )
+        session.add(webhook_event)
+        await session.flush()
+        logger.info(f"[WEBHOOK] Event logged with ID: {webhook_event.id}")
+    except Exception as log_err:
+        logger.warning(f"[WEBHOOK] Failed to log event: {log_err}")
+    
     # Parse JSON manually
     try:
         data = await request.json()

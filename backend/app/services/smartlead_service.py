@@ -420,3 +420,43 @@ class SmartleadService:
 
 # Global instance
 smartlead_service = SmartleadService()
+
+
+
+async def sync_webhooks_on_startup():
+    """Verify and re-register webhooks for all active automations on startup."""
+    import logging
+    from app.db import async_session_maker
+    from app.models.reply import ReplyAutomation
+    from sqlalchemy import select
+    
+    logger = logging.getLogger(__name__)
+    logger.info("Syncing Smartlead webhooks for active automations...")
+    
+    webhook_url = "http://46.62.210.24:8000/api/smartlead/webhook"
+    synced = 0
+    failed = 0
+    
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(ReplyAutomation).where(
+                ReplyAutomation.is_active == True,
+                ReplyAutomation.active == True
+            )
+        )
+        automations = result.scalars().all()
+        
+        for automation in automations:
+            for campaign_id in (automation.campaign_ids or []):
+                try:
+                    await smartlead_service.configure_campaign_webhook(
+                        campaign_id=campaign_id,
+                        webhook_url=webhook_url
+                    )
+                    synced += 1
+                except Exception as e:
+                    logger.warning(f"Failed to sync webhook for campaign {campaign_id}: {e}")
+                    failed += 1
+    
+    logger.info(f"Webhook sync complete: {synced} configured, {failed} failed")
+    return {"synced": synced, "failed": failed}
