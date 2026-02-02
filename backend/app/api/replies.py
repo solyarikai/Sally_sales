@@ -1640,7 +1640,7 @@ async def delete_reply_prompt_template(
 
 @router.get('/smartlead/search-leads')
 async def search_leads(q: str = Query(..., min_length=2)):
-    """Search for leads across campaigns by email."""
+    """Search for leads by email using Smartlead API."""
     import httpx
     import os
     
@@ -1651,42 +1651,31 @@ async def search_leads(q: str = Query(..., min_length=2)):
     results = []
     
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # Get campaigns
-        campaigns_resp = await client.get(
-            'https://server.smartlead.ai/api/v1/campaigns',
-            params={'api_key': api_key}
+        # Use the global leads search endpoint with exact email
+        lead_resp = await client.get(
+            'https://server.smartlead.ai/api/v1/leads',
+            params={'api_key': api_key, 'email': q}
         )
-        campaigns = campaigns_resp.json() if campaigns_resp.status_code == 200 else []
         
-        # Search in recent campaigns
-        for campaign in campaigns[:20]:
-            campaign_id = campaign.get('id')
-            campaign_name = campaign.get('name', '')
+        if lead_resp.status_code == 200:
+            lead_data = lead_resp.json()
             
-            # Search leads in this campaign
-            leads_resp = await client.get(
-                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
-                params={'api_key': api_key, 'search': q, 'limit': 5}
-            )
-            
-            if leads_resp.status_code == 200:
-                leads_data = leads_resp.json()
-                leads_list = leads_data.get('data', []) if isinstance(leads_data, dict) else []
+            if isinstance(lead_data, dict) and lead_data.get('email'):
+                # Found exact match
+                campaign_info = lead_data.get('lead_campaign_data', [])
+                campaign_name = campaign_info[0].get('campaign_name', '') if campaign_info else ''
+                campaign_id = campaign_info[0].get('campaign_id', '') if campaign_info else ''
                 
-                for lead in leads_list:
-                    email = lead.get('email', '')
-                    if q.lower() in email.lower():
-                        results.append({
-                            'email': email,
-                            'campaign_name': campaign_name,
-                            'campaign_id': str(campaign_id)
-                        })
-                        
-                        # Limit total results
-                        if len(results) >= 10:
-                            return {'results': results}
+                results.append({
+                    'email': lead_data['email'],
+                    'campaign_name': campaign_name,
+                    'campaign_id': str(campaign_id),
+                    'first_name': lead_data.get('first_name', ''),
+                    'last_name': lead_data.get('last_name', '')
+                })
     
     return {'results': results}
+
 
 @router.get("/smartlead/lead-conversations/{lead_email}")
 async def get_lead_conversations(

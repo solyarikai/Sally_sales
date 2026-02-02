@@ -54,7 +54,7 @@ Generate a reply:`;
 export default function PromptDebugPage() {
   // Template management
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate | null>({ name: 'Default Classification', prompt_type: 'classification', prompt_text: '', is_default: true });
   const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
   const [editingTemplateName, setEditingTemplateName] = useState(false);
   const [tempTemplateName, setTempTemplateName] = useState('');
