@@ -434,6 +434,10 @@ async def process_reply_webhook(
             processed_reply.sent_to_slack = True
             processed_reply.slack_sent_at = datetime.utcnow()
         
+        # Send Telegram notification for high-priority categories
+        from app.services.notification_service import notify_reply_needs_attention
+        await notify_reply_needs_attention(processed_reply, category)
+        
         # Log to Google Sheets if automation has a sheet configured
         if automation and automation.google_sheet_id:
             try:

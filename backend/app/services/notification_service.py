@@ -611,3 +611,75 @@ async def send_test_notification(channel_id: str = "C09REGUQWTG", webhook_url: O
             return {"success": False, "message": str(e)}
     
     return {"success": False, "message": "No SLACK_BOT_TOKEN configured and no webhook URL provided"}
+
+
+# Telegram configuration
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "57344339")
+
+
+async def send_telegram_notification(message: str, parse_mode: str = "HTML") -> bool:
+    """Send a notification to Telegram.
+    
+    Args:
+        message: The message to send (HTML or Markdown)
+        parse_mode: Parse mode for formatting (HTML or Markdown)
+        
+    Returns:
+        True if sent successfully, False otherwise
+    """
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logger.warning("Telegram not configured - missing BOT_TOKEN or CHAT_ID")
+        return False
+    
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(url, data={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": message,
+                "parse_mode": parse_mode
+            })
+            
+            result = response.json()
+            
+            if result.get("ok"):
+                logger.info("Telegram notification sent successfully")
+                return True
+            else:
+                logger.error(f"Telegram API error: {result.get('description')}")
+                return False
+                
+    except Exception as e:
+        logger.error(f"Error sending Telegram notification: {e}")
+        return False
+
+
+async def notify_reply_needs_attention(reply, category: str) -> bool:
+    """Send Telegram notification for replies that need attention.
+    
+    Sends notification for: interested, meeting_request categories
+    """
+    attention_categories = ["interested", "meeting_request"]
+    
+    if category not in attention_categories:
+        return False
+    
+    emoji = "🟢" if category == "interested" else "📅"
+    
+    message = f"""
+{emoji} <b>Reply Needs Attention!</b>
+
+<b>Category:</b> {category.replace('_', ' ').title()}
+<b>From:</b> {reply.lead_email}
+<b>Subject:</b> {reply.email_subject or 'No subject'}
+<b>Company:</b> {reply.lead_company or 'Unknown'}
+
+<b>Message:</b>
+<code>{(reply.email_body or reply.reply_text or 'No body')[:500]}</code>
+
+<a href="{reply.inbox_link or 'https://app.smartlead.ai/app/master-inbox'}">Open in Smartlead</a>
+"""
+    
+    return await send_telegram_notification(message.strip())
