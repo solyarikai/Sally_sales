@@ -573,6 +573,85 @@ async def bulk_create_contacts(
     }
 
 
+@router.post("/import/merged", response_model=Dict[str, Any])
+async def import_merged_contacts(
+    contacts: List[dict] = Body(...),
+    session: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Import contacts from merged Smartlead+GetSales JSON"""
+    
+    imported = 0
+    skipped = 0
+    errors = []
+    
+    for contact_data in contacts:
+        try:
+            email = contact_data.get("email")
+            if not email:
+                skipped += 1
+                continue
+            
+            # Check if exists
+            existing = await session.execute(
+                select(Contact).where(
+                    and_(
+                        Contact.company_id == company.id,
+                        Contact.email == email,
+                        Contact.deleted_at.is_(None)
+                    )
+                )
+            )
+            
+            if existing.scalar_one_or_none():
+                skipped += 1
+                continue
+            
+            # Determine status based on replied field
+            status = "replied" if contact_data.get("replied") else "lead"
+            
+            # Determine source
+            sources = contact_data.get("sources", [])
+            if "smartlead" in sources and "getsales" in sources:
+                source = "smartlead+getsales"
+            elif "smartlead" in sources:
+                source = "smartlead"
+            elif "getsales" in sources:
+                source = "getsales"
+            else:
+                source = "import"
+            
+            # Create contact
+            contact = Contact(
+                company_id=company.id,
+                email=email,
+                first_name=contact_data.get("first_name"),
+                last_name=contact_data.get("last_name"),
+                company_name=contact_data.get("company"),
+                job_title=contact_data.get("title"),
+                phone=contact_data.get("phone"),
+                linkedin_url=contact_data.get("linkedin"),
+                location=contact_data.get("location"),
+                source=source,
+                status=status
+            )
+            
+            session.add(contact)
+            imported += 1
+            
+        except Exception as e:
+            errors.append(f"Error importing {contact_data.get('email')}: {str(e)}")
+    
+    await session.commit()
+    
+    return {
+        "success": True,
+        "imported": imported,
+        "skipped": skipped,
+        "errors": errors[:10]  # Return first 10 errors
+    }
+
+
 class ImportResult(BaseModel):
     """Result of CSV import operation."""
     success: bool
