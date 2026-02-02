@@ -152,7 +152,8 @@ export function RepliesPage() {
 
   useEffect(() => {
     loadAutomations();
-  }, [loadAutomations]);
+    loadSlackChannels();  // Load for channel name display in sidebar
+  }, [loadAutomations, loadSlackChannels]);
 
   const handleRefresh = () => {
     loadReplies();
@@ -391,15 +392,15 @@ export function RepliesPage() {
                   {automation.google_sheet_id && (
                     <div className="flex items-center gap-1 text-xs text-neutral-500 mt-2">
                       <FileSpreadsheet className="w-3 h-3" />
-                      <a href={`https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}`} target="_blank" rel="noopener" className="text-green-600 hover:underline truncate max-w-[180px]">
-                        {automation.google_sheet_name || "Google Sheet"}
+                      <a href={`https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}${automation.google_sheet_name?.includes('#') ? '/edit?gid=' + automation.google_sheet_name.split('#')[1] + '#gid=' + automation.google_sheet_name.split('#')[1] : ''}`} target="_blank" rel="noopener" className="text-green-600 hover:underline truncate max-w-[180px]">
+                        {automation.google_sheet_name?.split('#')[0] || "Google Sheet"}
                       </a>
                     </div>
                   )}
                   {(automation.slack_webhook_url || automation.slack_channel) && (
                     <div className="flex items-center gap-1 text-xs text-neutral-500 mt-2">
                       <Bell className="w-3 h-3" />
-                      {automation.slack_channel ? `#${automation.slack_channel}` : "Slack notifications enabled"}
+                      {automation.slack_channel ? `#${slackChannelsEdit.find((c: {id: string, name: string}) => c.id === automation.slack_channel)?.name || automation.slack_channel}` : "Slack notifications enabled"}
                     </div>
                   )}
                 </div>
