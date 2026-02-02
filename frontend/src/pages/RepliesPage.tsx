@@ -818,7 +818,7 @@ export function RepliesPage() {
                       className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm"
                     >
                       <option value="default">Default Classification</option>
-                      {editPromptTemplates.filter(t => !t.is_default && t.prompt_type === 'classification').map(t => (
+                      {editPromptTemplates.filter(t => !t.is_default).map(t => (
                         <option key={t.id} value={t.id?.toString()}>{t.name}</option>
                       ))}
                       <option value="custom">Custom (paste below)</option>
@@ -850,7 +850,7 @@ export function RepliesPage() {
                       className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm"
                     >
                       <option value="default">Default Reply</option>
-                      {editPromptTemplates.filter(t => !t.is_default && t.prompt_type === 'reply').map(t => (
+                      {editPromptTemplates.filter(t => !t.is_default).map(t => (
                         <option key={t.id} value={t.id?.toString()}>{t.name}</option>
                       ))}
                       <option value="custom">Custom (paste below)</option>
@@ -950,7 +950,7 @@ Hi, thanks for reaching out. We're definitely interested in learning more about 
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             name: 'Classification ' + new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-                            prompt_type: 'classification',
+                            
                             prompt_text: editClassificationPrompt,
                             is_default: false
                           })
@@ -962,7 +962,7 @@ Hi, thanks for reaching out. We're definitely interested in learning more about 
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             name: 'Reply ' + new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-                            prompt_type: 'reply',
+                            
                             prompt_text: editReplyPrompt,
                             is_default: false
                           })
@@ -1718,7 +1718,7 @@ function CreateAutomationModal({
   const [replyTemplate, setReplyTemplate] = useState<string>('default');
   const [customClassificationPrompt, setCustomClassificationPrompt] = useState('');
   const [customReplyPrompt, setCustomReplyPrompt] = useState('');
-  const [promptTemplates, setPromptTemplates] = useState<Array<{id: number, name: string, prompt_type: string}>>([]);
+  const [promptTemplates, setPromptTemplates] = useState<Array<{id: number, name: string, prompt_type?: string, is_default?: boolean}>>([]);
 
   // Load Google Sheets status when entering step 2
   useEffect(() => {
@@ -1767,7 +1767,7 @@ function CreateAutomationModal({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               name: templateName,
-              prompt_type: 'classification',
+              
               prompt_text: customClassificationPrompt,
               is_default: false
             })
@@ -1787,7 +1787,7 @@ function CreateAutomationModal({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               name: templateName,
-              prompt_type: 'reply',
+              
               prompt_text: customReplyPrompt,
               is_default: false
             })
@@ -2349,7 +2349,7 @@ function CreateAutomationModal({
                         className="input w-full text-sm mb-2"
                       >
                         <option value="default">Default Classification</option>
-                        {promptTemplates.filter(t => t.prompt_type === 'classification').map(t => (
+                        {promptTemplates.filter(t => !t.is_default).map(t => (
                           <option key={t.id} value={String(t.id)}>{t.name}</option>
                         ))}
                         <option value="custom">Custom (paste below)</option>
@@ -2374,7 +2374,7 @@ function CreateAutomationModal({
                         className="input w-full text-sm mb-2"
                       >
                         <option value="default">Default Reply</option>
-                        {promptTemplates.filter(t => t.prompt_type === 'reply').map(t => (
+                        {promptTemplates.filter(t => !t.is_default).map(t => (
                           <option key={t.id} value={String(t.id)}>{t.name}</option>
                         ))}
                         <option value="custom">Custom (paste below)</option>

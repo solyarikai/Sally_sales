@@ -48,7 +48,7 @@ class PromptDebugRequest(BaseModel):
 class ReplyPromptTemplate(BaseModel):
     id: Optional[int] = None
     name: str
-    prompt_type: str  # classification or reply
+    prompt_type: Optional[str] = None  # Optional tag
     prompt_text: str
     is_default: bool = False
 

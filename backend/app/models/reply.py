@@ -143,7 +143,7 @@ class ReplyPromptTemplateModel(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    prompt_type = Column(String(50), nullable=False)  # classification or reply
+    prompt_type = Column(String(50), nullable=True)  # Optional tag  # classification or reply
     prompt_text = Column(Text, nullable=False)
     is_default = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
