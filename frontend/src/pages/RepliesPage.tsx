@@ -30,6 +30,19 @@ const extractSheetId = (url: string): string => {
   return url;
 };
 
+// Helper function to extract gid (tab ID) from Google Sheet URL
+const extractSheetGid = (url: string): string | null => {
+  if (!url) return null;
+  const match = url.match(/[?&#]gid=(\d+)/);
+  return match ? match[1] : null;
+};
+
+// Helper to create sheet name with gid for storage (format: "TabName#gid")
+const createSheetNameWithGid = (url: string): string | undefined => {
+  const gid = extractSheetGid(url);
+  return gid ? `Replies#${gid}` : undefined;  // Default tab name + gid
+};
+
 const CATEGORY_CONFIG: Record<ReplyCategory, { label: string; color: string; emoji: string }> = {
   interested: { label: 'Interested', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', emoji: '🟢' },
   meeting_request: { label: 'Meeting Request', color: 'bg-blue-100 text-blue-700 border-blue-200', emoji: '📅' },
@@ -795,6 +808,7 @@ Hi, thanks for reaching out. We're definitely interested in learning more about 
                     try {
                       await repliesApi.updateAutomation(editingAutomation.id, {
                         google_sheet_id: editGoogleSheetUrl ? extractSheetId(editGoogleSheetUrl) : undefined,
+                        google_sheet_name: editGoogleSheetUrl ? createSheetNameWithGid(editGoogleSheetUrl) : undefined,
                         slack_channel: editSlackChannel || undefined,
                         campaign_ids: editCampaigns.length > 0 ? editCampaigns : undefined,
                         classification_prompt: editClassificationPrompt || undefined,
@@ -1291,7 +1305,7 @@ function CreateAutomationModal({
         slack_channel: slackChannel || undefined,
         create_google_sheet: createGoogleSheet && !useExistingSheet,
         google_sheet_id: useExistingSheet ? extractSheetId(existingSheetUrl) : undefined,
-        google_sheet_name: useExistingSheet ? 'Existing Sheet' : undefined,
+        google_sheet_name: useExistingSheet ? createSheetNameWithGid(existingSheetUrl) || 'Existing Sheet' : undefined,
         share_sheet_with_email: shareSheetEmail || undefined,
         auto_classify: autoClassify,
         auto_generate_reply: autoGenerateReply,
