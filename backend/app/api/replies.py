@@ -2130,3 +2130,76 @@ async def get_single_automation_monitoring(
         created_at=auto.created_at,
         health_status=health_status
     )
+
+
+
+
+@router.post("/automations/{automation_id}/sync-historical")
+async def sync_historical_replies(
+    automation_id: int,
+    limit: int = Query(10, le=100, description="Max replies to sync"),
+    db: AsyncSession = Depends(get_session)
+):
+    """Sync historical replies from local DB to Google Sheet."""
+    import re
+    
+    result = await db.execute(
+        select(ReplyAutomation).where(ReplyAutomation.id == automation_id)
+    )
+    automation = result.scalar_one_or_none()
+    if not automation:
+        raise HTTPException(status_code=404, detail="Automation not found")
+    
+    if not automation.google_sheet_id:
+        raise HTTPException(status_code=400, detail="No Google Sheet configured")
+    
+    synced = 0
+    skipped = 0
+    errors = []
+    existing_emails = set()
+    
+    from app.services.google_sheets_service import google_sheets_service
+    
+    # Sync from local ProcessedReply database
+    for campaign_id in (automation.campaign_ids or []):
+        local_query = select(ProcessedReply).where(
+            ProcessedReply.campaign_id == campaign_id
+        ).order_by(ProcessedReply.received_at.desc()).limit(limit)
+        
+        local_result = await db.execute(local_query)
+        local_replies = local_result.scalars().all()
+        
+        for reply in local_replies:
+            if reply.lead_email and reply.lead_email.lower() in existing_emails:
+                skipped += 1
+                continue
+            
+            row_data = {
+                "lead_email": reply.lead_email or "",
+                "lead_name": f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip(),
+                "subject": reply.email_subject or "",
+                "reply_text": (reply.email_body or reply.reply_text or "")[:500],
+                "received_at": reply.received_at.isoformat() if reply.received_at else "",
+                "campaign_name": reply.campaign_name or automation.name,
+                "category": reply.category or "",
+                "status": reply.approval_status or "historical"
+            }
+            
+            try:
+                google_sheets_service.append_reply(
+                    automation.google_sheet_id,
+                    row_data
+                )
+                synced += 1
+                if reply.lead_email:
+                    existing_emails.add(reply.lead_email.lower())
+            except Exception as e:
+                errors.append(f"{reply.lead_email}: {str(e)}")
+    
+    return {
+        "success": True,
+        "synced": synced,
+        "skipped": skipped,
+        "errors": errors[:10],
+        "message": f"Synced {synced} replies to Google Sheet"
+    }
