@@ -62,6 +62,7 @@ export function RepliesPage() {
   // UI state
   const [selectedReply, setSelectedReply] = useState<ProcessedReply | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingAutomation, setEditingAutomation] = useState<ReplyAutomation | null>(null);
   const [showTestModal, setShowTestModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -324,7 +325,7 @@ export function RepliesPage() {
                     "p-4 hover:bg-neutral-50 cursor-pointer",
                     automationFilter === automation.id && "bg-violet-50"
                   )}
-                  onClick={() => setAutomationFilter(automationFilter === automation.id ? null : automation.id)}
+                  onClick={() => setEditingAutomation(automation)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -447,6 +448,110 @@ export function RepliesPage() {
       )}
 
       {/* Create Automation Modal */}
+      {/* Edit Automation Modal */}
+      {editingAutomation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setEditingAutomation(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-violet-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">{editingAutomation.name}</h2>
+                  <p className="text-sm text-neutral-500">{editingAutomation.campaign_ids?.length || 0} campaigns</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingAutomation(null)} className="p-2 hover:bg-neutral-100 rounded-lg">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 overflow-y-auto max-h-[60vh]">
+              {/* Google Sheets */}
+              <div className="p-4 bg-neutral-50 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-medium">Google Sheet</span>
+                </div>
+                {editingAutomation.google_sheet_id ? (
+                  <a 
+                    href={`https://docs.google.com/spreadsheets/d/${editingAutomation.google_sheet_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-green-600 hover:underline break-all"
+                  >
+                    {editingAutomation.google_sheet_name || `https://docs.google.com/spreadsheets/d/${editingAutomation.google_sheet_id}`}
+                  </a>
+                ) : (
+                  <span className="text-sm text-neutral-400">Not configured</span>
+                )}
+              </div>
+              
+              {/* Slack */}
+              <div className="p-4 bg-neutral-50 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <Bell className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium">Slack Notifications</span>
+                </div>
+                {editingAutomation.slack_channel ? (
+                  <span className="text-sm text-blue-600">#{editingAutomation.slack_channel}</span>
+                ) : editingAutomation.slack_webhook_url ? (
+                  <span className="text-sm text-blue-600">Webhook configured</span>
+                ) : (
+                  <span className="text-sm text-neutral-400">Not configured</span>
+                )}
+              </div>
+              
+              {/* Campaigns */}
+              <div className="p-4 bg-neutral-50 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <Mail className="w-4 h-4 text-violet-600" />
+                  <span className="text-sm font-medium">Campaigns</span>
+                </div>
+                <div className="space-y-1">
+                  {editingAutomation.campaign_ids?.map(id => (
+                    <div key={id} className="text-sm text-neutral-600">{campaigns.find(c => String(c.id) === String(id))?.name || id}</div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* AI Features */}
+              <div className="p-4 bg-neutral-50 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm font-medium">AI Features</span>
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-center gap-2">
+                    {editingAutomation.auto_classify ? <Check className="w-4 h-4 text-emerald-500" /> : <X className="w-4 h-4 text-neutral-300" />}
+                    <span>Auto-classify replies</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editingAutomation.auto_generate_reply ? <Check className="w-4 h-4 text-emerald-500" /> : <X className="w-4 h-4 text-neutral-300" />}
+                    <span>Generate draft replies</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-neutral-200 flex gap-2">
+              <button 
+                onClick={() => { setAutomationFilter(editingAutomation.id); setEditingAutomation(null); }}
+                className="btn btn-secondary flex-1"
+              >
+                View Replies
+              </button>
+              <button 
+                onClick={() => setEditingAutomation(null)}
+                className="btn btn-primary flex-1"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCreateModal && (
         <CreateAutomationModal
           campaigns={campaigns}
