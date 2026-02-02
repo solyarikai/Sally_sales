@@ -183,6 +183,41 @@ async def create_automation(
             logger.warning(f"Failed to configure webhook for campaign {campaign_id}: {e}")
     
     logger.info(f"Created reply automation: {automation.id} - {automation.name}")
+    
+    # Auto-sync historical replies to Google Sheet (data only, no AI/Slack)
+    if automation.google_sheet_id and automation.campaign_ids:
+        try:
+            synced = 0
+            existing_emails = set()
+            for campaign_id in automation.campaign_ids:
+                local_query = select(ProcessedReply).where(
+                    ProcessedReply.campaign_id == campaign_id
+                ).order_by(ProcessedReply.received_at.desc()).limit(100)
+                local_result = await session.execute(local_query)
+                local_replies = local_result.scalars().all()
+                
+                for reply in local_replies:
+                    if reply.lead_email and reply.lead_email.lower() in existing_emails:
+                        continue
+                    row_data = {
+                        "lead_email": reply.lead_email or "",
+                        "lead_name": f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip(),
+                        "subject": reply.email_subject or "",
+                        "reply_text": (reply.email_body or reply.reply_text or "")[:500],
+                        "received_at": reply.received_at.isoformat() if reply.received_at else "",
+                        "campaign_name": reply.campaign_name or automation.name,
+                        "category": reply.category or "",
+                        "status": "historical"
+                    }
+                    google_sheets_service.append_reply(automation.google_sheet_id, row_data)
+                    synced += 1
+                    if reply.lead_email:
+                        existing_emails.add(reply.lead_email.lower())
+            if synced > 0:
+                logger.info(f"Auto-synced {synced} historical replies to Google Sheet")
+        except Exception as e:
+            logger.warning(f"Failed to auto-sync historical replies: {e}")
+    
     return ReplyAutomationResponse.model_validate(automation)
 
 
