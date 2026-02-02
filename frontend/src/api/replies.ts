@@ -422,6 +422,10 @@ export const repliesApi = {
   getTestCampaigns,
   simulateTestReply,
   checkTestSetup,
+  // Campaign control
+  getCampaignStatus,
+  launchCampaign,
+  pauseCampaign,
 };
 
 
@@ -466,5 +470,21 @@ export async function checkTestSetup(campaignId: string): Promise<{
   automation?: { id: number; name: string; has_slack: boolean; has_sheet: boolean };
 }> {
   const response = await api.get(`/replies/test-flow/check-setup/${campaignId}`);
+  return response.data;
+}
+
+// Campaign control APIs
+export async function getCampaignStatus(campaignId: string): Promise<{campaign_id: string, name: string, status: string}> {
+  const response = await api.get(`/replies/campaign/${campaignId}/status`);
+  return response.data;
+}
+
+export async function launchCampaign(campaignId: string): Promise<{success: boolean, message: string}> {
+  const response = await api.post(`/replies/campaign/${campaignId}/launch`);
+  return response.data;
+}
+
+export async function pauseCampaign(campaignId: string): Promise<{success: boolean, message: string}> {
+  const response = await api.post(`/replies/campaign/${campaignId}/pause`);
   return response.data;
 }

@@ -1293,18 +1293,12 @@ Best,
             }]}
         )
         
-        # 6. Start campaign
-        await client.post(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
-            params={"api_key": api_key},
-            json={"status": "START"}
-        )
-    
     return {
         "success": True,
         "campaign_id": str(campaign_id),
         "campaign_name": campaign_name,
-        "message": f"Test campaign created! Email will be sent to {user_email} within 5 minutes.",
+        "status": "DRAFT",
+        "message": f"Test campaign created! Set up automation, then click Launch.",
         "next_steps": [
             f"Create automation for campaign ID: {campaign_id}",
             "Set up Google Sheet and Slack channel",
@@ -1377,6 +1371,79 @@ async def check_test_setup(
             "has_sheet": bool(automation.google_sheet_id)
         }
     }
+
+
+
+
+
+@router.get("/campaign/{campaign_id}/status")
+async def get_campaign_status(campaign_id: str):
+    """Get campaign status from Smartlead."""
+    import httpx
+    import os
+    from app.services.smartlead_service import smartlead_service
+    
+    api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Smartlead not configured")
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}",
+            params={"api_key": api_key}
+        )
+        data = resp.json()
+    
+    return {
+        "campaign_id": campaign_id,
+        "name": data.get("name"),
+        "status": data.get("status"),  # DRAFT, ACTIVE, PAUSED, COMPLETED
+        "created_at": data.get("created_at")
+    }
+
+
+@router.post("/campaign/{campaign_id}/launch")
+async def launch_campaign(campaign_id: str):
+    """Start/launch a Smartlead campaign."""
+    import httpx
+    import os
+    from app.services.smartlead_service import smartlead_service
+    
+    api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Smartlead not configured")
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
+            params={"api_key": api_key},
+            json={"status": "START"}
+        )
+        data = resp.json()
+    
+    return {"success": True, "message": f"Campaign {campaign_id} launched", "response": data}
+
+
+@router.post("/campaign/{campaign_id}/pause")
+async def pause_campaign(campaign_id: str):
+    """Pause a Smartlead campaign."""
+    import httpx
+    import os
+    from app.services.smartlead_service import smartlead_service
+    
+    api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Smartlead not configured")
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
+            params={"api_key": api_key},
+            json={"status": "PAUSE"}
+        )
+        data = resp.json()
+    
+    return {"success": True, "message": f"Campaign {campaign_id} paused", "response": data}
 
 
 

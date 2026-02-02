@@ -1,9 +1,10 @@
+import toast, { Toaster } from 'react-hot-toast';
 import { useEffect, useState, useCallback } from 'react';
 import { 
   MessageSquare, Search, RefreshCw, Plus, Settings2, 
   Send, Bell, X, Copy, Check, AlertCircle,
   Zap, Hash, Calendar, Mail, Building2,
-  TestTube2, FileSpreadsheet, SkipForward, ExternalLink, Pencil
+  TestTube2, FileSpreadsheet, ExternalLink, Pencil
 } from 'lucide-react';
 import { 
   repliesApi, 
@@ -75,6 +76,7 @@ export function RepliesPage() {
   // UI state
   const [selectedReply, setSelectedReply] = useState<ProcessedReply | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedCampaignsForCreate, setSelectedCampaignsForCreate] = useState<string[]>([]);
   const [editingAutomation, setEditingAutomation] = useState<ReplyAutomation | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editGoogleSheetUrl, setEditGoogleSheetUrl] = useState('');
@@ -98,10 +100,12 @@ export function RepliesPage() {
   const [testEmailAccounts, setTestEmailAccounts] = useState<Array<{id: number, email: string, name: string, remaining: number}>>([]);
   const [selectedEmailAccount, setSelectedEmailAccount] = useState<number | null>(null);
   const [testUserEmail, setTestUserEmail] = useState('');
-  const [testUserName, setTestUserName] = useState('');
+  
   const [testCampaignResult, setTestCampaignResult] = useState<{campaign_id?: string, campaign_name?: string, message?: string} | null>(null);
   const [testFlowLoading, setTestFlowLoading] = useState(false);
   const [testCampaigns, setTestCampaigns] = useState<Array<{id: string, name: string, status: string}>>([]);
+  const [testCampaignStatus, setTestCampaignStatus] = useState<string | null>(null);
+  const [launchingCampaign, setLaunchingCampaign] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -253,6 +257,7 @@ export function RepliesPage() {
 
   return (
     <div className="h-full flex flex-col bg-neutral-50">
+      <Toaster position="top-center" />
       {/* Header */}
       <div className="bg-white border-b border-neutral-200 px-6 py-4">
         <div className="flex items-center justify-between mb-4">
@@ -974,12 +979,14 @@ Hi, thanks for reaching out. We're definitely interested in learning more about 
           campaigns={campaigns}
           campaignsLoading={campaignsLoading}
           smartleadError={smartleadError}
-          onClose={() => setShowCreateModal(false)}
+          onClose={() => { setShowCreateModal(false); setSelectedCampaignsForCreate([]); }}
           onCreated={() => {
             setShowCreateModal(false);
+            setSelectedCampaignsForCreate([]);
             loadAutomations();
           }}
           onRetryCampaigns={loadCampaigns}
+          initialSelectedCampaigns={selectedCampaignsForCreate}
         />
       )}
 
@@ -1028,16 +1035,7 @@ Hi, thanks for reaching out. We're definitely interested in learning more about 
                     <p className="text-xs text-neutral-400 mt-1">You'll receive a test email here</p>
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Your Name</label>
-                    <input
-                      type="text"
-                      value={testUserName}
-                      onChange={(e) => setTestUserName(e.target.value)}
-                      placeholder="John Doe"
-                      className="input w-full"
-                    />
-                  </div>
+                  
                   
                   <div>
                     <label className="block text-sm font-medium mb-1">Send From (Email Account)</label>
@@ -1073,47 +1071,67 @@ Hi, thanks for reaching out. We're definitely interested in learning more about 
               
               {testFlowStep === 2 && testCampaignResult && (
                 <div className="space-y-4">
-                  <div className="p-4 bg-emerald-50 rounded-xl">
-                    <p className="text-sm text-emerald-800 font-medium">Campaign Created!</p>
-                    <p className="text-sm text-emerald-700 mt-1">{testCampaignResult.message}</p>
+                  <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                      <span className="text-xs font-medium text-amber-700">DRAFT</span>
+                    </div>
+                    <p className="text-sm font-medium text-emerald-900">{testCampaignResult.campaign_name}</p>
+                    <p className="text-xs text-emerald-600 mt-1">Will send to: {testUserEmail}</p>
                   </div>
                   
-                  <div className="p-4 bg-amber-50 rounded-xl">
-                    <p className="text-sm text-amber-800 font-medium">Now set up an automation:</p>
-                    <ol className="text-sm text-amber-700 mt-2 space-y-1 list-decimal list-inside">
-                      <li>Click "New Automation" button</li>
-                      <li>Select campaign: <strong>{testCampaignResult.campaign_name}</strong></li>
-                      <li>Connect a Google Sheet</li>
-                      <li>Connect a Slack channel</li>
-                    </ol>
-                  </div>
-                  
-                  <div className="p-3 bg-neutral-100 rounded-lg">
-                    <p className="text-xs text-neutral-500">Campaign ID (for reference):</p>
-                    <code className="text-sm font-mono">{testCampaignResult.campaign_id}</code>
+                  <div className="p-4 bg-neutral-50 rounded-xl">
+                    <p className="text-sm text-neutral-700">Set up automation to capture replies in Google Sheet and Slack, then launch the campaign.</p>
                   </div>
                 </div>
               )}
               
               {testFlowStep === 3 && (
                 <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 rounded-xl">
-                    <p className="text-sm text-blue-800 font-medium">Final Step: Test the flow!</p>
-                    <ol className="text-sm text-blue-700 mt-2 space-y-1 list-decimal list-inside">
-                      <li>Check your email for the test message</li>
-                      <li>Reply to it with any message</li>
-                      <li>Watch it appear in your Google Sheet and Slack!</li>
+                  {testCampaignResult && (
+                    <div className="p-4 bg-blue-50 rounded-xl flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-blue-800 font-medium">Campaign: {testCampaignResult.campaign_name}</p>
+                        <p className="text-xs text-blue-600">Status: {testCampaignStatus || 'Checking...'}</p>
+                      </div>
+                      {testCampaignStatus !== 'ACTIVE' && (
+                        <button
+                          onClick={async () => {
+                            if (!testCampaignResult?.campaign_id) return;
+                            setLaunchingCampaign(true);
+                            try {
+                              await repliesApi.launchCampaign(testCampaignResult.campaign_id);
+                              setTestCampaignStatus('ACTIVE');
+                            } catch (e) { console.error(e); }
+                            setLaunchingCampaign(false);
+                          }}
+                          disabled={launchingCampaign}
+                          className="btn btn-sm bg-emerald-500 text-white hover:bg-emerald-600"
+                        >
+                          {launchingCampaign ? 'Launching...' : 'Launch'}
+                        </button>
+                      )}
+                      {testCampaignStatus === 'ACTIVE' && (
+                        <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full">Running</span>
+                      )}
+                    </div>
+                  )}
+                  
+                  <div className="p-4 bg-emerald-50 rounded-xl">
+                    <p className="text-sm text-emerald-800 font-medium">Test the flow:</p>
+                    <ol className="text-sm text-emerald-700 mt-2 space-y-2 list-decimal list-inside">
+                      <li><strong>Check your email</strong> ({testUserEmail}) - arrives in ~5 min</li>
+                      <li><strong>Reply to the email</strong> with any message</li>
+                      <li><strong>Watch it appear</strong> in Google Sheet and Slack!</li>
                     </ol>
                   </div>
                   
-                  <div className="p-4 bg-neutral-50 rounded-xl">
-                    <p className="text-sm text-neutral-600">
-                      <strong>Tip:</strong> Try different reply types:
-                    </p>
-                    <ul className="text-sm text-neutral-500 mt-2 space-y-1">
-                      <li>• "Yes, I'm interested!" → Interested</li>
-                      <li>• "Can we schedule a call?" → Meeting Request</li>
-                      <li>• "Not interested, thanks" → Not Interested</li>
+                  <div className="p-4 bg-violet-50 rounded-xl">
+                    <p className="text-sm text-violet-700 font-medium">Try these replies:</p>
+                    <ul className="text-sm text-violet-600 mt-2 space-y-1">
+                      <li>• "Yes, interested!" → <span className="text-emerald-600">Interested</span></li>
+                      <li>• "Let's schedule a call" → <span className="text-blue-600">Meeting</span></li>
+                      <li>• "Not interested" → <span className="text-red-600">Not Interested</span></li>
                     </ul>
                   </div>
                 </div>
@@ -1132,22 +1150,31 @@ Hi, thanks for reaching out. We're definitely interested in learning more about 
               {testFlowStep === 1 && (
                 <button
                   onClick={async () => {
-                    if (!testUserEmail) { alert('Please enter your email'); return; }
+                    if (!testUserEmail) { toast.error('Please enter your email'); return; }
                     setTestFlowLoading(true);
+                    const toastId = toast.loading('Creating test campaign...');
                     try {
                       const result = await repliesApi.createTestCampaign(
                         testUserEmail,
-                        testUserName || 'Test User',
+                        testUserEmail.split('@')[0] || 'Test User',
                         selectedEmailAccount || undefined
                       );
                       if (result.success) {
+                        toast.success('Campaign created! Setting up...', { id: toastId });
                         setTestCampaignResult(result);
-                        setTestFlowStep(2);
+                        // Store campaign ID to auto-select
+                        if (result.campaign_id) {
+                          setSelectedCampaignsForCreate([result.campaign_id]);
+                        }
+                        setShowTestFlowModal(false);
+                        // Open modal - it will load campaigns and auto-select
+                        loadCampaigns();
+                        setShowCreateModal(true);
                       } else {
-                        alert(result.error || 'Failed to create campaign');
+                        toast.error(result.error || 'Failed to create campaign', { id: toastId });
                       }
                     } catch (e: any) {
-                      alert(e.response?.data?.detail || 'Failed to create campaign');
+                      toast.error(e.response?.data?.detail || 'Failed to create campaign', { id: toastId });
                     } finally {
                       setTestFlowLoading(false);
                     }
@@ -1161,14 +1188,19 @@ Hi, thanks for reaching out. We're definitely interested in learning more about 
               
               {testFlowStep === 2 && (
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     setShowTestFlowModal(false);
-                    loadCampaigns();
+                    toast.loading('Loading campaigns...', { id: 'setup' });
+                    await loadCampaigns();
+                    if (testCampaignResult?.campaign_id) {
+                      setSelectedCampaignsForCreate([testCampaignResult.campaign_id]);
+                    }
+                    toast.success('Ready! Configure your automation.', { id: 'setup' });
                     setShowCreateModal(true);
                   }}
                   className="btn btn-primary"
                 >
-                  Create Automation Now
+                  Set Up Automation
                 </button>
               )}
               
@@ -1500,6 +1532,7 @@ interface CreateAutomationModalProps {
   onClose: () => void;
   onCreated: () => void;
   onRetryCampaigns: () => void;
+  initialSelectedCampaigns?: string[];
 }
 
 // Step indicator component
@@ -1548,14 +1581,38 @@ function CreateAutomationModal({
   smartleadError,
   onClose, 
   onCreated,
-  onRetryCampaigns 
+  onRetryCampaigns,
+  initialSelectedCampaigns = []
 }: CreateAutomationModalProps) {
   const [step, setStep] = useState(1);
   const TOTAL_STEPS = 4;
   
   // Step 1: Campaign selection
   const [name, setName] = useState('');
-  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
+  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>(initialSelectedCampaigns);
+  
+  // Auto-select initial campaigns and set name when they become available
+  useEffect(() => {
+    if (initialSelectedCampaigns.length > 0) {
+      // Set name immediately for test flow
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      setName(`Demo reply automation ${day}/${month}`);
+    }
+  }, [initialSelectedCampaigns]);
+  
+  useEffect(() => {
+    if (initialSelectedCampaigns.length > 0 && campaigns.length > 0 && selectedCampaigns.length === 0) {
+      // Find and select matching campaign
+      const matchingIds = initialSelectedCampaigns.filter(id => 
+        campaigns.some(c => c.id === id)
+      );
+      if (matchingIds.length > 0) {
+        setSelectedCampaigns(matchingIds);
+      }
+    }
+  }, [campaigns, initialSelectedCampaigns]);
   const [searchCampaigns, setSearchCampaigns] = useState('');
   
   // Fetch Slack channels when entering step 3
@@ -1574,7 +1631,7 @@ function CreateAutomationModal({
   }, [step]);
 
   // Step 2: Google Sheets
-  const [createGoogleSheet, setCreateGoogleSheet] = useState(false);
+  const [createGoogleSheet, setCreateGoogleSheet] = useState(true);
   const [useExistingSheet, setUseExistingSheet] = useState(false);
   const [existingSheetUrl, setExistingSheetUrl] = useState('');
   const [shareSheetEmail, setShareSheetEmail] = useState('');
@@ -1638,9 +1695,10 @@ function CreateAutomationModal({
       
       await repliesApi.createAutomation(data);
       onCreated();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create automation:', err);
-      alert('Failed to create automation');
+      const errorMsg = err?.response?.data?.detail || err?.message || 'Unknown error';
+      alert(`Failed to create automation: ${errorMsg}`);
     } finally {
       setIsCreating(false);
     }
@@ -1939,30 +1997,7 @@ function CreateAutomationModal({
                     </div>
                   )}
 
-                  {/* Skip option */}
-                  <div 
-                    onClick={() => { setCreateGoogleSheet(false); setUseExistingSheet(false); }}
-                    className={cn(
-                      "p-4 rounded-xl border-2 cursor-pointer transition-all",
-                      !createGoogleSheet && !useExistingSheet
-                        ? "border-violet-500 bg-violet-50" 
-                        : "border-neutral-200 hover:border-violet-300"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                        !createGoogleSheet && !useExistingSheet ? "border-violet-500 bg-violet-500" : "border-neutral-300"
-                      )}>
-                        {!createGoogleSheet && !useExistingSheet && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-neutral-900">Skip for now</p>
-                        <p className="text-xs text-neutral-500 mt-0.5">You can add a sheet later</p>
-                      </div>
-                      <SkipForward className="w-5 h-5 text-violet-500" />
-                    </div>
-                  </div>
+
 
                   {/* Share email input - only show if creating sheet */}
                   {createGoogleSheet && (
@@ -2021,6 +2056,8 @@ function CreateAutomationModal({
                       />
                     </div>
                     {showChannelDropdown && (
+                      <>
+                      <div className="fixed inset-0 z-[5]" onClick={() => setShowChannelDropdown(false)} />
                       <div className="absolute z-10 mt-1 w-full bg-white border border-neutral-200 rounded-xl shadow-lg max-h-48 overflow-auto">
                         {slackChannels
                           .filter(ch => !slackSearch || ch.name.toLowerCase().includes(slackSearch.toLowerCase()))
@@ -2042,6 +2079,7 @@ function CreateAutomationModal({
                           <div className="px-4 py-2 text-sm text-neutral-500">No channels found</div>
                         )}
                       </div>
+                      </>
                     )}
                   </div>
                 )}
