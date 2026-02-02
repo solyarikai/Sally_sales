@@ -30,7 +30,7 @@ Create an endpoint to get reply statistics per automation.
 ### Task 4: Optimize Docker Build
 Reduce Docker build time for faster deployments.
 
-- [ ] Add .dockerignore if not present
+- [x] Add .dockerignore if not present (done 2026-02-02 00:54)
 - [ ] Use multi-stage builds
 - [ ] Cache pip dependencies layer
 
