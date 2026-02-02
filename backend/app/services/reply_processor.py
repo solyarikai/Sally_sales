@@ -69,16 +69,24 @@ def render_classification_prompt(
     Args:
         subject: Email subject
         body: Email body/reply text
-        custom_prompt: Optional custom prompt template
+        custom_prompt: Optional custom instructions (appended to base prompt)
         
     Returns:
         The fully rendered prompt string
     """
-    base_prompt = custom_prompt or CLASSIFICATION_PROMPT
-    return base_prompt.format(
+    # Always use base prompt for structure and JSON format
+    prompt = CLASSIFICATION_PROMPT.format(
         subject=subject or "(no subject)",
         body=body or "(empty)"
     )
+    
+    # Append custom instructions if provided
+    if custom_prompt:
+        prompt += f"
+
+Additional instructions: {custom_prompt}"
+    
+    return prompt
 
 
 async def classify_reply(
@@ -206,13 +214,13 @@ def render_draft_prompt(
         first_name: Lead's first name
         last_name: Lead's last name
         company: Lead's company
-        custom_prompt: Optional custom prompt template
+        custom_prompt: Optional custom instructions (appended to base prompt)
         
     Returns:
         The fully rendered prompt string
     """
-    base_prompt = custom_prompt or DRAFT_REPLY_PROMPT
-    return base_prompt.format(
+    # Always use base prompt for structure and JSON format
+    prompt = DRAFT_REPLY_PROMPT.format(
         subject=subject or "(no subject)",
         body=body or "(empty)",
         category=category,
@@ -220,6 +228,14 @@ def render_draft_prompt(
         last_name=last_name or "",
         company=company or "their company"
     )
+    
+    # Append custom instructions if provided
+    if custom_prompt:
+        prompt += f"
+
+Additional instructions: {custom_prompt}"
+    
+    return prompt
 
 
 async def generate_draft_reply(
