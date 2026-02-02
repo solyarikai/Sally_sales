@@ -38,6 +38,21 @@ router = APIRouter(prefix="/replies", tags=["replies"])
 
 # ============= Test Endpoints =============
 
+
+class PromptDebugRequest(BaseModel):
+    prompt: str
+    conversation_history: str
+    prompt_type: str = "classification"  # classification or reply
+
+
+class ReplyPromptTemplate(BaseModel):
+    id: Optional[int] = None
+    name: str
+    prompt_type: str  # classification or reply
+    prompt_text: str
+    is_default: bool = False
+
+
 @router.post("/test-notification")
 async def test_notification():
     """Test the Slack notification with sample data to #c-replies-test channel."""
@@ -821,6 +836,106 @@ async def get_replies_for_testing_endpoint(
 # ===== END PROMPT TESTING ROUTES =====
 
 
+@router.get("/prompt-templates")
+async def get_reply_prompt_templates(
+    prompt_type: str = Query(None, description="Filter by type: classification or reply"),
+    db: AsyncSession = Depends(get_session)
+):
+    """Get all reply prompt templates."""
+    from sqlalchemy import select
+    
+    query = select(ReplyPromptTemplateModel)
+    if prompt_type:
+        query = query.where(ReplyPromptTemplateModel.prompt_type == prompt_type)
+    query = query.order_by(ReplyPromptTemplateModel.is_default.desc(), ReplyPromptTemplateModel.name)
+    
+    result = await db.execute(query)
+    templates = result.scalars().all()
+    
+    return {
+        "templates": [
+            {
+                "id": t.id,
+                "name": t.name,
+                "prompt_type": t.prompt_type,
+                "prompt_text": t.prompt_text,
+                "is_default": t.is_default
+            }
+            for t in templates
+        ]
+    }
+
+
+@router.post("/prompt-templates")
+async def create_reply_prompt_template(
+    template: ReplyPromptTemplate,
+    db: AsyncSession = Depends(get_session)
+):
+    """Create a new reply prompt template."""
+    new_template = ReplyPromptTemplateModel(
+        name=template.name,
+        prompt_type=template.prompt_type,
+        prompt_text=template.prompt_text,
+        is_default=template.is_default
+    )
+    db.add(new_template)
+    await db.commit()
+    await db.refresh(new_template)
+    
+    return {
+        "id": new_template.id,
+        "name": new_template.name,
+        "prompt_type": new_template.prompt_type,
+        "prompt_text": new_template.prompt_text,
+        "is_default": new_template.is_default
+    }
+
+
+@router.put("/prompt-templates/{template_id}")
+async def update_reply_prompt_template(
+    template_id: int,
+    template: ReplyPromptTemplate,
+    db: AsyncSession = Depends(get_session)
+):
+    """Update a reply prompt template."""
+    from sqlalchemy import select
+    
+    result = await db.execute(
+        select(ReplyPromptTemplateModel).where(ReplyPromptTemplateModel.id == template_id)
+    )
+    existing = result.scalar_one_or_none()
+    
+    if not existing:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    existing.name = template.name
+    existing.prompt_type = template.prompt_type
+    existing.prompt_text = template.prompt_text
+    existing.is_default = template.is_default
+    
+    await db.commit()
+    
+    return {"success": True, "id": template_id}
+
+
+@router.delete("/prompt-templates/{template_id}")
+async def delete_reply_prompt_template(
+    template_id: int,
+    db: AsyncSession = Depends(get_session)
+):
+    """Delete a reply prompt template."""
+    from sqlalchemy import select, delete
+    
+    await db.execute(
+        delete(ReplyPromptTemplateModel).where(ReplyPromptTemplateModel.id == template_id)
+    )
+    await db.commit()
+    
+    return {"success": True}
+
+
+
+
 @router.get("/{reply_id}", response_model=ProcessedReplyResponse)
 async def get_reply(
     reply_id: int,
@@ -1488,22 +1603,10 @@ async def pause_campaign(campaign_id: str):
 
 # ============= Prompt Debug Endpoints =============
 
-class PromptDebugRequest(BaseModel):
-    prompt: str
-    conversation_history: str
-    prompt_type: str = "classification"  # classification or reply
-
 class PromptDebugResponse(BaseModel):
     result: str
     tokens_used: int = 0
     model: str = ""
-
-class ReplyPromptTemplate(BaseModel):
-    id: Optional[int] = None
-    name: str
-    prompt_type: str  # classification or reply
-    prompt_text: str
-    is_default: bool = False
 
 @router.post("/prompt-debug/run")
 async def run_prompt_debug(
@@ -1537,105 +1640,6 @@ async def run_prompt_debug(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
-
-@router.get("/prompt-templates")
-async def get_reply_prompt_templates(
-    prompt_type: str = Query(None, description="Filter by type: classification or reply"),
-    db: AsyncSession = Depends(get_session)
-):
-    """Get all reply prompt templates."""
-    from sqlalchemy import select
-    
-    query = select(ReplyPromptTemplateModel)
-    if prompt_type:
-        query = query.where(ReplyPromptTemplateModel.prompt_type == prompt_type)
-    query = query.order_by(ReplyPromptTemplateModel.is_default.desc(), ReplyPromptTemplateModel.name)
-    
-    result = await db.execute(query)
-    templates = result.scalars().all()
-    
-    return {
-        "templates": [
-            {
-                "id": t.id,
-                "name": t.name,
-                "prompt_type": t.prompt_type,
-                "prompt_text": t.prompt_text,
-                "is_default": t.is_default
-            }
-            for t in templates
-        ]
-    }
-
-
-@router.post("/prompt-templates")
-async def create_reply_prompt_template(
-    template: ReplyPromptTemplate,
-    db: AsyncSession = Depends(get_session)
-):
-    """Create a new reply prompt template."""
-    new_template = ReplyPromptTemplateModel(
-        name=template.name,
-        prompt_type=template.prompt_type,
-        prompt_text=template.prompt_text,
-        is_default=template.is_default
-    )
-    db.add(new_template)
-    await db.commit()
-    await db.refresh(new_template)
-    
-    return {
-        "id": new_template.id,
-        "name": new_template.name,
-        "prompt_type": new_template.prompt_type,
-        "prompt_text": new_template.prompt_text,
-        "is_default": new_template.is_default
-    }
-
-
-@router.put("/prompt-templates/{template_id}")
-async def update_reply_prompt_template(
-    template_id: int,
-    template: ReplyPromptTemplate,
-    db: AsyncSession = Depends(get_session)
-):
-    """Update a reply prompt template."""
-    from sqlalchemy import select
-    
-    result = await db.execute(
-        select(ReplyPromptTemplateModel).where(ReplyPromptTemplateModel.id == template_id)
-    )
-    existing = result.scalar_one_or_none()
-    
-    if not existing:
-        raise HTTPException(status_code=404, detail="Template not found")
-    
-    existing.name = template.name
-    existing.prompt_type = template.prompt_type
-    existing.prompt_text = template.prompt_text
-    existing.is_default = template.is_default
-    
-    await db.commit()
-    
-    return {"success": True, "id": template_id}
-
-
-@router.delete("/prompt-templates/{template_id}")
-async def delete_reply_prompt_template(
-    template_id: int,
-    db: AsyncSession = Depends(get_session)
-):
-    """Delete a reply prompt template."""
-    from sqlalchemy import select, delete
-    
-    await db.execute(
-        delete(ReplyPromptTemplateModel).where(ReplyPromptTemplateModel.id == template_id)
-    )
-    await db.commit()
-    
-    return {"success": True}
 
 
 

@@ -56,6 +56,7 @@ export default function PromptDebugPage() {
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate | null>({ name: 'Default Classification', prompt_type: 'classification', prompt_text: '', is_default: true });
   const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState('');
   const [editingTemplateName, setEditingTemplateName] = useState(false);
   const [tempTemplateName, setTempTemplateName] = useState('');
   
@@ -382,32 +383,48 @@ export default function PromptDebugPage() {
                 
                 {templateDropdownOpen && (
                   <>
-                    <div className="fixed inset-0 z-10" onClick={() => setTemplateDropdownOpen(false)} />
-                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-neutral-200 rounded-xl shadow-lg z-20 max-h-64 overflow-auto">
-                      <div
-                        onClick={() => handleSelectTemplate(null, 'classification')}
-                        className="px-4 py-2 hover:bg-violet-50 cursor-pointer border-b"
-                      >
-                        <div className="font-medium">Default Classification</div>
-                        <div className="text-xs text-neutral-500">Built-in • Categorizes replies</div>
+                    <div className="fixed inset-0 z-10" onClick={() => { setTemplateDropdownOpen(false); setTemplateSearch(''); }} />
+                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-neutral-200 rounded-xl shadow-lg z-20 max-h-80 overflow-hidden">
+                      <div className="p-2 border-b">
+                        <input
+                          type="text"
+                          value={templateSearch}
+                          onChange={(e) => setTemplateSearch(e.target.value)}
+                          placeholder="Search templates..."
+                          className="input w-full text-sm"
+                          autoFocus
+                        />
                       </div>
-                      <div
-                        onClick={() => handleSelectTemplate(null, 'reply')}
-                        className="px-4 py-2 hover:bg-violet-50 cursor-pointer border-b"
-                      >
-                        <div className="font-medium">Default Reply</div>
-                        <div className="text-xs text-neutral-500">Built-in • Generates responses</div>
+                      <div className="max-h-64 overflow-auto">
+                        {(!templateSearch || 'default classification'.includes(templateSearch.toLowerCase())) && (
+                          <div
+                            onClick={() => { handleSelectTemplate(null, 'classification'); setTemplateSearch(''); }}
+                            className="px-4 py-2 hover:bg-violet-50 cursor-pointer border-b"
+                          >
+                            <div className="font-medium">Default Classification</div>
+                            <div className="text-xs text-neutral-500">Built-in • Categorizes replies</div>
+                          </div>
+                        )}
+                        {(!templateSearch || 'default reply'.includes(templateSearch.toLowerCase())) && (
+                          <div
+                            onClick={() => { handleSelectTemplate(null, 'reply'); setTemplateSearch(''); }}
+                            className="px-4 py-2 hover:bg-violet-50 cursor-pointer border-b"
+                          >
+                            <div className="font-medium">Default Reply</div>
+                            <div className="text-xs text-neutral-500">Built-in • Generates responses</div>
+                          </div>
+                        )}
+                        {templates.filter(t => !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase())).map(t => (
+                          <div
+                            key={t.id}
+                            onClick={() => { handleSelectTemplate(t); setTemplateSearch(''); }}
+                            className="px-4 py-2 hover:bg-violet-50 cursor-pointer"
+                          >
+                            <div className="font-medium">{t.name}</div>
+                            <div className="text-xs text-neutral-500">{t.prompt_type}</div>
+                          </div>
+                        ))}
                       </div>
-                      {templates.map(t => (
-                        <div
-                          key={t.id}
-                          onClick={() => handleSelectTemplate(t)}
-                          className="px-4 py-2 hover:bg-violet-50 cursor-pointer"
-                        >
-                          <div className="font-medium">{t.name}</div>
-                          <div className="text-xs text-neutral-500">{t.prompt_type}</div>
-                        </div>
-                      ))}
                     </div>
                   </>
                 )}
