@@ -1,5 +1,6 @@
 """API endpoints for Reply Automation feature."""
 from fastapi import APIRouter, HTTPException, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from sqlalchemy.orm import selectinload
@@ -8,7 +9,7 @@ from datetime import datetime, timedelta
 import logging
 
 from app.db import get_session
-from app.models.reply import ReplyAutomation, ProcessedReply
+from app.models.reply import ReplyAutomation, ProcessedReply, ReplyPromptTemplateModel
 from app.schemas.reply import (
     ReplyAutomationCreate,
     ReplyAutomationUpdate,
@@ -1661,24 +1662,24 @@ async def get_lead_conversations(
         # Search lead in campaigns
         for campaign in campaigns[:50]:  # Check first 50 campaigns
             lead_resp = await client.get(
-                f"https://server.smartlead.ai/api/v1/campaigns/{campaign["id"]}/leads",
+                f"https://server.smartlead.ai/api/v1/campaigns/{campaign.get('id')}/leads",
                 params={"api_key": api_key, "search": lead_email}
             )
             leads_data = lead_resp.json()
             
             if isinstance(leads_data, dict) and leads_data.get("data"):
                 for lead in leads_data["data"]:
-                    if lead.get("email", "").lower() == lead_email.lower():
+                    if lead.get('email', '').lower() == lead_email.lower():
                         # Get email thread
                         thread_resp = await client.get(
-                            f"https://server.smartlead.ai/api/v1/leads/{lead["id"]}/email-thread",
+                            f"https://server.smartlead.ai/api/v1/leads/{lead.get('id')}/email-thread",
                             params={"api_key": api_key}
                         )
                         thread = thread_resp.json()
                         
                         return {
                             "lead_email": lead_email,
-                            "lead_name": f"{lead.get("first_name", "")} {lead.get("last_name", "")}".strip(),
+                            "lead_name": f"{lead.get('first_name', '')} {lead.get('last_name', '')}".strip(),
                             "campaign": campaign["name"],
                             "messages": thread if isinstance(thread, list) else []
                         }
