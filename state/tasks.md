@@ -2,16 +2,16 @@
 
 ## Priority: IMMEDIATE
 
-### Task 1: System Health (SCRIPT)
+### Task 1: System Health (SCRIPT) ✅ COMPLETE
 Run monitoring script every hour via cron.
-Status: ✅ COMPLETE - Script created at ~/scripts/tasks/monitor_system.sh
+Status: Script created at ~/scripts/tasks/monitor_system.sh
 
 ---
 
 ### Task 2: Improve Reply Processing
 Add better error handling to reply processor.
 
-- [ ] Read backend/app/services/reply_processor.py and analyze error handling
+- [x] Read backend/app/services/reply_processor.py and analyze error handling (done 2026-02-02)
 - [ ] Add try/catch around Slack notification sending
 - [ ] Add retry logic for failed AI classifications
 - [ ] Write improvements to state/response.txt
@@ -42,3 +42,4 @@ Reduce Docker build time for faster deployments.
 - Reply automation E2E testing ✅
 - Slack channel selector ✅
 - Telegram notifications ✅
+- UX improvements (edit modal, prompts debug) ✅
