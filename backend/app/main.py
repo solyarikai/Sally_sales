@@ -82,10 +82,26 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Webhook sync failed: {e}")
     
+    # Start CRM sync scheduler (optional - comment out to disable)
+    try:
+        from app.services.crm_scheduler import start_crm_scheduler
+        await start_crm_scheduler()
+        logger.info("CRM sync scheduler started")
+    except Exception as e:
+        logger.warning(f"CRM scheduler start failed: {e}")
+    
     yield
     
     # Shutdown
     logger.info("Shutting down...")
+    
+    # Stop CRM scheduler
+    try:
+        from app.services.crm_scheduler import stop_crm_scheduler
+        await stop_crm_scheduler()
+        logger.info("CRM scheduler stopped")
+    except Exception as e:
+        logger.warning(f"CRM scheduler stop failed: {e}")
     
     # Stop file sync
     from app.services import sync_service

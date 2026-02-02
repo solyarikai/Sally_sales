@@ -95,6 +95,38 @@ export interface ContactCreate {
   notes?: string;
 }
 
+// Activity tracking
+export interface ContactActivity {
+  id: number;
+  contact_id: number;
+  activity_type: string;
+  channel: string;
+  direction?: string;
+  source: string;
+  subject?: string;
+  snippet?: string;
+  activity_at: string;
+  created_at: string;
+}
+
+export interface ContactWithActivities extends Contact {
+  has_replied: boolean;
+  last_reply_at?: string;
+  reply_channel?: string;
+  smartlead_status?: string;
+  getsales_status?: string;
+  last_synced_at?: string;
+  activities: ContactActivity[];
+}
+
+export interface SyncStatus {
+  total_contacts: number;
+  by_source: Record<string, number>;
+  replied_contacts: number;
+  total_activities: number;
+  last_synced_at?: string;
+}
+
 export interface ContactFilters {
   page?: number;
   page_size?: number;
@@ -246,6 +278,36 @@ export const contactsApi = {
   // AI SDR - Generate all content
   async generateAllAISDR(projectId: number): Promise<AISDRGenerationResult> {
     const response = await api.post(`/contacts/projects/${projectId}/generate-all`);
+    return response.data;
+  },
+
+  // Get contact with full activity history
+  async getContactWithActivities(contactId: number): Promise<ContactWithActivities> {
+    const response = await api.get(`/crm-sync/contacts/${contactId}/full`);
+    return response.data;
+  },
+
+  // Get contact activities
+  async getContactActivities(contactId: number, limit = 50): Promise<ContactActivity[]> {
+    const response = await api.get(`/crm-sync/contacts/${contactId}/activities?limit=${limit}`);
+    return response.data;
+  },
+
+  // Get recent replies
+  async getRecentReplies(limit = 50): Promise<ContactWithActivities[]> {
+    const response = await api.get(`/crm-sync/replies/recent?limit=${limit}`);
+    return response.data;
+  },
+
+  // Get sync status
+  async getSyncStatus(): Promise<SyncStatus> {
+    const response = await api.get('/crm-sync/status');
+    return response.data;
+  },
+
+  // Trigger manual sync
+  async triggerSync(sources = ['smartlead', 'getsales']): Promise<{ success: boolean; message: string }> {
+    const response = await api.post('/crm-sync/trigger', { sources, full_sync: true });
     return response.data;
   },
 };

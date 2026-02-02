@@ -376,7 +376,7 @@ export function ContactsPage() {
         {stats && (
           <div className="flex items-center gap-2 flex-wrap mb-4">
             <StatCard label="Total" value={formatNumber(stats.total)} />
-            {Object.entries(stats.by_status).slice(0, 5).map(([status, count]) => (
+            {Object.entries(stats.by_status || {}).slice(0, 5).map(([status, count]) => (
               <StatCard 
                 key={status} 
                 label={status} 
@@ -408,7 +408,7 @@ export function ContactsPage() {
                 className="input text-sm min-w-[140px]"
               >
                 <option value="">All Projects</option>
-                {filterOptions.projects.map(p => (
+                {(filterOptions.projects || []).map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
@@ -419,7 +419,7 @@ export function ContactsPage() {
                 className="input text-sm min-w-[130px]"
               >
                 <option value="">All Segments</option>
-                {filterOptions.segments.map(s => (
+                {(filterOptions.segments || []).map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
@@ -430,7 +430,7 @@ export function ContactsPage() {
                 className="input text-sm min-w-[120px]"
               >
                 <option value="">All Statuses</option>
-                {filterOptions.statuses.map(s => (
+                {(filterOptions.statuses || []).map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
@@ -441,7 +441,7 @@ export function ContactsPage() {
                 className="input text-sm min-w-[110px]"
               >
                 <option value="">All Sources</option>
-                {filterOptions.sources.map(s => (
+                {(filterOptions.sources || []).map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>

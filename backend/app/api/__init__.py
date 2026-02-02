@@ -16,6 +16,7 @@ from .smartlead import router as smartlead_router
 from .replies import router as replies_router
 from .slack_interactions import router as slack_router
 from .contacts import router as contacts_router
+from .crm_sync import router as crm_sync_router
 from .errors import router as errors_router
 from .drive import router as drive_router
 from .dashboard import router as dashboard_router
@@ -49,6 +50,7 @@ api_router.include_router(slack_router)
 
 # CRM
 api_router.include_router(contacts_router)
+api_router.include_router(crm_sync_router)
 
 # Google Drive
 api_router.include_router(drive_router)
