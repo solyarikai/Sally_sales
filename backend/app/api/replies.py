@@ -1221,6 +1221,25 @@ async def create_real_test_campaign(
     campaign_name = f"Auto-Reply Test {test_id}"
     
     async with httpx.AsyncClient(timeout=30.0) as client:
+        # 0. Auto-select email account if not provided
+        if not email_account_id:
+            acct_resp = await client.get(
+                "https://server.smartlead.ai/api/v1/email-accounts",
+                params={"api_key": api_key}
+            )
+            accounts = acct_resp.json()
+            if isinstance(accounts, list) and len(accounts) > 0:
+                # Pick account with most remaining capacity
+                for acc in accounts:
+                    limit = acc.get("message_per_day") or 50
+                    sent = acc.get("daily_sent_count") or 0
+                    if limit - sent > 0:
+                        email_account_id = acc.get("id")
+                        break
+        
+        if not email_account_id:
+            return {"success": False, "error": "No email accounts with available capacity"}
+        
         # 1. Create campaign
         resp = await client.post(
             "https://server.smartlead.ai/api/v1/campaigns/create",
@@ -1258,24 +1277,23 @@ Best,
             }]}
         )
         
-        # 3. Add sender account
-        if email_account_id:
-            await client.post(
+        # 3. Add sender account (required for launch)
+        await client.post(
                 f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/email-accounts",
                 params={"api_key": api_key},
                 json={"email_account_ids": [email_account_id]}
             )
         
-        # 4. Configure for immediate send
+        # 4. Configure schedule for sending
         await client.post(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/settings",
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
             params={"api_key": api_key},
             json={
                 "timezone": "UTC",
-                "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
-                "start_hour": "00:00",
-                "end_hour": "23:59",
-                "min_time_btw_emails": 1,
+                "days_of_the_week": [1, 2, 3, 4, 5, 6, 7],
+                "start_hour": "09:00",
+                "end_hour": "18:00",
+                "min_time_btw_emails": 5,
                 "max_new_leads_per_day": 100
             }
         )

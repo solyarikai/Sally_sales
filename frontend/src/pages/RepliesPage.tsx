@@ -387,8 +387,10 @@ export function RepliesPage() {
                 <div 
                   key={automation.id} 
                   className={cn(
-                    "p-4 hover:bg-neutral-50 cursor-pointer",
-                    automationFilter === automation.id && "bg-violet-50"
+                    "p-4 cursor-pointer transition-all",
+                    automationFilter === automation.id 
+                      ? "bg-violet-100 border-l-4 border-violet-500" 
+                      : "hover:bg-neutral-50"
                   )}
                   onClick={() => setAutomationFilter(automationFilter === automation.id ? null : automation.id)}
                 >
@@ -416,6 +418,26 @@ export function RepliesPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const count = automation.campaign_ids?.length || 0;
+                          if (!confirm(`Launch ${count} campaign${count !== 1 ? 's' : ''}? This will start sending emails.`)) return;
+                          const toastId = toast.loading('Launching...');
+                          try {
+                            for (const cid of automation.campaign_ids || []) {
+                              await repliesApi.launchCampaign(String(cid));
+                            }
+                            toast.success('Launched! Email sending started.', { id: toastId });
+                          } catch (err: any) {
+                            toast.error(err?.response?.data?.detail || 'Launch failed', { id: toastId });
+                          }
+                        }}
+                        className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 hover:text-emerald-600"
+                        title="Launch campaigns"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingAutomation(automation); setEditCampaigns(automation.campaign_ids?.map(String) || []); setEditSlackChannel(automation.slack_channel || ""); setEditGoogleSheetUrl(automation.google_sheet_id ? `https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}${automation.google_sheet_name?.includes('#') ? '/edit?gid=' + automation.google_sheet_name.split('#')[1] + '#gid=' + automation.google_sheet_name.split('#')[1] : ''}` : ""); setEditClassificationPrompt(automation.classification_prompt || ""); setEditReplyPrompt(automation.reply_prompt || ""); setIsEditMode(true); loadCampaigns(); loadSlackChannels(); }}
                         className="p-1.5 rounded-lg text-neutral-400 hover:bg-violet-50 hover:text-violet-600"
