@@ -1,37 +1,28 @@
-## Subtask Complete: Return counts: total, by_category, by_automation
+## Subtask Completed: Add Reply Statistics to Frontend Dashboard
 
-### Status: ALREADY IMPLEMENTED
+### What was done:
+Added a comprehensive "Reply Statistics" section to the frontend dashboard that displays:
+- Reply counts by category (Interested, Meetings, Questions, Not Interested, Out of Office, Other)
+- Approval status breakdown (Pending Review, Approved, Dismissed)
+- Link to view all replies in the Replies page
 
-The `/api/replies/stats` endpoint already returns all three required counts:
+### Files changed:
+- `frontend/src/pages/DashboardPage.tsx` - Added new Reply Statistics section with category breakdown cards and approval status row
 
-1. **total** - Line 550 in replies.py calculates total count of ProcessedReply records
-2. **by_category** - Lines 553-564 groups replies by category and returns dict like `{"interested": 5, "not_interested": 2}`
-3. **by_automation** - Lines 634-652 groups by automation_id and includes name, returning dict like `{"1": {"id": 1, "name": "Test", "count": 10}}`
+### Implementation details:
+The dashboard already had basic reply stats (total, today, this week) from the `/dashboard/stats` endpoint. This enhancement adds a dedicated "Reply Statistics" section that:
+1. Shows color-coded category cards with counts for each reply type
+2. Displays approval workflow status (pending/approved/dismissed)
+3. Provides a direct link to the Replies page for detailed view
+4. Uses the same data source (`/dashboard/stats`) which already aggregates reply statistics from the database
 
-### Schema (reply.py lines 185-196):
-```python
-class ProcessedReplyStats(BaseModel):
-    total: int = 0
-    by_category: dict = Field(default_factory=dict)
-    by_automation: dict = Field(default_factory=dict)
-    by_status: dict = Field(default_factory=dict)
-    today: int = 0
-    this_week: int = 0
-    sent_to_slack: int = 0
-    pending: int = 0
-    approved: int = 0
-    dismissed: int = 0
-```
+### Task 3 status:
+- [x] Create GET /api/replies/stats endpoint in backend (done previously)
+- [x] Return counts: total, by_category, by_automation (done previously)  
+- [x] Add to frontend dashboard (DONE NOW)
 
-### Test Coverage (test_replies.py lines 321-368):
-- `test_stats_empty` - verifies empty state returns proper defaults
-- `test_stats_with_data` - verifies by_category and by_automation counts are correct
-
-### Endpoint Usage:
-```
-GET /api/replies/stats
-GET /api/replies/stats?automation_id=1
-GET /api/replies/stats?campaign_id=abc123
-```
-
-No code changes required - functionality was already complete.
+### Next steps:
+Task 4: Optimize Docker Build
+- Add .dockerignore if not present
+- Use multi-stage builds
+- Cache pip dependencies layer

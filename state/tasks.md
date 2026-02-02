@@ -23,7 +23,7 @@ Create an endpoint to get reply statistics per automation.
 
 - [x] Create GET /api/replies/stats endpoint in backend (done 2026-02-02 00:48)
 - [x] Return counts: total, by_category, by_automation (done 2026-02-02 00:51)
-- [ ] Add to frontend dashboard
+- [x] Add to frontend dashboard (done 2026-02-02 00:53)
 
 ---
 

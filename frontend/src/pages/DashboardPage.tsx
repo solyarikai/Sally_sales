@@ -323,6 +323,86 @@ export function DashboardPage() {
           </div>
         </div>
 
+        {/* Reply Statistics Summary */}
+        <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 p-6 mt-8">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
+              <Mail className="w-5 h-5 text-violet-500" />
+              Reply Statistics
+            </h3>
+            <button
+              onClick={() => navigate('/replies')}
+              className="text-sm text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1"
+            >
+              View all <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-center">
+              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                {formatNumber(stats?.replies.by_category?.interested || 0)}
+              </div>
+              <div className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">Interested</div>
+            </div>
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-center">
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                {formatNumber(stats?.replies.by_category?.meeting_request || 0)}
+              </div>
+              <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">Meetings</div>
+            </div>
+            <div className="p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-xl text-center">
+              <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">
+                {formatNumber(stats?.replies.by_category?.question || 0)}
+              </div>
+              <div className="text-xs text-cyan-700 dark:text-cyan-300 mt-1">Questions</div>
+            </div>
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-center">
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                {formatNumber(stats?.replies.by_category?.not_interested || 0)}
+              </div>
+              <div className="text-xs text-red-700 dark:text-red-300 mt-1">Not Interested</div>
+            </div>
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl text-center">
+              <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                {formatNumber(stats?.replies.by_category?.out_of_office || 0)}
+              </div>
+              <div className="text-xs text-amber-700 dark:text-amber-300 mt-1">Out of Office</div>
+            </div>
+            <div className="p-3 bg-neutral-100 dark:bg-neutral-700 rounded-xl text-center">
+              <div className="text-2xl font-bold text-neutral-600 dark:text-neutral-300">
+                {formatNumber((stats?.replies.by_category?.unsubscribe || 0) + (stats?.replies.by_category?.wrong_person || 0) + (stats?.replies.by_category?.other || 0))}
+              </div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Other</div>
+            </div>
+          </div>
+          
+          {/* Approval Status Row */}
+          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-700">
+            <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
+              <Clock className="w-5 h-5 text-amber-500" />
+              <div>
+                <div className="text-lg font-semibold text-neutral-900 dark:text-white">{formatNumber(stats?.replies.pending || 0)}</div>
+                <div className="text-xs text-neutral-500 dark:text-neutral-400">Pending Review</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
+              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+              <div>
+                <div className="text-lg font-semibold text-neutral-900 dark:text-white">{formatNumber(stats?.replies.approved || 0)}</div>
+                <div className="text-xs text-neutral-500 dark:text-neutral-400">Approved</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-neutral-100 dark:bg-neutral-700 rounded-xl">
+              <XCircle className="w-5 h-5 text-neutral-400" />
+              <div>
+                <div className="text-lg font-semibold text-neutral-900 dark:text-white">{formatNumber(stats?.replies.dismissed || 0)}</div>
+                <div className="text-xs text-neutral-500 dark:text-neutral-400">Dismissed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Bottom Stats Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
           <MiniStat 
