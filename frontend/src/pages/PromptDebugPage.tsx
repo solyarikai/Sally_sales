@@ -384,14 +384,14 @@ export default function PromptDebugPage() {
                 {templateDropdownOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => { setTemplateDropdownOpen(false); setTemplateSearch(''); }} />
-                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-neutral-200 rounded-xl shadow-lg z-20 max-h-80 overflow-hidden">
-                      <div className="p-2 border-b">
+                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-neutral-200 rounded-xl shadow-lg z-20">
+                      <div className="p-3 border-b">
                         <input
                           type="text"
                           value={templateSearch}
                           onChange={(e) => setTemplateSearch(e.target.value)}
                           placeholder="Search templates..."
-                          className="input w-full text-sm"
+                          className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                           autoFocus
                         />
                       </div>
@@ -399,31 +399,42 @@ export default function PromptDebugPage() {
                         {(!templateSearch || 'default classification'.includes(templateSearch.toLowerCase())) && (
                           <div
                             onClick={() => { handleSelectTemplate(null, 'classification'); setTemplateSearch(''); }}
-                            className="px-4 py-2 hover:bg-violet-50 cursor-pointer border-b"
+                            className="px-4 py-3 hover:bg-violet-50 cursor-pointer border-b flex items-center justify-between"
                           >
-                            <div className="font-medium">Default Classification</div>
-                            <div className="text-xs text-neutral-500">Built-in • Categorizes replies</div>
+                            <div>
+                              <div className="font-medium">Default Classification</div>
+                              <div className="text-xs text-neutral-500">Categorizes replies into categories</div>
+                            </div>
+                            <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded">classification</span>
                           </div>
                         )}
                         {(!templateSearch || 'default reply'.includes(templateSearch.toLowerCase())) && (
                           <div
                             onClick={() => { handleSelectTemplate(null, 'reply'); setTemplateSearch(''); }}
-                            className="px-4 py-2 hover:bg-violet-50 cursor-pointer border-b"
+                            className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b flex items-center justify-between"
                           >
-                            <div className="font-medium">Default Reply</div>
-                            <div className="text-xs text-neutral-500">Built-in • Generates responses</div>
+                            <div>
+                              <div className="font-medium">Default Reply</div>
+                              <div className="text-xs text-neutral-500">Generates professional responses</div>
+                            </div>
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">reply</span>
                           </div>
                         )}
-                        {templates.filter(t => !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase())).map(t => (
+                        {templates.filter(t => !t.is_default && (!templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase()))).map(t => (
                           <div
                             key={t.id}
                             onClick={() => { handleSelectTemplate(t); setTemplateSearch(''); }}
-                            className="px-4 py-2 hover:bg-violet-50 cursor-pointer"
+                            className={cn("px-4 py-3 hover:bg-neutral-50 cursor-pointer border-b flex items-center justify-between", t.prompt_type === 'classification' ? 'hover:bg-violet-50' : 'hover:bg-blue-50')}
                           >
-                            <div className="font-medium">{t.name}</div>
-                            <div className="text-xs text-neutral-500">{t.prompt_type}</div>
+                            <div>
+                              <div className="font-medium">{t.name}</div>
+                            </div>
+                            <span className={cn("text-xs px-2 py-0.5 rounded", t.prompt_type === 'classification' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700')}>{t.prompt_type}</span>
                           </div>
                         ))}
+                        {templates.filter(t => !t.is_default).length === 0 && templateSearch && (
+                          <div className="px-4 py-3 text-sm text-neutral-500 text-center">No custom templates found</div>
+                        )}
                       </div>
                     </div>
                   </>
