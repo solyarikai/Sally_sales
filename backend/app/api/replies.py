@@ -162,6 +162,8 @@ async def create_automation(
         google_sheet_name=google_sheet_name,
         auto_classify=data.auto_classify,
         auto_generate_reply=data.auto_generate_reply,
+        classification_prompt=data.classification_prompt,
+        reply_prompt=data.reply_prompt,
         active=data.active
     )
     
