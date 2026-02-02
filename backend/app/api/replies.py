@@ -222,7 +222,7 @@ async def create_automation(
                         existing_emails.add(reply.lead_email.lower())
             
             # If no local data, fetch from Smartlead API with full message history
-            if synced == 0 and api_key:
+            if api_key:  # Always fetch from Smartlead API
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     for campaign_id in automation.campaign_ids:
                         try:
@@ -2300,7 +2300,7 @@ async def sync_historical_replies(
                 errors.append(f"{reply.lead_email}: {str(e)}")
     
     # If no local data, fetch from Smartlead statistics API
-    if synced == 0:
+    if True:  # Always fetch from Smartlead API
         import httpx
         import os
         api_key = os.environ.get("SMARTLEAD_API_KEY")
