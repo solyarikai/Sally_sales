@@ -658,36 +658,51 @@ export function RepliesPage() {
                 </div>
                 {isEditMode ? (
                   <div className="space-y-2">
+                    {/* Selected campaigns - always visible */}
+                    {editCampaigns.length > 0 && (
+                      <div className="space-y-1 pb-2 border-b border-neutral-200">
+                        <div className="text-xs text-emerald-600 font-medium">Selected:</div>
+                        {editCampaigns.map(id => {
+                          const campaign = campaigns.find(c => String(c.id) === String(id));
+                          return (
+                            <label key={id} className="flex items-center gap-2 p-1 bg-emerald-50 hover:bg-emerald-100 rounded cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={true}
+                                onChange={() => setEditCampaigns(editCampaigns.filter(cid => cid !== id))}
+                                className="rounded text-emerald-600"
+                              />
+                              <span className="text-sm truncate text-emerald-700">{campaign?.name || id}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                     <input
                       type="text"
-                      placeholder="Search campaigns..."
+                      placeholder="Search campaigns to add..."
                       value={editCampaignSearch}
                       onChange={(e) => setEditCampaignSearch(e.target.value)}
                       className="input w-full text-sm"
                     />
                     <div className="max-h-32 overflow-y-auto space-y-1">
                       {campaigns
+                        .filter(c => !editCampaigns.includes(String(c.id)))  /* Hide already selected */
                         .filter(c => !editCampaignSearch || c.name?.toLowerCase().includes(editCampaignSearch.toLowerCase()))
                         .slice(0, 10)
                         .map(c => (
                           <label key={c.id} className="flex items-center gap-2 p-1 hover:bg-neutral-100 rounded cursor-pointer">
                             <input
                               type="checkbox"
-                              checked={editCampaigns.includes(String(c.id))}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setEditCampaigns([...editCampaigns, String(c.id)]);
-                                } else {
-                                  setEditCampaigns(editCampaigns.filter(id => id !== String(c.id)));
-                                }
-                              }}
+                              checked={false}
+                              onChange={() => setEditCampaigns([...editCampaigns, String(c.id)])}
                               className="rounded"
                             />
                             <span className="text-sm truncate">{c.name}</span>
                           </label>
                         ))}
                     </div>
-                    <div className="text-xs text-neutral-400">{editCampaigns.length} campaigns selected</div>
+                    <div className="text-xs text-neutral-400">{editCampaigns.length} campaign{editCampaigns.length !== 1 ? 's' : ''} selected</div>
                   </div>
                 ) : (
                   <div className="space-y-1">
