@@ -302,6 +302,7 @@ export default function PromptDebugPage() {
   
   const handleLoadHistoryItem = (item: RunHistoryItem) => {
     setPromptText(item.prompt);
+    setSelectedTemplate(null); // Reset when loading from history
     setConversationInput(item.input);
     setResult(item.result);
     setShowHistory(false);
@@ -360,7 +361,7 @@ export default function PromptDebugPage() {
                       "font-medium",
                       selectedTemplate ? "text-violet-700" : "text-neutral-500"
                     )}>
-                      {selectedTemplate?.name || 'Select template...'}
+                      {selectedTemplate?.name || 'Custom (edited)'}
                     </span>
                     <ChevronDown className="w-4 h-4" />
                   </button>
@@ -505,7 +506,7 @@ export default function PromptDebugPage() {
                   )}
                 </div>
                 <div className={cn(
-                  "w-full min-h-[100px] p-3 rounded-lg text-sm",
+                  "w-full min-h-[100px] p-3 rounded-lg text-sm whitespace-pre-wrap",
                   result ? "bg-emerald-50 border border-emerald-200" : "bg-neutral-50 border border-neutral-200"
                 )}>
                   {result || <span className="text-neutral-400">Result will appear here...</span>}
