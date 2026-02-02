@@ -225,64 +225,81 @@ async def create_automation(
                         existing_emails.add(reply.lead_email.lower())
             
             # If no local data, fetch from Smartlead API with full message history
-            if api_key:  # Always fetch from Smartlead API
+            if api_key:  # Fetch from Smartlead API with pagination
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     for campaign_id in automation.campaign_ids:
-                        try:
-                            # Get statistics to find leads with replies
-                            resp = await client.get(
-                                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/statistics",
-                                params={"api_key": api_key, "limit": 200}
-                            )
-                            stats = resp.json()
-                            
-                            for entry in stats.get("data", []):
-                                if not entry.get("reply_time"):
-                                    continue
-                                lead_email = entry.get("lead_email", "").lower()
-                                if lead_email in existing_emails:
-                                    continue
+                        offset = 0
+                        page_size = 500
+                        empty_pages = 0
+                        
+                        while offset < 5000 and empty_pages < 3:
+                            try:
+                                resp = await client.get(
+                                    f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/statistics",
+                                    params={"api_key": api_key, "limit": page_size, "offset": offset}
+                                )
+                                stats = resp.json()
+                                page_entries = stats.get("data", [])
                                 
-                                # Get lead ID and fetch actual reply content
-                                reply_text = ""
-                                try:
-                                    lead_resp = await client.get(
-                                        "https://server.smartlead.ai/api/v1/leads",
-                                        params={"api_key": api_key, "email": entry.get("lead_email")}
-                                    )
-                                    lead_data = lead_resp.json()
-                                    lead_id = lead_data.get("id")
-                                    if lead_id:
-                                        hist_resp = await client.get(
-                                            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads/{lead_id}/message-history",
-                                            params={"api_key": api_key}
+                                if not page_entries:
+                                    break
+                                
+                                page_replies = [e for e in page_entries if e.get("reply_time")]
+                                if not page_replies:
+                                    empty_pages += 1
+                                    offset += page_size
+                                    continue
+                                empty_pages = 0
+                                
+                                for entry in page_replies:
+                                    lead_email = entry.get("lead_email", "").lower()
+                                    if lead_email in existing_emails:
+                                        continue
+                                    
+                                    # Get actual reply content from message history
+                                    reply_text = ""
+                                    try:
+                                        lead_resp = await client.get(
+                                            "https://server.smartlead.ai/api/v1/leads",
+                                            params={"api_key": api_key, "email": entry.get("lead_email")}
                                         )
-                                        hist = hist_resp.json()
-                                        for msg in hist.get("history", []):
-                                            if msg.get("type") == "REPLY":
-                                                reply_text = msg.get("email_body", "")
-                                                if "<" in reply_text:
-                                                    reply_text = regex.sub(r"<[^>]+>", " ", reply_text)
-                                                    reply_text = regex.sub(r"\\s+", " ", reply_text).strip()
-                                                break
-                                except Exception:
-                                    pass
+                                        lead_data = lead_resp.json()
+                                        lead_id = lead_data.get("id")
+                                        if lead_id:
+                                            hist_resp = await client.get(
+                                                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads/{lead_id}/message-history",
+                                                params={"api_key": api_key}
+                                            )
+                                            hist = hist_resp.json()
+                                            for msg in hist.get("history", []):
+                                                if msg.get("type") == "REPLY":
+                                                    reply_text = msg.get("email_body", "")
+                                                    if "<" in reply_text:
+                                                        reply_text = regex.sub(r"<[^>]+>", " ", reply_text)
+                                                        reply_text = regex.sub(r"\\s+", " ", reply_text).strip()
+                                                    break
+                                    except Exception:
+                                        pass
+                                    
+                                    row_data = {
+                                        "lead_email": entry.get("lead_email", ""),
+                                        "lead_name": entry.get("lead_name", ""),
+                                        "subject": entry.get("email_subject", ""),
+                                        "reply_text": reply_text[:1000] if reply_text else f"[Reply at {entry.get('reply_time', '')}]",
+                                        "received_at": entry.get("reply_time", ""),
+                                        "campaign_name": automation.name,
+                                        "category": "",
+                                        "status": "historical_api"
+                                    }
+                                    google_sheets_service.append_reply(automation.google_sheet_id, row_data)
+                                    synced += 1
+                                    existing_emails.add(lead_email)
                                 
-                                row_data = {
-                                    "lead_email": entry.get("lead_email", ""),
-                                    "lead_name": entry.get("lead_name", ""),
-                                    "subject": entry.get("email_subject", ""),
-                                    "reply_text": reply_text[:1000] if reply_text else f"[Reply at {entry.get(reply_time, )}]",
-                                    "received_at": entry.get("reply_time", ""),
-                                    "campaign_name": automation.name,
-                                    "category": "",
-                                    "status": "historical_api"
-                                }
-                                google_sheets_service.append_reply(automation.google_sheet_id, row_data)
-                                synced += 1
-                                existing_emails.add(lead_email)
-                        except Exception as api_err:
-                            logger.warning(f"Failed to fetch stats for campaign {campaign_id}: {api_err}")
+                                offset += page_size
+                                
+                            except Exception as api_err:
+                                logger.warning(f"Failed to fetch stats for campaign {campaign_id}: {api_err}")
+                                break
 
             if synced > 0:
                 logger.info(f"Auto-synced {synced} historical replies to Google Sheet")

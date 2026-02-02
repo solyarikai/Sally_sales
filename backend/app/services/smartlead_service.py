@@ -460,3 +460,51 @@ async def sync_webhooks_on_startup():
     
     logger.info(f"Webhook sync complete: {synced} configured, {failed} failed")
     return {"synced": synced, "failed": failed}
+
+
+async def fetch_all_campaign_replies(campaign_id: str, api_key: str, max_pages: int = 20) -> list:
+    """Fetch all replies from a campaign using pagination.
+    
+    Args:
+        campaign_id: Smartlead campaign ID
+        api_key: Smartlead API key
+        max_pages: Maximum pages to fetch (safety limit)
+        
+    Returns:
+        List of statistics entries that have reply_time
+    """
+    import httpx
+    
+    all_replies = []
+    offset = 0
+    page_size = 500
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for page in range(max_pages):
+            try:
+                resp = await client.get(
+                    f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/statistics",
+                    params={"api_key": api_key, "limit": page_size, "offset": offset}
+                )
+                data = resp.json()
+                entries = data.get("data", [])
+                
+                if not entries:
+                    break
+                
+                # Filter for replies
+                replies = [e for e in entries if e.get("reply_time")]
+                all_replies.extend(replies)
+                
+                offset += page_size
+                
+                # Stop early if no replies found in last 2 pages
+                if page > 2 and not replies:
+                    consecutive_empty = True
+                    break
+                    
+            except Exception as e:
+                logger.warning(f"Error fetching page {page} for campaign {campaign_id}: {e}")
+                break
+    
+    return all_replies
