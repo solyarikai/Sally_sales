@@ -78,6 +78,10 @@ export function RepliesPage() {
   const [editingAutomation, setEditingAutomation] = useState<ReplyAutomation | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editGoogleSheetUrl, setEditGoogleSheetUrl] = useState('');
+  const [editNewChannelName, setEditNewChannelName] = useState('');
+  const [editCreatingChannel, setEditCreatingChannel] = useState(false);
+  const [editCreatingSheet, setEditCreatingSheet] = useState(false);
+  const [editSheetName, setEditSheetName] = useState('');
   const [editSlackChannel, setEditSlackChannel] = useState('');
   const [editCampaigns, setEditCampaigns] = useState<string[]>([]);
   const [editCampaignSearch, setEditCampaignSearch] = useState('');
@@ -528,13 +532,46 @@ export function RepliesPage() {
                   <span className="text-sm font-medium">Google Sheet</span>
                 </div>
                 {isEditMode ? (
-                  <input
-                    type="text"
-                    placeholder="Paste Google Sheet URL (include #gid= for specific tab)..."
-                    value={editGoogleSheetUrl}
-                    onChange={(e) => setEditGoogleSheetUrl(e.target.value)}
-                    className="input w-full text-sm"
-                  />
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Paste Google Sheet URL (include #gid= for specific tab)..."
+                      value={editGoogleSheetUrl}
+                      onChange={(e) => setEditGoogleSheetUrl(e.target.value)}
+                      className="input w-full text-sm"
+                    />
+                    <div className="text-xs text-neutral-400">Or create a new sheet:</div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="New sheet name..."
+                        value={editSheetName}
+                        onChange={(e) => setEditSheetName(e.target.value)}
+                        className="input flex-1 text-sm"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!editSheetName) return;
+                          setEditCreatingSheet(true);
+                          try {
+                            const result = await repliesApi.createGoogleSheet(editSheetName);
+                            if (result.sheet_url) {
+                              setEditGoogleSheetUrl(result.sheet_url);
+                              setEditSheetName('');
+                            }
+                          } catch (err) {
+                            alert('Failed to create sheet');
+                          } finally {
+                            setEditCreatingSheet(false);
+                          }
+                        }}
+                        disabled={!editSheetName || editCreatingSheet}
+                        className="btn btn-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {editCreatingSheet ? 'Creating...' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
                 ) : editingAutomation.google_sheet_id ? (
                   <a 
                     href={`https://docs.google.com/spreadsheets/d/${editingAutomation.google_sheet_id}${editingAutomation.google_sheet_name?.includes('#') ? '/edit?gid=' + editingAutomation.google_sheet_name.split('#')[1] + '#gid=' + editingAutomation.google_sheet_name.split('#')[1] : ''}`}
@@ -556,7 +593,7 @@ export function RepliesPage() {
                   <span className="text-sm font-medium">Slack Notifications</span>
                 </div>
                 {isEditMode ? (
-                  <div className="relative">
+                  <div className="space-y-2">
                     <select
                       value={editSlackChannel}
                       onChange={(e) => setEditSlackChannel(e.target.value)}
@@ -568,8 +605,41 @@ export function RepliesPage() {
                       ))}
                     </select>
                     {slackChannelsEdit.length === 0 && (
-                      <div className="text-xs text-neutral-400 mt-1">Loading channels...</div>
+                      <div className="text-xs text-neutral-400">Loading channels...</div>
                     )}
+                    <div className="text-xs text-neutral-400">Or create a new channel:</div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="new-channel-name"
+                        value={editNewChannelName}
+                        onChange={(e) => setEditNewChannelName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+                        className="input flex-1 text-sm"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!editNewChannelName) return;
+                          setEditCreatingChannel(true);
+                          try {
+                            const result = await repliesApi.createSlackChannel(editNewChannelName);
+                            if (result.channel) {
+                              const ch = result.channel;
+                              setSlackChannelsEdit(prev => [...prev, { id: ch.id, name: ch.name }]);
+                              setEditSlackChannel(ch.id);
+                              setEditNewChannelName('');
+                            }
+                          } catch (err) {
+                            alert('Failed to create channel');
+                          } finally {
+                            setEditCreatingChannel(false);
+                          }
+                        }}
+                        disabled={!editNewChannelName || editCreatingChannel}
+                        className="btn btn-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {editCreatingChannel ? 'Creating...' : 'Create'}
+                      </button>
+                    </div>
                   </div>
                 ) : editingAutomation.slack_channel ? (
                   <span className="text-sm text-blue-600">#{slackChannelsEdit.find(c => c.id === editingAutomation.slack_channel)?.name || editingAutomation.slack_channel}</span>
