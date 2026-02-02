@@ -89,6 +89,9 @@ export function RepliesPage() {
   const [editCampaignSearch, setEditCampaignSearch] = useState('');
   const [editClassificationPrompt, setEditClassificationPrompt] = useState('');
   const [editReplyPrompt, setEditReplyPrompt] = useState('');
+  const [editClassificationTemplate, setEditClassificationTemplate] = useState<string>('default');
+  const [editReplyTemplate, setEditReplyTemplate] = useState<string>('default');
+  const [editPromptTemplates, setEditPromptTemplates] = useState<any[]>([]);
   const [slackChannelsEdit, setSlackChannelsEdit] = useState<Array<{id: string, name: string}>>([]);
   const [promptTestText, setPromptTestText] = useState('');
   const [promptTestResult, setPromptTestResult] = useState<{category?: string, reply?: string} | null>(null);
@@ -160,6 +163,16 @@ export function RepliesPage() {
       console.error("Failed to load slack channels:", err);
     }
   }, []);
+
+  const loadEditTemplates = async () => {
+    try {
+      const resp = await fetch("/api/replies/prompt-templates");
+      const data = await resp.json();
+      setEditPromptTemplates(data.templates || []);
+    } catch (e) {
+      console.error("Failed to load templates", e);
+    }
+  };
 
   const loadCampaigns = useCallback(async () => {
     setCampaignsLoading(true);
@@ -439,7 +452,11 @@ export function RepliesPage() {
                         <Send className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); setEditingAutomation(automation); setEditCampaigns(automation.campaign_ids?.map(String) || []); setEditSlackChannel(automation.slack_channel || ""); setEditGoogleSheetUrl(automation.google_sheet_id ? `https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}${automation.google_sheet_name?.includes('#') ? '/edit?gid=' + automation.google_sheet_name.split('#')[1] + '#gid=' + automation.google_sheet_name.split('#')[1] : ''}` : ""); setEditClassificationPrompt(automation.classification_prompt || ""); setEditReplyPrompt(automation.reply_prompt || ""); setIsEditMode(true); loadCampaigns(); loadSlackChannels(); }}
+                        onClick={(e) => { e.stopPropagation(); setEditingAutomation(automation); setEditCampaigns(automation.campaign_ids?.map(String) || []); setEditSlackChannel(automation.slack_channel || ""); setEditGoogleSheetUrl(automation.google_sheet_id ? `https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}${automation.google_sheet_name?.includes('#') ? '/edit?gid=' + automation.google_sheet_name.split('#')[1] + '#gid=' + automation.google_sheet_name.split('#')[1] : ''}` : ""); setEditClassificationPrompt(automation.classification_prompt || ""); setEditReplyPrompt(automation.reply_prompt || ""); setIsEditMode(true); loadCampaigns(); loadSlackChannels(); loadEditTemplates();
+                          // Set template state based on existing prompt
+                          setEditClassificationTemplate(automation.classification_prompt ? 'custom' : 'default');
+                          setEditReplyTemplate(automation.reply_prompt ? 'custom' : 'default');
+                        }}
                         className="p-1.5 rounded-lg text-neutral-400 hover:bg-violet-50 hover:text-violet-600"
                         title="Edit"
                       >
@@ -778,105 +795,74 @@ export function RepliesPage() {
                 </div>
               </div>
               
-              {/* Custom Prompts - Beautiful Editor */}
+              {/* Prompt Templates */}
               {isEditMode && (
                 <div className="space-y-4">
+                  <div className="text-sm font-medium text-neutral-700">Prompt Templates</div>
+                  <p className="text-xs text-neutral-500">Select existing or paste custom prompts (auto-saved)</p>
+                  
                   {/* Classification Prompt */}
-                  <div className="rounded-xl border-2 border-violet-200 overflow-hidden">
-                    <div className="bg-violet-100 px-4 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">🏷️</span>
-                        <div>
-                          <div className="font-medium text-violet-900">Classification Prompt</div>
-                          <div className="text-xs text-violet-600">How AI categorizes replies</div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setEditClassificationPrompt('')}
-                        className="text-xs text-violet-600 hover:text-violet-800 underline"
-                      >
-                        Reset to default
-                      </button>
-                    </div>
-                    <div className="p-4 bg-white">
+                  <div className="space-y-2">
+                    <label className="text-sm text-neutral-600">Classification Prompt</label>
+                    <select
+                      value={editClassificationTemplate}
+                      onChange={(e) => {
+                        setEditClassificationTemplate(e.target.value);
+                        if (e.target.value === 'default') {
+                          setEditClassificationPrompt('');
+                        } else if (e.target.value !== 'custom') {
+                          const tpl = editPromptTemplates.find(t => t.id?.toString() === e.target.value);
+                          if (tpl) setEditClassificationPrompt(tpl.prompt_text);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm"
+                    >
+                      <option value="default">Default Classification</option>
+                      {editPromptTemplates.filter(t => !t.is_default && t.prompt_type === 'classification').map(t => (
+                        <option key={t.id} value={t.id?.toString()}>{t.name}</option>
+                      ))}
+                      <option value="custom">Custom (paste below)</option>
+                    </select>
+                    {editClassificationTemplate === 'custom' && (
                       <textarea
-                        placeholder="Leave empty to use default prompt.
-
-Example custom prompt:
-Classify this email reply into one of these categories:
-- interested: Shows buying interest
-- meeting_request: Wants to schedule a call
-- not_interested: Declined or rejected
-- out_of_office: Auto-reply or OOO
-- other: Everything else
-
-Consider the tone and specific words used."
+                        placeholder="Paste your classification prompt..."
                         value={editClassificationPrompt}
                         onChange={(e) => setEditClassificationPrompt(e.target.value)}
-                        className="w-full text-sm h-32 p-3 border border-violet-200 rounded-lg focus:border-violet-400 focus:ring-1 focus:ring-violet-400 resize-none font-mono"
+                        className="w-full h-24 p-3 border border-neutral-200 rounded-lg text-sm font-mono resize-none"
                       />
-                      {!editClassificationPrompt && (
-                        <div className="mt-2 p-2 bg-violet-50 rounded-lg">
-                          <div className="text-xs text-violet-700 flex items-center gap-1">
-                            <span>✨</span> Using smart default prompt
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
 
-                  {/* Reply Generation Prompt */}
-                  <div className="rounded-xl border-2 border-emerald-200 overflow-hidden">
-                    <div className="bg-emerald-100 px-4 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">✍️</span>
-                        <div>
-                          <div className="font-medium text-emerald-900">Reply Generation Prompt</div>
-                          <div className="text-xs text-emerald-600">How AI writes draft responses</div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setEditReplyPrompt('')}
-                        className="text-xs text-emerald-600 hover:text-emerald-800 underline"
-                      >
-                        Reset to default
-                      </button>
-                    </div>
-                    <div className="p-4 bg-white">
+                  {/* Reply Prompt */}
+                  <div className="space-y-2">
+                    <label className="text-sm text-neutral-600">Reply Prompt</label>
+                    <select
+                      value={editReplyTemplate}
+                      onChange={(e) => {
+                        setEditReplyTemplate(e.target.value);
+                        if (e.target.value === 'default') {
+                          setEditReplyPrompt('');
+                        } else if (e.target.value !== 'custom') {
+                          const tpl = editPromptTemplates.find(t => t.id?.toString() === e.target.value);
+                          if (tpl) setEditReplyPrompt(tpl.prompt_text);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm"
+                    >
+                      <option value="default">Default Reply</option>
+                      {editPromptTemplates.filter(t => !t.is_default && t.prompt_type === 'reply').map(t => (
+                        <option key={t.id} value={t.id?.toString()}>{t.name}</option>
+                      ))}
+                      <option value="custom">Custom (paste below)</option>
+                    </select>
+                    {editReplyTemplate === 'custom' && (
                       <textarea
-                        placeholder="Leave empty to use default prompt.
-
-Example custom prompt:
-Write a professional reply to this email.
-- Be friendly but concise
-- If interested: suggest next steps
-- If meeting request: propose times
-- Keep it under 100 words
-- Sign off as the sales team"
+                        placeholder="Paste your reply prompt..."
                         value={editReplyPrompt}
                         onChange={(e) => setEditReplyPrompt(e.target.value)}
-                        className="w-full text-sm h-32 p-3 border border-emerald-200 rounded-lg focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 resize-none font-mono"
+                        className="w-full h-24 p-3 border border-neutral-200 rounded-lg text-sm font-mono resize-none"
                       />
-                      {!editReplyPrompt && (
-                        <div className="mt-2 p-2 bg-emerald-50 rounded-lg">
-                          <div className="text-xs text-emerald-700 flex items-center gap-1">
-                            <span>✨</span> Using smart default prompt
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Tips */}
-                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
-                    <div className="flex items-start gap-2">
-                      <span className="text-lg">💡</span>
-                      <div className="text-xs text-amber-800">
-                        <strong>Tips:</strong> Custom prompts let you fine-tune how AI handles your specific business. Leave empty to use battle-tested defaults. You can use variables like {"{lead_name}"}, {"{company}"}, {"{campaign_name}"} in your prompts.
-                      </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Prompt Debug Section */}
@@ -957,13 +943,39 @@ Hi, thanks for reaching out. We're definitely interested in learning more about 
                   onClick={async () => {
                     setSavingEdit(true);
                     try {
+                      // Auto-save custom prompts as templates
+                      if (editClassificationTemplate === 'custom' && editClassificationPrompt) {
+                        await fetch('/api/replies/prompt-templates', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            name: 'Classification ' + new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+                            prompt_type: 'classification',
+                            prompt_text: editClassificationPrompt,
+                            is_default: false
+                          })
+                        }).catch(e => console.error('Failed to save classification template', e));
+                      }
+                      if (editReplyTemplate === 'custom' && editReplyPrompt) {
+                        await fetch('/api/replies/prompt-templates', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            name: 'Reply ' + new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+                            prompt_type: 'reply',
+                            prompt_text: editReplyPrompt,
+                            is_default: false
+                          })
+                        }).catch(e => console.error('Failed to save reply template', e));
+                      }
+
                       await repliesApi.updateAutomation(editingAutomation.id, {
                         google_sheet_id: editGoogleSheetUrl ? extractSheetId(editGoogleSheetUrl) : undefined,
                         google_sheet_name: editGoogleSheetUrl ? createSheetNameWithGid(editGoogleSheetUrl) : undefined,
                         slack_channel: editSlackChannel || undefined,
                         campaign_ids: editCampaigns.length > 0 ? editCampaigns : undefined,
-                        classification_prompt: editClassificationPrompt || undefined,
-                        reply_prompt: editReplyPrompt || undefined,
+                        classification_prompt: editClassificationTemplate !== 'default' ? editClassificationPrompt : undefined,
+                        reply_prompt: editReplyTemplate !== 'default' ? editReplyPrompt : undefined,
                       });
                       await loadAutomations();
                       setIsEditMode(false);
