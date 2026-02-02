@@ -1,52 +1,19 @@
-SUBTASK: Read backend/app/services/reply_processor.py and analyze error handling
+COMPLETED: Add try/catch around Slack notification sending
 
-ANALYSIS COMPLETE
+Changes made to backend/app/services/reply_processor.py:
 
-## Error Handling Summary
+1. Wrapped Slack notification sending (lines 429-440) in try/catch block
+   - If send_slack_notification() fails, error is logged but processing continues
+   - Error message: "[PROCESSOR] Slack notification failed (non-fatal): {error}"
 
-### 1. classify_reply() (lines 84-142)
-- ✅ Checks if OpenAI is connected first (lines 98-104)
-- ✅ Wraps entire logic in try/except (lines 106-142)
-- ✅ Returns safe fallback on error: category="other", confidence="low"
-- ✅ Validates category against ReplyCategory enum (lines 126-128)
+2. Also wrapped Telegram notification (lines 444-449) in try/catch block for consistency
+   - If notify_reply_needs_attention() fails, error is logged but processing continues
+   - Error message: "[PROCESSOR] Telegram notification failed (non-fatal): {error}"
 
-### 2. generate_draft_reply() (lines 179-255)
-- ✅ Checks if OpenAI is connected (lines 209-215)
-- ✅ Wraps in try/except (lines 217-255)
-- ✅ Returns safe fallback with error message in body
-- ✅ Special handling for OUT_OF_OFFICE (no draft needed)
+These changes ensure that webhook processing completes successfully even if:
+- Slack API is unreachable
+- Slack token is invalid
+- Network timeout occurs
+- Any other notification-related exception happens
 
-### 3. process_reply_webhook() (lines 258-488) - MAIN FUNCTION
-- ✅ Entire function wrapped in try/except (lines 278-488)
-- ✅ Returns None gracefully if no lead_email (line 346)
-- ✅ Logs error and re-raises exception (lines 476-488)
-- ✅ Session rollback on error (line 487)
-- ✅ Tracks errors on automation object (lines 479-486)
-- ✅ Google Sheets error handling (lines 463-464) - catches but doesn't fail
-
-### Potential Issues Found
-
-1. **Import inside function** (lines 121, 271, 305, 355, 417, 438, 444)
-   - Multiple `import json`, `import re` inside functions
-   - Not a bug, but could be moved to top for clarity
-
-2. **Silent failure in error tracking** (lines 485-486)
-   - `except: pass` hides any issues saving error info
-   - Minor issue since main error is still raised
-
-3. **No retry logic**
-   - OpenAI calls don't retry on transient failures
-   - Could add tenacity/retry for robustness (future enhancement)
-
-4. **Slack/Telegram failures don't stop processing**
-   - Good design - notification failures don't block reply processing
-
-## CONCLUSION
-
-Error handling is SOLID. The code:
-- Uses defensive programming with fallbacks
-- Properly rolls back database on failures  
-- Tracks errors on automation objects for monitoring
-- Isolates notification failures from core processing
-
-NO CODE CHANGES NEEDED - error handling is well implemented.
+The reply will still be saved to the database and visible in the UI - only the notification delivery will fail gracefully.

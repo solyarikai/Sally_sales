@@ -425,18 +425,28 @@ async def process_reply_webhook(
             webhook_url = automation.slack_webhook_url
         
         # Always send notification (even without automation for testing)
-        slack_sent = await send_slack_notification(
-            channel_id=channel_id,
-            reply=processed_reply,
-            webhook_url=webhook_url
-        )
-        if slack_sent:
-            processed_reply.sent_to_slack = True
-            processed_reply.slack_sent_at = datetime.utcnow()
+        # Wrap in try/catch to prevent Slack failures from breaking webhook processing
+        try:
+            slack_sent = await send_slack_notification(
+                channel_id=channel_id,
+                reply=processed_reply,
+                webhook_url=webhook_url
+            )
+            if slack_sent:
+                processed_reply.sent_to_slack = True
+                processed_reply.slack_sent_at = datetime.utcnow()
+        except Exception as slack_error:
+            logger.error(f"[PROCESSOR] Slack notification failed (non-fatal): {slack_error}")
+            # Continue processing - Slack failure should not break webhook handling
         
         # Send Telegram notification for high-priority categories
-        from app.services.notification_service import notify_reply_needs_attention
-        await notify_reply_needs_attention(processed_reply, category)
+        # Wrap in try/catch to prevent Telegram failures from breaking webhook processing
+        try:
+            from app.services.notification_service import notify_reply_needs_attention
+            await notify_reply_needs_attention(processed_reply, category)
+        except Exception as telegram_error:
+            logger.error(f"[PROCESSOR] Telegram notification failed (non-fatal): {telegram_error}")
+            # Continue processing - Telegram failure should not break webhook handling
         
         # Log to Google Sheets if automation has a sheet configured
         if automation and automation.google_sheet_id:
