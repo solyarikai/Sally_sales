@@ -70,6 +70,10 @@ export function RepliesPage() {
   const [editCampaignSearch, setEditCampaignSearch] = useState('');
   const [editClassificationPrompt, setEditClassificationPrompt] = useState('');
   const [editReplyPrompt, setEditReplyPrompt] = useState('');
+  const [slackChannelsEdit, setSlackChannelsEdit] = useState<Array<{id: string, name: string}>>([]);
+  const [promptTestText, setPromptTestText] = useState('');
+  const [promptTestResult, setPromptTestResult] = useState<{category?: string, reply?: string} | null>(null);
+  const [testingPrompt, setTestingPrompt] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -115,6 +119,15 @@ export function RepliesPage() {
       setAutomations(data);
     } catch (err) {
       console.error('Failed to load automations:', err);
+    }
+  }, []);
+
+  const loadSlackChannels = useCallback(async () => {
+    try {
+      const channels = await repliesApi.getSlackChannels();
+      setSlackChannelsEdit(channels);
+    } catch (err) {
+      console.error("Failed to load slack channels:", err);
     }
   }, []);
 
@@ -510,15 +523,23 @@ export function RepliesPage() {
                   <span className="text-sm font-medium">Slack Notifications</span>
                 </div>
                 {isEditMode ? (
-                  <input
-                    type="text"
-                    placeholder="Channel ID (e.g. C09REGUQWTG)"
-                    value={editSlackChannel}
-                    onChange={(e) => setEditSlackChannel(e.target.value)}
-                    className="input w-full text-sm"
-                  />
+                  <div className="relative">
+                    <select
+                      value={editSlackChannel}
+                      onChange={(e) => setEditSlackChannel(e.target.value)}
+                      className="input w-full text-sm"
+                    >
+                      <option value="">Select channel...</option>
+                      {slackChannelsEdit.map(ch => (
+                        <option key={ch.id} value={ch.id}>#{ch.name}</option>
+                      ))}
+                    </select>
+                    {slackChannelsEdit.length === 0 && (
+                      <div className="text-xs text-neutral-400 mt-1">Loading channels...</div>
+                    )}
+                  </div>
                 ) : editingAutomation.slack_channel ? (
-                  <span className="text-sm text-blue-600">#{editingAutomation.slack_channel}</span>
+                  <span className="text-sm text-blue-600">#{slackChannelsEdit.find(c => c.id === editingAutomation.slack_channel)?.name || editingAutomation.slack_channel}</span>
                 ) : editingAutomation.slack_webhook_url ? (
                   <span className="text-sm text-blue-600">Webhook configured</span>
                 ) : (
@@ -696,12 +717,6 @@ Write a professional reply to this email.
               )}
             </div>
             <div className="px-6 py-4 border-t border-neutral-200 flex gap-2">
-              <button 
-                onClick={() => { setAutomationFilter(editingAutomation.id); setEditingAutomation(null); setIsEditMode(false); }}
-                className="btn btn-secondary flex-1"
-              >
-                View Replies
-              </button>
               {isEditMode ? (
                 <button 
                   onClick={async () => {
