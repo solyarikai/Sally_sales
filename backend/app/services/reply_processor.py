@@ -82,9 +82,8 @@ def render_classification_prompt(
     
     # Append custom instructions if provided
     if custom_prompt:
-        prompt += f"
+        prompt += "\n\nAdditional instructions: " + custom_prompt
 
-Additional instructions: {custom_prompt}"
     
     return prompt
 
@@ -231,9 +230,8 @@ def render_draft_prompt(
     
     # Append custom instructions if provided
     if custom_prompt:
-        prompt += f"
+        prompt += "\n\nAdditional instructions: " + custom_prompt
 
-Additional instructions: {custom_prompt}"
     
     return prompt
 
