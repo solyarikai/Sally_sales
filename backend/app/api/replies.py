@@ -1284,13 +1284,13 @@ Best,
                 json={"email_account_ids": [email_account_id]}
             )
         
-        # 4. Configure schedule for sending
+        # 4. Configure schedule for sending (days 0=Sun to 6=Sat)
         await client.post(
             f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
             params={"api_key": api_key},
             json={
                 "timezone": "UTC",
-                "days_of_the_week": [1, 2, 3, 4, 5, 6, 7],
+                "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
                 "start_hour": "09:00",
                 "end_hour": "18:00",
                 "min_time_btw_emails": 5,
@@ -1422,7 +1422,7 @@ async def get_campaign_status(campaign_id: str):
 
 @router.post("/campaign/{campaign_id}/launch")
 async def launch_campaign(campaign_id: str):
-    """Start/launch a Smartlead campaign."""
+    """Start/launch a Smartlead campaign. Sets schedule if missing."""
     import httpx
     import os
     from app.services.smartlead_service import smartlead_service
@@ -1432,6 +1432,21 @@ async def launch_campaign(campaign_id: str):
         raise HTTPException(status_code=400, detail="Smartlead not configured")
     
     async with httpx.AsyncClient() as client:
+        # First ensure schedule is set
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
+            params={"api_key": api_key},
+            json={
+                "timezone": "UTC",
+                "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
+                "start_hour": "09:00",
+                "end_hour": "18:00",
+                "min_time_btw_emails": 5,
+                "max_new_leads_per_day": 100
+            }
+        )
+        
+        # Now launch
         resp = await client.post(
             f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
             params={"api_key": api_key},
@@ -1439,7 +1454,10 @@ async def launch_campaign(campaign_id: str):
         )
         data = resp.json()
     
-    return {"success": True, "message": f"Campaign {campaign_id} launched", "response": data}
+    if data.get("error"):
+        return {"success": False, "message": data.get("error"), "response": data}
+    
+    return {"success": True, "message": f"Campaign {campaign_id} launched!", "response": data}
 
 
 @router.post("/campaign/{campaign_id}/pause")
