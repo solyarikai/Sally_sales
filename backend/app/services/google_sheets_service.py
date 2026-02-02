@@ -306,36 +306,51 @@ class GoogleSheetsService:
             tab_name = self._get_tab_name(sheet_id)
             
         try:
-            # Format row to match reference sheet columns A-Z
-            row = [
-                reply_data.get('lead_first_name', ''),              # A: first name
-                reply_data.get('lead_last_name', ''),               # B: last name
-                reply_data.get('job_title', ''),                    # C: Position
-                reply_data.get('website', ''),                      # D: Website
-                reply_data.get('linkedin_profile', ''),             # E: Linkedin
-                reply_data.get('lead_company', ''),                 # F: Company
-                reply_data.get('company_location', ''),             # G: Company Location
-                reply_data.get('segment', ''),                      # H: segment
-                reply_data.get('employees', ''),                    # I: Employees
-                reply_data.get('lead_email', ''),                   # J: target_lead_email
-                reply_data.get('industry', ''),                     # K: Industry
-                reply_data.get('category', ''),                     # L: Status (our category)
-                '',                                                 # M: Sample Status
-                '',                                                 # N: Sample Comment
-                '',                                                 # O: Sample Responsible
-                '',                                                 # P: Кто привел
-                '',                                                 # Q: Updates after communication
-                reply_data.get('inbox_link', ''),                   # R: Sample link
-                '',                                                 # S: Market size, k
-                'Email',                                            # T: Канал (Channel)
-                reply_data.get('campaign_name', ''),                # U: campaign
-                reply_data.get('email_body', reply_data.get('reply_text', '')),  # V: text
-                reply_data.get('received_at', ''),                  # W: time
-                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),    # X: created time
-                reply_data.get('campaign_id', ''),                  # Y: campaign_id
-                reply_data.get('category', ''),                     # Z: category
-            ]
+                        # Format row with flexible field mapping
+            def get_field(*keys, default=''):
+                for k in keys:
+                    val = reply_data.get(k)
+                    if val:
+                        return str(val)
+                return default
             
+            # Handle name splitting
+            first_name = get_field('lead_first_name', 'first_name', 'first name')
+            last_name = get_field('lead_last_name', 'last_name', 'last name')
+            if not first_name and reply_data.get('lead_name'):
+                parts = str(reply_data['lead_name']).strip().split(' ', 1)
+                first_name = parts[0]
+                last_name = parts[1] if len(parts) > 1 else ''
+            
+            row = [
+                first_name,                                          # A: first name
+                last_name,                                           # B: last name
+                get_field('job_title', 'position', 'Position', 'Title'),  # C: Position
+                get_field('website', 'Website'),                     # D: Website
+                get_field('linkedin_profile', 'Linkedin', 'linkedin'),  # E: Linkedin
+                get_field('lead_company', 'company_name', 'company'),  # F: Company
+                get_field('company_location', 'location'),           # G: Company Location
+                get_field('segment'),                                # H: segment
+                get_field('employees', 'Employees'),                 # I: Employees
+                get_field('lead_email', 'email'),                    # J: target_lead_email
+                get_field('industry', 'Industry'),                   # K: Industry
+                get_field('category', 'status'),                     # L: Status
+                '',                                                  # M: Sample Status
+                '',                                                  # N: Sample Comment
+                '',                                                  # O: Sample Responsible
+                get_field('lead_source'),                            # P: Lead Source
+                '',                                                  # Q: Updates
+                get_field('inbox_link'),                             # R: Sample link
+                '',                                                  # S: Market size
+                'Email',                                             # T: Channel
+                get_field('campaign_name', 'campaign'),              # U: campaign
+                get_field('email_body', 'reply_text', 'text')[:2000] if get_field('email_body', 'reply_text', 'text') else '',  # V: text
+                get_field('received_at', 'time', 'reply_time'),      # W: time
+                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),     # X: created time
+                get_field('campaign_id'),                            # Y: campaign_id
+                get_field('category'),                               # Z: category
+            ]
+
             body = {'values': [row]}
             
             # Append to the Replies tab
