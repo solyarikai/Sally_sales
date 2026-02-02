@@ -592,31 +592,104 @@ export function RepliesPage() {
                 </div>
               </div>
               
-              {/* Custom Prompts */}
+              {/* Custom Prompts - Beautiful Editor */}
               {isEditMode && (
-                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Settings2 className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-medium text-amber-800">Custom AI Prompts</span>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium text-amber-700 mb-1">Classification Prompt</label>
+                <div className="space-y-4">
+                  {/* Classification Prompt */}
+                  <div className="rounded-xl border-2 border-violet-200 overflow-hidden">
+                    <div className="bg-violet-100 px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">🏷️</span>
+                        <div>
+                          <div className="font-medium text-violet-900">Classification Prompt</div>
+                          <div className="text-xs text-violet-600">How AI categorizes replies</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditClassificationPrompt('')}
+                        className="text-xs text-violet-600 hover:text-violet-800 underline"
+                      >
+                        Reset to default
+                      </button>
+                    </div>
+                    <div className="p-4 bg-white">
                       <textarea
-                        placeholder="Custom prompt for classifying replies... (leave empty for default)"
+                        placeholder="Leave empty to use default prompt.
+
+Example custom prompt:
+Classify this email reply into one of these categories:
+- interested: Shows buying interest
+- meeting_request: Wants to schedule a call
+- not_interested: Declined or rejected
+- out_of_office: Auto-reply or OOO
+- other: Everything else
+
+Consider the tone and specific words used."
                         value={editClassificationPrompt}
                         onChange={(e) => setEditClassificationPrompt(e.target.value)}
-                        className="input w-full text-sm h-20 resize-none"
+                        className="w-full text-sm h-32 p-3 border border-violet-200 rounded-lg focus:border-violet-400 focus:ring-1 focus:ring-violet-400 resize-none font-mono"
                       />
+                      {!editClassificationPrompt && (
+                        <div className="mt-2 p-2 bg-violet-50 rounded-lg">
+                          <div className="text-xs text-violet-700 flex items-center gap-1">
+                            <span>✨</span> Using smart default prompt
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-amber-700 mb-1">Reply Generation Prompt</label>
+                  </div>
+
+                  {/* Reply Generation Prompt */}
+                  <div className="rounded-xl border-2 border-emerald-200 overflow-hidden">
+                    <div className="bg-emerald-100 px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">✍️</span>
+                        <div>
+                          <div className="font-medium text-emerald-900">Reply Generation Prompt</div>
+                          <div className="text-xs text-emerald-600">How AI writes draft responses</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditReplyPrompt('')}
+                        className="text-xs text-emerald-600 hover:text-emerald-800 underline"
+                      >
+                        Reset to default
+                      </button>
+                    </div>
+                    <div className="p-4 bg-white">
                       <textarea
-                        placeholder="Custom prompt for generating replies... (leave empty for default)"
+                        placeholder="Leave empty to use default prompt.
+
+Example custom prompt:
+Write a professional reply to this email.
+- Be friendly but concise
+- If interested: suggest next steps
+- If meeting request: propose times
+- Keep it under 100 words
+- Sign off as the sales team"
                         value={editReplyPrompt}
                         onChange={(e) => setEditReplyPrompt(e.target.value)}
-                        className="input w-full text-sm h-20 resize-none"
+                        className="w-full text-sm h-32 p-3 border border-emerald-200 rounded-lg focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 resize-none font-mono"
                       />
+                      {!editReplyPrompt && (
+                        <div className="mt-2 p-2 bg-emerald-50 rounded-lg">
+                          <div className="text-xs text-emerald-700 flex items-center gap-1">
+                            <span>✨</span> Using smart default prompt
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tips */}
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                    <div className="flex items-start gap-2">
+                      <span className="text-lg">💡</span>
+                      <div className="text-xs text-amber-800">
+                        <strong>Tips:</strong> Custom prompts let you fine-tune how AI handles your specific business. Leave empty to use battle-tested defaults. You can use variables like {"{lead_name}"}, {"{company}"}, {"{campaign_name}"} in your prompts.
+                      </div>
                     </div>
                   </div>
                 </div>
