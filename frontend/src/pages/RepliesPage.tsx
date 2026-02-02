@@ -3,7 +3,7 @@ import {
   MessageSquare, Search, RefreshCw, Plus, Settings2, 
   Send, Bell, X, Copy, Check, AlertCircle,
   Zap, Hash, Calendar, Mail, Building2,
-  TestTube2, FileSpreadsheet, SkipForward, ExternalLink
+  TestTube2, FileSpreadsheet, SkipForward, ExternalLink, Pencil
 } from 'lucide-react';
 import { 
   repliesApi, 
@@ -333,7 +333,7 @@ export function RepliesPage() {
                     "p-4 hover:bg-neutral-50 cursor-pointer",
                     automationFilter === automation.id && "bg-violet-50"
                   )}
-                  onClick={() => setEditingAutomation(automation)}
+                  onClick={() => setAutomationFilter(automationFilter === automation.id ? null : automation.id)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -349,6 +349,13 @@ export function RepliesPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingAutomation(automation); }}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:bg-violet-50 hover:text-violet-600"
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleToggleAutomation(automation); }}
                         className={cn(
