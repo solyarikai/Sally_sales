@@ -166,7 +166,8 @@ export function RepliesPage() {
   useEffect(() => {
     loadAutomations();
     loadSlackChannels();  // Load for channel name display in sidebar
-  }, [loadAutomations, loadSlackChannels]);
+    loadCampaigns();  // Load for campaign name display in sidebar
+  }, [loadAutomations, loadSlackChannels, loadCampaigns]);
 
   const handleRefresh = () => {
     loadReplies();
@@ -371,8 +372,18 @@ export function RepliesPage() {
                         )} />
                         <span className="font-medium text-sm truncate">{automation.name}</span>
                       </div>
-                      <div className="text-xs text-neutral-500 mt-1">
+                      <div 
+                        className="text-xs text-neutral-500 mt-1 cursor-help relative group"
+                        title={automation.campaign_ids.map(id => campaigns.find(c => String(c.id) === String(id))?.name || id).join(', ')}
+                      >
                         {automation.campaign_ids.length} campaign{automation.campaign_ids.length !== 1 ? 's' : ''}
+                        {/* Hover tooltip with campaign names */}
+                        <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block bg-neutral-800 text-white text-xs rounded-lg py-2 px-3 shadow-lg min-w-[200px] max-w-[300px]">
+                          <div className="font-medium mb-1">Campaigns:</div>
+                          {automation.campaign_ids.map(id => (
+                            <div key={id} className="truncate py-0.5">{campaigns.find(c => String(c.id) === String(id))?.name || id}</div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
