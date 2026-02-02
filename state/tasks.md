@@ -21,7 +21,7 @@ Add better error handling to reply processor.
 ### Task 3: Add Reply Statistics Endpoint
 Create an endpoint to get reply statistics per automation.
 
-- [ ] Create GET /api/replies/stats endpoint in backend
+- [x] Create GET /api/replies/stats endpoint in backend (done 2026-02-02 00:48)
 - [ ] Return counts: total, by_category, by_automation
 - [ ] Add to frontend dashboard
 

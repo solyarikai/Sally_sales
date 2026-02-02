@@ -1,15 +1,15 @@
 #!/bin/bash
-# Continuous Cursor Runner with Auto Git Commit/Push
-# Follows architecture.md principles
+# Continuous Cursor Runner with Anti-Loop Protection
+# Auto git commit/push via script (not AI)
 
 WORKSPACE="/home/leadokol/magnum-opus-project/repo"
 STATE_DIR="$WORKSPACE/state"
 TASKS_FILE="$STATE_DIR/tasks.md"
 LOG_FILE="$STATE_DIR/continuous_runner.log"
 LOCK_FILE="/tmp/continuous_runner.lock"
-GIT_SCRIPT="/home/leadokol/scripts/utils/git_commit_push.sh"
-CURSOR_TIMEOUT=600  # 10 minutes per task
-LOOP_INTERVAL=30    # seconds between tasks
+LAST_TASK_FILE="/tmp/last_completed_task.txt"
+CURSOR_TIMEOUT=600
+LOOP_INTERVAL=30
 TG_TOKEN="8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss"
 TG_CHAT="57344339"
 
@@ -29,8 +29,17 @@ log() {
 }
 
 notify() {
-    curl -s -X POST "https://api.telegram.org/bot$TG_TOKEN/sendMessage" \
-        -d "chat_id=$TG_CHAT" -d "text=$1" > /dev/null 2>&1
+    # Only send notification if message is different from last one
+    local msg="$1"
+    local last_msg_file="/tmp/last_tg_msg.txt"
+    local last_msg=""
+    [ -f "$last_msg_file" ] && last_msg=$(cat "$last_msg_file")
+    
+    if [ "$msg" != "$last_msg" ]; then
+        curl -s -X POST "https://api.telegram.org/bot$TG_TOKEN/sendMessage" \
+            -d "chat_id=$TG_CHAT" -d "text=$msg" > /dev/null 2>&1
+        echo "$msg" > "$last_msg_file"
+    fi
 }
 
 get_first_pending_task() {
@@ -60,10 +69,26 @@ get_first_pending_task() {
 
 mark_subtask_done() {
     local subtask="$1"
-    # Escape special regex characters
-    local escaped_subtask=$(echo "$subtask" | sed 's/[[\\.\*\^\{}|+?]/\\&/g')
-    # Mark the subtask as done
-    sed -i "s/- \[ \] $escaped_subtask/- [x] $subtask (done $(date '+%Y-%m-%d %H:%M'))/" "$TASKS_FILE"
+    local timestamp=$(date '+%Y-%m-%d %H:%M')
+    
+    # Use Python for reliable text replacement
+    python3 << PYTHON
+import re
+with open('$TASKS_FILE', 'r') as f:
+    content = f.read()
+# Escape special regex characters in subtask
+escaped = re.escape("""$subtask""")
+# Replace unchecked with checked
+pattern = r'- \[ \] ' + escaped
+replacement = '- [x] $subtask (done $timestamp)'
+new_content = re.sub(pattern, replacement, content, count=1)
+if new_content != content:
+    with open('$TASKS_FILE', 'w') as f:
+        f.write(new_content)
+    print('Marked done successfully')
+else:
+    print('WARNING: Pattern not found, task may already be done')
+PYTHON
     log "Marked done: $subtask"
 }
 
@@ -71,7 +96,6 @@ git_commit_push() {
     local msg="$1"
     cd "$WORKSPACE"
     
-    # Check for changes
     if git diff --quiet && git diff --cached --quiet; then
         log "No git changes to commit"
         return 0
@@ -89,55 +113,61 @@ Auto-committed at $(date '+%Y-%m-%d %H:%M')" 2>&1 | tail -3 >> "$LOG_FILE"
     
     if [ $? -eq 0 ]; then
         log "Git: committed and pushed"
+        # Only notify for commits, not for every task start
         notify "📦 Committed: $msg ($changed files)"
     else
-        log "Git: push failed, trying with -u"
-        git push -u origin replies310126 2>&1 | tail -2 >> "$LOG_FILE"
+        log "Git: push failed"
     fi
 }
 
 log "=== Continuous Runner Started (PID $$) ==="
-notify "🤖 Autocoding started - continuous mode"
 
 while true; do
     # Check if cursor-agent is already running
     if pgrep -f 'cursor-agent.*-p' > /dev/null; then
-        log "cursor-agent already running, waiting..."
-        sleep 30
+        sleep 10
         continue
     fi
     
     result=$(get_first_pending_task)
     
     if [ -z "$result" ]; then
-        log "All tasks complete! Sleeping 60s..."
-        sleep 60
+        log "All tasks complete! Sleeping 120s..."
+        sleep 120
         continue
     fi
     
     task_name=$(echo "$result" | sed 's/|||.*//')
     subtask=$(echo "$result" | sed 's/.*|||//')
     
+    # Anti-loop: Check if this is the same task we just completed
+    last_task=""
+    [ -f "$LAST_TASK_FILE" ] && last_task=$(cat "$LAST_TASK_FILE")
+    
+    if [ "$subtask" = "$last_task" ]; then
+        log "WARNING: Same task detected, possible loop. Skipping and marking done."
+        mark_subtask_done "$subtask"
+        sleep 5
+        continue
+    fi
+    
     log "Starting: $subtask"
-    notify "🚀 Task: $subtask"
+    # Don't spam TG for every task start - only notify on completion
     
     start_time=$(date +%s)
     cd "$WORKSPACE"
     
-    PROMPT="You are autocoding on Hetzner server. Complete ONE subtask then stop.
+    PROMPT="You are autocoding on Hetzner. Complete ONE subtask then stop.
 
-CURRENT SUBTASK: $subtask
+SUBTASK: $subtask
 
-INSTRUCTIONS:
-1. Complete ONLY this subtask: \"$subtask\"
-2. Run necessary commands (docker logs, curl, etc.)
-3. If code changes needed, make them
-4. Write result summary to state/response.txt
-5. If blocked, write to state/blocker.txt
-6. DO NOT mark tasks done - the script will do it
-7. DO NOT commit/push - the script will do it
-
-SAFETY: Never send messages via Smartlead API!"
+RULES:
+1. Complete ONLY this subtask
+2. Make code changes if needed
+3. Write summary to state/response.txt
+4. DO NOT mark tasks done - script handles it
+5. DO NOT commit/push - script handles it
+6. NEVER send Smartlead messages!"
 
     timeout $CURSOR_TIMEOUT ~/.local/bin/cursor-agent -p "$PROMPT" 2>&1 | tee -a "$LOG_FILE"
     exit_code=$?
@@ -145,21 +175,20 @@ SAFETY: Never send messages via Smartlead API!"
     end_time=$(date +%s)
     duration=$((end_time - start_time))
     
+    # Save last completed task to prevent loops
+    echo "$subtask" > "$LAST_TASK_FILE"
+    
     if [ "$exit_code" -eq 124 ]; then
         log "TIMEOUT after $((CURSOR_TIMEOUT/60)) minutes"
-        notify "⏰ Timeout: $subtask"
     elif [ "$exit_code" -ne 0 ]; then
         log "ERROR: exit code $exit_code"
-        notify "❌ Error: $subtask (exit $exit_code)"
     else
         log "COMPLETED in ${duration}s"
-        # Mark subtask done via SCRIPT (not AI)
         mark_subtask_done "$subtask"
-        # Git commit/push via SCRIPT (not AI)
         git_commit_push "Completed: $subtask"
         notify "✅ Done: $subtask (${duration}s)"
     fi
     
-    log "Waiting ${LOOP_INTERVAL}s before next task..."
+    log "Waiting ${LOOP_INTERVAL}s..."
     sleep $LOOP_INTERVAL
 done
