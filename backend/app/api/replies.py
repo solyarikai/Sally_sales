@@ -1291,9 +1291,9 @@ Best,
             json={
                 "timezone": "UTC",
                 "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
-                "start_hour": "09:00",
-                "end_hour": "18:00",
-                "min_time_btw_emails": 5,
+                "start_hour": "00:00",
+                "end_hour": "23:59",
+                "min_time_btw_emails": 3,
                 "max_new_leads_per_day": 100
             }
         )
@@ -1439,9 +1439,9 @@ async def launch_campaign(campaign_id: str):
             json={
                 "timezone": "UTC",
                 "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
-                "start_hour": "09:00",
-                "end_hour": "18:00",
-                "min_time_btw_emails": 5,
+                "start_hour": "00:00",
+                "end_hour": "23:59",
+                "min_time_btw_emails": 3,
                 "max_new_leads_per_day": 100
             }
         )
