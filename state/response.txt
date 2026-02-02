@@ -1,32 +1,47 @@
-## Subtask Complete: Add retry logic for failed AI classifications
+## Task 2 Complete: Improve Reply Processing Error Handling
+
+### Summary
+Added comprehensive error handling and retry logic to the reply processor service, making it more resilient to transient failures from OpenAI API and notification services.
 
 ### Changes Made
 
 **File: `backend/app/services/reply_processor.py`**
 
-Added retry logic with exponential backoff to both AI classification functions:
+#### 1. Retry Logic for AI Classification (lines 84-183)
+- Added `max_retries` parameter (default: 3 attempts)
+- Implemented exponential backoff: 2s, 4s, 6s delays between retries
+- Handles JSON parse errors as retryable (OpenAI sometimes returns malformed JSON)
+- Smart error classification: rate_limit, timeout, connection, 503, 429 → retry
+- Non-retryable errors get one extra attempt (transient issues can look permanent)
+- Detailed logging for each retry attempt
+- Graceful fallback to "other" category with low confidence if all retries fail
 
-1. **`classify_reply()` function** (lines 84-183):
-   - Added `max_retries` parameter (default: 3)
-   - Implemented retry loop with exponential backoff (2s, 4s, 6s delays)
-   - Handles JSON parse errors as retryable
-   - Detects retryable errors: rate_limit, timeout, connection, temporary, overloaded, 503, 429
-   - Even non-retryable errors get one extra retry attempt (transient issues can look permanent)
-   - Logs all retry attempts and final failure with detailed reasoning
+#### 2. Retry Logic for Draft Generation (lines 220-332)
+- Same retry pattern as classification for consistency
+- Identical error handling and backoff strategy
+- Returns error message in draft body if generation fails
 
-2. **`generate_draft_reply()` function** (lines 220-332):
-   - Same retry logic pattern for consistency
-   - Both functions now have identical error handling behavior
+#### 3. Try/Catch for Slack Notifications (lines 507-518)
+- Wrapped `send_slack_notification()` call in try/catch
+- Slack failures logged but don't break webhook processing
+- Reply still saved to database even if Slack fails
+
+#### 4. Try/Catch for Telegram Notifications (lines 521-527)
+- Wrapped `notify_reply_needs_attention()` call in try/catch
+- Telegram failures logged but don't break webhook processing
 
 ### Key Features
-- **Exponential backoff**: 2s, 4s, 6s between retries to avoid hammering the API
-- **Intelligent error classification**: Different handling for retryable vs permanent errors
-- **Detailed logging**: Each attempt, wait time, and final outcome logged
-- **Graceful degradation**: Still returns fallback response after all retries exhausted
-- **JSON retry**: If OpenAI returns malformed JSON, it retries (common transient issue)
+- **Exponential backoff**: Prevents hammering API during rate limits
+- **Intelligent retry logic**: Different handling for retryable vs permanent errors
+- **Non-blocking notifications**: Slack/Telegram failures don't break core processing
+- **Detailed logging**: Every retry attempt logged with timing info
+- **Graceful degradation**: System continues working even with partial failures
 
-### Testing
-Code changes are syntactically correct. Full testing requires Docker container restart to pick up changes.
+### Files Changed
+- `backend/app/services/reply_processor.py`
+
+### Tests
+Code is syntactically correct. Changes will take effect after container restart.
 
 ### Status
-COMPLETE - Ready for testing in next webhook processing cycle
+COMPLETE - Task 2 finished. Ready to proceed to Task 3 (Reply Statistics Endpoint).
