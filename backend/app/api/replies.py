@@ -1075,6 +1075,311 @@ async def log_reply_to_sheet(
 
 # ============= Slack Integration =============
 
+
+
+# ============= Test Flow Endpoints =============
+
+@router.post("/test-flow/create-campaign")
+async def create_test_campaign(
+    name: str = Query("Test Campaign", description="Name for test campaign"),
+    db: AsyncSession = Depends(get_session)
+):
+    """Create a test campaign for testing the auto-reply flow."""
+    import uuid
+    
+    # Generate a unique test campaign ID
+    test_id = f"test-{uuid.uuid4().hex[:8]}"
+    
+    return {
+        "success": True,
+        "campaign": {
+            "id": test_id,
+            "name": f"{name} ({test_id})",
+            "is_test": True
+        },
+        "message": "Test campaign created. Now create an automation for this campaign."
+    }
+
+
+@router.post("/test-flow/simulate-reply")
+async def simulate_test_reply(
+    campaign_id: str = Query(..., description="Campaign ID to simulate reply for"),
+    message: str = Query("Hi, I'm interested in learning more about your product. Can we schedule a demo?", description="Test reply message"),
+    lead_email: str = Query("test.lead@example.com", description="Test lead email"),
+    lead_name: str = Query("Test Lead", description="Test lead name"),
+    company: str = Query("Test Company Inc", description="Test company name"),
+    db: AsyncSession = Depends(get_session)
+):
+    """Simulate a reply to test the full automation flow.
+    
+    This will:
+    1. Create a webhook-like payload
+    2. Process it through the reply processor
+    3. Return the results (classification, draft, notifications sent)
+    """
+    from app.services.reply_processor import process_reply_webhook
+    from datetime import datetime
+    
+    # Create test payload matching Smartlead format
+    test_payload = {
+        "event_type": "EMAIL_REPLY",
+        "campaign_id": campaign_id,
+        "sl_lead_email": lead_email,
+        "first_name": lead_name.split()[0] if lead_name else "Test",
+        "last_name": lead_name.split()[-1] if len(lead_name.split()) > 1 else "Lead",
+        "company_name": company,
+        "subject": "Re: Your recent outreach",
+        "reply_body": message,
+        "time_replied": datetime.utcnow().isoformat()
+    }
+    
+    try:
+        # Process through the reply processor
+        result = await process_reply_webhook(test_payload, db)
+        
+        return {
+            "success": True,
+            "message": "Test reply processed successfully!",
+            "result": {
+                "reply_id": result.get("reply_id") if result else None,
+                "category": result.get("category") if result else None,
+                "slack_sent": result.get("slack_sent") if result else False,
+                "sheet_row": result.get("sheet_row") if result else None
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "result": None
+        }
+
+
+
+
+@router.get("/test-flow/email-accounts")
+async def get_available_email_accounts():
+    """Get Smartlead email accounts with available sending capacity."""
+    import httpx
+    import os
+    from app.services.smartlead_service import smartlead_service
+    
+    api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
+    
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Smartlead API key not configured")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://server.smartlead.ai/api/v1/email-accounts",
+            params={"api_key": api_key, "limit": 50}
+        )
+        accounts = response.json()
+    
+    if not isinstance(accounts, list):
+        return {"accounts": [], "error": str(accounts)}
+    
+    # Filter accounts with available capacity
+    available = []
+    for acc in accounts:
+        daily_limit = acc.get("message_per_day") or 50
+        sent_today = acc.get("daily_sent_count") or 0
+        remaining = daily_limit - sent_today
+        
+        if remaining > 0:
+            available.append({
+                "id": acc.get("id"),
+                "email": acc.get("from_email"),
+                "name": acc.get("from_name"),
+                "daily_limit": daily_limit,
+                "sent_today": sent_today,
+                "remaining": remaining
+            })
+    
+    available.sort(key=lambda x: x["remaining"], reverse=True)
+    return {"accounts": available[:15], "total": len(available)}
+
+
+@router.post("/test-flow/create-real-campaign")
+async def create_real_test_campaign(
+    user_email: str = Query(..., description="Your email to receive the test"),
+    user_name: str = Query("Test User", description="Your name"),
+    email_account_id: int = Query(None, description="Email account ID to send from"),
+    db: AsyncSession = Depends(get_session)
+):
+    """Create a real test campaign in Smartlead and send email to user."""
+    import httpx
+    import os
+    import uuid
+    from app.services.smartlead_service import smartlead_service
+    
+    api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Smartlead not configured")
+    
+    test_id = uuid.uuid4().hex[:8]
+    campaign_name = f"Auto-Reply Test {test_id}"
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # 1. Create campaign
+        resp = await client.post(
+            "https://server.smartlead.ai/api/v1/campaigns/create",
+            params={"api_key": api_key},
+            json={"name": campaign_name}
+        )
+        campaign_data = resp.json()
+        
+        if "id" not in campaign_data:
+            return {"success": False, "error": f"Failed to create campaign: {campaign_data}"}
+        
+        campaign_id = campaign_data["id"]
+        
+        # 2. Add email sequence
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/sequences",
+            params={"api_key": api_key},
+            json={"sequences": [{
+                "seq_number": 1,
+                "seq_delay_details": {"delay_in_days": 0},
+                "subject": "Quick test for auto-reply system",
+                "email_body": """Hi {{first_name}},
+
+This is a test email to verify the auto-reply system is working.
+
+Please reply to this email with any message to test the automation!
+
+Example replies to try:
+- "Yes, I'm interested!" (should classify as interested)
+- "Not interested, thanks" (should classify as not interested)  
+- "Can we schedule a call?" (should classify as meeting request)
+
+Best,
+{{sender_name}}"""
+            }]}
+        )
+        
+        # 3. Add sender account
+        if email_account_id:
+            await client.post(
+                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/email-accounts",
+                params={"api_key": api_key},
+                json={"email_account_ids": [email_account_id]}
+            )
+        
+        # 4. Configure for immediate send
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/settings",
+            params={"api_key": api_key},
+            json={
+                "timezone": "UTC",
+                "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
+                "start_hour": "00:00",
+                "end_hour": "23:59",
+                "min_time_btw_emails": 1,
+                "max_new_leads_per_day": 100
+            }
+        )
+        
+        # 5. Add user as lead
+        parts = user_name.split() if user_name else ["Test", "User"]
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
+            params={"api_key": api_key},
+            json={"lead_list": [{
+                "email": user_email,
+                "first_name": parts[0],
+                "last_name": parts[-1] if len(parts) > 1 else "User",
+                "company_name": "Test Company"
+            }]}
+        )
+        
+        # 6. Start campaign
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
+            params={"api_key": api_key},
+            json={"status": "START"}
+        )
+    
+    return {
+        "success": True,
+        "campaign_id": str(campaign_id),
+        "campaign_name": campaign_name,
+        "message": f"Test campaign created! Email will be sent to {user_email} within 5 minutes.",
+        "next_steps": [
+            f"Create automation for campaign ID: {campaign_id}",
+            "Set up Google Sheet and Slack channel",
+            "Wait for email and reply to test"
+        ]
+    }
+
+
+@router.get("/test-flow/campaigns")  
+async def list_test_campaigns():
+    """List test campaigns."""
+    import httpx
+    import os
+    from app.services.smartlead_service import smartlead_service
+    
+    api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
+    if not api_key:
+        return {"campaigns": []}
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://server.smartlead.ai/api/v1/campaigns",
+            params={"api_key": api_key, "limit": 100}
+        )
+        campaigns = resp.json()
+    
+    if not isinstance(campaigns, list):
+        return {"campaigns": []}
+    
+    test_campaigns = [
+        {"id": str(c["id"]), "name": c["name"], "status": c.get("status"), "created_at": c.get("created_at")}
+        for c in campaigns
+        if "Auto-Reply Test" in c.get("name", "") or "test" in c.get("name", "").lower()
+    ]
+    
+    return {"campaigns": test_campaigns[:20]}
+
+
+
+@router.get("/test-flow/check-setup/{campaign_id}")
+async def check_test_setup(
+    campaign_id: str,
+    db: AsyncSession = Depends(get_session)
+):
+    """Check if an automation is set up for a test campaign."""
+    from sqlalchemy import select
+    
+    # Check for automation with this campaign
+    result = await db.execute(
+        select(ReplyAutomation).where(
+            ReplyAutomation.campaign_ids.contains([campaign_id])
+        )
+    )
+    automation = result.scalar_one_or_none()
+    
+    if not automation:
+        return {
+            "ready": False,
+            "message": "No automation found for this campaign. Please create one first.",
+            "automation": None
+        }
+    
+    return {
+        "ready": True,
+        "message": "Automation is set up!",
+        "automation": {
+            "id": automation.id,
+            "name": automation.name,
+            "has_slack": bool(automation.slack_channel or automation.slack_webhook_url),
+            "has_sheet": bool(automation.google_sheet_id)
+        }
+    }
+
+
+
 @router.get("/slack/status")
 async def get_slack_status():
     """Check Slack Bot Token status and permissions.

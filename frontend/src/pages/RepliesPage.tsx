@@ -93,6 +93,15 @@ export function RepliesPage() {
   const [testingPrompt, setTestingPrompt] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
+  const [showTestFlowModal, setShowTestFlowModal] = useState(false);
+  const [testFlowStep, setTestFlowStep] = useState(1);
+  const [testEmailAccounts, setTestEmailAccounts] = useState<Array<{id: number, email: string, name: string, remaining: number}>>([]);
+  const [selectedEmailAccount, setSelectedEmailAccount] = useState<number | null>(null);
+  const [testUserEmail, setTestUserEmail] = useState('');
+  const [testUserName, setTestUserName] = useState('');
+  const [testCampaignResult, setTestCampaignResult] = useState<{campaign_id?: string, campaign_name?: string, message?: string} | null>(null);
+  const [testFlowLoading, setTestFlowLoading] = useState(false);
+  const [testCampaigns, setTestCampaigns] = useState<Array<{id: string, name: string, status: string}>>([]);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -263,9 +272,20 @@ export function RepliesPage() {
             <button onClick={handleRefresh} className="btn btn-secondary btn-sm">
               <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
             </button>
-            <button onClick={() => setShowTestModal(true)} className="btn btn-secondary">
+            <button onClick={async () => {
+              setShowTestFlowModal(true);
+              setTestFlowStep(1);
+              try {
+                const [accountsData, campaignsData] = await Promise.all([
+                  repliesApi.getTestEmailAccounts(),
+                  repliesApi.getTestCampaigns()
+                ]);
+                setTestEmailAccounts(accountsData.accounts || []);
+                setTestCampaigns(campaignsData.campaigns || []);
+              } catch (e) { console.error(e); }
+            }} className="btn btn-secondary">
               <TestTube2 className="w-4 h-4" />
-              Test Reply
+              Test Flow
             </button>
             <button onClick={() => { loadCampaigns(); setShowCreateModal(true); }} className="btn btn-primary">
               <Plus className="w-4 h-4" />
@@ -962,6 +982,206 @@ Hi, thanks for reaching out. We're definitely interested in learning more about 
           onRetryCampaigns={loadCampaigns}
         />
       )}
+
+
+      {/* Test Flow Modal */}
+      {showTestFlowModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowTestFlowModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-neutral-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                    <TestTube2 className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold">Test Auto-Reply Flow</h2>
+                    <p className="text-sm text-neutral-500">Step {testFlowStep} of 3</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowTestFlowModal(false)} className="p-2 hover:bg-neutral-100 rounded-lg">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              {testFlowStep === 1 && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-emerald-50 rounded-xl">
+                    <p className="text-sm text-emerald-800">
+                      <strong>Step 1:</strong> Create a test campaign and send yourself an email.
+                      Reply to it to test the full automation flow!
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Your Email</label>
+                    <input
+                      type="email"
+                      value={testUserEmail}
+                      onChange={(e) => setTestUserEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      className="input w-full"
+                    />
+                    <p className="text-xs text-neutral-400 mt-1">You'll receive a test email here</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Your Name</label>
+                    <input
+                      type="text"
+                      value={testUserName}
+                      onChange={(e) => setTestUserName(e.target.value)}
+                      placeholder="John Doe"
+                      className="input w-full"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Send From (Email Account)</label>
+                    <select
+                      value={selectedEmailAccount || ''}
+                      onChange={(e) => setSelectedEmailAccount(e.target.value ? Number(e.target.value) : null)}
+                      className="input w-full"
+                    >
+                      <option value="">Auto-select best account</option>
+                      {testEmailAccounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.email} ({acc.remaining} emails remaining today)
+                        </option>
+                      ))}
+                    </select>
+                    {testEmailAccounts.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">Loading email accounts...</p>
+                    )}
+                  </div>
+                  
+                  {testCampaigns.length > 0 && (
+                    <div className="p-3 bg-neutral-50 rounded-lg">
+                      <p className="text-xs text-neutral-500 mb-2">Existing test campaigns:</p>
+                      <div className="space-y-1">
+                        {testCampaigns.slice(0, 3).map(c => (
+                          <div key={c.id} className="text-xs text-neutral-600">{c.name} ({c.status})</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {testFlowStep === 2 && testCampaignResult && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-emerald-50 rounded-xl">
+                    <p className="text-sm text-emerald-800 font-medium">Campaign Created!</p>
+                    <p className="text-sm text-emerald-700 mt-1">{testCampaignResult.message}</p>
+                  </div>
+                  
+                  <div className="p-4 bg-amber-50 rounded-xl">
+                    <p className="text-sm text-amber-800 font-medium">Now set up an automation:</p>
+                    <ol className="text-sm text-amber-700 mt-2 space-y-1 list-decimal list-inside">
+                      <li>Click "New Automation" button</li>
+                      <li>Select campaign: <strong>{testCampaignResult.campaign_name}</strong></li>
+                      <li>Connect a Google Sheet</li>
+                      <li>Connect a Slack channel</li>
+                    </ol>
+                  </div>
+                  
+                  <div className="p-3 bg-neutral-100 rounded-lg">
+                    <p className="text-xs text-neutral-500">Campaign ID (for reference):</p>
+                    <code className="text-sm font-mono">{testCampaignResult.campaign_id}</code>
+                  </div>
+                </div>
+              )}
+              
+              {testFlowStep === 3 && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 rounded-xl">
+                    <p className="text-sm text-blue-800 font-medium">Final Step: Test the flow!</p>
+                    <ol className="text-sm text-blue-700 mt-2 space-y-1 list-decimal list-inside">
+                      <li>Check your email for the test message</li>
+                      <li>Reply to it with any message</li>
+                      <li>Watch it appear in your Google Sheet and Slack!</li>
+                    </ol>
+                  </div>
+                  
+                  <div className="p-4 bg-neutral-50 rounded-xl">
+                    <p className="text-sm text-neutral-600">
+                      <strong>Tip:</strong> Try different reply types:
+                    </p>
+                    <ul className="text-sm text-neutral-500 mt-2 space-y-1">
+                      <li>• "Yes, I'm interested!" → Interested</li>
+                      <li>• "Can we schedule a call?" → Meeting Request</li>
+                      <li>• "Not interested, thanks" → Not Interested</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-neutral-100 flex justify-between">
+              {testFlowStep > 1 ? (
+                <button onClick={() => setTestFlowStep(s => s - 1)} className="btn btn-secondary">
+                  Back
+                </button>
+              ) : (
+                <div />
+              )}
+              
+              {testFlowStep === 1 && (
+                <button
+                  onClick={async () => {
+                    if (!testUserEmail) { alert('Please enter your email'); return; }
+                    setTestFlowLoading(true);
+                    try {
+                      const result = await repliesApi.createTestCampaign(
+                        testUserEmail,
+                        testUserName || 'Test User',
+                        selectedEmailAccount || undefined
+                      );
+                      if (result.success) {
+                        setTestCampaignResult(result);
+                        setTestFlowStep(2);
+                      } else {
+                        alert(result.error || 'Failed to create campaign');
+                      }
+                    } catch (e: any) {
+                      alert(e.response?.data?.detail || 'Failed to create campaign');
+                    } finally {
+                      setTestFlowLoading(false);
+                    }
+                  }}
+                  disabled={testFlowLoading || !testUserEmail}
+                  className="btn btn-primary"
+                >
+                  {testFlowLoading ? 'Creating...' : 'Create Test Campaign'}
+                </button>
+              )}
+              
+              {testFlowStep === 2 && (
+                <button
+                  onClick={() => {
+                    setShowTestFlowModal(false);
+                    loadCampaigns();
+                    setShowCreateModal(true);
+                  }}
+                  className="btn btn-primary"
+                >
+                  Create Automation Now
+                </button>
+              )}
+              
+              {testFlowStep === 3 && (
+                <button onClick={() => setShowTestFlowModal(false)} className="btn btn-primary">
+                  Done
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Test Reply Modal */}
       {showTestModal && (

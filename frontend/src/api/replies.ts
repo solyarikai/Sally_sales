@@ -416,4 +416,55 @@ export const repliesApi = {
   getSlackChannels,
   createSlackChannel,
   testSlackChannel,
+  // Test Flow APIs
+  getTestEmailAccounts,
+  createTestCampaign,
+  getTestCampaigns,
+  simulateTestReply,
+  checkTestSetup,
 };
+
+
+// Test Flow APIs
+export async function getTestEmailAccounts(): Promise<{accounts: Array<{id: number, email: string, name: string, remaining: number}>, total: number}> {
+  const response = await api.get('/replies/test-flow/email-accounts');
+  return response.data;
+}
+
+export async function createTestCampaign(userEmail: string, userName: string, emailAccountId?: number): Promise<{
+  success: boolean;
+  campaign_id?: string;
+  campaign_name?: string;
+  message: string;
+  next_steps?: string[];
+  error?: string;
+}> {
+  const params = new URLSearchParams({ user_email: userEmail, user_name: userName });
+  if (emailAccountId) params.append('email_account_id', String(emailAccountId));
+  const response = await api.post(`/replies/test-flow/create-real-campaign?${params}`);
+  return response.data;
+}
+
+export async function getTestCampaigns(): Promise<{campaigns: Array<{id: string, name: string, status: string}>}> {
+  const response = await api.get('/replies/test-flow/campaigns');
+  return response.data;
+}
+
+export async function simulateTestReply(campaignId: string, message: string): Promise<{
+  success: boolean;
+  message: string;
+  result?: { reply_id: number; category: string; slack_sent: boolean; sheet_row: number };
+}> {
+  const params = new URLSearchParams({ campaign_id: campaignId, message });
+  const response = await api.post(`/replies/test-flow/simulate-reply?${params}`);
+  return response.data;
+}
+
+export async function checkTestSetup(campaignId: string): Promise<{
+  ready: boolean;
+  message: string;
+  automation?: { id: number; name: string; has_slack: boolean; has_sheet: boolean };
+}> {
+  const response = await api.get(`/replies/test-flow/check-setup/${campaignId}`);
+  return response.data;
+}
