@@ -1287,7 +1287,7 @@ async def get_available_email_accounts():
     if not api_key:
         raise HTTPException(status_code=400, detail="Smartlead API key not configured")
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.get(
             f"https://server.smartlead.ai/api/v1/email-accounts",
             params={"api_key": api_key, "limit": 50}
@@ -1454,7 +1454,7 @@ async def list_test_campaigns():
     if not api_key:
         return {"campaigns": []}
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.get(
             "https://server.smartlead.ai/api/v1/campaigns",
             params={"api_key": api_key, "limit": 100}
@@ -1523,7 +1523,7 @@ async def get_campaign_status(campaign_id: str):
     if not api_key:
         raise HTTPException(status_code=400, detail="Smartlead not configured")
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.get(
             f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}",
             params={"api_key": api_key}
@@ -1549,7 +1549,7 @@ async def launch_campaign(campaign_id: str):
     if not api_key:
         raise HTTPException(status_code=400, detail="Smartlead not configured")
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         # First ensure schedule is set
         await client.post(
             f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
@@ -1589,7 +1589,7 @@ async def pause_campaign(campaign_id: str):
     if not api_key:
         raise HTTPException(status_code=400, detail="Smartlead not configured")
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
             f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
             params={"api_key": api_key},
