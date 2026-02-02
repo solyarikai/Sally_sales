@@ -1716,50 +1716,108 @@ async def get_lead_conversations(
     lead_email: str,
     db: AsyncSession = Depends(get_session)
 ):
-    """Get conversation history for a lead from local database."""
+    """Get conversation history for a lead from local database or Smartlead API."""
+    import httpx
+    import os
+    import re
+    from app.services.smartlead_service import smartlead_service
     
-    # Get all replies from this lead from our database
+    # First try local database
     query = select(ProcessedReply).where(
-        ProcessedReply.lead_email.ilike(f'%{lead_email}%')
+        ProcessedReply.lead_email.ilike(f"%{lead_email}%")
     ).order_by(ProcessedReply.received_at.desc()).limit(20)
     
     result = await db.execute(query)
     replies = result.scalars().all()
     
-    if not replies:
+    if replies:
+        messages = []
+        for r in replies:
+            messages.append({
+                "type": "REPLY",
+                "body": r.email_body or r.reply_text or "",
+                "subject": r.email_subject,
+                "timestamp": r.received_at.isoformat() if r.received_at else None,
+                "category": r.category
+            })
+            if r.draft_reply:
+                messages.append({
+                    "type": "SENT",
+                    "body": r.draft_reply,
+                    "subject": f"Re: {r.email_subject}" if r.email_subject else "Draft Reply",
+                    "timestamp": r.received_at.isoformat() if r.received_at else None,
+                    "status": r.approval_status
+                })
+        
+        first_reply = replies[0]
+        return {
+            "lead_email": lead_email,
+            "lead_name": f"{first_reply.lead_first_name or ''} {first_reply.lead_last_name or ''}".strip(),
+            "campaign": first_reply.campaign_name or f"Campaign {first_reply.campaign_id}",
+            "messages": messages
+        }
+    
+    # Fallback to Smartlead API
+    api_key = os.environ.get("SMARTLEAD_API_KEY") or smartlead_service.api_key
+    if not api_key:
         return {"conversations": [], "message": "Lead not found"}
     
-    # Format as conversation messages
-    messages = []
-    for r in replies:
-        # Add the lead's reply
-        messages.append({
-            "type": "REPLY",
-            "body": r.email_body or r.reply_text or '',
-            "subject": r.email_subject,
-            "timestamp": r.received_at.isoformat() if r.received_at else None,
-            "category": r.category
-        })
-        
-        # Add the generated draft if exists
-        if r.draft_reply:
-            messages.append({
-                "type": "SENT",
-                "body": r.draft_reply,
-                "subject": f"Re: {r.email_subject}" if r.email_subject else "Draft Reply",
-                "timestamp": r.received_at.isoformat() if r.received_at else None,
-                "status": r.approval_status
-            })
-    
-    first_reply = replies[0] if replies else None
-    
-    return {
-        "lead_email": lead_email,
-        "lead_name": f"{first_reply.lead_first_name or ''} {first_reply.lead_last_name or ''}".strip() if first_reply else '',
-        "campaign": first_reply.campaign_name or f"Campaign {first_reply.campaign_id}" if first_reply else '',
-        "messages": messages
-    }
-
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            lead_resp = await client.get(
+                "https://server.smartlead.ai/api/v1/leads",
+                params={"api_key": api_key, "email": lead_email}
+            )
+            lead_data = lead_resp.json()
+            
+            if not lead_data or not lead_data.get("id"):
+                return {"conversations": [], "message": "Lead not found in Smartlead"}
+            
+            lead_id = lead_data["id"]
+            lead_name = f"{lead_data.get('first_name', '')} {lead_data.get('last_name', '')}".strip()
+            lead_campaigns = lead_data.get("lead_campaign_data", [])
+            
+            messages = []
+            campaign_name = ""
+            
+            for campaign_info in lead_campaigns[:3]:
+                campaign_id = campaign_info.get("campaign_id")
+                if not campaign_id:
+                    continue
+                    
+                campaign_name = campaign_info.get("campaign_name", f"Campaign {campaign_id}")
+                
+                hist_resp = await client.get(
+                    f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads/{lead_id}/message-history",
+                    params={"api_key": api_key}
+                )
+                hist_data = hist_resp.json()
+                
+                for msg in hist_data.get("history", []):
+                    body = msg.get("email_body", "")
+                    if "<" in body:
+                        body = re.sub(r"<[^>]+>", "", body)
+                    
+                    messages.append({
+                        "type": msg.get("type", "SENT"),
+                        "body": body[:500],
+                        "subject": msg.get("subject", ""),
+                        "timestamp": msg.get("time"),
+                        "from": msg.get("from"),
+                        "to": msg.get("to")
+                    })
+            
+            if not messages:
+                return {"conversations": [], "message": "No message history found"}
+            
+            return {
+                "lead_email": lead_email,
+                "lead_name": lead_name,
+                "campaign": campaign_name,
+                "messages": messages
+            }
+    except Exception as e:
+        return {"conversations": [], "message": f"Error: {str(e)}"}
 
 
 @router.get("/slack/status")

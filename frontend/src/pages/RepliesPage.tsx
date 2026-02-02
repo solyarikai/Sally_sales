@@ -92,6 +92,8 @@ export function RepliesPage() {
   const [editClassificationTemplate, setEditClassificationTemplate] = useState<string>('default');
   const [editReplyTemplate, setEditReplyTemplate] = useState<string>('default');
   const [editPromptTemplates, setEditPromptTemplates] = useState<any[]>([]);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [isResizing, setIsResizing] = useState(false);
   const [slackChannelsEdit, setSlackChannelsEdit] = useState<Array<{id: string, name: string}>>([]);
   const [promptTestText, setPromptTestText] = useState('');
   const [promptTestResult, setPromptTestResult] = useState<{category?: string, reply?: string} | null>(null);
@@ -163,6 +165,29 @@ export function RepliesPage() {
       console.error("Failed to load slack channels:", err);
     }
   }, []);
+
+  // Sidebar resize handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = Math.min(Math.max(200, e.clientX), 600);
+      setSidebarWidth(newWidth);
+    };
+    const handleMouseUp = () => setIsResizing(false);
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
 
   const loadEditTemplates = async () => {
     try {
@@ -372,7 +397,7 @@ export function RepliesPage() {
       {/* Content - 2 columns: Automations + Replies */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left sidebar - Automations */}
-        <div className="w-80 border-r border-neutral-200 bg-white overflow-auto">
+        <div style={{ width: sidebarWidth }} className="border-r border-neutral-200 bg-white overflow-auto flex-shrink-0 relative">
           <div className="p-4 border-b border-neutral-200">
             <h2 className="text-sm font-semibold text-neutral-700 flex items-center gap-2">
               <Zap className="w-4 h-4" />
@@ -499,6 +524,12 @@ export function RepliesPage() {
               ))}
             </div>
           )}
+          {/* Resize handle */}
+          <div
+            onMouseDown={handleMouseDown}
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-violet-300 transition-colors"
+            style={{ backgroundColor: isResizing ? "#8b5cf6" : "transparent" }}
+          />
         </div>
 
         {/* Main content - Replies list */}
