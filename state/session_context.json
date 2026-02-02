@@ -1,12 +1,12 @@
 {
   "session_id": 1,
-  "started_at": "2026-02-01T23:20:01+00:00",
-  "last_updated": "2026-02-02T00:15:00+00:00",
-  "status": "completed",
+  "started_at": "2026-02-02T00:30:01+00:00",
+  "last_updated": "2026-02-02T00:30:01+00:00",
+  "status": "active",
   "current_task": {
-    "name": "Task 5: Data Search Improvements (data300126)",
-    "current_subtask": "Crona + OpenAI verification pipeline - COMPLETED"
+    "name": "Task 1: Monitor Reply Automation||",
+    "current_subtask": "Check backend logs every run: docker logs leadgen-backend 2>&1 | tail -50"
   },
   "auto_continue": true,
-  "recovery_notes": "Completed: Crona + OpenAI verification pipeline. Created verification_service.py, added API endpoints, updated frontend with verify button and status display."
+  "recovery_notes": "Auto-continue session. Working on: Task 1: Monitor Reply Automation|| - Check backend logs every run: docker logs leadgen-backend 2>&1 | tail -50"
 }

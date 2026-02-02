@@ -1,9 +1,53 @@
 # Bugs Found During Reply Automation E2E Testing
 
-**Updated:** 2026-02-01 23:00 UTC
-**Task:** Task 5 - Reply Automation E2E Testing
+**Updated:** 2026-02-02 00:35 UTC
+**Task:** Task 1 - Monitor Reply Automation
 
 ---
+
+## BLOCKER: Shell Commands Rejected (Session 57)
+
+### Status: ENVIRONMENT ISSUE
+
+### Problem
+All shell commands (docker, echo, pwd, etc.) are being rejected by the system.
+Cannot execute any terminal commands to:
+- Check Docker container logs
+- Verify container status
+- Run health checks
+
+### Evidence
+```
+Commands attempted:
+- docker logs leadgen-backend 2>&1 | tail -50 → Rejected
+- docker ps → Rejected
+- docker info → Rejected
+- which docker → Rejected
+- echo "test" → Rejected
+- pwd → Rejected
+```
+
+### Impact
+- Cannot complete monitoring task
+- Cannot check for errors in backend logs
+- Cannot verify system health
+
+### Possible Causes
+1. Shell tool permissions issue
+2. Docker socket permission issue
+3. Environment/workspace access issue
+
+### Workaround
+User needs to manually check:
+```bash
+docker logs leadgen-backend 2>&1 | tail -50
+docker ps
+curl -s http://localhost:8000/api/health
+```
+
+---
+
+## Previous Blockers (Still Open)
 
 ## BUG 1: Google Sheets API Permission Error (BLOCKER)
 
@@ -12,15 +56,6 @@
 ### Problem
 Google Sheet creation fails with **"Failed to create Google Sheet"** error.
 Root cause: Google Sheets API and/or Google Drive API not enabled in Google Cloud Console.
-
-### Evidence
-```bash
-# Test command:
-curl -s -X POST "http://localhost:8000/api/replies/google-sheets/create?name=Test_Sheet"
-
-# Response:
-{"detail":"Failed to create Google Sheet"}
-```
 
 ### Steps to Fix (User must do this)
 
@@ -37,88 +72,6 @@ curl -s -X POST "http://localhost:8000/api/replies/google-sheets/create?name=Tes
 ### Service Account
 - Email: `autoreplies@autoreplies010226.iam.gserviceaccount.com`
 - Project: `autoreplies010226`
-
----
-
-## BUG 2: pytest-asyncio Compatibility Issue (NON-BLOCKING)
-
-### Status: Test framework issue, does not affect production
-
-### Problem
-Running E2E tests fails with:
-```
-AttributeError: 'Package' object has no attribute 'obj'
-```
-
-This is a compatibility issue between `pytest-asyncio==0.23.3` and the current pytest version.
-
-### Impact
-- E2E tests cannot run automatically
-- Manual API testing works correctly
-- Production functionality is not affected
-
-### Fix (Low priority)
-Update pytest-asyncio version or adjust pytest.ini configuration:
-```bash
-# Option 1: Update pytest-asyncio
-pip install pytest-asyncio>=0.24
-
-# Option 2: Add to pytest.ini
-asyncio_mode = auto
-asyncio_default_fixture_loop_scope = function
-```
-
----
-
-## VERIFIED WORKING (No Bugs)
-
-### 1. Smartlead Campaigns Load ✅
-```bash
-curl http://localhost:8000/api/smartlead/campaigns
-# Returns 1648 campaigns correctly (READ-ONLY verified)
-```
-
-### 2. Automation Creation ✅
-```bash
-curl http://localhost:8000/api/replies/automations
-# Returns 19 automations saved to database correctly
-```
-
-### 3. Slack Channel List ✅
-```bash
-curl http://localhost:8000/api/replies/slack/channels
-# Returns 3 channels: auto-replies-test, c-replies-test, test-easy-auto-replies
-```
-
-### 4. Slack Test Notification ✅
-```bash
-curl -X POST http://localhost:8000/api/replies/slack/test-channel/C09REGUQWTG
-# {"success":true,"message":"Test notification sent successfully via Bot Token"}
-```
-
-### 5. Google Sheets Status Check ✅
-```bash
-curl http://localhost:8000/api/replies/google-sheets/status
-# {"configured":true,"service_account_email":"autoreplies@autoreplies010226.iam.gserviceaccount.com"}
-```
-
----
-
-## Summary
-
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Smartlead Campaigns | ✅ Working | READ-ONLY, safe |
-| Automation Create/List | ✅ Working | Saves to DB correctly |
-| Slack Channels | ✅ Working | Uses users.conversations |
-| Slack Notifications | ✅ Working | Bot token sends messages |
-| Google Sheets Status | ✅ Working | Service account configured |
-| Google Sheets Create | ❌ BLOCKED | API not enabled in GCP |
-| E2E Test Suite | ⚠️ Issue | pytest-asyncio compatibility |
-
----
-
-**Next Step:** User needs to enable Google Sheets API and Google Drive API in Google Cloud Console, then reply "done" to continue testing.
 
 ---
 
@@ -140,32 +93,3 @@ Run the following command to deploy:
 ```bash
 cd /home/leadokol/magnum-opus-project/repo && docker-compose down && docker-compose up -d --build
 ```
-
-### Test After Deploy
-
-1. **Verification API Test:**
-```bash
-# Test single company verification
-curl -X POST http://localhost:8000/api/data-search/verify \
-  -H "Content-Type: application/json" \
-  -d '{"company":{"id":"1","name":"Stripe","domain":"stripe.com"},"criteria":{"industry":"fintech"}}'
-
-# Test batch verification
-curl -X POST http://localhost:8000/api/data-search/verify/batch \
-  -H "Content-Type: application/json" \
-  -d '{"companies":[{"id":"1","name":"Stripe","domain":"stripe.com"}],"criteria":{"industry":"fintech"}}'
-```
-
-2. **Frontend Verification Test:**
-   - Visit http://46.62.210.24/
-   - Search: "SaaS companies in Germany"
-   - Click the green "Verify" button
-   - Wait ~10-15 seconds for batch verification
-   - Verified companies show:
-     - Green shield icon with "Verified match"
-     - Confidence percentage
-     - Match reasons
-
-3. **Previous Features Still Work:**
-   - Natural Language Search
-   - Reverse Engineering Search ("Find Similar" tab)
