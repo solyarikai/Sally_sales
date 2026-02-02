@@ -2278,6 +2278,49 @@ async def sync_historical_replies(
             except Exception as e:
                 errors.append(f"{reply.lead_email}: {str(e)}")
     
+    # If no local data, fetch from Smartlead statistics API
+    if synced == 0:
+        import httpx
+        import os
+        api_key = os.environ.get("SMARTLEAD_API_KEY")
+        if api_key:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                for campaign_id in (automation.campaign_ids or []):
+                    try:
+                        resp = await client.get(
+                            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/statistics",
+                            params={"api_key": api_key, "limit": limit * 10}
+                        )
+                        stats = resp.json()
+                        for entry in stats.get("data", []):
+                            if not entry.get("reply_time"):
+                                continue
+                            if synced >= limit:
+                                break
+                            lead_email = entry.get("lead_email", "").lower()
+                            if lead_email in existing_emails:
+                                skipped += 1
+                                continue
+                            
+                            row_data = {
+                                "lead_email": entry.get("lead_email", ""),
+                                "lead_name": entry.get("lead_name", ""),
+                                "subject": entry.get("email_subject", ""),
+                                "reply_text": f"[Reply received at {entry.get('reply_time', '')}]",
+                                "received_at": entry.get("reply_time", ""),
+                                "campaign_name": automation.name,
+                                "category": "",
+                                "status": "historical_api"
+                            }
+                            try:
+                                google_sheets_service.append_reply(automation.google_sheet_id, row_data)
+                                synced += 1
+                                existing_emails.add(lead_email)
+                            except Exception as e:
+                                errors.append(f"{lead_email}: {str(e)}")
+                    except Exception as api_err:
+                        errors.append(f"Campaign {campaign_id}: {str(api_err)}")
+    
     return {
         "success": True,
         "synced": synced,
