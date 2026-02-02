@@ -204,6 +204,9 @@ async def create_automation(
                 local_replies = local_result.scalars().all()
                 
                 for reply in local_replies:
+                    # Skip test emails
+                    if reply.lead_email and ("@example.com" in reply.lead_email.lower() or "@test.com" in reply.lead_email.lower()):
+                        continue
                     if reply.lead_email and reply.lead_email.lower() in existing_emails:
                         continue
                     row_data = {
@@ -2273,6 +2276,9 @@ async def sync_historical_replies(
         local_replies = local_result.scalars().all()
         
         for reply in local_replies:
+            # Skip test emails
+            if reply.lead_email and ("@example.com" in reply.lead_email.lower() or "@test.com" in reply.lead_email.lower()):
+                continue
             if reply.lead_email and reply.lead_email.lower() in existing_emails:
                 skipped += 1
                 continue

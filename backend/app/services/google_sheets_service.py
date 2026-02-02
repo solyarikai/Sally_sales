@@ -237,16 +237,16 @@ class GoogleSheetsService:
                     'cell': {
                         'userEnteredFormat': {
                             'backgroundColor': {
-                                'red': 0.2,
-                                'green': 0.2,
-                                'blue': 0.4
+                                'red': 0.95,
+                                'green': 0.95,
+                                'blue': 0.95
                             },
                             'textFormat': {
                                 'bold': True,
                                 'foregroundColor': {
-                                    'red': 1.0,
-                                    'green': 1.0,
-                                    'blue': 1.0
+                                    'red': 0.0,
+                                    'green': 0.0,
+                                    'blue': 0.0
                                 }
                             }
                         }
