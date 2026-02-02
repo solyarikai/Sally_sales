@@ -1471,10 +1471,10 @@ async def simulate_test_reply(
             "success": True,
             "message": "Test reply processed successfully!",
             "result": {
-                "reply_id": result.get("reply_id") if result else None,
-                "category": result.get("category") if result else None,
-                "slack_sent": result.get("slack_sent") if result else False,
-                "sheet_row": result.get("sheet_row") if result else None
+                "reply_id": result.id if result else None,
+                "category": result.category if result else None,
+                "slack_sent": result.sent_to_slack if result else False,
+                "sheet_row": result.google_sheet_row if hasattr(result, "google_sheet_row") else None
             }
         }
     except Exception as e:

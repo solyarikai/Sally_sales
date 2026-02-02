@@ -531,7 +531,7 @@ async def process_reply_webhook(
         # Wrap in try/catch to prevent Telegram failures from breaking webhook processing
         try:
             from app.services.notification_service import notify_reply_needs_attention
-            await notify_reply_needs_attention(processed_reply, category)
+            await notify_reply_needs_attention(processed_reply, classification["category"])
         except Exception as telegram_error:
             logger.error(f"[PROCESSOR] Telegram notification failed (non-fatal): {telegram_error}")
             # Continue processing - Telegram failure should not break webhook handling
