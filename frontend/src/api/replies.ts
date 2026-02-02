@@ -307,12 +307,14 @@ export async function resendNotification(replyId: number): Promise<{ success: bo
 export interface SimulateReplyPayload {
   campaign_id?: string;
   campaign_name?: string;
-  lead_email: string;
+  lead_email?: string;
   first_name?: string;
   last_name?: string;
   company_name?: string;
   email_subject?: string;
   email_body: string;
+  classification_prompt?: string;
+  reply_prompt?: string;
 }
 
 export interface SimulateReplyResponse {

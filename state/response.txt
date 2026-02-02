@@ -1,62 +1,47 @@
-SUBTASK: Read backend/app/services/reply_processor.py and analyze error handling
+SUBTASK COMPLETED: Read backend/app/services/reply_processor.py and analyze error handling
 
-COMPLETED: Analysis of error handling in reply_processor.py
+## Error Handling Analysis for reply_processor.py
 
-## Error Handling Analysis
+### Overview
+The file contains 3 main async functions with error handling patterns.
 
-### 1. classify_reply() (lines 84-142)
-**Pattern**: Graceful degradation
-- Checks if OpenAI is connected first (line 98-104)
-- Returns default "other" category with low confidence if not connected
-- Wraps API call in try/except (lines 106-142)
-- On exception: logs error, returns fallback result with error message in reasoning
-- **Good**: Never throws, always returns usable result
+### Error Handling Summary:
 
-### 2. generate_draft_reply() (lines 179-255)
-**Pattern**: Graceful degradation
-- Skips draft for out_of_office category (lines 201-207)
-- Checks OpenAI connection before attempting (lines 209-215)
-- Wraps API call in try/except (lines 217-255)
-- On exception: logs error, returns fallback with error message in body
-- **Good**: Never throws, always returns usable result
+#### 1. classify_reply() (lines 84-142)
+- **Pre-check**: Checks `openai_service.is_connected()` before calling API (line 98)
+- **Graceful fallback**: Returns default "other" category with low confidence if not connected
+- **Try/except**: Catches all exceptions (line 136)
+- **Recovery**: Returns safe default values on error with error message in reasoning field
+- **Status**: GOOD - graceful degradation, no crashes
 
-### 3. process_reply_webhook() (lines 258-488)
-**Pattern**: Partial error isolation with outer try/catch
-- Main logic wrapped in try/except (lines 278-488)
-- Google Sheets logging has separate try/except (lines 443-464) - isolated failure
-- On error: logs, updates automation error stats, rolls back transaction, re-raises
-- **Issue**: Automation error tracking has bare `except: pass` (lines 485-486)
+#### 2. generate_draft_reply() (lines 179-255)
+- **Early return**: Skips draft for out_of_office category (line 202)
+- **Pre-check**: Checks OpenAI connection (line 209)
+- **Graceful fallback**: Returns placeholder text if not connected
+- **Try/except**: Catches all exceptions (line 249)
+- **Recovery**: Returns error placeholder in body field with "error" tone
+- **Status**: GOOD - graceful degradation
 
-### Potential Issues Found
+#### 3. process_reply_webhook() (lines 258-488)
+- **Comprehensive logging**: Logs payload keys, event type, full payload (lines 272-276)
+- **Null safety**: Uses `or` chaining for field extraction (e.g., lines 283-287)
+- **HTML sanitization**: Strips HTML tags from body (lines 304-310)
+- **Early return**: Returns None if no lead_email (line 345-346)
+- **Try/except**: Main try block wraps entire processing (line 278)
+- **Error tracking**: On failure, updates automation.total_errors and last_error (lines 479-486)
+- **Nested try/except**: Google Sheets logging has its own error handling (line 463-464)
+- **Session management**: Calls session.rollback() on failure (line 487)
+- **Status**: GOOD - comprehensive with error tracking
 
-1. **Line 485-486**: Bare `except: pass` swallows all errors including KeyboardInterrupt
-   - Should be `except Exception:` at minimum
+### Potential Issues Found:
+1. **Silent failures in nested operations**: Lines 485-486 use bare `except: pass` which swallows errors silently
+2. **No retry logic**: API calls to OpenAI fail once and give up
+3. **JSON parsing**: Lines 122 and 241 parse JSON without specific exception handling for JSONDecodeError
 
-2. **JSON parsing (lines 121-122, 241)**: If OpenAI returns malformed JSON:
-   - Currently caught by outer exception handler
-   - Could add specific json.JSONDecodeError handling for better error messages
+### Recommendations:
+1. Add specific `json.JSONDecodeError` handling for more informative error messages
+2. Consider adding retry logic for transient OpenAI failures
+3. Replace bare `except: pass` with proper logging
 
-3. **No retry logic**: If OpenAI API has transient failure, no automatic retry
-
-4. **Session state**: If error occurs after session.flush() (line 414) but before commit (line 471):
-   - Rollback happens correctly (line 487)
-   - But Slack notification may have already been sent
-
-### Recommendations (optional improvements)
-
-1. Change `except:` to `except Exception:` on line 485
-2. Consider adding json.JSONDecodeError specific handling
-3. Add retry decorator for transient API failures
-4. Consider sending Slack notifications after successful commit
-
-### Overall Assessment
-
-Error handling is **generally good**:
-- Functions don't throw unexpectedly
-- Graceful fallbacks for OpenAI unavailability
-- Proper transaction rollback on failure
-- Error tracking on automation records
-
-The code follows defensive programming principles with appropriate logging throughout.
-
-STATUS: COMPLETE - No code changes needed, analysis only
+### Conclusion:
+Error handling is generally robust with graceful degradation patterns. The code won't crash on errors and provides useful fallback values. The main webhook processor properly tracks errors on the automation record for monitoring.
