@@ -186,9 +186,16 @@ async def create_automation(
     
     # Auto-sync historical replies to Google Sheet (data only, no AI/Slack)
     if automation.google_sheet_id and automation.campaign_ids:
+        import httpx
+        import os
+        import re as regex
+        
+        api_key = os.environ.get("SMARTLEAD_API_KEY")
+        synced = 0
+        existing_emails = set()
+        
         try:
-            synced = 0
-            existing_emails = set()
+            # First try local DB
             for campaign_id in automation.campaign_ids:
                 local_query = select(ProcessedReply).where(
                     ProcessedReply.campaign_id == campaign_id
@@ -201,7 +208,7 @@ async def create_automation(
                         continue
                     row_data = {
                         "lead_email": reply.lead_email or "",
-                        "lead_name": f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip(),
+                        "lead_name": f"{reply.lead_first_name or '' } {reply.lead_last_name or '' }".strip(),
                         "subject": reply.email_subject or "",
                         "reply_text": (reply.email_body or reply.reply_text or "")[:500],
                         "received_at": reply.received_at.isoformat() if reply.received_at else "",
@@ -213,6 +220,46 @@ async def create_automation(
                     synced += 1
                     if reply.lead_email:
                         existing_emails.add(reply.lead_email.lower())
+            
+            # If no local data, fetch from Smartlead statistics API
+            if synced == 0 and api_key:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    for campaign_id in automation.campaign_ids:
+                        try:
+                            resp = await client.get(
+                                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/statistics",
+                                params={"api_key": api_key, "limit": 200}
+                            )
+                            stats = resp.json()
+                            # Filter for entries with reply_time
+                            for entry in stats.get("data", []):
+                                if not entry.get("reply_time"):
+                                    continue
+                                lead_email = entry.get("lead_email", "").lower()
+                                if lead_email in existing_emails:
+                                    continue
+                                
+                                # Strip HTML from email_message for reply text
+                                body = entry.get("email_message", "")
+                                if "<" in body:
+                                    body = regex.sub(r"<[^>]+>", "", body)
+                                
+                                row_data = {
+                                    "lead_email": entry.get("lead_email", ""),
+                                    "lead_name": entry.get("lead_name", ""),
+                                    "subject": entry.get("email_subject", ""),
+                                    "reply_text": f"[Reply received at {entry.get('reply_time', '')}]",
+                                    "received_at": entry.get("reply_time", ""),
+                                    "campaign_name": automation.name,
+                                    "category": "",
+                                    "status": "historical_api"
+                                }
+                                google_sheets_service.append_reply(automation.google_sheet_id, row_data)
+                                synced += 1
+                                existing_emails.add(lead_email)
+                        except Exception as api_err:
+                            logger.warning(f"Failed to fetch stats for campaign {campaign_id}: {api_err}")
+            
             if synced > 0:
                 logger.info(f"Auto-synced {synced} historical replies to Google Sheet")
         except Exception as e:
