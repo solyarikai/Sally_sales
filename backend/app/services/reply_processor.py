@@ -546,8 +546,12 @@ async def process_reply_webhook(
                     'classification_reasoning': classification["reasoning"],
                     'inbox_link': inbox_link,
                 }
-                google_sheets_service.append_reply(automation.google_sheet_id, reply_data)
-                logger.info(f"Logged reply {processed_reply.id} to Google Sheet {automation.google_sheet_id}")
+                row_number = google_sheets_service.append_reply_and_get_row(automation.google_sheet_id, reply_data)
+                if row_number:
+                    processed_reply.google_sheet_row = row_number
+                    db.add(processed_reply)
+                    await db.commit()
+                logger.info(f"Logged reply {processed_reply.id} to Google Sheet {automation.google_sheet_id} at row {row_number}")
             except Exception as e:
                 logger.error(f"Failed to log reply to Google Sheets: {e}")
         

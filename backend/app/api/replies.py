@@ -837,6 +837,60 @@ async def get_reply(
     return ProcessedReplyResponse.model_validate(reply)
 
 
+
+
+@router.patch("/{reply_id}/status")
+async def update_reply_status(
+    reply_id: int,
+    approval_status: str = Query(..., description="New status: pending, approved, dismissed"),
+    db: AsyncSession = Depends(get_session)
+):
+    """Update the approval status of a reply and sync to Google Sheets."""
+    from app.services.google_sheets_service import google_sheets_service
+    
+    # Get the reply
+    result = await db.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    reply = result.scalar_one_or_none()
+    
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+    
+    # Validate status
+    valid_statuses = ["pending", "approved", "dismissed"]
+    if approval_status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+    
+    # Update the reply
+    reply.approval_status = approval_status
+    db.add(reply)
+    await db.commit()
+    await db.refresh(reply)
+    
+    # Sync to Google Sheets if configured
+    sheet_updated = False
+    if reply.automation_id and reply.google_sheet_row:
+        # Get automation to find sheet ID
+        auto_result = await db.execute(
+            select(ReplyAutomation).where(ReplyAutomation.id == reply.automation_id)
+        )
+        automation = auto_result.scalar_one_or_none()
+        
+        if automation and automation.google_sheet_id:
+            sheet_updated = google_sheets_service.update_reply_status(
+                automation.google_sheet_id,
+                reply.google_sheet_row,
+                approval_status
+            )
+    
+    return {
+        "success": True,
+        "reply_id": reply_id,
+        "approval_status": approval_status,
+        "sheet_updated": sheet_updated
+    }
+
 @router.post("/{reply_id}/resend-notification")
 async def resend_notification(
     reply_id: int,

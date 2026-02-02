@@ -124,6 +124,9 @@ class ProcessedReply(Base, TimestampMixin):
     # Smartlead inbox link (from webhook: ui_master_inbox_link)
     inbox_link = Column(String(500), nullable=True)
     
+    # Google Sheets tracking
+    google_sheet_row = Column(Integer, nullable=True)  # Row number in the sheet for updates
+    
     # Full webhook payload for debugging
     raw_webhook_data = Column(JSON, nullable=True)
     

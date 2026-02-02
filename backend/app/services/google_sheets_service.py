@@ -192,7 +192,7 @@ class GoogleSheetsService:
             }
             self.sheets_service.spreadsheets().values().update(
                 spreadsheetId=sheet_id,
-                range='Replies!A1',
+                range='Sheet1!A1',
                 valueInputOption='RAW',
                 body=body
             ).execute()
@@ -304,7 +304,7 @@ class GoogleSheetsService:
             # Append to the sheet (always adds to the end)
             self.sheets_service.spreadsheets().values().append(
                 spreadsheetId=sheet_id,
-                range='Replies!A:O',
+                range='Sheet1!A:O',
                 valueInputOption='RAW',
                 insertDataOption='INSERT_ROWS',
                 body=body
@@ -355,7 +355,7 @@ class GoogleSheetsService:
 
 
     def create_reply_sheet_via_drive(self, name: str, share_with_email: Optional[str] = None) -> Optional[Dict[str, str]]:
-        """Create a Google Sheet using Drive API (fallback if Sheets API is disabled)."""
+        """Create a Google Sheet using Drive API with Shared Drive support."""
         if not self._initialize():
             logger.error("Google Sheets service not initialized")
             return None
@@ -363,14 +363,23 @@ class GoogleSheetsService:
         try:
             drive_service = build('drive', 'v3', credentials=self.credentials)
             
+            # Get Shared Drive ID from environment
+            shared_drive_id = os.environ.get('SHARED_DRIVE_ID')
+            
             file_metadata = {
                 'name': f"Reply Log - {name}",
                 'mimeType': 'application/vnd.google-apps.spreadsheet'
             }
             
+            # If shared drive is configured, create file in shared drive
+            if shared_drive_id:
+                file_metadata['parents'] = [shared_drive_id]
+                logger.info(f"Creating sheet in Shared Drive: {shared_drive_id}")
+            
             file = drive_service.files().create(
                 body=file_metadata,
-                fields='id,webViewLink'
+                fields='id,webViewLink',
+                supportsAllDrives=True  # Required for Shared Drives
             ).execute()
             
             sheet_id = file.get('id')
@@ -389,7 +398,7 @@ class GoogleSheetsService:
             if share_with_email:
                 try:
                     permission = {'type': 'user', 'role': 'writer', 'emailAddress': share_with_email}
-                    drive_service.permissions().create(fileId=sheet_id, body=permission, sendNotificationEmail=False).execute()
+                    drive_service.permissions().create(fileId=sheet_id, body=permission, sendNotificationEmail=False, supportsAllDrives=True).execute()
                 except Exception as e:
                     logger.warning(f"Could not share sheet: {e}")
             
@@ -401,6 +410,54 @@ class GoogleSheetsService:
             return None
         except Exception as e:
             logger.error(f"Unexpected error creating sheet via Drive: {e}")
+            return None
+
+
+
+    def update_reply_status(self, sheet_id: str, row_number: int, approval_status: str) -> bool:
+        """Update the approval status of a reply in the sheet."""
+        if not self._initialize():
+            return False
+            
+        try:
+            # Approval status is in column N (14th column)
+            range_name = f"Sheet1!N{row_number}"
+            body = {'values': [[approval_status]]}
+            
+            self.sheets_service.spreadsheets().values().update(
+                spreadsheetId=sheet_id,
+                range=range_name,
+                valueInputOption='RAW',
+                body=body
+            ).execute()
+            
+            logger.info(f"Updated row {row_number} to {approval_status} in sheet {sheet_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error updating reply status: {e}")
+            return False
+    
+    def append_reply_and_get_row(self, sheet_id: str, reply_data: Dict[str, Any]) -> Optional[int]:
+        """Append a reply and return the row number."""
+        if not self._initialize():
+            return None
+            
+        try:
+            # Get current row count
+            result = self.sheets_service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range="Sheet1!A:A"
+            ).execute()
+            current_rows = len(result.get('values', []))
+            new_row = current_rows + 1
+            
+            if self.append_reply(sheet_id, reply_data):
+                return new_row
+            return None
+        except Exception as e:
+            logger.error(f"Error in append_reply_and_get_row: {e}")
+            if self.append_reply(sheet_id, reply_data):
+                return None
             return None
 
 
