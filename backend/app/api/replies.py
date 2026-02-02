@@ -878,10 +878,13 @@ async def update_reply_status(
         automation = auto_result.scalar_one_or_none()
         
         if automation and automation.google_sheet_id:
+            approved_at_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
             sheet_updated = google_sheets_service.update_reply_status(
                 automation.google_sheet_id,
                 reply.google_sheet_row,
-                approval_status
+                approval_status,
+                approved_by='',  # Can be set from auth later
+                approved_at=approved_at_str
             )
     
     return {

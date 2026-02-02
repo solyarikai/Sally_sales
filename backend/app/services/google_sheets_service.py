@@ -26,22 +26,28 @@ class GoogleSheetsService:
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file']
     
     # Standard column headers for reply logging
+        # Column headers for reply sheet - matches n8n reference format
     REPLY_HEADERS = [
-        'Timestamp',
-        'Lead Email',
-        'First Name',
-        'Last Name',
-        'Company',
-        'Campaign',
-        'Category',
-        'Confidence',
-        'Subject',
-        'Reply Body',
-        'Draft Subject',
-        'Draft Reply',
-        'AI Reasoning',
-        'Approval Status',
-        'Inbox Link'
+        'Timestamp',           # A - When reply was processed
+        'Lead Email',          # B - Email address
+        'First Name',          # C - Lead first name
+        'Last Name',           # D - Lead last name
+        'Company',             # E - Company name
+        'Job Title',           # F - Lead job title (from custom_fields)
+        'LinkedIn',            # G - LinkedIn profile URL
+        'Campaign ID',         # H - Smartlead campaign ID
+        'Campaign Name',       # I - Campaign name
+        'Reply Subject',       # J - Email subject
+        'Reply Body',          # K - Full reply text
+        'Category',            # L - AI classification (interested/not_interested/etc)
+        'Confidence',          # M - Classification confidence
+        'AI Reasoning',        # N - Why AI chose this category
+        'Draft Reply',         # O - Generated reply draft
+        'Status',              # P - Approval status (pending/approved/dismissed)
+        'Approved By',         # Q - Who approved
+        'Approved At',         # R - When approved
+        'Inbox Link',          # S - Link to Smartlead inbox
+        'Reply ID',            # T - Internal reply ID for updates
     ]
     
     def __init__(self):
@@ -280,21 +286,26 @@ class GoogleSheetsService:
         try:
             # Format the row data matching REPLY_HEADERS
             row = [
-                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
-                reply_data.get('lead_email', ''),
-                reply_data.get('lead_first_name', ''),
-                reply_data.get('lead_last_name', ''),
-                reply_data.get('lead_company', ''),
-                reply_data.get('campaign_name', reply_data.get('campaign_id', '')),
-                reply_data.get('category', ''),
-                reply_data.get('category_confidence', ''),
-                reply_data.get('email_subject', ''),
-                reply_data.get('email_body', reply_data.get('reply_text', '')),
-                reply_data.get('draft_subject', ''),
-                reply_data.get('draft_reply', ''),
-                reply_data.get('classification_reasoning', ''),
-                reply_data.get('approval_status', ''),
-                reply_data.get('inbox_link', '')
+                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),  # Timestamp
+                reply_data.get('lead_email', ''),                      # Lead Email
+                reply_data.get('lead_first_name', ''),                 # First Name
+                reply_data.get('lead_last_name', ''),                  # Last Name
+                reply_data.get('lead_company', ''),                    # Company
+                reply_data.get('job_title', ''),                       # Job Title
+                reply_data.get('linkedin_profile', ''),                # LinkedIn
+                reply_data.get('campaign_id', ''),                     # Campaign ID
+                reply_data.get('campaign_name', ''),                   # Campaign Name
+                reply_data.get('email_subject', ''),                   # Reply Subject
+                reply_data.get('email_body', reply_data.get('reply_text', '')),  # Reply Body
+                reply_data.get('category', ''),                        # Category
+                reply_data.get('category_confidence', ''),             # Confidence
+                reply_data.get('classification_reasoning', ''),        # AI Reasoning
+                reply_data.get('draft_reply', ''),                     # Draft Reply
+                reply_data.get('approval_status', 'pending'),          # Status
+                reply_data.get('approved_by', ''),                     # Approved By
+                reply_data.get('approved_at', ''),                     # Approved At
+                reply_data.get('inbox_link', ''),                      # Inbox Link
+                str(reply_data.get('id', '')),                         # Reply ID
             ]
             
             body = {
@@ -304,7 +315,7 @@ class GoogleSheetsService:
             # Append to the sheet (always adds to the end)
             self.sheets_service.spreadsheets().values().append(
                 spreadsheetId=sheet_id,
-                range='Sheet1!A:O',
+                range='Sheet1!A:T',
                 valueInputOption='RAW',
                 insertDataOption='INSERT_ROWS',
                 body=body
@@ -319,7 +330,6 @@ class GoogleSheetsService:
         except Exception as e:
             logger.error(f"Error appending reply to sheet: {e}")
             return False
-    
     def get_sheet_info(self, sheet_id: str) -> Optional[Dict[str, Any]]:
         """Get information about a sheet.
         
@@ -414,15 +424,32 @@ class GoogleSheetsService:
 
 
 
-    def update_reply_status(self, sheet_id: str, row_number: int, approval_status: str) -> bool:
-        """Update the approval status of a reply in the sheet."""
+    def update_reply_status(self, sheet_id: str, row_number: int, approval_status: str, 
+                            approved_by: str = '', approved_at: str = '') -> bool:
+        """Update the approval status and related fields of a reply in the sheet.
+        
+        Args:
+            sheet_id: The Google Sheet ID
+            row_number: The row number (1-indexed, header is row 1)
+            approval_status: New status (pending, approved, dismissed)
+            approved_by: Who approved (optional)
+            approved_at: When approved (optional)
+            
+        Returns:
+            True if successful, False otherwise
+        """
         if not self._initialize():
+            logger.error("Google Sheets service not initialized")
             return False
             
         try:
-            # Approval status is in column N (14th column)
-            range_name = f"Sheet1!N{row_number}"
-            body = {'values': [[approval_status]]}
+            # Status is in column P (16th), Approved By in Q (17th), Approved At in R (18th)
+            # Update all three columns at once: P, Q, R
+            range_name = f"Sheet1!P{row_number}:R{row_number}"
+            
+            body = {
+                'values': [[approval_status, approved_by, approved_at]]
+            }
             
             self.sheets_service.spreadsheets().values().update(
                 spreadsheetId=sheet_id,
@@ -436,7 +463,6 @@ class GoogleSheetsService:
         except Exception as e:
             logger.error(f"Error updating reply status: {e}")
             return False
-    
     def append_reply_and_get_row(self, sheet_id: str, reply_data: Dict[str, Any]) -> Optional[int]:
         """Append a reply and return the row number."""
         if not self._initialize():

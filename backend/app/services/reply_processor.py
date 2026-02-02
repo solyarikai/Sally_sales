@@ -530,27 +530,34 @@ async def process_reply_webhook(
         if automation and automation.google_sheet_id:
             try:
                 from app.services.google_sheets_service import google_sheets_service
+                # Extract custom fields for job title
+                custom_fields = payload.get("custom_fields", {})
+                job_title = custom_fields.get("Job_title", custom_fields.get("job_title", ""))
+                
                 reply_data = {
+                    'id': processed_reply.id,
                     'lead_email': lead_email,
                     'lead_first_name': payload.get("first_name"),
                     'lead_last_name': payload.get("last_name"),
                     'lead_company': payload.get("company_name"),
+                    'job_title': job_title,
+                    'linkedin_profile': payload.get("linkedin_profile", ""),
                     'campaign_id': campaign_id,
                     'campaign_name': payload.get("campaign_name"),
                     'category': classification["category"],
                     'category_confidence': classification["confidence"],
                     'email_subject': subject,
                     'email_body': body,
-                    'draft_subject': draft["subject"],
                     'draft_reply': draft["body"],
                     'classification_reasoning': classification["reasoning"],
+                    'approval_status': 'pending',
                     'inbox_link': inbox_link,
                 }
                 row_number = google_sheets_service.append_reply_and_get_row(automation.google_sheet_id, reply_data)
                 if row_number:
                     processed_reply.google_sheet_row = row_number
-                    db.add(processed_reply)
-                    await db.commit()
+                    session.add(processed_reply)
+                    await session.commit()
                 logger.info(f"Logged reply {processed_reply.id} to Google Sheet {automation.google_sheet_id} at row {row_number}")
             except Exception as e:
                 logger.error(f"Failed to log reply to Google Sheets: {e}")
