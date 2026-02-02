@@ -1511,32 +1511,33 @@ async def run_prompt_debug(
     db: AsyncSession = Depends(get_session)
 ):
     """Test a prompt against conversation history."""
-    from app.services.reply_processor import call_openai
+    from app.services.openai_service import openai_service
     
-    system_prompt = ""
-    if request.prompt_type == "classification":
-        system_prompt = "You are an AI assistant that classifies email replies. Respond with only the category name."
-    else:
-        system_prompt = "You are a helpful sales assistant. Generate a professional reply."
+    if not openai_service.is_connected():
+        raise HTTPException(status_code=500, detail="OpenAI not configured")
     
-    # Replace placeholders in prompt
     # Auto-append conversation if no placeholder
     if "{{conversation}}" in request.prompt:
         full_prompt = request.prompt.replace("{{conversation}}", request.conversation_history)
     else:
         full_prompt = request.prompt + "\n\nConversation:\n" + request.conversation_history
     
-    result = await call_openai(
-        prompt=full_prompt,
-        system_prompt=system_prompt,
-        max_tokens=1000
-    )
-    
-    return {
-        "result": result,
-        "tokens_used": 0,
-        "model": "gpt-4"
-    }
+    try:
+        result = await openai_service.complete(
+            prompt=full_prompt,
+            model="gpt-4o-mini",
+            temperature=0.3,
+            max_tokens=1000
+        )
+        
+        return {
+            "result": result,
+            "model": "gpt-4o-mini"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 @router.get("/prompt-templates")
