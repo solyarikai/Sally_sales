@@ -124,8 +124,8 @@ export function RepliesPage() {
 
   const loadSlackChannels = useCallback(async () => {
     try {
-      const channels = await repliesApi.getSlackChannels();
-      setSlackChannelsEdit(channels);
+      const response = await repliesApi.getSlackChannels();
+      setSlackChannelsEdit(response.channels || []);
     } catch (err) {
       console.error("Failed to load slack channels:", err);
     }
@@ -713,10 +713,80 @@ Write a professional reply to this email.
                       </div>
                     </div>
                   </div>
+
+                  {/* Prompt Debug Section */}
+                  <div className="rounded-xl border-2 border-cyan-200 overflow-hidden">
+                    <div className="bg-cyan-100 px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">🧪</span>
+                        <div>
+                          <div className="font-medium text-cyan-900">Test Your Prompts</div>
+                          <div className="text-xs text-cyan-600">Paste any email text to see how AI will classify and reply</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-white space-y-3">
+                      <textarea
+                        placeholder="Paste email text here to test...
+
+Example:
+Hi, thanks for reaching out. We're definitely interested in learning more about your solution. Could we schedule a call next week?"
+                        value={promptTestText}
+                        onChange={(e) => setPromptTestText(e.target.value)}
+                        className="w-full text-sm h-24 p-3 border border-cyan-200 rounded-lg focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 resize-none"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!promptTestText.trim()) return;
+                          setTestingPrompt(true);
+                          setPromptTestResult(null);
+                          try {
+                            const result = await repliesApi.simulateReply({
+                              email_body: promptTestText,
+                              classification_prompt: editClassificationPrompt || undefined,
+                              reply_prompt: editReplyPrompt || undefined,
+                            });
+                            setPromptTestResult({
+                              category: result.category,
+                              reply: result.draft_reply,
+                            });
+                          } catch (err) {
+                            setPromptTestResult({ category: 'Error: Failed to test' });
+                          } finally {
+                            setTestingPrompt(false);
+                          }
+                        }}
+                        disabled={testingPrompt || !promptTestText.trim()}
+                        className="btn btn-secondary w-full"
+                      >
+                        {testingPrompt ? 'Testing...' : '🚀 Test Prompts'}
+                      </button>
+                      {promptTestResult && (
+                        <div className="space-y-2">
+                          <div className="p-3 bg-cyan-50 rounded-lg">
+                            <div className="text-xs font-medium text-cyan-700 mb-1">Classification Result:</div>
+                            <div className="text-sm font-semibold text-cyan-900">{promptTestResult.category}</div>
+                          </div>
+                          {promptTestResult.reply && (
+                            <div className="p-3 bg-emerald-50 rounded-lg">
+                              <div className="text-xs font-medium text-emerald-700 mb-1">Generated Reply:</div>
+                              <div className="text-sm text-emerald-900 whitespace-pre-wrap">{promptTestResult.reply}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
             <div className="px-6 py-4 border-t border-neutral-200 flex gap-2">
+              <button
+                onClick={() => { setEditingAutomation(null); setIsEditMode(false); }}
+                className="btn btn-secondary flex-1"
+              >
+                Cancel
+              </button>
               {isEditMode ? (
                 <button 
                   onClick={async () => {
