@@ -9,6 +9,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import KnowledgeBasePage from './pages/KnowledgeBasePage';
 import { AllProspectsPage } from './pages/AllProspectsPage';
 import { RepliesPage } from './pages/RepliesPage';
+import PromptDebugPage from './pages/PromptDebugPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { TasksPage } from './pages/TasksPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -61,6 +62,11 @@ function App() {
         } />
         
         {/* Shared routes (templates and settings) - not company-scoped */}
+        <Route path="/prompt-debug" element={
+          <Layout>
+            <PromptDebugPage />
+          </Layout>
+        } />
         <Route path="/templates" element={
           <Layout>
             <TemplatesPage />

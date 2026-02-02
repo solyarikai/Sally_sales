@@ -1,13 +1,12 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft, MessageSquare, Contact, ListTodo, Search } from 'lucide-react';
+import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft, MessageSquare, Contact, ListTodo, Search, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
 import { companiesApi } from '../api';
 import type { CompanyWithStats } from '../types';
 import { SectionErrorBoundary } from './ErrorBoundary';
-
 interface LayoutProps {
   children: ReactNode;
 }
@@ -29,6 +28,7 @@ export function Layout({ children }: LayoutProps) {
     { path: `${companyPrefix}/contacts`, icon: Contact, label: 'CRM' },
     { path: `${companyPrefix}/knowledge-base`, icon: BookOpen, label: 'Knowledge Base' },
     { path: '/replies', icon: MessageSquare, label: 'Replies' },
+    { path: '/prompt-debug', icon: Zap, label: 'Prompt Debug' },
     { path: '/tasks', icon: ListTodo, label: 'Tasks' },
     { path: '/templates', icon: FileText, label: 'Prompt Templates' },
     { path: '/settings', icon: Settings, label: 'Settings' },

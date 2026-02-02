@@ -135,3 +135,16 @@ class ProcessedReply(Base, TimestampMixin):
     
     def __repr__(self):
         return f"<ProcessedReply(id={self.id}, email='{self.lead_email}', category='{self.category}')>"
+
+
+class ReplyPromptTemplateModel(Base):
+    """Templates for reply classification and generation prompts."""
+    __tablename__ = "reply_prompt_templates"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    prompt_type = Column(String(50), nullable=False)  # classification or reply
+    prompt_text = Column(Text, nullable=False)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

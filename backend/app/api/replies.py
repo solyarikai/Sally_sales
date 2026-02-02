@@ -1483,6 +1483,210 @@ async def pause_campaign(campaign_id: str):
 
 
 
+
+
+# ============= Prompt Debug Endpoints =============
+
+class PromptDebugRequest(BaseModel):
+    prompt: str
+    conversation_history: str
+    prompt_type: str = "classification"  # classification or reply
+
+class PromptDebugResponse(BaseModel):
+    result: str
+    tokens_used: int = 0
+    model: str = ""
+
+class ReplyPromptTemplate(BaseModel):
+    id: Optional[int] = None
+    name: str
+    prompt_type: str  # classification or reply
+    prompt_text: str
+    is_default: bool = False
+
+@router.post("/prompt-debug/run")
+async def run_prompt_debug(
+    request: PromptDebugRequest,
+    db: AsyncSession = Depends(get_session)
+):
+    """Test a prompt against conversation history."""
+    from app.services.reply_processor import call_openai
+    
+    system_prompt = ""
+    if request.prompt_type == "classification":
+        system_prompt = "You are an AI assistant that classifies email replies. Respond with only the category name."
+    else:
+        system_prompt = "You are a helpful sales assistant. Generate a professional reply."
+    
+    # Replace placeholders in prompt
+    full_prompt = request.prompt.replace("{{conversation}}", request.conversation_history)
+    
+    result = await call_openai(
+        prompt=full_prompt,
+        system_prompt=system_prompt,
+        max_tokens=1000
+    )
+    
+    return {
+        "result": result,
+        "tokens_used": 0,
+        "model": "gpt-4"
+    }
+
+
+@router.get("/prompt-templates")
+async def get_reply_prompt_templates(
+    prompt_type: str = Query(None, description="Filter by type: classification or reply"),
+    db: AsyncSession = Depends(get_session)
+):
+    """Get all reply prompt templates."""
+    from sqlalchemy import select
+    
+    query = select(ReplyPromptTemplateModel)
+    if prompt_type:
+        query = query.where(ReplyPromptTemplateModel.prompt_type == prompt_type)
+    query = query.order_by(ReplyPromptTemplateModel.is_default.desc(), ReplyPromptTemplateModel.name)
+    
+    result = await db.execute(query)
+    templates = result.scalars().all()
+    
+    return {
+        "templates": [
+            {
+                "id": t.id,
+                "name": t.name,
+                "prompt_type": t.prompt_type,
+                "prompt_text": t.prompt_text,
+                "is_default": t.is_default
+            }
+            for t in templates
+        ]
+    }
+
+
+@router.post("/prompt-templates")
+async def create_reply_prompt_template(
+    template: ReplyPromptTemplate,
+    db: AsyncSession = Depends(get_session)
+):
+    """Create a new reply prompt template."""
+    new_template = ReplyPromptTemplateModel(
+        name=template.name,
+        prompt_type=template.prompt_type,
+        prompt_text=template.prompt_text,
+        is_default=template.is_default
+    )
+    db.add(new_template)
+    await db.commit()
+    await db.refresh(new_template)
+    
+    return {
+        "id": new_template.id,
+        "name": new_template.name,
+        "prompt_type": new_template.prompt_type,
+        "prompt_text": new_template.prompt_text,
+        "is_default": new_template.is_default
+    }
+
+
+@router.put("/prompt-templates/{template_id}")
+async def update_reply_prompt_template(
+    template_id: int,
+    template: ReplyPromptTemplate,
+    db: AsyncSession = Depends(get_session)
+):
+    """Update a reply prompt template."""
+    from sqlalchemy import select
+    
+    result = await db.execute(
+        select(ReplyPromptTemplateModel).where(ReplyPromptTemplateModel.id == template_id)
+    )
+    existing = result.scalar_one_or_none()
+    
+    if not existing:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    existing.name = template.name
+    existing.prompt_type = template.prompt_type
+    existing.prompt_text = template.prompt_text
+    existing.is_default = template.is_default
+    
+    await db.commit()
+    
+    return {"success": True, "id": template_id}
+
+
+@router.delete("/prompt-templates/{template_id}")
+async def delete_reply_prompt_template(
+    template_id: int,
+    db: AsyncSession = Depends(get_session)
+):
+    """Delete a reply prompt template."""
+    from sqlalchemy import select, delete
+    
+    await db.execute(
+        delete(ReplyPromptTemplateModel).where(ReplyPromptTemplateModel.id == template_id)
+    )
+    await db.commit()
+    
+    return {"success": True}
+
+
+@router.get("/smartlead/lead-conversations/{lead_email}")
+async def get_lead_conversations(
+    lead_email: str,
+    db: AsyncSession = Depends(get_session)
+):
+    """Get conversation history for a lead from Smartlead."""
+    import httpx
+    import os
+    from app.services.smartlead_service import smartlead_service
+    
+    api_key = os.environ.get("SMARTLEAD_API_KEY") or smartlead_service.api_key
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Smartlead not configured")
+    
+    # Search for lead across campaigns
+    async with httpx.AsyncClient() as client:
+        # First get campaigns
+        resp = await client.get(
+            "https://server.smartlead.ai/api/v1/campaigns",
+            params={"api_key": api_key}
+        )
+        campaigns = resp.json()
+        
+        if not isinstance(campaigns, list):
+            return {"conversations": [], "error": "Failed to get campaigns"}
+        
+        # Search lead in campaigns
+        for campaign in campaigns[:50]:  # Check first 50 campaigns
+            lead_resp = await client.get(
+                f"https://server.smartlead.ai/api/v1/campaigns/{campaign["id"]}/leads",
+                params={"api_key": api_key, "search": lead_email}
+            )
+            leads_data = lead_resp.json()
+            
+            if isinstance(leads_data, dict) and leads_data.get("data"):
+                for lead in leads_data["data"]:
+                    if lead.get("email", "").lower() == lead_email.lower():
+                        # Get email thread
+                        thread_resp = await client.get(
+                            f"https://server.smartlead.ai/api/v1/leads/{lead["id"]}/email-thread",
+                            params={"api_key": api_key}
+                        )
+                        thread = thread_resp.json()
+                        
+                        return {
+                            "lead_email": lead_email,
+                            "lead_name": f"{lead.get("first_name", "")} {lead.get("last_name", "")}".strip(),
+                            "campaign": campaign["name"],
+                            "messages": thread if isinstance(thread, list) else []
+                        }
+    
+    return {"conversations": [], "message": "Lead not found"}
+
+
+
 @router.get("/slack/status")
 async def get_slack_status():
     """Check Slack Bot Token status and permissions.
