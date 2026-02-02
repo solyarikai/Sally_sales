@@ -73,15 +73,28 @@ export default function PromptDebugPage() {
   const [runHistory, setRunHistory] = useState<RunHistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   
-  // Load from localStorage on mount
+  // Load from localStorage and URL params on mount
   useEffect(() => {
+    // Check URL params first
+    const params = new URLSearchParams(window.location.search);
+    const inputFromUrl = params.get('input');
+    const typeFromUrl = params.get('type');
+    
+    if (inputFromUrl) {
+      setConversationInput(decodeURIComponent(inputFromUrl));
+    }
+    if (typeFromUrl === 'reply' || typeFromUrl === 'classification') {
+      setPromptType(typeFromUrl);
+    }
+    
+    // Then load from localStorage (but don't override URL params)
     const saved = localStorage.getItem('promptDebugState');
     if (saved) {
       try {
         const state = JSON.parse(saved);
         if (state.promptText) setPromptText(state.promptText);
-        if (state.conversationInput) setConversationInput(state.conversationInput);
-        if (state.promptType) setPromptType(state.promptType);
+        if (!inputFromUrl && state.conversationInput) setConversationInput(state.conversationInput);
+        if (!typeFromUrl && state.promptType) setPromptType(state.promptType);
         if (state.runHistory) setRunHistory(state.runHistory);
       } catch (e) {}
     }

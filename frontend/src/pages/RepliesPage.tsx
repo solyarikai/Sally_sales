@@ -1473,6 +1473,30 @@ function ReplyDetailPanel({ reply, onClose, onCopyDraft, onResend }: ReplyDetail
             </div>
           </div>
         )}
+        
+        {/* Prompt Used - Link to debug */}
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Prompt Used</h4>
+          <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200">
+            <div className="text-sm text-neutral-600 mb-2">
+              Classification: <span className="font-medium">Default Classification</span>
+            </div>
+            {reply.draft_reply && (
+              <div className="text-sm text-neutral-600 mb-3">
+                Reply Generation: <span className="font-medium">Default Reply</span>
+              </div>
+            )}
+            <a 
+              href={`/prompt-debug?input=${encodeURIComponent(reply.email_body || reply.reply_text || '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-violet-100 text-violet-700 rounded-lg hover:bg-violet-200 transition-colors"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Debug & Refine Prompt
+            </a>
+          </div>
+        </div>
 
         {/* Draft reply */}
         {reply.draft_reply && (
