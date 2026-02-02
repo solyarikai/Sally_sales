@@ -1639,42 +1639,69 @@ async def delete_reply_prompt_template(
 
 
 @router.get('/smartlead/search-leads')
-async def search_leads(q: str = Query(..., min_length=2)):
-    """Search for leads by email using Smartlead API."""
+async def search_leads(
+    q: str = Query(..., min_length=2),
+    db: AsyncSession = Depends(get_session)
+):
+    """Search for leads by email or name."""
     import httpx
     import os
     
     api_key = os.getenv('SMARTLEAD_API_KEY')
-    if not api_key:
-        raise HTTPException(status_code=500, detail='Smartlead API key not configured')
-    
     results = []
+    seen_emails = set()
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        # Use the global leads search endpoint with exact email
-        lead_resp = await client.get(
-            'https://server.smartlead.ai/api/v1/leads',
-            params={'api_key': api_key, 'email': q}
-        )
-        
-        if lead_resp.status_code == 200:
-            lead_data = lead_resp.json()
-            
-            if isinstance(lead_data, dict) and lead_data.get('email'):
-                # Found exact match
-                campaign_info = lead_data.get('lead_campaign_data', [])
-                campaign_name = campaign_info[0].get('campaign_name', '') if campaign_info else ''
-                campaign_id = campaign_info[0].get('campaign_id', '') if campaign_info else ''
+    # 1. Search local database (ProcessedReply) - supports name and partial email
+    local_query = select(ProcessedReply).where(
+        (ProcessedReply.lead_email.ilike(f'%{q}%')) |
+        (ProcessedReply.lead_first_name.ilike(f'%{q}%'))
+    ).order_by(ProcessedReply.received_at.desc()).limit(10)
+    
+    local_result = await db.execute(local_query)
+    local_leads = local_result.scalars().all()
+    
+    for lead in local_leads:
+        if lead.lead_email and lead.lead_email not in seen_emails:
+            seen_emails.add(lead.lead_email)
+            results.append({
+                'email': lead.lead_email,
+                'campaign_name': f'Campaign {lead.campaign_id}' if lead.campaign_id else '',
+                'campaign_id': str(lead.campaign_id) if lead.campaign_id else '',
+                'first_name': lead.lead_first_name.split()[0] if lead.lead_first_name else '',
+                'last_name': ' '.join(lead.lead_first_name.split()[1:]) if lead.lead_first_name and ' ' in lead.lead_first_name else ''
+            })
+    
+    # 2. Try Smartlead exact email match (if looks like email)
+    if api_key and '@' in q:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                lead_resp = await client.get(
+                    'https://server.smartlead.ai/api/v1/leads',
+                    params={'api_key': api_key, 'email': q}
+                )
                 
-                results.append({
-                    'email': lead_data['email'],
-                    'campaign_name': campaign_name,
-                    'campaign_id': str(campaign_id),
-                    'first_name': lead_data.get('first_name', ''),
-                    'last_name': lead_data.get('last_name', '')
-                })
+                if lead_resp.status_code == 200:
+                    lead_data = lead_resp.json()
+                    
+                    if isinstance(lead_data, dict) and lead_data.get('email'):
+                        email = lead_data['email']
+                        if email not in seen_emails:
+                            seen_emails.add(email)
+                            campaign_info = lead_data.get('lead_campaign_data', [])
+                            campaign_name = campaign_info[0].get('campaign_name', '') if campaign_info else ''
+                            campaign_id = campaign_info[0].get('campaign_id', '') if campaign_info else ''
+                            
+                            results.insert(0, {
+                                'email': email,
+                                'campaign_name': campaign_name,
+                                'campaign_id': str(campaign_id),
+                                'first_name': lead_data.get('first_name', ''),
+                                'last_name': lead_data.get('last_name', '')
+                            })
+            except Exception as e:
+                logging.warning(f'Smartlead search failed: {e}')
     
-    return {'results': results}
+    return {'results': results[:10]}
 
 
 @router.get("/smartlead/lead-conversations/{lead_email}")
