@@ -334,7 +334,7 @@ class GoogleSheetsService:
                 get_field('employees', 'Employees'),                 # I: Employees
                 get_field('lead_email', 'email'),                    # J: target_lead_email
                 get_field('industry', 'Industry'),                   # K: Industry
-                get_field('category', 'status'),                     # L: Status
+                get_field('smartlead_status', 'category', 'status'),  # L: Status (Smartlead)
                 '',                                                  # M: Sample Status
                 '',                                                  # N: Sample Comment
                 '',                                                  # O: Sample Responsible
