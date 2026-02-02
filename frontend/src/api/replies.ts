@@ -23,6 +23,8 @@ export interface ReplyAutomation {
   google_sheet_name: string | null;
   auto_classify: boolean;
   auto_generate_reply: boolean;
+  classification_prompt: string | null;
+  reply_prompt: string | null;
   active: boolean;
   is_active: boolean;
   created_at: string;
@@ -38,6 +40,8 @@ export interface ReplyAutomationCreate {
   slack_channel?: string;
   google_sheet_id?: string;
   google_sheet_name?: string;
+  classification_prompt?: string;
+  reply_prompt?: string;
   create_google_sheet?: boolean;
   share_sheet_with_email?: string;
   auto_classify?: boolean;
@@ -105,6 +109,8 @@ export interface GoogleSheetCreateResponse {
 export interface ReplyAutomationUpdate {
   google_sheet_id?: string;
   google_sheet_name?: string;
+  classification_prompt?: string;
+  reply_prompt?: string;
   name?: string;
   campaign_ids?: string[];
   slack_webhook_url?: string;
@@ -132,6 +138,7 @@ export interface ProcessedReply {
   classification_reasoning: string | null;
   draft_reply: string | null;
   draft_subject: string | null;
+  inbox_link: string | null;
   processed_at: string;
   sent_to_slack: boolean;
   slack_sent_at: string | null;

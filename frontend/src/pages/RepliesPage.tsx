@@ -3,7 +3,7 @@ import {
   MessageSquare, Search, RefreshCw, Plus, Settings2, 
   Send, Bell, X, Copy, Check, AlertCircle,
   Zap, Hash, Calendar, Mail, Building2,
-  TestTube2, FileSpreadsheet, SkipForward
+  TestTube2, FileSpreadsheet, SkipForward, ExternalLink
 } from 'lucide-react';
 import { 
   repliesApi, 
@@ -66,6 +66,10 @@ export function RepliesPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editGoogleSheetUrl, setEditGoogleSheetUrl] = useState('');
   const [editSlackChannel, setEditSlackChannel] = useState('');
+  const [editCampaigns, setEditCampaigns] = useState<string[]>([]);
+  const [editCampaignSearch, setEditCampaignSearch] = useState('');
+  const [editClassificationPrompt, setEditClassificationPrompt] = useState('');
+  const [editReplyPrompt, setEditReplyPrompt] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -521,11 +525,46 @@ export function RepliesPage() {
                   <Mail className="w-4 h-4 text-violet-600" />
                   <span className="text-sm font-medium">Campaigns</span>
                 </div>
-                <div className="space-y-1">
-                  {editingAutomation.campaign_ids?.map(id => (
-                    <div key={id} className="text-sm text-neutral-600">{campaigns.find(c => String(c.id) === String(id))?.name || id}</div>
-                  ))}
-                </div>
+                {isEditMode ? (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Search campaigns..."
+                      value={editCampaignSearch}
+                      onChange={(e) => setEditCampaignSearch(e.target.value)}
+                      className="input w-full text-sm"
+                    />
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {campaigns
+                        .filter(c => !editCampaignSearch || c.name?.toLowerCase().includes(editCampaignSearch.toLowerCase()))
+                        .slice(0, 10)
+                        .map(c => (
+                          <label key={c.id} className="flex items-center gap-2 p-1 hover:bg-neutral-100 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editCampaigns.includes(String(c.id))}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEditCampaigns([...editCampaigns, String(c.id)]);
+                                } else {
+                                  setEditCampaigns(editCampaigns.filter(id => id !== String(c.id)));
+                                }
+                              }}
+                              className="rounded"
+                            />
+                            <span className="text-sm truncate">{c.name}</span>
+                          </label>
+                        ))}
+                    </div>
+                    <div className="text-xs text-neutral-400">{editCampaigns.length} campaigns selected</div>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {editingAutomation.campaign_ids?.map(id => (
+                      <div key={id} className="text-sm text-neutral-600">{campaigns.find(c => String(c.id) === String(id))?.name || id}</div>
+                    ))}
+                  </div>
+                )}
               </div>
               
               {/* AI Features */}
@@ -545,6 +584,36 @@ export function RepliesPage() {
                   </div>
                 </div>
               </div>
+              
+              {/* Custom Prompts */}
+              {isEditMode && (
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Settings2 className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-800">Custom AI Prompts</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-amber-700 mb-1">Classification Prompt</label>
+                      <textarea
+                        placeholder="Custom prompt for classifying replies... (leave empty for default)"
+                        value={editClassificationPrompt}
+                        onChange={(e) => setEditClassificationPrompt(e.target.value)}
+                        className="input w-full text-sm h-20 resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-amber-700 mb-1">Reply Generation Prompt</label>
+                      <textarea
+                        placeholder="Custom prompt for generating replies... (leave empty for default)"
+                        value={editReplyPrompt}
+                        onChange={(e) => setEditReplyPrompt(e.target.value)}
+                        className="input w-full text-sm h-20 resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-neutral-200 flex gap-2">
               <button 
@@ -561,6 +630,9 @@ export function RepliesPage() {
                       await repliesApi.updateAutomation(editingAutomation.id, {
                         google_sheet_id: editGoogleSheetUrl ? extractSheetId(editGoogleSheetUrl) : undefined,
                         slack_channel: editSlackChannel || undefined,
+                        campaign_ids: editCampaigns.length > 0 ? editCampaigns : undefined,
+                        classification_prompt: editClassificationPrompt || undefined,
+                        reply_prompt: editReplyPrompt || undefined,
                       });
                       await loadAutomations();
                       setIsEditMode(false);
@@ -806,6 +878,17 @@ function ReplyDetailPanel({ reply, onClose, onCopyDraft, onResend }: ReplyDetail
                 <Building2 className="w-3 h-3" />
                 {reply.lead_company}
               </div>
+            )}
+            {reply.inbox_link && (
+              <a 
+                href={reply.inbox_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-sm text-violet-600 hover:text-violet-700 hover:underline"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Open in Smartlead Inbox
+              </a>
             )}
           </div>
         </div>
