@@ -84,17 +84,23 @@ def render_classification_prompt(
 async def classify_reply(
     subject: str,
     body: str,
-    custom_prompt: Optional[str] = None
+    custom_prompt: Optional[str] = None,
+    max_retries: int = 3
 ) -> Dict[str, Any]:
-    """Classify an email reply using OpenAI.
+    """Classify an email reply using OpenAI with retry logic.
     
     Args:
         subject: Email subject
         body: Email body/reply text
+        custom_prompt: Optional custom classification prompt
+        max_retries: Maximum number of retry attempts (default: 3)
         
     Returns:
         Classification result with category, confidence, reasoning
     """
+    import asyncio
+    import json
+    
     if not openai_service.is_connected():
         logger.warning("OpenAI not connected, defaulting to 'other' category")
         return {
@@ -103,43 +109,78 @@ async def classify_reply(
             "reasoning": "OpenAI not configured"
         }
     
-    try:
-        prompt = render_classification_prompt(subject, body, custom_prompt)
+    prompt = render_classification_prompt(subject, body, custom_prompt)
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            logger.debug(f"[PROMPT DEBUG] Classification attempt {attempt + 1}/{max_retries}")
+            logger.debug(f"[PROMPT DEBUG] Classification prompt:\n{prompt[:500]}...")
+            
+            response = await openai_service.complete(
+                prompt=prompt,
+                model="gpt-4o-mini",  # Fast and cheap for classification
+                temperature=0.1,
+                max_tokens=200
+            )
+            
+            logger.debug(f"[PROMPT DEBUG] Classification response: {response}")
+            
+            # Parse JSON response
+            result = json.loads(response.strip())
+            
+            # Validate category
+            category = result.get("category", "other").lower()
+            valid_categories = [c.value for c in ReplyCategory]
+            if category not in valid_categories:
+                logger.warning(f"Invalid category '{category}', defaulting to 'other'")
+                category = "other"
+            
+            if attempt > 0:
+                logger.info(f"[PROCESSOR] Classification succeeded after {attempt + 1} attempts")
+            
+            return {
+                "category": category,
+                "confidence": result.get("confidence", "medium"),
+                "reasoning": result.get("reasoning", "")
+            }
+            
+        except json.JSONDecodeError as e:
+            last_error = f"JSON parse error: {str(e)}"
+            logger.warning(f"[PROCESSOR] Classification attempt {attempt + 1} failed - invalid JSON: {e}")
+            # JSON errors are worth retrying - model might give valid JSON on retry
+            
+        except Exception as e:
+            last_error = str(e)
+            error_lower = last_error.lower()
+            logger.warning(f"[PROCESSOR] Classification attempt {attempt + 1} failed: {e}")
+            
+            # Check if error is retryable (rate limit, timeout, temporary failures)
+            retryable_errors = ["rate_limit", "timeout", "connection", "temporary", "overloaded", "503", "429"]
+            is_retryable = any(err in error_lower for err in retryable_errors)
+            
+            if not is_retryable and attempt == 0:
+                # Non-retryable errors on first attempt - still try once more
+                # Sometimes transient issues look like permanent ones
+                logger.info(f"[PROCESSOR] Will retry once despite non-retryable error")
+            elif not is_retryable:
+                # Non-retryable error after initial retry - give up
+                logger.error(f"[PROCESSOR] Non-retryable error, giving up: {e}")
+                break
         
-        logger.debug(f"[PROMPT DEBUG] Classification prompt:\n{prompt[:500]}...")
-        
-        response = await openai_service.complete(
-            prompt=prompt,
-            model="gpt-4o-mini",  # Fast and cheap for classification
-            temperature=0.1,
-            max_tokens=200
-        )
-        
-        logger.debug(f"[PROMPT DEBUG] Classification response: {response}")
-        
-        # Parse JSON response
-        import json
-        result = json.loads(response.strip())
-        
-        # Validate category
-        category = result.get("category", "other").lower()
-        valid_categories = [c.value for c in ReplyCategory]
-        if category not in valid_categories:
-            category = "other"
-        
-        return {
-            "category": category,
-            "confidence": result.get("confidence", "medium"),
-            "reasoning": result.get("reasoning", "")
-        }
-        
-    except Exception as e:
-        logger.error(f"Classification error: {e}")
-        return {
-            "category": ReplyCategory.OTHER.value,
-            "confidence": "low",
-            "reasoning": f"Classification failed: {str(e)}"
-        }
+        # Exponential backoff before retry
+        if attempt < max_retries - 1:
+            wait_time = (attempt + 1) * 2  # 2s, 4s, 6s
+            logger.info(f"[PROCESSOR] Waiting {wait_time}s before retry...")
+            await asyncio.sleep(wait_time)
+    
+    # All retries exhausted
+    logger.error(f"[PROCESSOR] Classification failed after {max_retries} attempts: {last_error}")
+    return {
+        "category": ReplyCategory.OTHER.value,
+        "confidence": "low",
+        "reasoning": f"Classification failed after {max_retries} attempts: {last_error}"
+    }
 
 
 def render_draft_prompt(
@@ -183,9 +224,10 @@ async def generate_draft_reply(
     first_name: str = "",
     last_name: str = "",
     company: str = "",
-    custom_prompt: Optional[str] = None
+    custom_prompt: Optional[str] = None,
+    max_retries: int = 3
 ) -> Dict[str, Any]:
-    """Generate a draft reply using OpenAI.
+    """Generate a draft reply using OpenAI with retry logic.
     
     Args:
         subject: Original email subject
@@ -194,10 +236,15 @@ async def generate_draft_reply(
         first_name: Lead's first name
         last_name: Lead's last name
         company: Lead's company
+        custom_prompt: Optional custom reply prompt
+        max_retries: Maximum number of retry attempts (default: 3)
         
     Returns:
         Draft reply with subject and body
     """
+    import asyncio
+    import json
+    
     # Skip draft for out of office
     if category == ReplyCategory.OUT_OF_OFFICE.value:
         return {
@@ -214,45 +261,76 @@ async def generate_draft_reply(
             "tone": "none"
         }
     
-    try:
-        prompt = render_draft_prompt(
-            subject=subject,
-            body=body,
-            category=category,
-            first_name=first_name,
-            last_name=last_name,
-            company=company,
-            custom_prompt=custom_prompt
-        )
+    prompt = render_draft_prompt(
+        subject=subject,
+        body=body,
+        category=category,
+        first_name=first_name,
+        last_name=last_name,
+        company=company,
+        custom_prompt=custom_prompt
+    )
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            logger.debug(f"[PROMPT DEBUG] Draft generation attempt {attempt + 1}/{max_retries}")
+            logger.debug(f"[PROMPT DEBUG] Draft prompt:\n{prompt[:500]}...")
+            
+            response = await openai_service.complete(
+                prompt=prompt,
+                model="gpt-4o-mini",
+                temperature=0.7,
+                max_tokens=500
+            )
+            
+            logger.debug(f"[PROMPT DEBUG] Draft response: {response}")
+            
+            # Parse JSON response
+            result = json.loads(response.strip())
+            
+            if attempt > 0:
+                logger.info(f"[PROCESSOR] Draft generation succeeded after {attempt + 1} attempts")
+            
+            return {
+                "subject": result.get("subject", f"Re: {subject}"),
+                "body": result.get("body", ""),
+                "tone": result.get("tone", "professional")
+            }
+            
+        except json.JSONDecodeError as e:
+            last_error = f"JSON parse error: {str(e)}"
+            logger.warning(f"[PROCESSOR] Draft generation attempt {attempt + 1} failed - invalid JSON: {e}")
+            # JSON errors are worth retrying
+            
+        except Exception as e:
+            last_error = str(e)
+            error_lower = last_error.lower()
+            logger.warning(f"[PROCESSOR] Draft generation attempt {attempt + 1} failed: {e}")
+            
+            # Check if error is retryable
+            retryable_errors = ["rate_limit", "timeout", "connection", "temporary", "overloaded", "503", "429"]
+            is_retryable = any(err in error_lower for err in retryable_errors)
+            
+            if not is_retryable and attempt == 0:
+                logger.info(f"[PROCESSOR] Will retry once despite non-retryable error")
+            elif not is_retryable:
+                logger.error(f"[PROCESSOR] Non-retryable error, giving up: {e}")
+                break
         
-        logger.debug(f"[PROMPT DEBUG] Draft prompt:\n{prompt[:500]}...")
-        
-        response = await openai_service.complete(
-            prompt=prompt,
-            model="gpt-4o-mini",
-            temperature=0.7,
-            max_tokens=500
-        )
-        
-        logger.debug(f"[PROMPT DEBUG] Draft response: {response}")
-        
-        # Parse JSON response
-        import json
-        result = json.loads(response.strip())
-        
-        return {
-            "subject": result.get("subject", f"Re: {subject}"),
-            "body": result.get("body", ""),
-            "tone": result.get("tone", "professional")
-        }
-        
-    except Exception as e:
-        logger.error(f"Draft generation error: {e}")
-        return {
-            "subject": f"Re: {subject}",
-            "body": f"(Draft generation failed: {str(e)})",
-            "tone": "error"
-        }
+        # Exponential backoff before retry
+        if attempt < max_retries - 1:
+            wait_time = (attempt + 1) * 2  # 2s, 4s, 6s
+            logger.info(f"[PROCESSOR] Waiting {wait_time}s before retry...")
+            await asyncio.sleep(wait_time)
+    
+    # All retries exhausted
+    logger.error(f"[PROCESSOR] Draft generation failed after {max_retries} attempts: {last_error}")
+    return {
+        "subject": f"Re: {subject}",
+        "body": f"(Draft generation failed after {max_retries} attempts: {last_error})",
+        "tone": "error"
+    }
 
 
 async def process_reply_webhook(

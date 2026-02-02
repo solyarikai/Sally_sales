@@ -12,8 +12,8 @@ Status: Script created at ~/scripts/tasks/monitor_system.sh
 Add better error handling to reply processor.
 
 - [x] Read backend/app/services/reply_processor.py and analyze error handling (done 2026-02-02)
-- [ ] Add try/catch around Slack notification sending
-- [ ] Add retry logic for failed AI classifications
+- [x] Add try/catch around Slack notification sending (done 2026-02-02 00:42)
+- [x] Add retry logic for failed AI classifications (done 2026-02-02 00:44)
 - [ ] Write improvements to state/response.txt
 
 ---
