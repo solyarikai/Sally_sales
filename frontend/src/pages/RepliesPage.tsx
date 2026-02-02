@@ -1700,6 +1700,13 @@ function CreateAutomationModal({
   const [autoClassify, setAutoClassify] = useState(true);
   const [autoGenerateReply, setAutoGenerateReply] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  
+  // Prompt templates
+  const [classificationTemplate, setClassificationTemplate] = useState<string>('default');
+  const [replyTemplate, setReplyTemplate] = useState<string>('default');
+  const [customClassificationPrompt, setCustomClassificationPrompt] = useState('');
+  const [customReplyPrompt, setCustomReplyPrompt] = useState('');
+  const [promptTemplates, setPromptTemplates] = useState<Array<{id: number, name: string, prompt_type: string}>>([]);
 
   // Load Google Sheets status when entering step 2
   useEffect(() => {
@@ -1715,6 +1722,16 @@ function CreateAutomationModal({
     }
   }, [step, sheetsStatus, loadingSheetsStatus]);
 
+  // Load prompt templates when entering step 4
+  useEffect(() => {
+    if (step === 4 && promptTemplates.length === 0) {
+      fetch('/api/replies/prompt-templates')
+        .then(res => res.json())
+        .then(data => setPromptTemplates(data.templates || []))
+        .catch(err => console.error('Failed to load templates', err));
+    }
+  }, [step, promptTemplates.length]);
+
   const filteredCampaigns = campaigns.filter(c => 
     c.name?.toLowerCase().includes(searchCampaigns.toLowerCase()) ||
     String(c.id || "").toLowerCase().includes(searchCampaigns.toLowerCase())
@@ -1725,10 +1742,53 @@ function CreateAutomationModal({
     
     setIsCreating(true);
     try {
+      // Handle custom prompts - auto-save as templates
+      let finalClassificationPrompt: string | undefined;
+      let finalReplyPrompt: string | undefined;
+      
+      if (autoClassify && classificationTemplate === 'custom' && customClassificationPrompt) {
+        const now = new Date();
+        const templateName = `Classification ${now.toLocaleDateString('en-GB')} ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+        try {
+          await fetch('/api/replies/prompt-templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: templateName,
+              prompt_type: 'classification',
+              prompt_text: customClassificationPrompt,
+              is_default: false
+            })
+          });
+        } catch (e) {
+          console.error('Failed to save classification template', e);
+        }
+        finalClassificationPrompt = customClassificationPrompt;
+      }
+      
+      if (autoGenerateReply && replyTemplate === 'custom' && customReplyPrompt) {
+        const now = new Date();
+        const templateName = `Reply ${now.toLocaleDateString('en-GB')} ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+        try {
+          await fetch('/api/replies/prompt-templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: templateName,
+              prompt_type: 'reply',
+              prompt_text: customReplyPrompt,
+              is_default: false
+            })
+          });
+        } catch (e) {
+          console.error('Failed to save reply template', e);
+        }
+        finalReplyPrompt = customReplyPrompt;
+      }
+
       const data: ReplyAutomationCreate = {
         name,
         campaign_ids: selectedCampaigns,
-        // slack_webhook_url: not needed when using channel ID
         slack_channel: slackChannel || undefined,
         create_google_sheet: createGoogleSheet && !useExistingSheet,
         google_sheet_id: useExistingSheet ? extractSheetId(existingSheetUrl) : undefined,
@@ -1736,6 +1796,8 @@ function CreateAutomationModal({
         share_sheet_with_email: shareSheetEmail || undefined,
         auto_classify: autoClassify,
         auto_generate_reply: autoGenerateReply,
+        classification_prompt: finalClassificationPrompt,
+        reply_prompt: finalReplyPrompt,
         active: true,
       };
       
@@ -2259,6 +2321,64 @@ function CreateAutomationModal({
                   />
                 </label>
               </div>
+
+              {/* Prompt Templates */}
+              {(autoClassify || autoGenerateReply) && (
+                <div className="space-y-3 mt-4 pt-4 border-t border-neutral-100">
+                  <p className="text-xs text-neutral-500 uppercase tracking-wide">Prompt Templates</p>
+                  <p className="text-xs text-neutral-400">Select existing or paste custom prompts (auto-saved)</p>
+                  
+                  {autoClassify && (
+                    <div className="p-3 bg-neutral-50 rounded-xl">
+                      <label className="block text-xs font-medium text-neutral-600 mb-2">Classification Prompt</label>
+                      <select
+                        value={classificationTemplate}
+                        onChange={(e) => setClassificationTemplate(e.target.value)}
+                        className="input w-full text-sm mb-2"
+                      >
+                        <option value="default">Default Classification</option>
+                        {promptTemplates.filter(t => t.prompt_type === 'classification').map(t => (
+                          <option key={t.id} value={String(t.id)}>{t.name}</option>
+                        ))}
+                        <option value="custom">Custom (paste below)</option>
+                      </select>
+                      {classificationTemplate === 'custom' && (
+                        <textarea
+                          value={customClassificationPrompt}
+                          onChange={(e) => setCustomClassificationPrompt(e.target.value)}
+                          placeholder="Paste your classification prompt..."
+                          className="w-full h-20 p-2 text-xs border border-neutral-200 rounded-lg resize-none"
+                        />
+                      )}
+                    </div>
+                  )}
+                  
+                  {autoGenerateReply && (
+                    <div className="p-3 bg-neutral-50 rounded-xl">
+                      <label className="block text-xs font-medium text-neutral-600 mb-2">Reply Prompt</label>
+                      <select
+                        value={replyTemplate}
+                        onChange={(e) => setReplyTemplate(e.target.value)}
+                        className="input w-full text-sm mb-2"
+                      >
+                        <option value="default">Default Reply</option>
+                        {promptTemplates.filter(t => t.prompt_type === 'reply').map(t => (
+                          <option key={t.id} value={String(t.id)}>{t.name}</option>
+                        ))}
+                        <option value="custom">Custom (paste below)</option>
+                      </select>
+                      {replyTemplate === 'custom' && (
+                        <textarea
+                          value={customReplyPrompt}
+                          onChange={(e) => setCustomReplyPrompt(e.target.value)}
+                          placeholder="Paste your reply prompt..."
+                          className="w-full h-20 p-2 text-xs border border-neutral-200 rounded-lg resize-none"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

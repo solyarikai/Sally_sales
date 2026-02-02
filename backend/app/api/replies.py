@@ -1520,7 +1520,11 @@ async def run_prompt_debug(
         system_prompt = "You are a helpful sales assistant. Generate a professional reply."
     
     # Replace placeholders in prompt
-    full_prompt = request.prompt.replace("{{conversation}}", request.conversation_history)
+    # Auto-append conversation if no placeholder
+    if "{{conversation}}" in request.prompt:
+        full_prompt = request.prompt.replace("{{conversation}}", request.conversation_history)
+    else:
+        full_prompt = request.prompt + "\n\nConversation:\n" + request.conversation_history
     
     result = await call_openai(
         prompt=full_prompt,

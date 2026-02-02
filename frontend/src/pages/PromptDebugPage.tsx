@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  Play, Save, History, Trash2, ChevronDown, Zap, Copy, Loader2
+  Play, Save, History, Trash2, ChevronDown, Zap, Copy, Loader2, Edit3
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import toast, { Toaster } from 'react-hot-toast';
@@ -27,7 +27,7 @@ interface SearchResult {
   campaign_id?: string;
 }
 
-const DEFAULT_CLASSIFICATION_PROMPT = `Analyze the following email reply and classify it into one of these categories:
+const DEFAULT_CLASSIFICATION_PROMPT = `Analyze the email reply and classify it into one of these categories:
 
 Categories:
 - interested: Lead shows interest in the product/service
@@ -37,9 +37,6 @@ Categories:
 - out_of_office: Auto-reply or out of office message
 - unsubscribe: Request to be removed from list
 - other: Doesn't fit other categories
-
-Email conversation:
-{{conversation}}
 
 Respond with ONLY the category name, nothing else.`;
 
@@ -52,9 +49,6 @@ Context:
 - If they're interested, suggest a call
 - If they have questions, answer briefly and offer more details
 
-Conversation history:
-{{conversation}}
-
 Generate a reply:`;
 
 export default function PromptDebugPage() {
@@ -62,6 +56,8 @@ export default function PromptDebugPage() {
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate | null>(null);
   const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
+  const [editingTemplateName, setEditingTemplateName] = useState(false);
+  const [tempTemplateName, setTempTemplateName] = useState('');
   
   // Editor state
   const [promptText, setPromptText] = useState(DEFAULT_CLASSIFICATION_PROMPT);
@@ -103,16 +99,8 @@ export default function PromptDebugPage() {
   
   const handleSearchInputChange = (value: string) => {
     setLeadSearch(value);
-    
-    // Clear previous timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    
-    // Debounce search
-    searchTimeoutRef.current = setTimeout(() => {
-      searchLeads(value);
-    }, 300);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => searchLeads(value), 300);
   };
   
   const handleSelectLead = async (email: string) => {
@@ -160,7 +148,6 @@ export default function PromptDebugPage() {
     }
     loadTemplates();
     
-    // Click outside handler for search dropdown
     const handleClickOutside = (e: MouseEvent) => {
       if (searchInputRef.current && !searchInputRef.current.contains(e.target as Node)) {
         setShowSearchDropdown(false);
@@ -170,7 +157,6 @@ export default function PromptDebugPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
-  // Save to localStorage on change
   useEffect(() => {
     localStorage.setItem('promptDebugState', JSON.stringify({
       promptText,
@@ -198,7 +184,6 @@ export default function PromptDebugPage() {
     setIsRunning(true);
     setResult('');
     
-    // Detect prompt type from content
     const isClassification = promptText.toLowerCase().includes('classify') || 
                             promptText.toLowerCase().includes('category') ||
                             promptText.toLowerCase().includes('categories');
@@ -235,37 +220,84 @@ export default function PromptDebugPage() {
   };
   
   const handleSaveTemplate = async () => {
-    const name = prompt('Template name:', selectedTemplate?.name || 'My Template');
+    const now = new Date();
+    const defaultName = `${now.toLocaleDateString('en-GB')} ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+    const name = prompt('Template name:', selectedTemplate?.name || defaultName);
     if (!name) return;
     
     const isClassification = promptText.toLowerCase().includes('classify') || 
                             promptText.toLowerCase().includes('category');
     
     try {
-      const resp = await fetch('/api/replies/prompt-templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          prompt_type: isClassification ? 'classification' : 'reply',
-          prompt_text: promptText,
-          is_default: false
-        })
-      });
-      
-      if (resp.ok) {
-        toast.success('Template saved!');
-        loadTemplates();
+      if (selectedTemplate?.id) {
+        // Update existing
+        const resp = await fetch(`/api/replies/prompt-templates/${selectedTemplate.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            prompt_type: isClassification ? 'classification' : 'reply',
+            prompt_text: promptText
+          })
+        });
+        if (resp.ok) {
+          toast.success('Template updated!');
+          loadTemplates();
+        }
+      } else {
+        // Create new
+        const resp = await fetch('/api/replies/prompt-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            prompt_type: isClassification ? 'classification' : 'reply',
+            prompt_text: promptText,
+            is_default: false
+          })
+        });
+        if (resp.ok) {
+          toast.success('Template saved!');
+          loadTemplates();
+        }
       }
     } catch (e) {
       toast.error('Failed to save template');
     }
   };
   
-  const handleSelectTemplate = (template: PromptTemplate) => {
-    setSelectedTemplate(template);
-    setPromptText(template.prompt_text);
+  const handleSelectTemplate = (template: PromptTemplate | null, defaultType?: 'classification' | 'reply') => {
+    if (template) {
+      setSelectedTemplate(template);
+      setPromptText(template.prompt_text);
+    } else if (defaultType === 'classification') {
+      setSelectedTemplate({ name: 'Default Classification', prompt_type: 'classification', prompt_text: DEFAULT_CLASSIFICATION_PROMPT, is_default: true });
+      setPromptText(DEFAULT_CLASSIFICATION_PROMPT);
+    } else if (defaultType === 'reply') {
+      setSelectedTemplate({ name: 'Default Reply', prompt_type: 'reply', prompt_text: DEFAULT_REPLY_PROMPT, is_default: true });
+      setPromptText(DEFAULT_REPLY_PROMPT);
+    }
     setTemplateDropdownOpen(false);
+  };
+  
+  const handleRenameTemplate = async () => {
+    if (!selectedTemplate?.id || !tempTemplateName) return;
+    
+    try {
+      const resp = await fetch(`/api/replies/prompt-templates/${selectedTemplate.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: tempTemplateName })
+      });
+      if (resp.ok) {
+        setSelectedTemplate({ ...selectedTemplate, name: tempTemplateName });
+        toast.success('Renamed!');
+        loadTemplates();
+      }
+    } catch (e) {
+      toast.error('Failed to rename');
+    }
+    setEditingTemplateName(false);
   };
   
   const handleLoadHistoryItem = (item: RunHistoryItem) => {
@@ -314,41 +346,62 @@ export default function PromptDebugPage() {
       
       <div className="flex-1 p-6 overflow-auto">
         <div className="max-w-6xl mx-auto">
-          {/* Template selector */}
-          <div className="mb-6">
+          {/* Template selector with clear indication */}
+          <div className="mb-6 bg-white rounded-xl border border-neutral-200 p-4">
             <div className="flex items-center gap-4">
-              <div className="relative">
-                <button
-                  onClick={() => setTemplateDropdownOpen(!templateDropdownOpen)}
-                  className="btn btn-secondary min-w-[200px] justify-between"
-                >
-                  <span>{selectedTemplate?.name || 'Select template...'}</span>
-                  <ChevronDown className="w-4 h-4" />
-                </button>
+              <div className="relative flex-1">
+                <label className="block text-xs text-neutral-500 mb-1">Current Template</label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setTemplateDropdownOpen(!templateDropdownOpen)}
+                    className="btn btn-secondary flex-1 justify-between text-left"
+                  >
+                    <span className={cn(
+                      "font-medium",
+                      selectedTemplate ? "text-violet-700" : "text-neutral-500"
+                    )}>
+                      {selectedTemplate?.name || 'Select template...'}
+                    </span>
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                  
+                  {selectedTemplate?.id && (
+                    <button
+                      onClick={() => {
+                        setTempTemplateName(selectedTemplate.name);
+                        setEditingTemplateName(true);
+                      }}
+                      className="btn btn-secondary p-2"
+                      title="Rename template"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
                 
                 {templateDropdownOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setTemplateDropdownOpen(false)} />
-                    <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-neutral-200 rounded-xl shadow-lg z-20 max-h-64 overflow-auto">
+                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-neutral-200 rounded-xl shadow-lg z-20 max-h-64 overflow-auto">
                       <div
-                        onClick={() => { setPromptText(DEFAULT_CLASSIFICATION_PROMPT); setSelectedTemplate(null); setTemplateDropdownOpen(false); }}
-                        className="px-4 py-2 hover:bg-neutral-50 cursor-pointer border-b"
+                        onClick={() => handleSelectTemplate(null, 'classification')}
+                        className="px-4 py-2 hover:bg-violet-50 cursor-pointer border-b"
                       >
                         <div className="font-medium">Default Classification</div>
-                        <div className="text-xs text-neutral-500">Built-in template</div>
+                        <div className="text-xs text-neutral-500">Built-in • Categorizes replies</div>
                       </div>
                       <div
-                        onClick={() => { setPromptText(DEFAULT_REPLY_PROMPT); setSelectedTemplate(null); setTemplateDropdownOpen(false); }}
-                        className="px-4 py-2 hover:bg-neutral-50 cursor-pointer border-b"
+                        onClick={() => handleSelectTemplate(null, 'reply')}
+                        className="px-4 py-2 hover:bg-violet-50 cursor-pointer border-b"
                       >
                         <div className="font-medium">Default Reply</div>
-                        <div className="text-xs text-neutral-500">Built-in template</div>
+                        <div className="text-xs text-neutral-500">Built-in • Generates responses</div>
                       </div>
                       {templates.map(t => (
                         <div
                           key={t.id}
                           onClick={() => handleSelectTemplate(t)}
-                          className="px-4 py-2 hover:bg-neutral-50 cursor-pointer"
+                          className="px-4 py-2 hover:bg-violet-50 cursor-pointer"
                         >
                           <div className="font-medium">{t.name}</div>
                           <div className="text-xs text-neutral-500">{t.prompt_type}</div>
@@ -359,17 +412,37 @@ export default function PromptDebugPage() {
                 )}
               </div>
               
-              <button onClick={handleSaveTemplate} className="btn btn-secondary">
+              <button onClick={handleSaveTemplate} className="btn btn-primary">
                 <Save className="w-4 h-4" />
-                Save Template
+                {selectedTemplate?.id ? 'Update' : 'Save as New'}
               </button>
             </div>
+            
+            {/* Rename modal */}
+            {editingTemplateName && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-xl p-6 w-96">
+                  <h3 className="font-semibold mb-4">Rename Template</h3>
+                  <input
+                    type="text"
+                    value={tempTemplateName}
+                    onChange={(e) => setTempTemplateName(e.target.value)}
+                    className="input w-full mb-4"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setEditingTemplateName(false)} className="btn btn-secondary">Cancel</button>
+                    <button onClick={handleRenameTemplate} className="btn btn-primary">Save</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="grid grid-cols-2 gap-6">
             {/* Left: Input */}
             <div className="space-y-4">
-              {/* Lead search with autocomplete */}
+              {/* Lead search */}
               <div className="bg-white rounded-xl border border-neutral-200 p-4">
                 <label className="block text-sm font-medium mb-2">Search Lead Conversation</label>
                 <div className="relative" ref={searchInputRef}>
@@ -385,7 +458,6 @@ export default function PromptDebugPage() {
                     <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-neutral-400" />
                   )}
                   
-                  {/* Autocomplete dropdown */}
                   {showSearchDropdown && searchResults.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 max-h-48 overflow-auto">
                       {searchResults.map((r, i) => (
@@ -416,10 +488,10 @@ export default function PromptDebugPage() {
                 <textarea
                   value={conversationInput}
                   onChange={(e) => setConversationInput(e.target.value)}
-                  placeholder="lead: Hi, I'm interested in learning more...&#10;bdm: Thanks for reaching out! ..."
+                  placeholder="Paste conversation or search for a lead above..."
                   className="w-full h-40 p-3 border border-neutral-200 rounded-lg text-sm font-mono resize-none"
                 />
-                <p className="text-xs text-neutral-400 mt-1">Format: lead: message / bdm: message</p>
+                <p className="text-xs text-neutral-400 mt-1">Conversation is automatically added to your prompt</p>
               </div>
               
               {/* Result */}
@@ -446,11 +518,17 @@ export default function PromptDebugPage() {
               <div className="bg-white rounded-xl border border-neutral-200 p-4 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium">Prompt Template</label>
-                  <span className="text-xs text-neutral-400">Use {"{{conversation}}"} placeholder</span>
+                  <span className="text-xs text-neutral-400">Conversation added automatically</span>
                 </div>
                 <textarea
                   value={promptText}
-                  onChange={(e) => setPromptText(e.target.value)}
+                  onChange={(e) => {
+                    setPromptText(e.target.value);
+                    // If user edits, clear selected template (it's now custom)
+                    if (selectedTemplate && e.target.value !== selectedTemplate.prompt_text) {
+                      setSelectedTemplate(null);
+                    }
+                  }}
                   className="flex-1 w-full p-3 border border-neutral-200 rounded-lg text-sm font-mono resize-none min-h-[400px]"
                 />
                 
