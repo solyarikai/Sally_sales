@@ -44,11 +44,11 @@ class GoogleSheetsService:
         'Sample Status',        # M
         'Sample Comment',       # N
         'Sample Responsible',   # O
-        'Кто привел',           # P - Who brought (Russian)
+        'Lead Source',           # P - Who brought (Russian)
         'Updates after communication',  # Q
         'Sample link',          # R
         'Market size, k',       # S
-        'Канал',                # T - Channel (Russian)
+        'Channel',                # T - Channel (Russian)
         'campaign',             # U - Campaign name
         'text',                 # V - Reply text
         'time',                 # W - Reply time

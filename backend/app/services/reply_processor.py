@@ -126,8 +126,13 @@ async def classify_reply(
             
             logger.debug(f"[PROMPT DEBUG] Classification response: {response}")
             
-            # Parse JSON response
-            result = json.loads(response.strip())
+            # Parse JSON response - strip markdown if present
+            clean_response = response.strip()
+            if clean_response.startswith("```"):
+                clean_response = clean_response.split("\n", 1)[-1]
+                if "```" in clean_response:
+                    clean_response = clean_response.rsplit("```", 1)[0]
+            result = json.loads(clean_response.strip())
             
             # Validate category
             category = result.get("category", "other").lower()
@@ -286,8 +291,13 @@ async def generate_draft_reply(
             
             logger.debug(f"[PROMPT DEBUG] Draft response: {response}")
             
-            # Parse JSON response
-            result = json.loads(response.strip())
+            # Parse JSON response - strip markdown if present
+            clean_response = response.strip()
+            if clean_response.startswith("```"):
+                clean_response = clean_response.split("\n", 1)[-1]
+                if "```" in clean_response:
+                    clean_response = clean_response.rsplit("```", 1)[0]
+            result = json.loads(clean_response.strip())
             
             if attempt > 0:
                 logger.info(f"[PROCESSOR] Draft generation succeeded after {attempt + 1} attempts")
