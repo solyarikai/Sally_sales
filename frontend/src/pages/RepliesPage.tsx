@@ -350,7 +350,7 @@ export function RepliesPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={(e) => { e.stopPropagation(); setEditingAutomation(automation); }}
+                        onClick={(e) => { e.stopPropagation(); setEditingAutomation(automation); setEditCampaigns(automation.campaign_ids?.map(String) || []); setEditSlackChannel(automation.slack_channel || ""); setEditGoogleSheetUrl(automation.google_sheet_id ? `https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}` : ""); setEditClassificationPrompt(automation.classification_prompt || ""); setEditReplyPrompt(automation.reply_prompt || ""); setIsEditMode(true); loadCampaigns(); loadSlackChannels(); }}
                         className="p-1.5 rounded-lg text-neutral-400 hover:bg-violet-50 hover:text-violet-600"
                         title="Edit"
                       >

@@ -1,41 +1,53 @@
 ## Analysis: Error Handling in reply_processor.py
 
 ### Summary
-The reply_processor.py has **good error handling** with proper fallbacks, but there are a few areas that could be improved.
+The `reply_processor.py` file has **good error handling** overall, with appropriate fallbacks and logging. Here's the breakdown:
 
-### Current Error Handling Patterns
+### Error Handling Patterns Found
 
-**1. classify_reply() - GOOD**
-- Lines 98-104: Checks if OpenAI is connected, returns fallback classification with category="other", confidence="low"
-- Lines 106-142: Wraps OpenAI call in try/except, returns fallback on any exception
-- Lines 124-128: Validates category against enum, defaults to "other" if invalid
+**1. classify_reply() (lines 84-142)**
+- ✅ Checks if OpenAI is connected before calling API
+- ✅ Returns safe default (`category: "other"`, `confidence: "low"`) when not connected
+- ✅ Catches all exceptions and returns graceful fallback
+- ✅ Validates category against enum, defaults to "other" if invalid
+- ✅ Logs errors with `logger.error()`
 
-**2. generate_draft_reply() - GOOD**
-- Lines 201-207: Special handling for out-of-office (no reply needed)
-- Lines 209-215: Checks OpenAI connection, returns fallback draft
-- Lines 217-255: Wraps OpenAI call in try/except, returns error message in draft body on failure
+**2. generate_draft_reply() (lines 179-255)**
+- ✅ Early exit for OUT_OF_OFFICE category (no draft needed)
+- ✅ Checks OpenAI connection before API call
+- ✅ Returns placeholder text when OpenAI unavailable
+- ✅ Catches all exceptions with graceful fallback
+- ✅ Logs errors appropriately
 
-**3. process_reply_webhook() - MOSTLY GOOD**
-- Lines 278-488: Main processing wrapped in try/except
-- Lines 476-488: On exception, tracks error on automation object (total_errors, last_error, last_error_at), then rolls back and re-raises
-- Lines 442-464: Google Sheets logging has its own try/except, so failure doesn't stop processing
-- Lines 485-486: Bare `except: pass` is acceptable here since we're just trying to log the error before rollback
+**3. process_reply_webhook() (lines 258-488)**
+- ✅ Extensive debug logging at each step
+- ✅ Handles missing lead_email (returns None early)
+- ✅ HTML stripping with regex fallback
+- ✅ Multiple field name fallbacks for Smartlead payload variations
+- ✅ Google Sheets logging wrapped in try/except (line 443-464)
+- ✅ Main try/except block with:
+  - Error tracking on automation model (total_errors, last_error, last_error_at)
+  - Session rollback on failure
+  - Re-raises exception (appropriate for callers to handle)
+- ⚠️ Inner catch-all at line 485-486 uses bare `except:` (could mask issues)
 
-### Potential Improvements Identified
+### Recommendations (Minor)
 
-1. **JSON parsing errors (lines 121-122, 239-241)**: Uses generic `json.loads()` without specific JSONDecodeError handling. If OpenAI returns malformed JSON, it falls through to generic exception handler - this is acceptable but could have more specific error message.
+1. **Line 485-486**: The bare `except:` for error logging could be more specific:
+   ```python
+   except Exception as log_error:
+       logger.warning(f"Could not log automation error: {log_error}")
+   ```
 
-2. **Silent failures in notification**: 
-   - Lines 428-436: Slack notification failure doesn't raise, just doesn't mark sent_to_slack
-   - Lines 438-439: Telegram notification error handling is inside notify_reply_needs_attention() - should verify that function handles errors
+2. **JSON parsing (lines 121-122, 240-241)**: The `json.loads()` calls could benefit from more specific error handling for malformed AI responses:
+   ```python
+   except json.JSONDecodeError as e:
+       logger.error(f"AI returned invalid JSON: {response}")
+   ```
 
-3. **No retry logic**: Failed classifications or draft generations don't retry. Could add retry with exponential backoff for transient OpenAI failures.
+3. **Line 414**: `session.flush()` without explicit error handling - if flush fails, the commit at line 471 would catch it, but an earlier check could give better error messages.
 
-### Verdict
-Error handling is **solid and production-ready**. The main processing function properly:
-- Tracks errors on automation objects for monitoring
-- Rolls back database on failure
-- Re-raises exception for caller to handle
-- Has independent try/except for non-critical features (Google Sheets)
+### Overall Assessment
+**Quality: Good** - The code has robust error handling with appropriate fallbacks. The logging is comprehensive for debugging. The main improvements would be making some exception catches more specific and adding better JSON parse error messages.
 
-No immediate code changes required. Error handling follows best practices.
+No blocking issues found. Code is production-ready from an error handling perspective.
