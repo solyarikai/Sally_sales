@@ -377,7 +377,7 @@ export function RepliesPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={(e) => { e.stopPropagation(); setEditingAutomation(automation); setEditCampaigns(automation.campaign_ids?.map(String) || []); setEditSlackChannel(automation.slack_channel || ""); setEditGoogleSheetUrl(automation.google_sheet_id ? `https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}` : ""); setEditClassificationPrompt(automation.classification_prompt || ""); setEditReplyPrompt(automation.reply_prompt || ""); setIsEditMode(true); loadCampaigns(); loadSlackChannels(); }}
+                        onClick={(e) => { e.stopPropagation(); setEditingAutomation(automation); setEditCampaigns(automation.campaign_ids?.map(String) || []); setEditSlackChannel(automation.slack_channel || ""); setEditGoogleSheetUrl(automation.google_sheet_id ? `https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}${automation.google_sheet_name?.includes('#') ? '/edit?gid=' + automation.google_sheet_name.split('#')[1] + '#gid=' + automation.google_sheet_name.split('#')[1] : ''}` : ""); setEditClassificationPrompt(automation.classification_prompt || ""); setEditReplyPrompt(automation.reply_prompt || ""); setIsEditMode(true); loadCampaigns(); loadSlackChannels(); }}
                         className="p-1.5 rounded-lg text-neutral-400 hover:bg-violet-50 hover:text-violet-600"
                         title="Edit"
                       >
@@ -516,14 +516,22 @@ export function RepliesPage() {
                   <FileSpreadsheet className="w-4 h-4 text-green-600" />
                   <span className="text-sm font-medium">Google Sheet</span>
                 </div>
-                {editingAutomation.google_sheet_id ? (
+                {isEditMode ? (
+                  <input
+                    type="text"
+                    placeholder="Paste Google Sheet URL (include #gid= for specific tab)..."
+                    value={editGoogleSheetUrl}
+                    onChange={(e) => setEditGoogleSheetUrl(e.target.value)}
+                    className="input w-full text-sm"
+                  />
+                ) : editingAutomation.google_sheet_id ? (
                   <a 
-                    href={`https://docs.google.com/spreadsheets/d/${editingAutomation.google_sheet_id}`}
+                    href={`https://docs.google.com/spreadsheets/d/${editingAutomation.google_sheet_id}${editingAutomation.google_sheet_name?.includes('#') ? '/edit?gid=' + editingAutomation.google_sheet_name.split('#')[1] + '#gid=' + editingAutomation.google_sheet_name.split('#')[1] : ''}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-green-600 hover:underline break-all"
                   >
-                    {editingAutomation.google_sheet_name || `https://docs.google.com/spreadsheets/d/${editingAutomation.google_sheet_id}`}
+                    {editingAutomation.google_sheet_name?.split('#')[0] || 'Google Sheet'}
                   </a>
                 ) : (
                   <span className="text-sm text-neutral-400">Not configured</span>
