@@ -31,7 +31,7 @@ Create an endpoint to get reply statistics per automation.
 Reduce Docker build time for faster deployments.
 
 - [x] Add .dockerignore if not present (done 2026-02-02 00:54)
-- [ ] Use multi-stage builds
+- [x] Use multi-stage builds (done 2026-02-02 00:55)
 - [ ] Cache pip dependencies layer
 
 ---

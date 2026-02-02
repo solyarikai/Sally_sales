@@ -1,10 +1,12 @@
-COMPLETED: Add .dockerignore if not present
+COMPLETED: Use multi-stage builds
 
 Changes made:
-- Created .dockerignore file in the repository root
-- Excludes Python cache files, virtual environments, and bytecode
-- Excludes node_modules and npm debug logs
-- Excludes database files, logs, and IDE configuration
-- Excludes .git directory and state/scripts folders (not needed in container)
-- Excludes test files to reduce image size
-- This will improve Docker build performance and reduce image size
+- Updated backend/Dockerfile to use multi-stage builds
+- Stage 1 (builder): Uses python:3.11-slim, installs build dependencies (gcc, libpq-dev), creates virtual environment, and installs Python packages
+- Stage 2 (production): Uses python:3.11-slim, installs only runtime dependencies (libpq5), copies virtual environment from builder stage
+- Frontend Dockerfile already had multi-stage builds (build with node:20-alpine, production with nginx:alpine)
+
+Benefits:
+- Smaller final image size (no gcc/build tools in production image)
+- Better security (fewer packages = smaller attack surface)
+- Faster deployments (smaller images to push/pull)
