@@ -128,8 +128,8 @@ export function RepliesPage() {
         page,
         page_size: pageSize,
       });
-      setReplies(response.replies);
-      setTotal(response.total);
+      setReplies(response.replies || []);
+      setTotal(response.total || 0);
     } catch (err) {
       console.error('Failed to load replies:', err);
     } finally {
@@ -281,7 +281,7 @@ export function RepliesPage() {
   const totalPages = Math.ceil(total / pageSize);
 
   // Filter replies by search
-  const filteredReplies = replies.filter(reply => {
+  const filteredReplies = (replies || []).filter(reply => {
     if (!search) return true;
     const searchLower = search.toLowerCase();
     return (
@@ -343,7 +343,7 @@ export function RepliesPage() {
             <StatCard label="Total" value={formatNumber(stats.total)} />
             <StatCard label="Today" value={formatNumber(stats.today)} color="blue" />
             <StatCard label="This Week" value={formatNumber(stats.this_week)} color="purple" />
-            {Object.entries(stats.by_category).slice(0, 5).map(([cat, count]) => {
+            {Object.entries(stats.by_category || {}).slice(0, 5).map(([cat, count]) => {
               const config = CATEGORY_CONFIG[cat as ReplyCategory];
               return (
                 <StatCard 
