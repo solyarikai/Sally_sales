@@ -1,25 +1,37 @@
-SUBTASK COMPLETED: Create GET /api/replies/stats endpoint in backend
+## Subtask Complete: Return counts: total, by_category, by_automation
 
-STATUS: Already exists - no changes needed
+### Status: ALREADY IMPLEMENTED
 
-FINDINGS:
-The GET /api/replies/stats endpoint is already fully implemented in the backend at:
-- backend/app/api/replies.py (lines 532-643)
+The `/api/replies/stats` endpoint already returns all three required counts:
 
-The endpoint returns ProcessedReplyStats with:
-- total: Total count of processed replies
-- by_category: Dict with count per category (interested, not_interested, etc.)
-- by_status: Dict with count per approval status
-- today: Replies processed today
-- this_week: Replies processed this week
-- sent_to_slack: Count of replies sent to Slack
-- pending: Pending approval count
-- approved: Approved count
-- dismissed: Dismissed count
+1. **total** - Line 550 in replies.py calculates total count of ProcessedReply records
+2. **by_category** - Lines 553-564 groups replies by category and returns dict like `{"interested": 5, "not_interested": 2}`
+3. **by_automation** - Lines 634-652 groups by automation_id and includes name, returning dict like `{"1": {"id": 1, "name": "Test", "count": 10}}`
 
-Optional query params: automation_id, campaign_id for filtering
+### Schema (reply.py lines 185-196):
+```python
+class ProcessedReplyStats(BaseModel):
+    total: int = 0
+    by_category: dict = Field(default_factory=dict)
+    by_automation: dict = Field(default_factory=dict)
+    by_status: dict = Field(default_factory=dict)
+    today: int = 0
+    this_week: int = 0
+    sent_to_slack: int = 0
+    pending: int = 0
+    approved: int = 0
+    dismissed: int = 0
+```
 
-Frontend API client is also already implemented at:
-- frontend/src/api/replies.ts (lines 292-298) - getReplyStats() function
+### Test Coverage (test_replies.py lines 321-368):
+- `test_stats_empty` - verifies empty state returns proper defaults
+- `test_stats_with_data` - verifies by_category and by_automation counts are correct
 
-NO CODE CHANGES REQUIRED - endpoint fully functional.
+### Endpoint Usage:
+```
+GET /api/replies/stats
+GET /api/replies/stats?automation_id=1
+GET /api/replies/stats?campaign_id=abc123
+```
+
+No code changes required - functionality was already complete.

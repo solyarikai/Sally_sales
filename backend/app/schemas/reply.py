@@ -186,6 +186,7 @@ class ProcessedReplyStats(BaseModel):
     """Statistics for processed replies."""
     total: int = 0
     by_category: dict = Field(default_factory=dict)
+    by_automation: dict = Field(default_factory=dict)  # counts by automation_id -> {id, name, count}
     by_status: dict = Field(default_factory=dict)  # pending, approved, dismissed counts
     today: int = 0
     this_week: int = 0

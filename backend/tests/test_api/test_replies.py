@@ -329,6 +329,7 @@ class TestReplyStats:
         assert data["this_week"] == 0
         assert data["sent_to_slack"] == 0
         assert data["by_category"] == {}
+        assert data["by_automation"] == {}
 
     async def test_stats_with_data(
         self, 
@@ -360,6 +361,11 @@ class TestReplyStats:
         assert data["by_category"]["not_interested"] == 1
         assert data["by_category"]["question"] == 1
         assert data["sent_to_slack"] == 2
+        
+        # Test by_automation - when filtered by automation_id, only that automation is shown
+        assert str(test_automation.id) in data["by_automation"]
+        assert data["by_automation"][str(test_automation.id)]["count"] == 4
+        assert data["by_automation"][str(test_automation.id)]["name"] == test_automation.name
 
 
 class TestSmartleadWebhook:

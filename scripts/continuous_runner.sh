@@ -8,8 +8,8 @@ TASKS_FILE="$STATE_DIR/tasks.md"
 LOG_FILE="$STATE_DIR/continuous_runner.log"
 LOCK_FILE="/tmp/continuous_runner.lock"
 LAST_TASK_FILE="/tmp/last_completed_task.txt"
-CURSOR_TIMEOUT=600
-LOOP_INTERVAL=30
+CURSOR_TIMEOUT=300
+LOOP_INTERVAL=15
 TG_TOKEN="8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss"
 TG_CHAT="57344339"
 
@@ -133,7 +133,7 @@ while true; do
     
     if [ -z "$result" ]; then
         log "All tasks complete! Sleeping 120s..."
-        sleep 120
+        sleep 60
         continue
     fi
     

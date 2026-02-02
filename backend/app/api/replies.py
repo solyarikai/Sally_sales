@@ -630,9 +630,31 @@ async def get_reply_stats(
         elif status_key == "dismissed":
             dismissed_count = count
     
+    # Count by automation (with names)
+    automation_query = select(
+        ProcessedReply.automation_id,
+        ReplyAutomation.name,
+        func.count(ProcessedReply.id)
+    ).outerjoin(
+        ReplyAutomation, ProcessedReply.automation_id == ReplyAutomation.id
+    ).group_by(ProcessedReply.automation_id, ReplyAutomation.name)
+    
+    if campaign_id:
+        automation_query = automation_query.where(ProcessedReply.campaign_id == campaign_id)
+    
+    automation_result = await session.execute(automation_query)
+    by_automation = {}
+    for row in automation_result.all():
+        auto_id = row[0]
+        auto_name = row[1] or "Unknown"
+        count = row[2]
+        if auto_id is not None:
+            by_automation[str(auto_id)] = {"id": auto_id, "name": auto_name, "count": count}
+    
     return ProcessedReplyStats(
         total=total,
         by_category=by_category,
+        by_automation=by_automation,
         by_status=by_status,
         today=today,
         this_week=this_week,
