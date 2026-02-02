@@ -23,32 +23,43 @@ class GoogleSheetsService:
     """Service for interacting with Google Sheets API."""
     
     # Scopes needed for creating and writing to sheets
-    SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file']
+    SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
     
     # Standard column headers for reply logging
-        # Column headers for reply sheet - matches n8n reference format
+        # Column headers matching reference sheet: Outreach: Internal -> Replies tab
+    # Reference: https://docs.google.com/spreadsheets/d/1MepWTwCGJX-fGQPkygQouF-hfL8WYV4DRAdmqI3DbDg/edit?gid=1698920485
     REPLY_HEADERS = [
-        'Timestamp',           # A - When reply was processed
-        'Lead Email',          # B - Email address
-        'First Name',          # C - Lead first name
-        'Last Name',           # D - Lead last name
-        'Company',             # E - Company name
-        'Job Title',           # F - Lead job title (from custom_fields)
-        'LinkedIn',            # G - LinkedIn profile URL
-        'Campaign ID',         # H - Smartlead campaign ID
-        'Campaign Name',       # I - Campaign name
-        'Reply Subject',       # J - Email subject
-        'Reply Body',          # K - Full reply text
-        'Category',            # L - AI classification (interested/not_interested/etc)
-        'Confidence',          # M - Classification confidence
-        'AI Reasoning',        # N - Why AI chose this category
-        'Draft Reply',         # O - Generated reply draft
-        'Status',              # P - Approval status (pending/approved/dismissed)
-        'Approved By',         # Q - Who approved
-        'Approved At',         # R - When approved
-        'Inbox Link',          # S - Link to Smartlead inbox
-        'Reply ID',            # T - Internal reply ID for updates
+        'first name',           # A
+        'last name',            # B  
+        'Position',             # C - Job title
+        'Website',              # D - Company website
+        'Linkedin',             # E - LinkedIn profile
+        'Company ',             # F - Company name (note: has trailing space in original)
+        'Company Location',     # G
+        'segment',              # H
+        'Employees',            # I
+        'target_lead_email',    # J - Lead email
+        'Industry',             # K
+        'Status ',              # L - Our category/status (note: trailing space)
+        'Sample Status',        # M
+        'Sample Comment',       # N
+        'Sample Responsible',   # O
+        'Кто привел',           # P - Who brought (Russian)
+        'Updates after communication',  # Q
+        'Sample link',          # R
+        'Market size, k',       # S
+        'Канал',                # T - Channel (Russian)
+        'campaign',             # U - Campaign name
+        'text',                 # V - Reply text
+        'time',                 # W - Reply time
+        'created time',         # X - When processed
+        'campaign_id',          # Y - Campaign ID
+        'category',             # Z - AI category
     ]
+    
+    # Default tab name for replies (can be overridden per-sheet)
+    DEFAULT_TAB = 'Replies'
+
     
     def __init__(self):
         """Initialize the Google Sheets service."""
@@ -88,6 +99,12 @@ class GoogleSheetsService:
             else:
                 logger.warning("No Google service account credentials configured")
                 return False
+            
+            # Apply domain-wide delegation if configured
+            impersonate_email = os.environ.get('GOOGLE_IMPERSONATE_EMAIL')
+            if impersonate_email:
+                self.credentials = self.credentials.with_subject(impersonate_email)
+                logger.info(f"Using domain-wide delegation, impersonating: {impersonate_email}")
             
             # Build API clients
             self.sheets_service = build('sheets', 'v4', credentials=self.credentials)
@@ -267,14 +284,15 @@ class GoogleSheetsService:
             logger.error(f"Error sharing sheet: {e}")
             return False
     
-    def append_reply(self, sheet_id: str, reply_data: Dict[str, Any]) -> bool:
+    def append_reply(self, sheet_id: str, reply_data: Dict[str, Any], tab_name: str = None) -> bool:
         """Append a reply to the sheet.
         
-        SAFETY: Append-only operation - never modifies existing data.
+        Matches reference sheet format: Outreach: Internal -> Replies tab
         
         Args:
             sheet_id: The Google Sheet ID
             reply_data: Dictionary containing reply information
+            tab_name: Tab name to write to (defaults to 'Replies' for existing sheets, 'Sheet1' for new ones)
             
         Returns:
             True if successful, False otherwise
@@ -282,46 +300,55 @@ class GoogleSheetsService:
         if not self._initialize():
             logger.error("Google Sheets service not initialized")
             return False
+        
+        # Determine tab name - try Replies first, fallback to Sheet1
+        if not tab_name:
+            tab_name = self._get_tab_name(sheet_id)
             
         try:
-            # Format the row data matching REPLY_HEADERS
+            # Format row to match reference sheet columns A-Z
             row = [
-                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),  # Timestamp
-                reply_data.get('lead_email', ''),                      # Lead Email
-                reply_data.get('lead_first_name', ''),                 # First Name
-                reply_data.get('lead_last_name', ''),                  # Last Name
-                reply_data.get('lead_company', ''),                    # Company
-                reply_data.get('job_title', ''),                       # Job Title
-                reply_data.get('linkedin_profile', ''),                # LinkedIn
-                reply_data.get('campaign_id', ''),                     # Campaign ID
-                reply_data.get('campaign_name', ''),                   # Campaign Name
-                reply_data.get('email_subject', ''),                   # Reply Subject
-                reply_data.get('email_body', reply_data.get('reply_text', '')),  # Reply Body
-                reply_data.get('category', ''),                        # Category
-                reply_data.get('category_confidence', ''),             # Confidence
-                reply_data.get('classification_reasoning', ''),        # AI Reasoning
-                reply_data.get('draft_reply', ''),                     # Draft Reply
-                reply_data.get('approval_status', 'pending'),          # Status
-                reply_data.get('approved_by', ''),                     # Approved By
-                reply_data.get('approved_at', ''),                     # Approved At
-                reply_data.get('inbox_link', ''),                      # Inbox Link
-                str(reply_data.get('id', '')),                         # Reply ID
+                reply_data.get('lead_first_name', ''),              # A: first name
+                reply_data.get('lead_last_name', ''),               # B: last name
+                reply_data.get('job_title', ''),                    # C: Position
+                reply_data.get('website', ''),                      # D: Website
+                reply_data.get('linkedin_profile', ''),             # E: Linkedin
+                reply_data.get('lead_company', ''),                 # F: Company
+                reply_data.get('company_location', ''),             # G: Company Location
+                reply_data.get('segment', ''),                      # H: segment
+                reply_data.get('employees', ''),                    # I: Employees
+                reply_data.get('lead_email', ''),                   # J: target_lead_email
+                reply_data.get('industry', ''),                     # K: Industry
+                reply_data.get('category', ''),                     # L: Status (our category)
+                '',                                                 # M: Sample Status
+                '',                                                 # N: Sample Comment
+                '',                                                 # O: Sample Responsible
+                '',                                                 # P: Кто привел
+                '',                                                 # Q: Updates after communication
+                reply_data.get('inbox_link', ''),                   # R: Sample link
+                '',                                                 # S: Market size, k
+                'Email',                                            # T: Канал (Channel)
+                reply_data.get('campaign_name', ''),                # U: campaign
+                reply_data.get('email_body', reply_data.get('reply_text', '')),  # V: text
+                reply_data.get('received_at', ''),                  # W: time
+                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),    # X: created time
+                reply_data.get('campaign_id', ''),                  # Y: campaign_id
+                reply_data.get('category', ''),                     # Z: category
             ]
             
-            body = {
-                'values': [row]
-            }
+            body = {'values': [row]}
             
-            # Append to the sheet (always adds to the end)
+            # Append to the Replies tab
+            range_name = f"'{tab_name}'!A:Z"
             self.sheets_service.spreadsheets().values().append(
                 spreadsheetId=sheet_id,
-                range='Sheet1!A:T',
+                range=range_name,
                 valueInputOption='RAW',
                 insertDataOption='INSERT_ROWS',
                 body=body
             ).execute()
             
-            logger.debug(f"Appended reply for {reply_data.get('lead_email')} to sheet {sheet_id}")
+            logger.info(f"Appended reply for {reply_data.get('lead_email')} to sheet {sheet_id} tab {tab_name}")
             return True
             
         except HttpError as e:
@@ -330,6 +357,25 @@ class GoogleSheetsService:
         except Exception as e:
             logger.error(f"Error appending reply to sheet: {e}")
             return False
+    
+    def _get_tab_name(self, sheet_id: str) -> str:
+        """Get the appropriate tab name for a sheet."""
+        try:
+            result = self.sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+            tabs = [s.get('properties', {}).get('title') for s in result.get('sheets', [])]
+            
+            # Prefer 'Replies' tab if it exists
+            if 'Replies' in tabs:
+                return 'Replies'
+            # Fallback to Sheet1
+            if 'Sheet1' in tabs:
+                return 'Sheet1'
+            # Otherwise use first tab
+            return tabs[0] if tabs else 'Sheet1'
+        except Exception as e:
+            logger.warning(f"Could not determine tab name: {e}")
+            return 'Sheet1'
+
     def get_sheet_info(self, sheet_id: str) -> Optional[Dict[str, Any]]:
         """Get information about a sheet.
         
@@ -426,14 +472,16 @@ class GoogleSheetsService:
 
     def update_reply_status(self, sheet_id: str, row_number: int, approval_status: str, 
                             approved_by: str = '', approved_at: str = '') -> bool:
-        """Update the approval status and related fields of a reply in the sheet.
+        """Update the status of a reply in the sheet.
+        
+        In reference format, Status is in column L (12th column).
         
         Args:
             sheet_id: The Google Sheet ID
             row_number: The row number (1-indexed, header is row 1)
             approval_status: New status (pending, approved, dismissed)
-            approved_by: Who approved (optional)
-            approved_at: When approved (optional)
+            approved_by: Who approved (optional) - stored in Sample Comment (N)
+            approved_at: When approved (optional) - stored in Updates (Q)
             
         Returns:
             True if successful, False otherwise
@@ -441,24 +489,35 @@ class GoogleSheetsService:
         if not self._initialize():
             logger.error("Google Sheets service not initialized")
             return False
+        
+        tab_name = self._get_tab_name(sheet_id)
             
         try:
-            # Status is in column P (16th), Approved By in Q (17th), Approved At in R (18th)
-            # Update all three columns at once: P, Q, R
-            range_name = f"Sheet1!P{row_number}:R{row_number}"
+            # In reference format: Status is column L, Sample Comment is N, Updates is Q
+            # Update Status (L), Sample Comment (N), Updates (Q)
+            updates = []
             
-            body = {
-                'values': [[approval_status, approved_by, approved_at]]
-            }
+            # Update Status in column L
+            updates.append({
+                'range': f"'{tab_name}'!L{row_number}",
+                'values': [[approval_status]]
+            })
             
-            self.sheets_service.spreadsheets().values().update(
+            # If approved, add note in Updates column Q
+            if approved_at:
+                updates.append({
+                    'range': f"'{tab_name}'!Q{row_number}",
+                    'values': [[f"{approval_status} at {approved_at}"]]
+                })
+            
+            body = {'data': updates, 'valueInputOption': 'RAW'}
+            
+            self.sheets_service.spreadsheets().values().batchUpdate(
                 spreadsheetId=sheet_id,
-                range=range_name,
-                valueInputOption='RAW',
                 body=body
             ).execute()
             
-            logger.info(f"Updated row {row_number} to {approval_status} in sheet {sheet_id}")
+            logger.info(f"Updated row {row_number} to {approval_status} in sheet {sheet_id} tab {tab_name}")
             return True
         except Exception as e:
             logger.error(f"Error updating reply status: {e}")
@@ -467,17 +526,30 @@ class GoogleSheetsService:
         """Append a reply and return the row number."""
         if not self._initialize():
             return None
+        
+        # Get tab name using initialized service
+        tab_name = 'Replies'  # Default to Replies for reference sheet format
+        try:
+            result = self.sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+            tabs = [s.get('properties', {}).get('title') for s in result.get('sheets', [])]
+            if 'Replies' in tabs:
+                tab_name = 'Replies'
+            elif 'Sheet1' in tabs:
+                tab_name = 'Sheet1'
+            logger.info(f"Using tab: {tab_name} (available: {tabs[:3]}...)")
+        except Exception as e:
+            logger.warning(f"Could not get tabs, using default: {e}")
             
         try:
-            # Get current row count
+            # Get current row count from the correct tab
             result = self.sheets_service.spreadsheets().values().get(
                 spreadsheetId=sheet_id,
-                range="Sheet1!A:A"
+                range=f"'{tab_name}'!A:A"
             ).execute()
             current_rows = len(result.get('values', []))
             new_row = current_rows + 1
             
-            if self.append_reply(sheet_id, reply_data):
+            if self.append_reply(sheet_id, reply_data, tab_name):
                 return new_row
             return None
         except Exception as e:

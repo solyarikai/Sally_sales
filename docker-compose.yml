@@ -49,6 +49,8 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://leadgen:leadgen_secret@postgres:5432/leadgen
       - REDIS_URL=redis://redis:6379
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json
+      - GOOGLE_IMPERSONATE_EMAIL=services@getsally.io
     volumes:
       - ./backend:/app
       - ./google-credentials.json:/app/google-credentials.json:ro
