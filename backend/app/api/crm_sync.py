@@ -219,6 +219,86 @@ async def setup_webhooks(
     }
 
 
+
+
+@router.post("/fetch-replies")
+async def fetch_smartlead_replies(
+    background_tasks: BackgroundTasks,
+    company: Company = Depends(get_required_company),
+    session: AsyncSession = Depends(get_session),
+):
+    """Fetch reply history from Smartlead campaigns and update contact status."""
+    from app.services.smartlead_service import fetch_all_campaign_replies
+    import os
+    
+    api_key = os.getenv("SMARTLEAD_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Smartlead API key not configured")
+    
+    async def process_replies():
+        from app.db.database import async_session_maker
+        async with async_session_maker() as bg_session:
+            try:
+                # Get Smartlead campaigns
+                from app.services.smartlead_service import SmartleadService
+                smartlead = SmartleadService()
+                campaigns = await smartlead.get_campaigns()
+                
+                total_replies = 0
+                contacts_updated = 0
+                
+                for campaign in campaigns[:50]:  # Limit to first 50 campaigns
+                    campaign_id = str(campaign.get("id"))
+                    try:
+                        replies = await fetch_all_campaign_replies(campaign_id, api_key)
+                        
+                        for reply in replies:
+                            email = reply.get("lead_email", "").lower().strip()
+                            if not email:
+                                continue
+                                
+                            # Find and update contact
+                            result = await bg_session.execute(
+                                select(Contact).where(
+                                    Contact.email == email,
+                                    Contact.deleted_at.is_(None)
+                                )
+                            )
+                            contact = result.scalars().first()
+                            
+                            if contact and not contact.has_replied:
+                                contact.has_replied = True
+                                contact.status = "replied"
+                                # Parse reply_time string to datetime
+                                reply_time_str = reply.get("reply_time")
+                                if reply_time_str:
+                                    try:
+                                        from datetime import datetime
+                                        contact.last_reply_at = datetime.fromisoformat(reply_time_str.replace("Z", "+00:00"))
+                                    except:
+                                        contact.last_reply_at = None
+                                contact.reply_channel = "email"
+                                contacts_updated += 1
+                                
+                            total_replies += 1
+                            
+                    except Exception as e:
+                        logger.warning(f"Error fetching replies for campaign {campaign_id}: {e}")
+                        continue
+                
+                await bg_session.commit()
+                logger.info(f"Reply sync complete: {total_replies} replies found, {contacts_updated} contacts updated")
+                
+            except Exception as e:
+                await bg_session.rollback()
+                logger.error(f"Reply sync failed: {e}")
+    
+    background_tasks.add_task(process_replies)
+    
+    return {"success": True, "message": "Reply fetch started in background"}
+
+
+
 @router.get("/webhooks")
 async def list_configured_webhooks(
     session: AsyncSession = Depends(get_session),

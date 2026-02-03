@@ -501,7 +501,11 @@ class CRMSyncService:
         
         # Determine status from campaigns
         campaigns = lead.get("campaigns", [])
-        has_replied = any(c.get("lead_status") == "REPLIED" for c in campaigns)
+        # Check for replies - either REPLIED status or has reply_time
+        has_replied = any(
+            c.get("lead_status") == "REPLIED" or c.get("reply_time") 
+            for c in campaigns
+        )
         smartlead_status = campaigns[0].get("lead_status") if campaigns else None
         campaign_names = [c.get("campaign_name") for c in campaigns if c.get("campaign_name")]
         
