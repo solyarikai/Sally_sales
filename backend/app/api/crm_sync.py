@@ -773,7 +773,7 @@ async def getsales_webhook(
             "linkedin_type": linkedin_message.get("linkedin_type"),
             "messages_sent_count": contact_markers.get("linkedin_messages_sent_count"),
             "messages_inbox_count": contact_markers.get("linkedin_messages_inbox_count"),
-            "conversation_thread": body.get("latest_linkedin_conversation_thread", {}).get("messaging_thread"),
+            "conversation_thread": (body.get("latest_linkedin_conversation_thread") or {}).get("messaging_thread") if isinstance(body.get("latest_linkedin_conversation_thread"), dict) else None,
         },
         activity_at=activity_at
     )
