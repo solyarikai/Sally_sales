@@ -166,7 +166,7 @@ class SmartleadClient:
         
         return await self._post(f"/campaigns/{campaign_id}/webhooks", webhook_data)
     
-    async def setup_crm_webhooks(self, webhook_url: str, max_campaigns: int = 50) -> Dict[str, Any]:
+    async def setup_crm_webhooks(self, webhook_url: str, max_campaigns: int = 10000) -> Dict[str, Any]:
         """
         Set up CRM webhooks for all active Smartlead campaigns.
         
