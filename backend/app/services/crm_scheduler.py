@@ -29,16 +29,19 @@ class CRMScheduler:
         sync_interval_minutes: int = 30,
         reply_check_interval_minutes: int = 15,
         webhook_check_interval_hours: int = 6,
+        report_interval_hours: int = 4,
         company_id: int = 1
     ):
         self.sync_interval = sync_interval_minutes * 60
         self.reply_check_interval = reply_check_interval_minutes * 60
         self.webhook_check_interval = webhook_check_interval_hours * 3600
+        self.report_interval = report_interval_hours * 3600
         self.company_id = company_id
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._reply_task: Optional[asyncio.Task] = None
         self._webhook_task: Optional[asyncio.Task] = None
+        self._report_task: Optional[asyncio.Task] = None
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
         self._last_webhook_check: Optional[datetime] = None
@@ -55,12 +58,13 @@ class CRMScheduler:
         self._task = asyncio.create_task(self._run_loop())
         self._reply_task = asyncio.create_task(self._run_reply_loop())
         self._webhook_task = asyncio.create_task(self._run_webhook_loop())
-        logger.info(f"CRM scheduler started (sync: {self.sync_interval // 60}min, replies: {self.reply_check_interval // 60}min, webhooks: {self.webhook_check_interval // 3600}h)")
+        self._report_task = asyncio.create_task(self._run_report_loop())
+        logger.info(f"CRM scheduler started (sync: {self.sync_interval // 60}min, replies: {self.reply_check_interval // 60}min, webhooks: {self.webhook_check_interval // 3600}h, reports: {self.report_interval // 3600}h)")
     
     async def stop(self):
         """Stop the scheduler."""
         self._running = False
-        for task in [self._task, self._reply_task, self._webhook_task]:
+        for task in [self._task, self._reply_task, self._webhook_task, self._report_task]:
             if task:
                 task.cancel()
                 try:
@@ -157,6 +161,98 @@ class CRMScheduler:
             except Exception as e:
                 logger.error(f"GetSales reply check failed: {e}")
     
+    async def _run_report_loop(self):
+        """Send Telegram report every 4 hours with reply summary."""
+        await asyncio.sleep(300)  # Initial delay 5 min
+        while self._running:
+            try:
+                await self._send_reply_report()
+            except Exception as e:
+                logger.error(f"Report generation failed: {e}")
+            await asyncio.sleep(self.report_interval)
+    
+    async def _send_reply_report(self):
+        """Generate and send Telegram report of replies in last 24 hours."""
+        from app.db import async_session_maker
+        from app.models.reply import ProcessedReply
+        from app.models.contact import ContactActivity
+        from app.services.notification_service import send_telegram_notification
+        from sqlalchemy import select, func, and_
+        from datetime import datetime, timedelta
+        
+        since = datetime.utcnow() - timedelta(hours=24)
+        
+        async with async_session_maker() as session:
+            # Get Smartlead replies by category and campaign
+            smartlead_query = await session.execute(
+                select(
+                    ProcessedReply.category,
+                    ProcessedReply.campaign_name,
+                    func.count(ProcessedReply.id).label("count")
+                ).where(
+                    ProcessedReply.received_at >= since
+                ).group_by(
+                    ProcessedReply.category,
+                    ProcessedReply.campaign_name
+                )
+            )
+            smartlead_data = smartlead_query.all()
+            
+            # Get GetSales replies 
+            getsales_query = await session.execute(
+                select(func.count(ContactActivity.id)).where(
+                    and_(
+                        ContactActivity.activity_type == "linkedin_replied",
+                        ContactActivity.activity_at >= since
+                    )
+                )
+            )
+            getsales_count = getsales_query.scalar() or 0
+            
+            # Categorize
+            warm_categories = ["interested", "meeting_request", "question"]
+            negative_categories = ["not_interested", "unsubscribe", "wrong_person"]
+            
+            warm_total = 0
+            negative_total = 0
+            warm_by_campaign = {}
+            
+            for row in smartlead_data:
+                category, campaign, count = row
+                if category in warm_categories:
+                    warm_total += count
+                    if campaign:
+                        if campaign not in warm_by_campaign:
+                            warm_by_campaign[campaign] = {"email": 0}
+                        warm_by_campaign[campaign]["email"] += count
+                elif category in negative_categories:
+                    negative_total += count
+            
+            # Build message
+            total_replies = len(smartlead_data) + getsales_count
+            
+            message = f"""<b>📊 Replies Report (Last 24h)</b>
+
+<b>🔥 WARM ({warm_total} email + {getsales_count} LinkedIn = {warm_total + getsales_count})</b>
+"""
+            
+            # Add campaign breakdown
+            for campaign, channels in sorted(warm_by_campaign.items(), key=lambda x: -x[1].get("email", 0))[:10]:
+                email_count = channels.get("email", 0)
+                message += f"  • {campaign[:40]}: {email_count} email\n"
+            
+            if getsales_count > 0:
+                message += f"  • LinkedIn (all flows): {getsales_count}\n"
+            
+            message += f"""
+<b>❌ NOT INTERESTED ({negative_total})</b>
+
+<b>📈 TOTAL: {warm_total + negative_total + getsales_count} replies</b>
+"""
+            
+            await send_telegram_notification(message.strip())
+            logger.info(f"Sent 4-hourly reply report: {warm_total} warm, {negative_total} negative, {getsales_count} LinkedIn")
+
     async def _setup_webhooks(self):
         """Set up webhooks for any new campaigns."""
         logger.info("Checking for new campaigns to configure webhooks...")
