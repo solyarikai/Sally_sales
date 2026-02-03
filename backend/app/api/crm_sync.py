@@ -447,6 +447,49 @@ async def smartlead_webhook(
         )
         contact = result.scalar_one_or_none()
     
+    # Also try to match by LinkedIn URL (for contacts from GetSales)
+    linkedin_profile = lead_data.get("linkedin_profile") or lead_data.get("linkedin_url")
+    if not contact and linkedin_profile:
+        normalized_linkedin = linkedin_profile.lower().rstrip("/")
+        if "linkedin.com/in/" in normalized_linkedin:
+            linkedin_handle = normalized_linkedin.split("linkedin.com/in/")[-1].split("/")[0].split("?")[0]
+            result = await session.execute(
+                select(Contact).where(
+                    and_(
+                        Contact.linkedin_url.ilike(f"%/in/{linkedin_handle}%"),
+                        Contact.deleted_at.is_(None)
+                    )
+                )
+            )
+            contact = result.scalar_one_or_none()
+    
+    # If we found an existing contact (from GetSales), merge Smartlead data
+    if contact and not contact.smartlead_id:
+        logger.info(f"Merging Smartlead data into existing contact: {contact.email}")
+        contact.smartlead_id = str(lead_id) if lead_id else None
+        if linkedin_profile and not contact.linkedin_url:
+            contact.linkedin_url = _normalize_linkedin(linkedin_profile)
+        # Add campaign to existing campaigns if not already there
+        if campaign_name or campaign_id:
+            campaign_entry = {
+                "name": campaign_name,
+                "id": str(campaign_id) if campaign_id else None,
+                "source": "smartlead"
+            }
+            existing_campaigns = []
+            if contact.campaigns:
+                try:
+                    if isinstance(contact.campaigns, str):
+                        existing_campaigns = json.loads(contact.campaigns)
+                    elif isinstance(contact.campaigns, list):
+                        existing_campaigns = contact.campaigns
+                except:
+                    existing_campaigns = []
+            existing_ids = {c.get("id") for c in existing_campaigns if isinstance(c, dict)}
+            if str(campaign_id) not in existing_ids:
+                existing_campaigns.append(campaign_entry)
+                contact.campaigns = json.dumps(existing_campaigns)
+    
     if not contact:
         # Create new contact from webhook data
         logger.info(f"Creating new contact from Smartlead webhook: {lead_email}")
@@ -727,6 +770,31 @@ async def getsales_webhook(
             )
         )
         contact = result.scalar_one_or_none()
+    
+    # Also try to match by LinkedIn URL (for contacts from Smartlead with LinkedIn)
+    if not contact and linkedin_url:
+        # Normalize LinkedIn URL for matching
+        normalized_linkedin = linkedin_url.lower().rstrip("/")
+        if "linkedin.com/in/" in normalized_linkedin:
+            linkedin_handle = normalized_linkedin.split("linkedin.com/in/")[-1].split("/")[0].split("?")[0]
+            result = await session.execute(
+                select(Contact).where(
+                    and_(
+                        Contact.linkedin_url.ilike(f"%/in/{linkedin_handle}%"),
+                        Contact.deleted_at.is_(None)
+                    )
+                )
+            )
+            contact = result.scalar_one_or_none()
+    
+    # If we found an existing contact (from Smartlead), update GetSales fields
+    is_existing_contact = contact is not None
+    if is_existing_contact and not contact.getsales_id:
+        logger.info(f"Merging GetSales data into existing contact: {contact.email}")
+        contact.getsales_id = lead_uuid
+        contact.getsales_status = contact_data.get("pipeline_stage_name")
+        if linkedin_url and not contact.linkedin_url:
+            contact.linkedin_url = linkedin_url
     
     if not contact:
         # Contact not in our system yet - create it
