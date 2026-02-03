@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_
 
 from app.models.contact import Contact, ContactActivity
+from app.services.cache_service import acquire_sync_lock, release_sync_lock
 
 logger = logging.getLogger(__name__)
 
@@ -851,6 +852,8 @@ class CRMSyncService:
         """
         Perform full sync from all sources.
         
+        Uses Redis lock to prevent concurrent syncs.
+        
         1. Sync all Smartlead contacts
         2. Sync all GetSales contacts  
         3. Sync Smartlead replies
@@ -861,6 +864,14 @@ class CRMSyncService:
             "started_at": datetime.utcnow().isoformat(),
             "completed_at": None
         }
+        
+        # Try to acquire sync lock
+        if not await acquire_sync_lock():
+            results["error"] = "Sync already in progress"
+            results["success"] = False
+            results["skipped"] = True
+            logger.warning("Sync skipped - another sync already in progress")
+            return results
         
         try:
             if self.smartlead:
@@ -881,6 +892,9 @@ class CRMSyncService:
             logger.error(f"Sync failed: {e}")
             results["error"] = str(e)
             results["success"] = False
+        finally:
+            # Always release the lock
+            await release_sync_lock()
         
         return results
 

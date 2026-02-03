@@ -236,3 +236,47 @@ async def init_cache():
 async def close_cache():
     """Close cache on shutdown"""
     await cache_service.disconnect()
+
+
+# Sync lock helpers
+SYNC_LOCK_KEY = "leadgen:sync_lock"
+SYNC_LOCK_TTL = 600  # 10 minutes
+
+async def acquire_sync_lock() -> bool:
+    """
+    Try to acquire exclusive sync lock.
+    Returns True if lock acquired, False if sync already in progress.
+    """
+    if not cache_service.is_connected or not cache_service._redis:
+        logger.warning("Redis not connected, skipping lock (allowing sync)")
+        return True
+    
+    try:
+        acquired = await cache_service._redis.set(
+            SYNC_LOCK_KEY, 
+            "1", 
+            nx=True,  # Only set if not exists
+            ex=SYNC_LOCK_TTL
+        )
+        if acquired:
+            logger.info("Sync lock acquired")
+            return True
+        else:
+            logger.warning("Sync lock already held - another sync in progress")
+            return False
+    except Exception as e:
+        logger.warning(f"Failed to acquire sync lock: {e}")
+        return True  # Allow sync if lock fails
+
+async def release_sync_lock() -> bool:
+    """Release the sync lock."""
+    if not cache_service.is_connected or not cache_service._redis:
+        return True
+    
+    try:
+        await cache_service._redis.delete(SYNC_LOCK_KEY)
+        logger.info("Sync lock released")
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to release sync lock: {e}")
+        return False
