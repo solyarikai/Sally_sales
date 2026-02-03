@@ -221,7 +221,19 @@ async def setup_crm_webhooks_on_startup():
             created = len(results.get('created', []))
             existing = len(results.get('existing', []))
             skipped = len(results.get('skipped', []))
-            logger.info(f"Smartlead webhooks: {created} created, {existing} existing, {skipped} skipped")
+            failed = len(results.get('failed', []))
+            active_count = created + existing
+            
+            # Log detailed summary
+            logger.info(f"Smartlead webhook setup complete:")
+            logger.info(f"  - Active campaigns with webhooks: {active_count}")
+            logger.info(f"  - New webhooks created: {created}")
+            logger.info(f"  - Already configured: {existing}")
+            logger.info(f"  - Inactive campaigns skipped: {skipped}")
+            if failed > 0:
+                logger.warning(f"  - Failed: {failed}")
+                for f_item in results.get('failed', [])[:5]:
+                    logger.warning(f"    {f_item.get('name')}: {f_item.get('error')}")
         except Exception as e:
             logger.warning(f"Failed to set up Smartlead webhooks: {e}")
 

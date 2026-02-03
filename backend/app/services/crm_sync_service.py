@@ -61,9 +61,9 @@ class SmartleadClient:
         resp.raise_for_status()
         return resp.json()
     
-    async def get_campaigns(self, limit: int = 100, offset: int = 0) -> List[dict]:
-        """Get all campaigns."""
-        data = await self._get("/campaigns", {"limit": limit, "offset": offset})
+    async def get_campaigns(self) -> List[dict]:
+        """Get all campaigns. Smartlead returns all campaigns in one call (no pagination)."""
+        data = await self._get("/campaigns")
         return data if isinstance(data, list) else data.get("data", [])
     
     async def get_campaign_leads(self, campaign_id: int, limit: int = 100, offset: int = 0) -> List[dict]:
@@ -166,21 +166,20 @@ class SmartleadClient:
         
         return await self._post(f"/campaigns/{campaign_id}/webhooks", webhook_data)
     
-    async def setup_crm_webhooks(self, webhook_url: str, max_campaigns: int = 10000) -> Dict[str, Any]:
+    async def setup_crm_webhooks(self, webhook_url: str) -> Dict[str, Any]:
         """
         Set up CRM webhooks for all active Smartlead campaigns.
         
         Args:
-            webhook_url: Base URL for webhooks (e.g., "http://your-domain.com/api/crm-sync/webhook/smartlead")
-            max_campaigns: Maximum number of campaigns to configure
+            webhook_url: Base URL for webhooks
         
         Returns:
-            Dict with created/existing/failed counts
+            Dict with created/existing/failed/skipped counts
         """
         results = {"created": [], "existing": [], "failed": [], "skipped": []}
         
         try:
-            campaigns = await self.get_campaigns(limit=max_campaigns)
+            campaigns = await self.get_campaigns()
             logger.info(f"Found {len(campaigns)} Smartlead campaigns")
             
             for campaign in campaigns:
