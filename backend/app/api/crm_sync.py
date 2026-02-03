@@ -49,6 +49,14 @@ def _extract_location(location_data) -> str:
     return str(location_data)
 
 router = APIRouter(prefix="/crm-sync", tags=["CRM Sync"])
+def _truncate(value, max_len: int = 500):
+    """Truncate string to max length."""
+    if value is None:
+        return None
+    s = str(value)
+    return s[:max_len] if len(s) > max_len else s
+
+
 
 
 # ============= Schemas =============
@@ -517,13 +525,13 @@ async def getsales_bulk_import_webhook(
         contact = Contact(
             company_id=1,  # Default company
             email=email,
-            first_name=contact_data.get("first_name", ""),
-            last_name=contact_data.get("last_name", ""),
-            company_name=contact_data.get("account", {}).get("name") if isinstance(contact_data.get("account"), dict) else contact_data.get("company_name", ""),
-            job_title=contact_data.get("job_title") or contact_data.get("title"),
-            linkedin_url=linkedin_url,
-            location=_extract_location(contact_data.get("location")) or contact_data.get("city"),
-            phone=contact_data.get("phone") or contact_data.get("phone_number"),
+            first_name=_truncate(contact_data.get("first_name", ""), 255),
+            last_name=_truncate(contact_data.get("last_name", ""), 255),
+            company_name=_truncate(contact_data.get("account", {}).get("name") if isinstance(contact_data.get("account"), dict) else contact_data.get("company_name", ""), 500),
+            job_title=_truncate(contact_data.get("job_title") or contact_data.get("title"), 500),
+            linkedin_url=_truncate(linkedin_url, 500),
+            location=_truncate(_extract_location(contact_data.get("location")) or contact_data.get("city"), 500),
+            phone=_truncate(contact_data.get("phone") or contact_data.get("phone_number"), 100),
             source="getsales",
             getsales_id=str(getsales_uuid) if getsales_uuid else None,
             getsales_status=contact_data.get("pipeline_stage"),

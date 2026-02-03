@@ -204,6 +204,7 @@ async def list_contacts(
     has_smartlead: Optional[bool] = Query(None, description="Filter contacts with Smartlead history"),
     has_getsales: Optional[bool] = Query(None, description="Filter contacts with GetSales history"),
     campaign: Optional[str] = Query(None, description="Filter by campaign name (partial match)"),
+    needs_followup: Optional[bool] = Query(None, description="Filter contacts needing follow-up (no reply in 3+ days)"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -242,6 +243,16 @@ async def list_contacts(
         # Filter by campaign name using JSON contains
         query = query.where(
             Contact.campaigns.cast(String).ilike(f'%{campaign}%')
+        )
+    if needs_followup is True:
+        # Contacts that haven't replied and were synced more than 3 days ago
+        from datetime import timedelta
+        three_days_ago = datetime.utcnow() - timedelta(days=3)
+        query = query.where(
+            and_(
+                Contact.has_replied == False,
+                Contact.last_synced_at < three_days_ago
+            )
         )
     
     # Search

@@ -49,6 +49,7 @@ export function ContactsPage() {
   const [smartleadFilter, setSmartleadFilter] = useState<boolean | null>(null);
   const [getsalesFilter, setGetsalesFilter] = useState<boolean | null>(null);
   const [campaignFilter, setCampaignFilter] = useState<string>('');
+  const [followupFilter, setFollowupFilter] = useState<boolean | null>(null);
   const [campaigns, setCampaigns] = useState<Array<{name: string, source: string}>>([]);
   
   // Contact Detail Modal
@@ -105,6 +106,7 @@ export function ContactsPage() {
         has_smartlead: smartleadFilter ?? undefined,
         has_getsales: getsalesFilter ?? undefined,
         campaign: campaignFilter || undefined,
+        needs_followup: followupFilter ?? undefined,
       });
       
       setContacts(response.contacts);
@@ -115,7 +117,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, projectFilter, segmentFilter, statusFilter, sourceFilter, repliedFilter, smartleadFilter, getsalesFilter, campaignFilter, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, projectFilter, segmentFilter, statusFilter, sourceFilter, repliedFilter, smartleadFilter, getsalesFilter, campaignFilter, followupFilter, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -350,7 +352,7 @@ export function ContactsPage() {
     setSearch('');
   };
 
-  const hasActiveFilters = projectFilter || segmentFilter || statusFilter || sourceFilter || repliedFilter !== null || smartleadFilter !== null || getsalesFilter !== null || campaignFilter || search;
+  const hasActiveFilters = projectFilter || segmentFilter || statusFilter || sourceFilter || repliedFilter !== null || smartleadFilter !== null || getsalesFilter !== null || campaignFilter || followupFilter !== null || search;
   const totalPages = Math.ceil(total / pageSize);
 
   return (
@@ -535,6 +537,17 @@ export function ContactsPage() {
               ))}
             </datalist>
           </div>
+
+          {/* Follow-up Needed Filter */}
+          <button
+            onClick={() => setFollowupFilter(followupFilter === true ? null : true)}
+            className={followupFilter === true 
+              ? "px-3 py-2 border rounded-lg text-sm font-medium bg-orange-500 text-white border-orange-500" 
+              : "px-3 py-2 border rounded-lg text-sm font-medium bg-white text-gray-700 hover:bg-orange-50 hover:border-orange-300"
+            }
+          >
+            ⏰ Follow-up Needed
+          </button>
 
           {hasActiveFilters && (
             <button onClick={clearFilters} className="btn btn-secondary btn-sm text-red-600">

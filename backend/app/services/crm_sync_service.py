@@ -31,6 +31,13 @@ def normalize_linkedin_url(url: str) -> str:
     # Remove trailing slash
     normalized = normalized.rstrip('/')
     return normalized if normalized else None
+def _truncate(value: str | None, max_len: int = 500) -> str | None:
+    """Truncate string to max length to prevent varchar overflow."""
+    if value is None:
+        return None
+    return str(value)[:max_len] if len(str(value)) > max_len else value
+
+
 
 
 class SmartleadClient:
@@ -546,13 +553,13 @@ class CRMSyncService:
             contact = Contact(
                 company_id=company_id,
                 email=email,
-                first_name=lead.get("first_name"),
-                last_name=lead.get("last_name"),
-                company_name=lead.get("company_name"),
-                job_title=custom_fields.get("Title") or custom_fields.get("title"),
-                phone=lead.get("phone_number"),
-                linkedin_url=lead.get("linkedin_profile"),
-                location=lead.get("location"),
+                first_name=_truncate(lead.get("first_name"), 255),
+                last_name=_truncate(lead.get("last_name"), 255),
+                company_name=_truncate(lead.get("company_name"), 500),
+                job_title=_truncate(custom_fields.get("Title") or custom_fields.get("title"), 500),
+                phone=_truncate(lead.get("phone_number"), 100),
+                linkedin_url=_truncate(lead.get("linkedin_profile"), 500),
+                location=_truncate(lead.get("location"), 500),
                 source="smartlead",
                 smartlead_id=smartlead_id,
                 smartlead_status=smartlead_status,
