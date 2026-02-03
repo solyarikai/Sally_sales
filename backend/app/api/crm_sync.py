@@ -702,12 +702,17 @@ async def getsales_webhook(
         # Contact not in our system yet - create it
         logger.info(f"Creating new contact from GetSales webhook: {lead_email or linkedin_url}")
         
-        location = contact_data.get("location", {})
-        location_str = ", ".join(filter(None, [
-            location.get("city"),
-            location.get("region"),
-            location.get("country")
-        ])) if isinstance(location, dict) else contact_data.get("raw_address")
+        location = contact_data.get("location")
+        if isinstance(location, dict):
+            location_str = ", ".join(filter(None, [
+                location.get("city"),
+                location.get("region"),
+                location.get("country")
+            ]))
+        elif isinstance(location, str):
+            location_str = location
+        else:
+            location_str = contact_data.get("raw_address", "")
         
         contact = Contact(
             company_id=1,  # Default company
