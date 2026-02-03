@@ -491,32 +491,35 @@ export function ContactsPage() {
             <option value="false">Not Replied</option>
           </select>
 
-          {/* Smartlead History Filter */}
+          {/* Channel Filter - Email (Smartlead) / LinkedIn (GetSales) */}
           <select
-            className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-            value={smartleadFilter === null ? '' : smartleadFilter ? 'true' : 'false'}
+            className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={
+              smartleadFilter === true && getsalesFilter === null ? 'email' :
+              getsalesFilter === true && smartleadFilter === null ? 'linkedin' :
+              smartleadFilter === true && getsalesFilter === true ? 'both' : ''
+            }
             onChange={(e) => {
               const val = e.target.value;
-              setSmartleadFilter(val === '' ? null : val === 'true');
+              if (val === 'email') {
+                setSmartleadFilter(true);
+                setGetsalesFilter(null);
+              } else if (val === 'linkedin') {
+                setSmartleadFilter(null);
+                setGetsalesFilter(true);
+              } else if (val === 'both') {
+                setSmartleadFilter(true);
+                setGetsalesFilter(true);
+              } else {
+                setSmartleadFilter(null);
+                setGetsalesFilter(null);
+              }
             }}
           >
-            <option value="">Smartlead: All</option>
-            <option value="true">In Smartlead</option>
-            <option value="false">Not in Smartlead</option>
-          </select>
-
-          {/* GetSales History Filter */}
-          <select
-            className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={getsalesFilter === null ? '' : getsalesFilter ? 'true' : 'false'}
-            onChange={(e) => {
-              const val = e.target.value;
-              setGetsalesFilter(val === '' ? null : val === 'true');
-            }}
-          >
-            <option value="">GetSales: All</option>
-            <option value="true">In GetSales</option>
-            <option value="false">Not in GetSales</option>
+            <option value="">All Channels</option>
+            <option value="email">📧 Email (Smartlead)</option>
+            <option value="linkedin">💼 LinkedIn (GetSales)</option>
+            <option value="both">📧+💼 Both Channels</option>
           </select>
 
           {/* Campaign Filter with Autocomplete */}
@@ -531,8 +534,8 @@ export function ContactsPage() {
             />
             <datalist id="campaigns-list">
               {campaigns.map((c, i) => (
-                <option key={i} value={c.name}>
-                  {c.source === 'smartlead' ? '📧' : '💼'} {c.name}
+                <option key={i} value={c.name} label={c.source === 'smartlead' ? '[Email] ' + c.name : '[LinkedIn] ' + c.name}>
+                  {c.name}
                 </option>
               ))}
             </datalist>
