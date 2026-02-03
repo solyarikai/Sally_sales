@@ -128,11 +128,15 @@ async def trigger_sync(
     
     # Run sync in background
     async def run_sync():
-        async with get_session() as bg_session:
+        # Use async_session_maker directly for background tasks
+        from app.db.database import async_session_maker
+        async with async_session_maker() as bg_session:
             try:
                 results = await sync_service.full_sync(bg_session, company.id)
+                await bg_session.commit()
                 logger.info(f"Sync completed for company {company.id}: {results}")
             except Exception as e:
+                await bg_session.rollback()
                 logger.error(f"Sync failed for company {company.id}: {e}")
     
     background_tasks.add_task(run_sync)
