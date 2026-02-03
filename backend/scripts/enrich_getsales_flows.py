@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-GetSales Flow Enrichment Script
+GetSales Flow Enrichment Script with Telegram notifications
 """
 import os
 import sys
@@ -8,7 +8,7 @@ import json
 import logging
 import asyncio
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import httpx
 import asyncpg
@@ -23,10 +23,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Configuration
 GETSALES_API_KEY = os.environ.get("GETSALES_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://leadgen:leadgen_secret@leadgen-postgres:5432/leadgen")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "57344339")
 BATCH_SIZE = 1000
 MAX_PAGES = 600
+PROGRESS_INTERVAL = 10
+
+
+async def send_telegram(message: str):
+    """Send message to Telegram using httpx."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(url, json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": message,
+                "parse_mode": "HTML"
+            })
+    except Exception as e:
+        logger.warning(f"Telegram notification failed: {e}")
 
 
 async def get_db_connection():
@@ -78,11 +98,9 @@ async def update_contact_campaigns(conn, contact_id: int, flow_name: str, flow_u
         "enriched_at": datetime.utcnow().isoformat()
     }
     
-    # Get current campaigns - handle both string JSON and actual JSON
     row = await conn.fetchrow("SELECT campaigns FROM contacts WHERE id = $1", contact_id)
     current_raw = row["campaigns"] if row else None
     
-    # Parse current campaigns
     if current_raw is None:
         current = []
     elif isinstance(current_raw, str):
@@ -95,12 +113,10 @@ async def update_contact_campaigns(conn, contact_id: int, flow_name: str, flow_u
     else:
         current = []
     
-    # Check if already has this flow
     existing_ids = {c.get("id") for c in current if isinstance(c, dict)}
     if flow_uuid in existing_ids:
         return False
     
-    # Append new campaign
     new_campaigns = current + [campaign_entry]
     await conn.execute(
         "UPDATE contacts SET campaigns = $1::jsonb, updated_at = NOW() WHERE id = $2",
@@ -111,6 +127,8 @@ async def update_contact_campaigns(conn, contact_id: int, flow_name: str, flow_u
 
 async def main():
     global GETSALES_API_KEY
+    start_time = datetime.utcnow()
+    
     if not GETSALES_API_KEY:
         for env_file in ["/app/.env", os.path.expanduser("~/magnum-opus-project/repo/.env")]:
             if os.path.exists(env_file):
@@ -123,29 +141,36 @@ async def main():
                     break
     
     if not GETSALES_API_KEY:
-        logger.error("GETSALES_API_KEY not found")
+        await send_telegram("❌ <b>GetSales Enrichment Failed</b>\nGETSALES_API_KEY not found")
         sys.exit(1)
     
+    await send_telegram("🚀 <b>GetSales Flow Enrichment Started</b>\nFetching flows and contacts...")
     logger.info("Starting GetSales flow enrichment...")
     
     flows_map = await fetch_flows_map(GETSALES_API_KEY)
     if not flows_map:
-        logger.error("No flows found")
+        await send_telegram("❌ <b>GetSales Enrichment Failed</b>\nNo flows found")
         sys.exit(1)
     
     conn = await get_db_connection()
     
     try:
         getsales_contacts = await get_getsales_contacts(conn)
-        logger.info(f"Found {len(getsales_contacts)} GetSales contacts")
+        total_contacts = len(getsales_contacts)
+        logger.info(f"Found {total_contacts} GetSales contacts")
         
         if not getsales_contacts:
+            await send_telegram("⚠️ No GetSales contacts to enrich")
             return
+        
+        await send_telegram(f"📊 Found <b>{total_contacts}</b> contacts, <b>{len(flows_map)}</b> flows\nProcessing ~510K records...")
         
         offset = 0
         total_processed = 0
         total_matched = 0
         actually_updated = 0
+        last_progress_pct = 0
+        total_api_records = 510697
         
         for page in range(MAX_PAGES):
             records, total, has_more = await fetch_flows_leads_batch(GETSALES_API_KEY, offset, BATCH_SIZE)
@@ -169,16 +194,47 @@ async def main():
             total_processed += len(records)
             offset += BATCH_SIZE
             
+            current_pct = int((total_processed / total_api_records) * 100)
+            
+            if current_pct >= last_progress_pct + PROGRESS_INTERVAL:
+                last_progress_pct = (current_pct // PROGRESS_INTERVAL) * PROGRESS_INTERVAL
+                elapsed = (datetime.utcnow() - start_time).total_seconds()
+                eta_seconds = (elapsed / total_processed) * (total_api_records - total_processed) if total_processed > 0 else 0
+                eta_minutes = int(eta_seconds / 60)
+                
+                await send_telegram(
+                    f"📈 <b>Progress: {last_progress_pct}%</b>\n"
+                    f"Processed: {total_processed:,}/{total_api_records:,}\n"
+                    f"Matches: {total_matched} | Updated: {actually_updated}\n"
+                    f"ETA: ~{eta_minutes} min"
+                )
+            
             if page % 50 == 0:
-                logger.info(f"Progress: {total_processed:,}/{total:,}, {total_matched} matches, {actually_updated} updated")
+                logger.info(f"Progress: {total_processed:,}/{total_api_records:,} ({current_pct}%), {total_matched} matches")
             
             if not has_more:
                 break
             
             await asyncio.sleep(0.05)
         
+        elapsed = (datetime.utcnow() - start_time).total_seconds()
+        elapsed_min = int(elapsed / 60)
+        
+        await send_telegram(
+            f"✅ <b>GetSales Enrichment Complete!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📊 Processed: <b>{total_processed:,}</b>\n"
+            f"🔗 Matches: <b>{total_matched}</b>\n"
+            f"✏️ Updated: <b>{actually_updated}</b>\n"
+            f"⏱ Duration: <b>{elapsed_min} min</b>"
+        )
+        
         logger.info(f"Done: {total_processed:,} processed, {total_matched} matches, {actually_updated} updated")
         
+    except Exception as e:
+        await send_telegram(f"❌ <b>GetSales Enrichment Error</b>\n{str(e)[:200]}")
+        logger.error(f"Error: {e}")
+        raise
     finally:
         await conn.close()
 
