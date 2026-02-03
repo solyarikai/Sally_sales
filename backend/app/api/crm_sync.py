@@ -26,12 +26,20 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize_linkedin(url: str) -> str:
-    """Normalize LinkedIn URL for matching."""
+    """Normalize LinkedIn URL for matching and storage."""
     if not url or url == '--':
         return None
     import re
-    normalized = re.sub(r'^https?://(www\.)?', '', url.lower()).rstrip('/')
-    return normalized if normalized else None
+    url = url.lower().strip()
+    # Remove protocol and www
+    url = re.sub(r'^https?://(www\.)?', '', url)
+    # Extract just the handle if it is a linkedin.com/in/ URL
+    if 'linkedin.com/in/' in url:
+        handle = url.split('linkedin.com/in/')[-1].split('/')[0].split('?')[0].strip()
+        if handle:
+            return f"linkedin.com/in/{handle}"
+    # Return cleaned URL for other formats
+    return url.rstrip('/') if url else None
 
 
 def _extract_location(location_data) -> str:

@@ -438,12 +438,14 @@ class CRMSyncService:
     
     @staticmethod
     def normalize_linkedin(url: str) -> Optional[str]:
-        """Normalize LinkedIn URL for matching."""
+        """Normalize LinkedIn URL - extracts clean handle for matching."""
         if not url:
             return None
         url = url.lower().strip().rstrip("/")
         if "/in/" in url:
-            return url.split("/in/")[-1].split("/")[0].split("?")[0]
+            handle = url.split("/in/")[-1].split("/")[0].split("?")[0].strip()
+            return handle if handle else None
+        # For non-standard formats, return cleaned URL
         return url
     
     async def sync_smartlead_contacts(
