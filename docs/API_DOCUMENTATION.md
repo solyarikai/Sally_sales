@@ -74,7 +74,7 @@ This document describes all known APIs for Smartlead (email outreach) and GetSal
                     │           PostgreSQL DB              │
                     │     (46.62.210.24:5432)              │
                     ├──────────────────────────────────────┤
-                    │  contacts (46K+)                     │
+                    │  contacts (51K+)                     │
                     │    - email (unique key for merge)    │
                     │    - has_replied ✅                  │
                     │    - reply_channel (email/linkedin)  │
@@ -82,7 +82,7 @@ This document describes all known APIs for Smartlead (email outreach) and GetSal
                     │    - campaigns (JSON) ✅ enriched    │
                     │    - smartlead_id / getsales_id      │
                     │                                      │
-                    │  contact_activities (351+)           │
+                    │  contact_activities (500+)           │
                     │    - email_replied                   │
                     │    - linkedin_replied                │
                     │    - email_sent / linkedin_sent      │
@@ -102,13 +102,40 @@ This document describes all known APIs for Smartlead (email outreach) and GetSal
 
 ### Edge Cases Handled
 
-| Scenario | Smartlead | GetSales |
-|----------|-----------|----------|
-| **New contact via webhook** | ✅ Creates contact with campaign info | ✅ Creates contact with flow info |
-| **Reply from unknown contact** | ✅ Creates contact, marks as replied | ✅ Creates contact, marks as replied |
-| **Existing contact, new flow** | N/A | ✅ Enriches with flow on reply |
-| **Missing email** | ⚠️ Ignored | ✅ Uses `linkedin_{uuid}@getsales.local` |
-| **Duplicate activity** | ✅ Checked by source_id | ✅ Checked by source_id |
+| Scenario | Smartlead | GetSales | Handler Location |
+|----------|-----------|----------|------------------|
+| **New contact via webhook** | ✅ Creates contact with campaign info | ✅ Creates contact with flow info | `crm_sync.py:760+` |
+| **Reply from unknown contact** | ✅ Creates contact, marks as replied | ✅ Creates contact, marks as replied | Webhook handlers |
+| **Existing contact, new flow** | N/A (campaigns in initial sync) | ✅ Appends new flow to campaigns JSON | `crm_sync.py:827+` |
+| **Missing email** | ⚠️ Requires email | ✅ Uses `linkedin_{uuid}@getsales.local` | `crm_sync.py:756` |
+| **Duplicate activity** | ✅ Checked by source_id | ✅ Checked by source_id | Activity creation |
+| **Invalid JSON in webhook** | ✅ Returns 400 | ✅ Returns 400 | Try/except wrapper |
+| **linkedin_message missing** | ✅ N/A | ✅ Handles gracefully, is_reply=false | `crm_sync.py:700` |
+| **automation field missing** | ✅ N/A | ✅ Contact created without campaign | Null check |
+| **conversation_thread is list** | ✅ N/A | ✅ Fixed - handles list type | `crm_sync.py` |
+| **Duplicate flow in campaigns** | ✅ N/A | ✅ Checks existing_flow_ids before append | `crm_sync.py:847` |
+| **campaigns field is null/string/list** | ✅ Robust parsing | ✅ Robust parsing | JSON loads/dumps |
+
+### Webhook Testing Commands
+
+Test GetSales webhook with new contact + reply:
+```bash
+curl -X POST "http://46.62.210.24:8000/api/crm-sync/webhook/getsales" \
+  -H "Content-Type: application/json" \
+  -d '{"body":{"contact":{"uuid":"test-uuid","first_name":"Test","last_name":"User","work_email":"test@example.com"},"automation":{"uuid":"flow-123","name":"Test Flow"},"linkedin_message":{"type":"inbox","text":"Hello!"}}}'
+```
+
+Expected response:
+```json
+{"status":"processed","activity_id":123,"contact_id":456,"is_reply":true}
+```
+
+Test Smartlead webhook:
+```bash
+curl -X POST "http://46.62.210.24:8000/api/crm-sync/webhook/smartlead" \
+  -H "Content-Type: application/json" \
+  -d '{"body":{"event_type":"EMAIL_REPLY","lead_email":"test@example.com","campaign_id":123,"lead_data":{"first_name":"Test"}}}'
+```
 
 ---
 
@@ -220,8 +247,13 @@ GET /flows/api/flows?per_page=200
 ```
 GET /flows/api/flows-leads?per_page=1000&offset=0
 ```
-**Total:** 510,697 records  
-**Note:** No filtering by lead_uuid - must paginate through all
+**Total:** 510,697 records
+
+**Filtering by lead_uuid (FAST enrichment):**
+```
+GET /flows/api/flows-leads?filter[lead_uuid]={uuid}&per_page=100
+```
+This returns only flows for a specific lead - much faster than paginating all 510K records!
 
 #### 3. Get LinkedIn Inbox Messages (Replies) ⭐ NEW
 ```
@@ -303,6 +335,46 @@ Password: leadgen123
 ```
 postgresql://leadgen:leadgen123@46.62.210.24:5432/leadgen
 ```
+
+### Connection Test Commands
+
+Before working with the database, verify connectivity:
+
+**Quick test with psql:**
+```bash
+psql "postgresql://leadgen:leadgen123@46.62.210.24:5432/leadgen" -c "SELECT COUNT(*) as total_contacts FROM contacts;"
+```
+
+**Python test (asyncpg):**
+```python
+import asyncio
+import asyncpg
+
+async def test_connection():
+    conn = await asyncpg.connect("postgresql://leadgen:leadgen123@46.62.210.24:5432/leadgen")
+    result = await conn.fetchrow("SELECT COUNT(*) as total FROM contacts")
+    print(f"Connected! Total contacts: {result['total']}")
+    await conn.close()
+
+asyncio.run(test_connection())
+```
+
+**Python test (psycopg2 sync):**
+```python
+import psycopg2
+conn = psycopg2.connect("postgresql://leadgen:leadgen123@46.62.210.24:5432/leadgen")
+cur = conn.cursor()
+cur.execute("SELECT COUNT(*) FROM contacts")
+print(f"Connected! Total contacts: {cur.fetchone()[0]}")
+conn.close()
+```
+
+**Expected output:** `Connected! Total contacts: 51556` (or similar)
+
+**If connection fails:**
+1. Check if your IP is allowed (contact server admin)
+2. Verify port 5432 is open: `nc -zv 46.62.210.24 5432`
+3. Try from Hetzner server itself: `ssh hetzner 'docker exec leadgen-postgres psql -U leadgen -d leadgen -c "SELECT 1"'`
 
 **psql command:**
 ```bash
@@ -392,24 +464,28 @@ DATABASE_URL = "postgresql+asyncpg://leadgen:leadgen123@46.62.210.24:5432/leadge
 
 ---
 
-## Current Stats (as of 2026-02-03)
+## Current Stats (as of 2026-02-03 18:00 UTC)
 
 | Metric | Count |
 |--------|-------|
-| **Total Contacts** | **46,492** |
-| Smartlead Contacts | 41,061 |
-| GetSales Contacts | 6,247 |
-| Merged (Both) | 819 |
-| **Replied Contacts** | **343** |
+| **Total Contacts** | **51,556** |
+| Smartlead Contacts | 42,225 |
+| GetSales Contacts | 10,147 |
+| Merged (Both sources) | 819 |
+| **Replied Contacts** | **361** |
+| **With Campaign Data** | **50,768** (98.5%) |
 
 ### Campaign Enrichment Status
 
 | Source | Total Contacts | With Campaigns | Coverage |
 |--------|----------------|----------------|----------|
-| **Smartlead** | 41,061 | 40,954 | **99.7%** |
-| **GetSales** | 6,247 | 3,645 | **58.3%** |
+| **Smartlead** | 42,225 | ~42,100 | **99.7%** |
+| **GetSales** | 10,147 | 10,146 | **99.99%** ✅ |
 
-**Note:** Smartlead contacts get campaign info during initial sync (from `/campaigns/{id}/statistics`). GetSales contacts require enrichment via `/flows/api/flows-leads` (510K records to paginate through).
+**Note:** 
+- Smartlead contacts get campaign info during initial sync (from `/campaigns/{id}/statistics`)
+- GetSales contacts are enriched via `filter[lead_uuid]` on `/flows/api/flows-leads` - processes 10K contacts in ~2.5 minutes
+- GetSales enrichment found **39,978 flow entries** (many contacts are in multiple flows)
 
 ### Platform Stats
 
@@ -427,8 +503,21 @@ DATABASE_URL = "postgresql+asyncpg://leadgen:leadgen123@46.62.210.24:5432/leadge
 | Script | Purpose | Location |
 |--------|---------|----------|
 | `fetch_getsales_replies.py` | ✅ Fetch LinkedIn inbox messages & mark contacts as replied | `~/magnum-opus-project/repo/scripts/` |
-| `enrich_getsales_flows.py` | Enrich GetSales contacts with flow names | `~/magnum-opus-project/repo/scripts/` |
+| `enrich_getsales_flows_fast.py` | ✅ FAST enrichment using `filter[lead_uuid]` (~2.5 min for 10K contacts) | `~/magnum-opus-project/repo/scripts/` |
+| `enrich_getsales_flows.py` | OLD: Slow enrichment scanning all 510K records (~30 min) | `~/magnum-opus-project/repo/scripts/` |
 | `enrich_smartlead_campaigns.py` | Enrich Smartlead contacts with campaign names (rarely needed) | `~/magnum-opus-project/repo/scripts/` |
 | `daily_reply_refetch.sh` | Daily reply fetch from both platforms | `~/magnum-opus-project/repo/scripts/` |
 | `run_enrichment.sh` | Run all enrichment scripts | `~/magnum-opus-project/repo/scripts/` |
+
+### Running the Fast Enrichment Script
+
+```bash
+# SSH to Hetzner and run:
+docker exec -e DATABASE_URL="postgresql://leadgen:leadgen_secret@leadgen-postgres:5432/leadgen" \
+  -e TELEGRAM_BOT_TOKEN="your-token" \
+  -e TELEGRAM_CHAT_ID="your-chat-id" \
+  leadgen-backend python3 /app/scripts/enrich_getsales_flows_fast.py
+```
+
+The script sends Telegram notifications at 10%, 20%, ... 100% progress.
 
