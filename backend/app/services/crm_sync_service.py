@@ -14,7 +14,7 @@ import httpx
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 
 from app.models.contact import Contact, ContactActivity
 from app.services.cache_service import acquire_sync_lock, release_sync_lock
@@ -740,7 +740,7 @@ class CRMSyncService:
         if email:
             result = await session.execute(
                 select(Contact).where(
-                    and_(*conditions, Contact.email == email)
+                    and_(*conditions, func.lower(Contact.email) == email.lower())
                 )
             )
             contact = result.scalars().first()
