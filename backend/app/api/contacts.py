@@ -15,7 +15,7 @@ import re
 import logging
 
 from app.db import get_session
-from app.models.contact import Contact, Project
+from app.models.contact import Contact, Project, ContactActivity
 from app.models import Company
 from app.api.companies import get_required_company
 from fastapi import Header
@@ -201,6 +201,8 @@ async def list_contacts(
     status: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
     has_replied: Optional[bool] = Query(None, description="Filter by replied status"),
+    has_smartlead: Optional[bool] = Query(None, description="Filter contacts with Smartlead history"),
+    has_getsales: Optional[bool] = Query(None, description="Filter contacts with GetSales history"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -225,6 +227,16 @@ async def list_contacts(
         query = query.where(Contact.source == source)
     if has_replied is not None:
         query = query.where(Contact.has_replied == has_replied)
+    if has_smartlead is True:
+        # Contacts with Smartlead ID (uploaded to Smartlead)
+        query = query.where(Contact.smartlead_id.isnot(None))
+    elif has_smartlead is False:
+        query = query.where(Contact.smartlead_id.is_(None))
+    if has_getsales is True:
+        # Contacts with GetSales ID (uploaded to GetSales)
+        query = query.where(Contact.getsales_id.isnot(None))
+    elif has_getsales is False:
+        query = query.where(Contact.getsales_id.is_(None))
     
     # Search
     if search:
@@ -1443,3 +1455,127 @@ async def generate_all_ai_sdr(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI SDR generation failed: {str(e)}")
+
+
+# ============= Contact Activities =============
+
+class ActivityResponse(BaseModel):
+    id: int
+    contact_id: int
+    activity_type: str
+    channel: str
+    direction: Optional[str]
+    source: str
+    source_id: Optional[str]
+    subject: Optional[str]
+    body: Optional[str]
+    snippet: Optional[str]
+    extra_data: Optional[Dict[str, Any]]
+    activity_at: datetime
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+@router.get("/{contact_id}/activities", response_model=List[ActivityResponse])
+async def get_contact_activities(
+    contact_id: int,
+    session: AsyncSession = Depends(get_session),
+    channel: Optional[str] = Query(None, description="Filter by channel: email, linkedin"),
+    activity_type: Optional[str] = Query(None, description="Filter by activity type"),
+    limit: int = Query(100, ge=1, le=500),
+):
+    """
+    Get all activities/communication history for a contact.
+    
+    Returns activities sorted by activity_at descending (most recent first).
+    """
+    query = select(ContactActivity).where(
+        ContactActivity.contact_id == contact_id
+    )
+    
+    if channel:
+        query = query.where(ContactActivity.channel == channel)
+    if activity_type:
+        query = query.where(ContactActivity.activity_type == activity_type)
+    
+    query = query.order_by(ContactActivity.activity_at.desc()).limit(limit)
+    
+    result = await session.execute(query)
+    activities = result.scalars().all()
+    
+    return activities
+
+
+@router.get("/{contact_id}/history")
+async def get_contact_history(
+    contact_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Get full communication history for a contact, organized by channel.
+    
+    Returns:
+    - email_history: List of email activities from Smartlead
+    - linkedin_history: List of LinkedIn activities from GetSales
+    - summary: counts and last activity dates
+    """
+    # Get all activities
+    result = await session.execute(
+        select(ContactActivity)
+        .where(ContactActivity.contact_id == contact_id)
+        .order_by(ContactActivity.activity_at.desc())
+    )
+    activities = result.scalars().all()
+    
+    email_activities = [a for a in activities if a.channel == "email"]
+    linkedin_activities = [a for a in activities if a.channel == "linkedin"]
+    
+    # Get contact info
+    contact_result = await session.execute(
+        select(Contact).where(Contact.id == contact_id)
+    )
+    contact = contact_result.scalar_one_or_none()
+    
+    return {
+        "contact_id": contact_id,
+        "email_history": [
+            {
+                "id": a.id,
+                "type": a.activity_type,
+                "direction": a.direction,
+                "subject": a.subject,
+                "body": a.body,
+                "snippet": a.snippet,
+                "source": a.source,
+                "campaign": a.extra_data.get("campaign_name") if a.extra_data else None,
+                "timestamp": a.activity_at.isoformat(),
+            }
+            for a in email_activities
+        ],
+        "linkedin_history": [
+            {
+                "id": a.id,
+                "type": a.activity_type,
+                "direction": a.direction,
+                "body": a.body,
+                "snippet": a.snippet,
+                "source": a.source,
+                "automation": a.extra_data.get("automation_name") if a.extra_data else None,
+                "timestamp": a.activity_at.isoformat(),
+            }
+            for a in linkedin_activities
+        ],
+        "summary": {
+            "total_activities": len(activities),
+            "email_count": len(email_activities),
+            "linkedin_count": len(linkedin_activities),
+            "has_email_history": len(email_activities) > 0,
+            "has_linkedin_history": len(linkedin_activities) > 0,
+            "last_email_activity": email_activities[0].activity_at.isoformat() if email_activities else None,
+            "last_linkedin_activity": linkedin_activities[0].activity_at.isoformat() if linkedin_activities else None,
+            "smartlead_id": contact.smartlead_id if contact else None,
+            "getsales_id": contact.getsales_id if contact else None,
+        }
+    }

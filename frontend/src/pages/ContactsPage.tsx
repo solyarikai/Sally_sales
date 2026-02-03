@@ -46,6 +46,8 @@ export function ContactsPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
   const [repliedFilter, setRepliedFilter] = useState<boolean | null>(null);
+  const [smartleadFilter, setSmartleadFilter] = useState<boolean | null>(null);
+  const [getsalesFilter, setGetsalesFilter] = useState<boolean | null>(null);
   
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -98,6 +100,8 @@ export function ContactsPage() {
         status: statusFilter || undefined,
         source: sourceFilter || undefined,
         has_replied: repliedFilter ?? undefined,
+        has_smartlead: smartleadFilter ?? undefined,
+        has_getsales: getsalesFilter ?? undefined,
       });
       
       setContacts(response.contacts);
@@ -108,7 +112,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, projectFilter, segmentFilter, statusFilter, sourceFilter, repliedFilter, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, projectFilter, segmentFilter, statusFilter, sourceFilter, repliedFilter, smartleadFilter, getsalesFilter, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -330,7 +334,7 @@ export function ContactsPage() {
     setSearch('');
   };
 
-  const hasActiveFilters = projectFilter || segmentFilter || statusFilter || sourceFilter || repliedFilter !== null || search;
+  const hasActiveFilters = projectFilter || segmentFilter || statusFilter || sourceFilter || repliedFilter !== null || smartleadFilter !== null || getsalesFilter !== null || search;
   const totalPages = Math.ceil(total / pageSize);
 
   return (
@@ -467,6 +471,34 @@ export function ContactsPage() {
             <option value="">All Contacts</option>
             <option value="true">Replied Only</option>
             <option value="false">Not Replied</option>
+          </select>
+
+          {/* Smartlead History Filter */}
+          <select
+            className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            value={smartleadFilter === null ? '' : smartleadFilter ? 'true' : 'false'}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSmartleadFilter(val === '' ? null : val === 'true');
+            }}
+          >
+            <option value="">Smartlead: All</option>
+            <option value="true">In Smartlead</option>
+            <option value="false">Not in Smartlead</option>
+          </select>
+
+          {/* GetSales History Filter */}
+          <select
+            className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={getsalesFilter === null ? '' : getsalesFilter ? 'true' : 'false'}
+            onChange={(e) => {
+              const val = e.target.value;
+              setGetsalesFilter(val === '' ? null : val === 'true');
+            }}
+          >
+            <option value="">GetSales: All</option>
+            <option value="true">In GetSales</option>
+            <option value="false">Not in GetSales</option>
           </select>
 
           {hasActiveFilters && (

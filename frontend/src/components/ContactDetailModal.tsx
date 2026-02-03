@@ -9,6 +9,9 @@ interface Activity {
   content: string;
   timestamp: string;
   direction: 'inbound' | 'outbound';
+  channel?: 'email' | 'linkedin';
+  campaign?: string;
+  automation?: string;
 }
 
 interface ContactDetailModalProps {
@@ -30,8 +33,43 @@ export function ContactDetailModal({ contact, isOpen, onClose }: ContactDetailMo
       setDraftReply('');
       setSavedDraft(false);
       setActiveTab('details');
-      // In a real app, fetch activities here
-      setActivities([]);
+      
+      // Fetch activities/history from API
+      const fetchHistory = async () => {
+        try {
+          const response = await fetch(`/api/contacts/${contact.id}/history`);
+          if (response.ok) {
+            const data = await response.json();
+            // Convert to activities format
+            const allActivities: Activity[] = [
+              ...data.email_history.map((e: any, i: number) => ({
+                id: e.id || i,
+                type: e.type,
+                content: e.body || e.snippet || '',
+                timestamp: e.timestamp,
+                direction: e.direction as 'inbound' | 'outbound',
+                channel: 'email' as const,
+                campaign: e.campaign,
+              })),
+              ...data.linkedin_history.map((l: any, i: number) => ({
+                id: l.id || i + 1000,
+                type: l.type,
+                content: l.body || l.snippet || '',
+                timestamp: l.timestamp,
+                direction: l.direction as 'inbound' | 'outbound',
+                channel: 'linkedin' as const,
+                automation: l.automation,
+              })),
+            ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            
+            setActivities(allActivities);
+          }
+        } catch (err) {
+          console.error('Failed to fetch history:', err);
+        }
+      };
+      
+      fetchHistory();
     }
   }, [contact, isOpen]);
 
@@ -235,14 +273,28 @@ export function ContactDetailModal({ contact, isOpen, onClose }: ContactDetailMo
                         )}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-gray-500">
-                            {activity.direction === 'outbound' ? 'You' : contact.first_name}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded text-xs font-medium",
+                              activity.channel === 'email' ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                            )}>
+                              {activity.channel === 'email' ? 'Email' : 'LinkedIn'}
+                            </span>
+                            <span className="text-xs font-medium text-gray-500">
+                              {activity.direction === 'outbound' ? 'You' : contact?.first_name}
+                            </span>
+                            {activity.campaign && (
+                              <span className="text-xs text-gray-400">• {activity.campaign}</span>
+                            )}
+                            {activity.automation && (
+                              <span className="text-xs text-gray-400">• {activity.automation}</span>
+                            )}
+                          </div>
                           <span className="text-xs text-gray-400">
                             {new Date(activity.timestamp).toLocaleString()}
                           </span>
                         </div>
-                        <p className="text-sm">{activity.content}</p>
+                        <p className="text-sm whitespace-pre-wrap">{activity.content}</p>
                       </div>
                     ))}
                   </div>
