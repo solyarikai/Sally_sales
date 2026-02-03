@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle } from 'lucide-react';
+import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Contact } from '../api/contacts';
 
@@ -26,6 +26,10 @@ export function ContactDetailModal({ contact, isOpen, onClose }: ContactDetailMo
   const [draftReply, setDraftReply] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [savedDraft, setSavedDraft] = useState(false);
+  const [projects, setProjects] = useState<Array<{id: number, name: string}>>([]);
+  const [selectedProject, setSelectedProject] = useState<number | null>(null);
+  const [isAddingToProject, setIsAddingToProject] = useState(false);
+  const [addedToProject, setAddedToProject] = useState(false);
 
   useEffect(() => {
     if (contact && isOpen) {
@@ -33,6 +37,22 @@ export function ContactDetailModal({ contact, isOpen, onClose }: ContactDetailMo
       setDraftReply('');
       setSavedDraft(false);
       setActiveTab('details');
+      setSelectedProject(contact.project_id || null);
+      setAddedToProject(false);
+      
+      // Fetch projects list
+      const fetchProjects = async () => {
+        try {
+          const response = await fetch('/api/contacts/projects/list');
+          if (response.ok) {
+            const data = await response.json();
+            setProjects(data);
+          }
+        } catch (err) {
+          console.error('Failed to fetch projects:', err);
+        }
+      };
+      fetchProjects();
       
       // Fetch activities/history from API
       const fetchHistory = async () => {
@@ -75,6 +95,26 @@ export function ContactDetailModal({ contact, isOpen, onClose }: ContactDetailMo
 
   if (!isOpen || !contact) return null;
 
+  const handleAddToProject = async () => {
+    if (!selectedProject || !contact) return;
+    
+    setIsAddingToProject(true);
+    try {
+      const response = await fetch(`/api/contacts/${contact.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: selectedProject })
+      });
+      
+      if (response.ok) {
+        setAddedToProject(true);
+      }
+    } catch (err) {
+      console.error('Failed to add to project:', err);
+    }
+    setIsAddingToProject(false);
+  };
+  
   const handleSaveDraft = async () => {
     if (!draftReply.trim()) return;
     
@@ -247,6 +287,48 @@ export function ContactDetailModal({ contact, isOpen, onClose }: ContactDetailMo
                     </p>
                   </div>
                 )}
+                
+                {/* Add to Project */}
+                <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <FolderPlus className="w-4 h-4 text-green-600" />
+                    Add to Project
+                  </h4>
+                  
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={selectedProject || ''}
+                      onChange={(e) => setSelectedProject(e.target.value ? Number(e.target.value) : null)}
+                      className="flex-1 px-3 py-2 border rounded-lg text-sm bg-white"
+                    >
+                      <option value="">Select a project...</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                    
+                    <button
+                      onClick={handleAddToProject}
+                      disabled={!selectedProject || isAddingToProject}
+                      className={cn(
+                        "px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2",
+                        selectedProject && !isAddingToProject
+                          ? "bg-green-600 text-white hover:bg-green-700"
+                          : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                      )}
+                    >
+                      {isAddingToProject ? 'Adding...' : addedToProject ? 'Added!' : 'Add to Project'}
+                    </button>
+                  </div>
+                  
+                  {addedToProject && (
+                    <p className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                      <Check className="w-4 h-4" /> Contact added to project successfully
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}
