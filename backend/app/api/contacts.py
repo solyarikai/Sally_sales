@@ -55,6 +55,11 @@ class ContactBase(BaseModel):
     linkedin_url: Optional[str] = None
     location: Optional[str] = None
     notes: Optional[str] = None
+    smartlead_id: Optional[str] = None
+    getsales_id: Optional[str] = None
+    has_replied: Optional[bool] = None
+    needs_followup: Optional[bool] = None
+    campaigns: Optional[List[Dict[str, Any]]] = None
 
 
 class ContactCreate(ContactBase):
@@ -76,6 +81,11 @@ class ContactUpdate(BaseModel):
     linkedin_url: Optional[str] = None
     location: Optional[str] = None
     notes: Optional[str] = None
+    smartlead_id: Optional[str] = None
+    getsales_id: Optional[str] = None
+    has_replied: Optional[bool] = None
+    needs_followup: Optional[bool] = None
+    campaigns: Optional[List[Dict[str, Any]]] = None
 
 
 class ContactResponse(BaseModel):
@@ -96,6 +106,11 @@ class ContactResponse(BaseModel):
     linkedin_url: Optional[str] = None
     location: Optional[str] = None
     notes: Optional[str] = None
+    smartlead_id: Optional[str] = None
+    getsales_id: Optional[str] = None
+    has_replied: Optional[bool] = None
+    needs_followup: Optional[bool] = None
+    campaigns: Optional[List[Dict[str, Any]]] = None
     created_at: datetime
     updated_at: datetime
     
