@@ -21,6 +21,7 @@ from app.db import get_session
 from app.models import Company, Contact, ContactActivity
 from app.api.companies import get_required_company
 from app.services.crm_sync_service import get_crm_sync_service, CRMSyncService
+from app.services.notification_service import send_telegram_notification
 
 logger = logging.getLogger(__name__)
 
@@ -913,6 +914,25 @@ async def getsales_webhook(
         contact.last_reply_at = activity_at
         contact.status = "replied"
         contact.getsales_status = contact_data.get("pipeline_stage_name")
+        
+        # Send Telegram notification for LinkedIn reply
+        try:
+            flow_name = automation_data.get("name", "Unknown Flow")
+            contact_name = f"{contact_data.get('first_name', '')} {contact_data.get('last_name', '')}".strip() or "Unknown"
+            message_preview = (message_text or "")[:300]
+            
+            telegram_msg = f"""💬 <b>New LinkedIn Reply!</b>
+
+<b>From:</b> {contact_name}
+<b>Email:</b> {contact.email or 'N/A'}
+<b>Flow:</b> {flow_name}
+
+<b>Message:</b>
+<code>{message_preview}</code>
+"""
+            await send_telegram_notification(telegram_msg.strip())
+        except Exception as e:
+            logger.warning(f"Telegram notification failed (non-fatal): {e}")
     
     # Enrich contact with flow/automation info if not already present
     if automation_data.get("name") or automation_data.get("uuid"):

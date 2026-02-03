@@ -657,19 +657,22 @@ async def send_telegram_notification(message: str, parse_mode: str = "HTML") -> 
 
 
 async def notify_reply_needs_attention(reply, category: str) -> bool:
-    """Send Telegram notification for replies that need attention.
+    """Send Telegram notification for ALL new replies.
     
-    Sends notification for: interested, meeting_request categories
+    Notifies for every reply regardless of category.
     """
-    attention_categories = ["interested", "meeting_request"]
-    
-    if category not in attention_categories:
-        return False
-    
-    emoji = "🟢" if category == "interested" else "📅"
+    # Emoji based on category
+    emoji_map = {
+        "interested": "🟢",
+        "meeting_request": "📅",
+        "not_interested": "🔴",
+        "out_of_office": "🏖️",
+        "unsubscribe": "🚫",
+    }
+    emoji = emoji_map.get(category, "💬")
     
     message = f"""
-{emoji} <b>Reply Needs Attention!</b>
+{emoji} <b>New Email Reply!</b>
 
 <b>Category:</b> {category.replace('_', ' ').title()}
 <b>From:</b> {reply.lead_email}

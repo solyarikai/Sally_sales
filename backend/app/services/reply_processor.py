@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.reply import ProcessedReply, ReplyAutomation, ReplyCategory
+from app.models.contact import Contact, ContactActivity
 from app.services.openai_service import openai_service
 
 logger = logging.getLogger(__name__)
@@ -514,6 +515,52 @@ async def process_reply_webhook(
         
         session.add(processed_reply)
         await session.flush()
+        
+        # Create ContactActivity for conversation history
+        try:
+            # Find or skip contact creation (contact may exist in CRM)
+            contact = None
+            if lead_email:
+                from sqlalchemy import func
+                result = await session.execute(
+                    select(Contact).where(func.lower(Contact.email) == lead_email.lower())
+                )
+                contact = result.scalar()
+            
+            if contact:
+                # Create activity record for this reply
+                activity = ContactActivity(
+                    contact_id=contact.id,
+                    company_id=contact.company_id,
+                    activity_type="email_replied",
+                    channel="email",
+                    direction="inbound",
+                    source="smartlead",
+                    source_id=str(campaign_id) if campaign_id else None,
+                    subject=subject,
+                    body=body,
+                    snippet=body[:200] if body else None,
+                    extra_data={
+                        "campaign_id": campaign_id,
+                        "campaign_name": campaign_name,
+                        "category": classification.get("category"),
+                        "processed_reply_id": processed_reply.id
+                    },
+                    activity_at=datetime.utcnow()
+                )
+                session.add(activity)
+                
+                # Update contact reply status
+                contact.has_replied = True
+                contact.reply_channel = "email"
+                contact.last_reply_at = datetime.utcnow()
+                contact.status = "replied"
+                
+                logger.info(f"[PROCESSOR] Created ContactActivity for email reply from {lead_email}")
+            else:
+                logger.info(f"[PROCESSOR] Contact not found for {lead_email}, skipping ContactActivity creation")
+        except Exception as activity_err:
+            logger.warning(f"[PROCESSOR] Failed to create ContactActivity (non-fatal): {activity_err}")
         
         # Send Slack notification
         from app.services.notification_service import send_slack_notification
