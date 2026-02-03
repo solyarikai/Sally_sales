@@ -74,7 +74,7 @@ This document describes all known APIs for Smartlead (email outreach) and GetSal
                     │           PostgreSQL DB              │
                     │     (46.62.210.24:5432)              │
                     ├──────────────────────────────────────┤
-                    │  contacts (33K+)                     │
+                    │  contacts (51K+)                     │
                     │    - email (unique, case-insensitive)│
                     │    - has_replied ✅                  │
                     │    - reply_channel (email/linkedin)  │
@@ -391,7 +391,7 @@ print(f"Connected! Total contacts: {cur.fetchone()[0]}")
 conn.close()
 ```
 
-**Expected output:** `Connected! Total contacts: 33461` (or similar)
+**Expected output:** `Connected! Total contacts: 50976` (or similar)
 
 **If connection fails:**
 1. Check if your IP is allowed (contact server admin)
@@ -509,31 +509,31 @@ async def full_sync(...):
 
 ---
 
-## Current Stats (as of 2026-02-03 19:55 UTC)
+## Current Stats (as of 2026-02-03 22:00 UTC)
 
 | Metric | Count |
 |--------|-------|
-| **Total Contacts** | **33,461** |
-| Has Smartlead ID | 30,843 |
-| Has GetSales ID | 6,225 |
-| **Merged (Both IDs)** | **3,609** ⭐ |
-| **Replied Contacts** | **361** |
-| Duplicates Removed | 20,732 |
+| **Total Contacts** | **50,976** |
+| Has Smartlead ID | 48,426 |
+| Has GetSales ID | 6,227 |
+| **Merged (Both IDs)** | **3,679** ⭐ |
+| **Replied Contacts** | **361+** |
 
 ### Recent Fixes (2026-02-03)
 
 | Issue | Fix Applied | Result |
 |-------|-------------|--------|
-| **Duplicate contacts** | Redis sync lock + unique email index | 20,732 duplicates removed |
-| **Low merge count (819)** | Case-insensitive email matching | Merged: 819 → 3,609 |
+| **Duplicate contacts** | Redis sync lock + unique email index | Prevented future duplicates |
+| **Low merge count (819)** | Case-insensitive email matching | Merged: 819 → 3,679 (4.5x) |
 | **Missing smartlead_id** | Backfill script queried Smartlead API | 2,808 contacts fixed |
+| **Concurrent sync race** | Disabled cron, use in-app scheduler only | No more duplicate creation |
 
 ### Campaign Enrichment Status
 
 | Source | Total Contacts | With Campaigns | Coverage |
 |--------|----------------|----------------|----------|
-| **Smartlead** | 30,843 | ~30,700 | **99.5%** |
-| **GetSales** | 6,225 | 6,224 | **99.99%** ✅ |
+| **Smartlead** | 48,426 | ~48,300 | **99.7%** |
+| **GetSales** | 6,227 | 6,226 | **99.99%** ✅ |
 
 **Note:** 
 - Smartlead contacts get campaign info during initial sync (from `/campaigns/{id}/statistics`)
