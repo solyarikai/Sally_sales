@@ -464,32 +464,20 @@ export function ContactsPage() {
                 ))}
               </select>
 
-              <select
-                value={sourceFilter || ''}
-                onChange={(e) => setSourceFilter(e.target.value || null)}
-                className="input text-sm min-w-[110px]"
-              >
-                <option value="">All Sources</option>
-                {(filterOptions.sources || []).map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+
             </>
           )}
 
-          {/* Replied Filter */}
-          <select
-            className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={repliedFilter === null ? '' : repliedFilter ? 'true' : 'false'}
-            onChange={(e) => {
-              const val = e.target.value;
-              setRepliedFilter(val === '' ? null : val === 'true');
-            }}
+          {/* Replied Toggle */}
+          <button
+            onClick={() => setRepliedFilter(repliedFilter === true ? null : true)}
+            className={repliedFilter === true 
+              ? "px-3 py-2 border rounded-lg text-sm font-medium bg-green-500 text-white border-green-500" 
+              : "px-3 py-2 border rounded-lg text-sm font-medium bg-white text-gray-700 hover:bg-green-50"
+            }
           >
-            <option value="">All Contacts</option>
-            <option value="true">Replied Only</option>
-            <option value="false">Not Replied</option>
-          </select>
+            Replied
+          </button>
 
           {/* Channel Filter - Email (Smartlead) / LinkedIn (GetSales) */}
           <select
