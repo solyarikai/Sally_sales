@@ -1,3 +1,4 @@
+import asyncio
 """
 CRM Sync Service - Unified sync for Smartlead and GetSales.
 
@@ -188,7 +189,7 @@ class SmartleadClient:
                 status = campaign.get("status", "").upper()
                 
                 # Skip inactive campaigns
-                if status not in ("ACTIVE", "SCHEDULED", "PAUSED"):
+                if status != "ACTIVE":
                     results["skipped"].append({"id": campaign_id, "name": campaign_name, "status": status})
                     continue
                 
@@ -244,13 +245,13 @@ class GetSalesClient:
     async def close(self):
         await self.client.aclose()
     
-    async def _get(self, endpoint: str) -> dict:
+    async def _get(self, endpoint: str, params: dict = None) -> dict:
         """Make GET request to GetSales API."""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        resp = await self.client.get(f"{self.BASE_URL}{endpoint}", headers=headers)
+        resp = await self.client.get(f"{self.BASE_URL}{endpoint}", headers=headers, params=params)
         resp.raise_for_status()
         return resp.json()
     
@@ -282,6 +283,16 @@ class GetSalesClient:
         """Get all automations/flows."""
         data = await self._get("/flows/api/flows")
         return data.get("data", [])
+    
+    async def get_inbox_messages(self, limit: int = 100, offset: int = 0) -> List[dict]:
+        """Get LinkedIn inbox messages (replies from contacts)."""
+        params = {
+            "filter[type]": "inbox",
+            "limit": limit,
+            "offset": offset
+        }
+        data = await self._get("/flows/api/linkedin-messages", params)
+        return data.get("data", []) if isinstance(data, dict) else data
     
     async def search_leads(self, filter_: dict = None, limit: int = 100, offset: int = 0) -> Tuple[List[dict], int]:
         """Search leads with optional filters."""
@@ -767,82 +778,208 @@ class CRMSyncService:
         since: datetime = None
     ) -> Dict[str, int]:
         """
-        Sync reply activities from Smartlead.
+        Sync reply activities from Smartlead using per-campaign approach.
         
-        Fetches leads with REPLIED status and creates activities.
+        Iterates through ACTIVE and PAUSED campaigns to find replied leads.
+        This avoids rate limits from the global-leads endpoint.
         """
         if not self.smartlead:
             raise ValueError("Smartlead API key not configured")
         
-        stats = {"new_replies": 0, "existing": 0}
+        stats = {"new_replies": 0, "existing": 0, "campaigns_checked": 0, "errors": 0}
         
-        # Get all replied leads
-        replied_leads = await self.smartlead.get_all_leads_with_status("REPLIED", limit=1000)
+        try:
+            # Get all campaigns
+            campaigns = await self.smartlead.get_campaigns()
+            logger.info(f"Reply sync: checking {len(campaigns)} campaigns")
+            
+            for campaign in campaigns:
+                status = campaign.get("status", "").upper()
+                campaign_id = campaign.get("id")
+                campaign_name = campaign.get("name", "Unknown")
+                
+                # Only check ACTIVE and PAUSED campaigns
+                if status not in ("ACTIVE", "PAUSED"):
+                    continue
+                
+                stats["campaigns_checked"] += 1
+                
+                try:
+                    # Fetch leads for this campaign (first 100 to limit API calls)
+                    leads = await self.smartlead.get_campaign_leads(campaign_id, limit=100)
+                    
+                    for lead_data in leads:
+                        lead = lead_data.get("lead", lead_data)
+                        email = self.normalize_email(lead.get("email"))
+                        lead_id = str(lead.get("id"))
+                        
+                        # Check if lead has replied (look for reply_time or status indicators)
+                        has_reply = (
+                            lead_data.get("reply_time") or 
+                            lead_data.get("lead_status") == "REPLIED" or
+                            lead_data.get("status") == "REPLIED"
+                        )
+                        
+                        if not has_reply:
+                            continue
+                        
+                        # Find contact
+                        contact = await self._find_contact(
+                            session, company_id, email=email, smartlead_id=lead_id
+                        )
+                        
+                        if not contact:
+                            continue
+                        
+                        # Check if we already have this reply activity
+                        existing = await session.execute(
+                            select(ContactActivity).where(
+                                and_(
+                                    ContactActivity.contact_id == contact.id,
+                                    ContactActivity.activity_type == "email_replied",
+                                    ContactActivity.source == "smartlead",
+                                    ContactActivity.source_id == lead_id
+                                )
+                            )
+                        )
+                        
+                        if existing.scalar_one_or_none():
+                            stats["existing"] += 1
+                            continue
+                        
+                        # Create activity
+                        activity = ContactActivity(
+                            contact_id=contact.id,
+                            company_id=company_id,
+                            activity_type="email_replied",
+                            channel="email",
+                            direction="inbound",
+                            source="smartlead",
+                            source_id=lead_id,
+                            extra_data={
+                                "campaign_id": campaign_id,
+                                "campaign_name": campaign_name
+                            },
+                            activity_at=datetime.fromisoformat(lead_data["reply_time"].replace("Z", "+00:00")) if lead_data.get("reply_time") else datetime.utcnow()
+                        )
+                        session.add(activity)
+                        
+                        # Update contact
+                        contact.has_replied = True
+                        contact.reply_channel = "email"
+                        contact.last_reply_at = activity.activity_at
+                        contact.status = "replied"
+                        
+                        stats["new_replies"] += 1
+                    
+                    # Small delay to avoid rate limits
+                    await asyncio.sleep(0.1)
+                    
+                except Exception as e:
+                    stats["errors"] += 1
+                    logger.warning(f"Error checking campaign {campaign_name}: {e}")
+            
+            await session.commit()
+            logger.info(f"Reply sync complete: {stats}")
+            
+        except Exception as e:
+            logger.error(f"Reply sync failed: {e}")
+            stats["error"] = str(e)
         
-        for lead in replied_leads:
-            email = self.normalize_email(lead.get("email"))
-            smartlead_id = str(lead.get("id"))
+        return stats
+
+    async def sync_getsales_replies(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        limit: int = 500
+    ) -> Dict[str, int]:
+        """
+        Sync LinkedIn reply activities from GetSales inbox.
+        
+        Fetches inbox messages (replies from contacts) and creates activities.
+        """
+        if not self.getsales:
+            logger.warning("GetSales API key not configured")
+            return {"skipped": "no_api_key"}
+        
+        stats = {"new_replies": 0, "existing": 0, "no_contact": 0}
+        
+        try:
+            # Fetch inbox messages (replies)
+            messages = await self.getsales.get_inbox_messages(limit=limit)
+            logger.info(f"GetSales reply sync: found {len(messages)} inbox messages")
             
-            # Find contact
-            contact = await self._find_contact(
-                session, company_id, email=email, smartlead_id=smartlead_id
-            )
-            
-            if not contact:
-                continue
-            
-            # Check if we already have this reply activity
-            existing_activity = await session.execute(
-                select(ContactActivity).where(
-                    and_(
-                        ContactActivity.contact_id == contact.id,
-                        ContactActivity.activity_type == "email_replied",
-                        ContactActivity.source == "smartlead",
-                        ContactActivity.source_id == smartlead_id
+            for msg in messages:
+                # Extract lead info
+                lead_uuid = msg.get("lead_uuid") or msg.get("lead", {}).get("uuid")
+                message_text = msg.get("text") or msg.get("body", "")
+                message_id = msg.get("uuid") or msg.get("id")
+                
+                if not lead_uuid:
+                    continue
+                
+                # Find contact by getsales_id
+                contact = await self._find_contact(
+                    session, company_id, getsales_id=lead_uuid
+                )
+                
+                if not contact:
+                    stats["no_contact"] += 1
+                    continue
+                
+                # Check if we already have this activity
+                existing = await session.execute(
+                    select(ContactActivity).where(
+                        and_(
+                            ContactActivity.contact_id == contact.id,
+                            ContactActivity.activity_type == "linkedin_replied",
+                            ContactActivity.source == "getsales",
+                            ContactActivity.source_id == str(message_id)
+                        )
                     )
                 )
-            )
+                
+                if existing.scalar_one_or_none():
+                    stats["existing"] += 1
+                    continue
+                
+                # Create activity
+                activity = ContactActivity(
+                    contact_id=contact.id,
+                    company_id=company_id,
+                    activity_type="linkedin_replied",
+                    channel="linkedin",
+                    direction="inbound",
+                    source="getsales",
+                    source_id=str(message_id),
+                    body=message_text,
+                    snippet=message_text[:200] if message_text else None,
+                    extra_data={
+                        "flow_uuid": msg.get("automation_uuid") or msg.get("flow_uuid"),
+                        "sender_profile": msg.get("sender_profile_uuid")
+                    },
+                    activity_at=datetime.fromisoformat(msg["created_at"].replace("Z", "+00:00")) if msg.get("created_at") else datetime.utcnow()
+                )
+                session.add(activity)
+                
+                # Update contact
+                contact.has_replied = True
+                contact.reply_channel = "linkedin"
+                contact.last_reply_at = activity.activity_at
+                contact.status = "replied"
+                
+                stats["new_replies"] += 1
             
-            if existing_activity.scalar_one_or_none():
-                stats["existing"] += 1
-                continue
+            await session.commit()
+            logger.info(f"GetSales reply sync complete: {stats}")
             
-            # Get message history for reply content
-            messages = await self.smartlead.get_lead_message_history(int(smartlead_id))
-            
-            # Find reply messages (from lead, not from us)
-            for msg in messages:
-                if msg.get("type") == "REPLY" or msg.get("direction") == "inbound":
-                    activity = ContactActivity(
-                        contact_id=contact.id,
-                        company_id=company_id,
-                        activity_type="email_replied",
-                        channel="email",
-                        direction="inbound",
-                        source="smartlead",
-                        source_id=str(msg.get("id", smartlead_id)),
-                        subject=msg.get("subject"),
-                        body=msg.get("body"),
-                        snippet=msg.get("snippet") or (msg.get("body", "")[:200] if msg.get("body") else None),
-                        metadata={
-                            "campaign_id": lead.get("campaigns", [{}])[0].get("campaign_id") if lead.get("campaigns") else None,
-                            "campaign_name": lead.get("campaigns", [{}])[0].get("campaign_name") if lead.get("campaigns") else None
-                        },
-                        activity_at=datetime.fromisoformat(msg.get("created_at")) if msg.get("created_at") else datetime.utcnow()
-                    )
-                    session.add(activity)
-                    
-                    # Update contact
-                    contact.has_replied = True
-                    contact.reply_channel = "email"
-                    contact.last_reply_at = activity.activity_at
-                    contact.status = "replied"
-                    
-                    stats["new_replies"] += 1
+        except Exception as e:
+            logger.error(f"GetSales reply sync failed: {e}")
+            stats["error"] = str(e)
         
-        await session.commit()
         return stats
-    
+
     async def full_sync(
         self,
         session: AsyncSession,

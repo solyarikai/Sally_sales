@@ -138,13 +138,24 @@ class CRMScheduler:
         
         async with async_session_maker() as session:
             try:
+                # Check Smartlead replies
                 if sync_service.smartlead:
                     results = await sync_service.sync_smartlead_replies(session, self.company_id)
                     new_replies = results.get('new_replies', 0)
-                    if new_replies > 0:
-                        logger.info(f"Smartlead reply check: {new_replies} new replies found")
+                    campaigns_checked = results.get('campaigns_checked', 0)
+                    logger.info(f"Smartlead reply check: {new_replies} new, {campaigns_checked} campaigns checked")
             except Exception as e:
-                logger.error(f"Reply check failed: {e}")
+                logger.error(f"Smartlead reply check failed: {e}")
+            
+            try:
+                # Check GetSales replies
+                if sync_service.getsales:
+                    results = await sync_service.sync_getsales_replies(session, self.company_id)
+                    new_replies = results.get('new_replies', 0)
+                    if new_replies > 0:
+                        logger.info(f"GetSales reply check: {new_replies} new replies found")
+            except Exception as e:
+                logger.error(f"GetSales reply check failed: {e}")
     
     async def _setup_webhooks(self):
         """Set up webhooks for any new campaigns."""
