@@ -7,7 +7,6 @@ mkdir -p /home/leadokol/logs
 
 log() {
     echo "$(date -Iseconds) | $1" >> $LOG_FILE
-    echo "$(date -Iseconds) | $1"
 }
 
 check_and_fix() {
@@ -17,7 +16,7 @@ check_and_fix() {
     HEALTH=$(curl -s http://localhost:8000/health 2>/dev/null)
     if [ -z "$HEALTH" ]; then
         log "ERROR: Backend not responding, restarting..."
-        cd ~/magnum-opus-project/repo && docker-compose restart backend
+        cd ~/magnum-opus-project/repo && docker-compose restart backend 2>/dev/null
         sleep 30
     else
         log "OK: Backend healthy"
@@ -27,7 +26,7 @@ check_and_fix() {
     FRONTEND=$(curl -s http://localhost:80/ 2>/dev/null | head -1)
     if [ -z "$FRONTEND" ]; then
         log "ERROR: Frontend not responding, restarting..."
-        cd ~/magnum-opus-project/repo && docker-compose restart frontend
+        cd ~/magnum-opus-project/repo && docker-compose restart frontend 2>/dev/null
         sleep 10
     else
         log "OK: Frontend healthy"
@@ -36,10 +35,11 @@ check_and_fix() {
     # 3. Get sync status
     STATUS=$(curl -s -H "X-Company-ID: 1" http://localhost:8000/api/crm-sync/status 2>/dev/null)
     TOTAL=$(echo $STATUS | python3 -c "import sys,json; print(json.load(sys.stdin).get('total_contacts', 0))" 2>/dev/null)
-    log "STATUS: Total contacts = $TOTAL"
+    REPLIED=$(echo $STATUS | python3 -c "import sys,json; print(json.load(sys.stdin).get('replied_contacts', 0))" 2>/dev/null)
+    log "STATUS: $TOTAL contacts, $REPLIED replied"
     
     # 4. Check for errors in backend logs
-    ERRORS=$(docker logs leadgen-backend --since 5m 2>&1 | grep -c "ERROR\|Exception\|Traceback" || echo 0)
+    ERRORS=$(docker logs leadgen-backend --since 5m 2>&1 | grep -c "ERROR\|Exception" || echo 0)
     if [ "$ERRORS" -gt 5 ]; then
         log "WARNING: $ERRORS errors in last 5 minutes"
     fi
@@ -52,11 +52,7 @@ check_and_fix() {
         log "OK: Contacts API working"
     fi
     
-    # 6. Trigger sync if needed (every 5 min via cron already, but check)
-    LAST_SYNC=$(echo $STATUS | python3 -c "import sys,json; print(json.load(sys.stdin).get('last_synced_at', 'never'))" 2>/dev/null)
-    log "Last sync: $LAST_SYNC"
-    
-    log "=== Autocoding check complete ==="
+    log "=== Check complete ==="
 }
 
 # Run once
