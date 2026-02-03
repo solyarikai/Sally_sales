@@ -274,7 +274,7 @@ async def fetch_smartlead_replies(
                                 if reply_time_str:
                                     try:
                                         from datetime import datetime
-                                        contact.last_reply_at = datetime.fromisoformat(reply_time_str.replace("Z", "+00:00"))
+                                        contact.last_reply_at = datetime.fromisoformat(reply_time_str.replace("Z", ""))
                                     except:
                                         contact.last_reply_at = None
                                 contact.reply_channel = "email"
