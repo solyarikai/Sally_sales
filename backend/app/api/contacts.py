@@ -413,7 +413,7 @@ async def get_filter_options(
     # Get projects
     projects_result = await session.execute(
         select(Project.id, Project.name)
-        .where(and_(Project.company_id == company.id, Project.deleted_at.is_(None)))
+        .where(and_(Project.company_id == company_id if company_id else True, Project.deleted_at.is_(None)))
         .order_by(Project.name)
     )
     projects = [{"id": r[0], "name": r[1]} for r in projects_result.all()]
@@ -1023,7 +1023,7 @@ async def list_projects(
     
     result = await session.execute(
         select(Project)
-        .where(and_(Project.company_id == company.id, Project.deleted_at.is_(None)))
+        .where(and_(Project.company_id == company_id if company_id else True, Project.deleted_at.is_(None)))
         .order_by(Project.name)
     )
     projects = result.scalars().all()
@@ -1094,7 +1094,7 @@ async def update_project(
         select(Project).where(
             and_(
                 Project.id == project_id,
-                Project.company_id == company.id,
+                Project.company_id == company_id if company_id else True,
                 Project.deleted_at.is_(None)
             )
         )
@@ -1144,7 +1144,7 @@ async def delete_project(
         select(Project).where(
             and_(
                 Project.id == project_id,
-                Project.company_id == company.id,
+                Project.company_id == company_id if company_id else True,
                 Project.deleted_at.is_(None)
             )
         )
@@ -1189,7 +1189,7 @@ async def _get_project_with_contacts(
         select(Project).where(
             and_(
                 Project.id == project_id,
-                Project.company_id == company.id,
+                Project.company_id == company_id if company_id else True,
                 Project.deleted_at.is_(None)
             )
         )
@@ -1243,7 +1243,7 @@ async def analyze_project_contacts(
         select(Project).where(
             and_(
                 Project.id == project_id,
-                Project.company_id == company.id,
+                Project.company_id == company_id if company_id else True,
                 Project.deleted_at.is_(None)
             )
         )
