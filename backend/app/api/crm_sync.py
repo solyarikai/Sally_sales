@@ -447,8 +447,28 @@ async def smartlead_webhook(
         contact = result.scalar_one_or_none()
     
     if not contact:
-        logger.warning(f"Contact not found for webhook: {lead_email}")
-        return {"status": "ignored", "reason": "contact not found"}
+        # Create new contact from webhook data
+        logger.info(f"Creating new contact from Smartlead webhook: {lead_email}")
+        contact = Contact(
+            company_id=1,  # Default company
+            email=lead_email.lower().strip(),
+            first_name=lead_data.get("first_name"),
+            last_name=lead_data.get("last_name"),
+            company_name=lead_data.get("company_name"),
+            linkedin_url=_normalize_linkedin(lead_data.get("linkedin_profile")),
+            source="smartlead",
+            smartlead_id=str(lead_id) if lead_id else None,
+            status="new",
+            last_synced_at=datetime.utcnow(),
+            campaigns=json.dumps([{
+                "name": campaign_name,
+                "id": str(campaign_id) if campaign_id else None,
+                "source": "smartlead"
+            }]) if campaign_name or campaign_id else None
+        )
+        session.add(contact)
+        await session.flush()  # Get contact.id
+    
     
     # Map event type to activity type (Smartlead uses uppercase)
     activity_map = {
@@ -562,6 +582,15 @@ async def getsales_bulk_import_webhook(
         payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    
+    # Log full payload for debugging
+    debug_file = "/tmp/getsales_webhook_sample.json"
+    try:
+        with open(debug_file, "w") as f:
+            json.dump(payload, f, indent=2, default=str)
+        logger.info(f"Saved webhook payload to {debug_file}")
+    except Exception as e:
+        logger.warning(f"Could not save payload: {e}")
     
     # GetSales sends contact data in the body
     body = payload.get("body", payload)
@@ -728,7 +757,14 @@ async def getsales_webhook(
             getsales_status=contact_data.get("pipeline_stage_name"),
             status="replied" if is_reply else "contacted",
             has_replied=is_reply,
-            last_synced_at=datetime.utcnow()
+            last_synced_at=datetime.utcnow(),
+            # Add flow/automation info from webhook
+            campaigns=json.dumps([{
+                "name": automation_data.get("name"),
+                "id": automation_data.get("uuid"),
+                "source": "getsales",
+                "status": "active"
+            }]) if automation_data.get("name") or automation_data.get("uuid") else None
         )
         session.add(contact)
         await session.flush()
@@ -786,6 +822,31 @@ async def getsales_webhook(
         contact.last_reply_at = activity_at
         contact.status = "replied"
         contact.getsales_status = contact_data.get("pipeline_stage_name")
+    
+    # Enrich contact with flow/automation info if not already present
+    if automation_data.get("name") or automation_data.get("uuid"):
+        flow_entry = {
+            "name": automation_data.get("name"),
+            "id": automation_data.get("uuid"),
+            "source": "getsales",
+            "status": "active"
+        }
+        # Parse existing campaigns
+        existing_campaigns = []
+        if contact.campaigns:
+            try:
+                if isinstance(contact.campaigns, str):
+                    existing_campaigns = json.loads(contact.campaigns)
+                elif isinstance(contact.campaigns, list):
+                    existing_campaigns = contact.campaigns
+            except:
+                existing_campaigns = []
+        
+        # Check if this flow is already in campaigns
+        existing_flow_ids = {c.get("id") for c in existing_campaigns if isinstance(c, dict)}
+        if automation_data.get("uuid") not in existing_flow_ids:
+            existing_campaigns.append(flow_entry)
+            contact.campaigns = json.dumps(existing_campaigns)
     
     await session.commit()
     
