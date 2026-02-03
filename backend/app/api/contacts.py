@@ -18,6 +18,17 @@ from app.db import get_session
 from app.models.contact import Contact, Project
 from app.models import Company
 from app.api.companies import get_required_company
+from fastapi import Header
+from typing import Annotated
+
+async def get_optional_company_id(x_company_id: Annotated[str | None, Header()] = None) -> int | None:
+    """Get optional company ID from header - returns None if not provided."""
+    if x_company_id:
+        try:
+            return int(x_company_id)
+        except ValueError:
+            return None
+    return None
 from app.services.ai_sdr_service import ai_sdr_service
 
 logger = logging.getLogger(__name__)
@@ -189,15 +200,16 @@ async def list_contacts(
     segment: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
+    has_replied: Optional[bool] = Query(None, description="Filter by replied status"),
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Get paginated list of contacts with filters"""
     
     # Base query
     query = select(Contact).where(
         and_(
-            Contact.company_id == company.id,
+            Contact.company_id == company_id if company_id else True,
             Contact.deleted_at.is_(None)
         )
     )
@@ -211,6 +223,8 @@ async def list_contacts(
         query = query.where(Contact.status == status)
     if source:
         query = query.where(Contact.source == source)
+    if has_replied is not None:
+        query = query.where(Contact.has_replied == has_replied)
     
     # Search
     if search:
@@ -276,11 +290,11 @@ async def list_contacts(
 @router.get("/stats", response_model=ContactStats)
 async def get_contact_stats(
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Get contact statistics"""
     
-    base_filter = and_(Contact.company_id == company.id, Contact.deleted_at.is_(None))
+    base_filter = and_(Contact.company_id == company_id if company_id else True, Contact.deleted_at.is_(None))
     
     # Total count
     total_result = await session.execute(
@@ -334,11 +348,11 @@ async def get_contact_stats(
 @router.get("/filters")
 async def get_filter_options(
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Get available filter options for dropdowns"""
     
-    base_filter = and_(Contact.company_id == company.id, Contact.deleted_at.is_(None))
+    base_filter = and_(Contact.company_id == company_id if company_id else True, Contact.deleted_at.is_(None))
     
     # Get unique segments
     segments_result = await session.execute(
@@ -372,7 +386,7 @@ async def get_filter_options(
 async def create_contact(
     contact: ContactCreate,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Create a new contact"""
     
@@ -380,7 +394,7 @@ async def create_contact(
     existing = await session.execute(
         select(Contact).where(
             and_(
-                Contact.company_id == company.id,
+                Contact.company_id == company_id if company_id else True,
                 Contact.email == contact.email,
                 Contact.deleted_at.is_(None)
             )
@@ -390,7 +404,7 @@ async def create_contact(
         raise HTTPException(status_code=400, detail="Contact with this email already exists")
     
     db_contact = Contact(
-        company_id=company.id,
+        company_id=company_id or 1,
         **contact.model_dump()
     )
     session.add(db_contact)
@@ -404,7 +418,7 @@ async def create_contact(
 async def get_contact(
     contact_id: int,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Get a single contact"""
     
@@ -412,7 +426,7 @@ async def get_contact(
         select(Contact).where(
             and_(
                 Contact.id == contact_id,
-                Contact.company_id == company.id,
+                Contact.company_id == company_id if company_id else True,
                 Contact.deleted_at.is_(None)
             )
         )
@@ -439,7 +453,7 @@ async def update_contact(
     contact_id: int,
     updates: ContactUpdate,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Update a contact"""
     
@@ -447,7 +461,7 @@ async def update_contact(
         select(Contact).where(
             and_(
                 Contact.id == contact_id,
-                Contact.company_id == company.id,
+                Contact.company_id == company_id if company_id else True,
                 Contact.deleted_at.is_(None)
             )
         )
@@ -472,7 +486,7 @@ async def update_contact(
 async def delete_contact(
     contact_id: int,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Soft delete a contact"""
     
@@ -480,7 +494,7 @@ async def delete_contact(
         select(Contact).where(
             and_(
                 Contact.id == contact_id,
-                Contact.company_id == company.id,
+                Contact.company_id == company_id if company_id else True,
                 Contact.deleted_at.is_(None)
             )
         )
@@ -500,7 +514,7 @@ async def delete_contact(
 async def delete_multiple_contacts(
     contact_ids: List[int] = Body(...),
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Soft delete multiple contacts"""
     
@@ -508,7 +522,7 @@ async def delete_multiple_contacts(
         select(Contact).where(
             and_(
                 Contact.id.in_(contact_ids),
-                Contact.company_id == company.id,
+                Contact.company_id == company_id if company_id else True,
                 Contact.deleted_at.is_(None)
             )
         )
@@ -529,7 +543,7 @@ async def delete_multiple_contacts(
 async def bulk_create_contacts(
     contacts: List[ContactCreate] = Body(...),
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Bulk create contacts"""
     
@@ -543,7 +557,7 @@ async def bulk_create_contacts(
             existing = await session.execute(
                 select(Contact.id).where(
                     and_(
-                        Contact.company_id == company.id,
+                        Contact.company_id == company_id if company_id else True,
                         Contact.email == contact_data.email,
                         Contact.deleted_at.is_(None)
                     )
@@ -554,7 +568,7 @@ async def bulk_create_contacts(
                 continue
             
             db_contact = Contact(
-                company_id=company.id,
+                company_id=company_id or 1,
                 **contact_data.model_dump()
             )
             session.add(db_contact)
@@ -577,7 +591,7 @@ async def bulk_create_contacts(
 async def import_merged_contacts(
     contacts: List[dict] = Body(...),
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Import contacts from merged Smartlead+GetSales JSON"""
     
@@ -596,7 +610,7 @@ async def import_merged_contacts(
             existing = await session.execute(
                 select(Contact).where(
                     and_(
-                        Contact.company_id == company.id,
+                        Contact.company_id == company_id if company_id else True,
                         Contact.email == email,
                         Contact.deleted_at.is_(None)
                     )
@@ -623,7 +637,7 @@ async def import_merged_contacts(
             
             # Create contact
             contact = Contact(
-                company_id=company.id,
+                company_id=company_id or 1,
                 email=email,
                 first_name=contact_data.get("first_name"),
                 last_name=contact_data.get("last_name"),
@@ -678,7 +692,7 @@ async def import_contacts_csv(
     segment: Optional[str] = Query(None, description="Segment to assign to all imported contacts"),
     skip_duplicates: bool = Query(True, description="Skip contacts with duplicate emails"),
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """
     Import contacts from a CSV file.
@@ -764,7 +778,7 @@ async def import_contacts_csv(
         existing_result = await session.execute(
             select(Contact.email).where(
                 and_(
-                    Contact.company_id == company.id,
+                    Contact.company_id == company_id if company_id else True,
                     Contact.deleted_at.is_(None)
                 )
             )
@@ -819,7 +833,7 @@ async def import_contacts_csv(
             
             # Create contact
             db_contact = Contact(
-                company_id=company.id,
+                company_id=company_id or 1,
                 **contact_data
             )
             session.add(db_contact)
@@ -870,13 +884,13 @@ jane@company.com,Jane,Smith,Tech Inc,techinc.com,CTO,FinTech,,,San Francisco,Fol
 async def export_contacts_csv(
     contact_ids: Optional[List[int]] = Body(None),
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Export contacts as CSV"""
     
     query = select(Contact).where(
         and_(
-            Contact.company_id == company.id,
+            Contact.company_id == company_id if company_id else True,
             Contact.deleted_at.is_(None)
         )
     )
@@ -920,7 +934,7 @@ async def export_contacts_csv(
 @router.get("/projects/list", response_model=List[ProjectResponse])
 async def list_projects(
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """List all projects with contact counts"""
     
@@ -960,12 +974,12 @@ async def list_projects(
 async def create_project(
     project: ProjectCreate,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Create a new project"""
     
     db_project = Project(
-        company_id=company.id,
+        company_id=company_id or 1,
         **project.model_dump()
     )
     session.add(db_project)
@@ -989,7 +1003,7 @@ async def update_project(
     project_id: int,
     updates: ProjectUpdate,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Update a project"""
     
@@ -1039,7 +1053,7 @@ async def update_project(
 async def delete_project(
     project_id: int,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Soft delete a project (contacts keep project_id but project is hidden)"""
     
@@ -1133,7 +1147,7 @@ async def _get_project_with_contacts(
 async def analyze_project_contacts(
     project_id: int,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """
     Analyze contacts for a project using Python/SQL aggregations.
@@ -1241,7 +1255,7 @@ async def analyze_project_contacts(
 async def get_project_ai_sdr(
     project_id: int,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Get project with all AI SDR generated content."""
     project, contacts = await _get_project_with_contacts(project_id, session, company)
@@ -1265,7 +1279,7 @@ async def get_project_ai_sdr(
 async def generate_tam_analysis(
     project_id: int,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Generate TAM analysis for a project using AI."""
     project, contacts = await _get_project_with_contacts(project_id, session, company)
@@ -1301,7 +1315,7 @@ async def generate_tam_analysis(
 async def generate_gtm_plan(
     project_id: int,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Generate GTM plan for a project using AI."""
     project, contacts = await _get_project_with_contacts(project_id, session, company)
@@ -1338,7 +1352,7 @@ async def generate_gtm_plan(
 async def generate_pitch_templates(
     project_id: int,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Generate pitch email templates for a project using AI."""
     project, contacts = await _get_project_with_contacts(project_id, session, company)
@@ -1376,7 +1390,7 @@ async def generate_pitch_templates(
 async def generate_all_ai_sdr(
     project_id: int,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
+    company_id: int | None = Depends(get_optional_company_id),
 ):
     """Generate all AI SDR content (TAM, GTM, Pitches) for a project."""
     project, contacts = await _get_project_with_contacts(project_id, session, company)

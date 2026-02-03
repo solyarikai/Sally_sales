@@ -23,6 +23,31 @@ from app.services.crm_sync_service import get_crm_sync_service, CRMSyncService
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_linkedin(url: str) -> str:
+    """Normalize LinkedIn URL for matching."""
+    if not url or url == '--':
+        return None
+    import re
+    normalized = re.sub(r'^https?://(www\.)?', '', url.lower()).rstrip('/')
+    return normalized if normalized else None
+
+
+def _extract_location(location_data) -> str:
+    """Extract location string from dict or return as-is if string."""
+    if location_data is None:
+        return None
+    if isinstance(location_data, str):
+        return location_data
+    if isinstance(location_data, dict):
+        parts = [
+            location_data.get("city"),
+            location_data.get("region"),
+            location_data.get("country")
+        ]
+        return ", ".join(filter(None, parts)) or location_data.get("address_string")
+    return str(location_data)
+
 router = APIRouter(prefix="/crm-sync", tags=["CRM Sync"])
 
 
@@ -482,11 +507,12 @@ async def getsales_bulk_import_webhook(
         action = "updated"
     else:
         # Create new contact
-        linkedin_url = (
+        linkedin_url_raw = (
             contact_data.get("linkedin_url") or 
             contact_data.get("linkedin_profile_url") or
             contact_data.get("linkedin")
         )
+        linkedin_url = _normalize_linkedin(linkedin_url_raw)
         
         contact = Contact(
             company_id=1,  # Default company
@@ -496,7 +522,7 @@ async def getsales_bulk_import_webhook(
             company_name=contact_data.get("account", {}).get("name") if isinstance(contact_data.get("account"), dict) else contact_data.get("company_name", ""),
             job_title=contact_data.get("job_title") or contact_data.get("title"),
             linkedin_url=linkedin_url,
-            location=contact_data.get("location") or contact_data.get("city"),
+            location=_extract_location(contact_data.get("location")) or contact_data.get("city"),
             phone=contact_data.get("phone") or contact_data.get("phone_number"),
             source="getsales",
             getsales_id=str(getsales_uuid) if getsales_uuid else None,

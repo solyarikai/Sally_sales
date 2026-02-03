@@ -48,6 +48,11 @@ function shouldSkipCompanyHeader(url: string | undefined): boolean {
     return true;
   }
   
+  // CRM is cross-company (unified view)
+  if (url.startsWith('/contacts') || url.startsWith('/crm-sync')) {
+    return true;
+  }
+  
   // Data search is user-level (not company-scoped)
   if (url.startsWith('/data-search')) {
     return true;

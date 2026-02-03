@@ -107,6 +107,9 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     last_reply_at = Column(DateTime, nullable=True)
     reply_channel = Column(String(50), nullable=True)  # email, linkedin
     
+    # Campaign info from source systems
+    campaigns = Column(JSON, nullable=True)  # List of {name, id, source, status}
+    
     # Relationships
     company = relationship("Company", back_populates="contacts")
     project = relationship("Project", back_populates="contacts")

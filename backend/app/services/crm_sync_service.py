@@ -21,6 +21,18 @@ from app.models.contact import Contact, ContactActivity
 logger = logging.getLogger(__name__)
 
 
+def normalize_linkedin_url(url: str) -> str:
+    """Normalize LinkedIn URL for matching (strip protocol, www, lowercase)."""
+    if not url or url == '--':
+        return None
+    import re
+    # Remove protocol and www
+    normalized = re.sub(r'^https?://(www\.)?', '', url.lower())
+    # Remove trailing slash
+    normalized = normalized.rstrip('/')
+    return normalized if normalized else None
+
+
 class SmartleadClient:
     """Client for Smartlead API."""
     
@@ -51,12 +63,12 @@ class SmartleadClient:
         data = await self._get(f"/campaigns/{campaign_id}/leads", {"limit": limit, "offset": offset})
         return data if isinstance(data, list) else data.get("data", [])
     
-    async def get_global_leads(self, limit: int = 100, offset: int = 0) -> Tuple[List[dict], int]:
-        """Get global leads with total count."""
+    async def get_global_leads(self, limit: int = 100, offset: int = 0) -> Tuple[List[dict], bool]:
+        """Get global leads with hasMore flag."""
         data = await self._get("/leads/global-leads", {"limit": limit, "offset": offset})
         if isinstance(data, dict):
-            return data.get("data", []), data.get("total_count", 0)
-        return data, len(data)
+            return data.get("data", []), data.get("hasMore", False)
+        return data, False
     
     async def get_lead_message_history(self, lead_id: int) -> List[dict]:
         """Get message history for a lead."""
@@ -80,7 +92,7 @@ class SmartleadClient:
         offset = 0
         
         while len(all_leads) < limit:
-            leads, total = await self.get_global_leads(limit=100, offset=offset)
+            leads, has_more = await self.get_global_leads(limit=100, offset=offset)
             if not leads:
                 break
             
@@ -93,7 +105,7 @@ class SmartleadClient:
                         break
             
             offset += 100
-            if offset >= total:
+            if not has_more:
                 break
         
         return all_leads[:limit]
@@ -445,7 +457,7 @@ class CRMSyncService:
         offset = 0
         
         while stats["created"] + stats["updated"] + stats["skipped"] < limit:
-            leads, total = await self.smartlead.get_global_leads(limit=100, offset=offset)
+            leads, has_more = await self.smartlead.get_global_leads(limit=100, offset=offset)
             
             if not leads:
                 break
@@ -455,7 +467,7 @@ class CRMSyncService:
                 stats[result] += 1
             
             offset += 100
-            if offset >= total:
+            if not has_more:
                 break
             
             await session.commit()
@@ -499,11 +511,38 @@ class CRMSyncService:
                     existing.source = f"{existing.source}+smartlead"
                 else:
                     existing.source = "smartlead"
+            # Merge campaign data
+            existing_campaigns = existing.campaigns or []
+            new_campaigns = [
+                {
+                    "name": c.get("campaign_name"),
+                    "id": c.get("campaign_id"),
+                    "source": "smartlead",
+                    "status": c.get("lead_status")
+                }
+                for c in campaigns if c.get("campaign_name")
+            ]
+            # Merge without duplicates
+            campaign_ids = {(c.get("id"), c.get("source")) for c in existing_campaigns}
+            for nc in new_campaigns:
+                if (nc.get("id"), nc.get("source")) not in campaign_ids:
+                    existing_campaigns.append(nc)
+            existing.campaigns = existing_campaigns if existing_campaigns else None
             existing.last_synced_at = datetime.utcnow()
             return "updated"
         else:
             # Create new contact
             custom_fields = lead.get("custom_fields", {})
+            # Build campaign data
+            campaign_data = [
+                {
+                    "name": c.get("campaign_name"),
+                    "id": c.get("campaign_id"),
+                    "source": "smartlead",
+                    "status": c.get("lead_status")
+                }
+                for c in campaigns if c.get("campaign_name")
+            ]
             contact = Contact(
                 company_id=company_id,
                 email=email,
@@ -519,6 +558,7 @@ class CRMSyncService:
                 smartlead_status=smartlead_status,
                 has_replied=has_replied,
                 status="replied" if has_replied else "lead",
+                campaigns=campaign_data if campaign_data else None,
                 last_synced_at=datetime.utcnow()
             )
             session.add(contact)
@@ -604,6 +644,23 @@ class CRMSyncService:
                     existing.source = f"{existing.source}+getsales"
                 else:
                     existing.source = "getsales"
+            # Merge campaign data
+            existing_campaigns = existing.campaigns or []
+            new_campaigns = [
+                {
+                    "name": c.get("campaign_name"),
+                    "id": c.get("campaign_id"),
+                    "source": "smartlead",
+                    "status": c.get("lead_status")
+                }
+                for c in campaigns if c.get("campaign_name")
+            ]
+            # Merge without duplicates
+            campaign_ids = {(c.get("id"), c.get("source")) for c in existing_campaigns}
+            for nc in new_campaigns:
+                if (nc.get("id"), nc.get("source")) not in campaign_ids:
+                    existing_campaigns.append(nc)
+            existing.campaigns = existing_campaigns if existing_campaigns else None
             existing.last_synced_at = datetime.utcnow()
             return "updated"
         else:
@@ -652,7 +709,7 @@ class CRMSyncService:
                     and_(*conditions, Contact.smartlead_id == smartlead_id)
                 )
             )
-            contact = result.scalar_one_or_none()
+            contact = result.scalars().first()
             if contact:
                 return contact
         
@@ -662,7 +719,7 @@ class CRMSyncService:
                     and_(*conditions, Contact.getsales_id == getsales_id)
                 )
             )
-            contact = result.scalar_one_or_none()
+            contact = result.scalars().first()
             if contact:
                 return contact
         
@@ -672,7 +729,7 @@ class CRMSyncService:
                     and_(*conditions, Contact.email == email)
                 )
             )
-            contact = result.scalar_one_or_none()
+            contact = result.scalars().first()
             if contact:
                 return contact
         

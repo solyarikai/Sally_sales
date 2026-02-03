@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ContactDetailModal } from '../components/ContactDetailModal';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
@@ -44,6 +45,11 @@ export function ContactsPage() {
   const [segmentFilter, setSegmentFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  const [repliedFilter, setRepliedFilter] = useState<boolean | null>(null);
+  
+  // Contact Detail Modal
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [showContactModal, setShowContactModal] = useState(false);
   
   // Pagination & Sorting
   const [page, setPage] = useState(1);
@@ -91,6 +97,7 @@ export function ContactsPage() {
         segment: segmentFilter || undefined,
         status: statusFilter || undefined,
         source: sourceFilter || undefined,
+        has_replied: repliedFilter ?? undefined,
       });
       
       setContacts(response.contacts);
@@ -101,7 +108,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, projectFilter, segmentFilter, statusFilter, sourceFilter, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, projectFilter, segmentFilter, statusFilter, sourceFilter, repliedFilter, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -323,7 +330,7 @@ export function ContactsPage() {
     setSearch('');
   };
 
-  const hasActiveFilters = projectFilter || segmentFilter || statusFilter || sourceFilter || search;
+  const hasActiveFilters = projectFilter || segmentFilter || statusFilter || sourceFilter || repliedFilter !== null || search;
   const totalPages = Math.ceil(total / pageSize);
 
   return (
@@ -448,6 +455,20 @@ export function ContactsPage() {
             </>
           )}
 
+          {/* Replied Filter */}
+          <select
+            className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={repliedFilter === null ? '' : repliedFilter ? 'true' : 'false'}
+            onChange={(e) => {
+              const val = e.target.value;
+              setRepliedFilter(val === '' ? null : val === 'true');
+            }}
+          >
+            <option value="">All Contacts</option>
+            <option value="true">Replied Only</option>
+            <option value="false">Not Replied</option>
+          </select>
+
           {hasActiveFilters && (
             <button onClick={clearFilters} className="btn btn-secondary btn-sm text-red-600">
               <X className="w-4 h-4" />
@@ -464,6 +485,12 @@ export function ContactsPage() {
           <AgGridReact
             ref={gridRef}
             theme={AG_GRID_THEME}
+            onRowClicked={(event) => {
+              if (event.data) {
+                setSelectedContact(event.data);
+                setShowContactModal(true);
+              }
+            }}
             rowData={contacts}
             columnDefs={columnDefs}
             defaultColDef={defaultColDef}
@@ -574,6 +601,16 @@ export function ContactsPage() {
         message={confirmDialog.message}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Contact Detail Modal */}
+      <ContactDetailModal
+        contact={selectedContact}
+        isOpen={showContactModal}
+        onClose={() => {
+          setShowContactModal(false);
+          setSelectedContact(null);
+        }}
       />
     </div>
   );

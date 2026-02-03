@@ -20,6 +20,8 @@ export interface Contact {
   notes?: string;
   created_at: string;
   updated_at: string;
+  has_replied?: boolean;
+  campaigns?: Array<{name?: string; id?: string | number; source?: string; status?: string}>;
 }
 
 export interface ContactListResponse {
@@ -54,6 +56,8 @@ export interface Project {
   contact_count: number;
   created_at: string;
   updated_at: string;
+  has_replied?: boolean;
+  campaigns?: Array<{name?: string; id?: string | number; source?: string; status?: string}>;
 }
 
 export interface AISDRProject extends Project {
@@ -137,6 +141,8 @@ export interface ContactFilters {
   segment?: string;
   status?: string;
   source?: string;
+  has_replied?: boolean;
+  campaigns?: Array<{name?: string; id?: string | number; source?: string; status?: string}>;
 }
 
 export const contactsApi = {
