@@ -106,15 +106,37 @@ This document describes all known APIs for Smartlead (email outreach) and GetSal
 |----------|-----------|----------|------------------|
 | **New contact via webhook** | ✅ Creates contact with campaign info | ✅ Creates contact with flow info | `crm_sync.py:760+` |
 | **Reply from unknown contact** | ✅ Creates contact, marks as replied | ✅ Creates contact, marks as replied | Webhook handlers |
-| **Existing contact, new flow** | N/A (campaigns in initial sync) | ✅ Appends new flow to campaigns JSON | `crm_sync.py:827+` |
+| **Existing contact, new flow** | ✅ Appends campaign to JSON | ✅ Appends new flow to campaigns JSON | `crm_sync.py:827+` |
 | **Missing email** | ⚠️ Requires email | ✅ Uses `linkedin_{uuid}@getsales.local` | `crm_sync.py:756` |
 | **Duplicate activity** | ✅ Checked by source_id | ✅ Checked by source_id | Activity creation |
 | **Invalid JSON in webhook** | ✅ Returns 400 | ✅ Returns 400 | Try/except wrapper |
 | **linkedin_message missing** | ✅ N/A | ✅ Handles gracefully, is_reply=false | `crm_sync.py:700` |
 | **automation field missing** | ✅ N/A | ✅ Contact created without campaign | Null check |
 | **conversation_thread is list** | ✅ N/A | ✅ Fixed - handles list type | `crm_sync.py` |
-| **Duplicate flow in campaigns** | ✅ N/A | ✅ Checks existing_flow_ids before append | `crm_sync.py:847` |
+| **Duplicate flow in campaigns** | ✅ Checks by campaign_id | ✅ Checks existing_flow_ids before append | `crm_sync.py:847` |
 | **campaigns field is null/string/list** | ✅ Robust parsing | ✅ Robust parsing | JSON loads/dumps |
+
+### Cross-Source Contact Merging ⭐ NEW
+
+When a contact from one source matches an existing contact from another source:
+
+| Scenario | Matching Logic | Result |
+|----------|----------------|--------|
+| **GetSales → existing Smartlead** | Match by email OR LinkedIn URL | Merges: adds `getsales_id`, appends flow to campaigns |
+| **Smartlead → existing GetSales** | Match by email OR LinkedIn URL | Merges: adds `smartlead_id`, appends campaign to campaigns |
+| **LinkedIn URL matching** | Extracts handle, case-insensitive | `linkedin.com/in/JohnDoe` matches `linkedin.com/in/johndoe` |
+
+**Example merge result:**
+```json
+{
+  "email": "john@example.com",
+  "smartlead_id": "12345",
+  "getsales_id": "uuid-abc-123",
+  "campaigns": [
+    {"name": "Email Campaign", "id": "12345", "source": "smartlead"},
+    {"name": "LinkedIn Flow", "id": "uuid-flow", "source": "getsales"}
+  ]
+}
 
 ### Webhook Testing Commands
 
