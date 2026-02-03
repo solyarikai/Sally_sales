@@ -24,6 +24,7 @@ export function ContactDetailModal({ contact, isOpen, onClose }: ContactDetailMo
   const [activeTab, setActiveTab] = useState<'details' | 'conversation'>('details');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [draftReply, setDraftReply] = useState('');
+  const [replyChannel, setReplyChannel] = useState<'email' | 'linkedin' | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [savedDraft, setSavedDraft] = useState(false);
   const [projects, setProjects] = useState<Array<{id: number, name: string}>>([]);
@@ -35,6 +36,7 @@ export function ContactDetailModal({ contact, isOpen, onClose }: ContactDetailMo
     if (contact && isOpen) {
       // Reset state when contact changes
       setDraftReply('');
+      setReplyChannel(null);
       setSavedDraft(false);
       setActiveTab('details');
       setSelectedProject(contact.project_id || null);
@@ -383,50 +385,140 @@ export function ContactDetailModal({ contact, isOpen, onClose }: ContactDetailMo
                 )}
               </div>
 
-              {/* Reply Composer */}
+              {/* Quick Reply Buttons */}
               <div className="border-t pt-6">
                 <div className="flex items-center gap-2 mb-4 p-3 bg-amber-50 rounded-lg">
                   <AlertTriangle className="w-5 h-5 text-amber-600" />
                   <p className="text-sm text-amber-700">
-                    Draft mode only - replies are saved but NOT sent automatically
+                    Draft mode - replies are saved but NOT sent automatically
                   </p>
                 </div>
                 
-                <h3 className="font-semibold text-gray-900 mb-3">Compose Reply</h3>
-                
-                <textarea
-                  value={draftReply}
-                  onChange={(e) => {
-                    setDraftReply(e.target.value);
-                    setSavedDraft(false);
-                  }}
-                  placeholder="Write your reply here..."
-                  className="w-full h-32 p-4 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                
-                <div className="flex items-center justify-between mt-4">
-                  <div className="text-sm text-gray-500">
-                    {savedDraft && (
-                      <span className="text-green-600 flex items-center gap-1">
-                        <Check className="w-4 h-4" /> Draft saved
-                      </span>
-                    )}
+                {!replyChannel ? (
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-4">Reply via:</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Smartlead / Email Reply */}
+                      <button
+                        onClick={() => setReplyChannel('email')}
+                        disabled={!contact?.smartlead_id}
+                        className={cn(
+                          "p-6 rounded-xl border-2 transition-all flex flex-col items-center gap-3",
+                          contact?.smartlead_id
+                            ? "border-purple-200 hover:border-purple-500 hover:bg-purple-50 cursor-pointer"
+                            : "border-gray-200 bg-gray-50 cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                          <Mail className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <div className="text-center">
+                          <p className="font-semibold text-gray-900">Email Reply</p>
+                          <p className="text-xs text-gray-500">via Smartlead</p>
+                        </div>
+                      </button>
+                      
+                      {/* GetSales / LinkedIn Reply */}
+                      <button
+                        onClick={() => setReplyChannel('linkedin')}
+                        disabled={!contact?.getsales_id}
+                        className={cn(
+                          "p-6 rounded-xl border-2 transition-all flex flex-col items-center gap-3",
+                          contact?.getsales_id
+                            ? "border-blue-200 hover:border-blue-500 hover:bg-blue-50 cursor-pointer"
+                            : "border-gray-200 bg-gray-50 cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                          <Linkedin className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div className="text-center">
+                          <p className="font-semibold text-gray-900">LinkedIn Reply</p>
+                          <p className="text-xs text-gray-500">via GetSales</p>
+                        </div>
+                      </button>
+                    </div>
                   </div>
-                  
-                  <button
-                    onClick={handleSaveDraft}
-                    disabled={!draftReply.trim() || isSaving}
-                    className={cn(
-                      "px-4 py-2 rounded-lg flex items-center gap-2 transition-colors",
-                      draftReply.trim() 
-                        ? "bg-blue-600 text-white hover:bg-blue-700" 
-                        : "bg-gray-200 text-gray-500 cursor-not-allowed"
-                    )}
-                  >
-                    <Send className="w-4 h-4" />
-                    {isSaving ? 'Saving...' : 'Save Draft'}
-                  </button>
-                </div>
+                ) : (
+                  <div>
+                    {/* Channel Selected - Show Composer */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-8 h-8 rounded-full flex items-center justify-center",
+                          replyChannel === 'email' ? "bg-purple-100" : "bg-blue-100"
+                        )}>
+                          {replyChannel === 'email' 
+                            ? <Mail className="w-4 h-4 text-purple-600" />
+                            : <Linkedin className="w-4 h-4 text-blue-600" />
+                          }
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">
+                            {replyChannel === 'email' ? 'Email Reply' : 'LinkedIn Reply'}
+                          </h3>
+                          <p className="text-xs text-gray-500">
+                            via {replyChannel === 'email' ? 'Smartlead' : 'GetSales'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setReplyChannel(null);
+                          setDraftReply('');
+                          setSavedDraft(false);
+                        }}
+                        className="text-sm text-gray-500 hover:text-gray-700"
+                      >
+                        ← Change channel
+                      </button>
+                    </div>
+                    
+                    <textarea
+                      value={draftReply}
+                      onChange={(e) => {
+                        setDraftReply(e.target.value);
+                        setSavedDraft(false);
+                      }}
+                      placeholder={replyChannel === 'email' 
+                        ? "Write your email reply..." 
+                        : "Write your LinkedIn message..."}
+                      className={cn(
+                        "w-full h-32 p-4 border-2 rounded-lg resize-none focus:outline-none",
+                        replyChannel === 'email' 
+                          ? "border-purple-200 focus:border-purple-500" 
+                          : "border-blue-200 focus:border-blue-500"
+                      )}
+                      autoFocus
+                    />
+                    
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="text-sm">
+                        {savedDraft && (
+                          <span className="text-green-600 flex items-center gap-1">
+                            <Check className="w-4 h-4" /> Draft saved for {replyChannel === 'email' ? 'email' : 'LinkedIn'}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <button
+                        onClick={handleSaveDraft}
+                        disabled={!draftReply.trim() || isSaving}
+                        className={cn(
+                          "px-5 py-2.5 rounded-lg flex items-center gap-2 font-medium transition-colors",
+                          draftReply.trim() 
+                            ? replyChannel === 'email'
+                              ? "bg-purple-600 text-white hover:bg-purple-700"
+                              : "bg-blue-600 text-white hover:bg-blue-700"
+                            : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                        )}
+                      >
+                        <Send className="w-4 h-4" />
+                        {isSaving ? 'Saving...' : 'Save Draft'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
