@@ -5,7 +5,7 @@ Simple flat table with filters - project, segment, status, source
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, String
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
@@ -203,6 +203,7 @@ async def list_contacts(
     has_replied: Optional[bool] = Query(None, description="Filter by replied status"),
     has_smartlead: Optional[bool] = Query(None, description="Filter contacts with Smartlead history"),
     has_getsales: Optional[bool] = Query(None, description="Filter contacts with GetSales history"),
+    campaign: Optional[str] = Query(None, description="Filter by campaign name (partial match)"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -237,6 +238,11 @@ async def list_contacts(
         query = query.where(Contact.getsales_id.isnot(None))
     elif has_getsales is False:
         query = query.where(Contact.getsales_id.is_(None))
+    if campaign:
+        # Filter by campaign name using JSON contains
+        query = query.where(
+            Contact.campaigns.cast(String).ilike(f'%{campaign}%')
+        )
     
     # Search
     if search:
@@ -392,6 +398,45 @@ async def get_filter_options(
         "segments": segments if segments else DEFAULT_SEGMENTS,
         "projects": projects,
     }
+
+@router.get("/campaigns")
+async def get_campaigns_list(
+    session: AsyncSession = Depends(get_session),
+    source: Optional[str] = Query(None, description="Filter by source: smartlead or getsales"),
+):
+    """
+    Get list of unique campaign names for autocomplete.
+    """
+    # Query all contacts with campaigns
+    result = await session.execute(
+        select(Contact.campaigns).where(
+            and_(
+                Contact.campaigns.isnot(None),
+                Contact.deleted_at.is_(None)
+            )
+        )
+    )
+    
+    # Extract unique campaign names
+    campaigns_set = set()
+    for row in result.scalars():
+        if row:
+            for camp in row:
+                name = camp.get("name")
+                camp_source = camp.get("source")
+                if name:
+                    if source is None or camp_source == source:
+                        campaigns_set.add((name, camp_source))
+    
+    # Sort and return
+    campaigns = [
+        {"name": name, "source": src}
+        for name, src in sorted(campaigns_set, key=lambda x: x[0])
+    ]
+    
+    return {"campaigns": campaigns, "total": len(campaigns)}
+
+
 
 
 @router.post("", response_model=ContactResponse)

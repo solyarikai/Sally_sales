@@ -48,6 +48,8 @@ export function ContactsPage() {
   const [repliedFilter, setRepliedFilter] = useState<boolean | null>(null);
   const [smartleadFilter, setSmartleadFilter] = useState<boolean | null>(null);
   const [getsalesFilter, setGetsalesFilter] = useState<boolean | null>(null);
+  const [campaignFilter, setCampaignFilter] = useState<string>('');
+  const [campaigns, setCampaigns] = useState<Array<{name: string, source: string}>>([]);
   
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -102,6 +104,7 @@ export function ContactsPage() {
         has_replied: repliedFilter ?? undefined,
         has_smartlead: smartleadFilter ?? undefined,
         has_getsales: getsalesFilter ?? undefined,
+        campaign: campaignFilter || undefined,
       });
       
       setContacts(response.contacts);
@@ -112,7 +115,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, projectFilter, segmentFilter, statusFilter, sourceFilter, repliedFilter, smartleadFilter, getsalesFilter, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, projectFilter, segmentFilter, statusFilter, sourceFilter, repliedFilter, smartleadFilter, getsalesFilter, campaignFilter, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -122,7 +125,20 @@ export function ContactsPage() {
     loadStats();
     loadFilterOptions();
     loadProjects();
+    loadCampaigns();
   }, []);
+
+  const loadCampaigns = async () => {
+    try {
+      const response = await fetch('/api/contacts/campaigns');
+      if (response.ok) {
+        const data = await response.json();
+        setCampaigns(data.campaigns || []);
+      }
+    } catch (err) {
+      console.error('Failed to load campaigns:', err);
+    }
+  };
 
   const loadStats = async () => {
     try {
@@ -167,17 +183,17 @@ export function ContactsPage() {
       headerName: 'Status',
       width: 110,
       sortable: true,
-      cellRenderer: (params: any) => {
-        const status = params.value as string;
-        const colors: Record<string, string> = {
-          lead: 'bg-gray-100 text-gray-700',
-          contacted: 'bg-blue-100 text-blue-700',
-          replied: 'bg-green-100 text-green-700',
-          qualified: 'bg-purple-100 text-purple-700',
-          customer: 'bg-emerald-100 text-emerald-700',
-          lost: 'bg-red-100 text-red-700',
+      cellStyle: (params) => {
+        const colors: Record<string, {bg: string, text: string}> = {
+          lead: { bg: '#f3f4f6', text: '#374151' },
+          contacted: { bg: '#dbeafe', text: '#1d4ed8' },
+          replied: { bg: '#dcfce7', text: '#15803d' },
+          qualified: { bg: '#f3e8ff', text: '#7c3aed' },
+          customer: { bg: '#d1fae5', text: '#047857' },
+          lost: { bg: '#fee2e2', text: '#dc2626' },
         };
-        return `<span class="px-2 py-0.5 rounded text-xs font-medium ${colors[status] || 'bg-gray-100'}">${status}</span>`;
+        const c = colors[params.value] || colors.lead;
+        return { backgroundColor: c.bg, color: c.text, padding: '2px 8px', borderRadius: '4px', fontSize: '12px' };
       }
     },
     {
@@ -334,7 +350,7 @@ export function ContactsPage() {
     setSearch('');
   };
 
-  const hasActiveFilters = projectFilter || segmentFilter || statusFilter || sourceFilter || repliedFilter !== null || smartleadFilter !== null || getsalesFilter !== null || search;
+  const hasActiveFilters = projectFilter || segmentFilter || statusFilter || sourceFilter || repliedFilter !== null || smartleadFilter !== null || getsalesFilter !== null || campaignFilter || search;
   const totalPages = Math.ceil(total / pageSize);
 
   return (
@@ -500,6 +516,25 @@ export function ContactsPage() {
             <option value="true">In GetSales</option>
             <option value="false">Not in GetSales</option>
           </select>
+
+          {/* Campaign Filter with Autocomplete */}
+          <div className="relative">
+            <input
+              type="text"
+              list="campaigns-list"
+              placeholder="Filter by campaign..."
+              value={campaignFilter}
+              onChange={(e) => setCampaignFilter(e.target.value)}
+              className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-48"
+            />
+            <datalist id="campaigns-list">
+              {campaigns.map((c, i) => (
+                <option key={i} value={c.name}>
+                  {c.source === 'smartlead' ? '📧' : '💼'} {c.name}
+                </option>
+              ))}
+            </datalist>
+          </div>
 
           {hasActiveFilters && (
             <button onClick={clearFilters} className="btn btn-secondary btn-sm text-red-600">

@@ -23,6 +23,7 @@ export interface Contact {
   has_replied?: boolean;
   has_smartlead?: boolean;
   has_getsales?: boolean;
+  campaign?: string;
 }
 
 export interface ContactListResponse {
@@ -60,6 +61,7 @@ export interface Project {
   has_replied?: boolean;
   has_smartlead?: boolean;
   has_getsales?: boolean;
+  campaign?: string;
 }
 
 export interface AISDRProject extends Project {
@@ -146,6 +148,7 @@ export interface ContactFilters {
   has_replied?: boolean;
   has_smartlead?: boolean;
   has_getsales?: boolean;
+  campaign?: string;
 }
 
 export const contactsApi = {
