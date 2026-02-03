@@ -25,20 +25,34 @@ from app.services.crm_sync_service import get_crm_sync_service, CRMSyncService
 logger = logging.getLogger(__name__)
 
 
+def _extract_linkedin_handle(url: str) -> str:
+    """Extract just the LinkedIn handle for matching."""
+    if not url or url == '--':
+        return None
+    url = url.lower().strip()
+    if 'linkedin.com/in/' in url:
+        return url.split('linkedin.com/in/')[-1].split('/')[0].split('?')[0].strip() or None
+    if '/in/' in url:
+        return url.split('/in/')[-1].split('/')[0].split('?')[0].strip() or None
+    # Assume it is already just a handle
+    return url.rstrip('/').split('?')[0] or None
+
+
 def _normalize_linkedin(url: str) -> str:
-    """Normalize LinkedIn URL for matching and storage."""
+    """Normalize LinkedIn URL for storage - keeps full URL format."""
     if not url or url == '--':
         return None
     import re
     url = url.lower().strip()
-    # Remove protocol and www
     url = re.sub(r'^https?://(www\.)?', '', url)
-    # Extract just the handle if it is a linkedin.com/in/ URL
+    # Extract clean handle and rebuild URL
     if 'linkedin.com/in/' in url:
         handle = url.split('linkedin.com/in/')[-1].split('/')[0].split('?')[0].strip()
-        if handle:
-            return f"linkedin.com/in/{handle}"
-    # Return cleaned URL for other formats
+        return f"linkedin.com/in/{handle}" if handle else None
+    if '/in/' in url:
+        handle = url.split('/in/')[-1].split('/')[0].split('?')[0].strip()
+        return f"linkedin.com/in/{handle}" if handle else None
+    # Return as-is if not a standard LinkedIn URL
     return url.rstrip('/') if url else None
 
 
@@ -460,7 +474,7 @@ async def smartlead_webhook(
     if not contact and linkedin_profile:
         normalized_linkedin = linkedin_profile.lower().rstrip("/")
         if "linkedin.com/in/" in normalized_linkedin:
-            linkedin_handle = normalized_linkedin.split("linkedin.com/in/")[-1].split("/")[0].split("?")[0]
+            linkedin_handle = _extract_linkedin_handle(linkedin_profile)
             result = await session.execute(
                 select(Contact).where(
                     and_(
@@ -784,7 +798,7 @@ async def getsales_webhook(
         # Normalize LinkedIn URL for matching
         normalized_linkedin = linkedin_url.lower().rstrip("/")
         if "linkedin.com/in/" in normalized_linkedin:
-            linkedin_handle = normalized_linkedin.split("linkedin.com/in/")[-1].split("/")[0].split("?")[0]
+            linkedin_handle = _extract_linkedin_handle(linkedin_url)
             result = await session.execute(
                 select(Contact).where(
                     and_(
