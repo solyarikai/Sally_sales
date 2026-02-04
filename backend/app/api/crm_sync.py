@@ -912,8 +912,60 @@ async def getsales_webhook(
         contact.has_replied = True
         contact.reply_channel = "linkedin"
         contact.last_reply_at = activity_at
-        contact.status = "replied"
         contact.getsales_status = contact_data.get("pipeline_stage_name")
+        
+        # Classify the reply
+        from app.services.crm_sync_service import classify_reply, get_status_from_category, get_sentiment_from_category
+        category = await classify_reply(message_text)
+        
+        # Update activity with category
+        activity.extra_data["category"] = category
+        
+        # Update contact status and sentiment
+        contact.status = get_status_from_category(category)
+        contact.reply_category = category
+        contact.reply_sentiment = get_sentiment_from_category(category)
+        
+        # Append to touches JSON
+        from datetime import datetime as dt
+        touch = {
+            "at": activity_at.isoformat() if activity_at else dt.utcnow().isoformat(),
+            "campaign": automation_data.get("name"),
+            "source": "getsales",
+            "channel": "linkedin",
+            "type": "reply",
+            "category": category,
+            "message": message_text[:100] if message_text else None
+        }
+        if contact.touches:
+            try:
+                import json
+                touches = json.loads(contact.touches) if isinstance(contact.touches, str) else contact.touches
+                touches.append(touch)
+                contact.touches = touches
+            except:
+                contact.touches = [touch]
+        else:
+            contact.touches = [touch]
+        
+        # Append to getsales_raw for debugging
+        webhook_entry = {
+            "received_at": dt.utcnow().isoformat(),
+            "type": "reply",
+            "category": category,
+            "payload": body
+        }
+        if contact.getsales_raw:
+            try:
+                raw = json.loads(contact.getsales_raw) if isinstance(contact.getsales_raw, str) else contact.getsales_raw
+                if "webhooks" not in raw:
+                    raw["webhooks"] = []
+                raw["webhooks"].append(webhook_entry)
+                contact.getsales_raw = raw
+            except:
+                contact.getsales_raw = {"webhooks": [webhook_entry]}
+        else:
+            contact.getsales_raw = {"webhooks": [webhook_entry]}
         
         # Send Telegram notification for LinkedIn reply
         try:

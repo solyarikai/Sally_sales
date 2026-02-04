@@ -22,6 +22,104 @@ from app.services.cache_service import acquire_sync_lock, release_sync_lock, bul
 
 logger = logging.getLogger(__name__)
 
+
+# Keyword patterns for quick classification
+KEYWORD_PATTERNS = {
+    "not_interested": [
+        "not interested", "не интересно", "no interest", "не актуально", 
+        "not relevant", "не нужно", "not now", "пока нет", "не подходит"
+    ],
+    "meeting_request": [
+        "какое время", "назначить", "schedule", "book", "calendar", "calendly",
+        "meeting", "call", "созвон", "встреч", "zoom", "teams", "google meet"
+    ],
+    "interested": [
+        "интересно", "interested", "давайте", "let's", "tell me more",
+        "подробнее", "расскажите", "хотел бы", "would like", "sounds good"
+    ],
+    "out_of_office": [
+        "out of office", "vacation", "отпуск", "away", "holiday", "auto-reply"
+    ],
+    "wrong_person": [
+        "wrong person", "не тот", "уже не работаю", "no longer", "left the company"
+    ],
+    "unsubscribe": [
+        "unsubscribe", "stop", "remove", "отписаться", "don't contact"
+    ]
+}
+
+def classify_reply_by_keywords(text: str) -> str | None:
+    """Quick keyword-based classification. Returns None if unclear."""
+    if not text:
+        return None
+    text_lower = text.lower()
+    for category, patterns in KEYWORD_PATTERNS.items():
+        for pattern in patterns:
+            if pattern in text_lower:
+                return category
+    return None
+
+async def classify_reply_with_ai(text: str) -> str:
+    """AI classification using GPT-4o-mini. Called when keywords don't match."""
+    import httpx
+    import os
+    
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return "other"
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": "Classify B2B reply into: interested, meeting_request, not_interested, out_of_office, wrong_person, question, other. Reply with ONLY the category."},
+                        {"role": "user", "content": text[:500]}
+                    ],
+                    "max_tokens": 20,
+                    "temperature": 0
+                },
+                timeout=10.0
+            )
+            data = response.json()
+            category = data["choices"][0]["message"]["content"].strip().lower()
+            valid = ["interested", "meeting_request", "not_interested", "out_of_office", "wrong_person", "question", "other"]
+            return category if category in valid else "other"
+    except Exception:
+        return "other"
+
+async def classify_reply(text: str) -> str:
+    """Classify reply: keywords first, then AI if unclear."""
+    category = classify_reply_by_keywords(text)
+    if category:
+        return category
+    return await classify_reply_with_ai(text)
+
+def get_status_from_category(category: str) -> str:
+    """Map reply category to contact status."""
+    if category in ("interested", "meeting_request", "question"):
+        return "warm"
+    elif category == "not_interested":
+        return "not_interested"
+    elif category == "out_of_office":
+        return "out_of_office"
+    elif category == "wrong_person":
+        return "wrong_person"
+    else:
+        return "touched"
+
+def get_sentiment_from_category(category: str) -> str:
+    """Map reply category to sentiment."""
+    if category in ("interested", "meeting_request", "question"):
+        return "warm"
+    elif category in ("not_interested", "unsubscribe", "wrong_person"):
+        return "cold"
+    else:
+        return "neutral"
+
 # Known GetSales flow UUIDs -> names mapping (from webhook data)
 GETSALES_FLOW_NAMES = {
     "b4188b80-4e23-47df-83cf-29d2654fc943": "EasyStaff - Russian DM [>500 connects]",
