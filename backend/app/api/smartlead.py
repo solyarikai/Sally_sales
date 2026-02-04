@@ -288,15 +288,19 @@ async def receive_webhook(
         # Subject
         payload.email_subject = data.get("subject")
         
-        # Reply body: try multiple locations
+        # Reply body: try multiple locations (including description field)
         reply_body = (
             data.get("reply_body") or 
             data.get("preview_text") or
+            data.get("description") or  # Smartlead sends reply text in description field
             (data.get("reply_message", {}) or {}).get("text") or
             (data.get("reply_message", {}) or {}).get("html") or
             data.get("body", {}).get("preview_text") or
             data.get("body", {}).get("email_text")
         )
+        
+        # Log what we found for debugging
+        logger.info(f"[WEBHOOK] description={data.get('description', 'N/A')[:200] if data.get('description') else 'None'}")
         payload.email_body = reply_body
         payload.reply_text = reply_body
         
