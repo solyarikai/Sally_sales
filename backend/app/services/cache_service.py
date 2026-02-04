@@ -280,3 +280,158 @@ async def release_sync_lock() -> bool:
     except Exception as e:
         logger.warning(f"Failed to release sync lock: {e}")
         return False
+
+
+# Reply tracking cache
+SMARTLEAD_REPLIES_KEY = "leadgen:replies:smartlead"
+GETSALES_REPLIES_KEY = "leadgen:replies:getsales"
+REPLIES_TTL = 86400 * 7  # 7 days
+
+
+async def add_processed_reply(source: str, reply_id: str) -> bool:
+    """Add reply ID to processed set."""
+    if not cache_service.is_connected or not cache_service._redis:
+        return False
+    
+    try:
+        key = SMARTLEAD_REPLIES_KEY if source == "smartlead" else GETSALES_REPLIES_KEY
+        await cache_service._redis.sadd(key, str(reply_id))
+        await cache_service._redis.expire(key, REPLIES_TTL)
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to add processed reply: {e}")
+        return False
+
+
+async def is_reply_processed(source: str, reply_id: str) -> bool:
+    """Check if reply ID was already processed."""
+    if not cache_service.is_connected or not cache_service._redis:
+        return False
+    
+    try:
+        key = SMARTLEAD_REPLIES_KEY if source == "smartlead" else GETSALES_REPLIES_KEY
+        return await cache_service._redis.sismember(key, str(reply_id))
+    except Exception as e:
+        logger.warning(f"Failed to check processed reply: {e}")
+        return False
+
+
+async def bulk_check_replies(source: str, reply_ids: list) -> set:
+    """
+    Check multiple reply IDs at once. 
+    Returns set of already processed IDs.
+    """
+    if not cache_service.is_connected or not cache_service._redis:
+        return set()
+    
+    if not reply_ids:
+        return set()
+    
+    try:
+        key = SMARTLEAD_REPLIES_KEY if source == "smartlead" else GETSALES_REPLIES_KEY
+        # Use pipeline for efficiency
+        pipe = cache_service._redis.pipeline()
+        for rid in reply_ids:
+            pipe.sismember(key, str(rid))
+        results = await pipe.execute()
+        return {str(rid) for rid, exists in zip(reply_ids, results) if exists}
+    except Exception as e:
+        logger.warning(f"Failed to bulk check replies: {e}")
+        return set()
+
+
+async def bulk_add_replies(source: str, reply_ids: list) -> bool:
+    """Add multiple reply IDs to processed set at once."""
+    if not cache_service.is_connected or not cache_service._redis:
+        return False
+    
+    if not reply_ids:
+        return True
+    
+    try:
+        key = SMARTLEAD_REPLIES_KEY if source == "smartlead" else GETSALES_REPLIES_KEY
+        await cache_service._redis.sadd(key, *[str(rid) for rid in reply_ids])
+        await cache_service._redis.expire(key, REPLIES_TTL)
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to bulk add replies: {e}")
+        return False
+
+
+async def get_replies_cache_stats() -> dict:
+    """Get stats about the reply cache."""
+    if not cache_service.is_connected or not cache_service._redis:
+        return {"connected": False}
+    
+    try:
+        smartlead_count = await cache_service._redis.scard(SMARTLEAD_REPLIES_KEY)
+        getsales_count = await cache_service._redis.scard(GETSALES_REPLIES_KEY)
+        return {
+            "connected": True,
+            "smartlead_cached": smartlead_count,
+            "getsales_cached": getsales_count
+        }
+    except Exception as e:
+        logger.warning(f"Failed to get cache stats: {e}")
+        return {"connected": True, "error": str(e)}
+
+
+async def backfill_reply_cache_from_db() -> dict:
+    """
+    Backfill Redis reply cache from existing contact_activities.
+    
+    Called on startup to populate cache with already-processed reply IDs.
+    Returns stats about how many IDs were loaded.
+    """
+    if not cache_service.is_connected or not cache_service._redis:
+        logger.warning("Redis not connected, skipping reply cache backfill")
+        return {"skipped": "no_redis"}
+    
+    try:
+        from app.db import async_session_maker
+        from app.models.contact import ContactActivity
+        from sqlalchemy import select
+        from datetime import datetime, timedelta
+        
+        # Only backfill replies from last 7 days (matches TTL)
+        since = datetime.utcnow() - timedelta(days=7)
+        
+        async with async_session_maker() as session:
+            # Get Smartlead reply IDs
+            smartlead_query = await session.execute(
+                select(ContactActivity.source_id).where(
+                    ContactActivity.source == "smartlead",
+                    ContactActivity.activity_type == "email_replied",
+                    ContactActivity.activity_at >= since
+                )
+            )
+            smartlead_ids = [row[0] for row in smartlead_query.all() if row[0]]
+            
+            # Get GetSales reply IDs
+            getsales_query = await session.execute(
+                select(ContactActivity.source_id).where(
+                    ContactActivity.source == "getsales",
+                    ContactActivity.activity_type == "linkedin_replied",
+                    ContactActivity.activity_at >= since
+                )
+            )
+            getsales_ids = [row[0] for row in getsales_query.all() if row[0]]
+        
+        # Bulk add to Redis
+        stats = {
+            "smartlead": len(smartlead_ids),
+            "getsales": len(getsales_ids)
+        }
+        
+        if smartlead_ids:
+            await bulk_add_replies("smartlead", smartlead_ids)
+        
+        if getsales_ids:
+            await bulk_add_replies("getsales", getsales_ids)
+        
+        logger.info(f"Reply cache backfill complete: {stats}")
+        return stats
+        
+    except Exception as e:
+        logger.error(f"Reply cache backfill failed: {e}")
+        return {"error": str(e)}

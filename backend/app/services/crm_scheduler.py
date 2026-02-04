@@ -13,6 +13,7 @@ from typing import Optional
 
 from app.db import async_session_maker
 from app.services.crm_sync_service import get_crm_sync_service, get_getsales_flow_name
+from app.services.cache_service import backfill_reply_cache_from_db
 
 logger = logging.getLogger(__name__)
 
@@ -320,6 +321,13 @@ async def start_crm_scheduler():
     """Start the CRM scheduler."""
     scheduler = get_crm_scheduler()
     await scheduler.start()
+    
+    # Backfill reply cache from DB
+    try:
+        stats = await backfill_reply_cache_from_db()
+        logger.info(f"Reply cache backfill: {stats}")
+    except Exception as e:
+        logger.warning(f"Reply cache backfill failed (non-fatal): {e}")
     
     # Also set up webhooks on startup
     await setup_crm_webhooks_on_startup()

@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
 
 from app.models.contact import Contact, ContactActivity
-from app.services.cache_service import acquire_sync_lock, release_sync_lock
+from app.services.cache_service import acquire_sync_lock, release_sync_lock, bulk_check_replies, bulk_add_replies, add_processed_reply
 
 logger = logging.getLogger(__name__)
 
@@ -862,12 +862,13 @@ class CRMSyncService:
         Sync reply activities from Smartlead using per-campaign approach.
         
         Iterates through ACTIVE and PAUSED campaigns to find replied leads.
-        This avoids rate limits from the global-leads endpoint.
+        Uses Redis cache to avoid redundant DB queries.
         """
         if not self.smartlead:
             raise ValueError("Smartlead API key not configured")
         
-        stats = {"new_replies": 0, "existing": 0, "campaigns_checked": 0, "errors": 0}
+        stats = {"new_replies": 0, "existing": 0, "cached": 0, "campaigns_checked": 0, "errors": 0}
+        new_reply_ids = []
         
         try:
             # Get all campaigns
@@ -889,19 +890,33 @@ class CRMSyncService:
                     # Fetch leads for this campaign (first 100 to limit API calls)
                     leads = await self.smartlead.get_campaign_leads(campaign_id, limit=100)
                     
+                    # Filter to only replied leads first
+                    replied_leads = []
                     for lead_data in leads:
-                        lead = lead_data.get("lead", lead_data)
-                        email = self.normalize_email(lead.get("email"))
-                        lead_id = str(lead.get("id"))
-                        
-                        # Check if lead has replied (look for reply_time or status indicators)
                         has_reply = (
                             lead_data.get("reply_time") or 
                             lead_data.get("lead_status") == "REPLIED" or
                             lead_data.get("status") == "REPLIED"
                         )
+                        if has_reply:
+                            replied_leads.append(lead_data)
+                    
+                    if not replied_leads:
+                        await asyncio.sleep(0.1)
+                        continue
+                    
+                    # Bulk check which leads are already cached
+                    lead_ids = [str(ld.get("lead", ld).get("id")) for ld in replied_leads]
+                    cached_ids = await bulk_check_replies("smartlead", lead_ids)
+                    
+                    for lead_data in replied_leads:
+                        lead = lead_data.get("lead", lead_data)
+                        email = self.normalize_email(lead.get("email"))
+                        lead_id = str(lead.get("id"))
                         
-                        if not has_reply:
+                        # Check Redis cache first (fast path)
+                        if lead_id in cached_ids:
+                            stats["cached"] += 1
                             continue
                         
                         # Find contact
@@ -910,9 +925,10 @@ class CRMSyncService:
                         )
                         
                         if not contact:
+                            new_reply_ids.append(lead_id)  # Still cache it
                             continue
                         
-                        # Check if we already have this reply activity
+                        # Check if we already have this reply activity (fallback)
                         existing = await session.execute(
                             select(ContactActivity).where(
                                 and_(
@@ -926,6 +942,7 @@ class CRMSyncService:
                         
                         if existing.scalar_one_or_none():
                             stats["existing"] += 1
+                            new_reply_ids.append(lead_id)  # Add to cache
                             continue
                         
                         # Create activity
@@ -952,6 +969,7 @@ class CRMSyncService:
                         contact.status = "replied"
                         
                         stats["new_replies"] += 1
+                        new_reply_ids.append(lead_id)
                     
                     # Small delay to avoid rate limits
                     await asyncio.sleep(0.1)
@@ -961,6 +979,11 @@ class CRMSyncService:
                     logger.warning(f"Error checking campaign {campaign_name}: {e}")
             
             await session.commit()
+            
+            # Bulk add new reply IDs to cache
+            if new_reply_ids:
+                await bulk_add_replies("smartlead", new_reply_ids)
+            
             logger.info(f"Reply sync complete: {stats}")
             
         except Exception as e:
@@ -975,7 +998,8 @@ class CRMSyncService:
         company_id: int,
         max_pages: int = 10,
         page_size: int = 100,
-        max_age_hours: int = 48
+        max_age_hours: int = 48,
+        early_stop_threshold: int = 20
     ) -> Dict[str, int]:
         """
         Sync LinkedIn reply activities from GetSales inbox.
@@ -984,13 +1008,18 @@ class CRMSyncService:
         - No more messages (has_more=False)
         - Hit max_pages limit
         - Messages are older than max_age_hours
+        - Consecutive cached hits exceed early_stop_threshold
+        
+        Uses Redis cache to avoid redundant DB queries.
         """
         if not self.getsales:
             logger.warning("GetSales API key not configured")
             return {"skipped": "no_api_key"}
         
-        stats = {"new_replies": 0, "existing": 0, "no_contact": 0, "pages": 0}
+        stats = {"new_replies": 0, "existing": 0, "cached": 0, "no_contact": 0, "pages": 0}
         cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
+        consecutive_cached = 0
+        new_reply_ids = []
         
         try:
             offset = 0
@@ -1008,79 +1037,103 @@ class CRMSyncService:
                 
                 if not messages:
                     break
-            
-            for msg in messages:
-                # Check message age - stop if too old
-                created_at_str = msg.get("created_at")
-                if created_at_str:
-                    msg_time = datetime.fromisoformat(created_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
-                    if msg_time < cutoff_time:
-                        logger.info(f"GetSales reply sync: stopping at message from {msg_time} (older than {max_age_hours}h)")
-                        stop_pagination = True
-                        break
                 
-                # Extract lead info
-                lead_uuid = msg.get("lead_uuid") or msg.get("lead", {}).get("uuid")
-                message_text = msg.get("text") or msg.get("body", "")
-                message_id = msg.get("uuid") or msg.get("id")
+                # Bulk check which messages are already cached
+                message_ids = [msg.get("uuid") or msg.get("id") for msg in messages if msg.get("uuid") or msg.get("id")]
+                cached_ids = await bulk_check_replies("getsales", message_ids)
                 
-                if not lead_uuid:
-                    continue
-                
-                # Find contact by getsales_id
-                contact = await self._find_contact(
-                    session, company_id, getsales_id=lead_uuid
-                )
-                
-                if not contact:
-                    stats["no_contact"] += 1
-                    continue
-                
-                # Check if we already have this activity
-                existing = await session.execute(
-                    select(ContactActivity).where(
-                        and_(
-                            ContactActivity.contact_id == contact.id,
-                            ContactActivity.activity_type == "linkedin_replied",
-                            ContactActivity.source == "getsales",
-                            ContactActivity.source_id == str(message_id)
+                for msg in messages:
+                    # Check message age - stop if too old
+                    created_at_str = msg.get("created_at")
+                    if created_at_str:
+                        msg_time = datetime.fromisoformat(created_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                        if msg_time < cutoff_time:
+                            logger.info(f"GetSales reply sync: stopping at message from {msg_time} (older than {max_age_hours}h)")
+                            stop_pagination = True
+                            break
+                    
+                    message_id = msg.get("uuid") or msg.get("id")
+                    
+                    # Check Redis cache first (fast path)
+                    if str(message_id) in cached_ids:
+                        stats["cached"] += 1
+                        consecutive_cached += 1
+                        # Early stop if too many consecutive cached hits
+                        if consecutive_cached >= early_stop_threshold:
+                            logger.info(f"GetSales reply sync: early stop after {consecutive_cached} consecutive cached hits")
+                            stop_pagination = True
+                            break
+                        continue
+                    
+                    # Reset consecutive counter on non-cached message
+                    consecutive_cached = 0
+                    
+                    # Extract lead info
+                    lead_uuid = msg.get("lead_uuid") or msg.get("lead", {}).get("uuid")
+                    message_text = msg.get("text") or msg.get("body", "")
+                    
+                    if not lead_uuid:
+                        continue
+                    
+                    # Find contact by getsales_id
+                    contact = await self._find_contact(
+                        session, company_id, getsales_id=lead_uuid
+                    )
+                    
+                    if not contact:
+                        stats["no_contact"] += 1
+                        # Still cache it to avoid re-checking
+                        new_reply_ids.append(message_id)
+                        continue
+                    
+                    # Check if we already have this activity (fallback for cache miss)
+                    existing = await session.execute(
+                        select(ContactActivity).where(
+                            and_(
+                                ContactActivity.contact_id == contact.id,
+                                ContactActivity.activity_type == "linkedin_replied",
+                                ContactActivity.source == "getsales",
+                                ContactActivity.source_id == str(message_id)
+                            )
                         )
                     )
-                )
+                    
+                    if existing.scalar_one_or_none():
+                        stats["existing"] += 1
+                        # Add to cache for next time
+                        new_reply_ids.append(message_id)
+                        continue
+                    
+                    # Create activity
+                    activity = ContactActivity(
+                        contact_id=contact.id,
+                        company_id=company_id,
+                        activity_type="linkedin_replied",
+                        channel="linkedin",
+                        direction="inbound",
+                        source="getsales",
+                        source_id=str(message_id),
+                        body=message_text,
+                        snippet=message_text[:200] if message_text else None,
+                        extra_data={
+                            "sender_profile_uuid": msg.get("sender_profile_uuid"),
+                            "linkedin_conversation_uuid": msg.get("linkedin_conversation_uuid"),
+                            "linkedin_type": msg.get("linkedin_type"),
+                            "automation": msg.get("automation")
+                        },
+                        activity_at=msg_time if created_at_str else datetime.utcnow()
+                    )
+                    session.add(activity)
+                    
+                    # Update contact
+                    contact.has_replied = True
+                    contact.reply_channel = "linkedin"
+                    contact.last_reply_at = activity.activity_at
+                    contact.status = "replied"
+                    
+                    stats["new_replies"] += 1
+                    new_reply_ids.append(message_id)
                 
-                if existing.scalar_one_or_none():
-                    stats["existing"] += 1
-                    continue
-                
-                # Create activity
-                activity = ContactActivity(
-                    contact_id=contact.id,
-                    company_id=company_id,
-                    activity_type="linkedin_replied",
-                    channel="linkedin",
-                    direction="inbound",
-                    source="getsales",
-                    source_id=str(message_id),
-                    body=message_text,
-                    snippet=message_text[:200] if message_text else None,
-                    extra_data={
-                        "sender_profile_uuid": msg.get("sender_profile_uuid"),
-                        "linkedin_conversation_uuid": msg.get("linkedin_conversation_uuid"),
-                        "linkedin_type": msg.get("linkedin_type"),
-                        "automation": msg.get("automation")
-                    },
-                    activity_at=msg_time if created_at_str else datetime.utcnow()
-                )
-                session.add(activity)
-                
-                # Update contact
-                contact.has_replied = True
-                contact.reply_channel = "linkedin"
-                contact.last_reply_at = activity.activity_at
-                contact.status = "replied"
-                
-                stats["new_replies"] += 1
-            
                 # Pagination
                 if not has_more:
                     stop_pagination = True
@@ -1089,6 +1142,11 @@ class CRMSyncService:
                     await asyncio.sleep(0.1)  # Rate limiting
             
             await session.commit()
+            
+            # Bulk add new reply IDs to cache
+            if new_reply_ids:
+                await bulk_add_replies("getsales", new_reply_ids)
+            
             logger.info(f"GetSales reply sync complete: {stats}")
             
         except Exception as e:
