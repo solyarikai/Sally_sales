@@ -413,7 +413,29 @@ print(f"Connected! Total contacts: {cur.fetchone()[0]}")
 conn.close()
 ```
 
-**Expected output:** `Connected! Total contacts: 50976` (or similar)
+**Expected output:** `Connected! Total contacts: 52352` (or similar)
+
+### Quick Stats Verification Query
+
+Run this to verify all key metrics at once:
+
+```sql
+SELECT 
+  (SELECT COUNT(*) FROM contacts) as total_contacts,
+  (SELECT COUNT(*) FROM contacts WHERE smartlead_id IS NOT NULL) as smartlead_contacts,
+  (SELECT COUNT(*) FROM contacts WHERE getsales_id IS NOT NULL) as getsales_contacts,
+  (SELECT COUNT(*) FROM contacts WHERE smartlead_id IS NOT NULL AND getsales_id IS NOT NULL) as merged,
+  (SELECT COUNT(*) FROM contacts WHERE has_replied = true) as replied,
+  (SELECT COUNT(*) FROM contact_activities) as activities,
+  (SELECT COUNT(*) FROM processed_replies) as webhook_replies;
+```
+
+**Expected result (as of 2026-02-04):**
+```
+total_contacts | smartlead_contacts | getsales_contacts | merged | replied | activities | webhook_replies
+---------------+--------------------+-------------------+--------+---------+------------+----------------
+         52352 |              49971 |              6250 |   3871 |     879 |       9029 |             84
+```
 
 **If connection fails:**
 1. Check if your IP is allowed (contact server admin)
@@ -537,15 +559,34 @@ async def full_sync(...):
 
 ---
 
-## Current Stats (as of 2026-02-03 22:00 UTC)
+## Current Stats (as of 2026-02-04 01:40 UTC)
+
+### Contacts
 
 | Metric | Count |
 |--------|-------|
-| **Total Contacts** | **50,976** |
-| Has Smartlead ID | 48,426 |
-| Has GetSales ID | 6,227 |
-| **Merged (Both IDs)** | **3,679** ⭐ |
-| **Replied Contacts** | **361+** |
+| **Total Contacts** | **52,352** |
+| Has Smartlead ID | 49,971 |
+| Has GetSales ID | 6,250 |
+| **Merged (Both IDs)** | **3,871** |
+| **Replied Contacts** | **879** |
+
+### Activities
+
+| Metric | Count |
+|--------|-------|
+| **Total Activities** | **9,029** |
+| Smartlead Activities | 657 |
+| GetSales Activities | 8,372 |
+| Processed Replies (webhook) | 84 |
+
+### Historical Messages Available
+
+| Platform | In Database | Available in API | Notes |
+|----------|-------------|------------------|-------|
+| Smartlead (Email) | 84 | N/A | API has no reply content endpoint |
+| GetSales Inbox | ~1,300 | 19,551 | Run `sync_historical_messages.py` |
+| GetSales Outbox | ~7,000 | 168,679 | Run `sync_historical_messages.py` |
 
 ### Recent Fixes (2026-02-03)
 
@@ -572,10 +613,13 @@ async def full_sync(...):
 
 | Platform | Metric | Count |
 |----------|--------|-------|
-| Smartlead | Campaigns | 1,676 |
-| GetSales | Flows | 20 |
+| Smartlead | Campaigns | 1,678 |
+| Smartlead | Active Campaigns | 483 |
+| GetSales | Flows (Automations) | 20 |
+| GetSales | Active Flows | 13 |
 | GetSales | Flow-Leads (API) | 510,697 |
-| GetSales | Inbox Messages | 19,527 |
+| GetSales | Inbox Messages | 19,551 |
+| GetSales | Outbox Messages | 168,679 |
 
 ---
 
@@ -583,6 +627,7 @@ async def full_sync(...):
 
 | Script | Purpose | Location |
 |--------|---------|----------|
+| `sync_historical_messages.py` | ✅ Fetch ALL historical GetSales messages (188K total) | `backend/scripts/` |
 | `fetch_getsales_replies.py` | ✅ Fetch LinkedIn inbox messages & mark contacts as replied | `~/magnum-opus-project/repo/scripts/` |
 | `enrich_getsales_flows_fast.py` | ✅ FAST enrichment using `filter[lead_uuid]` (~2.5 min for 10K contacts) | `~/magnum-opus-project/repo/scripts/` |
 | `enrich_getsales_flows.py` | OLD: Slow enrichment scanning all 510K records (~30 min) | `~/magnum-opus-project/repo/scripts/` |
@@ -591,6 +636,19 @@ async def full_sync(...):
 | `deduplicate_contacts.sql` | ✅ SQL script to remove duplicate contacts | `~/magnum-opus-project/repo/scripts/` |
 | `daily_reply_refetch.sh` | Daily reply fetch from both platforms | `~/magnum-opus-project/repo/scripts/` |
 | `run_enrichment.sh` | Run all enrichment scripts | `~/magnum-opus-project/repo/scripts/` |
+
+### Running Historical Messages Sync
+
+```bash
+# SSH to Hetzner and run in background:
+docker exec leadgen-backend python3 -m app.scripts.sync_historical_messages &
+
+# Or run interactively to see progress:
+docker exec -it leadgen-backend python3 -m app.scripts.sync_historical_messages
+```
+
+This fetches all 188,230 GetSales messages (inbox + outbox) and stores them in `contact_activities`.
+Sends Telegram progress updates every 1,000 inbox / 5,000 outbox messages.
 
 ### Running the Fast Enrichment Script
 
