@@ -357,15 +357,23 @@ class GetSalesClient:
         data = await self._get("/flows/api/flows")
         return data.get("data", [])
     
-    async def get_inbox_messages(self, limit: int = 100, offset: int = 0) -> List[dict]:
-        """Get LinkedIn inbox messages (replies from contacts)."""
+    async def get_inbox_messages(self, limit: int = 100, offset: int = 0) -> Tuple[List[dict], bool, int]:
+        """
+        Get LinkedIn inbox messages (replies from contacts).
+        
+        Returns: (messages, has_more, total)
+        """
         params = {
             "filter[type]": "inbox",
             "limit": limit,
-            "offset": offset
+            "offset": offset,
+            "order_field": "created_at",
+            "order_type": "desc"
         }
         data = await self._get("/flows/api/linkedin-messages", params)
-        return data.get("data", []) if isinstance(data, dict) else data
+        if isinstance(data, dict):
+            return data.get("data", []), data.get("has_more", False), data.get("total", 0)
+        return data, False, len(data)
     
     async def search_leads(self, filter_: dict = None, limit: int = 100, offset: int = 0) -> Tuple[List[dict], int]:
         """Search leads with optional filters."""
@@ -965,25 +973,52 @@ class CRMSyncService:
         self,
         session: AsyncSession,
         company_id: int,
-        limit: int = 500
+        max_pages: int = 10,
+        page_size: int = 100,
+        max_age_hours: int = 48
     ) -> Dict[str, int]:
         """
         Sync LinkedIn reply activities from GetSales inbox.
         
-        Fetches inbox messages (replies from contacts) and creates activities.
+        Fetches inbox messages sorted by newest first, paginates until:
+        - No more messages (has_more=False)
+        - Hit max_pages limit
+        - Messages are older than max_age_hours
         """
         if not self.getsales:
             logger.warning("GetSales API key not configured")
             return {"skipped": "no_api_key"}
         
-        stats = {"new_replies": 0, "existing": 0, "no_contact": 0}
+        stats = {"new_replies": 0, "existing": 0, "no_contact": 0, "pages": 0}
+        cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
         
         try:
-            # Fetch inbox messages (replies)
-            messages = await self.getsales.get_inbox_messages(limit=limit)
-            logger.info(f"GetSales reply sync: found {len(messages)} inbox messages")
+            offset = 0
+            stop_pagination = False
+            
+            while not stop_pagination and stats["pages"] < max_pages:
+                # Fetch inbox messages (replies) sorted by newest first
+                messages, has_more, total = await self.getsales.get_inbox_messages(
+                    limit=page_size, offset=offset
+                )
+                stats["pages"] += 1
+                
+                if stats["pages"] == 1:
+                    logger.info(f"GetSales reply sync: {total} total inbox messages")
+                
+                if not messages:
+                    break
             
             for msg in messages:
+                # Check message age - stop if too old
+                created_at_str = msg.get("created_at")
+                if created_at_str:
+                    msg_time = datetime.fromisoformat(created_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                    if msg_time < cutoff_time:
+                        logger.info(f"GetSales reply sync: stopping at message from {msg_time} (older than {max_age_hours}h)")
+                        stop_pagination = True
+                        break
+                
                 # Extract lead info
                 lead_uuid = msg.get("lead_uuid") or msg.get("lead", {}).get("uuid")
                 message_text = msg.get("text") or msg.get("body", "")
@@ -1029,10 +1064,12 @@ class CRMSyncService:
                     body=message_text,
                     snippet=message_text[:200] if message_text else None,
                     extra_data={
-                        "flow_uuid": msg.get("automation_uuid") or msg.get("flow_uuid"),
-                        "sender_profile": msg.get("sender_profile_uuid")
+                        "sender_profile_uuid": msg.get("sender_profile_uuid"),
+                        "linkedin_conversation_uuid": msg.get("linkedin_conversation_uuid"),
+                        "linkedin_type": msg.get("linkedin_type"),
+                        "automation": msg.get("automation")
                     },
-                    activity_at=datetime.fromisoformat(msg["created_at"].replace("Z", "+00:00")) if msg.get("created_at") else datetime.utcnow()
+                    activity_at=msg_time if created_at_str else datetime.utcnow()
                 )
                 session.add(activity)
                 
@@ -1043,6 +1080,13 @@ class CRMSyncService:
                 contact.status = "replied"
                 
                 stats["new_replies"] += 1
+            
+                # Pagination
+                if not has_more:
+                    stop_pagination = True
+                else:
+                    offset += page_size
+                    await asyncio.sleep(0.1)  # Rate limiting
             
             await session.commit()
             logger.info(f"GetSales reply sync complete: {stats}")
