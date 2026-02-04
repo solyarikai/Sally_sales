@@ -242,10 +242,20 @@ class SmartleadClient:
         if event_types is None:
             event_types = ["EMAIL_REPLY", "LEAD_CATEGORY_UPDATED", "EMAIL_SENT"]
         
+        # Categories required for Smartlead to include reply body in webhook payload
+        categories = [
+            "Interested", "Meeting Request", "Not Interested", "Do Not Contact",
+            "Information Request", "Out Of Office", "Wrong Person",
+            "Uncategorizable by Ai", "Sender Originated Bounce", "Sample Sent",
+            "Positive Reply", "Negative Reply", "Sample Reviewed", "Qualified",
+            "Meeting Booked", "Not Now", "Not Qualified"
+        ]
+        
         webhook_data = {
             "name": webhook_name,
             "webhook_url": webhook_url,
-            "event_types": event_types
+            "event_types": event_types,
+            "categories": categories
         }
         
         return await self._post(f"/campaigns/{campaign_id}/webhooks", webhook_data)
