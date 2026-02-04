@@ -1,4 +1,4 @@
-# CRM API Documentation & Data Flow
+wjh# CRM API Documentation & Data Flow
 
 ## Overview
 
@@ -161,17 +161,63 @@ curl -X POST "http://46.62.210.24:8000/api/crm-sync/webhook/smartlead" \
 
 ---
 
+## API Credentials (for Local Agents)
+
+All credentials needed to connect to external services:
+
+```bash
+# PostgreSQL Database
+DATABASE_URL="postgresql://leadgen:leadgen123@46.62.210.24:5432/leadgen"
+
+# Smartlead API
+SMARTLEAD_API_KEY="eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"
+
+# GetSales API
+GETSALES_API_KEY="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vYW1hemluZy5nZXRzYWxlcy5pby9hcGkvand0LXRva2Vucy9jcmVhdGUtYXBpLWtleSIsImlhdCI6MTc3MDA3MDE0OCwiZXhwIjoxODY0Njc4MTQ4LCJuYmYiOjE3NzAwNzAxNDgsImp0aSI6IjFpYlF4TW5ueFJhVGxlREMiLCJzdWIiOiI3OTg4IiwidXNyIjp7ImlkIjo3OTg4LCJ1dWlkIjoiZTBiZDgzMTgtNGEwZC0xMWYwLThiYWItYThhMTU5YzBiZmJjIiwiZmlyc3RfbmFtZSI6IlNlcmdlIiwibGFzdF9uYW1lIjoiS3V6bmV0c292IiwiZW1haWwiOiJzZXJnZUBpbnh5ZGlnaXRhbC5jb20iLCJnYV90cmFja2luZ19pZCI6IjQ1OTY0OTcyMS4xNzQyNTY1Mzc4LiIsImZiX2NsaWNrX2lkIjpudWxsLCJmYl9icm93c2VyX2lkIjoiZmIuMS4xNzQyNTY1Mzc4NjIxLjI4ODI0NDQ5MjUzMzQ2NTgwNSIsIndoaXRlbGFiZWxfdXVpZCI6bnVsbCwiY3JlYXRlZF9hdCI6IjIwMjUtMDMtMjFUMTM6NTY6NTkuMDAwMDAwWiJ9LCJzcGVjaWZpY190ZWFtX2lkIjo3NDMwLCJ1c2VyX3RlYW1zIjp7Ijc0MzAiOjN9LCJ0b2tlbl90eXBlIjoiYXBpIn0.22W-xynV9M92S4gz1B0DohAEMpz26DrmU0KDXnz8qZc"
+
+# Telegram Bot (for notifications)
+TELEGRAM_BOT_TOKEN="8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss"
+TELEGRAM_CHAT_ID="57344339"
+
+# Redis (internal to Docker network, use for local testing only if tunneled)
+REDIS_URL="redis://redis:6379"
+```
+
+### Quick API Test Commands
+
+**Test Smartlead API:**
+```bash
+curl "https://server.smartlead.ai/api/v1/campaigns?api_key=eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5" | jq '.[:2]'
+```
+
+**Test GetSales API:**
+```bash
+curl -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vYW1hemluZy5nZXRzYWxlcy5pby9hcGkvand0LXRva2Vucy9jcmVhdGUtYXBpLWtleSIsImlhdCI6MTc3MDA3MDE0OCwiZXhwIjoxODY0Njc4MTQ4LCJuYmYiOjE3NzAwNzAxNDgsImp0aSI6IjFpYlF4TW5ueFJhVGxlREMiLCJzdWIiOiI3OTg4IiwidXNyIjp7ImlkIjo3OTg4LCJ1dWlkIjoiZTBiZDgzMTgtNGEwZC0xMWYwLThiYWItYThhMTU5YzBiZmJjIiwiZmlyc3RfbmFtZSI6IlNlcmdlIiwibGFzdF9uYW1lIjoiS3V6bmV0c292IiwiZW1haWwiOiJzZXJnZUBpbnh5ZGlnaXRhbC5jb20iLCJnYV90cmFja2luZ19pZCI6IjQ1OTY0OTcyMS4xNzQyNTY1Mzc4LiIsImZiX2NsaWNrX2lkIjpudWxsLCJmYl9icm93c2VyX2lkIjoiZmIuMS4xNzQyNTY1Mzc4NjIxLjI4ODI0NDQ5MjUzMzQ2NTgwNSIsIndoaXRlbGFiZWxfdXVpZCI6bnVsbCwiY3JlYXRlZF9hdCI6IjIwMjUtMDMtMjFUMTM6NTY6NTkuMDAwMDAwWiJ9LCJzcGVjaWZpY190ZWFtX2lkIjo3NDMwLCJ1c2VyX3RlYW1zIjp7Ijc0MzAiOjN9LCJ0b2tlbl90eXBlIjoiYXBpIn0.22W-xynV9M92S4gz1B0DohAEMpz26DrmU0KDXnz8qZc" \
+  "https://amazing.getsales.io/flows/api/flows?per_page=5" | jq '.data[:2]'
+```
+
+---
+
 ## Smartlead API
 
 **Base URL:** `https://server.smartlead.ai/api/v1`  
-**Authentication:** Query parameter `?api_key={SMARTLEAD_API_KEY}`
+**Authentication:** Query parameter `?api_key=eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5`
 
 ### Reply Tracking Methods
 
 | Method | Type | Frequency | Description |
 |--------|------|-----------|-------------|
-| Webhook | Real-time | Instant | Configure per-campaign, receives EMAIL_REPLY events |
-| API Poll | `/campaigns/{id}/statistics` | Daily (2 AM) | Fetch all leads with `reply_time` field |
+| Webhook | Real-time | Instant | Configure per-campaign, receives EMAIL_REPLY events with full message content |
+| API Poll | `/campaigns/{id}/leads?lead_category_id=9` | Daily (2 AM) | Fetch leads marked as replied (no message content) |
+
+**Important:** The Smartlead API does NOT provide reply message content via polling. Only webhooks receive the actual reply text.
+
+### Lead Categories
+
+| Category ID | Meaning |
+|-------------|---------|
+| 1-8 | Various custom categories |
+| 9 | **Replied** - leads who have responded |
 
 ### Endpoints
 
@@ -184,48 +230,86 @@ GET /campaigns?api_key={key}
 {
   "id": 2896114,
   "name": "Auto-Reply Test 4cfd2e19",
-  "status": "COMPLETED",  // ACTIVE, PAUSED, COMPLETED
+  "status": "COMPLETED",  // ACTIVE, PAUSED, COMPLETED, SCHEDULED
   "max_leads_per_day": 100
 }
 ```
 
-#### 2. Get Campaign Statistics (Leads + Replies) ⭐
+#### 2. Get Campaign Leads (with Category Filter)
 ```
-GET /campaigns/{campaign_id}/statistics?api_key={key}&limit=500&offset=0
+GET /campaigns/{campaign_id}/leads?api_key={key}&limit=100&lead_category_id=9
 ```
+**Parameters:**
+- `limit` - max leads to return (default 100)
+- `offset` - pagination offset
+- `lead_category_id` - filter by category (9 = replied)
+
 **Response:**
 ```json
 {
   "data": [
     {
-      "lead_email": "john@example.com",
-      "first_name": "John",
-      "last_name": "Doe",
-      "lead_status": "REPLIED",
-      "reply_time": "2026-02-01T14:30:00.000Z",  // ⭐ Key field for reply detection
-      "open_count": 3,
-      "click_count": 1
+      "campaign_lead_map_id": 2576933244,
+      "lead_category_id": 9,
+      "status": "COMPLETED",  // NOT "REPLIED" - status is about email sequence
+      "created_at": "2026-01-12T13:24:46.000Z",
+      "lead": {
+        "id": 2528678434,
+        "email": "john@example.com",
+        "first_name": "John",
+        "last_name": "Doe",
+        "linkedin_profile": "https://linkedin.com/in/johndoe"
+      }
     }
-  ]
+  ],
+  "total_leads": "232"
 }
 ```
 
-#### 3. Get Email Thread History
+**Note:** `reply_time` and `lead_status=REPLIED` do NOT exist in this API. Use `lead_category_id=9` to find replied leads.
+
+#### 3. Get Campaign Analytics
 ```
-GET /campaigns/{campaign_id}/leads/{email}/message-history?api_key={key}
+GET /campaigns/{campaign_id}/analytics?api_key={key}
 ```
+**Response:** Contains `reply_count` for the campaign.
 
 #### 4. Configure Webhooks
+
+⚠️ **CRITICAL: Must include `categories` field for reply body!**
+
 ```
 POST /campaigns/{campaign_id}/webhooks?api_key={key}
 {
   "name": "Reply Webhook",
   "webhook_url": "http://46.62.210.24:8000/api/crm-sync/webhook/smartlead",
-  "event_types": ["EMAIL_REPLY"]
+  "event_types": ["EMAIL_REPLY", "LEAD_CATEGORY_UPDATED", "EMAIL_SENT"],
+  "categories": [
+    "Interested", "Meeting Request", "Not Interested", "Do Not Contact",
+    "Information Request", "Out Of Office", "Wrong Person",
+    "Uncategorizable by Ai", "Sender Originated Bounce", "Sample Sent",
+    "Positive Reply", "Negative Reply", "Sample Reviewed", "Qualified",
+    "Meeting Booked", "Not Now", "Not Qualified"
+  ]
 }
 ```
 
+**Without `categories`, Smartlead only sends metadata - NO reply body, preview_text, or reply_message!**
+
+#### Webhook Management Notes
+
+| Operation | Supported | Notes |
+|-----------|-----------|-------|
+| Create | ✅ POST | Returns webhook ID |
+| List | ✅ GET `/campaigns/{id}/webhooks` | Returns all webhooks for campaign |
+| Update | ❌ PATCH/PUT | Not supported - must delete and recreate |
+| Delete | ❌ DELETE | Not supported via API - use Smartlead UI |
+
+**Workaround for broken webhooks:** Create a NEW webhook with correct config. Old webhooks remain but new ones receive full data.
+
 ### Webhook Payload (EMAIL_REPLY)
+
+**With `categories` field configured (correct):**
 ```json
 {
   "body": {
@@ -237,9 +321,25 @@ POST /campaigns/{campaign_id}/webhooks?api_key={key}
       "first_name": "John",
       "category": { "name": "Positive Reply", "sentiment_type": "positive" }
     },
-    "reply_message": { "text": "Thanks for reaching out..." },
+    "reply_body": "Thanks for reaching out...",
+    "preview_text": "Thanks for reaching...",
+    "reply_message": { "text": "Thanks for reaching out...", "html": "<p>Thanks...</p>" },
     "last_reply": { "email_body": "...", "time": "2026-02-01T14:30:00.000Z" },
     "history": [...]
+  }
+}
+```
+
+**Without `categories` field (broken - only metadata):**
+```json
+{
+  "body": {
+    "event_type": "EMAIL_REPLY",
+    "campaign_id": 123456,
+    "lead_email": "john@example.com",
+    "lead_id": 789,
+    "lead_data": { "first_name": "John" }
+    // NO reply_body, preview_text, or reply_message!
   }
 }
 ```
@@ -249,7 +349,7 @@ POST /campaigns/{campaign_id}/webhooks?api_key={key}
 ## GetSales API
 
 **Base URL:** `https://amazing.getsales.io`  
-**Authentication:** Header `Authorization: Bearer {GETSALES_API_KEY}`
+**Authentication:** Header `Authorization: Bearer <GETSALES_API_KEY from credentials above>`
 
 ### Reply Tracking Methods
 
@@ -391,7 +491,29 @@ print(f"Connected! Total contacts: {cur.fetchone()[0]}")
 conn.close()
 ```
 
-**Expected output:** `Connected! Total contacts: 50976` (or similar)
+**Expected output:** `Connected! Total contacts: 52352` (or similar)
+
+### Quick Stats Verification Query
+
+Run this to verify all key metrics at once:
+
+```sql
+SELECT 
+  (SELECT COUNT(*) FROM contacts) as total_contacts,
+  (SELECT COUNT(*) FROM contacts WHERE smartlead_id IS NOT NULL) as smartlead_contacts,
+  (SELECT COUNT(*) FROM contacts WHERE getsales_id IS NOT NULL) as getsales_contacts,
+  (SELECT COUNT(*) FROM contacts WHERE smartlead_id IS NOT NULL AND getsales_id IS NOT NULL) as merged,
+  (SELECT COUNT(*) FROM contacts WHERE has_replied = true) as replied,
+  (SELECT COUNT(*) FROM contact_activities) as activities,
+  (SELECT COUNT(*) FROM processed_replies) as webhook_replies;
+```
+
+**Expected result (as of 2026-02-04):**
+```
+total_contacts | smartlead_contacts | getsales_contacts | merged | replied | activities | webhook_replies
+---------------+--------------------+-------------------+--------+---------+------------+----------------
+         52352 |              49971 |              6250 |   3871 |     879 |       9029 |             84
+```
 
 **If connection fails:**
 1. Check if your IP is allowed (contact server admin)
@@ -459,12 +581,30 @@ DATABASE_URL = "postgresql+asyncpg://leadgen:leadgen123@46.62.210.24:5432/leadge
 
 ### Currently Active
 
-| Platform | Method | Status | Cron |
-|----------|--------|--------|------|
-| Smartlead | Webhook | ✅ Active | Real-time |
-| Smartlead | API Poll | ✅ Active | Daily 2 AM |
-| GetSales | Webhook | ✅ Active | Real-time |
-| GetSales | API Poll | ✅ Active | Daily 2 AM |
+| Platform | Method | Status | Description |
+|----------|--------|--------|-------------|
+| Smartlead | Webhook | ✅ Primary | Real-time, includes full reply message content (requires `categories` field!) |
+| Smartlead | API Poll (category=9) | ✅ Fallback | Marks contacts as replied, NO message content |
+| GetSales | Webhook | ✅ Primary | Real-time, includes full LinkedIn message |
+| GetSales | API Poll (inbox) | ✅ Fallback | Fetches LinkedIn inbox messages with content |
+
+**Critical Notes on Smartlead:**
+
+1. **Webhook `categories` field is MANDATORY for reply body:**
+   - Without `categories`, webhook only sends metadata (email, campaign_id, category)
+   - With `categories`, webhook includes `reply_body`, `preview_text`, `reply_message`
+   - Our code now includes all 17 categories automatically
+
+2. **API limitations:**
+   - The Smartlead API does NOT provide reply message content
+   - API polling uses `lead_category_id=9` to find replied leads
+   - `reply_time` and `lead_status=REPLIED` do NOT exist - these were incorrectly assumed
+   - Reply content is ONLY available via webhooks
+
+3. **Webhook management:**
+   - No DELETE or UPDATE endpoints exist
+   - To fix a broken webhook, create a NEW one with correct config
+   - Multiple webhooks per campaign are allowed
 
 ### Cron Jobs (Hetzner)
 
@@ -509,17 +649,36 @@ async def full_sync(...):
 
 ---
 
-## Current Stats (as of 2026-02-03 22:00 UTC)
+## Current Stats (as of 2026-02-04 01:40 UTC)
+
+### Contacts
 
 | Metric | Count |
 |--------|-------|
-| **Total Contacts** | **50,976** |
-| Has Smartlead ID | 48,426 |
-| Has GetSales ID | 6,227 |
-| **Merged (Both IDs)** | **3,679** ⭐ |
-| **Replied Contacts** | **361+** |
+| **Total Contacts** | **52,352** |
+| Has Smartlead ID | 49,971 |
+| Has GetSales ID | 6,250 |
+| **Merged (Both IDs)** | **3,871** |
+| **Replied Contacts** | **879** |
 
-### Recent Fixes (2026-02-03)
+### Activities
+
+| Metric | Count |
+|--------|-------|
+| **Total Activities** | **9,029** |
+| Smartlead Activities | 657 |
+| GetSales Activities | 8,372 |
+| Processed Replies (webhook) | 84 |
+
+### Historical Messages Available
+
+| Platform | In Database | Available in API | Notes |
+|----------|-------------|------------------|-------|
+| Smartlead (Email) | 84 | N/A | API has no reply content endpoint |
+| GetSales Inbox | ~1,300 | 19,551 | Run `sync_historical_messages.py` |
+| GetSales Outbox | ~7,000 | 168,679 | Run `sync_historical_messages.py` |
+
+### Recent Fixes (2026-02-03 to 2026-02-04)
 
 | Issue | Fix Applied | Result |
 |-------|-------------|--------|
@@ -527,6 +686,18 @@ async def full_sync(...):
 | **Low merge count (819)** | Case-insensitive email matching | Merged: 819 → 3,679 (4.5x) |
 | **Missing smartlead_id** | Backfill script queried Smartlead API | 2,808 contacts fixed |
 | **Concurrent sync race** | Disabled cron, use in-app scheduler only | No more duplicate creation |
+| **Smartlead webhook "No body"** | Added `categories` field to webhook creation | Now receives full reply content |
+| **Smartlead API polling ineffective** | Changed to use `lead_category_id=9` | Correctly identifies replied leads |
+
+### Known Issues & Limitations
+
+| Issue | Cause | Workaround |
+|-------|-------|------------|
+| **Smartlead: Can't delete webhooks** | API doesn't support DELETE | Create new webhook with correct config; old one remains but is redundant |
+| **Smartlead: Can't update webhooks** | API doesn't support PATCH/PUT | Same as above - create new webhook |
+| **Smartlead: No reply content via API** | API `get_campaign_leads` has no message fields | Rely on webhooks for reply content; API only marks `has_replied` |
+| **"Company: Unknown" in notifications** | Contact lacks `company_name` in DB | Data enrichment issue - not all contacts have company data |
+| **GetSales "Unknown Flow"** | API messages lack `automation_name` | Use `get_getsales_flow_name()` helper with UUID-to-name mapping |
 
 ### Campaign Enrichment Status
 
@@ -544,10 +715,13 @@ async def full_sync(...):
 
 | Platform | Metric | Count |
 |----------|--------|-------|
-| Smartlead | Campaigns | 1,676 |
-| GetSales | Flows | 20 |
+| Smartlead | Campaigns | 1,678 |
+| Smartlead | Active Campaigns | 483 |
+| GetSales | Flows (Automations) | 20 |
+| GetSales | Active Flows | 13 |
 | GetSales | Flow-Leads (API) | 510,697 |
-| GetSales | Inbox Messages | 19,527 |
+| GetSales | Inbox Messages | 19,551 |
+| GetSales | Outbox Messages | 168,679 |
 
 ---
 
@@ -555,6 +729,7 @@ async def full_sync(...):
 
 | Script | Purpose | Location |
 |--------|---------|----------|
+| `sync_historical_messages.py` | ✅ Fetch ALL historical GetSales messages (188K total) | `backend/scripts/` |
 | `fetch_getsales_replies.py` | ✅ Fetch LinkedIn inbox messages & mark contacts as replied | `~/magnum-opus-project/repo/scripts/` |
 | `enrich_getsales_flows_fast.py` | ✅ FAST enrichment using `filter[lead_uuid]` (~2.5 min for 10K contacts) | `~/magnum-opus-project/repo/scripts/` |
 | `enrich_getsales_flows.py` | OLD: Slow enrichment scanning all 510K records (~30 min) | `~/magnum-opus-project/repo/scripts/` |
@@ -563,6 +738,240 @@ async def full_sync(...):
 | `deduplicate_contacts.sql` | ✅ SQL script to remove duplicate contacts | `~/magnum-opus-project/repo/scripts/` |
 | `daily_reply_refetch.sh` | Daily reply fetch from both platforms | `~/magnum-opus-project/repo/scripts/` |
 | `run_enrichment.sh` | Run all enrichment scripts | `~/magnum-opus-project/repo/scripts/` |
+
+### Running Historical Messages Sync
+
+```bash
+# SSH to Hetzner and run in background:
+docker exec leadgen-backend python3 -m app.scripts.sync_historical_messages &
+
+# Or run interactively to see progress:
+docker exec -it leadgen-backend python3 -m app.scripts.sync_historical_messages
+```
+
+This fetches all 188,230 GetSales messages (inbox + outbox) and stores them in `contact_activities`.
+Sends Telegram progress updates every 1,000 inbox / 5,000 outbox messages.
+
+---
+
+## Raw JSON Debugging Columns
+
+For local debugging and analytics, contacts have raw JSON columns that store all data from source platforms:
+
+### `smartlead_raw` (JSONB)
+Stores all Smartlead webhook payloads and API responses for a contact:
+```json
+{
+  "webhooks": [
+    {
+      "received_at": "2026-02-04T10:30:00Z",
+      "type": "reply",
+      "category": "interested",
+      "payload": { /* full webhook JSON */ }
+    }
+  ],
+  "api_data": { /* data from API calls */ }
+}
+```
+
+### `getsales_raw` (JSONB)
+Stores all GetSales webhook payloads and API responses:
+```json
+{
+  "webhooks": [
+    {
+      "received_at": "2026-02-04T10:30:00Z",
+      "type": "reply",
+      "category": "meeting_request",
+      "payload": { /* full webhook JSON */ }
+    }
+  ],
+  "api_data": { /* data from API calls */ }
+}
+```
+
+### `touches` (JSONB)
+Detailed history of all outreach touches:
+```json
+[
+  {
+    "at": "2026-02-04T10:30:00Z",
+    "campaign": "Easystaff - Russian DM",
+    "campaign_id": "2831338",
+    "source": "smartlead",
+    "channel": "email",
+    "type": "sent",
+    "category": null,
+    "message": "Hi, I noticed..."
+  },
+  {
+    "at": "2026-02-05T15:20:00Z",
+    "campaign": "Easystaff - Russian DM",
+    "source": "smartlead",
+    "channel": "email",
+    "type": "reply",
+    "category": "interested",
+    "message": "Yes, tell me more..."
+  }
+]
+```
+
+### Local Debugging Queries
+
+**Check raw webhook data for a contact:**
+```sql
+SELECT email, smartlead_raw->'webhooks' as webhooks
+FROM contacts WHERE email = 'example@company.com';
+```
+
+**Find contacts with specific webhook type:**
+```sql
+SELECT email, getsales_raw->'webhooks'->0->>'category' as category
+FROM contacts 
+WHERE getsales_raw->'webhooks' IS NOT NULL
+LIMIT 10;
+```
+
+**Analyze touches for a contact:**
+```sql
+SELECT email, jsonb_array_length(touches::jsonb) as touch_count,
+       touches->0->>'campaign' as first_campaign
+FROM contacts WHERE touches IS NOT NULL AND touches::text != '[]'
+ORDER BY jsonb_array_length(touches::jsonb) DESC LIMIT 10;
+```
+
+**Get contacts with N+ touches:**
+```sql
+SELECT id, email, jsonb_array_length(touches::jsonb) as touches
+FROM contacts WHERE jsonb_array_length(touches::jsonb) >= 5
+ORDER BY jsonb_array_length(touches::jsonb) DESC;
+```
+
+---
+
+## Outbound Funnel Status Values
+
+### Status Logic & Checksum
+
+The `status` column represents the current funnel stage. **Key rule:** Every contact with `has_replied=true` MUST have a reply status (not `touched`).
+
+**Checksum verification:**
+```sql
+-- These two numbers must match:
+SELECT COUNT(*) FROM contacts WHERE has_replied = true;  -- replied contacts
+SELECT COUNT(*) FROM contacts WHERE status IN ('warm', 'not_interested', 'out_of_office', 'wrong_person', 'other');  -- reply statuses
+```
+
+### Status Values
+
+| Status | Description | Source |
+|--------|-------------|--------|
+| `touched` | Contacted via email/LinkedIn, **no reply yet** | `has_replied = false` |
+| `warm` | Replied with interest, meeting request, question | AI classified as: interested, meeting_request, question |
+| `not_interested` | Replied with explicit rejection | AI classified as: not_interested, unsubscribe |
+| `out_of_office` | Auto-reply, vacation, away | AI classified as: out_of_office |
+| `wrong_person` | Left company, wrong contact | AI classified as: wrong_person |
+| `other` | Replied but content unknown/unclassified | Reply detected but no message body to classify |
+| `scheduled` | Meeting scheduled | Has `scheduled_at` date |
+| `qualified` | Meeting held, qualified | Has `qualified_at` date |
+| `not_qualified` | Meeting held, not qualified | Has `disqualified_at` date |
+
+### Status by Source Breakdown
+
+| Status | Smartlead | GetSales | Both | Total |
+|--------|-----------|----------|------|-------|
+| touched | 45,929 | 2,259 | 3,464 | 51,652 |
+| warm | 0 | 25 | 53 | 78 |
+| not_interested | 0 | 52 | 264 | 316 |
+| out_of_office | 2 | 0 | 3 | 5 |
+| wrong_person | 207 | 10 | 21 | 238 |
+| other | 515 | 30 | 98 | 643 |
+
+**Total: 52,932 contacts**
+- Smartlead only: 46,653
+- GetSales only: 2,376  
+- Both (merged): 3,903
+
+### Why "other" exists
+
+The `other` status (643 contacts) represents contacts that:
+1. Were marked as "replied" by Smartlead API (lead_category_id=9)
+2. But we don't have the actual reply message content
+3. Without content, we cannot classify into warm/not_interested/etc
+
+This happens because Smartlead API polling detects replies but doesn't provide message body. Only webhooks capture full reply content.
+
+**Run stats script to see current funnel:**
+```bash
+ssh hetzner "docker exec leadgen-backend python3 /app/scripts/check_stats.py"
+```
+
+**Verify checksum:**
+```bash
+ssh hetzner "docker exec leadgen-postgres psql -U leadgen -d leadgen -c \"
+SELECT 
+  (SELECT COUNT(*) FROM contacts WHERE has_replied = true) as replied,
+  (SELECT COUNT(*) FROM contacts WHERE status IN ('warm','not_interested','out_of_office','wrong_person','other')) as reply_statuses
+\""
+```
+
+---
+
+## Troubleshooting Guide
+
+### Smartlead Webhook Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| **"No body" in Telegram notifications** | Webhook missing `categories` field | Create new webhook with categories (see "Configure Webhooks" section) |
+| **Webhook not receiving events** | Webhook URL unreachable | Check server is running, port 8000 is open |
+| **404 when deleting webhook** | Smartlead API doesn't support DELETE | Cannot delete via API - use Smartlead UI or create replacement webhook |
+| **Reply not detected by API polling** | Wrong field check (`reply_time` doesn't exist) | Use `lead_category_id=9` filter |
+
+### GetSales Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| **"Unknown Flow" in reports** | API messages lack automation_name | `get_getsales_flow_name()` helper uses UUID mapping + contact campaigns |
+| **Messages duplicated** | Same message processed multiple times | Redis cache for reply IDs prevents duplicates |
+| **Historical sync stopped** | Container restarted and killed background process | Restart: `docker exec -d leadgen-backend python3 -m app.scripts.sync_historical_messages` |
+
+### Database Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| **Duplicate contacts** | Race condition during sync | Redis sync lock + unique email index |
+| **Connection refused** | IP not whitelisted | Contact admin to add IP to pg_hba.conf |
+| **"Company: Unknown"** | Contact missing company_name | Data quality issue - not all leads have company |
+
+### Debugging Commands
+
+**Check last webhook payload received:**
+```bash
+ssh hetzner "cat /tmp/last_webhook.json | jq ."
+```
+
+**Check backend logs for webhook processing:**
+```bash
+ssh hetzner "docker logs leadgen-backend --tail 100 | grep -i webhook"
+```
+
+**Verify webhook is configured correctly for a campaign:**
+```bash
+ssh hetzner "docker exec leadgen-backend python3 -c \"
+import asyncio, httpx, os
+async def check():
+    api_key = os.getenv('SMARTLEAD_API_KEY')
+    campaign_id = 2687353  # Replace with your campaign
+    async with httpx.AsyncClient() as c:
+        r = await c.get(f'https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/webhooks?api_key={api_key}')
+        for w in r.json():
+            print(f'Webhook {w[\"id\"]}: categories={len(w.get(\"categories\", []))} items')
+asyncio.run(check())
+\""
+```
+
+---
 
 ### Running the Fast Enrichment Script
 
