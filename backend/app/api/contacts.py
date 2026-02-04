@@ -1669,7 +1669,6 @@ SMARTLEAD_PAUSE_ON_STATUS = {"scheduled", "qualified", "not_qualified", "not_int
 
 class StatusUpdateRequest(BaseModel):
     status: str
-    scheduled_at: Optional[datetime] = None
     sync_to_smartlead: bool = True
     notes: Optional[str] = None
 
@@ -1685,7 +1684,6 @@ async def update_contact_status(
     
     - Updates contact.status in CRM
     - If contact has smartlead_id, updates category in Smartlead API
-    - Creates tasks if status = 'scheduled' and scheduled_at is set
     """
     import httpx
     import os
@@ -1698,19 +1696,6 @@ async def update_contact_status(
     
     old_status = contact.status
     contact.status = request.status
-    
-    # Handle scheduled status
-    if request.status == "scheduled":
-        if request.scheduled_at:
-            contact.scheduled_at = request.scheduled_at
-        elif not contact.scheduled_at:
-            raise HTTPException(status_code=400, detail="scheduled_at required for scheduled status")
-    
-    # Handle qualified/not_qualified
-    if request.status == "qualified":
-        contact.qualified_at = datetime.utcnow()
-    elif request.status == "not_qualified":
-        contact.disqualified_at = datetime.utcnow()
     
     # Sync to Smartlead if enabled and contact has smartlead_id
     smartlead_synced = False
@@ -1748,7 +1733,6 @@ async def update_contact_status(
         "email": contact.email,
         "old_status": old_status,
         "new_status": contact.status,
-        "scheduled_at": contact.scheduled_at.isoformat() if contact.scheduled_at else None,
         "smartlead_synced": smartlead_synced,
         "getsales_synced": False  # Not supported via API
     }
