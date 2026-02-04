@@ -219,26 +219,37 @@ class CRMScheduler:
             )
             getsales_replies = getsales_query.all()
             
-            # Organize email replies by campaign
+            # Organize email replies by campaign (unique contacts)
             email_by_campaign = {}
+            seen_email_contacts = set()
             for reply in smartlead_warm:
                 campaign = reply.campaign_name or "Unknown"
+                contact_key = (campaign, reply.lead_email.lower() if reply.lead_email else "")
+                if contact_key in seen_email_contacts:
+                    continue
+                seen_email_contacts.add(contact_key)
                 if campaign not in email_by_campaign:
                     email_by_campaign[campaign] = []
                 name = f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip() or reply.lead_email
                 email_by_campaign[campaign].append(name)
             
-            # Organize LinkedIn replies by flow
+            # Organize LinkedIn replies by flow (unique contacts)
             linkedin_by_flow = {}
+            seen_linkedin_contacts = set()
             for activity, contact in getsales_replies:
                 flow_name = get_getsales_flow_name(activity.extra_data, contact.campaigns)
+                contact_key = (flow_name, contact.id)
+                if contact_key in seen_linkedin_contacts:
+                    continue
+                seen_linkedin_contacts.add(contact_key)
                 if flow_name not in linkedin_by_flow:
                     linkedin_by_flow[flow_name] = []
                 name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or contact.email
                 linkedin_by_flow[flow_name].append(name)
             
-            warm_email = len(smartlead_warm)
-            warm_linkedin = len(getsales_replies)
+            # Count unique contacts (after deduplication)
+            warm_email = len(seen_email_contacts)
+            warm_linkedin = len(seen_linkedin_contacts)
             warm_total = warm_email + warm_linkedin
             
             # Build message
