@@ -375,6 +375,64 @@ class GetSalesClient:
             return data.get("data", []), data.get("has_more", False), data.get("total", 0)
         return data, False, len(data)
     
+    async def get_outbox_messages(self, limit: int = 100, offset: int = 0) -> Tuple[List[dict], bool, int]:
+        """
+        Get LinkedIn outbox messages (sent messages).
+        
+        Returns: (messages, has_more, total)
+        """
+        params = {
+            "filter[type]": "outbox",
+            "limit": limit,
+            "offset": offset,
+            "order_field": "created_at",
+            "order_type": "desc"
+        }
+        data = await self._get("/flows/api/linkedin-messages", params)
+        if isinstance(data, dict):
+            return data.get("data", []), data.get("has_more", False), data.get("total", 0)
+        return data, False, len(data)
+    
+    async def get_all_messages(self, limit: int = 100, offset: int = 0, order_asc: bool = False) -> Tuple[List[dict], bool, int]:
+        """
+        Get ALL LinkedIn messages (both inbox and outbox).
+        
+        Args:
+            order_asc: If True, order by created_at ASC (oldest first) for historical sync
+        
+        Returns: (messages, has_more, total)
+        """
+        params = {
+            "limit": limit,
+            "offset": offset,
+            "order_field": "created_at",
+            "order_type": "asc" if order_asc else "desc"
+        }
+        data = await self._get("/flows/api/linkedin-messages", params)
+        if isinstance(data, dict):
+            return data.get("data", []), data.get("has_more", False), data.get("total", 0)
+        return data, False, len(data)
+    
+    async def get_conversation_messages(self, conversation_uuid: str, limit: int = 100) -> List[dict]:
+        """
+        Get all messages in a specific LinkedIn conversation.
+        
+        Args:
+            conversation_uuid: The linkedin_conversation_uuid
+            
+        Returns: List of messages in the conversation (both sent and received)
+        """
+        params = {
+            "filter[linkedin_conversation_uuid]": conversation_uuid,
+            "limit": limit,
+            "order_field": "created_at",
+            "order_type": "asc"  # Chronological order
+        }
+        data = await self._get("/flows/api/linkedin-messages", params)
+        if isinstance(data, dict):
+            return data.get("data", [])
+        return data
+    
     async def search_leads(self, filter_: dict = None, limit: int = 100, offset: int = 0) -> Tuple[List[dict], int]:
         """Search leads with optional filters."""
         payload = {
