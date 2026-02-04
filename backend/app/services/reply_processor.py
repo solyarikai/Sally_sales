@@ -550,11 +550,24 @@ async def process_reply_webhook(
                 )
                 session.add(activity)
                 
-                # Update contact reply status
+                # Update contact reply status and funnel fields
                 contact.has_replied = True
                 contact.reply_channel = "email"
                 contact.last_reply_at = datetime.utcnow()
                 contact.status = "replied"
+                contact.funnel_stage = "replied"
+                
+                # Sync reply category and sentiment
+                category = classification.get("category", "other")
+                contact.reply_category = category
+                
+                # Determine sentiment from category
+                if category in ("interested", "meeting_request", "question"):
+                    contact.reply_sentiment = "warm"
+                elif category in ("not_interested", "unsubscribe", "wrong_person"):
+                    contact.reply_sentiment = "cold"
+                else:
+                    contact.reply_sentiment = "neutral"
                 
                 logger.info(f"[PROCESSOR] Created ContactActivity for email reply from {lead_email}")
             else:
