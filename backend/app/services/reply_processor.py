@@ -588,14 +588,18 @@ async def process_reply_webhook(
             logger.error(f"[PROCESSOR] Slack notification failed (non-fatal): {slack_error}")
             # Continue processing - Slack failure should not break webhook handling
         
-        # Send Telegram notification for high-priority categories
-        # Wrap in try/catch to prevent Telegram failures from breaking webhook processing
-        try:
-            from app.services.notification_service import notify_reply_needs_attention
-            await notify_reply_needs_attention(processed_reply, classification["category"])
-        except Exception as telegram_error:
-            logger.error(f"[PROCESSOR] Telegram notification failed (non-fatal): {telegram_error}")
-            # Continue processing - Telegram failure should not break webhook handling
+        # Send Telegram notification only for actual EMAIL_REPLY events
+        # Skip for EMAIL_SENT and other event types (still stored in DB for analytics)
+        event_type = payload.get("event_type", "EMAIL_REPLY")
+        if event_type == "EMAIL_REPLY":
+            try:
+                from app.services.notification_service import notify_reply_needs_attention
+                await notify_reply_needs_attention(processed_reply, classification["category"])
+            except Exception as telegram_error:
+                logger.error(f"[PROCESSOR] Telegram notification failed (non-fatal): {telegram_error}")
+                # Continue processing - Telegram failure should not break webhook handling
+        else:
+            logger.info(f"[PROCESSOR] Skipping Telegram notification for event_type: {event_type}")
         
         # Log to Google Sheets if automation has a sheet configured
         if automation and automation.google_sheet_id:
