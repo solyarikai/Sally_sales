@@ -528,6 +528,27 @@ async def process_reply_webhook(
                 contact = result.scalar()
             
             if contact:
+                # Append webhook payload to smartlead_raw for debugging
+                import json
+                from datetime import datetime as dt
+                webhook_entry = {
+                    "received_at": dt.utcnow().isoformat(),
+                    "type": "email_reply",
+                    "category": classification["category"],
+                    "payload": payload
+                }
+                if contact.smartlead_raw:
+                    try:
+                        raw = json.loads(contact.smartlead_raw) if isinstance(contact.smartlead_raw, str) else (dict(contact.smartlead_raw) if contact.smartlead_raw else {})
+                        if "webhooks" not in raw:
+                            raw["webhooks"] = []
+                        raw["webhooks"].append(webhook_entry)
+                        contact.smartlead_raw = raw
+                    except:
+                        contact.smartlead_raw = {"webhooks": [webhook_entry]}
+                else:
+                    contact.smartlead_raw = {"webhooks": [webhook_entry]}
+                
                 # Create activity record for this reply
                 activity = ContactActivity(
                     contact_id=contact.id,

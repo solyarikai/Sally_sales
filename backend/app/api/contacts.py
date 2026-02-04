@@ -1651,3 +1651,104 @@ async def get_contact_history(
             "getsales_id": contact.getsales_id if contact else None,
         }
     }
+
+
+# Status mapping: CRM status -> Smartlead category ID
+SMARTLEAD_STATUS_MAPPING = {
+    "warm": 1,              # Interested
+    "scheduled": 77598,     # Meeting Booked
+    "qualified": 77597,     # Qualified
+    "not_qualified": 78987, # Not Qualified
+    "not_interested": 3,    # Not Interested
+    "wrong_person": 7,      # Wrong Person
+    "out_of_office": 6,     # Out Of Office
+}
+
+SMARTLEAD_PAUSE_ON_STATUS = {"scheduled", "qualified", "not_qualified", "not_interested", "wrong_person"}
+
+
+class StatusUpdateRequest(BaseModel):
+    status: str
+    scheduled_at: Optional[datetime] = None
+    sync_to_smartlead: bool = True
+    notes: Optional[str] = None
+
+
+@router.patch("/{contact_id}/status")
+async def update_contact_status(
+    contact_id: int,
+    request: StatusUpdateRequest,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Update contact status and sync to Smartlead.
+    
+    - Updates contact.status in CRM
+    - If contact has smartlead_id, updates category in Smartlead API
+    - Creates tasks if status = 'scheduled' and scheduled_at is set
+    """
+    import httpx
+    import os
+    
+    # Get contact
+    result = await session.execute(select(Contact).where(Contact.id == contact_id))
+    contact = result.scalar()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    
+    old_status = contact.status
+    contact.status = request.status
+    
+    # Handle scheduled status
+    if request.status == "scheduled":
+        if request.scheduled_at:
+            contact.scheduled_at = request.scheduled_at
+        elif not contact.scheduled_at:
+            raise HTTPException(status_code=400, detail="scheduled_at required for scheduled status")
+    
+    # Handle qualified/not_qualified
+    if request.status == "qualified":
+        contact.qualified_at = datetime.utcnow()
+    elif request.status == "not_qualified":
+        contact.disqualified_at = datetime.utcnow()
+    
+    # Sync to Smartlead if enabled and contact has smartlead_id
+    smartlead_synced = False
+    if request.sync_to_smartlead and contact.smartlead_id and request.status in SMARTLEAD_STATUS_MAPPING:
+        api_key = os.getenv("SMARTLEAD_API_KEY")
+        if api_key:
+            category_id = SMARTLEAD_STATUS_MAPPING[request.status]
+            pause_lead = request.status in SMARTLEAD_PAUSE_ON_STATUS
+            
+            # Get campaign ID from contact's campaigns
+            campaign_id = None
+            if contact.campaigns:
+                campaigns = contact.campaigns if isinstance(contact.campaigns, list) else []
+                for c in campaigns:
+                    if isinstance(c, dict) and c.get("source") == "smartlead":
+                        campaign_id = c.get("id")
+                        break
+            
+            if campaign_id:
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.post(
+                            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads/{contact.smartlead_id}/category?api_key={api_key}",
+                            json={"category_id": category_id, "pause_lead": pause_lead},
+                            timeout=30
+                        )
+                        smartlead_synced = resp.status_code == 200
+                except Exception as e:
+                    pass  # Log but don't fail
+    
+    await session.commit()
+    
+    return {
+        "id": contact.id,
+        "email": contact.email,
+        "old_status": old_status,
+        "new_status": contact.status,
+        "scheduled_at": contact.scheduled_at.isoformat() if contact.scheduled_at else None,
+        "smartlead_synced": smartlead_synced,
+        "getsales_synced": False  # Not supported via API
+    }
