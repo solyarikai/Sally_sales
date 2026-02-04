@@ -75,7 +75,7 @@ This document describes all known APIs for Smartlead (email outreach) and GetSal
                     │     (46.62.210.24:5432)              │
                     ├──────────────────────────────────────┤
                     │  contacts (51K+)                     │
-                    │    - email (unique key for merge)    │
+                    │    - email (unique, case-insensitive)│
                     │    - has_replied ✅                  │
                     │    - reply_channel (email/linkedin)  │
                     │    - last_reply_at                   │
@@ -170,8 +170,17 @@ curl -X POST "http://46.62.210.24:8000/api/crm-sync/webhook/smartlead" \
 
 | Method | Type | Frequency | Description |
 |--------|------|-----------|-------------|
-| Webhook | Real-time | Instant | Configure per-campaign, receives EMAIL_REPLY events |
-| API Poll | `/campaigns/{id}/statistics` | Daily (2 AM) | Fetch all leads with `reply_time` field |
+| Webhook | Real-time | Instant | Configure per-campaign, receives EMAIL_REPLY events with full message content |
+| API Poll | `/campaigns/{id}/leads?lead_category_id=9` | Daily (2 AM) | Fetch leads marked as replied (no message content) |
+
+**Important:** The Smartlead API does NOT provide reply message content via polling. Only webhooks receive the actual reply text.
+
+### Lead Categories
+
+| Category ID | Meaning |
+|-------------|---------|
+| 1-8 | Various custom categories |
+| 9 | **Replied** - leads who have responded |
 
 ### Endpoints
 
@@ -184,36 +193,49 @@ GET /campaigns?api_key={key}
 {
   "id": 2896114,
   "name": "Auto-Reply Test 4cfd2e19",
-  "status": "COMPLETED",  // ACTIVE, PAUSED, COMPLETED
+  "status": "COMPLETED",  // ACTIVE, PAUSED, COMPLETED, SCHEDULED
   "max_leads_per_day": 100
 }
 ```
 
-#### 2. Get Campaign Statistics (Leads + Replies) ⭐
+#### 2. Get Campaign Leads (with Category Filter)
 ```
-GET /campaigns/{campaign_id}/statistics?api_key={key}&limit=500&offset=0
+GET /campaigns/{campaign_id}/leads?api_key={key}&limit=100&lead_category_id=9
 ```
+**Parameters:**
+- `limit` - max leads to return (default 100)
+- `offset` - pagination offset
+- `lead_category_id` - filter by category (9 = replied)
+
 **Response:**
 ```json
 {
   "data": [
     {
-      "lead_email": "john@example.com",
-      "first_name": "John",
-      "last_name": "Doe",
-      "lead_status": "REPLIED",
-      "reply_time": "2026-02-01T14:30:00.000Z",  // ⭐ Key field for reply detection
-      "open_count": 3,
-      "click_count": 1
+      "campaign_lead_map_id": 2576933244,
+      "lead_category_id": 9,
+      "status": "COMPLETED",  // NOT "REPLIED" - status is about email sequence
+      "created_at": "2026-01-12T13:24:46.000Z",
+      "lead": {
+        "id": 2528678434,
+        "email": "john@example.com",
+        "first_name": "John",
+        "last_name": "Doe",
+        "linkedin_profile": "https://linkedin.com/in/johndoe"
+      }
     }
-  ]
+  ],
+  "total_leads": "232"
 }
 ```
 
-#### 3. Get Email Thread History
+**Note:** `reply_time` and `lead_status=REPLIED` do NOT exist in this API. Use `lead_category_id=9` to find replied leads.
+
+#### 3. Get Campaign Analytics
 ```
-GET /campaigns/{campaign_id}/leads/{email}/message-history?api_key={key}
+GET /campaigns/{campaign_id}/analytics?api_key={key}
 ```
+**Response:** Contains `reply_count` for the campaign.
 
 #### 4. Configure Webhooks
 ```
@@ -391,7 +413,7 @@ print(f"Connected! Total contacts: {cur.fetchone()[0]}")
 conn.close()
 ```
 
-**Expected output:** `Connected! Total contacts: 51556` (or similar)
+**Expected output:** `Connected! Total contacts: 50976` (or similar)
 
 **If connection fails:**
 1. Check if your IP is allowed (contact server admin)
@@ -418,10 +440,12 @@ DATABASE_URL = "postgresql+asyncpg://leadgen:leadgen123@46.62.210.24:5432/leadge
 
 ### contacts table
 
+**Unique Constraint:** `idx_contacts_email_unique` on `LOWER(email)` - prevents duplicate contacts
+
 | Column | Type | Source | Description |
 |--------|------|--------|-------------|
 | `id` | int | Auto | Primary key |
-| `email` | string | Both | Email (unique key for merge) |
+| `email` | string | Both | Email (unique, case-insensitive) |
 | `first_name` | string | Both | |
 | `last_name` | string | Both | |
 | `company_name` | string | Both | |
@@ -457,12 +481,18 @@ DATABASE_URL = "postgresql+asyncpg://leadgen:leadgen123@46.62.210.24:5432/leadge
 
 ### Currently Active
 
-| Platform | Method | Status | Cron |
-|----------|--------|--------|------|
-| Smartlead | Webhook | ✅ Active | Real-time |
-| Smartlead | API Poll | ✅ Active | Daily 2 AM |
-| GetSales | Webhook | ✅ Active | Real-time |
-| GetSales | API Poll | ✅ Active | Daily 2 AM |
+| Platform | Method | Status | Description |
+|----------|--------|--------|-------------|
+| Smartlead | Webhook | ✅ Primary | Real-time, includes full reply message content |
+| Smartlead | API Poll (category=9) | ✅ Fallback | Marks contacts as replied, NO message content |
+| GetSales | Webhook | ✅ Primary | Real-time, includes full LinkedIn message |
+| GetSales | API Poll (inbox) | ✅ Fallback | Fetches LinkedIn inbox messages with content |
+
+**Note on Smartlead API limitations:**
+- The Smartlead API does NOT provide reply message content
+- API polling uses `lead_category_id=9` to find replied leads
+- Reply content is ONLY available via webhooks
+- API polling serves as a fallback to catch missed webhooks
 
 ### Cron Jobs (Hetzner)
 
@@ -470,9 +500,30 @@ DATABASE_URL = "postgresql+asyncpg://leadgen:leadgen123@46.62.210.24:5432/leadge
 # Daily Smartlead reply refetch at 2 AM
 0 2 * * * /home/leadokol/magnum-opus-project/repo/scripts/daily_reply_refetch.sh
 
-# Auto-sync every 5 minutes
-*/5 * * * * /home/leadokol/magnum-opus-project/repo/scripts/auto_sync_cron.sh
+# Autocoding loop (every 5 min)
+*/5 * * * * /home/leadokol/magnum-opus-project/repo/scripts/autocoding_loop.sh
 ```
+
+**Note:** `auto_sync_cron.sh` was disabled (2026-02-03) - sync now uses only the in-app `CRMScheduler` with Redis lock to prevent concurrent syncs.
+
+### Sync Lock (Concurrency Protection)
+
+The CRM sync uses a Redis-based lock to prevent duplicate contact creation:
+
+```python
+# In crm_sync_service.py
+from app.services.cache_service import acquire_sync_lock, release_sync_lock
+
+async def full_sync(...):
+    if not await acquire_sync_lock():
+        return {"error": "Sync already in progress", "skipped": True}
+    try:
+        # ... sync logic
+    finally:
+        await release_sync_lock()
+```
+
+**Lock settings:** Key: `leadgen:sync_lock`, TTL: 600 seconds (10 min)
 
 ---
 
@@ -486,23 +537,31 @@ DATABASE_URL = "postgresql+asyncpg://leadgen:leadgen123@46.62.210.24:5432/leadge
 
 ---
 
-## Current Stats (as of 2026-02-03 18:00 UTC)
+## Current Stats (as of 2026-02-03 22:00 UTC)
 
 | Metric | Count |
 |--------|-------|
-| **Total Contacts** | **51,556** |
-| Smartlead Contacts | 42,225 |
-| GetSales Contacts | 10,147 |
-| Merged (Both sources) | 819 |
-| **Replied Contacts** | **361** |
-| **With Campaign Data** | **50,768** (98.5%) |
+| **Total Contacts** | **50,976** |
+| Has Smartlead ID | 48,426 |
+| Has GetSales ID | 6,227 |
+| **Merged (Both IDs)** | **3,679** ⭐ |
+| **Replied Contacts** | **361+** |
+
+### Recent Fixes (2026-02-03)
+
+| Issue | Fix Applied | Result |
+|-------|-------------|--------|
+| **Duplicate contacts** | Redis sync lock + unique email index | Prevented future duplicates |
+| **Low merge count (819)** | Case-insensitive email matching | Merged: 819 → 3,679 (4.5x) |
+| **Missing smartlead_id** | Backfill script queried Smartlead API | 2,808 contacts fixed |
+| **Concurrent sync race** | Disabled cron, use in-app scheduler only | No more duplicate creation |
 
 ### Campaign Enrichment Status
 
 | Source | Total Contacts | With Campaigns | Coverage |
 |--------|----------------|----------------|----------|
-| **Smartlead** | 42,225 | ~42,100 | **99.7%** |
-| **GetSales** | 10,147 | 10,146 | **99.99%** ✅ |
+| **Smartlead** | 48,426 | ~48,300 | **99.7%** |
+| **GetSales** | 6,227 | 6,226 | **99.99%** ✅ |
 
 **Note:** 
 - Smartlead contacts get campaign info during initial sync (from `/campaigns/{id}/statistics`)
@@ -528,6 +587,8 @@ DATABASE_URL = "postgresql+asyncpg://leadgen:leadgen123@46.62.210.24:5432/leadge
 | `enrich_getsales_flows_fast.py` | ✅ FAST enrichment using `filter[lead_uuid]` (~2.5 min for 10K contacts) | `~/magnum-opus-project/repo/scripts/` |
 | `enrich_getsales_flows.py` | OLD: Slow enrichment scanning all 510K records (~30 min) | `~/magnum-opus-project/repo/scripts/` |
 | `enrich_smartlead_campaigns.py` | Enrich Smartlead contacts with campaign names (rarely needed) | `~/magnum-opus-project/repo/scripts/` |
+| `fix_missing_smartlead_ids.py` | ✅ Backfill smartlead_id for contacts with campaign data but no ID | `~/magnum-opus-project/repo/scripts/` |
+| `deduplicate_contacts.sql` | ✅ SQL script to remove duplicate contacts | `~/magnum-opus-project/repo/scripts/` |
 | `daily_reply_refetch.sh` | Daily reply fetch from both platforms | `~/magnum-opus-project/repo/scripts/` |
 | `run_enrichment.sh` | Run all enrichment scripts | `~/magnum-opus-project/repo/scripts/` |
 

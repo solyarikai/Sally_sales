@@ -140,9 +140,19 @@ class SmartleadClient:
         data = await self._get("/campaigns")
         return data if isinstance(data, list) else data.get("data", [])
     
-    async def get_campaign_leads(self, campaign_id: int, limit: int = 100, offset: int = 0) -> List[dict]:
-        """Get leads from a campaign."""
-        data = await self._get(f"/campaigns/{campaign_id}/leads", {"limit": limit, "offset": offset})
+    async def get_campaign_leads(self, campaign_id: int, limit: int = 100, offset: int = 0, lead_category_id: int = None) -> List[dict]:
+        """Get leads from a campaign.
+        
+        Args:
+            campaign_id: Campaign ID
+            limit: Max leads to return
+            offset: Pagination offset
+            lead_category_id: Filter by category (9 = replied, 1-8 = other categories)
+        """
+        params = {"limit": limit, "offset": offset}
+        if lead_category_id is not None:
+            params["lead_category_id"] = lead_category_id
+        data = await self._get(f"/campaigns/{campaign_id}/leads", params)
         return data if isinstance(data, list) else data.get("data", [])
     
     async def get_global_leads(self, limit: int = 100, offset: int = 0) -> Tuple[List[dict], bool]:
@@ -945,19 +955,11 @@ class CRMSyncService:
                 stats["campaigns_checked"] += 1
                 
                 try:
-                    # Fetch leads for this campaign (first 100 to limit API calls)
-                    leads = await self.smartlead.get_campaign_leads(campaign_id, limit=100)
-                    
-                    # Filter to only replied leads first
-                    replied_leads = []
-                    for lead_data in leads:
-                        has_reply = (
-                            lead_data.get("reply_time") or 
-                            lead_data.get("lead_status") == "REPLIED" or
-                            lead_data.get("status") == "REPLIED"
-                        )
-                        if has_reply:
-                            replied_leads.append(lead_data)
+                    # Fetch ONLY replied leads using category filter (9 = replied)
+                    # This is the correct Smartlead API approach - reply_time/REPLIED status don't exist
+                    replied_leads = await self.smartlead.get_campaign_leads(
+                        campaign_id, limit=100, lead_category_id=9
+                    )
                     
                     if not replied_leads:
                         await asyncio.sleep(0.1)
@@ -1003,7 +1005,8 @@ class CRMSyncService:
                             new_reply_ids.append(lead_id)  # Add to cache
                             continue
                         
-                        # Create activity
+                        # Create activity (note: API doesn't provide reply_time or message content)
+                        # This is a fallback for contacts missed by webhook - just marks as replied
                         activity = ContactActivity(
                             contact_id=contact.id,
                             company_id=company_id,
@@ -1012,11 +1015,13 @@ class CRMSyncService:
                             direction="inbound",
                             source="smartlead",
                             source_id=lead_id,
+                            snippet="[Reply detected via API - content available in Smartlead]",
                             extra_data={
                                 "campaign_id": campaign_id,
-                                "campaign_name": campaign_name
+                                "campaign_name": campaign_name,
+                                "detected_via": "api_category_filter"
                             },
-                            activity_at=datetime.fromisoformat(lead_data["reply_time"].replace("Z", "+00:00")) if lead_data.get("reply_time") else datetime.utcnow()
+                            activity_at=datetime.utcnow()
                         )
                         session.add(activity)
                         
