@@ -881,31 +881,53 @@ async def getsales_webhook(
     
     # Create activity
     message_text = linkedin_message.get("text", "")
-    activity = ContactActivity(
-        contact_id=contact.id,
-        company_id=contact.company_id,
-        activity_type=activity_type,
-        channel="linkedin",
-        direction=direction,
-        source="getsales",
-        source_id=lead_uuid,
-        subject=linkedin_message.get("subject"),
-        body=message_text,
-        snippet=message_text[:200] if message_text else None,
-        extra_data={
-            "automation_uuid": automation_data.get("uuid"),
-            "automation_name": automation_data.get("name"),
-            "pipeline_stage": contact_data.get("pipeline_stage_name"),
-            "account_name": account_data.get("name"),
-            "account_website": account_data.get("website"),
-            "linkedin_type": linkedin_message.get("linkedin_type"),
-            "messages_sent_count": contact_markers.get("linkedin_messages_sent_count"),
-            "messages_inbox_count": contact_markers.get("linkedin_messages_inbox_count"),
-            "conversation_thread": (body.get("latest_linkedin_conversation_thread") or {}).get("messaging_thread") if isinstance(body.get("latest_linkedin_conversation_thread"), dict) else None,
-        },
-        activity_at=activity_at
-    )
-    session.add(activity)
+    # Dedup check for reply activities
+    snippet = message_text[:200] if message_text else None
+    is_duplicate = False
+    if "replied" in activity_type:
+        from sqlalchemy import select, func
+        minute_start = activity_at.replace(second=0, microsecond=0)
+        minute_end = activity_at.replace(second=59, microsecond=999999)
+        existing = await session.execute(
+            select(ContactActivity).where(
+                ContactActivity.contact_id == contact.id,
+                ContactActivity.source == "getsales",
+                ContactActivity.activity_type == activity_type,
+                ContactActivity.activity_at >= minute_start,
+                ContactActivity.activity_at <= minute_end,
+                ContactActivity.snippet == snippet
+            )
+        )
+        if existing.scalar():
+            is_duplicate = True
+            logger.info(f"[GETSALES] Skipping duplicate activity for contact {contact.id}")
+    
+    if not is_duplicate:
+        activity = ContactActivity(
+            contact_id=contact.id,
+            company_id=contact.company_id,
+            activity_type=activity_type,
+            channel="linkedin",
+            direction=direction,
+            source="getsales",
+            source_id=lead_uuid,
+            subject=linkedin_message.get("subject"),
+            body=message_text,
+            snippet=snippet,
+            extra_data={
+                "automation_uuid": automation_data.get("uuid"),
+                "automation_name": automation_data.get("name"),
+                "pipeline_stage": contact_data.get("pipeline_stage_name"),
+                "account_name": account_data.get("name"),
+                "account_website": account_data.get("website"),
+                "linkedin_type": linkedin_message.get("linkedin_type"),
+                "messages_sent_count": contact_markers.get("linkedin_messages_sent_count"),
+                "messages_inbox_count": contact_markers.get("linkedin_messages_inbox_count"),
+                "conversation_thread": (body.get("latest_linkedin_conversation_thread") or {}).get("messaging_thread") if isinstance(body.get("latest_linkedin_conversation_thread"), dict) else None,
+            },
+            activity_at=activity_at
+        )
+        session.add(activity)
     
     # Update contact if this is a reply
     if is_reply:

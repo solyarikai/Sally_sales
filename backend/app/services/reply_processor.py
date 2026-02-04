@@ -549,27 +549,47 @@ async def process_reply_webhook(
                 else:
                     contact.smartlead_raw = {"webhooks": [webhook_entry]}
                 
-                # Create activity record for this reply
-                activity = ContactActivity(
-                    contact_id=contact.id,
-                    company_id=contact.company_id,
-                    activity_type="email_replied",
-                    channel="email",
-                    direction="inbound",
-                    source="smartlead",
-                    source_id=str(campaign_id) if campaign_id else None,
-                    subject=subject,
-                    body=body,
-                    snippet=body[:200] if body else None,
-                    extra_data={
-                        "campaign_id": campaign_id,
-                        "campaign_name": campaign_name,
-                        "category": classification.get("category"),
-                        "processed_reply_id": processed_reply.id
-                    },
-                    activity_at=datetime.utcnow()
+                # Create activity record for this reply (with dedup check)
+                snippet = body[:200] if body else None
+                activity_at = datetime.utcnow()
+                
+                # Check for duplicate within same minute
+                from sqlalchemy import select
+                minute_start = activity_at.replace(second=0, microsecond=0)
+                minute_end = activity_at.replace(second=59, microsecond=999999)
+                existing = await session.execute(
+                    select(ContactActivity).where(
+                        ContactActivity.contact_id == contact.id,
+                        ContactActivity.source == "smartlead",
+                        ContactActivity.activity_type == "email_replied",
+                        ContactActivity.activity_at >= minute_start,
+                        ContactActivity.activity_at <= minute_end,
+                        ContactActivity.snippet == snippet
+                    )
                 )
-                session.add(activity)
+                if not existing.scalar():
+                    activity = ContactActivity(
+                        contact_id=contact.id,
+                        company_id=contact.company_id,
+                        activity_type="email_replied",
+                        channel="email",
+                        direction="inbound",
+                        source="smartlead",
+                        source_id=str(campaign_id) if campaign_id else None,
+                        subject=subject,
+                        body=body,
+                        snippet=snippet,
+                        extra_data={
+                            "campaign_id": campaign_id,
+                            "campaign_name": campaign_name,
+                            "category": classification.get("category"),
+                            "processed_reply_id": processed_reply.id
+                        },
+                        activity_at=activity_at
+                    )
+                    session.add(activity)
+                else:
+                    logger.info(f"[SMARTLEAD] Skipping duplicate activity for contact {contact.id}")
                 
                 # Update contact reply status and funnel fields
                 contact.has_replied = True
