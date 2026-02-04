@@ -1077,3 +1077,70 @@ Webhooks automatically append to the raw columns when received:
 - Smartlead reply webhook → appends to `smartlead_raw.webhooks`
 - GetSales LinkedIn reply → appends to `getsales_raw.webhooks`
 
+---
+
+## Local Development Setup
+
+### Database Tables (37 tables in production)
+
+Required tables for ContactsPage:
+- `contacts` - Main contacts table
+- `conversations` - For needs_reply_count stats
+- `campaigns` - Campaign metadata
+- `contact_campaigns` - Contact-campaign associations
+- `projects` - For filter options
+
+All tables exist in production database.
+
+### SSH Tunnel Setup
+
+```bash
+# Terminal 1: Start SSH tunnel to remote PostgreSQL
+ssh -L 5433:localhost:5432 hetzner -N
+
+# Optional: Redis tunnel
+ssh -L 6380:localhost:6379 hetzner -N
+```
+
+### Environment Configuration
+
+Create `.env.local` in backend directory:
+
+```bash
+DATABASE_URL=postgresql+asyncpg://leadgen:leadgen_secret@localhost:5433/leadgen
+REDIS_URL=redis://localhost:6380
+SMARTLEAD_API_KEY=eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5
+GETSALES_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0ZWFtX2lkIjo4MjgsInVzZXJfaWQiOjEwNTgsInNjb3BlcyI6WyJhZG1pbiJdLCJpYXQiOjE3MzY1MDExNzR9.R_skxWr52Bl8tcNR5hSLey84_BMntjiLLjoH31FxV-M
+TELEGRAM_BOT_TOKEN=7819187032:AAEgLFfbKblxXpNq7CZwAQK-SG67cEF9Q8E
+TELEGRAM_CHAT_ID=312546298
+DEBUG=true
+```
+
+### Run Backend Locally
+
+```bash
+cd backend
+export $(cat .env.local | xargs)
+uvicorn app.main:app --reload --port 8001
+```
+
+### Verify Connection
+
+```bash
+# Test database connection
+psql postgresql://leadgen:leadgen_secret@localhost:5433/leadgen -c "SELECT COUNT(*) FROM contacts"
+# Expected: ~56,000 rows
+
+# Test API health
+curl http://localhost:8001/api/health
+```
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Connection refused" on port 5433 | SSH tunnel not running - start it first |
+| "Server error" on ContactsPage | Check DATABASE_URL is exported before uvicorn |
+| "Unable to connect" in browser | Backend not running or wrong port (use 8001) |
+| CORS errors | Add localhost:3000 to allowed origins if running frontend |
+
