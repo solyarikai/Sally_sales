@@ -16,6 +16,7 @@ import logging
 
 from app.db import get_session
 from app.models.contact import Contact, Project, ContactActivity
+from app.services.crm_sync_service import get_getsales_flow_name
 from app.models import Company
 from app.api.companies import get_required_company
 from fastapi import Header
@@ -1633,7 +1634,7 @@ async def get_contact_history(
                 "body": a.body,
                 "snippet": a.snippet,
                 "source": a.source,
-                "automation": a.extra_data.get("automation_name") if a.extra_data else None,
+                "automation": get_getsales_flow_name(a.extra_data, contact.campaigns if contact else None),
                 "timestamp": a.activity_at.isoformat(),
             }
             for a in linkedin_activities

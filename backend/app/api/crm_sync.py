@@ -20,7 +20,7 @@ import hmac
 from app.db import get_session
 from app.models import Company, Contact, ContactActivity
 from app.api.companies import get_required_company
-from app.services.crm_sync_service import get_crm_sync_service, CRMSyncService
+from app.services.crm_sync_service import get_crm_sync_service, CRMSyncService, get_getsales_flow_name
 from app.services.notification_service import send_telegram_notification
 
 logger = logging.getLogger(__name__)
@@ -917,7 +917,7 @@ async def getsales_webhook(
         
         # Send Telegram notification for LinkedIn reply
         try:
-            flow_name = automation_data.get("name", "Unknown Flow")
+            flow_name = automation_data.get("name") or get_getsales_flow_name(None, contact.campaigns)
             contact_name = f"{contact_data.get('first_name', '')} {contact_data.get('last_name', '')}".strip() or "Unknown"
             message_preview = (message_text or "")[:300]
             

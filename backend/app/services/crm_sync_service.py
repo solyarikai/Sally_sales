@@ -22,6 +22,79 @@ from app.services.cache_service import acquire_sync_lock, release_sync_lock
 
 logger = logging.getLogger(__name__)
 
+# Known GetSales flow UUIDs -> names mapping (from webhook data)
+GETSALES_FLOW_NAMES = {
+    "b4188b80-4e23-47df-83cf-29d2654fc943": "EasyStaff - Russian DM [>500 connects]",
+    "f62647b1-c054-4434-8402-7adac1c26e64": "Inxy - Russian DM's",
+    "4bbd26d3-706b-4168-9262-d70fe09a5b25": "RIzzult_Wellness apps 10 01 26",
+    "6bfeca8c-23a6-49da-a8e8-b0dacae88857": "Rizzult_shopping_apps",
+}
+
+def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: list = None) -> str:
+    """
+    Get the GetSales flow/automation name with fallback logic.
+    
+    Priority:
+    1. activity.extra_data.automation_name
+    2. activity.extra_data.flow_name  
+    3. Most recent active GetSales campaign from contact.campaigns (with valid name)
+    4. 'Unknown Flow' as last resort
+    """
+    import re
+    
+    def is_valid_flow_name(name: str) -> bool:
+        """Check if flow name is a real campaign, not a placeholder, timestamp, or export automation."""
+        if not name:
+            return False
+        if name.startswith("Unknown ("):
+            return False
+        # Filter out date/timestamp patterns (export automations like "3 Feb 2026, 02:42")
+        if re.match(r'^\d{1,2} \w{3} \d{4},? \d{2}:\d{2}', name):
+            return False
+        # Filter out other export automation patterns
+        if re.match(r'^\d{1,2} \w+ \d{4}', name):  # e.g. "3 February 2026"
+            return False
+        return True
+    
+    flow_name = None
+    
+    # Try activity extra_data first
+    if activity_extra_data:
+        candidate = activity_extra_data.get("automation_name") or activity_extra_data.get("flow_name")
+        if is_valid_flow_name(candidate):
+            flow_name = candidate
+    
+    # Fallback 1: Try to look up UUID in known flow names mapping
+    if not flow_name and activity_extra_data:
+        uuid = activity_extra_data.get("automation_uuid")
+        if uuid and uuid in GETSALES_FLOW_NAMES:
+            flow_name = GETSALES_FLOW_NAMES[uuid]
+    
+    # Fallback 2: Check contact campaigns for valid flow names
+    if not flow_name and contact_campaigns:
+        # First try to find UUID match in mapping
+        for camp in contact_campaigns:
+            if camp.get("source") == "getsales":
+                camp_id = camp.get("id", "")
+                if camp_id in GETSALES_FLOW_NAMES:
+                    flow_name = GETSALES_FLOW_NAMES[camp_id]
+                    break
+        
+        # Then try to find valid name by status priority
+        if not flow_name:
+            for status_priority in ["in_progress", "active", "ready", "restarted", "finished"]:
+                for camp in contact_campaigns:
+                    if camp.get("source") == "getsales" and camp.get("status") == status_priority:
+                        name_candidate = camp.get("name", "")
+                        if is_valid_flow_name(name_candidate):
+                            flow_name = name_candidate
+                            break
+                if flow_name:
+                    break
+    
+    return flow_name or "Unknown Flow"
+
+
 
 def normalize_linkedin_url(url: str) -> str:
     """Normalize LinkedIn URL for matching (strip protocol, www, lowercase)."""

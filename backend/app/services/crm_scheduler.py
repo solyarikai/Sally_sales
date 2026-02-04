@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from app.db import async_session_maker
-from app.services.crm_sync_service import get_crm_sync_service
+from app.services.crm_sync_service import get_crm_sync_service, get_getsales_flow_name
 
 logger = logging.getLogger(__name__)
 
@@ -230,9 +230,7 @@ class CRMScheduler:
             # Organize LinkedIn replies by flow
             linkedin_by_flow = {}
             for activity, contact in getsales_replies:
-                flow_name = "Unknown Flow"
-                if activity.extra_data:
-                    flow_name = activity.extra_data.get("automation_name") or activity.extra_data.get("flow_name") or "Unknown Flow"
+                flow_name = get_getsales_flow_name(activity.extra_data, contact.campaigns)
                 if flow_name not in linkedin_by_flow:
                     linkedin_by_flow[flow_name] = []
                 name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or contact.email
