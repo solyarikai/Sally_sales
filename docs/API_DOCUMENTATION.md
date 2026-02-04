@@ -1,4 +1,4 @@
-# CRM API Documentation & Data Flow
+wjh# CRM API Documentation & Data Flow
 
 ## Overview
 
@@ -275,16 +275,41 @@ GET /campaigns/{campaign_id}/analytics?api_key={key}
 **Response:** Contains `reply_count` for the campaign.
 
 #### 4. Configure Webhooks
+
+⚠️ **CRITICAL: Must include `categories` field for reply body!**
+
 ```
 POST /campaigns/{campaign_id}/webhooks?api_key={key}
 {
   "name": "Reply Webhook",
   "webhook_url": "http://46.62.210.24:8000/api/crm-sync/webhook/smartlead",
-  "event_types": ["EMAIL_REPLY"]
+  "event_types": ["EMAIL_REPLY", "LEAD_CATEGORY_UPDATED", "EMAIL_SENT"],
+  "categories": [
+    "Interested", "Meeting Request", "Not Interested", "Do Not Contact",
+    "Information Request", "Out Of Office", "Wrong Person",
+    "Uncategorizable by Ai", "Sender Originated Bounce", "Sample Sent",
+    "Positive Reply", "Negative Reply", "Sample Reviewed", "Qualified",
+    "Meeting Booked", "Not Now", "Not Qualified"
+  ]
 }
 ```
 
+**Without `categories`, Smartlead only sends metadata - NO reply body, preview_text, or reply_message!**
+
+#### Webhook Management Notes
+
+| Operation | Supported | Notes |
+|-----------|-----------|-------|
+| Create | ✅ POST | Returns webhook ID |
+| List | ✅ GET `/campaigns/{id}/webhooks` | Returns all webhooks for campaign |
+| Update | ❌ PATCH/PUT | Not supported - must delete and recreate |
+| Delete | ❌ DELETE | Not supported via API - use Smartlead UI |
+
+**Workaround for broken webhooks:** Create a NEW webhook with correct config. Old webhooks remain but new ones receive full data.
+
 ### Webhook Payload (EMAIL_REPLY)
+
+**With `categories` field configured (correct):**
 ```json
 {
   "body": {
@@ -296,9 +321,25 @@ POST /campaigns/{campaign_id}/webhooks?api_key={key}
       "first_name": "John",
       "category": { "name": "Positive Reply", "sentiment_type": "positive" }
     },
-    "reply_message": { "text": "Thanks for reaching out..." },
+    "reply_body": "Thanks for reaching out...",
+    "preview_text": "Thanks for reaching...",
+    "reply_message": { "text": "Thanks for reaching out...", "html": "<p>Thanks...</p>" },
     "last_reply": { "email_body": "...", "time": "2026-02-01T14:30:00.000Z" },
     "history": [...]
+  }
+}
+```
+
+**Without `categories` field (broken - only metadata):**
+```json
+{
+  "body": {
+    "event_type": "EMAIL_REPLY",
+    "campaign_id": 123456,
+    "lead_email": "john@example.com",
+    "lead_id": 789,
+    "lead_data": { "first_name": "John" }
+    // NO reply_body, preview_text, or reply_message!
   }
 }
 ```
@@ -542,16 +583,28 @@ DATABASE_URL = "postgresql+asyncpg://leadgen:leadgen123@46.62.210.24:5432/leadge
 
 | Platform | Method | Status | Description |
 |----------|--------|--------|-------------|
-| Smartlead | Webhook | ✅ Primary | Real-time, includes full reply message content |
+| Smartlead | Webhook | ✅ Primary | Real-time, includes full reply message content (requires `categories` field!) |
 | Smartlead | API Poll (category=9) | ✅ Fallback | Marks contacts as replied, NO message content |
 | GetSales | Webhook | ✅ Primary | Real-time, includes full LinkedIn message |
 | GetSales | API Poll (inbox) | ✅ Fallback | Fetches LinkedIn inbox messages with content |
 
-**Note on Smartlead API limitations:**
-- The Smartlead API does NOT provide reply message content
-- API polling uses `lead_category_id=9` to find replied leads
-- Reply content is ONLY available via webhooks
-- API polling serves as a fallback to catch missed webhooks
+**Critical Notes on Smartlead:**
+
+1. **Webhook `categories` field is MANDATORY for reply body:**
+   - Without `categories`, webhook only sends metadata (email, campaign_id, category)
+   - With `categories`, webhook includes `reply_body`, `preview_text`, `reply_message`
+   - Our code now includes all 17 categories automatically
+
+2. **API limitations:**
+   - The Smartlead API does NOT provide reply message content
+   - API polling uses `lead_category_id=9` to find replied leads
+   - `reply_time` and `lead_status=REPLIED` do NOT exist - these were incorrectly assumed
+   - Reply content is ONLY available via webhooks
+
+3. **Webhook management:**
+   - No DELETE or UPDATE endpoints exist
+   - To fix a broken webhook, create a NEW one with correct config
+   - Multiple webhooks per campaign are allowed
 
 ### Cron Jobs (Hetzner)
 
@@ -625,7 +678,7 @@ async def full_sync(...):
 | GetSales Inbox | ~1,300 | 19,551 | Run `sync_historical_messages.py` |
 | GetSales Outbox | ~7,000 | 168,679 | Run `sync_historical_messages.py` |
 
-### Recent Fixes (2026-02-03)
+### Recent Fixes (2026-02-03 to 2026-02-04)
 
 | Issue | Fix Applied | Result |
 |-------|-------------|--------|
@@ -633,6 +686,18 @@ async def full_sync(...):
 | **Low merge count (819)** | Case-insensitive email matching | Merged: 819 → 3,679 (4.5x) |
 | **Missing smartlead_id** | Backfill script queried Smartlead API | 2,808 contacts fixed |
 | **Concurrent sync race** | Disabled cron, use in-app scheduler only | No more duplicate creation |
+| **Smartlead webhook "No body"** | Added `categories` field to webhook creation | Now receives full reply content |
+| **Smartlead API polling ineffective** | Changed to use `lead_category_id=9` | Correctly identifies replied leads |
+
+### Known Issues & Limitations
+
+| Issue | Cause | Workaround |
+|-------|-------|------------|
+| **Smartlead: Can't delete webhooks** | API doesn't support DELETE | Create new webhook with correct config; old one remains but is redundant |
+| **Smartlead: Can't update webhooks** | API doesn't support PATCH/PUT | Same as above - create new webhook |
+| **Smartlead: No reply content via API** | API `get_campaign_leads` has no message fields | Rely on webhooks for reply content; API only marks `has_replied` |
+| **"Company: Unknown" in notifications** | Contact lacks `company_name` in DB | Data enrichment issue - not all contacts have company data |
+| **GetSales "Unknown Flow"** | API messages lack `automation_name` | Use `get_getsales_flow_name()` helper with UUID-to-name mapping |
 
 ### Campaign Enrichment Status
 
@@ -687,6 +752,227 @@ docker exec -it leadgen-backend python3 -m app.scripts.sync_historical_messages
 This fetches all 188,230 GetSales messages (inbox + outbox) and stores them in `contact_activities`.
 Sends Telegram progress updates every 1,000 inbox / 5,000 outbox messages.
 
+---
+
+## Raw JSON Debugging Columns
+
+For local debugging and analytics, contacts have raw JSON columns that store all data from source platforms:
+
+### `smartlead_raw` (JSONB)
+Stores all Smartlead webhook payloads and API responses for a contact:
+```json
+{
+  "webhooks": [
+    {
+      "received_at": "2026-02-04T10:30:00Z",
+      "type": "reply",
+      "category": "interested",
+      "payload": { /* full webhook JSON */ }
+    }
+  ],
+  "api_data": { /* data from API calls */ }
+}
+```
+
+### `getsales_raw` (JSONB)
+Stores all GetSales webhook payloads and API responses:
+```json
+{
+  "webhooks": [
+    {
+      "received_at": "2026-02-04T10:30:00Z",
+      "type": "reply",
+      "category": "meeting_request",
+      "payload": { /* full webhook JSON */ }
+    }
+  ],
+  "api_data": { /* data from API calls */ }
+}
+```
+
+### `touches` (JSONB)
+Detailed history of all outreach touches:
+```json
+[
+  {
+    "at": "2026-02-04T10:30:00Z",
+    "campaign": "Easystaff - Russian DM",
+    "campaign_id": "2831338",
+    "source": "smartlead",
+    "channel": "email",
+    "type": "sent",
+    "category": null,
+    "message": "Hi, I noticed..."
+  },
+  {
+    "at": "2026-02-05T15:20:00Z",
+    "campaign": "Easystaff - Russian DM",
+    "source": "smartlead",
+    "channel": "email",
+    "type": "reply",
+    "category": "interested",
+    "message": "Yes, tell me more..."
+  }
+]
+```
+
+### Local Debugging Queries
+
+**Check raw webhook data for a contact:**
+```sql
+SELECT email, smartlead_raw->'webhooks' as webhooks
+FROM contacts WHERE email = 'example@company.com';
+```
+
+**Find contacts with specific webhook type:**
+```sql
+SELECT email, getsales_raw->'webhooks'->0->>'category' as category
+FROM contacts 
+WHERE getsales_raw->'webhooks' IS NOT NULL
+LIMIT 10;
+```
+
+**Analyze touches for a contact:**
+```sql
+SELECT email, jsonb_array_length(touches::jsonb) as touch_count,
+       touches->0->>'campaign' as first_campaign
+FROM contacts WHERE touches IS NOT NULL AND touches::text != '[]'
+ORDER BY jsonb_array_length(touches::jsonb) DESC LIMIT 10;
+```
+
+**Get contacts with N+ touches:**
+```sql
+SELECT id, email, jsonb_array_length(touches::jsonb) as touches
+FROM contacts WHERE jsonb_array_length(touches::jsonb) >= 5
+ORDER BY jsonb_array_length(touches::jsonb) DESC;
+```
+
+---
+
+## Outbound Funnel Status Values
+
+### Status Logic & Checksum
+
+The `status` column represents the current funnel stage. **Key rule:** Every contact with `has_replied=true` MUST have a reply status (not `touched`).
+
+**Checksum verification:**
+```sql
+-- These two numbers must match:
+SELECT COUNT(*) FROM contacts WHERE has_replied = true;  -- replied contacts
+SELECT COUNT(*) FROM contacts WHERE status IN ('warm', 'not_interested', 'out_of_office', 'wrong_person', 'other');  -- reply statuses
+```
+
+### Status Values
+
+| Status | Description | Source |
+|--------|-------------|--------|
+| `touched` | Contacted via email/LinkedIn, **no reply yet** | `has_replied = false` |
+| `warm` | Replied with interest, meeting request, question | AI classified as: interested, meeting_request, question |
+| `not_interested` | Replied with explicit rejection | AI classified as: not_interested, unsubscribe |
+| `out_of_office` | Auto-reply, vacation, away | AI classified as: out_of_office |
+| `wrong_person` | Left company, wrong contact | AI classified as: wrong_person |
+| `other` | Replied but content unknown/unclassified | Reply detected but no message body to classify |
+| `scheduled` | Meeting scheduled | Has `scheduled_at` date |
+| `qualified` | Meeting held, qualified | Has `qualified_at` date |
+| `not_qualified` | Meeting held, not qualified | Has `disqualified_at` date |
+
+### Status by Source Breakdown
+
+| Status | Smartlead | GetSales | Both | Total |
+|--------|-----------|----------|------|-------|
+| touched | 45,929 | 2,259 | 3,464 | 51,652 |
+| warm | 0 | 25 | 53 | 78 |
+| not_interested | 0 | 52 | 264 | 316 |
+| out_of_office | 2 | 0 | 3 | 5 |
+| wrong_person | 207 | 10 | 21 | 238 |
+| other | 515 | 30 | 98 | 643 |
+
+**Total: 52,932 contacts**
+- Smartlead only: 46,653
+- GetSales only: 2,376  
+- Both (merged): 3,903
+
+### Why "other" exists
+
+The `other` status (643 contacts) represents contacts that:
+1. Were marked as "replied" by Smartlead API (lead_category_id=9)
+2. But we don't have the actual reply message content
+3. Without content, we cannot classify into warm/not_interested/etc
+
+This happens because Smartlead API polling detects replies but doesn't provide message body. Only webhooks capture full reply content.
+
+**Run stats script to see current funnel:**
+```bash
+ssh hetzner "docker exec leadgen-backend python3 /app/scripts/check_stats.py"
+```
+
+**Verify checksum:**
+```bash
+ssh hetzner "docker exec leadgen-postgres psql -U leadgen -d leadgen -c \"
+SELECT 
+  (SELECT COUNT(*) FROM contacts WHERE has_replied = true) as replied,
+  (SELECT COUNT(*) FROM contacts WHERE status IN ('warm','not_interested','out_of_office','wrong_person','other')) as reply_statuses
+\""
+```
+
+---
+
+## Troubleshooting Guide
+
+### Smartlead Webhook Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| **"No body" in Telegram notifications** | Webhook missing `categories` field | Create new webhook with categories (see "Configure Webhooks" section) |
+| **Webhook not receiving events** | Webhook URL unreachable | Check server is running, port 8000 is open |
+| **404 when deleting webhook** | Smartlead API doesn't support DELETE | Cannot delete via API - use Smartlead UI or create replacement webhook |
+| **Reply not detected by API polling** | Wrong field check (`reply_time` doesn't exist) | Use `lead_category_id=9` filter |
+
+### GetSales Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| **"Unknown Flow" in reports** | API messages lack automation_name | `get_getsales_flow_name()` helper uses UUID mapping + contact campaigns |
+| **Messages duplicated** | Same message processed multiple times | Redis cache for reply IDs prevents duplicates |
+| **Historical sync stopped** | Container restarted and killed background process | Restart: `docker exec -d leadgen-backend python3 -m app.scripts.sync_historical_messages` |
+
+### Database Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| **Duplicate contacts** | Race condition during sync | Redis sync lock + unique email index |
+| **Connection refused** | IP not whitelisted | Contact admin to add IP to pg_hba.conf |
+| **"Company: Unknown"** | Contact missing company_name | Data quality issue - not all leads have company |
+
+### Debugging Commands
+
+**Check last webhook payload received:**
+```bash
+ssh hetzner "cat /tmp/last_webhook.json | jq ."
+```
+
+**Check backend logs for webhook processing:**
+```bash
+ssh hetzner "docker logs leadgen-backend --tail 100 | grep -i webhook"
+```
+
+**Verify webhook is configured correctly for a campaign:**
+```bash
+ssh hetzner "docker exec leadgen-backend python3 -c \"
+import asyncio, httpx, os
+async def check():
+    api_key = os.getenv('SMARTLEAD_API_KEY')
+    campaign_id = 2687353  # Replace with your campaign
+    async with httpx.AsyncClient() as c:
+        r = await c.get(f'https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/webhooks?api_key={api_key}')
+        for w in r.json():
+            print(f'Webhook {w[\"id\"]}: categories={len(w.get(\"categories\", []))} items')
+asyncio.run(check())
+\""
+```
+
+---
+
 ### Running the Fast Enrichment Script
 
 ```bash
@@ -698,4 +984,96 @@ docker exec -e DATABASE_URL="postgresql://leadgen:leadgen_secret@leadgen-postgre
 ```
 
 The script sends Telegram notifications at 10%, 20%, ... 100% progress.
+
+---
+
+## Status Sync Endpoint
+
+### PATCH /api/contacts/{id}/status
+
+Update contact status and sync to Smartlead.
+
+**Request:**
+```json
+{
+  "status": "scheduled",
+  "scheduled_at": "2024-02-15T10:00:00Z",
+  "sync_to_smartlead": true,
+  "notes": "Meeting booked via calendar"
+}
+```
+
+**Response:**
+```json
+{
+  "id": 12345,
+  "email": "john@company.com",
+  "old_status": "warm",
+  "new_status": "scheduled",
+  "scheduled_at": "2024-02-15T10:00:00Z",
+  "smartlead_synced": true,
+  "getsales_synced": false
+}
+```
+
+**Status Mapping (CRM → Smartlead Category):**
+
+| CRM Status | Smartlead Category ID | Auto-Pause |
+|------------|----------------------|------------|
+| warm | 1 (Interested) | No |
+| scheduled | 77598 (Meeting Booked) | Yes |
+| qualified | 77597 (Qualified) | Yes |
+| not_qualified | 78987 (Not Qualified) | Yes |
+| not_interested | 3 (Not Interested) | Yes |
+| wrong_person | 7 (Wrong Person) | Yes |
+| out_of_office | 6 (Out Of Office) | No |
+
+---
+
+## Raw Data Gathering
+
+### Purpose
+
+Contacts from Smartlead/GetSales only have basic fields synchronized. The `smartlead_raw` and `getsales_raw` columns store complete webhook payloads and API data for future enrichment.
+
+### Progress Check
+
+```bash
+ssh hetzner "docker exec leadgen-backend python3 /app/app/scripts/check_raw_data_progress.py"
+```
+
+### Start Enrichment
+
+```bash
+# Run in background (will send Telegram updates)
+ssh hetzner "docker exec -d leadgen-backend python3 /app/app/scripts/enrich_raw_data.py"
+```
+
+### Data Structure
+
+**contacts.smartlead_raw:**
+```json
+{
+  "fetched_at": "2024-02-01T12:00:00Z",
+  "campaigns": [...],
+  "conversations": {"123": [...messages...]},
+  "webhooks": [{"received_at": "...", "type": "email_reply", "payload": {...}}]
+}
+```
+
+**contacts.getsales_raw:**
+```json
+{
+  "fetched_at": "2024-02-01T12:00:00Z",
+  "profile": {...full contact data...},
+  "messages": [...LinkedIn message history...],
+  "webhooks": [{"received_at": "...", "type": "linkedin_reply", "payload": {...}}]
+}
+```
+
+### Webhook Enrichment
+
+Webhooks automatically append to the raw columns when received:
+- Smartlead reply webhook → appends to `smartlead_raw.webhooks`
+- GetSales LinkedIn reply → appends to `getsales_raw.webhooks`
 
