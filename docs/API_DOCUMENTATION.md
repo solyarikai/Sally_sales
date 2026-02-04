@@ -161,10 +161,47 @@ curl -X POST "http://46.62.210.24:8000/api/crm-sync/webhook/smartlead" \
 
 ---
 
+## API Credentials (for Local Agents)
+
+All credentials needed to connect to external services:
+
+```bash
+# PostgreSQL Database
+DATABASE_URL="postgresql://leadgen:leadgen123@46.62.210.24:5432/leadgen"
+
+# Smartlead API
+SMARTLEAD_API_KEY="eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"
+
+# GetSales API
+GETSALES_API_KEY="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vYW1hemluZy5nZXRzYWxlcy5pby9hcGkvand0LXRva2Vucy9jcmVhdGUtYXBpLWtleSIsImlhdCI6MTc3MDA3MDE0OCwiZXhwIjoxODY0Njc4MTQ4LCJuYmYiOjE3NzAwNzAxNDgsImp0aSI6IjFpYlF4TW5ueFJhVGxlREMiLCJzdWIiOiI3OTg4IiwidXNyIjp7ImlkIjo3OTg4LCJ1dWlkIjoiZTBiZDgzMTgtNGEwZC0xMWYwLThiYWItYThhMTU5YzBiZmJjIiwiZmlyc3RfbmFtZSI6IlNlcmdlIiwibGFzdF9uYW1lIjoiS3V6bmV0c292IiwiZW1haWwiOiJzZXJnZUBpbnh5ZGlnaXRhbC5jb20iLCJnYV90cmFja2luZ19pZCI6IjQ1OTY0OTcyMS4xNzQyNTY1Mzc4LiIsImZiX2NsaWNrX2lkIjpudWxsLCJmYl9icm93c2VyX2lkIjoiZmIuMS4xNzQyNTY1Mzc4NjIxLjI4ODI0NDQ5MjUzMzQ2NTgwNSIsIndoaXRlbGFiZWxfdXVpZCI6bnVsbCwiY3JlYXRlZF9hdCI6IjIwMjUtMDMtMjFUMTM6NTY6NTkuMDAwMDAwWiJ9LCJzcGVjaWZpY190ZWFtX2lkIjo3NDMwLCJ1c2VyX3RlYW1zIjp7Ijc0MzAiOjN9LCJ0b2tlbl90eXBlIjoiYXBpIn0.22W-xynV9M92S4gz1B0DohAEMpz26DrmU0KDXnz8qZc"
+
+# Telegram Bot (for notifications)
+TELEGRAM_BOT_TOKEN="8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss"
+TELEGRAM_CHAT_ID="57344339"
+
+# Redis (internal to Docker network, use for local testing only if tunneled)
+REDIS_URL="redis://redis:6379"
+```
+
+### Quick API Test Commands
+
+**Test Smartlead API:**
+```bash
+curl "https://server.smartlead.ai/api/v1/campaigns?api_key=eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5" | jq '.[:2]'
+```
+
+**Test GetSales API:**
+```bash
+curl -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vYW1hemluZy5nZXRzYWxlcy5pby9hcGkvand0LXRva2Vucy9jcmVhdGUtYXBpLWtleSIsImlhdCI6MTc3MDA3MDE0OCwiZXhwIjoxODY0Njc4MTQ4LCJuYmYiOjE3NzAwNzAxNDgsImp0aSI6IjFpYlF4TW5ueFJhVGxlREMiLCJzdWIiOiI3OTg4IiwidXNyIjp7ImlkIjo3OTg4LCJ1dWlkIjoiZTBiZDgzMTgtNGEwZC0xMWYwLThiYWItYThhMTU5YzBiZmJjIiwiZmlyc3RfbmFtZSI6IlNlcmdlIiwibGFzdF9uYW1lIjoiS3V6bmV0c292IiwiZW1haWwiOiJzZXJnZUBpbnh5ZGlnaXRhbC5jb20iLCJnYV90cmFja2luZ19pZCI6IjQ1OTY0OTcyMS4xNzQyNTY1Mzc4LiIsImZiX2NsaWNrX2lkIjpudWxsLCJmYl9icm93c2VyX2lkIjoiZmIuMS4xNzQyNTY1Mzc4NjIxLjI4ODI0NDQ5MjUzMzQ2NTgwNSIsIndoaXRlbGFiZWxfdXVpZCI6bnVsbCwiY3JlYXRlZF9hdCI6IjIwMjUtMDMtMjFUMTM6NTY6NTkuMDAwMDAwWiJ9LCJzcGVjaWZpY190ZWFtX2lkIjo3NDMwLCJ1c2VyX3RlYW1zIjp7Ijc0MzAiOjN9LCJ0b2tlbl90eXBlIjoiYXBpIn0.22W-xynV9M92S4gz1B0DohAEMpz26DrmU0KDXnz8qZc" \
+  "https://amazing.getsales.io/flows/api/flows?per_page=5" | jq '.data[:2]'
+```
+
+---
+
 ## Smartlead API
 
 **Base URL:** `https://server.smartlead.ai/api/v1`  
-**Authentication:** Query parameter `?api_key={SMARTLEAD_API_KEY}`
+**Authentication:** Query parameter `?api_key=eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5`
 
 ### Reply Tracking Methods
 
@@ -271,7 +308,7 @@ POST /campaigns/{campaign_id}/webhooks?api_key={key}
 ## GetSales API
 
 **Base URL:** `https://amazing.getsales.io`  
-**Authentication:** Header `Authorization: Bearer {GETSALES_API_KEY}`
+**Authentication:** Header `Authorization: Bearer <GETSALES_API_KEY from credentials above>`
 
 ### Reply Tracking Methods
 
