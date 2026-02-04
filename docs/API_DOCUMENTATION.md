@@ -1144,3 +1144,123 @@ curl http://localhost:8001/api/health
 | "Unable to connect" in browser | Backend not running or wrong port (use 8001) |
 | CORS errors | Add localhost:3000 to allowed origins if running frontend |
 
+---
+
+## Scripts Reference
+
+### Stats & Monitoring Scripts
+
+#### check_stats.py - Outbound Funnel Report
+
+Comprehensive CRM statistics including contacts, campaigns, replies, and enrichment progress.
+
+```bash
+ssh hetzner "docker exec leadgen-backend python3 /app/scripts/check_stats.py"
+```
+
+**Output includes:**
+- Contacts: Total, Smartlead, GetSales, Merged
+- Campaigns: Total (509), Smartlead (402), GetSales (107)
+- Campaign Status: COMPLETED, INPROGRESS, PAUSED, etc.
+- Funnel Stages: touched, warm, not_interested, etc.
+- Reply Sentiment: warm, neutral, cold
+- Reply Categories: interested, meeting_request, not_interested, etc.
+- Touches Distribution: 1, 2-5, 6-10, 10+
+- Raw Data Enrichment Progress
+
+#### check_raw_data_progress.py - Enrichment Progress
+
+Quick visual progress for raw data gathering.
+
+```bash
+ssh hetzner "docker exec leadgen-backend python3 /app/app/scripts/check_raw_data_progress.py"
+```
+
+**Sample Output:**
+```
+============================================================
+        RAW DATA GATHERING PROGRESS
+============================================================
+  Smartlead:   7,274 / 50,556 ( 14.4%)
+  GetSales:        0 /  6,279 (  0.0%)
+  Touches:    5,026 contacts
+  Activities: 14,131 (SL: 961, GS: 13170)
+  Replies:     2,365 (2365 with raw data)
+
+  SL [##__________________] 14.4%
+  GS [____________________] 0.0%
+============================================================
+```
+
+### Data Enrichment Scripts
+
+#### enrich_raw_data.py - Full Raw Data Gathering
+
+Fetches complete Smartlead/GetSales data and stores in raw columns. Runs in background with Telegram notifications.
+
+```bash
+# Start in background
+ssh hetzner "docker exec -d leadgen-backend python3 /app/app/scripts/enrich_raw_data.py"
+```
+
+**What it fetches:**
+- Smartlead: Campaign list, conversation history with full email bodies
+- GetSales: Full profile, LinkedIn message history
+
+**Runtime:** ~10-12 hours for 50k Smartlead contacts, ~30min for 6k GetSales contacts
+
+**Telegram updates:** Every 500 contacts processed
+
+**Resumable:** Yes - queries for records where `raw = '{}'`, skips already-processed
+
+#### enrich_getsales_flows_fast.py - GetSales Flow Names
+
+Enriches GetSales contacts with flow/automation names.
+
+```bash
+ssh hetzner "docker exec -d leadgen-backend python3 /app/scripts/enrich_getsales_flows_fast.py"
+```
+
+#### sync_historical_messages.py - Historical LinkedIn Messages
+
+Syncs historical GetSales LinkedIn messages to contact_activities.
+
+```bash
+ssh hetzner "docker exec -d leadgen-backend python3 -m app.scripts.sync_historical_messages"
+```
+
+### Utility Scripts
+
+#### fix_missing_smartlead_ids.py - Fix Missing IDs
+
+Attempts to match contacts without smartlead_id by email.
+
+```bash
+ssh hetzner "docker exec leadgen-backend python3 /app/scripts/fix_missing_smartlead_ids.py"
+```
+
+### Script Locations
+
+| Script | Container Path | Purpose |
+|--------|---------------|---------|
+| check_stats.py | /app/scripts/ | Funnel report |
+| check_raw_data_progress.py | /app/app/scripts/ | Enrichment progress |
+| enrich_raw_data.py | /app/app/scripts/ | Raw data gathering |
+| enrich_getsales_flows_fast.py | /app/scripts/ | GetSales flow names |
+| sync_historical_messages.py | /app/app/scripts/ | LinkedIn history |
+
+### Current Data Status (as of 2026-02-04)
+
+| Metric | Count |
+|--------|-------|
+| Total Contacts | 52,932 |
+| Smartlead Contacts | 50,556 |
+| GetSales Contacts | 6,279 |
+| Merged (both IDs) | 3,903 |
+| Total Campaigns | 509 |
+| Smartlead Campaigns | 402 |
+| GetSales Campaigns | 107 |
+| Contact-Campaign Links | 139,376 |
+| Smartlead Replies | 2,365 |
+| GetSales Replies | 1,397 |
+
