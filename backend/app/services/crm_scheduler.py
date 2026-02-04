@@ -175,7 +175,7 @@ class CRMScheduler:
         """Generate and send Telegram report of replies in last 24 hours."""
         from app.db import async_session_maker
         from app.models.reply import ProcessedReply
-        from app.models.contact import ContactActivity
+        from app.models.contact import Contact, ContactActivity
         from app.services.notification_service import send_telegram_notification
         from sqlalchemy import select, func, and_
         from datetime import datetime, timedelta
@@ -183,75 +183,101 @@ class CRMScheduler:
         since = datetime.utcnow() - timedelta(hours=24)
         
         async with async_session_maker() as session:
-            # Get Smartlead replies by category and campaign
-            smartlead_query = await session.execute(
-                select(
-                    ProcessedReply.category,
-                    ProcessedReply.campaign_name,
-                    func.count(ProcessedReply.id).label("count")
-                ).where(
-                    ProcessedReply.received_at >= since
-                ).group_by(
-                    ProcessedReply.category,
-                    ProcessedReply.campaign_name
+            # Get Smartlead warm replies with lead names
+            smartlead_warm_query = await session.execute(
+                select(ProcessedReply).where(
+                    and_(
+                        ProcessedReply.received_at >= since,
+                        ProcessedReply.category.in_(["interested", "meeting_request", "question"])
+                    )
+                ).order_by(ProcessedReply.campaign_name, ProcessedReply.received_at.desc())
+            )
+            smartlead_warm = smartlead_warm_query.scalars().all()
+            
+            # Get Smartlead negative count
+            smartlead_negative_query = await session.execute(
+                select(func.count(ProcessedReply.id)).where(
+                    and_(
+                        ProcessedReply.received_at >= since,
+                        ProcessedReply.category.in_(["not_interested", "unsubscribe", "wrong_person"])
+                    )
                 )
             )
-            smartlead_data = smartlead_query.all()
+            negative_total = smartlead_negative_query.scalar() or 0
             
-            # Get GetSales replies 
+            # Get GetSales LinkedIn replies with contact info and flow names
             getsales_query = await session.execute(
-                select(func.count(ContactActivity.id)).where(
+                select(ContactActivity, Contact).join(
+                    Contact, ContactActivity.contact_id == Contact.id
+                ).where(
                     and_(
                         ContactActivity.activity_type == "linkedin_replied",
                         ContactActivity.activity_at >= since
                     )
-                )
+                ).order_by(ContactActivity.activity_at.desc())
             )
-            getsales_count = getsales_query.scalar() or 0
+            getsales_replies = getsales_query.all()
             
-            # Categorize
-            warm_categories = ["interested", "meeting_request", "question"]
-            negative_categories = ["not_interested", "unsubscribe", "wrong_person"]
+            # Organize email replies by campaign
+            email_by_campaign = {}
+            for reply in smartlead_warm:
+                campaign = reply.campaign_name or "Unknown"
+                if campaign not in email_by_campaign:
+                    email_by_campaign[campaign] = []
+                name = f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip() or reply.lead_email
+                email_by_campaign[campaign].append(name)
             
-            warm_total = 0
-            negative_total = 0
-            warm_by_campaign = {}
+            # Organize LinkedIn replies by flow
+            linkedin_by_flow = {}
+            for activity, contact in getsales_replies:
+                flow_name = "Unknown Flow"
+                if activity.extra_data:
+                    flow_name = activity.extra_data.get("automation_name") or activity.extra_data.get("flow_name") or "Unknown Flow"
+                if flow_name not in linkedin_by_flow:
+                    linkedin_by_flow[flow_name] = []
+                name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or contact.email
+                linkedin_by_flow[flow_name].append(name)
             
-            for row in smartlead_data:
-                category, campaign, count = row
-                if category in warm_categories:
-                    warm_total += count
-                    if campaign:
-                        if campaign not in warm_by_campaign:
-                            warm_by_campaign[campaign] = {"email": 0}
-                        warm_by_campaign[campaign]["email"] += count
-                elif category in negative_categories:
-                    negative_total += count
+            warm_email = len(smartlead_warm)
+            warm_linkedin = len(getsales_replies)
+            warm_total = warm_email + warm_linkedin
             
             # Build message
-            total_replies = len(smartlead_data) + getsales_count
+            lines = []
+            lines.append("<b>📊 Replies Report</b> <i>(Last 24h)</i>")
+            lines.append("")
+            lines.append(f"<b>🔥 WARM LEADS ({warm_total})</b>")
             
-            message = f"""<b>📊 Replies Report (Last 24h)</b>
-
-<b>🔥 WARM ({warm_total} email + {getsales_count} LinkedIn = {warm_total + getsales_count})</b>
-"""
+            # Email section
+            if email_by_campaign:
+                lines.append("")
+                lines.append(f"<b>📧 Email ({warm_email}):</b>")
+                for campaign, leads in sorted(email_by_campaign.items(), key=lambda x: -len(x[1]))[:8]:
+                    lines.append(f"<code>{campaign[:35]}</code> ({len(leads)})")
+                    for lead in leads[:5]:
+                        lines.append(f"  └ {lead[:25]}")
+                    if len(leads) > 5:
+                        lines.append(f"  └ <i>+{len(leads)-5} more...</i>")
             
-            # Add campaign breakdown
-            for campaign, channels in sorted(warm_by_campaign.items(), key=lambda x: -x[1].get("email", 0))[:10]:
-                email_count = channels.get("email", 0)
-                message += f"  • {campaign[:40]}: {email_count} email\n"
+            # LinkedIn section
+            if linkedin_by_flow:
+                lines.append("")
+                lines.append(f"<b>💼 LinkedIn ({warm_linkedin}):</b>")
+                for flow, leads in sorted(linkedin_by_flow.items(), key=lambda x: -len(x[1]))[:8]:
+                    lines.append(f"<code>{flow[:35]}</code> ({len(leads)})")
+                    for lead in leads[:5]:
+                        lines.append(f"  └ {lead[:25]}")
+                    if len(leads) > 5:
+                        lines.append(f"  └ <i>+{len(leads)-5} more...</i>")
             
-            if getsales_count > 0:
-                message += f"  • LinkedIn (all flows): {getsales_count}\n"
+            lines.append("")
+            lines.append(f"<b>❌ Not Interested:</b> {negative_total}")
+            lines.append("")
+            lines.append(f"<b>📈 Total: {warm_total + negative_total}</b>")
             
-            message += f"""
-<b>❌ NOT INTERESTED ({negative_total})</b>
-
-<b>📈 TOTAL: {warm_total + negative_total + getsales_count} replies</b>
-"""
-            
-            await send_telegram_notification(message.strip())
-            logger.info(f"Sent 4-hourly reply report: {warm_total} warm, {negative_total} negative, {getsales_count} LinkedIn")
+            message = "\n".join(lines)
+            await send_telegram_notification(message)
+            logger.info(f"Sent reply report: {warm_email} email warm, {warm_linkedin} LinkedIn warm, {negative_total} negative")
 
     async def _setup_webhooks(self):
         """Set up webhooks for any new campaigns."""
