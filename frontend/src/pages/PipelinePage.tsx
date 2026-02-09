@@ -6,6 +6,7 @@ import {
   Clock, ArrowRight, X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAppStore } from '../store/appStore';
 import { contactsApi } from '../api/contacts';
 import {
   pipelineApi,
@@ -42,6 +43,7 @@ interface ProjectOption {
 }
 
 export function PipelinePage() {
+  const { currentCompany } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [companies, setCompanies] = useState<DiscoveredCompany[]>([]);
@@ -75,6 +77,7 @@ export function PipelinePage() {
   }, []);
 
   const loadData = useCallback(async () => {
+    if (!currentCompany) return;
     setLoading(true);
     setError(null);
     try {
@@ -97,7 +100,7 @@ export function PipelinePage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, statusFilter, targetOnly, searchQuery, page]);
+  }, [projectId, statusFilter, targetOnly, searchQuery, page, currentCompany]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -220,6 +223,17 @@ export function PipelinePage() {
       setActionLoading(null);
     }
   };
+
+  if (!currentCompany) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-blue-700 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          Select a company to view the pipeline
+        </div>
+      </div>
+    );
+  }
 
   if (loading && companies.length === 0) {
     return (

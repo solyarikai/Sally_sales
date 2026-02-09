@@ -90,7 +90,7 @@ class DiscoveredCompany(Base):
     # Relationships
     company = relationship("Company")
     project = relationship("Project")
-    search_result = relationship("SearchResult")
+    search_result = relationship("SearchResult", foreign_keys=[search_result_id])
     search_job = relationship("SearchJob")
     extracted_contacts = relationship("ExtractedContact", back_populates="discovered_company", cascade="all, delete-orphan")
     events = relationship("PipelineEvent", back_populates="discovered_company", cascade="all, delete-orphan", order_by="desc(PipelineEvent.created_at)")

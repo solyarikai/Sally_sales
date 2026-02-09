@@ -18,7 +18,7 @@ from app.models import (
     Document, DocumentType, DocumentFolder, CompanyProfile,
     Product, Segment, SegmentColumn, Competitor, CaseStudy, VoiceTone, Blocklist, BookingLink,
     Prospect, ProspectActivity,
-    Domain, SearchJob, SearchQuery, SearchResult,
+    Domain, SearchJob, SearchQuery, SearchResult, ProjectSearchKnowledge,
     DiscoveredCompany, ExtractedContact, PipelineEvent,
 )
 

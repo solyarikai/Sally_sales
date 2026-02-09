@@ -21,6 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from app.main import app
 from app.db import Base, get_session
 from app.models import User, Company, Environment, Dataset, DataRow, Prospect, ReplyAutomation, ProcessedReply, ReplyCategory
+from app.models.contact import Project
+from app.models.domain import SearchJob, SearchJobStatus, SearchEngine, SearchResult
 
 
 # Test database URL - in-memory SQLite
@@ -201,6 +203,63 @@ async def test_prospect(db_session: AsyncSession, test_company: Company) -> Pros
     await db_session.flush()
     await db_session.refresh(prospect)
     return prospect
+
+
+@pytest_asyncio.fixture
+async def test_project(db_session: AsyncSession, test_company: Company) -> Project:
+    """Create a test project."""
+    project = Project(
+        company_id=test_company.id,
+        name="Test Project",
+        description="Test project for testing",
+        target_segments="B2B SaaS companies in Europe",
+    )
+    db_session.add(project)
+    await db_session.flush()
+    await db_session.refresh(project)
+    return project
+
+
+@pytest_asyncio.fixture
+async def test_search_job(db_session: AsyncSession, test_company: Company, test_project: Project) -> SearchJob:
+    """Create a test search job."""
+    job = SearchJob(
+        company_id=test_company.id,
+        project_id=test_project.id,
+        status=SearchJobStatus.COMPLETED,
+        search_engine=SearchEngine.YANDEX_API,
+        queries_total=10,
+        queries_completed=10,
+        domains_found=50,
+        domains_new=30,
+        domains_trash=5,
+        domains_duplicate=15,
+        config={"max_queries": 10},
+    )
+    db_session.add(job)
+    await db_session.flush()
+    await db_session.refresh(job)
+    return job
+
+
+@pytest_asyncio.fixture
+async def test_search_result(db_session: AsyncSession, test_search_job: SearchJob, test_project: Project) -> SearchResult:
+    """Create a test search result."""
+    result = SearchResult(
+        search_job_id=test_search_job.id,
+        project_id=test_project.id,
+        domain="example.com",
+        url="https://example.com",
+        is_target=True,
+        confidence=0.85,
+        reasoning="Good match for B2B SaaS",
+        company_info={"name": "Example Corp", "industry": "SaaS", "services": ["CRM"]},
+        scores={"language_match": 0.9, "industry_match": 0.8},
+    )
+    db_session.add(result)
+    await db_session.flush()
+    await db_session.refresh(result)
+    return result
 
 
 # ============ Helper Functions ============

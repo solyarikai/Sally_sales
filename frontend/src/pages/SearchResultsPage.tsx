@@ -7,6 +7,7 @@ import {
   BarChart3, Globe, Zap,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAppStore } from '../store/appStore';
 import {
   projectSearchApi,
   type SearchJobFullDetail,
@@ -47,12 +48,14 @@ export function SearchResultsPage() {
 
 function JobHistoryView() {
   const navigate = useNavigate();
+  const { currentCompany } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<{ items: SearchHistoryItem[]; total: number } | null>(null);
   const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
+    if (!currentCompany) return;
     setLoading(true);
     setError(null);
     try {
@@ -63,9 +66,20 @@ function JobHistoryView() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, currentCompany]);
 
   useEffect(() => { load(); }, [load]);
+
+  if (!currentCompany) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-blue-700 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          Select a company to view search results
+        </div>
+      </div>
+    );
+  }
 
   const items = data?.items || [];
   const total = data?.total || 0;

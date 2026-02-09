@@ -53,6 +53,8 @@ def build_project_query_prompt(
     target_segments: str,
     count: int,
     existing_queries: List[str],
+    good_queries: Optional[List[str]] = None,
+    bad_queries: Optional[List[str]] = None,
 ) -> str:
     """
     Build a GPT prompt for generating search queries based on project's target_segments.
@@ -75,6 +77,15 @@ def build_project_query_prompt(
                 existing_sample[j - 1] = q
 
     existing_str = "\n".join(f"  - {q}" for q in existing_sample) if existing_sample else "(none)"
+
+    # Build feedback section from past job effectiveness (Phase 3d)
+    feedback_section = ""
+    if good_queries:
+        good_str = "\n".join(f"  - {q}" for q in good_queries[:20])
+        feedback_section += f"\nЭФФЕКТИВНЫЕ ЗАПРОСЫ (находили целевые компании — генерируй похожие):\n{good_str}\n"
+    if bad_queries:
+        bad_str = "\n".join(f"  - {q}" for q in bad_queries[:20])
+        feedback_section += f"\nНЕЭФФЕКТИВНЫЕ ЗАПРОСЫ (находили только мусор — НЕ генерируй похожие):\n{bad_str}\n"
 
     prompt = f"""Ты - эксперт по генерации поисковых запросов для B2B лидогенерации.
 
@@ -100,7 +111,7 @@ def build_project_query_prompt(
 
 УЖЕ ИСПОЛЬЗОВАННЫЕ ЗАПРОСЫ (НЕ ПОВТОРЯЙ!):
 {existing_str}
-
+{feedback_section}
 Сгенерируй ровно {count} уникальных запросов. Верни ТОЛЬКО JSON массив: ["запрос1", "запрос2", ...]"""
 
     return prompt
@@ -222,6 +233,8 @@ class SearchService:
         existing_queries: Optional[List[str]] = None,
         target_segments: Optional[str] = None,
         project_id: Optional[int] = None,
+        good_queries: Optional[List[str]] = None,
+        bad_queries: Optional[List[str]] = None,
     ) -> List[str]:
         """
         Generate search queries via OpenAI.
@@ -250,6 +263,8 @@ class SearchService:
             target_segments=target_segments,
             count=count,
             existing_queries=existing_queries or [],
+            good_queries=good_queries,
+            bad_queries=bad_queries,
         )
 
         payload = {

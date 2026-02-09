@@ -119,6 +119,10 @@ class SearchResultResponse(BaseModel):
     confidence: Optional[float] = None
     reasoning: Optional[str] = None
     company_info: Optional[Dict[str, Any]] = None
+    scores: Optional[Dict[str, Any]] = None
+    review_status: Optional[str] = None
+    review_note: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
     html_snippet: Optional[str] = None
     scraped_at: Optional[datetime] = None
     analyzed_at: Optional[datetime] = None
@@ -133,4 +137,5 @@ class SpendingInfo(BaseModel):
     yandex_cost: float = 0.0
     openai_tokens_used: int = 0
     openai_cost_estimate: float = 0.0
+    crona_credits_used: int = 0
     total_estimate: float = 0.0

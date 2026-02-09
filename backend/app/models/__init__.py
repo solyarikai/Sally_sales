@@ -13,6 +13,7 @@ from .domain import (
     SearchJob, SearchJobStatus, SearchEngine,
     SearchQuery, SearchQueryStatus,
     SearchResult,
+    ProjectSearchKnowledge,
 )
 from .pipeline import (
     DiscoveredCompany, DiscoveredCompanyStatus,
@@ -41,6 +42,7 @@ __all__ = [
     "SearchJob", "SearchJobStatus", "SearchEngine",
     "SearchQuery", "SearchQueryStatus",
     "SearchResult",
+    "ProjectSearchKnowledge",
     # Pipeline
     "DiscoveredCompany", "DiscoveredCompanyStatus",
     "ExtractedContact", "ContactSource",

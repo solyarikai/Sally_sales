@@ -119,6 +119,10 @@ class SearchQuery(Base):
     domains_found = Column(Integer, default=0)
     pages_scraped = Column(Integer, default=0)
 
+    # Query effectiveness tracking (Phase 3)
+    targets_found = Column(Integer, default=0)
+    effectiveness_score = Column(Float, nullable=True)  # targets_found / max(domains_found, 1)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
@@ -144,9 +148,18 @@ class SearchResult(Base):
     confidence = Column(Float, nullable=True)
     reasoning = Column(Text, nullable=True)
     company_info = Column(JSON, nullable=True)  # name, description, services etc from GPT
+    scores = Column(JSON, nullable=True)  # Multi-criteria scores: {language_match, industry_match, ...}
+
+    # Review status (Phase 2: auto-review + manual review)
+    review_status = Column(String(20), nullable=True)  # "confirmed", "rejected", "flagged"
+    review_note = Column(Text, nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Query tracking (Phase 3: which query found this domain)
+    source_query_id = Column(Integer, ForeignKey("search_queries.id", ondelete="SET NULL"), nullable=True)
 
     # Debug info
-    html_snippet = Column(Text, nullable=True)  # first 2000 chars of scraped HTML
+    html_snippet = Column(Text, nullable=True)  # first 2000 chars of scraped text
 
     # Link to discovered company (set when promoted to pipeline)
     discovered_company_id = Column(Integer, ForeignKey("discovered_companies.id", ondelete="SET NULL"), nullable=True)
@@ -158,8 +171,44 @@ class SearchResult(Base):
     # Relationships
     search_job = relationship("SearchJob", back_populates="results")
     discovered_company = relationship("DiscoveredCompany", foreign_keys=[discovered_company_id])
+    source_query = relationship("SearchQuery", foreign_keys=[source_query_id])
 
     __table_args__ = (
         Index("ix_search_results_job_domain", "search_job_id", "domain"),
         Index("ix_search_results_project_target", "project_id", "is_target"),
     )
+
+
+class ProjectSearchKnowledge(Base):
+    """
+    Accumulated search knowledge for a project — patterns learned from past searches
+    and reviews. Fed back into query generation and analysis prompts.
+    """
+    __tablename__ = "project_search_knowledge"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+
+    # Aggregated stats
+    total_jobs_run = Column(Integer, default=0)
+    total_domains_analyzed = Column(Integer, default=0)
+    total_targets_found = Column(Integer, default=0)
+    total_false_positives = Column(Integer, default=0)
+
+    # Learned patterns (JSON lists)
+    good_query_patterns = Column(JSON, default=list)  # Queries that produced targets
+    bad_query_patterns = Column(JSON, default=list)   # Queries that produced only trash
+    confirmed_domains = Column(JSON, default=list)     # Domains confirmed as targets
+    rejected_domains = Column(JSON, default=list)      # Domains rejected
+    industry_keywords = Column(JSON, default=list)     # Keywords from confirmed targets
+    anti_keywords = Column(JSON, default=list)         # Keywords from false positives
+
+    # Confidence calibration
+    avg_target_confidence = Column(Float, nullable=True)
+    avg_false_positive_confidence = Column(Float, nullable=True)
+    recommended_threshold = Column(Float, default=0.5)
+
+    # Custom rules (JSON list of rule dicts)
+    custom_exclusion_rules = Column(JSON, default=list)
+
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

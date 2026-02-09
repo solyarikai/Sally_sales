@@ -37,6 +37,16 @@ export interface SearchResultItem {
     location?: string;
     industry?: string;
   };
+  scores?: {
+    language_match?: number;
+    industry_match?: number;
+    service_match?: number;
+    company_type?: number;
+    geography_match?: number;
+  };
+  review_status?: 'confirmed' | 'rejected' | 'flagged';
+  review_note?: string;
+  reviewed_at?: string;
   html_snippet?: string;
   scraped_at?: string;
   analyzed_at?: string;
@@ -47,6 +57,7 @@ export interface SpendingInfo {
   yandex_cost: number;
   openai_tokens_used: number;
   openai_cost_estimate: number;
+  crona_credits_used: number;
   total_estimate: number;
 }
 

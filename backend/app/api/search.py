@@ -76,6 +76,11 @@ class ExportSheetResponse(BaseModel):
     sheet_url: str
 
 
+class ReviewRequest(BaseModel):
+    verdict: str = Field(..., description="confirmed, rejected, or flagged")
+    note: Optional[str] = Field(None, description="Optional review note")
+
+
 # ============ Query Generation ============
 
 @router.post("/generate-queries", response_model=GenerateQueriesResponse)
@@ -518,6 +523,72 @@ async def get_project_spending(
 
     spending = await company_search_service.get_project_spending(db, project_id)
     return SpendingInfo(**spending)
+
+
+# ============ Review Endpoints ============
+
+@router.post("/results/{result_id}/review")
+async def review_result(
+    result_id: int,
+    body: ReviewRequest,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Human confirms/rejects a single search result."""
+    from app.services.review_service import review_service
+
+    if body.verdict not in ("confirmed", "rejected", "flagged"):
+        raise HTTPException(status_code=400, detail="verdict must be: confirmed, rejected, or flagged")
+
+    # Verify result belongs to company's job
+    result = await db.execute(
+        select(SearchResult).where(SearchResult.id == result_id)
+    )
+    sr = result.scalar_one_or_none()
+    if not sr:
+        raise HTTPException(status_code=404, detail="Search result not found")
+
+    job_result = await db.execute(
+        select(SearchJob).where(
+            SearchJob.id == sr.search_job_id,
+            SearchJob.company_id == company.id,
+        )
+    )
+    if not job_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Search result not found")
+
+    sr = await review_service.manual_review(db, result_id, body.verdict, body.note)
+    await db.commit()
+
+    return {
+        "id": sr.id,
+        "review_status": sr.review_status,
+        "review_note": sr.review_note,
+        "is_target": sr.is_target,
+        "confidence": sr.confidence,
+    }
+
+
+@router.get("/jobs/{job_id}/review-summary")
+async def get_review_summary(
+    job_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get review statistics for a search job."""
+    from app.services.review_service import review_service
+
+    result = await db.execute(
+        select(SearchJob).where(
+            SearchJob.id == job_id,
+            SearchJob.company_id == company.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Search job not found")
+
+    summary = await review_service.get_review_summary(db, job_id)
+    return summary
 
 
 # ============ Google Sheet Export ============

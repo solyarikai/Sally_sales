@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     SEARCH_WORKERS: int = 2
     SEARCH_REQUEST_TIMEOUT: int = 30
 
+    # Crona API (website scraping via headless browser)
+    CRONA_API_URL: str = "https://api.crona.ai"
+    CRONA_EMAIL: Optional[str] = None
+    CRONA_PASSWORD: Optional[str] = None
+    CRONA_CREDITS_PER_SCRAPE: int = 1  # 1 credit per scrape_website call
+
     # Apollo API (people enrichment)
     APOLLO_API_KEY: Optional[str] = None
     APOLLO_API_URL: str = "https://api.apollo.io/api/v1"
