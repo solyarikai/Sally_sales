@@ -8,7 +8,7 @@ Provides:
 """
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Body, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, desc
+from sqlalchemy import select, and_, desc, String
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
@@ -580,7 +580,8 @@ async def smartlead_webhook(
     event_time = datetime.utcnow()
     if body.get("event_timestamp"):
         try:
-            event_time = datetime.fromisoformat(body["event_timestamp"].replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(body["event_timestamp"].replace("Z", "+00:00"))
+            event_time = parsed.replace(tzinfo=None)  # Store as naive UTC
         except:
             pass
     
@@ -614,12 +615,29 @@ async def smartlead_webhook(
         contact.has_replied = True
         contact.reply_channel = "email"
         contact.last_reply_at = event_time
-        contact.status = "replied"
-    
+        # Don't overwrite status with "replied" — use Smartlead category for proper classification
+        # Only upgrade status to "warm" if currently in an initial outreach state
+        if contact.status in (None, "", "new", "contacted", "lead"):
+            contact.status = "warm"
+
     # Update contact's Smartlead status from category
     if lead_data.get("category"):
         category = lead_data["category"]
+        cat_name = category.get("name", "").lower()
         contact.smartlead_status = category.get("name")
+        # Map Smartlead categories to proper CRM statuses
+        status_map = {
+            "interested": "warm",
+            "meeting booked": "warm",
+            "out of office": "out_of_office",
+            "not interested": "not_interested",
+            "wrong person": "not_interested",
+            "do not contact": "not_interested",
+            "auto reply": "out_of_office",
+        }
+        mapped = status_map.get(cat_name)
+        if mapped:
+            contact.status = mapped
     
     # Update smartlead_id if not set
     if lead_id and not contact.smartlead_id:
@@ -939,14 +957,78 @@ async def getsales_webhook(
         # Classify the reply
         from app.services.crm_sync_service import classify_reply, get_status_from_category, get_sentiment_from_category
         category = await classify_reply(message_text)
-        
+
         # Update activity with category
-        activity.extra_data["category"] = category
-        
+        if not is_duplicate:
+            activity.extra_data["category"] = category
+
         # Update contact status and sentiment
         contact.status = get_status_from_category(category)
         contact.reply_category = category
         contact.reply_sentiment = get_sentiment_from_category(category)
+
+        # Generate draft reply and create ProcessedReply for GetSales replies
+        try:
+            from app.services.reply_processor import generate_draft_reply
+            from app.models.reply import ProcessedReply, ReplyPromptTemplateModel
+
+            # Look up project-based prompt
+            custom_reply_prompt = None
+            flow_name_for_lookup = automation_data.get("name")
+            if flow_name_for_lookup:
+                from app.models.contact import Project
+                proj_result = await session.execute(
+                    select(Project).where(
+                        and_(
+                            Project.campaign_filters.cast(String).ilike(f'%{flow_name_for_lookup}%'),
+                            Project.reply_prompt_template_id.isnot(None),
+                            Project.deleted_at.is_(None),
+                        )
+                    ).limit(1)
+                )
+                proj = proj_result.scalar()
+                if proj and proj.reply_prompt_template_id:
+                    tmpl_result = await session.execute(
+                        select(ReplyPromptTemplateModel).where(
+                            ReplyPromptTemplateModel.id == proj.reply_prompt_template_id
+                        )
+                    )
+                    tmpl = tmpl_result.scalar()
+                    if tmpl:
+                        custom_reply_prompt = tmpl.prompt_text
+                        logger.info(f"[GETSALES] Using project prompt from '{proj.name}'")
+
+            draft = await generate_draft_reply(
+                subject="LinkedIn conversation",
+                body=message_text,
+                category=category,
+                first_name=contact_data.get("first_name", ""),
+                last_name=contact_data.get("last_name", ""),
+                company=account_data.get("name", ""),
+                custom_prompt=custom_reply_prompt,
+            )
+
+            processed_reply = ProcessedReply(
+                campaign_id=automation_data.get("uuid"),
+                campaign_name=automation_data.get("name"),
+                lead_email=contact.email,
+                lead_first_name=contact_data.get("first_name"),
+                lead_last_name=contact_data.get("last_name"),
+                lead_company=account_data.get("name"),
+                email_subject="LinkedIn conversation",
+                email_body=message_text,
+                reply_text=message_text,
+                received_at=activity_at,
+                category=category,
+                category_confidence="medium",
+                draft_reply=draft.get("body"),
+                draft_subject=draft.get("subject"),
+                raw_webhook_data=body,
+            )
+            session.add(processed_reply)
+            logger.info(f"[GETSALES] Created ProcessedReply for {contact.email}")
+        except Exception as draft_err:
+            logger.warning(f"[GETSALES] Draft reply generation failed (non-fatal): {draft_err}")
         
         # Append to touches JSON
         from datetime import datetime as dt
@@ -1037,9 +1119,10 @@ async def getsales_webhook(
     
     return {
         "status": "processed",
-        "activity_id": activity.id,
+        "activity_id": activity.id if not is_duplicate else None,
         "contact_id": contact.id,
-        "is_reply": is_reply
+        "is_reply": is_reply,
+        "is_duplicate": is_duplicate,
     }
 
 

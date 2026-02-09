@@ -1,176 +1,166 @@
-"""API endpoint to serve tasks from state/tasks.md file."""
-import os
-import re
-from fastapi import APIRouter
-from typing import List, Optional
+"""API endpoints for operator tasks (CRM task management)."""
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, and_
+from typing import Optional, List
+from datetime import datetime
 import logging
+
+from app.db import get_session
+from app.models.task import OperatorTask
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-class SubTask(BaseModel):
-    text: str
-    completed: bool
+# ============= Schemas =============
 
-
-class Task(BaseModel):
-    id: int
+class TaskCreate(BaseModel):
+    project_id: Optional[int] = None
+    contact_id: Optional[int] = None
+    task_type: str = "manual"
     title: str
-    description: str
-    priority: str  # immediate, high, medium, low
-    status: str  # completed, in-progress, pending
-    subtasks: List[SubTask]
+    description: Optional[str] = None
+    due_at: Optional[datetime] = None
+    contact_email: Optional[str] = None
+    contact_name: Optional[str] = None
 
 
-class TasksResponse(BaseModel):
-    tasks: List[Task]
+class TaskUpdate(BaseModel):
+    status: Optional[str] = None  # pending, done, skipped
+    title: Optional[str] = None
+    description: Optional[str] = None
+    due_at: Optional[datetime] = None
+
+
+class TaskResponse(BaseModel):
+    id: int
+    project_id: Optional[int] = None
+    contact_id: Optional[int] = None
+    task_type: str
+    title: str
+    description: Optional[str] = None
+    due_at: datetime
+    status: str
+    contact_email: Optional[str] = None
+    contact_name: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TasksListResponse(BaseModel):
+    tasks: List[TaskResponse]
     total: int
-    completed: int
     pending: int
-    total_subtasks: int
-    completed_subtasks: int
+    done: int
 
 
-def parse_tasks_md(content: str) -> List[Task]:
-    """Parse tasks.md content into structured Task objects."""
-    tasks = []
-    current_priority = "medium"
-    current_task = None
-    task_id = 0
-    
-    lines = content.split('\n')
-    i = 0
-    
-    while i < len(lines):
-        line = lines[i]
-        
-        # Detect priority sections
-        if line.startswith('## Priority:'):
-            priority_match = re.search(r'Priority:\s*(\w+)', line, re.IGNORECASE)
-            if priority_match:
-                current_priority = priority_match.group(1).lower()
-        
-        # Detect task headers (### Task N: Title or ### Title)
-        elif line.startswith('### '):
-            # Save previous task if exists
-            if current_task:
-                tasks.append(current_task)
-            
-            # Parse task title
-            title_match = re.match(r'### Task (\d+):\s*(.+)', line)
-            if title_match:
-                task_id = int(title_match.group(1))
-                title = title_match.group(2).strip()
-            else:
-                task_id += 1
-                title = line[4:].strip()
-            
-            # Check if marked complete in title
-            is_complete = '✅' in line or 'COMPLETE' in line.upper()
-            
-            # Remove markers from title
-            title = re.sub(r'\s*✅.*', '', title).strip()
-            title = re.sub(r'\s*\(.*?\)', '', title).strip()
-            
-            current_task = Task(
-                id=task_id,
-                title=title,
-                description='',
-                priority=current_priority,
-                status='completed' if is_complete else 'pending',
-                subtasks=[]
-            )
-        
-        # Parse description (line after task header, before subtasks)
-        elif current_task and not line.startswith('-') and not line.startswith('#') and line.strip() and not current_task.subtasks:
-            if not current_task.description:
-                current_task.description = line.strip()
-        
-        # Parse subtasks (lines starting with - [ ] or - [x])
-        elif current_task and line.strip().startswith('- ['):
-            checkbox_match = re.match(r'- \[([ xX])\]\s*(.+)', line.strip())
-            if checkbox_match:
-                is_checked = checkbox_match.group(1).lower() == 'x'
-                subtask_text = checkbox_match.group(2)
-                # Remove trailing markers like ✅ or dates
-                subtask_text = re.sub(r'\s*✅.*', '', subtask_text).strip()
-                
-                current_task.subtasks.append(SubTask(
-                    text=subtask_text,
-                    completed=is_checked
-                ))
-        
-        i += 1
-    
-    # Add last task
-    if current_task:
-        tasks.append(current_task)
-    
-    # Update task status based on subtasks
-    for task in tasks:
-        if task.subtasks:
-            completed_count = sum(1 for s in task.subtasks if s.completed)
-            if completed_count == len(task.subtasks):
-                task.status = 'completed'
-            elif completed_count > 0:
-                task.status = 'in-progress'
-            else:
-                task.status = 'pending'
-    
-    return tasks
+# ============= Endpoints =============
 
+@router.get("", response_model=TasksListResponse)
+async def list_tasks(
+    project_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
+    contact_id: Optional[int] = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    session: AsyncSession = Depends(get_session),
+):
+    """List tasks, filterable by project, status, contact."""
+    query = select(OperatorTask)
 
-@router.get("", response_model=TasksResponse)
-async def get_tasks():
-    """Get all tasks from state/tasks.md file."""
-    
-    # Try multiple paths to find tasks.md
-    possible_paths = [
-        '/app/state/tasks.md',          # Inside Docker container
-        'state/tasks.md',                # Relative path
-        '../state/tasks.md',             # From backend dir
-        '/home/leadokol/magnum-opus-project/repo/state/tasks.md',  # Absolute path
-    ]
-    
-    content = None
-    for path in possible_paths:
-        try:
-            if os.path.exists(path):
-                with open(path, 'r') as f:
-                    content = f.read()
-                logger.info(f"Loaded tasks from: {path}")
-                break
-        except Exception as e:
-            logger.debug(f"Could not read {path}: {e}")
-    
-    if not content:
-        logger.warning("Could not find tasks.md file")
-        return TasksResponse(
-            tasks=[],
-            total=0,
-            completed=0,
-            pending=0,
-            total_subtasks=0,
-            completed_subtasks=0
-        )
-    
-    tasks = parse_tasks_md(content)
-    
-    # Calculate stats
+    conditions = []
+    if project_id is not None:
+        conditions.append(OperatorTask.project_id == project_id)
+    if status:
+        conditions.append(OperatorTask.status == status)
+    if contact_id is not None:
+        conditions.append(OperatorTask.contact_id == contact_id)
+
+    if conditions:
+        query = query.where(and_(*conditions))
+
+    query = query.order_by(OperatorTask.due_at.asc()).limit(limit)
+
+    result = await session.execute(query)
+    tasks = result.scalars().all()
+
+    # Stats
     total = len(tasks)
-    completed = sum(1 for t in tasks if t.status == 'completed')
-    pending = total - completed
-    total_subtasks = sum(len(t.subtasks) for t in tasks)
-    completed_subtasks = sum(sum(1 for s in t.subtasks if s.completed) for t in tasks)
-    
-    return TasksResponse(
-        tasks=tasks,
+    pending = sum(1 for t in tasks if t.status == "pending")
+    done = sum(1 for t in tasks if t.status == "done")
+
+    return TasksListResponse(
+        tasks=[TaskResponse.model_validate(t) for t in tasks],
         total=total,
-        completed=completed,
         pending=pending,
-        total_subtasks=total_subtasks,
-        completed_subtasks=completed_subtasks
+        done=done,
     )
+
+
+@router.post("", response_model=TaskResponse)
+async def create_task(
+    task: TaskCreate,
+    session: AsyncSession = Depends(get_session),
+):
+    """Create a new task."""
+    db_task = OperatorTask(
+        project_id=task.project_id,
+        contact_id=task.contact_id,
+        task_type=task.task_type,
+        title=task.title,
+        description=task.description,
+        due_at=task.due_at or datetime.utcnow(),
+        contact_email=task.contact_email,
+        contact_name=task.contact_name,
+    )
+    session.add(db_task)
+    await session.commit()
+    await session.refresh(db_task)
+    return TaskResponse.model_validate(db_task)
+
+
+@router.patch("/{task_id}", response_model=TaskResponse)
+async def update_task(
+    task_id: int,
+    updates: TaskUpdate,
+    session: AsyncSession = Depends(get_session),
+):
+    """Update a task (mark done/skipped, edit title, etc.)."""
+    result = await session.execute(
+        select(OperatorTask).where(OperatorTask.id == task_id)
+    )
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    update_data = updates.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(task, key, value)
+
+    task.updated_at = datetime.utcnow()
+    await session.commit()
+    await session.refresh(task)
+    return TaskResponse.model_validate(task)
+
+
+@router.delete("/{task_id}")
+async def delete_task(
+    task_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete a task."""
+    result = await session.execute(
+        select(OperatorTask).where(OperatorTask.id == task_id)
+    )
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    await session.delete(task)
+    await session.commit()
+    return {"success": True}

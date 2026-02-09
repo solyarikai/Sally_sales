@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import type { 
-  ColDef, 
+import type {
+  ColDef,
   GridReadyEvent,
   SelectionChangedEvent,
   GridApi,
@@ -15,62 +15,96 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 const AG_GRID_THEME = "legacy";
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-import { 
-  Users, Search, Download, Trash2, RefreshCw, 
-  Plus, X, FolderOpen, Sparkles, FileText, Target, Mail, Loader2, ChevronRight, ChevronDown, Upload, AlertCircle, Check
+import {
+  Users, Search, Download, Trash2, RefreshCw,
+  Plus, X, FolderOpen, Sparkles, FileText, Target, Mail, Loader2, ChevronRight, ChevronDown, Upload, AlertCircle, Check,
+  MessageSquare, ListTodo, Save, Edit3, ChevronLeft
 } from 'lucide-react';
-import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult } from '../api';
+import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type OperatorTask } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
+import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter } from '../components/filters';
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
+
+// Status configuration — proper lead statuses (no "replied" — that's a flag, not a status)
+const STATUS_CONFIG: Record<string, { dot: string; label: string; colors: string }> = {
+  touched:           { dot: 'bg-blue-500',    label: 'Touched',         colors: 'bg-blue-100 text-blue-700' },
+  warm:              { dot: 'bg-amber-500',   label: 'Warm',            colors: 'bg-amber-100 text-amber-700' },
+  not_interested:    { dot: 'bg-gray-400',    label: 'Not Interested',  colors: 'bg-gray-100 text-gray-600' },
+  wrong_person:      { dot: 'bg-red-400',     label: 'Wrong Person',    colors: 'bg-red-100 text-red-600' },
+  out_of_office:     { dot: 'bg-yellow-400',  label: 'OOO',             colors: 'bg-yellow-100 text-yellow-700' },
+  other:             { dot: 'bg-purple-400',  label: 'Other',           colors: 'bg-purple-100 text-purple-600' },
+  qualified:         { dot: 'bg-emerald-500', label: 'Qualified',       colors: 'bg-emerald-100 text-emerald-700' },
+  customer:          { dot: 'bg-emerald-600', label: 'Customer',        colors: 'bg-emerald-100 text-emerald-700' },
+  lost:              { dot: 'bg-red-500',     label: 'Lost',            colors: 'bg-red-100 text-red-600' },
+};
 
 export function ContactsPage() {
   const gridRef = useRef<AgGridReact>(null);
   const [, setGridApi] = useState<GridApi | null>(null);
   const toast = useToast();
-  
+
   // Data
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [stats, setStats] = useState<ContactStats | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Filters
+
+  // Filters — compact command-bar style
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [projectFilter, setProjectFilter] = useState<number | null>(null);
-  const [segmentFilter, setSegmentFilter] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
-  const [repliedFilter, setRepliedFilter] = useState<boolean | null>(null);
-  const [smartleadFilter, setSmartleadFilter] = useState<boolean | null>(null);
-  const [getsalesFilter, setGetsalesFilter] = useState<boolean | null>(null);
-  const [campaignFilter, setCampaignFilter] = useState<string>('');
-  const [followupFilter, setFollowupFilter] = useState<boolean | null>(null);
+  const [campaignFilters, setCampaignFilters] = useState<string[]>([]);
+  const [campaignSearch, setCampaignSearch] = useState('');
+  const [campaignDropdownOpen, setCampaignDropdownOpen] = useState(false);
+  const campaignRef = useRef<HTMLDivElement>(null);
   const [campaigns, setCampaigns] = useState<Array<{name: string, source: string}>>([]);
-  
+  const [followupFilter, setFollowupFilter] = useState<boolean | null>(null);
+  const [repliedFilter, setRepliedFilter] = useState<boolean | null>(null);
+
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
-  
+
+  // Project view
+  const [activeProject, setActiveProject] = useState<Project | null>(null);
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const projectRef = useRef<HTMLDivElement>(null);
+  const [showSaveProjectForm, setShowSaveProjectForm] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [editingProject, setEditingProject] = useState(false);
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editCampaignFilters, setEditCampaignFilters] = useState<string[]>([]);
+
+  // Reply processing mode
+  const [replyMode, setReplyMode] = useState(false);
+  const [replyContactIndex, setReplyContactIndex] = useState(0);
+  const [processedContacts, setProcessedContacts] = useState<Set<number>>(new Set());
+
+  // Tasks
+  const [showTasksPanel, setShowTasksPanel] = useState(false);
+  const [tasks, setTasks] = useState<OperatorTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+
   // Pagination & Sorting
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  
+
   // Selection
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
-  
+
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
-  
+
   // Dialogs
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -88,6 +122,80 @@ export function ContactsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Close dropdowns on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (campaignRef.current && !campaignRef.current.contains(e.target as Node)) {
+        setCampaignDropdownOpen(false);
+      }
+      if (projectRef.current && !projectRef.current.contains(e.target as Node)) {
+        setProjectDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Load processed contacts from localStorage
+  useEffect(() => {
+    if (activeProject) {
+      const key = `project:${activeProject.id}:processed`;
+      try {
+        const stored = localStorage.getItem(key);
+        if (stored) setProcessedContacts(new Set(JSON.parse(stored)));
+        else setProcessedContacts(new Set());
+      } catch { setProcessedContacts(new Set()); }
+    } else {
+      setProcessedContacts(new Set());
+    }
+  }, [activeProject]);
+
+  // Save processed contacts to localStorage
+  const markProcessed = useCallback((contactId: number) => {
+    setProcessedContacts(prev => {
+      const next = new Set(prev);
+      next.add(contactId);
+      if (activeProject) {
+        localStorage.setItem(`project:${activeProject.id}:processed`, JSON.stringify([...next]));
+      }
+      return next;
+    });
+  }, [activeProject]);
+
+  // Load tasks for active project
+  const loadTasks = useCallback(async () => {
+    if (!activeProject) return;
+    setTasksLoading(true);
+    try {
+      const data = await contactsApi.listTasks({ project_id: activeProject.id });
+      setTasks(data.tasks);
+    } catch (err) {
+      console.error('Failed to load tasks:', err);
+    } finally {
+      setTasksLoading(false);
+    }
+  }, [activeProject]);
+
+  // Filtered campaigns for autocomplete
+  const filteredCampaigns = useMemo(() => {
+    if (!campaignSearch) return campaigns.slice(0, 100);
+    const q = campaignSearch.toLowerCase();
+    // Prioritize prefix matches
+    const prefix = campaigns.filter(c => c.name.toLowerCase().startsWith(q));
+    const contains = campaigns.filter(c => !c.name.toLowerCase().startsWith(q) && c.name.toLowerCase().includes(q));
+    return [...prefix, ...contains].slice(0, 100);
+  }, [campaigns, campaignSearch]);
+
+  const resetPage = useCallback(() => setPage(1), []);
+  const toggleCampaign = useCallback((name: string) => {
+    setCampaignFilters(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+    setPage(1);
+  }, []);
+  const toggleStatus = useCallback((status: string) => {
+    setStatusFilters(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]);
+    setPage(1);
+  }, []);
+
   // Load data
   const loadContacts = useCallback(async () => {
     setIsLoading(true);
@@ -98,17 +206,14 @@ export function ContactsPage() {
         sort_by: sortBy,
         sort_order: sortOrder,
         search: debouncedSearch || undefined,
-        project_id: projectFilter || undefined,
-        segment: segmentFilter || undefined,
-        status: statusFilter || undefined,
+        status: statusFilters.length > 0 ? statusFilters.join(',') : undefined,
         source: sourceFilter || undefined,
-        has_replied: repliedFilter ?? undefined,
-        has_smartlead: smartleadFilter ?? undefined,
-        has_getsales: getsalesFilter ?? undefined,
-        campaign: campaignFilter || undefined,
+        campaign: (!activeProject && campaignFilters.length > 0) ? campaignFilters.join(',') : undefined,
+        has_replied: replyMode ? true : (repliedFilter ?? undefined),
         needs_followup: followupFilter ?? undefined,
+        project_id: activeProject?.id,
       });
-      
+
       setContacts(response.contacts);
       setTotal(response.total);
     } catch (err) {
@@ -117,7 +222,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, projectFilter, segmentFilter, statusFilter, sourceFilter, repliedFilter, smartleadFilter, getsalesFilter, campaignFilter, followupFilter, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, campaignFilters, repliedFilter, followupFilter, replyMode, activeProject, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -148,7 +253,6 @@ export function ContactsPage() {
       setStats(data);
     } catch (err) {
       console.error('Failed to load stats:', err);
-      // Silent fail - stats are not critical
     }
   };
 
@@ -158,7 +262,6 @@ export function ContactsPage() {
       setFilterOptions(data);
     } catch (err) {
       console.error('Failed to load filter options:', err);
-      // Silent fail - filter options are not critical
     }
   };
 
@@ -179,37 +282,53 @@ export function ContactsPage() {
       pinned: 'left',
       lockPosition: true,
       suppressHeaderMenuButton: true,
+      filter: false,
     },
+    ...(replyMode ? [{
+      headerName: 'Done',
+      width: 60,
+      pinned: 'left' as const,
+      filter: false,
+      sortable: false,
+      cellRenderer: (params: { data: Contact }) => {
+        const done = processedContacts.has(params.data?.id);
+        return (
+          <span className={cn("inline-flex items-center justify-center w-5 h-5 rounded", done ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-300")}>
+            <Check className="w-3.5 h-3.5" />
+          </span>
+        );
+      },
+    }] : []),
     {
       field: 'status',
       headerName: 'Status',
-      width: 110,
+      width: 120,
       sortable: true,
-      cellStyle: (params) => {
-        const colors: Record<string, {bg: string, text: string}> = {
-          lead: { bg: '#f3f4f6', text: '#374151' },
-          contacted: { bg: '#dbeafe', text: '#1d4ed8' },
-          replied: { bg: '#dcfce7', text: '#15803d' },
-          qualified: { bg: '#f3e8ff', text: '#7c3aed' },
-          customer: { bg: '#d1fae5', text: '#047857' },
-          lost: { bg: '#fee2e2', text: '#dc2626' },
-        };
-        const c = colors[params.value] || colors.lead;
-        return { backgroundColor: c.bg, color: c.text, padding: '2px 8px', borderRadius: '4px', fontSize: '12px' };
-      }
+      filter: StatusColumnFilter,
+      cellRenderer: (params: { value: string }) => {
+        const cfg = STATUS_CONFIG[params.value];
+        return cfg ? (
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.colors}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+            {cfg.label}
+          </span>
+        ) : <span className="text-xs text-gray-400">—</span>;
+      },
     },
     {
       field: 'email',
       headerName: 'Email',
       filter: 'agTextColumnFilter',
       sortable: true,
-      width: 220,
+      flex: 2,
+      minWidth: 180,
     },
     {
       headerName: 'Name',
       filter: 'agTextColumnFilter',
       sortable: true,
-      width: 180,
+      flex: 1.5,
+      minWidth: 140,
       valueGetter: (params) => {
         const c = params.data as Contact;
         return `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || '-';
@@ -220,14 +339,56 @@ export function ContactsPage() {
       headerName: 'Company',
       filter: 'agTextColumnFilter',
       sortable: true,
-      width: 180,
+      flex: 1.5,
+      minWidth: 130,
     },
     {
       field: 'job_title',
       headerName: 'Title',
       filter: 'agTextColumnFilter',
       sortable: true,
-      width: 180,
+      flex: 1,
+      minWidth: 120,
+    },
+    {
+      headerName: 'Campaign',
+      filter: CampaignColumnFilter,
+      sortable: true,
+      flex: 1.5,
+      minWidth: 140,
+      valueGetter: (params) => {
+        const c = params.data as Contact;
+        if (!c?.campaigns || c.campaigns.length === 0) return '';
+        return c.campaigns.map(camp => camp.name).join(', ');
+      },
+      cellRenderer: (params: { value: string; data: Contact }) => {
+        const camps = params.data?.campaigns;
+        if (!camps || camps.length === 0) return <span className="text-xs text-gray-400">—</span>;
+        const first = camps[0];
+        return (
+          <span className="inline-flex items-center gap-1 text-xs">
+            <span className={cn(
+              "shrink-0 w-1.5 h-1.5 rounded-full",
+              first.source === 'smartlead' ? "bg-blue-500" : "bg-amber-500"
+            )} />
+            <span className="truncate">{first.name}</span>
+            {camps.length > 1 && (
+              <span className="shrink-0 text-[10px] text-neutral-400">+{camps.length - 1}</span>
+            )}
+          </span>
+        );
+      },
+    },
+    {
+      field: 'source',
+      headerName: 'Source',
+      filter: 'agTextColumnFilter',
+      sortable: true,
+      width: 90,
+      cellRenderer: (params: { value: string }) => {
+        const label = params.value === 'smartlead' ? 'Email' : params.value === 'getsales' ? 'LinkedIn' : (params.value || '-');
+        return <span className="text-xs">{label}</span>;
+      },
     },
     {
       field: 'segment',
@@ -238,6 +399,25 @@ export function ContactsPage() {
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
     {
+      field: 'location',
+      headerName: 'Location',
+      filter: 'agTextColumnFilter',
+      sortable: true,
+      width: 130,
+      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
+    },
+    {
+      field: 'created_at',
+      headerName: 'Added',
+      sortable: true,
+      width: 95,
+      filter: 'agDateColumnFilter',
+      valueFormatter: (params: ValueFormatterParams) => {
+        if (!params.value) return '-';
+        return new Date(params.value).toLocaleDateString();
+      },
+    },
+    {
       field: 'project_name',
       headerName: 'Project',
       filter: 'agTextColumnFilter',
@@ -245,35 +425,15 @@ export function ContactsPage() {
       width: 130,
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
-    {
-      field: 'source',
-      headerName: 'Source',
-      sortable: true,
-      width: 100,
-    },
-    {
-      field: 'location',
-      headerName: 'Location',
-      filter: 'agTextColumnFilter',
-      width: 140,
-      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
-    },
-    {
-      field: 'created_at',
-      headerName: 'Added',
-      sortable: true,
-      width: 100,
-      valueFormatter: (params: ValueFormatterParams) => {
-        if (!params.value) return '-';
-        return new Date(params.value).toLocaleDateString();
-      }
-    },
   ], []);
 
   // Default column settings
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
     suppressMovable: false,
+    filter: 'agTextColumnFilter',
+    floatingFilter: false,
+    filterParams: { debounceMs: 300 },
   }), []);
 
   // Grid events
@@ -299,7 +459,7 @@ export function ContactsPage() {
     try {
       const ids = selectedContacts.length > 0 ? selectedContacts.map(c => c.id) : undefined;
       const blob = await contactsApi.exportCsv(ids);
-      
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -317,7 +477,7 @@ export function ContactsPage() {
 
   const handleDeleteSelected = () => {
     if (selectedContacts.length === 0) return;
-    
+
     setConfirmDialog({
       isOpen: true,
       title: 'Delete Contacts',
@@ -334,7 +494,7 @@ export function ContactsPage() {
           toast.error('Delete failed', getErrorMessage(err));
         }
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-      }
+      },
     });
   };
 
@@ -345,282 +505,509 @@ export function ContactsPage() {
   };
 
   const clearFilters = () => {
-    setProjectFilter(null);
-    setSegmentFilter(null);
-    setStatusFilter(null);
+    setStatusFilters([]);
     setSourceFilter(null);
+    setCampaignFilters([]);
+    setFollowupFilter(null);
+    setRepliedFilter(null);
     setSearch('');
+    setReplyMode(false);
+    gridRef.current?.api?.setFilterModel(null);
   };
 
-  const hasActiveFilters = projectFilter || segmentFilter || statusFilter || sourceFilter || repliedFilter !== null || smartleadFilter !== null || getsalesFilter !== null || campaignFilter || followupFilter !== null || search;
+  // Select a project
+  const selectProject = (project: Project | null) => {
+    setActiveProject(project);
+    setProjectDropdownOpen(false);
+    setReplyMode(false);
+    setShowTasksPanel(false);
+    setPage(1);
+    if (project?.campaign_filters && project.campaign_filters.length > 0) {
+      setCampaignFilters(project.campaign_filters);
+    }
+  };
+
+  // Save current campaign filter as project
+  const handleSaveAsProject = async () => {
+    if (!newProjectName.trim() || campaignFilters.length === 0) return;
+    try {
+      const created = await contactsApi.createProject({
+        name: newProjectName.trim(),
+        campaign_filters: campaignFilters,
+      });
+      await loadProjects();
+      selectProject(created);
+      setShowSaveProjectForm(false);
+      setNewProjectName('');
+      toast.success('Project created', `"${created.name}" saved with campaign filter`);
+    } catch (err) {
+      toast.error('Failed to create project', getErrorMessage(err));
+    }
+  };
+
+  // Update project filters
+  const handleUpdateProject = async () => {
+    if (!activeProject) return;
+    try {
+      const updated = await contactsApi.updateProject(activeProject.id, {
+        name: editProjectName.trim() || activeProject.name,
+        campaign_filters: editCampaignFilters,
+      });
+      setActiveProject({ ...activeProject, ...updated, campaign_filters: editCampaignFilters });
+      setEditingProject(false);
+      await loadProjects();
+      toast.success('Project updated');
+    } catch (err) {
+      toast.error('Failed to update project', getErrorMessage(err));
+    }
+  };
+
+  // Reply contacts (contacts with replies, not yet processed)
+  const replyContacts = useMemo(() => {
+    if (!replyMode) return [];
+    return contacts.filter(c => c.has_replied && !processedContacts.has(c.id));
+  }, [contacts, replyMode, processedContacts]);
+
+  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || campaignFilters.length > 0 || followupFilter !== null || repliedFilter !== null || search || replyMode;
   const totalPages = Math.ceil(total / pageSize);
 
-  return (
-    <div className="h-full flex flex-col bg-neutral-50">
-      {/* Header */}
-      <div className="bg-white border-b border-neutral-200 px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-              <Users className="w-5 h-5 text-indigo-600" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-neutral-900">CRM Contacts</h1>
-              <p className="text-sm text-neutral-500">
-                {formatNumber(total)} contacts in your database
-              </p>
-            </div>
-          </div>
+  const filterCtx = useMemo(() => ({
+    campaignFilters,
+    setCampaignFilters: (names: string[]) => { setCampaignFilters(names); setPage(1); },
+    toggleCampaign,
+    statusFilters,
+    setStatusFilters: (statuses: string[]) => { setStatusFilters(statuses); setPage(1); },
+    toggleStatus,
+    campaigns,
+    stats,
+    resetPage,
+  }), [campaignFilters, toggleCampaign, statusFilters, toggleStatus, campaigns, stats, resetPage]);
 
-          <div className="flex items-center gap-2">
-            <button onClick={handleRefresh} className="btn btn-secondary btn-sm">
-              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-            </button>
-            <button onClick={() => setShowProjectModal(true)} className="btn btn-secondary">
-              <FolderOpen className="w-4 h-4" />
-              Projects
-            </button>
-            <button onClick={() => setShowAddModal(true)} className="btn btn-primary">
-              <Plus className="w-4 h-4" />
-              Add Contact
-            </button>
-            <button onClick={() => setShowImportModal(true)} className="btn btn-secondary">
-              <Upload className="w-4 h-4" />
-              Import
-            </button>
-            <button onClick={handleExportCsv} className="btn btn-secondary">
-              <Download className="w-4 h-4" />
-              Export
-            </button>
-            {selectedContacts.length > 0 && (
-              <button onClick={handleDeleteSelected} className="btn btn-secondary text-red-600 hover:bg-red-50">
-                <Trash2 className="w-4 h-4" />
-                ({selectedContacts.length})
+  return (
+    <ContactsFilterContext.Provider value={filterCtx}>
+    <div className="h-full flex flex-col bg-neutral-50">
+      {/* Command bar — single row */}
+      <div className="bg-white border-b border-neutral-200 px-5 py-2.5">
+        <div className="flex items-center gap-2">
+          {/* Title / Project name + count */}
+          {activeProject ? (
+            <>
+              <button onClick={() => { selectProject(null); clearFilters(); }} className="p-1 hover:bg-neutral-100 rounded" title="Back to all contacts">
+                <ChevronLeft className="w-4 h-4 text-neutral-500" />
               </button>
+              {editingProject ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <input
+                    value={editProjectName}
+                    onChange={(e) => setEditProjectName(e.target.value)}
+                    className="text-sm font-semibold border border-indigo-300 rounded px-2 py-0.5 w-40"
+                    autoFocus
+                  />
+                  <button onClick={handleUpdateProject} className="p-1 hover:bg-green-100 rounded text-green-600"><Check className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => setEditingProject(false)} className="p-1 hover:bg-neutral-100 rounded text-neutral-500"><X className="w-3.5 h-3.5" /></button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setEditingProject(true); setEditProjectName(activeProject.name); setEditCampaignFilters(activeProject.campaign_filters || []); }}
+                  className="text-base font-semibold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 shrink-0"
+                >
+                  {activeProject.name}
+                  <Edit3 className="w-3 h-3 text-indigo-400" />
+                </button>
+              )}
+            </>
+          ) : (
+            <h1 className="text-base font-semibold text-neutral-900 shrink-0">CRM Contacts</h1>
+          )}
+          <span className="text-sm text-neutral-400 font-medium shrink-0">{formatNumber(total)}</span>
+
+          {/* Project selector */}
+          <div className="relative shrink-0" ref={projectRef}>
+            <button
+              onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
+              className={cn(
+                "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                activeProject
+                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                  : "bg-white text-gray-600 border-neutral-200 hover:border-indigo-400"
+              )}
+            >
+              <FolderOpen className="w-3 h-3" />
+              {activeProject ? 'Switch' : 'Projects'}
+            </button>
+            {projectDropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-xl shadow-lg border border-neutral-200 z-50 overflow-hidden">
+                <div className="max-h-48 overflow-auto">
+                  {projects.length === 0 ? (
+                    <div className="px-3 py-4 text-xs text-neutral-400 text-center">No projects yet</div>
+                  ) : (
+                    projects.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => selectProject(p)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 flex items-center justify-between",
+                          activeProject?.id === p.id && "bg-indigo-50 text-indigo-700"
+                        )}
+                      >
+                        <span className="truncate">{p.name}</span>
+                        <span className="text-neutral-400 text-[10px]">{p.contact_count}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
             )}
           </div>
-        </div>
 
-        {/* Stats */}
-        {stats && (
-          <div className="flex items-center gap-2 flex-wrap mb-4">
-            <StatCard label="Total" value={formatNumber(stats.total)} />
-            {Object.entries(stats.by_status || {}).slice(0, 5).map(([status, count]) => (
-              <StatCard 
-                key={status} 
-                label={status} 
-                value={formatNumber(count)} 
-                color={status === 'qualified' ? 'purple' : status === 'replied' ? 'green' : status === 'contacted' ? 'blue' : 'gray'}
-              />
-            ))}
-          </div>
-        )}
+          {/* Reply mode button (only inside a project) */}
+          {activeProject && (
+            <button
+              onClick={() => { setReplyMode(!replyMode); setPage(1); }}
+              className={cn(
+                "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
+                replyMode
+                  ? "bg-purple-500 text-white border-purple-500"
+                  : "bg-white text-purple-600 border-purple-200 hover:border-purple-400"
+              )}
+            >
+              <MessageSquare className="w-3 h-3" />
+              Reply
+            </button>
+          )}
 
-        {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+          {/* Tasks button (only inside a project) */}
+          {activeProject && (
+            <button
+              onClick={() => { setShowTasksPanel(!showTasksPanel); if (!showTasksPanel) loadTasks(); }}
+              className={cn(
+                "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
+                showTasksPanel
+                  ? "bg-amber-500 text-white border-amber-500"
+                  : "bg-white text-amber-600 border-amber-200 hover:border-amber-400"
+              )}
+            >
+              <ListTodo className="w-3 h-3" />
+              Tasks
+            </button>
+          )}
+
+          {/* Search */}
+          <div className="relative flex-1 max-w-xs ml-2">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
             <input
               type="text"
               placeholder="Search contacts..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="input pl-9 w-full text-sm"
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-neutral-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>
-          
-          {filterOptions && (
-            <>
-              <select
-                value={projectFilter || ''}
-                onChange={(e) => setProjectFilter(e.target.value ? Number(e.target.value) : null)}
-                className="input text-sm min-w-[140px]"
-              >
-                <option value="">All Projects</option>
-                {(filterOptions.projects || []).map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
 
-              <select
-                value={segmentFilter || ''}
-                onChange={(e) => setSegmentFilter(e.target.value || null)}
-                className="input text-sm min-w-[130px]"
-              >
-                <option value="">All Segments</option>
-                {(filterOptions.segments || []).map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-
-              <select
-                value={statusFilter || ''}
-                onChange={(e) => setStatusFilter(e.target.value || null)}
-                className="input text-sm min-w-[120px]"
-              >
-                <option value="">All Statuses</option>
-                {(filterOptions.statuses || []).map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-
-
-            </>
-          )}
-
-          {/* Replied Toggle */}
+          {/* Replied */}
           <button
-            onClick={() => setRepliedFilter(repliedFilter === true ? null : true)}
-            className={repliedFilter === true 
-              ? "px-3 py-2 border rounded-lg text-sm font-medium bg-green-500 text-white border-green-500" 
-              : "px-3 py-2 border rounded-lg text-sm font-medium bg-white text-gray-700 hover:bg-green-50"
-            }
+            onClick={() => { setRepliedFilter(repliedFilter === true ? null : true); setPage(1); }}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
+              repliedFilter === true
+                ? "bg-green-500 text-white border-green-500"
+                : "bg-white text-green-600 border-green-200 hover:border-green-400"
+            )}
           >
             Replied
+            {stats && (stats.by_status?.replied || 0) > 0 && (
+              <span className={cn(
+                "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                repliedFilter === true
+                  ? "bg-green-400 text-white"
+                  : "bg-green-100 text-green-600"
+              )}>
+                {stats.by_status?.replied || 0}
+              </span>
+            )}
           </button>
 
-          {/* Channel Filter - Email (Smartlead) / LinkedIn (GetSales) */}
-          <select
-            className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            value={
-              smartleadFilter === true && getsalesFilter === null ? 'email' :
-              getsalesFilter === true && smartleadFilter === null ? 'linkedin' :
-              smartleadFilter === true && getsalesFilter === true ? 'both' : ''
-            }
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === 'email') {
-                setSmartleadFilter(true);
-                setGetsalesFilter(null);
-              } else if (val === 'linkedin') {
-                setSmartleadFilter(null);
-                setGetsalesFilter(true);
-              } else if (val === 'both') {
-                setSmartleadFilter(true);
-                setGetsalesFilter(true);
-              } else {
-                setSmartleadFilter(null);
-                setGetsalesFilter(null);
-              }
-            }}
+          {/* Follow-up */}
+          <button
+            onClick={() => { setFollowupFilter(followupFilter === true ? null : true); setPage(1); }}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
+              followupFilter === true
+                ? "bg-orange-500 text-white border-orange-500"
+                : "bg-white text-gray-600 border-gray-300 hover:border-orange-400"
+            )}
           >
-            <option value="">All Channels</option>
-            <option value="email">📧 Email (Smartlead)</option>
-            <option value="linkedin">💼 LinkedIn (GetSales)</option>
-            <option value="both">📧+💼 Both Channels</option>
-          </select>
+            Follow-up
+          </button>
 
-          {/* Campaign Filter with Autocomplete */}
-          <div className="relative">
-            <input
-              type="text"
-              list="campaigns-list"
-              placeholder="Filter by campaign..."
-              value={campaignFilter}
-              onChange={(e) => setCampaignFilter(e.target.value)}
-              className="px-3 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-48"
-            />
-            <datalist id="campaigns-list">
-              {campaigns.map((c, i) => (
-                <option key={i} value={c.name} label={c.source === 'smartlead' ? '[Email] ' + c.name : '[LinkedIn] ' + c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </datalist>
+          {/* Campaign filter — compact counter + dropdown */}
+          <div className="relative shrink-0" ref={campaignRef}>
+            <button
+              onClick={() => { setCampaignDropdownOpen(!campaignDropdownOpen); setCampaignSearch(''); }}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                campaignFilters.length > 0
+                  ? "border-indigo-400 bg-indigo-500 text-white"
+                  : "border-neutral-200 bg-white text-gray-600 hover:border-indigo-400"
+              )}
+            >
+              <Search className="w-3 h-3" />
+              {campaignFilters.length > 0
+                ? `${campaignFilters.length} campaign${campaignFilters.length > 1 ? 's' : ''}`
+                : 'Campaigns'}
+            </button>
+            {campaignDropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 w-80 bg-white rounded-xl shadow-lg border border-neutral-200 z-50 overflow-hidden">
+                {/* Search */}
+                <div className="p-2 border-b border-neutral-100">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      type="text"
+                      placeholder="Search campaigns..."
+                      value={campaignSearch}
+                      onChange={(e) => setCampaignSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                {/* Selected campaigns summary */}
+                {campaignFilters.length > 0 && !campaignSearch && (
+                  <div className="px-3 py-2 border-b border-neutral-100 bg-indigo-50/50">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-medium text-indigo-600 uppercase tracking-wide">Selected ({campaignFilters.length})</span>
+                      <button onClick={() => { setCampaignFilters([]); setPage(1); }} className="text-[10px] text-red-500 hover:text-red-600">Clear all</button>
+                    </div>
+                    <div className="flex flex-wrap gap-1 max-h-20 overflow-auto">
+                      {campaignFilters.map(name => (
+                        <button
+                          key={name}
+                          onClick={() => toggleCampaign(name)}
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 max-w-[200px]"
+                        >
+                          <span className="truncate">{name}</span>
+                          <X className="w-2.5 h-2.5 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Campaign list */}
+                <div className="max-h-64 overflow-auto">
+                  {filteredCampaigns.length === 0 ? (
+                    <div className="px-3 py-4 text-xs text-neutral-400 text-center">No campaigns found</div>
+                  ) : (
+                    filteredCampaigns.map((c, i) => {
+                      const isSelected = campaignFilters.includes(c.name);
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => toggleCampaign(c.name)}
+                          className={cn(
+                            "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors",
+                            isSelected ? "bg-indigo-50 text-indigo-700" : "hover:bg-neutral-50"
+                          )}
+                        >
+                          <span className={cn(
+                            "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
+                            isSelected ? "bg-indigo-500 border-indigo-500" : "border-neutral-300"
+                          )}>
+                            {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                          </span>
+                          <span className={cn(
+                            "shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium",
+                            c.source === 'smartlead' ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"
+                          )}>
+                            {c.source === 'smartlead' ? 'Email' : 'LI'}
+                          </span>
+                          <span className="truncate">{c.name}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Follow-up Needed Filter */}
+          {/* Save as Project (when campaign filters active and no project) */}
+          {campaignFilters.length > 0 && !activeProject && !showSaveProjectForm && (
+            <button
+              onClick={() => { setShowSaveProjectForm(true); setNewProjectName(campaignFilters[0]); }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-green-200 bg-white text-green-600 hover:border-green-400 transition-all shrink-0"
+            >
+              <Save className="w-3 h-3" />
+              Save as Project
+            </button>
+          )}
+          {showSaveProjectForm && (
+            <div className="inline-flex items-center gap-1 shrink-0">
+              <input
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="Project name"
+                className="text-xs border border-green-300 rounded px-2 py-1.5 w-36 focus:outline-none focus:ring-1 focus:ring-green-400"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveAsProject(); if (e.key === 'Escape') setShowSaveProjectForm(false); }}
+              />
+              <button onClick={handleSaveAsProject} className="p-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600"><Check className="w-3 h-3" /></button>
+              <button onClick={() => setShowSaveProjectForm(false)} className="p-1.5 rounded-lg hover:bg-neutral-100"><X className="w-3 h-3 text-neutral-500" /></button>
+            </div>
+          )}
+
+          {/* Reset filters */}
           <button
-            onClick={() => setFollowupFilter(followupFilter === true ? null : true)}
-            className={followupFilter === true 
-              ? "px-3 py-2 border rounded-lg text-sm font-medium bg-orange-500 text-white border-orange-500" 
-              : "px-3 py-2 border rounded-lg text-sm font-medium bg-white text-gray-700 hover:bg-orange-50 hover:border-orange-300"
-            }
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+            className={cn(
+              "inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
+              hasActiveFilters
+                ? "text-red-500 hover:bg-red-50 border-red-200"
+                : "text-neutral-300 border-neutral-200 cursor-not-allowed"
+            )}
           >
-            ⏰ Follow-up Needed
+            <X className="w-3 h-3" />
+            Reset
           </button>
 
-          {hasActiveFilters && (
-            <button onClick={clearFilters} className="btn btn-secondary btn-sm text-red-600">
-              <X className="w-4 h-4" />
-              Clear
+          {/* Separator */}
+          <span className="w-px h-5 bg-neutral-200 mx-0.5" />
+
+          {/* Actions */}
+          <button onClick={handleRefresh} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors" title="Refresh">
+            <RefreshCw className={cn("w-4 h-4 text-neutral-500", isLoading && "animate-spin")} />
+          </button>
+          <button onClick={() => setShowAddModal(true)} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors" title="Add Contact">
+            <Plus className="w-4 h-4 text-neutral-500" />
+          </button>
+          <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors" title="Import">
+            <Upload className="w-4 h-4 text-neutral-500" />
+          </button>
+          <button onClick={handleExportCsv} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors" title="Export CSV">
+            <Download className="w-4 h-4 text-neutral-500" />
+          </button>
+          {selectedContacts.length > 0 && (
+            <button onClick={handleDeleteSelected} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-red-500" title="Delete Selected">
+              <Trash2 className="w-4 h-4" />
+              <span className="ml-0.5 text-xs">{selectedContacts.length}</span>
             </button>
           )}
         </div>
       </div>
 
       {/* AG Grid */}
-      <div className="flex-1 p-4">
+      <div className="flex-1 px-4 pt-2 pb-1">
         <SectionErrorBoundary>
-        <div className="ag-theme-alpine h-full w-full rounded-xl overflow-hidden border border-neutral-200">
-          <AgGridReact
-            ref={gridRef}
-            theme={AG_GRID_THEME}
-            onRowClicked={(event) => {
-              if (event.data) {
-                setSelectedContact(event.data);
-                setShowContactModal(true);
-              }
-            }}
-            rowData={contacts}
-            columnDefs={columnDefs}
-            defaultColDef={defaultColDef}
-            rowSelection={{
-              mode: 'multiRow',
-              enableClickSelection: false,
-              headerCheckbox: true,
-              checkboxes: true
-            }}
-            onGridReady={onGridReady}
-            onSelectionChanged={onSelectionChanged}
-            onSortChanged={onSortChanged}
-            animateRows={true}
-            rowHeight={44}
-            headerHeight={44}
-            suppressCellFocus={true}
-            enableCellTextSelection={true}
-            getRowId={(params) => String(params.data.id)}
-            overlayLoadingTemplate='<span class="text-neutral-500">Loading contacts...</span>'
-            overlayNoRowsTemplate='<span class="text-neutral-500">No contacts found</span>'
-          />
-        </div>
+          <div className="ag-theme-alpine h-full w-full rounded-xl overflow-hidden border border-neutral-200">
+            <AgGridReact
+              ref={gridRef}
+              theme={AG_GRID_THEME}
+              onRowClicked={(event) => {
+                if (event.data) {
+                  setSelectedContact(event.data);
+                  setShowContactModal(true);
+                }
+              }}
+              rowData={contacts}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              rowSelection={{
+                mode: 'multiRow',
+                enableClickSelection: false,
+                headerCheckbox: true,
+                checkboxes: true,
+              }}
+              onGridReady={onGridReady}
+              onSelectionChanged={onSelectionChanged}
+              onSortChanged={onSortChanged}
+              animateRows={true}
+              suppressCellFocus={true}
+              enableCellTextSelection={true}
+              getRowId={(params) => String(params.data.id)}
+              overlayLoadingTemplate='<span class="text-neutral-500">Loading contacts...</span>'
+              overlayNoRowsTemplate='<span class="text-neutral-500">No contacts found</span>'
+            />
+          </div>
         </SectionErrorBoundary>
       </div>
 
-      {/* Pagination */}
-      <div className="bg-white border-t border-neutral-200 px-6 py-3 flex items-center justify-between">
-        <div className="text-sm text-neutral-500">
-          Showing {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, total)} of {formatNumber(total)}
+      {/* Tasks panel (slide-out below grid) */}
+      {showTasksPanel && activeProject && (
+        <div className="bg-white border-t border-amber-200 px-5 py-3 max-h-48 overflow-auto">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-amber-700 flex items-center gap-1.5">
+              <ListTodo className="w-4 h-4" />
+              Tasks — {activeProject.name}
+            </h3>
+            <button onClick={() => setShowTasksPanel(false)} className="p-1 hover:bg-neutral-100 rounded"><X className="w-3.5 h-3.5 text-neutral-400" /></button>
+          </div>
+          {tasksLoading ? (
+            <div className="text-xs text-neutral-400 py-2">Loading tasks...</div>
+          ) : tasks.length === 0 ? (
+            <div className="text-xs text-neutral-400 py-2">No tasks for this project</div>
+          ) : (
+            <div className="space-y-1">
+              {tasks.map(task => (
+                <div key={task.id} className={cn("flex items-center gap-3 px-3 py-2 rounded-lg text-xs", task.status === 'done' ? "bg-green-50 text-green-600" : task.status === 'skipped' ? "bg-gray-50 text-gray-400" : "bg-amber-50")}>
+                  <span className="flex-1 font-medium">{task.title}</span>
+                  <span className="text-neutral-400 shrink-0">{new Date(task.due_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  {task.status === 'pending' && (
+                    <div className="flex gap-1">
+                      <button
+                        onClick={async () => { await contactsApi.updateTask(task.id, { status: 'done' }); loadTasks(); }}
+                        className="px-2 py-0.5 rounded bg-green-500 text-white hover:bg-green-600"
+                      >Done</button>
+                      <button
+                        onClick={async () => { await contactsApi.updateTask(task.id, { status: 'skipped' }); loadTasks(); }}
+                        className="px-2 py-0.5 rounded bg-gray-200 text-gray-600 hover:bg-gray-300"
+                      >Skip</button>
+                    </div>
+                  )}
+                  {task.status !== 'pending' && (
+                    <span className={cn("px-2 py-0.5 rounded text-[10px] font-medium", task.status === 'done' ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400")}>{task.status}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+      )}
+
+      {/* Pagination — compact */}
+      <div className="bg-white border-t border-neutral-200 px-5 py-2 flex items-center justify-between">
+        <div className="text-xs text-neutral-500">
+          {((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, total)} of {formatNumber(total)}
+        </div>
+        <div className="flex items-center gap-1">
           <button
             onClick={() => setPage(1)}
             disabled={page === 1}
-            className="btn btn-secondary btn-sm"
+            className="px-2 py-1 text-xs rounded border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-40"
           >
             First
           </button>
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="btn btn-secondary btn-sm"
+            className="px-2 py-1 text-xs rounded border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-40"
           >
             Prev
           </button>
-          <span className="text-sm text-neutral-600 px-3">
-            Page {page} of {totalPages || 1}
+          <span className="text-xs text-neutral-500 px-2">
+            {page}/{totalPages || 1}
           </span>
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages || totalPages === 0}
-            className="btn btn-secondary btn-sm"
+            className="px-2 py-1 text-xs rounded border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-40"
           >
             Next
           </button>
           <button
             onClick={() => setPage(totalPages)}
             disabled={page === totalPages || totalPages === 0}
-            className="btn btn-secondary btn-sm"
+            className="px-2 py-1 text-xs rounded border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-40"
           >
             Last
           </button>
@@ -675,45 +1062,41 @@ export function ContactsPage() {
       />
 
       {/* Contact Detail Modal */}
-      <ContactDetailModal
-        contact={selectedContact}
-        isOpen={showContactModal}
-        onClose={() => {
-          setShowContactModal(false);
-          setSelectedContact(null);
-        }}
-      />
+      <SectionErrorBoundary>
+        <ContactDetailModal
+          contact={selectedContact}
+          isOpen={showContactModal}
+          onClose={() => {
+            setShowContactModal(false);
+            setSelectedContact(null);
+          }}
+          replyMode={replyMode}
+          contactList={replyMode ? replyContacts : contacts}
+          currentIndex={replyMode ? replyContactIndex : contacts.findIndex(c => c.id === selectedContact?.id)}
+          onNavigate={(index: number) => {
+            const list = replyMode ? replyContacts : contacts;
+            if (index >= 0 && index < list.length) {
+              setSelectedContact(list[index]);
+              if (replyMode) setReplyContactIndex(index);
+            }
+          }}
+          onMarkProcessed={(contactId: number) => {
+            markProcessed(contactId);
+          }}
+        />
+      </SectionErrorBoundary>
     </div>
-  );
-}
-
-// Stat card component
-function StatCard({ label, value, color }: { label: string; value: string; color?: string }) {
-  const colorClasses: Record<string, string> = {
-    gray: 'bg-gray-50 border-gray-200',
-    blue: 'bg-blue-50 border-blue-200',
-    green: 'bg-emerald-50 border-emerald-200',
-    purple: 'bg-purple-50 border-purple-200',
-  };
-  
-  return (
-    <div className={cn(
-      "rounded-lg px-3 py-2 border",
-      color ? colorClasses[color] || 'bg-neutral-50 border-neutral-100' : 'bg-neutral-50 border-neutral-100'
-    )}>
-      <div className="text-lg font-semibold text-neutral-900">{value}</div>
-      <div className="text-xs text-neutral-500 capitalize">{label}</div>
-    </div>
+    </ContactsFilterContext.Provider>
   );
 }
 
 // Add Contact Modal
-function AddContactModal({ 
-  projects, 
+function AddContactModal({
+  projects,
   filterOptions,
-  onClose, 
-  onSuccess 
-}: { 
+  onClose,
+  onSuccess
+}: {
   projects: Project[];
   filterOptions: FilterOptions | null;
   onClose: () => void;
@@ -728,7 +1111,7 @@ function AddContactModal({
     job_title: '',
     segment: '',
     project_id: '',
-    status: 'lead',
+    status: '',
     source: 'manual',
     phone: '',
     linkedin_url: '',
@@ -793,8 +1176,9 @@ function AddContactModal({
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                 className="input w-full"
               >
-                {filterOptions?.statuses.map(s => (
-                  <option key={s} value={s}>{s}</option>
+                <option value="">No Status</option>
+                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                  <option key={key} value={key}>{cfg.label}</option>
                 ))}
               </select>
             </div>
@@ -936,11 +1320,11 @@ function AddContactModal({
 }
 
 // Projects Modal with AI SDR Dashboard
-function ProjectsModal({ 
-  projects, 
-  onClose, 
-  onUpdate 
-}: { 
+function ProjectsModal({
+  projects,
+  onClose,
+  onUpdate
+}: {
   projects: Project[];
   onClose: () => void;
   onUpdate: () => void;
@@ -977,7 +1361,7 @@ function ProjectsModal({
 
   const confirmDelete = async () => {
     if (!confirmDeleteId) return;
-    
+
     try {
       await contactsApi.deleteProject(confirmDeleteId);
       toast.success('Project deleted', 'Contacts remain but are no longer assigned');
@@ -1053,8 +1437,8 @@ function ProjectsModal({
     setIsGenerating('all');
     try {
       const result = await contactsApi.generateAllAISDR(selectedProject.id);
-      setSelectedProject(prev => prev ? { 
-        ...prev, 
+      setSelectedProject(prev => prev ? {
+        ...prev,
         tam_analysis: result.tam_analysis,
         gtm_plan: result.gtm_plan,
         pitch_templates: result.pitch_templates,
@@ -1120,12 +1504,12 @@ function ProjectsModal({
                 </div>
               ) : (
                 projects.map(project => (
-                  <div 
-                    key={project.id} 
+                  <div
+                    key={project.id}
                     className={cn(
                       "flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors mb-1",
-                      selectedProject?.id === project.id 
-                        ? "bg-purple-50 border border-purple-200" 
+                      selectedProject?.id === project.id
+                        ? "bg-purple-50 border border-purple-200"
                         : "hover:bg-neutral-50"
                     )}
                     onClick={() => loadProjectAISDR(project.id)}
@@ -1288,7 +1672,7 @@ function AISDRSection({
 }) {
   return (
     <div className="border border-neutral-200 rounded-xl overflow-hidden">
-      <div 
+      <div
         className="flex items-center justify-between p-4 bg-neutral-50 cursor-pointer"
         onClick={onToggle}
       >
@@ -1418,10 +1802,9 @@ function ImportContactsModal({
         skip_duplicates: skipDuplicates,
       });
       setResult(importResult);
-      
+
       if (importResult.created > 0) {
         toast.success('Import successful', `${importResult.created} contacts imported`);
-        // Auto-close after successful import with delay
         setTimeout(() => {
           onSuccess();
         }, 2000);
@@ -1459,11 +1842,11 @@ function ImportContactsModal({
         <div className="flex-1 overflow-auto p-6 space-y-6">
           {/* File Upload Area */}
           <div>
-            <div 
+            <div
               className={cn(
                 "border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer",
-                file 
-                  ? "border-green-300 bg-green-50" 
+                file
+                  ? "border-green-300 bg-green-50"
                   : "border-neutral-200 hover:border-indigo-300 hover:bg-indigo-50/30"
               )}
               onClick={() => fileInputRef.current?.click()}
@@ -1475,7 +1858,7 @@ function ImportContactsModal({
                 onChange={handleFileChange}
                 className="hidden"
               />
-              
+
               {file ? (
                 <div className="flex items-center justify-center gap-3">
                   <Check className="w-6 h-6 text-green-600" />
@@ -1492,8 +1875,8 @@ function ImportContactsModal({
                 </>
               )}
             </div>
-            
-            <button 
+
+            <button
               onClick={handleDownloadTemplate}
               className="mt-2 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
             >
@@ -1580,7 +1963,7 @@ function ImportContactsModal({
                   Import {result.created > 0 ? 'Complete' : 'Results'}
                 </span>
               </div>
-              
+
               <div className="grid grid-cols-3 gap-4 mb-3">
                 <div className="text-center p-2 bg-white rounded-lg">
                   <div className="text-lg font-semibold text-green-600">{result.created}</div>

@@ -925,17 +925,16 @@ class CRMSyncService:
                     existing.source = f"{existing.source}+getsales"
                 else:
                     existing.source = "getsales"
-            # Merge campaign data
+            # Merge campaign data from GetSales list
             existing_campaigns = existing.campaigns or []
-            new_campaigns = [
-                {
-                    "name": c.get("campaign_name"),
-                    "id": c.get("campaign_id"),
-                    "source": "smartlead",
-                    "status": c.get("lead_status")
-                }
-                for c in campaigns if c.get("campaign_name")
-            ]
+            new_campaigns = []
+            if list_name:
+                new_campaigns.append({
+                    "name": list_name,
+                    "id": item.get("uuid") or lead.get("uuid"),
+                    "source": "getsales",
+                    "status": getsales_status
+                })
             # Merge without duplicates
             campaign_ids = {(c.get("id"), c.get("source")) for c in existing_campaigns}
             for nc in new_campaigns:
@@ -948,7 +947,17 @@ class CRMSyncService:
             # Create new contact
             phone = lead.get("work_phone_number") or lead.get("personal_phone_number")
             location = lead.get("raw_address")
-            
+
+            # Build campaign data from list_name
+            campaign_data = None
+            if list_name:
+                campaign_data = [{
+                    "name": list_name,
+                    "id": item.get("uuid") or lead.get("uuid"),
+                    "source": "getsales",
+                    "status": getsales_status
+                }]
+
             contact = Contact(
                 company_id=company_id,
                 email=email or f"linkedin_{linkedin}@placeholder.local",  # Placeholder for LinkedIn-only contacts
@@ -963,6 +972,7 @@ class CRMSyncService:
                 getsales_id=getsales_id,
                 getsales_status=getsales_status,
                 status="lead",
+                campaigns=campaign_data,
                 last_synced_at=datetime.utcnow()
             )
             session.add(contact)
@@ -1056,8 +1066,8 @@ class CRMSyncService:
                 campaign_id = campaign.get("id")
                 campaign_name = campaign.get("name", "Unknown")
                 
-                # Only check ACTIVE and PAUSED campaigns
-                if status not in ("ACTIVE", "PAUSED"):
+                # Check ACTIVE, PAUSED, and COMPLETED campaigns for replies
+                if status not in ("ACTIVE", "PAUSED", "COMPLETED"):
                     continue
                 
                 stats["campaigns_checked"] += 1
@@ -1342,7 +1352,7 @@ class CRMSyncService:
         """
         results = {
             "smartlead": {"contacts": None, "replies": None},
-            "getsales": {"contacts": None},
+            "getsales": {"contacts": None, "replies": None},
             "started_at": datetime.utcnow().isoformat(),
             "completed_at": None
         }
@@ -1366,7 +1376,10 @@ class CRMSyncService:
             if self.getsales:
                 logger.info("Syncing GetSales contacts...")
                 results["getsales"]["contacts"] = await self.sync_getsales_contacts(session, company_id)
-            
+
+                logger.info("Syncing GetSales replies...")
+                results["getsales"]["replies"] = await self.sync_getsales_replies(session, company_id)
+
             results["completed_at"] = datetime.utcnow().isoformat()
             results["success"] = True
             

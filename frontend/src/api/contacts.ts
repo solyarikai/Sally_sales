@@ -24,6 +24,7 @@ export interface Contact {
   has_smartlead?: boolean;
   has_getsales?: boolean;
   campaign?: string;
+  campaigns?: Array<{ id: string; name: string; source: string; status?: string }>;
   needs_followup?: boolean;
   smartlead_id?: string;
   getsales_id?: string;
@@ -58,16 +59,10 @@ export interface Project {
   description?: string;
   target_industries?: string;
   target_segments?: string;
+  campaign_filters?: string[];
   contact_count: number;
   created_at: string;
   updated_at: string;
-  has_replied?: boolean;
-  has_smartlead?: boolean;
-  has_getsales?: boolean;
-  campaign?: string;
-  needs_followup?: boolean;
-  smartlead_id?: string;
-  getsales_id?: string;
 }
 
 export interface AISDRProject extends Project {
@@ -158,6 +153,41 @@ export interface ContactFilters {
   needs_followup?: boolean;
   smartlead_id?: string;
   getsales_id?: string;
+}
+
+export interface GenerateReplyResponse {
+  has_reply: boolean;
+  cached?: boolean;
+  category?: string;
+  draft_subject?: string;
+  draft_body?: string;
+  channel?: string;
+  reply_text?: string;
+  message?: string;
+  error?: string;
+  contact?: { name: string; email: string; company: string };
+}
+
+export interface OperatorTask {
+  id: number;
+  project_id?: number;
+  contact_id?: number;
+  task_type: string;
+  title: string;
+  description?: string;
+  due_at: string;
+  status: string;
+  contact_email?: string;
+  contact_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TasksListResponse {
+  tasks: OperatorTask[];
+  total: number;
+  pending: number;
+  done: number;
 }
 
 export const contactsApi = {
@@ -256,13 +286,13 @@ export const contactsApi = {
   },
 
   // Create project
-  async createProject(project: { name: string; description?: string }): Promise<Project> {
+  async createProject(project: { name: string; description?: string; campaign_filters?: string[] }): Promise<Project> {
     const response = await api.post('/contacts/projects', project);
     return response.data;
   },
 
   // Update project
-  async updateProject(id: number, updates: { name?: string; description?: string }): Promise<Project> {
+  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[] }): Promise<Project> {
     const response = await api.patch(`/contacts/projects/${id}`, updates);
     return response.data;
   },
@@ -329,6 +359,38 @@ export const contactsApi = {
   // Trigger manual sync
   async triggerSync(sources = ['smartlead', 'getsales']): Promise<{ success: boolean; message: string }> {
     const response = await api.post('/crm-sync/trigger', { sources, full_sync: true });
+    return response.data;
+  },
+
+  // Generate AI draft reply for a contact
+  async generateReply(contactId: number): Promise<GenerateReplyResponse> {
+    const response = await api.post(`/contacts/${contactId}/generate-reply`);
+    return response.data;
+  },
+
+  // Update contact status (with Smartlead sync + auto-task creation)
+  async updateStatus(contactId: number, status: string, syncToSmartlead = true): Promise<any> {
+    const response = await api.patch(`/contacts/${contactId}/status`, {
+      status,
+      sync_to_smartlead: syncToSmartlead,
+    });
+    return response.data;
+  },
+
+  // Tasks
+  async listTasks(params: { project_id?: number; status?: string; contact_id?: number } = {}): Promise<TasksListResponse> {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, String(value));
+      }
+    });
+    const response = await api.get(`/tasks?${searchParams.toString()}`);
+    return response.data;
+  },
+
+  async updateTask(taskId: number, updates: { status?: string; title?: string }): Promise<OperatorTask> {
+    const response = await api.patch(`/tasks/${taskId}`, updates);
     return response.data;
   },
 };

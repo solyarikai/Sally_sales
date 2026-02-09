@@ -337,6 +337,77 @@ class SmartleadService:
             logger.error(f"Error fetching email thread: {e}")
             return []
 
+    async def send_reply(
+        self,
+        campaign_id: str,
+        lead_id: str,
+        email_body: str,
+    ) -> Dict[str, Any]:
+        """Send a reply to a lead via SmartLead Master Inbox API.
+
+        Fetches the message history to get required IDs, then posts the reply.
+
+        Args:
+            campaign_id: Campaign ID
+            lead_id: SmartLead lead ID (numeric)
+            email_body: HTML body of the reply
+
+        Returns:
+            dict with status and details
+        """
+        if not self._api_key:
+            raise ValueError("API key not set")
+
+        # 1. Get message history to find email_stats_id and last message
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            hist_resp = await client.get(
+                f"{self.base_url}/campaigns/{campaign_id}/leads/{lead_id}/message-history",
+                params={"api_key": self._api_key},
+            )
+            if hist_resp.status_code != 200:
+                return {"error": f"Failed to fetch history: {hist_resp.status_code} {hist_resp.text}"}
+
+            hist_data = hist_resp.json()
+            messages = hist_data.get("history", [])
+            if not messages:
+                return {"error": "No message history found"}
+
+            # Find the last inbound (REPLY) message to thread onto
+            last_reply = None
+            for msg in reversed(messages):
+                if msg.get("type") == "REPLY":
+                    last_reply = msg
+                    break
+
+            # Fall back to last message of any type
+            if not last_reply:
+                last_reply = messages[-1]
+
+            email_stats_id = last_reply.get("stats_id") or messages[0].get("stats_id")
+            reply_message_id = last_reply.get("message_id", "")
+            reply_email_time = last_reply.get("time", "")
+            reply_email_body = last_reply.get("email_body", "")
+
+            # 2. Send reply
+            send_resp = await client.post(
+                f"{self.base_url}/campaigns/{campaign_id}/reply-email-thread",
+                params={"api_key": self._api_key},
+                json={
+                    "email_stats_id": email_stats_id,
+                    "email_body": email_body,
+                    "reply_message_id": reply_message_id,
+                    "reply_email_time": reply_email_time,
+                    "reply_email_body": reply_email_body,
+                },
+            )
+
+            if send_resp.status_code == 200:
+                logger.info(f"Reply sent for lead {lead_id} in campaign {campaign_id}")
+                return {"status": "queued", "message": send_resp.text}
+            else:
+                logger.error(f"Failed to send reply: {send_resp.status_code} {send_resp.text}")
+                return {"error": f"Send failed: {send_resp.status_code}", "detail": send_resp.text}
+
     async def get_campaign_statistics(self, campaign_id: str) -> Dict[str, Any]:
         """Get statistics for a campaign.
         

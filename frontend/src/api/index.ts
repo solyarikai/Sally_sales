@@ -17,7 +17,7 @@ export { tasksApi } from './tasks';
 export type { Task, SubTask, TasksResponse } from './tasks';
 export { dataSearchApi } from './dataSearch';
 export type { SearchFilter, CompanyResult, SearchResponse, ParsedQuery, ChatMessage } from './dataSearch';
-export type { Contact, ContactListResponse, ContactStats, Project, FilterOptions, AISDRProject, AISDRGenerationResult, ImportResult, ContactActivity, ContactWithActivities, SyncStatus } from './contacts';
+export type { Contact, ContactListResponse, ContactStats, Project, FilterOptions, AISDRProject, AISDRGenerationResult, ImportResult, ContactActivity, ContactWithActivities, SyncStatus, OperatorTask, TasksListResponse } from './contacts';
 export type { 
   Prospect, 
   ProspectsListResponse, 

@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 
 from app.models.reply import ProcessedReply, ReplyAutomation, ReplyCategory
 from app.models.contact import Contact, ContactActivity
@@ -478,9 +478,38 @@ async def process_reply_webhook(
         custom_classification_prompt = automation.classification_prompt if automation else None
         classification = await classify_reply(subject, body, custom_prompt=custom_classification_prompt)
         logger.info(f"[PROCESSOR] Classification: category={classification['category']}, confidence={classification['confidence']}")
-        
-        # Generate draft reply
+
+        # Look up project-based prompt (priority: project prompt > automation prompt > default)
         custom_reply_prompt = automation.reply_prompt if automation else None
+        if campaign_name:
+            try:
+                from app.models.contact import Project
+                from app.models.reply import ReplyPromptTemplateModel
+                from sqlalchemy import String as SAString
+                project_result = await session.execute(
+                    select(Project).where(
+                        and_(
+                            Project.campaign_filters.cast(SAString).ilike(f'%{campaign_name}%'),
+                            Project.reply_prompt_template_id.isnot(None),
+                            Project.deleted_at.is_(None),
+                        )
+                    ).limit(1)
+                )
+                project = project_result.scalar()
+                if project and project.reply_prompt_template_id:
+                    template_result = await session.execute(
+                        select(ReplyPromptTemplateModel).where(
+                            ReplyPromptTemplateModel.id == project.reply_prompt_template_id
+                        )
+                    )
+                    template = template_result.scalar()
+                    if template:
+                        custom_reply_prompt = template.prompt_text
+                        logger.info(f"[PROCESSOR] Using project prompt from '{project.name}' (template: {template.name})")
+            except Exception as proj_err:
+                logger.warning(f"[PROCESSOR] Project prompt lookup failed (non-fatal): {proj_err}")
+
+        # Generate draft reply
         draft = await generate_draft_reply(
             subject=subject,
             body=body,
@@ -554,7 +583,6 @@ async def process_reply_webhook(
                 activity_at = datetime.utcnow()
                 
                 # Check for duplicate within same minute
-                from sqlalchemy import select
                 minute_start = activity_at.replace(second=0, microsecond=0)
                 minute_end = activity_at.replace(second=59, microsecond=999999)
                 existing = await session.execute(
@@ -704,6 +732,7 @@ async def process_reply_webhook(
     except Exception as e:
         logger.error(f"Error processing webhook: {e}")
         # Track error on automation if found
+        automation = locals().get('automation')
         if automation:
             try:
                 automation.total_errors = (automation.total_errors or 0) + 1

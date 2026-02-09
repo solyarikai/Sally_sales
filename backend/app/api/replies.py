@@ -1227,6 +1227,81 @@ async def update_reply_status(
         "sheet_updated": sheet_updated
     }
 
+@router.post("/{reply_id}/send")
+async def send_reply(
+    reply_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    """Send an approved draft reply via SmartLead API.
+
+    Fetches the message thread, threads the reply onto the last message,
+    and queues it for delivery through SmartLead.
+    """
+    from app.services.smartlead_service import SmartleadService
+    from app.models.contact import Contact
+
+    result = await db.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    if not reply.draft_reply:
+        raise HTTPException(status_code=400, detail="No draft reply to send")
+
+    # Find the contact's SmartLead lead_id and campaign_id
+    contact = None
+    if reply.lead_email:
+        from sqlalchemy import func
+        contact_result = await db.execute(
+            select(Contact).where(
+                func.lower(Contact.email) == reply.lead_email.lower(),
+                Contact.deleted_at.is_(None),
+            )
+        )
+        contact = contact_result.scalar_one_or_none()
+
+    if not contact or not contact.smartlead_id:
+        raise HTTPException(status_code=400, detail="Contact not found or no SmartLead ID")
+
+    # Determine campaign_id — use from reply or first SmartLead campaign on contact
+    campaign_id = reply.campaign_id
+    if not campaign_id and contact.campaigns:
+        camps = contact.campaigns if isinstance(contact.campaigns, list) else []
+        for c in camps:
+            if isinstance(c, dict) and c.get("source") == "smartlead" and c.get("id"):
+                campaign_id = str(c["id"])
+                break
+
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="No SmartLead campaign_id found")
+
+    # Send via SmartLead
+    sl = SmartleadService()
+    send_result = await sl.send_reply(
+        campaign_id=str(campaign_id),
+        lead_id=contact.smartlead_id,
+        email_body=f"<p>{reply.draft_reply}</p>",
+    )
+
+    if "error" in send_result:
+        raise HTTPException(status_code=502, detail=send_result["error"])
+
+    # Mark as approved + sent
+    reply.approval_status = "approved"
+    reply.approved_at = datetime.utcnow()
+    await db.commit()
+
+    return {
+        "status": "sent",
+        "reply_id": reply_id,
+        "lead_email": reply.lead_email,
+        "campaign_id": campaign_id,
+        "smartlead_response": send_result.get("message"),
+    }
+
+
 @router.post("/{reply_id}/resend-notification")
 async def resend_notification(
     reply_id: int,

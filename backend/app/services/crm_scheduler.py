@@ -31,21 +31,25 @@ class CRMScheduler:
         reply_check_interval_minutes: int = 15,
         webhook_check_interval_hours: int = 6,
         report_interval_hours: int = 4,
+        prompt_refresh_interval_hours: int = 168,  # Weekly (7 days)
         company_id: int = 1
     ):
         self.sync_interval = sync_interval_minutes * 60
         self.reply_check_interval = reply_check_interval_minutes * 60
         self.webhook_check_interval = webhook_check_interval_hours * 3600
         self.report_interval = report_interval_hours * 3600
+        self.prompt_refresh_interval = prompt_refresh_interval_hours * 3600
         self.company_id = company_id
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._reply_task: Optional[asyncio.Task] = None
         self._webhook_task: Optional[asyncio.Task] = None
         self._report_task: Optional[asyncio.Task] = None
+        self._prompt_refresh_task: Optional[asyncio.Task] = None
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
         self._last_webhook_check: Optional[datetime] = None
+        self._last_prompt_refresh: Optional[datetime] = None
         self._sync_count = 0
         self._reply_count = 0
     
@@ -60,12 +64,13 @@ class CRMScheduler:
         self._reply_task = asyncio.create_task(self._run_reply_loop())
         self._webhook_task = asyncio.create_task(self._run_webhook_loop())
         self._report_task = asyncio.create_task(self._run_report_loop())
-        logger.info(f"CRM scheduler started (sync: {self.sync_interval // 60}min, replies: {self.reply_check_interval // 60}min, webhooks: {self.webhook_check_interval // 3600}h, reports: {self.report_interval // 3600}h)")
+        self._prompt_refresh_task = asyncio.create_task(self._run_prompt_refresh_loop())
+        logger.info(f"CRM scheduler started (sync: {self.sync_interval // 60}min, replies: {self.reply_check_interval // 60}min, webhooks: {self.webhook_check_interval // 3600}h, reports: {self.report_interval // 3600}h, prompt_refresh: {self.prompt_refresh_interval // 3600}h)")
     
     async def stop(self):
         """Stop the scheduler."""
         self._running = False
-        for task in [self._task, self._reply_task, self._webhook_task, self._report_task]:
+        for task in [self._task, self._reply_task, self._webhook_task, self._report_task, self._prompt_refresh_task]:
             if task:
                 task.cancel()
                 try:
@@ -108,6 +113,54 @@ class CRMScheduler:
                 logger.error(f"Webhook setup error: {e}")
             await asyncio.sleep(self.webhook_check_interval)
     
+    async def _run_prompt_refresh_loop(self):
+        """Prompt refresh loop - runs weekly to regenerate project reply prompts."""
+        await asyncio.sleep(3600)  # Initial delay (1 hour)
+        while self._running:
+            try:
+                await self._refresh_project_prompts()
+                self._last_prompt_refresh = datetime.utcnow()
+            except Exception as e:
+                logger.error(f"Prompt refresh error: {e}")
+            await asyncio.sleep(self.prompt_refresh_interval)
+
+    async def _refresh_project_prompts(self):
+        """Re-generate reply prompts for all projects that have one set."""
+        from app.models.contact import Project
+        from app.services.conversation_analysis_service import generate_auto_reply_prompt
+        from sqlalchemy import select
+
+        logger.info("Starting weekly prompt refresh for projects...")
+
+        async with async_session_maker() as session:
+            try:
+                result = await session.execute(
+                    select(Project).where(
+                        Project.reply_prompt_template_id.isnot(None),
+                        Project.deleted_at.is_(None),
+                    )
+                )
+                projects = result.scalars().all()
+
+                refreshed = 0
+                for project in projects:
+                    try:
+                        result = await generate_auto_reply_prompt(session, project.id)
+                        if result and "error" not in result:
+                            refreshed += 1
+                            logger.info(f"Refreshed prompt for project '{project.name}'")
+                        else:
+                            logger.warning(f"Prompt refresh skipped for '{project.name}': {result.get('error') if result else 'no result'}")
+                    except Exception as e:
+                        logger.warning(f"Prompt refresh failed for '{project.name}': {e}")
+
+                await session.commit()
+                logger.info(f"Weekly prompt refresh complete: {refreshed}/{len(projects)} projects refreshed")
+
+            except Exception as e:
+                logger.error(f"Prompt refresh failed: {e}")
+                raise
+
     async def _run_sync(self):
         """Run a single sync cycle."""
         logger.info(f"Starting scheduled CRM sync (run #{self._sync_count + 1})")
@@ -311,6 +364,8 @@ class CRMScheduler:
             "last_sync": self._last_sync.isoformat() if self._last_sync else None,
             "last_reply_check": self._last_reply_check.isoformat() if self._last_reply_check else None,
             "last_webhook_check": self._last_webhook_check.isoformat() if self._last_webhook_check else None,
+            "last_prompt_refresh": self._last_prompt_refresh.isoformat() if self._last_prompt_refresh else None,
+            "prompt_refresh_interval_hours": self.prompt_refresh_interval // 3600,
             "sync_count": self._sync_count,
             "reply_check_count": self._reply_count
         }

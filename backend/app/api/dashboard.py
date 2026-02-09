@@ -249,7 +249,7 @@ async def get_dashboard_stats(
             id=f"contact-{contact.id}",
             type="contact",
             title=f"Contact: {contact_name}",
-            description=f"{contact.company or 'No company'} - {contact.status or 'lead'}",
+            description=f"{contact.company_name or 'No company'} - {contact.status or 'lead'}",
             timestamp=contact.created_at or datetime.utcnow(),
             icon="👤",
             link="/contacts"

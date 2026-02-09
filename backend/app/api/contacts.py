@@ -12,11 +12,15 @@ from datetime import datetime
 import csv
 import io
 import re
+import asyncio
 import logging
+import httpx
 
 from app.db import get_session
 from app.models.contact import Contact, Project, ContactActivity
 from app.services.crm_sync_service import get_getsales_flow_name
+from app.services.smartlead_service import smartlead_service
+from app.core.config import settings
 from app.models import Company
 from app.api.companies import get_required_company
 from fastapi import Header
@@ -132,6 +136,7 @@ class ProjectBase(BaseModel):
     description: Optional[str] = None
     target_industries: Optional[str] = None
     target_segments: Optional[str] = None
+    campaign_filters: Optional[List[str]] = None
 
 
 class ProjectCreate(ProjectBase):
@@ -143,6 +148,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     target_industries: Optional[str] = None
     target_segments: Optional[str] = None
+    campaign_filters: Optional[List[str]] = None
 
 
 class ProjectResponse(BaseModel):
@@ -151,10 +157,11 @@ class ProjectResponse(BaseModel):
     description: Optional[str] = None
     target_industries: Optional[str] = None
     target_segments: Optional[str] = None
+    campaign_filters: Optional[List[str]] = None
     contact_count: int = 0
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -236,11 +243,30 @@ async def list_contacts(
     
     # Apply filters
     if project_id:
-        query = query.where(Contact.project_id == project_id)
+        # Check if project has campaign_filters — if so, filter by campaign overlap
+        proj_result = await session.execute(
+            select(Project.campaign_filters).where(Project.id == project_id)
+        )
+        proj_campaign_filters = proj_result.scalar()
+        if proj_campaign_filters and len(proj_campaign_filters) > 0:
+            # Dynamic membership: contacts whose campaigns JSON contains any of the filter names
+            campaign_conditions = [
+                Contact.campaigns.cast(String).ilike(f'%{cf}%')
+                for cf in proj_campaign_filters
+            ]
+            query = query.where(or_(*campaign_conditions))
+        else:
+            # Fallback to FK-based membership
+            query = query.where(Contact.project_id == project_id)
     if segment:
         query = query.where(Contact.segment == segment)
     if status:
-        query = query.where(Contact.status == status)
+        # Support comma-separated statuses (multi-select)
+        statuses = [s.strip() for s in status.split(',') if s.strip()]
+        if len(statuses) == 1:
+            query = query.where(Contact.status == statuses[0])
+        elif len(statuses) > 1:
+            query = query.where(Contact.status.in_(statuses))
     if source:
         query = query.where(Contact.source == source)
     if has_replied is not None:
@@ -256,10 +282,18 @@ async def list_contacts(
     elif has_getsales is False:
         query = query.where(Contact.getsales_id.is_(None))
     if campaign:
-        # Filter by campaign name using JSON contains
-        query = query.where(
-            Contact.campaigns.cast(String).ilike(f'%{campaign}%')
-        )
+        # Support comma-separated campaign names (multi-select)
+        names = [n.strip() for n in campaign.split(',') if n.strip()]
+        if len(names) == 1:
+            query = query.where(
+                Contact.campaigns.cast(String).ilike(f'%{names[0]}%')
+            )
+        elif len(names) > 1:
+            campaign_conditions = [
+                Contact.campaigns.cast(String).ilike(f'%{n}%')
+                for n in names
+            ]
+            query = query.where(or_(*campaign_conditions))
     if needs_followup is True:
         # Contacts that haven't replied and were synced more than 3 days ago
         from datetime import timedelta
@@ -284,6 +318,10 @@ async def list_contacts(
             )
         )
     
+    # Deduplicate when campaign-based filtering is used (ILIKE on JSON can match multiple campaigns per contact)
+    if project_id or campaign:
+        query = query.distinct()
+
     # Count total
     count_query = select(func.count()).select_from(query.subquery())
     total_result = await session.execute(count_query)
@@ -487,14 +525,15 @@ async def create_contact(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Contact with this email already exists")
     
+    data = contact.model_dump(exclude={"needs_followup"}, exclude_none=False)
     db_contact = Contact(
         company_id=company_id or 1,
-        **contact.model_dump()
+        **data
     )
     session.add(db_contact)
     await session.commit()
     await session.refresh(db_contact)
-    
+
     return ContactResponse.model_validate(db_contact)
 
 
@@ -1032,25 +1071,41 @@ async def list_projects(
     # Get contact counts
     project_responses = []
     for project in projects:
-        count_result = await session.execute(
-            select(func.count()).where(
-                and_(Contact.project_id == project.id, Contact.deleted_at.is_(None))
+        if project.campaign_filters and len(project.campaign_filters) > 0:
+            # Dynamic count based on campaign_filters — use distinct to avoid inflated counts
+            campaign_conditions = [
+                Contact.campaigns.cast(String).ilike(f'%{cf}%')
+                for cf in project.campaign_filters
+            ]
+            count_result = await session.execute(
+                select(func.count(Contact.id.distinct())).where(
+                    and_(
+                        or_(*campaign_conditions),
+                        Contact.deleted_at.is_(None)
+                    )
+                )
             )
-        )
+        else:
+            count_result = await session.execute(
+                select(func.count()).where(
+                    and_(Contact.project_id == project.id, Contact.deleted_at.is_(None))
+                )
+            )
         contact_count = count_result.scalar() or 0
-        
+
         response = ProjectResponse(
             id=project.id,
             name=project.name,
             description=project.description,
             target_industries=project.target_industries,
             target_segments=project.target_segments,
+            campaign_filters=project.campaign_filters,
             contact_count=contact_count,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
         project_responses.append(response)
-    
+
     return project_responses
 
 
@@ -1061,7 +1116,17 @@ async def create_project(
     company_id: int | None = Depends(get_optional_company_id),
 ):
     """Create a new project"""
-    
+
+    # Check for duplicate name
+    existing = await session.execute(
+        select(Project.id).where(
+            Project.company_id == (company_id or 1),
+            Project.name == project.name.strip(),
+        ).limit(1)
+    )
+    if existing.scalar():
+        raise HTTPException(status_code=409, detail=f"Project '{project.name}' already exists")
+
     db_project = Project(
         company_id=company_id or 1,
         **project.model_dump()
@@ -1076,6 +1141,7 @@ async def create_project(
         description=db_project.description,
         target_industries=db_project.target_industries,
         target_segments=db_project.target_segments,
+        campaign_filters=db_project.campaign_filters,
         contact_count=0,
         created_at=db_project.created_at,
         updated_at=db_project.updated_at,
@@ -1127,6 +1193,7 @@ async def update_project(
         description=project.description,
         target_industries=project.target_industries,
         target_segments=project.target_segments,
+        campaign_filters=project.campaign_filters,
         contact_count=contact_count,
         created_at=project.created_at,
         updated_at=project.updated_at,
@@ -1159,6 +1226,81 @@ async def delete_project(
     await session.commit()
     
     return {"success": True}
+
+
+# ============= Auto-Create Projects + Conversation Analysis =============
+
+@router.post("/projects/auto-create")
+async def auto_create_projects_endpoint(
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """
+    Auto-create projects for 14 agency names based on campaign matching.
+
+    For each agency name, finds campaigns containing that name (case-insensitive)
+    and creates a Project with campaign_filters = matching campaign names.
+    Skips if project with same name already exists.
+    """
+    from app.services.project_service import auto_create_projects
+
+    result = await auto_create_projects(session, company_id=company_id or 1)
+    await session.commit()
+    return result
+
+
+@router.post("/projects/{project_id}/generate-reply-prompt")
+async def generate_reply_prompt_endpoint(
+    project_id: int,
+    max_conversations: int = Query(10, ge=1, le=50),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Analyze project conversations and generate an auto-reply prompt template.
+
+    Finds contacts with replies matching project's campaign_filters,
+    sends conversation threads to GPT-4o-mini for analysis,
+    and stores the resulting prompt template.
+    """
+    from app.services.conversation_analysis_service import generate_auto_reply_prompt
+
+    result = await generate_auto_reply_prompt(session, project_id, max_conversations)
+    if not result:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    await session.commit()
+    return result
+
+
+@router.get("/projects/{project_id}/conversations-debug")
+async def get_conversations_debug(
+    project_id: int,
+    max_conversations: int = Query(10, ge=1, le=50),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Get formatted conversation threads for a project (debug/review).
+
+    Shows all message exchanges for contacts with replies in this project.
+    """
+    from app.services.conversation_analysis_service import (
+        get_project_conversations,
+        format_conversations_debug,
+    )
+
+    conversations = await get_project_conversations(session, project_id, max_conversations)
+    if not conversations:
+        return {"project_id": project_id, "conversations": [], "formatted": "No conversations found"}
+
+    formatted = format_conversations_debug(conversations)
+    return {
+        "project_id": project_id,
+        "count": len(conversations),
+        "conversations": conversations,
+        "formatted": formatted,
+    }
 
 
 # ============= AI SDR Endpoints =============
@@ -1580,6 +1722,126 @@ async def get_contact_activities(
     return activities
 
 
+def _strip_html(html: str) -> str:
+    """Strip HTML tags and decode entities to get plain text."""
+    if not html:
+        return ""
+    import html as html_mod
+    # Remove style/script blocks
+    text = re.sub(r'<(style|script)[^>]*>.*?</\1>', '', html, flags=re.DOTALL | re.IGNORECASE)
+    # Replace <br>, <div>, <p> with newlines
+    text = re.sub(r'<br\s*/?>|</div>|</p>', '\n', text, flags=re.IGNORECASE)
+    # Remove all remaining tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Decode HTML entities
+    text = html_mod.unescape(text)
+    # Strip quoted reply chains ("On ... wrote:" and everything after)
+    text = re.sub(r'\s*On\s+\w{3},\s+\w{3,9}\s+\d{1,2},\s+\d{4}\s+at\s+\d{1,2}:\d{2}\s*[AP]M\s+.*?\s+wrote:.*', '', text, flags=re.DOTALL)
+    # Also strip "Sent from my iPhone" etc.
+    text = re.sub(r'\s*Sent from my .*', '', text, flags=re.DOTALL)
+    # Clean up excessive whitespace/newlines
+    text = re.sub(r'\n{3,}', '\n\n', text).strip()
+    return text
+
+
+async def _fetch_smartlead_live_history(email: str) -> list:
+    """Fetch complete email history from Smartlead API across all campaigns for a lead."""
+    api_key = (
+        smartlead_service.api_key
+        or getattr(settings, 'SMARTLEAD_API_KEY', None)
+        or settings.model_extra.get('smartlead_api_key')
+    )
+    if not api_key:
+        return []
+
+    base_url = smartlead_service.base_url or "https://server.smartlead.ai/api/v1"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Step 1: Find all campaigns for this email via global leads endpoint
+        try:
+            resp = await client.get(
+                f"{base_url}/leads/",
+                params={"api_key": api_key, "email": email}
+            )
+            if resp.status_code != 200:
+                logger.warning(f"Smartlead global leads lookup failed: {resp.status_code}")
+                return []
+            lead_data = resp.json()
+        except Exception as e:
+            logger.warning(f"Smartlead global leads lookup error: {e}")
+            return []
+
+        # Parse global lead ID and campaign list from response
+        # Response: {id: "2916006166", lead_campaign_data: [{campaign_id, campaign_name, ...}]}
+        global_lead_id = None
+        campaign_entries = []
+        if isinstance(lead_data, dict):
+            global_lead_id = lead_data.get("id")
+            for c in lead_data.get("lead_campaign_data", []):
+                cid = c.get("campaign_id")
+                cname = c.get("campaign_name", "")
+                if cid:
+                    campaign_entries.append((str(cid), cname))
+        elif isinstance(lead_data, list):
+            for entry in lead_data:
+                if not global_lead_id:
+                    global_lead_id = entry.get("id")
+                cid = entry.get("campaign_id")
+                cname = entry.get("campaign_name", "")
+                if cid:
+                    campaign_entries.append((str(cid), cname))
+
+        if not campaign_entries or not global_lead_id:
+            return []
+
+        # Step 2: Fetch message history per campaign using global lead ID (parallel, batched)
+        all_messages = []
+
+        async def fetch_one(cid: str, cname: str):
+            try:
+                r = await client.get(
+                    f"{base_url}/campaigns/{cid}/leads/{global_lead_id}/message-history",
+                    params={"api_key": api_key}
+                )
+                if r.status_code != 200:
+                    return []
+                data = r.json()
+                msgs = data.get("history", []) if isinstance(data, dict) else data
+                result = []
+                for msg in msgs:
+                    msg_type = (msg.get("type") or "").upper()
+                    is_reply = "REPLY" in msg_type
+                    raw_body = msg.get("email_body") or msg.get("body") or ""
+                    body = _strip_html(raw_body)
+                    ts = msg.get("time") or msg.get("timestamp") or ""
+                    result.append({
+                        "id": abs(hash(f"{cid}-{ts}-{msg_type}")) % (10**9),
+                        "type": "email_reply" if is_reply else "email_sent",
+                        "direction": "inbound" if is_reply else "outbound",
+                        "subject": msg.get("email_subject") or msg.get("subject") or "",
+                        "body": body,
+                        "snippet": body[:200] if body else None,
+                        "channel": "email",
+                        "source": "smartlead",
+                        "campaign": cname,
+                        "timestamp": ts,
+                    })
+                return result
+            except Exception:
+                return []
+
+        batch_size = 10
+        for i in range(0, len(campaign_entries), batch_size):
+            batch = campaign_entries[i:i + batch_size]
+            tasks = [fetch_one(cid, cname) for cid, cname in batch]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results:
+                if isinstance(r, list):
+                    all_messages.extend(r)
+
+        return all_messages
+
+
 @router.get("/{contact_id}/history")
 async def get_contact_history(
     contact_id: int,
@@ -1587,32 +1849,42 @@ async def get_contact_history(
 ):
     """
     Get full communication history for a contact, organized by channel.
-    
+    Fetches live data from Smartlead API for complete cross-campaign history.
+
     Returns:
-    - email_history: List of email activities from Smartlead
+    - email_history: List of email activities (live from Smartlead + local DB)
     - linkedin_history: List of LinkedIn activities from GetSales
     - summary: counts and last activity dates
     """
-    # Get all activities
+    # Get contact info first
+    contact_result = await session.execute(
+        select(Contact).where(Contact.id == contact_id)
+    )
+    contact = contact_result.scalar_one_or_none()
+
+    # Get local DB activities
     result = await session.execute(
         select(ContactActivity)
         .where(ContactActivity.contact_id == contact_id)
         .order_by(ContactActivity.activity_at.desc())
     )
     activities = result.scalars().all()
-    
-    email_activities = [a for a in activities if a.channel == "email"]
     linkedin_activities = [a for a in activities if a.channel == "linkedin"]
-    
-    # Get contact info
-    contact_result = await session.execute(
-        select(Contact).where(Contact.id == contact_id)
-    )
-    contact = contact_result.scalar_one_or_none()
-    
-    return {
-        "contact_id": contact_id,
-        "email_history": [
+
+    # Fetch live Smartlead history if contact has email
+    email_history = []
+    if contact and contact.email:
+        try:
+            smartlead_messages = await _fetch_smartlead_live_history(contact.email)
+            if smartlead_messages:
+                email_history = smartlead_messages
+        except Exception as e:
+            logger.warning(f"Failed to fetch live Smartlead history for {contact.email}: {e}")
+
+    # Fall back to local DB if Smartlead fetch returned nothing
+    if not email_history:
+        email_activities = [a for a in activities if a.channel == "email"]
+        email_history = [
             {
                 "id": a.id,
                 "type": a.activity_type,
@@ -1620,12 +1892,17 @@ async def get_contact_history(
                 "subject": a.subject,
                 "body": a.body,
                 "snippet": a.snippet,
+                "channel": "email",
                 "source": a.source,
                 "campaign": a.extra_data.get("campaign_name") if a.extra_data else None,
                 "timestamp": a.activity_at.isoformat(),
             }
             for a in email_activities
-        ],
+        ]
+
+    return {
+        "contact_id": contact_id,
+        "email_history": email_history,
         "linkedin_history": [
             {
                 "id": a.id,
@@ -1633,6 +1910,7 @@ async def get_contact_history(
                 "direction": a.direction,
                 "body": a.body,
                 "snippet": a.snippet,
+                "channel": "linkedin",
                 "source": a.source,
                 "automation": get_getsales_flow_name(a.extra_data, contact.campaigns if contact else None),
                 "timestamp": a.activity_at.isoformat(),
@@ -1640,16 +1918,120 @@ async def get_contact_history(
             for a in linkedin_activities
         ],
         "summary": {
-            "total_activities": len(activities),
-            "email_count": len(email_activities),
+            "total_activities": len(email_history) + len(linkedin_activities),
+            "email_count": len(email_history),
             "linkedin_count": len(linkedin_activities),
-            "has_email_history": len(email_activities) > 0,
+            "has_email_history": len(email_history) > 0,
             "has_linkedin_history": len(linkedin_activities) > 0,
-            "last_email_activity": email_activities[0].activity_at.isoformat() if email_activities else None,
-            "last_linkedin_activity": linkedin_activities[0].activity_at.isoformat() if linkedin_activities else None,
             "smartlead_id": contact.smartlead_id if contact else None,
             "getsales_id": contact.getsales_id if contact else None,
         }
+    }
+
+
+@router.post("/{contact_id}/generate-reply")
+async def generate_reply_for_contact(
+    contact_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Generate an AI draft reply for a contact based on their latest inbound activity.
+    Returns cached version if one exists for the latest reply.
+    """
+    from app.services.reply_processor import classify_reply, generate_draft_reply
+    from app.models.reply import ProcessedReply
+
+    # Get contact
+    result = await session.execute(select(Contact).where(Contact.id == contact_id))
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    # Find latest inbound activity (reply)
+    activity_result = await session.execute(
+        select(ContactActivity)
+        .where(
+            and_(
+                ContactActivity.contact_id == contact_id,
+                ContactActivity.direction == "inbound",
+            )
+        )
+        .order_by(ContactActivity.activity_at.desc())
+        .limit(1)
+    )
+    latest_inbound = activity_result.scalar_one_or_none()
+
+    if not latest_inbound:
+        return {
+            "has_reply": False,
+            "message": "No inbound activity found for this contact",
+        }
+
+    # Check for cached ProcessedReply by email
+    cached_result = await session.execute(
+        select(ProcessedReply)
+        .where(ProcessedReply.lead_email == contact.email)
+        .order_by(ProcessedReply.processed_at.desc())
+        .limit(1)
+    )
+    cached = cached_result.scalar_one_or_none()
+
+    if cached and cached.draft_reply:
+        return {
+            "has_reply": True,
+            "cached": True,
+            "category": cached.category,
+            "draft_subject": cached.draft_subject,
+            "draft_body": cached.draft_reply,
+            "channel": latest_inbound.channel,
+            "reply_text": cached.reply_text or cached.email_body,
+            "contact": {
+                "name": f"{contact.first_name or ''} {contact.last_name or ''}".strip(),
+                "email": contact.email,
+                "company": contact.company_name,
+            },
+        }
+
+    # Generate fresh classification + draft
+    subject = latest_inbound.subject or ""
+    body = latest_inbound.body or latest_inbound.snippet or ""
+
+    try:
+        classification = await classify_reply(subject=subject, body=body)
+        draft = await generate_draft_reply(
+            subject=subject,
+            body=body,
+            category=classification.get("category", "other"),
+            first_name=contact.first_name or "",
+            last_name=contact.last_name or "",
+            company=contact.company_name or "",
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate reply for contact {contact_id}: {e}")
+        return {
+            "has_reply": True,
+            "cached": False,
+            "category": "error",
+            "draft_subject": f"Re: {subject}",
+            "draft_body": "(Draft generation failed — please write manually)",
+            "channel": latest_inbound.channel,
+            "reply_text": body,
+            "error": str(e),
+        }
+
+    return {
+        "has_reply": True,
+        "cached": False,
+        "category": classification.get("category", "other"),
+        "draft_subject": draft.get("subject", f"Re: {subject}"),
+        "draft_body": draft.get("body", ""),
+        "channel": latest_inbound.channel,
+        "reply_text": body,
+        "contact": {
+            "name": f"{contact.first_name or ''} {contact.last_name or ''}".strip(),
+            "email": contact.email,
+            "company": contact.company_name,
+        },
     }
 
 
@@ -1725,14 +2107,55 @@ async def update_contact_status(
                         smartlead_synced = resp.status_code == 200
                 except Exception as e:
                     pass  # Log but don't fail
-    
+
+    # Auto-create tasks when status changes to "scheduled"
+    tasks_created = 0
+    if request.status == "scheduled" and old_status != "scheduled":
+        from app.models.task import OperatorTask
+        from datetime import timedelta
+        contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or contact.email
+
+        # Next business day 9:00 AM
+        tomorrow = datetime.utcnow().replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        # Skip weekends
+        while tomorrow.weekday() >= 5:
+            tomorrow += timedelta(days=1)
+
+        # Task 1: Morning ping
+        morning_task = OperatorTask(
+            project_id=contact.project_id,
+            contact_id=contact.id,
+            task_type="morning_ping",
+            title=f"Morning ping — {contact_name}",
+            description=f"Send a morning message to {contact_name} ({contact.email}) before the scheduled meeting",
+            due_at=tomorrow,
+            contact_email=contact.email,
+            contact_name=contact_name,
+        )
+        session.add(morning_task)
+
+        # Task 2: Pre-meeting reminder (30 min after morning ping)
+        pre_meeting_task = OperatorTask(
+            project_id=contact.project_id,
+            contact_id=contact.id,
+            task_type="pre_meeting",
+            title=f"Pre-meeting reminder — {contact_name}",
+            description=f"Remind {contact_name} ({contact.email}) about the upcoming meeting",
+            due_at=tomorrow + timedelta(minutes=30),
+            contact_email=contact.email,
+            contact_name=contact_name,
+        )
+        session.add(pre_meeting_task)
+        tasks_created = 2
+
     await session.commit()
-    
+
     return {
         "id": contact.id,
         "email": contact.email,
         "old_status": old_status,
         "new_status": contact.status,
         "smartlead_synced": smartlead_synced,
-        "getsales_synced": False  # Not supported via API
+        "getsales_synced": False,  # Not supported via API
+        "tasks_created": tasks_created,
     }

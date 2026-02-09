@@ -35,6 +35,12 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     target_industries = Column(Text, nullable=True)  # JSON-like string of industries
     target_segments = Column(Text, nullable=True)    # JSON-like string of segments
     
+    # Campaign filters — project = saved selection of campaigns
+    campaign_filters = Column(JSON, nullable=True)   # List of campaign names: ["Campaign A", "Campaign B"]
+
+    # Auto-reply prompt linked from conversation analysis
+    reply_prompt_template_id = Column(Integer, ForeignKey("reply_prompt_templates.id", ondelete="SET NULL"), nullable=True)
+
     # Generated content (for AI SDR later)
     tam_analysis = Column(Text, nullable=True)       # Total Addressable Market analysis
     gtm_plan = Column(Text, nullable=True)           # Go-to-market plan
