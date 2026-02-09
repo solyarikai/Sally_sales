@@ -17,13 +17,19 @@ from app.models import (
     Dataset, DataRow, PromptTemplate, EnrichmentJob, Folder, IntegrationSetting,
     Document, DocumentType, DocumentFolder, CompanyProfile,
     Product, Segment, SegmentColumn, Competitor, CaseStudy, VoiceTone, Blocklist, BookingLink,
-    Prospect, ProspectActivity
+    Prospect, ProspectActivity,
+    Domain, SearchJob, SearchQuery, SearchResult,
+    DiscoveredCompany, ExtractedContact, PipelineEvent,
 )
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Override sqlalchemy.url from app settings (.env) if available
+from app.core.config import settings
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = Base.metadata
 

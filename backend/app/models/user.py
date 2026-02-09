@@ -114,6 +114,9 @@ class Company(Base):
     projects = relationship("Project", back_populates="company", cascade="all, delete-orphan")
     contacts = relationship("Contact", back_populates="company", cascade="all, delete-orphan")
 
+    # Search
+    search_jobs = relationship("SearchJob", back_populates="company", cascade="all, delete-orphan")
+
 
 class UserActivityLog(Base):
     """

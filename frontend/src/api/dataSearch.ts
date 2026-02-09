@@ -1,5 +1,76 @@
 import { api } from './client';
 
+// ============ Project Search Types ============
+
+export interface SearchJobDetail {
+  id: number;
+  company_id: number;
+  status: string;
+  search_engine: string;
+  queries_total: number;
+  queries_completed: number;
+  domains_found: number;
+  domains_new: number;
+  domains_trash: number;
+  domains_duplicate: number;
+  started_at?: string;
+  completed_at?: string;
+  error_message?: string;
+  created_at?: string;
+  project_id?: number;
+  queries?: { id: number; query_text: string; status: string; domains_found: number }[];
+}
+
+export interface SearchResultItem {
+  id: number;
+  search_job_id: number;
+  project_id?: number;
+  domain: string;
+  url?: string;
+  is_target: boolean;
+  confidence?: number;
+  reasoning?: string;
+  company_info?: {
+    name?: string;
+    description?: string;
+    services?: string[];
+    location?: string;
+    industry?: string;
+  };
+  html_snippet?: string;
+  scraped_at?: string;
+  analyzed_at?: string;
+}
+
+export interface SpendingInfo {
+  queries_count: number;
+  yandex_cost: number;
+  openai_tokens_used: number;
+  openai_cost_estimate: number;
+  total_estimate: number;
+}
+
+export interface SearchProgressEvent {
+  phase: string;
+  status: string;
+  current: number;
+  total: number;
+  domains_found: number;
+  domains_new: number;
+  results_analyzed: number;
+  elapsed_seconds: number;
+  estimated_remaining_seconds?: number;
+  error_message?: string;
+}
+
+export interface ProjectInfo {
+  id: number;
+  name: string;
+  description?: string;
+  target_segments?: string;
+  target_industries?: string;
+}
+
 export interface SearchFilter {
   field: string;
   value: string;
@@ -298,3 +369,223 @@ export const dataSearchApi = {
     return response.data;
   },
 };
+
+
+// ============================================================================
+// PROJECT SEARCH API — Yandex + GPT analysis pipeline
+// ============================================================================
+
+export const projectSearchApi = {
+  // Run full search pipeline for a project
+  runProjectSearch: async (
+    projectId: number,
+    maxQueries: number = 100
+  ): Promise<{ job_id: number; status: string }> => {
+    const response = await api.post(`/search/projects/${projectId}/run`, {
+      max_queries: maxQueries,
+    });
+    return response.data;
+  },
+
+  // Get search job status with queries
+  getSearchJobStatus: async (jobId: number): Promise<SearchJobDetail> => {
+    const response = await api.get(`/search/jobs/${jobId}`);
+    return response.data;
+  },
+
+  // Get analyzed results for a project
+  getProjectResults: async (
+    projectId: number,
+    targetsOnly: boolean = false
+  ): Promise<SearchResultItem[]> => {
+    const response = await api.get(`/search/projects/${projectId}/results`, {
+      params: { targets_only: targetsOnly },
+    });
+    return response.data;
+  },
+
+  // Get cost tracking for a project
+  getProjectSpending: async (projectId: number): Promise<SpendingInfo> => {
+    const response = await api.get(`/search/projects/${projectId}/spending`);
+    return response.data;
+  },
+
+  // Cancel a search job
+  cancelSearchJob: async (jobId: number): Promise<void> => {
+    await api.post(`/search/jobs/${jobId}/cancel`);
+  },
+
+  // SSE stream for real-time progress
+  streamSearchJob: (
+    jobId: number,
+    onEvent: (event: SearchProgressEvent) => void,
+    onError?: (error: Event) => void
+  ): EventSource => {
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const url = `${baseUrl}/api/search/jobs/${jobId}/stream`;
+    const eventSource = new EventSource(url);
+
+    eventSource.addEventListener('progress', (e) => {
+      try {
+        const data = JSON.parse(e.data) as SearchProgressEvent;
+        onEvent(data);
+      } catch (err) {
+        console.error('Failed to parse SSE event:', err);
+      }
+    });
+
+    eventSource.addEventListener('completed', (e) => {
+      try {
+        const data = JSON.parse(e.data) as SearchProgressEvent;
+        onEvent(data);
+      } catch (err) {
+        console.error('Failed to parse SSE event:', err);
+      }
+      eventSource.close();
+    });
+
+    eventSource.addEventListener('error', (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data) as SearchProgressEvent;
+        onEvent(data);
+      } catch {
+        // SSE connection error
+      }
+      eventSource.close();
+    });
+
+    eventSource.addEventListener('cancelled', (e) => {
+      try {
+        const data = JSON.parse(e.data) as SearchProgressEvent;
+        onEvent(data);
+      } catch (err) {
+        console.error('Failed to parse SSE event:', err);
+      }
+      eventSource.close();
+    });
+
+    if (onError) {
+      eventSource.onerror = onError;
+    }
+
+    return eventSource;
+  },
+
+  // Export results to Google Sheet
+  exportToGoogleSheet: async (
+    projectId: number
+  ): Promise<{ sheet_url: string }> => {
+    const response = await api.post(
+      `/search/projects/${projectId}/export-sheet`
+    );
+    return response.data;
+  },
+
+  // List search jobs
+  listSearchJobs: async (
+    page: number = 1,
+    pageSize: number = 20
+  ): Promise<SearchJobDetail[]> => {
+    const response = await api.get('/search/jobs', {
+      params: { page, page_size: pageSize },
+    });
+    return response.data;
+  },
+
+  // Generate queries
+  generateQueries: async (
+    count: number = 50,
+    targetSegments?: string,
+    projectId?: number,
+    existingQueries: string[] = []
+  ): Promise<{ queries: string[]; count: number }> => {
+    const response = await api.post('/search/generate-queries', {
+      count,
+      target_segments: targetSegments,
+      project_id: projectId,
+      existing_queries: existingQueries,
+    });
+    return response.data;
+  },
+
+  // Get extended job detail with config, results summary, spending
+  getJobFull: async (jobId: number): Promise<SearchJobFullDetail> => {
+    const response = await api.get(`/search/jobs/${jobId}/full`);
+    return response.data;
+  },
+
+  // Download job results as CSV
+  downloadJobCsv: async (jobId: number): Promise<Blob> => {
+    const response = await api.get(`/search/jobs/${jobId}/results/download`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // Search history — paginated job list with summary stats
+  getSearchHistory: async (
+    page: number = 1,
+    pageSize: number = 20
+  ): Promise<{
+    items: SearchHistoryItem[];
+    total: number;
+    page: number;
+    page_size: number;
+  }> => {
+    const response = await api.get('/search/history', {
+      params: { page, page_size: pageSize },
+    });
+    return response.data;
+  },
+};
+
+// ============ Extended types for search history ============
+
+export interface SearchJobFullDetail {
+  id: number;
+  company_id: number;
+  status: string;
+  search_engine: string;
+  project_id?: number;
+  project_name?: string;
+  queries_total: number;
+  queries_completed: number;
+  domains_found: number;
+  domains_new: number;
+  domains_trash: number;
+  domains_duplicate: number;
+  started_at?: string;
+  completed_at?: string;
+  created_at?: string;
+  error_message?: string;
+  config?: Record<string, any>;
+  results_total: number;
+  targets_found: number;
+  avg_confidence?: number;
+  yandex_cost: number;
+  openai_tokens_used: number;
+  openai_cost_estimate: number;
+  total_cost_estimate: number;
+}
+
+export interface SearchHistoryItem {
+  id: number;
+  company_id: number;
+  status: string;
+  search_engine: string;
+  project_id?: number;
+  project_name?: string;
+  queries_total: number;
+  queries_completed: number;
+  domains_found: number;
+  domains_new: number;
+  domains_trash: number;
+  domains_duplicate: number;
+  results_total: number;
+  targets_found: number;
+  started_at?: string;
+  completed_at?: string;
+  created_at?: string;
+  error_message?: string;
+  openai_tokens_used: number;
+}

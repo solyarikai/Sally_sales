@@ -8,6 +8,17 @@ from .knowledge_base import (
 from .prospect import Prospect, ProspectActivity
 from .reply import ReplyAutomation, ProcessedReply, ReplyCategory
 from .contact import Contact, Project, ContactActivity
+from .domain import (
+    Domain, DomainStatus, DomainSource,
+    SearchJob, SearchJobStatus, SearchEngine,
+    SearchQuery, SearchQueryStatus,
+    SearchResult,
+)
+from .pipeline import (
+    DiscoveredCompany, DiscoveredCompanyStatus,
+    ExtractedContact, ContactSource,
+    PipelineEvent, PipelineEventType,
+)
 from .task import OperatorTask
 
 __all__ = [
@@ -25,6 +36,15 @@ __all__ = [
     "ReplyAutomation", "ProcessedReply", "ReplyCategory",
     # CRM
     "Contact", "Project", "ContactActivity",
+    # Domain & Search
+    "Domain", "DomainStatus", "DomainSource",
+    "SearchJob", "SearchJobStatus", "SearchEngine",
+    "SearchQuery", "SearchQueryStatus",
+    "SearchResult",
+    # Pipeline
+    "DiscoveredCompany", "DiscoveredCompanyStatus",
+    "ExtractedContact", "ContactSource",
+    "PipelineEvent", "PipelineEventType",
     # Tasks
     "OperatorTask",
 ]

@@ -23,6 +23,8 @@ from .dashboard import router as dashboard_router
 from .tasks import router as tasks_router
 from .health import router as health_router
 from .data_search import router as data_search_router
+from .search import router as search_router
+from .pipeline import router as pipeline_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -69,5 +71,11 @@ api_router.include_router(health_router)
 
 # Data Search (Explee-like natural language search)
 api_router.include_router(data_search_router)
+
+# Search Pipeline (Yandex + GPT analysis)
+api_router.include_router(search_router)
+
+# Pipeline (outreach data processing)
+api_router.include_router(pipeline_router)
 
 __all__ = ["api_router"]

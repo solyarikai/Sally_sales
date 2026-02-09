@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft, MessageSquare, Contact, ListTodo, Search, Zap } from 'lucide-react';
+import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft, MessageSquare, Contact, ListTodo, Search, Zap, Target, Layers } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -23,6 +23,8 @@ export function Layout({ children }: LayoutProps) {
   const companyPrefix = companyId ? `/company/${companyId}` : '';
   const navItems = [
     { path: '/', icon: Search, label: 'Data Search', global: true },
+    { path: '/search-results', icon: Target, label: 'Search Results', global: true },
+    { path: '/pipeline', icon: Layers, label: 'Pipeline', global: true },
     { path: `${companyPrefix}/data`, icon: Database, label: 'Data' },
     { path: `${companyPrefix}/prospects`, icon: Users, label: 'All Prospects' },
     { path: `${companyPrefix}/contacts`, icon: Contact, label: 'CRM' },
@@ -97,6 +99,10 @@ export function Layout({ children }: LayoutProps) {
     }
     if (path === '/templates' || path === '/settings') {
       return location.pathname === path;
+    }
+    // Search results matches /search-results and /search-results/:jobId
+    if (path === '/search-results') {
+      return location.pathname.startsWith('/search-results');
     }
     return location.pathname.startsWith(path);
   };

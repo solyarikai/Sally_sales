@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -32,13 +32,24 @@ import {
   ShieldCheck,
   AlertTriangle,
   Info,
+  FolderSearch,
+  DollarSign,
+  Clock,
+  ChevronDown,
+  FileSpreadsheet,
+  StopCircle,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import type { SearchFilter, CompanyResult, ChatMessage, ExtractedPattern, VerificationCriteria } from '../api/dataSearch';
-import { dataSearchApi } from '../api/dataSearch';
+import type { SearchFilter, CompanyResult, ChatMessage, ExtractedPattern, VerificationCriteria, SearchProgressEvent, SearchResultItem, SpendingInfo } from '../api/dataSearch';
+import { dataSearchApi, projectSearchApi } from '../api/dataSearch';
+import { contactsApi, type Project } from '../api/contacts';
 
 // Search modes
-type SearchMode = 'chat' | 'reverse';
+type SearchMode = 'chat' | 'reverse' | 'project';
 
 // Example queries for inspiration
 const EXAMPLE_QUERIES = [
@@ -500,6 +511,19 @@ export function DataSearchPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationSummary, setVerificationSummary] = useState<string | null>(null);
 
+  // Project search state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [projectSearchJobId, setProjectSearchJobId] = useState<number | null>(null);
+  const [projectProgress, setProjectProgress] = useState<SearchProgressEvent | null>(null);
+  const [projectResults, setProjectResults] = useState<SearchResultItem[]>([]);
+  const [projectSpending, setProjectSpending] = useState<SpendingInfo | null>(null);
+  const [isProjectSearching, setIsProjectSearching] = useState(false);
+  const [showTargetsOnly, setShowTargetsOnly] = useState(false);
+  const [maxQueries, setMaxQueries] = useState(100);
+  const [expandedResultId, setExpandedResultId] = useState<number | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
   // Scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -509,6 +533,80 @@ export function DataSearchPage() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Load projects when switching to project mode
+  useEffect(() => {
+    if (searchMode === 'project' && projects.length === 0) {
+      contactsApi.listProjects().then(setProjects).catch(console.error);
+    }
+  }, [searchMode, projects.length]);
+
+  // Cleanup SSE on unmount
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close();
+    };
+  }, []);
+
+  const selectedProject = projects.find(p => p.id === selectedProjectId);
+
+  const handleProjectSearch = useCallback(async () => {
+    if (!selectedProjectId || isProjectSearching) return;
+
+    setIsProjectSearching(true);
+    setProjectProgress(null);
+    setProjectResults([]);
+    setProjectSpending(null);
+    setHasSearched(true);
+
+    try {
+      const { job_id } = await projectSearchApi.runProjectSearch(selectedProjectId, maxQueries);
+      setProjectSearchJobId(job_id);
+
+      // Start SSE stream
+      eventSourceRef.current?.close();
+      const es = projectSearchApi.streamSearchJob(
+        job_id,
+        (event) => {
+          setProjectProgress(event);
+          if (event.phase === 'completed' || event.phase === 'error' || event.phase === 'cancelled') {
+            setIsProjectSearching(false);
+            // Load final results
+            projectSearchApi.getProjectResults(selectedProjectId).then(setProjectResults);
+            projectSearchApi.getProjectSpending(selectedProjectId).then(setProjectSpending);
+          }
+        },
+        () => {
+          setIsProjectSearching(false);
+        }
+      );
+      eventSourceRef.current = es;
+    } catch (error: any) {
+      console.error('Project search failed:', error);
+      setIsProjectSearching(false);
+    }
+  }, [selectedProjectId, isProjectSearching, maxQueries]);
+
+  const handleCancelProjectSearch = useCallback(async () => {
+    if (!projectSearchJobId) return;
+    try {
+      await projectSearchApi.cancelSearchJob(projectSearchJobId);
+      eventSourceRef.current?.close();
+      setIsProjectSearching(false);
+    } catch (error) {
+      console.error('Cancel failed:', error);
+    }
+  }, [projectSearchJobId]);
+
+  const handleExportSheet = useCallback(async () => {
+    if (!selectedProjectId) return;
+    try {
+      const { sheet_url } = await projectSearchApi.exportToGoogleSheet(selectedProjectId);
+      window.open(sheet_url, '_blank');
+    } catch (error: any) {
+      console.error('Export failed:', error);
+    }
+  }, [selectedProjectId]);
 
   const handleSearch = async () => {
     if (!query.trim() || isSearching) return;
@@ -628,6 +726,14 @@ export function DataSearchPage() {
     setAnalysisSummary('');
     setSearchTips([]);
     setVerificationSummary(null);
+    // Reset project search state
+    setProjectSearchJobId(null);
+    setProjectProgress(null);
+    setProjectResults([]);
+    setProjectSpending(null);
+    setIsProjectSearching(false);
+    setExpandedResultId(null);
+    eventSourceRef.current?.close();
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
@@ -784,6 +890,18 @@ export function DataSearchPage() {
               <GitCompareArrows className="w-4 h-4" />
               Find Similar
             </button>
+            <button
+              onClick={() => setSearchMode('project')}
+              className={cn(
+                "px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition-all duration-200",
+                searchMode === 'project'
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              )}
+            >
+              <FolderSearch className="w-4 h-4" />
+              Project Search
+            </button>
           </div>
         )}
 
@@ -899,7 +1017,7 @@ export function DataSearchPage() {
                   />
                 </div>
               </>
-            ) : (
+            ) : searchMode === 'reverse' ? (
               // Reverse engineering mode - find similar companies
               <>
                 <div className="text-center mb-10 animate-fade-in">
@@ -1001,7 +1119,364 @@ export function DataSearchPage() {
                   />
                 </div>
               </>
+            ) : searchMode === 'project' ? (
+              // Project search mode
+              <>
+                <div className="text-center mb-10 animate-fade-in">
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-50 text-emerald-600 text-sm font-medium rounded-full mb-6">
+                    <FolderSearch className="w-4 h-4" />
+                    Project Search Pipeline
+                  </div>
+                  <h1 className="text-5xl font-bold text-gray-900 mb-4 tracking-tight">
+                    Search by{' '}
+                    <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                      Project Target
+                    </span>
+                  </h1>
+                  <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
+                    Select a project with target segments. AI generates search queries, finds companies via Yandex, and analyzes each website.
+                  </p>
+                </div>
+
+                <div className="w-full max-w-3xl mb-8 animate-slide-up">
+                  <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-6 shadow-xl shadow-emerald-500/5">
+                    {/* Project selector */}
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Project
+                      </label>
+                      <select
+                        value={selectedProjectId || ''}
+                        onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10 bg-white text-gray-900"
+                      >
+                        <option value="">Choose a project...</option>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} {p.target_segments ? `(${p.target_segments})` : '(no segments)'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Show target segments */}
+                    {selectedProject && (
+                      <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                        <div className="text-sm font-medium text-emerald-700 mb-1">Target Segments</div>
+                        <div className="text-emerald-900">
+                          {selectedProject.target_segments || <span className="text-amber-600 italic">No target segments configured for this project</span>}
+                        </div>
+                        {selectedProject.target_industries && (
+                          <div className="mt-2">
+                            <span className="text-sm text-emerald-600">Industries: </span>
+                            <span className="text-sm text-emerald-900">{selectedProject.target_industries}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Max queries */}
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Max Queries (max 100 for test)
+                      </label>
+                      <input
+                        type="number"
+                        value={maxQueries}
+                        onChange={(e) => setMaxQueries(Math.min(100, Math.max(1, Number(e.target.value))))}
+                        min={1}
+                        max={100}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Test limit: max 100 Yandex queries. Each query costs ~$0.00075.</p>
+                    </div>
+
+                    {/* Run button */}
+                    <button
+                      onClick={handleProjectSearch}
+                      disabled={!selectedProjectId || !selectedProject?.target_segments || isProjectSearching}
+                      className="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-2"
+                    >
+                      {isProjectSearching ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Running Pipeline...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-5 h-5" />
+                          Run Search Pipeline
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Feature cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-4xl animate-fade-in" style={{ animationDelay: '200ms' }}>
+                  <FeatureCard
+                    icon={Target}
+                    title="AI Queries"
+                    description="GPT generates search queries from your project's target segments."
+                  />
+                  <FeatureCard
+                    icon={Globe}
+                    title="Yandex Search"
+                    description="Searches Yandex API, filters trash domains, finds new company websites."
+                  />
+                  <FeatureCard
+                    icon={ShieldCheck}
+                    title="GPT Analysis"
+                    description="Scrapes each website and uses GPT to verify if it matches your target."
+                  />
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : searchMode === 'project' && hasSearched ? (
+          // Project search results view
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Progress panel */}
+            {projectProgress && (
+              <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center",
+                      projectProgress.phase === 'completed' ? "bg-emerald-500" :
+                      projectProgress.phase === 'error' ? "bg-red-500" :
+                      "bg-emerald-500 animate-pulse"
+                    )}>
+                      {projectProgress.phase === 'completed' ? (
+                        <CheckCircle2 className="w-5 h-5 text-white" />
+                      ) : projectProgress.phase === 'error' ? (
+                        <XCircle className="w-5 h-5 text-white" />
+                      ) : (
+                        <Loader2 className="w-5 h-5 text-white animate-spin" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900 capitalize">
+                        {projectProgress.phase === 'generating_queries' ? 'Generating Queries...' :
+                         projectProgress.phase === 'searching' ? 'Searching Yandex...' :
+                         projectProgress.phase === 'completed' ? 'Pipeline Complete' :
+                         projectProgress.phase === 'error' ? 'Error' :
+                         projectProgress.phase === 'cancelled' ? 'Cancelled' :
+                         projectProgress.phase}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {projectProgress.current}/{projectProgress.total} queries
+                        {' | '}{projectProgress.domains_found} domains found
+                        {' | '}{projectProgress.domains_new} new
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-gray-500 flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {Math.round(projectProgress.elapsed_seconds)}s elapsed
+                      {projectProgress.estimated_remaining_seconds != null && (
+                        <span> | ~{Math.round(projectProgress.estimated_remaining_seconds)}s remaining</span>
+                      )}
+                    </div>
+                    {isProjectSearching && (
+                      <button
+                        onClick={handleCancelProjectSearch}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                      >
+                        <StopCircle className="w-4 h-4" />
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {/* Progress bar */}
+                {projectProgress.total > 0 && (
+                  <div className="w-full bg-emerald-100 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, (projectProgress.current / projectProgress.total) * 100)}%` }}
+                    />
+                  </div>
+                )}
+                {projectProgress.error_message && (
+                  <div className="mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+                    {projectProgress.error_message}
+                  </div>
+                )}
+              </div>
             )}
+
+            {/* Spending info */}
+            {projectSpending && (
+              <div className="px-6 py-3 bg-white border-b border-gray-100 flex items-center gap-6 text-sm">
+                <div className="flex items-center gap-1.5 text-gray-600">
+                  <DollarSign className="w-4 h-4 text-emerald-500" />
+                  <span className="font-medium">Cost:</span> ${projectSpending.total_estimate.toFixed(4)}
+                </div>
+                <div className="text-gray-400">|</div>
+                <div className="text-gray-500">Yandex: ${projectSpending.yandex_cost.toFixed(4)} ({projectSpending.queries_count} queries)</div>
+                <div className="text-gray-400">|</div>
+                <div className="text-gray-500">OpenAI: ${projectSpending.openai_cost_estimate.toFixed(4)} ({projectSpending.openai_tokens_used.toLocaleString()} tokens)</div>
+              </div>
+            )}
+
+            {/* Controls bar */}
+            <div className="px-6 py-3 bg-white border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium text-gray-700">
+                  {projectResults.length} results
+                  {showTargetsOnly && ` (${projectResults.filter(r => r.is_target).length} targets)`}
+                </span>
+                <button
+                  onClick={() => setShowTargetsOnly(!showTargetsOnly)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors",
+                    showTargetsOnly
+                      ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  )}
+                >
+                  {showTargetsOnly ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  {showTargetsOnly ? 'Targets Only' : 'Show All'}
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleExportSheet}
+                  disabled={projectResults.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:shadow-lg hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 font-medium"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Export to Google Sheet
+                </button>
+              </div>
+            </div>
+
+            {/* Results table */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {projectResults.length > 0 ? (
+                <div className="space-y-3">
+                  {(showTargetsOnly ? projectResults.filter(r => r.is_target) : projectResults).map((result) => (
+                    <div
+                      key={result.id}
+                      className={cn(
+                        "bg-white border rounded-xl p-4 transition-all duration-200 hover:shadow-md",
+                        result.is_target ? "border-emerald-200" : "border-gray-200"
+                      )}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-10 h-10 rounded-lg flex items-center justify-center",
+                            result.is_target ? "bg-emerald-100" : "bg-gray-100"
+                          )}>
+                            <Building2 className={cn(
+                              "w-5 h-5",
+                              result.is_target ? "text-emerald-600" : "text-gray-400"
+                            )} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-gray-900">
+                                {result.company_info?.name || result.domain}
+                              </span>
+                              {result.is_target ? (
+                                <span className="px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
+                                  Target
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-full">
+                                  Not Target
+                                </span>
+                              )}
+                              {result.confidence != null && (
+                                <span className="text-xs text-gray-500">
+                                  {Math.round(result.confidence * 100)}% confidence
+                                </span>
+                              )}
+                            </div>
+                            <a
+                              href={result.url || `https://${result.domain}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
+                            >
+                              {result.domain}
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setExpandedResultId(expandedResultId === result.id ? null : result.id)}
+                          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                          <ChevronDown className={cn(
+                            "w-4 h-4 transition-transform",
+                            expandedResultId === result.id && "rotate-180"
+                          )} />
+                        </button>
+                      </div>
+
+                      {/* Summary row */}
+                      {result.company_info?.description && (
+                        <p className="text-sm text-gray-600 mt-2 ml-13">{result.company_info.description}</p>
+                      )}
+
+                      {/* Tags */}
+                      <div className="flex flex-wrap gap-2 mt-2 ml-13">
+                        {result.company_info?.industry && (
+                          <span className="px-2 py-0.5 text-xs bg-indigo-50 text-indigo-600 rounded-lg">{result.company_info.industry}</span>
+                        )}
+                        {result.company_info?.location && (
+                          <span className="px-2 py-0.5 text-xs bg-blue-50 text-blue-600 rounded-lg">{result.company_info.location}</span>
+                        )}
+                        {result.company_info?.services?.slice(0, 3).map((svc, idx) => (
+                          <span key={idx} className="px-2 py-0.5 text-xs bg-purple-50 text-purple-600 rounded-lg">{svc}</span>
+                        ))}
+                      </div>
+
+                      {/* Expanded details */}
+                      {expandedResultId === result.id && (
+                        <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                          {result.reasoning && (
+                            <div>
+                              <span className="text-xs font-medium text-gray-500">GPT Reasoning:</span>
+                              <p className="text-sm text-gray-700 mt-1">{result.reasoning}</p>
+                            </div>
+                          )}
+                          {result.company_info?.services && result.company_info.services.length > 0 && (
+                            <div>
+                              <span className="text-xs font-medium text-gray-500">Services:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {result.company_info.services.map((svc, idx) => (
+                                  <span key={idx} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded">{svc}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div className="text-xs text-gray-400">
+                            Scraped: {result.scraped_at || 'N/A'} | Analyzed: {result.analyzed_at || 'N/A'}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : !isProjectSearching ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center mb-6">
+                    <FolderSearch className="w-10 h-10 text-gray-300" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                    Waiting for results
+                  </h3>
+                  <p className="text-gray-500 max-w-sm">
+                    The search pipeline is running. Results will appear here as domains are analyzed.
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </div>
         ) : (
           // Search results state - chat + results

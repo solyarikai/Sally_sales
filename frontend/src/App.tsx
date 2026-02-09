@@ -12,6 +12,8 @@ import { RepliesPage } from './pages/RepliesPage';
 import PromptDebugPage from './pages/PromptDebugPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { TasksPage } from './pages/TasksPage';
+import { SearchResultsPage } from './pages/SearchResultsPage';
+import { PipelinePage } from './pages/PipelinePage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -88,6 +90,25 @@ function App() {
         {/* Dashboard page */}
         <Route path="/dashboard" element={<DashboardPage />} />
         
+        {/* Search Results */}
+        <Route path="/search-results" element={
+          <Layout>
+            <SearchResultsPage />
+          </Layout>
+        } />
+        <Route path="/search-results/:jobId" element={
+          <Layout>
+            <SearchResultsPage />
+          </Layout>
+        } />
+
+        {/* Pipeline */}
+        <Route path="/pipeline" element={
+          <Layout>
+            <PipelinePage />
+          </Layout>
+        } />
+
         {/* Global CRM contacts page (not company-scoped) */}
         <Route path="/contacts" element={
           <Layout>

@@ -60,6 +60,26 @@ class Settings(BaseSettings):
     # Shared Drive ID for uploading files (optional - if not set, files go to service account's My Drive)
     SHARED_DRIVE_ID: Optional[str] = None
     
+    # Yandex Search API
+    YANDEX_SEARCH_API_KEY: Optional[str] = None
+    YANDEX_SEARCH_FOLDER_ID: Optional[str] = None
+    YANDEX_SEARCH_API_URL: str = "https://searchapi.api.cloud.yandex.net/v2/web/searchAsync"
+    YANDEX_OPERATIONS_URL: str = "https://operation.api.cloud.yandex.net/operations"
+
+    # Search settings
+    SEARCH_MAX_PAGES: int = 3
+    SEARCH_WORKERS: int = 2
+    SEARCH_REQUEST_TIMEOUT: int = 30
+
+    # Apollo API (people enrichment)
+    APOLLO_API_KEY: Optional[str] = None
+    APOLLO_API_URL: str = "https://api.apollo.io/api/v1"
+
+    # Apify proxy (for Google SERP scraping)
+    APIFY_PROXY_HOST: str = "proxy.apify.com"
+    APIFY_PROXY_PORT: int = 8000
+    APIFY_PROXY_PASSWORD: Optional[str] = None
+
     # CORS - comma-separated list of allowed origins
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,http://46.62.210.24,http://46.62.210.24:80,http://46.62.210.24:8000"
     
