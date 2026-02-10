@@ -525,7 +525,6 @@ async def add_campaigns_to_automation(
                 await smartlead_service.configure_campaign_webhook(
                     campaign_id=cid,
                     webhook_url=webhook_url,
-                    event_types=["EMAIL_REPLY"]
                 )
                 logger.info(f"Configured webhook for campaign {cid}")
             except Exception as e:

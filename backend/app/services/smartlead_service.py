@@ -440,74 +440,83 @@ class SmartleadService:
         self,
         campaign_id: str,
         webhook_url: str,
-        webhook_name: str = "Auto-Replies Webhook"
+        webhook_name: str = "Auto-Replies Webhook",
+        client: httpx.AsyncClient | None = None,
     ) -> bool:
         """Configure a webhook for a Smartlead campaign."""
         if not self.api_key:
             logger.warning("Smartlead API key not configured")
             return False
-        
+
+        owns_client = client is None
+        if owns_client:
+            client = httpx.AsyncClient()
         try:
-            async with httpx.AsyncClient() as client:
-                # Check if webhook already exists
-                resp = await client.get(
-                    f"{self.base_url}/campaigns/{campaign_id}/webhooks",
-                    params={"api_key": self.api_key},
-                    timeout=30.0
-                )
-                
-                if resp.status_code == 200:
-                    existing = resp.json()
-                    for wh in existing:
-                        if wh.get("webhook_url") == webhook_url:
-                            logger.info(f"Webhook already configured for campaign {campaign_id}")
-                            return True
-                
-                # Add new webhook
-                webhook_data = {
+            # Check if webhook already exists
+            resp = await client.get(
+                f"{self.base_url}/campaigns/{campaign_id}/webhooks",
+                params={"api_key": self.api_key},
+                timeout=30.0
+            )
+
+            if resp.status_code == 200:
+                existing = resp.json()
+                for wh in existing:
+                    if wh.get("webhook_url") == webhook_url:
+                        return True
+
+            # Add new webhook
+            resp = await client.post(
+                f"{self.base_url}/campaigns/{campaign_id}/webhooks",
+                params={"api_key": self.api_key},
+                json={
                     "name": webhook_name,
                     "webhook_url": webhook_url,
-                    "event_types": ["EMAIL_REPLY"]
-                }
-                
-                resp = await client.post(
-                    f"{self.base_url}/campaigns/{campaign_id}/webhooks",
-                    params={"api_key": self.api_key},
-                    json=webhook_data,
-                    timeout=30.0
-                )
-                
-                if resp.status_code == 200:
-                    logger.info(f"Webhook configured for campaign {campaign_id}")
-                    return True
-                else:
-                    logger.error(f"Failed to configure webhook: {resp.status_code} - {resp.text}")
-                    return False
-                    
+                    "event_types": ["EMAIL_REPLY"],
+                },
+                timeout=30.0
+            )
+
+            if resp.status_code == 200:
+                logger.info(f"Webhook configured for campaign {campaign_id}")
+                return True
+            else:
+                logger.error(f"Failed to configure webhook: {resp.status_code} - {resp.text}")
+                return False
+
         except Exception as e:
             logger.error(f"Error configuring webhook for campaign {campaign_id}: {e}")
             return False
+        finally:
+            if owns_client:
+                await client.aclose()
 
 
 # Global instance
 smartlead_service = SmartleadService()
 
+# Track synced campaigns across calls within one process lifetime
+_synced_campaign_ids: set[str] = set()
 
 
 async def sync_webhooks_on_startup():
-    """Verify and re-register webhooks for all active automations on startup."""
-    import logging
+    """Verify and re-register webhooks for all active automations on startup.
+
+    Optimizations vs naive approach:
+    - Deduplicates campaign IDs across all automations
+    - Skips campaigns already confirmed this process lifetime
+    - Runs up to 10 checks concurrently with shared HTTP client
+    """
+    import asyncio
     from app.db import async_session_maker
     from app.models.reply import ReplyAutomation
     from sqlalchemy import select
-    
-    logger = logging.getLogger(__name__)
-    logger.info("Syncing Smartlead webhooks for active automations...")
-    
+
+    global _synced_campaign_ids
+
     webhook_url = "http://46.62.210.24:8000/api/smartlead/webhook"
-    synced = 0
-    failed = 0
-    
+
+    # Collect unique campaign IDs across all active automations
     async with async_session_maker() as session:
         result = await session.execute(
             select(ReplyAutomation).where(
@@ -516,20 +525,44 @@ async def sync_webhooks_on_startup():
             )
         )
         automations = result.scalars().all()
-        
-        for automation in automations:
-            for campaign_id in (automation.campaign_ids or []):
-                try:
-                    await smartlead_service.configure_campaign_webhook(
-                        campaign_id=campaign_id,
-                        webhook_url=webhook_url
-                    )
+
+    all_campaign_ids: set[str] = set()
+    for automation in automations:
+        for cid in (automation.campaign_ids or []):
+            all_campaign_ids.add(str(cid))
+
+    # Skip campaigns already confirmed this process lifetime
+    to_sync = all_campaign_ids - _synced_campaign_ids
+    if not to_sync:
+        logger.info(f"Webhook sync: all {len(all_campaign_ids)} campaigns already confirmed, skipping")
+        return {"synced": 0, "failed": 0, "skipped": len(all_campaign_ids)}
+
+    logger.info(f"Syncing webhooks: {len(to_sync)} campaigns to check ({len(_synced_campaign_ids)} already confirmed)")
+
+    synced = 0
+    failed = 0
+    sem = asyncio.Semaphore(10)
+
+    async def _sync_one(cid: str, client: httpx.AsyncClient):
+        nonlocal synced, failed
+        async with sem:
+            try:
+                ok = await smartlead_service.configure_campaign_webhook(
+                    campaign_id=cid, webhook_url=webhook_url, client=client
+                )
+                if ok:
+                    _synced_campaign_ids.add(cid)
                     synced += 1
-                except Exception as e:
-                    logger.warning(f"Failed to sync webhook for campaign {campaign_id}: {e}")
+                else:
                     failed += 1
-    
-    logger.info(f"Webhook sync complete: {synced} configured, {failed} failed")
+            except Exception as e:
+                logger.warning(f"Failed to sync webhook for campaign {cid}: {e}")
+                failed += 1
+
+    async with httpx.AsyncClient() as client:
+        await asyncio.gather(*[_sync_one(cid, client) for cid in to_sync])
+
+    logger.info(f"Webhook sync complete: {synced} ok, {failed} failed, {len(_synced_campaign_ids)} total confirmed")
     return {"synced": synced, "failed": failed}
 
 
