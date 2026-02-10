@@ -82,8 +82,8 @@ def strategy_core_combos():
         "управляющая компания", "управление активами",
         "инвестиционная компания", "инвестиционный фонд",
         "wealth management", "private banking",
-        "доверительное управление", "семейный офис",
-        "family office", "брокерская компания",
+        "доверительное управление", "фэмили офис",
+        "фэмили офис", "брокерская компания",
         "финансовый консультант", "инвестиционный консалтинг",
         "независимый финансовый советник",
         "персональный финансовый консультант",
@@ -192,31 +192,51 @@ def strategy_crypto():
     ]
 
 
-def strategy_cis():
-    """CIS countries — fresh domain pools."""
+def strategy_russia_regions():
+    """All Russian cities with population > 250K + all federal subjects."""
     queries = set()
     terms = [
         "управление активами", "инвестиционная компания",
-        "wealth management", "брокер инвестиции",
-        "инвестиционный фонд", "семейный офис",
-        "доверительное управление", "финансовый консультант",
-        "private banking", "управляющая компания",
+        "wealth management", "фэмили офис",
+        "доверительное управление", "private banking",
+        "управляющая компания", "инвестиционный фонд",
     ]
-    locations = [
-        "Казахстан", "Алматы", "Астана",
-        "Беларусь", "Минск",
-        "Узбекистан", "Ташкент",
-        "Грузия", "Тбилиси",
-        "Армения", "Ереван",
-        "Азербайджан", "Баку",
-        "Кыргызстан", "Бишкек",
-        "Таджикистан", "Душанбе",
-        "Молдова", "Кишинев",
-        "Туркменистан",
+    # All Russian cities with population > 250K
+    cities = [
+        "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург",
+        "Казань", "Нижний Новгород", "Челябинск", "Самара",
+        "Омск", "Ростов-на-Дону", "Уфа", "Красноярск",
+        "Воронеж", "Пермь", "Волгоград", "Краснодар",
+        "Саратов", "Тюмень", "Тольятти", "Ижевск",
+        "Барнаул", "Иркутск", "Ульяновск", "Хабаровск",
+        "Ярославль", "Владивосток", "Махачкала", "Томск",
+        "Оренбург", "Кемерово", "Новокузнецк", "Рязань",
+        "Набережные Челны", "Астрахань", "Пенза", "Киров",
+        "Липецк", "Балашиха", "Чебоксары", "Калининград",
+        "Тула", "Курск", "Ставрополь", "Сочи",
+        "Улан-Удэ", "Тверь", "Магнитогорск", "Брянск",
+        "Иваново", "Белгород", "Сургут", "Владимир",
+        "Нижний Тагил", "Архангельск", "Чита", "Калуга",
+        "Смоленск", "Волжский", "Курган", "Череповец",
+        "Орёл", "Саранск", "Вологда", "Якутск",
+        "Мурманск", "Тамбов", "Грозный", "Стерлитамак",
+        "Петрозаводск", "Нижневартовск", "Кострома", "Йошкар-Ола",
+        "Новороссийск", "Комсомольск-на-Амуре", "Таганрог", "Сыктывкар",
+        "Нальчик", "Дзержинск", "Братск", "Шахты",
+        "Нижнекамск", "Орск", "Ангарск",
     ]
-    for t, loc in product(terms, locations):
-        queries.add(f"{t} {loc}")
-    return "cis", list(queries)
+    # Federal subjects / regions (for broader searches)
+    regions = [
+        "Московская область", "Ленинградская область", "Свердловская область",
+        "Краснодарский край", "Татарстан", "Башкортостан",
+        "Тюменская область", "ХМАО", "ЯНАО",
+        "Крым", "Дагестан", "Чечня",
+    ]
+    for t, city in product(terms, cities):
+        queries.add(f"{t} {city}")
+    for t, region in product(terms[:4], regions):  # fewer combos for regions
+        queries.add(f"{t} {region}")
+    return "russia_regions", list(queries)
 
 
 def strategy_events_media():
@@ -301,9 +321,7 @@ def strategy_domain_tld():
         "site:*.capital", "site:*.fund", "site:*.finance",
         "site:*.investments", "site:*.partners инвестиции",
         "site:*.pro инвестиции", "site:*.legal финансовое право",
-        "site:*.kz инвестиционная компания",
-        "site:*.by инвестиции",
-        "site:*.uz инвестиции",
+        "site:*.ru инвестиционная компания",
         "site:*-am.ru", "site:*-capital.ru",
         "site:*invest.ru", "site:*trust.ru",
         "site:*wealth.ru", "site:*broker.ru",
@@ -335,9 +353,9 @@ def strategy_english():
         "investment management firm Russia list",
         "top investment companies Russia",
         "best wealth managers Russia",
-        "Russia CIS investment firms",
-        "Kazakhstan investment companies",
-        "Belarus asset management",
+        "Russia top investment firms",
+        "Russian investment companies list",
+        "Russian asset management firms",
     ]
 
 
@@ -347,7 +365,7 @@ ALL_STRATEGIES = [
     strategy_fund_types,
     strategy_legal_tax,
     strategy_crypto,
-    strategy_cis,
+    strategy_russia_regions,
     strategy_events_media,
     strategy_real_estate,
     strategy_alternative,
@@ -372,14 +390,15 @@ Examples of confirmed target domains (these are wealth management, investment, l
 {target_examples}
 
 Generate 100 DIVERSE Yandex search queries. Requirements:
-1. DO NOT repeat the same pattern with different cities — geo-specific queries are exhausted
-2. Focus on INDUSTRY TERMS, REGULATORY DATABASES, PROFESSIONAL DIRECTORIES
-3. Include queries for CIS countries (Kazakhstan, Belarus, Uzbekistan, etc.)
+1. RUSSIA ONLY — no CIS, no international. All targets must be Russian companies
+2. DO NOT repeat the same pattern with different cities — geo-specific queries are exhausted
+3. Focus on INDUSTRY TERMS, REGULATORY DATABASES, PROFESSIONAL DIRECTORIES
 4. Include niche subsectors: private equity, venture capital, hedge funds, structured products
 5. Include adjacent services: legal for wealthy, tax planning, trust management
-6. Try NOVEL angles: company registries, professional associations, LinkedIn-style directories
-7. Mix Russian and English queries
+6. Try NOVEL angles: company registries, professional associations, industry catalogs
+7. Mix Russian and English queries (English queries should include "Russia" or "Russian")
 8. Try specific company characteristics: "лицензия ЦБ 045", "НАУФОР член", etc.
+9. Use "фэмили офис" (NOT "семейный офис") — that's how Russians say it
 
 This is round {round_num}. Previous rounds already tried standard wealth management queries.
 Think of what HASN'T been searched yet.
