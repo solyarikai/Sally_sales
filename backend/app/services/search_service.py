@@ -558,7 +558,10 @@ class SearchService:
             return
 
         result = await session.execute(
-            select(SearchQuery).where(SearchQuery.search_job_id == job_id)
+            select(SearchQuery).where(
+                SearchQuery.search_job_id == job_id,
+                SearchQuery.status == SearchQueryStatus.PENDING,
+            )
         )
         queries = result.scalars().all()
 
