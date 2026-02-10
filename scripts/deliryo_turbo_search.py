@@ -51,6 +51,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("turbo")
 
+# Silence noisy HTTP request logs
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+
 # ── Config ────────────────────────────────────────────────────────────
 
 PROJECT_ID = 18
@@ -290,6 +295,10 @@ async def run_turbo_search():
         all_used_queries = []
         total_queries_used = 0
         iteration = 0
+        iter_start_time = datetime.utcnow()
+        run_start_time = datetime.utcnow()
+        prev_targets = existing
+        targets_history = []  # [(time, targets)]
 
         # Get confirmed target domains+info for query regeneration
         confirmed_result = await session.execute(
@@ -310,9 +319,13 @@ async def run_turbo_search():
                 logger.info(f"Query budget exhausted ({total_queries_used}/{MAX_QUERIES_BUDGET})")
                 break
 
+            iter_start_time = datetime.utcnow()
+            elapsed = (iter_start_time - run_start_time).total_seconds()
+            rate = (existing - 231) / max(elapsed / 60, 0.01)  # targets/min since start
             logger.info(f"\n{'='*60}")
-            logger.info(f"ITERATION {iteration}: {existing}/{TARGET_GOAL} targets, "
-                        f"{total_queries_used}/{MAX_QUERIES_BUDGET} queries used")
+            logger.info(f"ITER {iteration} | targets={existing}/{TARGET_GOAL} | "
+                        f"queries={total_queries_used}/{MAX_QUERIES_BUDGET} | "
+                        f"rate={rate:.1f}/min | elapsed={elapsed/60:.1f}min")
             logger.info(f"{'='*60}")
 
             # Generate queries with feedback from confirmed targets
@@ -409,8 +422,20 @@ async def run_turbo_search():
             )
             confirmed_target_examples = [row[0] for row in confirmed_result.fetchall()]
 
-            logger.info(f"  PROGRESS: {existing}/{TARGET_GOAL} targets "
-                        f"({len(confirmed_target_examples)} confirmed examples for next query gen)")
+            new_this_iter = existing - prev_targets
+            iter_duration = (datetime.utcnow() - iter_start_time).total_seconds()
+            total_elapsed = (datetime.utcnow() - run_start_time).total_seconds()
+            targets_history.append((total_elapsed, existing))
+            overall_rate = (existing - 231) / max(total_elapsed / 60, 0.01)
+            iter_rate = new_this_iter / max(iter_duration / 60, 0.01)
+            eta_min = (TARGET_GOAL - existing) / max(overall_rate, 0.01)
+            prev_targets = existing
+
+            logger.info(f"  +{new_this_iter} targets this iter ({iter_duration:.0f}s) | "
+                        f"iter_rate={iter_rate:.1f}/min | "
+                        f"overall_rate={overall_rate:.1f}/min | "
+                        f"ETA={eta_min:.0f}min | "
+                        f"total={existing}/{TARGET_GOAL}")
 
         # Mark job complete
         job.status = SearchJobStatus.COMPLETED
