@@ -588,5 +588,86 @@ class GoogleSheetsService:
             return None
 
 
+    def create_and_populate(
+        self,
+        title: str,
+        data: List[List[Any]],
+        share_with: Optional[List[str]] = None,
+    ) -> Optional[str]:
+        """Create a new Google Sheet and populate it with arbitrary data.
+
+        Args:
+            title: Spreadsheet title
+            data: List of rows (first row = headers)
+            share_with: Optional list of emails to share with (editor access)
+
+        Returns:
+            Sheet URL if successful, None otherwise
+        """
+        if not self._initialize():
+            logger.error("Google Sheets service not initialized")
+            return None
+
+        try:
+            drive_service = build('drive', 'v3', credentials=self.credentials)
+            shared_drive_id = os.environ.get('SHARED_DRIVE_ID')
+
+            file_metadata = {
+                'name': title,
+                'mimeType': 'application/vnd.google-apps.spreadsheet',
+            }
+            if shared_drive_id:
+                file_metadata['parents'] = [shared_drive_id]
+
+            file = drive_service.files().create(
+                body=file_metadata,
+                fields='id,webViewLink',
+                supportsAllDrives=True,
+            ).execute()
+
+            sheet_id = file.get('id')
+            sheet_url = file.get('webViewLink') or f"https://docs.google.com/spreadsheets/d/{sheet_id}"
+
+            if not sheet_id:
+                logger.error("Failed to get sheet ID from Drive API")
+                return None
+
+            # Write all data in one batch
+            if data:
+                body = {'values': data}
+                self.sheets_service.spreadsheets().values().update(
+                    spreadsheetId=sheet_id,
+                    range='Sheet1!A1',
+                    valueInputOption='RAW',
+                    body=body,
+                ).execute()
+
+            # Format header row
+            self._format_header_row(sheet_id)
+
+            # Share with specified emails
+            for email in (share_with or []):
+                try:
+                    permission = {'type': 'user', 'role': 'writer', 'emailAddress': email}
+                    drive_service.permissions().create(
+                        fileId=sheet_id,
+                        body=permission,
+                        sendNotificationEmail=False,
+                        supportsAllDrives=True,
+                    ).execute()
+                except Exception as e:
+                    logger.warning(f"Could not share with {email}: {e}")
+
+            logger.info(f"Created and populated sheet '{title}' with {len(data)} rows: {sheet_url}")
+            return sheet_url
+
+        except HttpError as e:
+            logger.error(f"Google API error creating sheet: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error creating sheet: {e}")
+            return None
+
+
 # Global instance
 google_sheets_service = GoogleSheetsService()
