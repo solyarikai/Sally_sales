@@ -6,12 +6,19 @@ Runs continuously until TARGET_GOAL reached. Iterates through multiple
 strategy rounds. All decisions and results stored in DB for analysis.
 
 Architecture:
-- Round 1: 500+ hand-crafted diverse queries
-- Round 2+: GPT generates new queries based on WHAT ACTUALLY WORKED
+- Round 1-12: Hand-crafted strategy rounds (12 diverse strategies)
+- Round 13+: GPT generates new queries based on WHAT ACTUALLY WORKED
   (confirmed target domains, their industries, query patterns)
 - Each round: generate queries → search → scrape → analyze → review → learn
 - Strategy tracking: which query patterns produce targets, which don't
 - Stops when target reached or all strategies exhausted
+
+Reusable Pattern — "Query Anchors":
+  For ANY geo, the approach is: list ALL regions/cities first ("anchors"),
+  then multiply × industry terms. This works for Russia, UAE, DACH, etc.
+  Russia: 85 federal subjects + 100+ cities × 8 industry terms
+  UAE:    7 emirates + districts × terms
+  DACH:   16+26+9 cantons/Länder + cities × terms
 """
 import asyncio
 import sys
@@ -193,7 +200,7 @@ def strategy_crypto():
 
 
 def strategy_russia_regions():
-    """All Russian cities with population > 250K + all federal subjects."""
+    """All Russian cities pop>250K + ALL 85 federal subjects + economic zones."""
     queries = set()
     terms = [
         "управление активами", "инвестиционная компания",
@@ -201,41 +208,87 @@ def strategy_russia_regions():
         "доверительное управление", "private banking",
         "управляющая компания", "инвестиционный фонд",
     ]
-    # All Russian cities with population > 250K
+    # ── Russian cities pop > 200K (comprehensive) ──
     cities = [
+        # 1M+
         "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург",
         "Казань", "Нижний Новгород", "Челябинск", "Самара",
         "Омск", "Ростов-на-Дону", "Уфа", "Красноярск",
         "Воронеж", "Пермь", "Волгоград", "Краснодар",
-        "Саратов", "Тюмень", "Тольятти", "Ижевск",
-        "Барнаул", "Иркутск", "Ульяновск", "Хабаровск",
-        "Ярославль", "Владивосток", "Махачкала", "Томск",
-        "Оренбург", "Кемерово", "Новокузнецк", "Рязань",
+        # 500K-1M
+        "Саратов", "Тюмень", "Барнаул", "Иркутск",
+        "Хабаровск", "Ярославль", "Владивосток", "Махачкала",
+        "Томск", "Оренбург", "Кемерово", "Рязань",
         "Набережные Челны", "Астрахань", "Пенза", "Киров",
-        "Липецк", "Балашиха", "Чебоксары", "Калининград",
-        "Тула", "Курск", "Ставрополь", "Сочи",
-        "Улан-Удэ", "Тверь", "Магнитогорск", "Брянск",
-        "Иваново", "Белгород", "Сургут", "Владимир",
-        "Нижний Тагил", "Архангельск", "Чита", "Калуга",
-        "Смоленск", "Волжский", "Курган", "Череповец",
-        "Орёл", "Саранск", "Вологда", "Якутск",
-        "Мурманск", "Тамбов", "Грозный", "Стерлитамак",
-        "Петрозаводск", "Нижневартовск", "Кострома", "Йошкар-Ола",
-        "Новороссийск", "Комсомольск-на-Амуре", "Таганрог", "Сыктывкар",
-        "Нальчик", "Дзержинск", "Братск", "Шахты",
-        "Нижнекамск", "Орск", "Ангарск",
+        "Липецк", "Калининград", "Тула", "Курск",
+        # 300K-500K
+        "Ставрополь", "Сочи", "Улан-Удэ", "Тверь",
+        "Магнитогорск", "Брянск", "Иваново", "Белгород",
+        "Сургут", "Владимир", "Архангельск", "Чита",
+        "Калуга", "Смоленск", "Курган", "Череповец",
+        "Вологда", "Якутск", "Мурманск", "Тамбов",
+        "Грозный", "Петрозаводск", "Кострома",
+        "Новороссийск", "Сыктывкар", "Нальчик",
+        # 200K-300K
+        "Чебоксары", "Ижевск", "Ульяновск", "Тольятти",
+        "Балашиха", "Нижний Тагил", "Нижневартовск",
+        "Йошкар-Ола", "Комсомольск-на-Амуре", "Таганрог",
+        "Дзержинск", "Братск", "Шахты", "Нижнекамск",
+        "Орск", "Ангарск", "Саранск", "Орёл",
+        "Стерлитамак", "Волжский", "Южно-Сахалинск",
+        "Благовещенск", "Абакан", "Великий Новгород",
+        "Псков", "Бийск", "Рыбинск", "Прокопьевск",
+        "Норильск", "Балаково", "Энгельс", "Сызрань",
+        "Каменск-Уральский", "Армавир", "Златоуст",
+        "Салават", "Миасс", "Копейск", "Королёв",
+        "Мытищи", "Химки", "Подольск", "Одинцово",
+        "Люберцы", "Красногорск",
     ]
-    # Federal subjects / regions (for broader searches)
+    # ── ALL 85 Russian federal subjects ──
     regions = [
-        "Московская область", "Ленинградская область", "Свердловская область",
-        "Краснодарский край", "Татарстан", "Башкортостан",
-        "Тюменская область", "ХМАО", "ЯНАО",
-        "Крым", "Дагестан", "Чечня",
+        # Republics (22)
+        "Адыгея", "Алтай", "Башкортостан", "Бурятия", "Дагестан",
+        "Ингушетия", "Кабардино-Балкария", "Калмыкия", "Карачаево-Черкесия",
+        "Карелия", "Коми", "Крым", "Марий Эл", "Мордовия",
+        "Саха Якутия", "Северная Осетия", "Татарстан", "Тува",
+        "Удмуртия", "Хакасия", "Чечня", "Чувашия",
+        # Krais (9)
+        "Алтайский край", "Забайкальский край", "Камчатский край",
+        "Краснодарский край", "Красноярский край", "Пермский край",
+        "Приморский край", "Ставропольский край", "Хабаровский край",
+        # Oblasts (46)
+        "Амурская область", "Архангельская область", "Астраханская область",
+        "Белгородская область", "Брянская область", "Владимирская область",
+        "Волгоградская область", "Вологодская область", "Воронежская область",
+        "Ивановская область", "Иркутская область", "Калининградская область",
+        "Калужская область", "Кемеровская область", "Кировская область",
+        "Костромская область", "Курганская область", "Курская область",
+        "Ленинградская область", "Липецкая область", "Магаданская область",
+        "Московская область", "Мурманская область", "Нижегородская область",
+        "Новгородская область", "Новосибирская область", "Омская область",
+        "Оренбургская область", "Орловская область", "Пензенская область",
+        "Псковская область", "Ростовская область", "Рязанская область",
+        "Самарская область", "Саратовская область", "Сахалинская область",
+        "Свердловская область", "Смоленская область", "Тамбовская область",
+        "Тверская область", "Томская область", "Тульская область",
+        "Тюменская область", "Ульяновская область", "Челябинская область",
+        "Ярославская область",
+        # Autonomous & special
+        "ХМАО", "ЯНАО", "ЕАО", "Ненецкий АО", "Чукотский АО",
+        "Севастополь",
+    ]
+    # ── Economic zones / wealth clusters (high-priority anchors) ──
+    wealth_anchors = [
+        "Рублёвка", "Жуковка", "Барвиха",  # Moscow suburbs = HNWI density
+        "ОЭЗ", "Сколково", "Иннополис",     # economic zones
+        "Москва-Сити",                        # financial district
     ]
     for t, city in product(terms, cities):
         queries.add(f"{t} {city}")
-    for t, region in product(terms[:4], regions):  # fewer combos for regions
+    for t, region in product(terms[:4], regions):
         queries.add(f"{t} {region}")
+    for t, wa in product(terms[:4], wealth_anchors):
+        queries.add(f"{t} {wa}")
     return "russia_regions", list(queries)
 
 
@@ -625,6 +678,14 @@ async def run():
                 "queries": len(queries), "targets": gained, "domains": analyzed}
 
             existing = await company_search_service._count_project_targets(session, PROJECT_ID)
+
+            # Persist stats to DB after every strategy (survives crashes)
+            cfg = dict(job.config or {})
+            cfg["strategy_stats"] = strategy_stats
+            cfg["current_round"] = round_num
+            cfg["current_targets"] = existing
+            job.config = cfg
+            await session.commit()
 
             # Log strategy leaderboard
             logger.info(f"\n  Strategy leaderboard:")
