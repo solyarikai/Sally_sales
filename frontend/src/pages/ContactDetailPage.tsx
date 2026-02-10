@@ -342,7 +342,7 @@ export function ContactDetailPage() {
 
 // ── Subcomponents ────────────────────────────────────────────────────
 
-function InfoRow({ icon: Icon, label, children }: { icon: any; label: string; children: React.ReactNode }) {
+function InfoRow({ icon: Icon, children }: { icon: any; label?: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2.5">
       <Icon className="w-4 h-4 text-neutral-400 mt-0.5 flex-shrink-0" />

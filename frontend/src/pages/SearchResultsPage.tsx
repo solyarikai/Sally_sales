@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  Target, Search, Download, FileSpreadsheet, ArrowLeft,
-  Loader2, AlertCircle, Clock, CheckCircle2, XCircle,
+  Target, Download, FileSpreadsheet, ArrowLeft,
+  Loader2, AlertCircle, CheckCircle2, XCircle,
   ChevronDown, ChevronRight, ExternalLink, DollarSign,
-  BarChart3, Globe, Zap, Mail, MessageSquare,
+  BarChart3, Globe, Mail, MessageSquare,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -13,7 +13,6 @@ import {
   type SearchJobFullDetail,
   type SearchHistoryItem,
   type SearchResultItem,
-  type SearchQueryResponse,
   type DomainCampaignsMap,
   type DomainCampaignInfo,
 } from '../api/dataSearch';
@@ -37,7 +36,6 @@ const statusColors: Record<string, string> = {
 
 export function SearchResultsPage() {
   const { jobId } = useParams<{ jobId: string }>();
-  const navigate = useNavigate();
 
   if (jobId) {
     return <JobDetailView jobId={parseInt(jobId)} />;
