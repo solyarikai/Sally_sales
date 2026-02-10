@@ -1132,9 +1132,9 @@ class CRMSyncService:
                                     func.lower(ProcessedReply.lead_email) == email.lower(),
                                     ProcessedReply.campaign_id == str(campaign_id)
                                 )
-                            )
+                            ).limit(1)
                         )
-                        if existing_pr.scalar_one_or_none():
+                        if existing_pr.scalar():
                             stats["existing"] += 1
                             new_cache_keys.append(cache_key)
                             continue
@@ -1201,7 +1201,7 @@ class CRMSyncService:
                         # Run through the full reply pipeline
                         webhook_payload = {
                             "event_type": "EMAIL_REPLY",
-                            "campaign_id": campaign_id,
+                            "campaign_id": str(campaign_id),
                             "campaign_name": campaign_name,
                             "lead_email": email,
                             "to_email": email,
