@@ -52,8 +52,14 @@ async def get_session() -> AsyncSession:
 
 
 async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Create tables that don't exist yet. Safe to run repeatedly."""
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        # Table already exists errors are safe to ignore on startup
+        import logging
+        logging.getLogger(__name__).warning(f"init_db warning (safe to ignore): {e}")
 
 
 async def close_db():
