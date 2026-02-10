@@ -25,7 +25,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
-import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter } from '../components/filters';
+import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter } from '../components/filters';
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
 
 // Status configuration — proper lead statuses (no "replied" — that's a flag, not a status)
@@ -65,6 +65,8 @@ export function ContactsPage() {
   const [campaigns, setCampaigns] = useState<Array<{name: string, source: string}>>([]);
   const [followupFilter, setFollowupFilter] = useState<boolean | null>(null);
   const [repliedFilter, setRepliedFilter] = useState<boolean | null>(null);
+  const [createdAfter, setCreatedAfter] = useState<string | null>(null);
+  const [createdBefore, setCreatedBefore] = useState<string | null>(null);
 
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -212,6 +214,8 @@ export function ContactsPage() {
         has_replied: replyMode ? true : (repliedFilter ?? undefined),
         needs_followup: followupFilter ?? undefined,
         project_id: activeProject?.id,
+        created_after: createdAfter || undefined,
+        created_before: createdBefore || undefined,
       });
 
       setContacts(response.contacts);
@@ -222,7 +226,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, campaignFilters, repliedFilter, followupFilter, replyMode, activeProject, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, campaignFilters, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -411,7 +415,7 @@ export function ContactsPage() {
       headerName: 'Added',
       sortable: true,
       width: 95,
-      filter: 'agDateColumnFilter',
+      filter: DateColumnFilter,
       valueFormatter: (params: ValueFormatterParams) => {
         if (!params.value) return '-';
         return new Date(params.value).toLocaleDateString();
@@ -510,6 +514,8 @@ export function ContactsPage() {
     setCampaignFilters([]);
     setFollowupFilter(null);
     setRepliedFilter(null);
+    setCreatedAfter(null);
+    setCreatedBefore(null);
     setSearch('');
     setReplyMode(false);
     gridRef.current?.api?.setFilterModel(null);
@@ -568,8 +574,14 @@ export function ContactsPage() {
     return contacts.filter(c => c.has_replied && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
-  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || campaignFilters.length > 0 || followupFilter !== null || repliedFilter !== null || search || replyMode;
+  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || campaignFilters.length > 0 || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode;
   const totalPages = Math.ceil(total / pageSize);
+
+  const setDateRange = useCallback((after: string | null, before: string | null) => {
+    setCreatedAfter(after);
+    setCreatedBefore(before);
+    setPage(1);
+  }, []);
 
   const filterCtx = useMemo(() => ({
     campaignFilters,
@@ -581,7 +593,10 @@ export function ContactsPage() {
     campaigns,
     stats,
     resetPage,
-  }), [campaignFilters, toggleCampaign, statusFilters, toggleStatus, campaigns, stats, resetPage]);
+    createdAfter,
+    createdBefore,
+    setDateRange,
+  }), [campaignFilters, toggleCampaign, statusFilters, toggleStatus, campaigns, stats, resetPage, createdAfter, createdBefore, setDateRange]);
 
   return (
     <ContactsFilterContext.Provider value={filterCtx}>

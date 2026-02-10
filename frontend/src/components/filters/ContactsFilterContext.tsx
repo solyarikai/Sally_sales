@@ -11,6 +11,9 @@ export interface ContactsFilterState {
   campaigns: Array<{ name: string; source: string }>;
   stats: ContactStats | null;
   resetPage: () => void;
+  createdAfter: string | null;
+  createdBefore: string | null;
+  setDateRange: (after: string | null, before: string | null) => void;
 }
 
 export const ContactsFilterContext = createContext<ContactsFilterState | null>(null);

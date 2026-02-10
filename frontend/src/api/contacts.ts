@@ -65,6 +65,12 @@ export interface Project {
   updated_at: string;
 }
 
+export interface ProjectLite {
+  id: number;
+  name: string;
+  campaign_filters: string[];
+}
+
 export interface AISDRProject extends Project {
   tam_analysis?: string;
   gtm_plan?: string;
@@ -153,6 +159,8 @@ export interface ContactFilters {
   needs_followup?: boolean;
   smartlead_id?: string;
   getsales_id?: string;
+  created_after?: string;
+  created_before?: string;
 }
 
 export interface GenerateReplyResponse {
@@ -276,6 +284,12 @@ export const contactsApi = {
   // Download import template
   async getImportTemplate(): Promise<Blob> {
     const response = await api.get('/contacts/import/template', { responseType: 'blob' });
+    return response.data;
+  },
+
+  // List projects (lightweight — no contact counts)
+  async listProjectsLite(): Promise<ProjectLite[]> {
+    const response = await api.get('/contacts/projects/list-lite');
     return response.data;
   },
 

@@ -239,6 +239,8 @@ async def list_contacts(
     has_getsales: Optional[bool] = Query(None, description="Filter contacts with GetSales history"),
     campaign: Optional[str] = Query(None, description="Filter by campaign name (partial match)"),
     needs_followup: Optional[bool] = Query(None, description="Filter contacts needing follow-up (no reply in 3+ days)"),
+    created_after: Optional[str] = Query(None, description="Filter contacts created after this date (ISO format, e.g. 2026-02-02)"),
+    created_before: Optional[str] = Query(None, description="Filter contacts created before this date (ISO format, e.g. 2026-02-09)"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -315,7 +317,19 @@ async def list_contacts(
                 Contact.last_synced_at < three_days_ago
             )
         )
-    
+    if created_after:
+        try:
+            dt = datetime.fromisoformat(created_after)
+            query = query.where(Contact.created_at >= dt)
+        except ValueError:
+            pass
+    if created_before:
+        try:
+            dt = datetime.fromisoformat(created_before)
+            query = query.where(Contact.created_at <= dt)
+        except ValueError:
+            pass
+
     # Search
     if search:
         search_term = f"%{search}%"
@@ -1064,6 +1078,23 @@ async def export_contacts_csv(
 
 
 # ============= Projects Endpoints =============
+
+@router.get("/projects/list-lite")
+async def list_projects_lite(
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """List all projects without contact counts — instant response for dropdowns."""
+    result = await session.execute(
+        select(Project.id, Project.name, Project.campaign_filters)
+        .where(and_(Project.company_id == company_id if company_id else True, Project.deleted_at.is_(None)))
+        .order_by(Project.name)
+    )
+    return [
+        {"id": row[0], "name": row[1], "campaign_filters": row[2] or []}
+        for row in result.all()
+    ]
+
 
 @router.get("/projects/list", response_model=List[ProjectResponse])
 async def list_projects(
