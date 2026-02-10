@@ -9,6 +9,7 @@ SAFETY FIRST:
 import logging
 import json
 import os
+from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -90,12 +91,25 @@ class GoogleSheetsService:
                     creds_info,
                     scopes=self.SCOPES
                 )
-            elif credentials_path and os.path.exists(credentials_path):
-                # Use credentials file
-                self.credentials = service_account.Credentials.from_service_account_file(
-                    credentials_path,
-                    scopes=self.SCOPES
-                )
+            elif credentials_path:
+                # Resolve relative paths against this file's directory (backend/app/services/)
+                cred_path = Path(credentials_path)
+                if not cred_path.is_absolute():
+                    cred_path = (Path(__file__).resolve().parent / cred_path).resolve()
+                if not cred_path.exists():
+                    # Also try relative to the backend/ directory
+                    alt_path = (Path(__file__).resolve().parent.parent.parent / credentials_path).resolve()
+                    if alt_path.exists():
+                        cred_path = alt_path
+
+                if cred_path.exists() and cred_path.stat().st_size > 0:
+                    self.credentials = service_account.Credentials.from_service_account_file(
+                        str(cred_path),
+                        scopes=self.SCOPES
+                    )
+                else:
+                    logger.warning(f"Credentials file not found or empty: {cred_path}")
+                    return False
             else:
                 logger.warning("No Google service account credentials configured")
                 return False
@@ -623,6 +637,87 @@ class GoogleSheetsService:
             logger.error(f"Error in append_reply_and_get_row: {e}")
             if self.append_reply(sheet_id, reply_data):
                 return None
+            return None
+
+
+    def create_and_populate(
+        self,
+        title: str,
+        data: List[List[Any]],
+        share_with: Optional[List[str]] = None,
+    ) -> Optional[str]:
+        """Create a new Google Sheet and populate it with arbitrary data.
+
+        Args:
+            title: Spreadsheet title
+            data: List of rows (first row = headers)
+            share_with: Optional list of emails to share with (editor access)
+
+        Returns:
+            Sheet URL if successful, None otherwise
+        """
+        if not self._initialize():
+            logger.error("Google Sheets service not initialized")
+            return None
+
+        try:
+            drive_service = build('drive', 'v3', credentials=self.credentials)
+            shared_drive_id = os.environ.get('SHARED_DRIVE_ID')
+
+            file_metadata = {
+                'name': title,
+                'mimeType': 'application/vnd.google-apps.spreadsheet',
+            }
+            if shared_drive_id:
+                file_metadata['parents'] = [shared_drive_id]
+
+            file = drive_service.files().create(
+                body=file_metadata,
+                fields='id,webViewLink',
+                supportsAllDrives=True,
+            ).execute()
+
+            sheet_id = file.get('id')
+            sheet_url = file.get('webViewLink') or f"https://docs.google.com/spreadsheets/d/{sheet_id}"
+
+            if not sheet_id:
+                logger.error("Failed to get sheet ID from Drive API")
+                return None
+
+            # Write all data in one batch
+            if data:
+                body = {'values': data}
+                self.sheets_service.spreadsheets().values().update(
+                    spreadsheetId=sheet_id,
+                    range='Sheet1!A1',
+                    valueInputOption='RAW',
+                    body=body,
+                ).execute()
+
+            # Format header row
+            self._format_header_row(sheet_id)
+
+            # Share with specified emails
+            for email in (share_with or []):
+                try:
+                    permission = {'type': 'user', 'role': 'writer', 'emailAddress': email}
+                    drive_service.permissions().create(
+                        fileId=sheet_id,
+                        body=permission,
+                        sendNotificationEmail=False,
+                        supportsAllDrives=True,
+                    ).execute()
+                except Exception as e:
+                    logger.warning(f"Could not share with {email}: {e}")
+
+            logger.info(f"Created and populated sheet '{title}' with {len(data)} rows: {sheet_url}")
+            return sheet_url
+
+        except HttpError as e:
+            logger.error(f"Google API error creating sheet: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error creating sheet: {e}")
             return None
 
 

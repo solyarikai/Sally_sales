@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Layers, Target, Mail, Users, Download, FileSpreadsheet,
+  Layers, Target, Mail, Download,
   Loader2, AlertCircle, CheckCircle2, XCircle, Search,
-  ChevronDown, ChevronRight, ExternalLink, Zap, UserPlus,
-  Clock, ArrowRight, X,
+  ExternalLink, Zap, UserPlus,
+  X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';

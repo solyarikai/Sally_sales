@@ -361,57 +361,47 @@ class SmartleadClient:
     async def setup_crm_webhooks(self, webhook_url: str) -> Dict[str, Any]:
         """
         Set up CRM webhooks for all active Smartlead campaigns.
-        
-        Args:
-            webhook_url: Base URL for webhooks
-        
-        Returns:
-            Dict with created/existing/failed/skipped counts
+        Runs up to 10 checks concurrently with a shared HTTP client.
         """
+        import asyncio
+
         results = {"created": [], "existing": [], "failed": [], "skipped": []}
-        
+
         try:
             campaigns = await self.get_campaigns()
-            logger.info(f"Found {len(campaigns)} Smartlead campaigns")
-            
-            for campaign in campaigns:
+            active = [c for c in campaigns if c.get("status", "").upper() == "ACTIVE"]
+            skipped = [c for c in campaigns if c.get("status", "").upper() != "ACTIVE"]
+            results["skipped"] = [{"id": c.get("id"), "name": c.get("name", "Unknown"), "status": c.get("status")} for c in skipped]
+
+            logger.info(f"Found {len(campaigns)} Smartlead campaigns, {len(active)} active")
+
+            sem = asyncio.Semaphore(10)
+
+            async def _check_one(campaign: dict):
                 campaign_id = campaign.get("id")
                 campaign_name = campaign.get("name", "Unknown")
-                status = campaign.get("status", "").upper()
-                
-                # Skip inactive campaigns
-                if status != "ACTIVE":
-                    results["skipped"].append({"id": campaign_id, "name": campaign_name, "status": status})
-                    continue
-                
-                try:
-                    # Check if webhook already exists
-                    existing_webhooks = await self.get_campaign_webhooks(campaign_id)
-                    already_configured = False
-                    
-                    for wh in existing_webhooks:
-                        if wh.get("webhook_url") == webhook_url:
-                            already_configured = True
-                            results["existing"].append({"id": campaign_id, "name": campaign_name})
-                            break
-                    
-                    if not already_configured:
+                async with sem:
+                    try:
+                        existing_webhooks = await self.get_campaign_webhooks(campaign_id)
+                        for wh in existing_webhooks:
+                            if wh.get("webhook_url") == webhook_url:
+                                results["existing"].append({"id": campaign_id, "name": campaign_name})
+                                return
                         await self.create_campaign_webhook(
                             campaign_id=campaign_id,
                             webhook_url=webhook_url,
                             webhook_name=f"CRM Sync - {campaign_name[:30]}"
                         )
                         results["created"].append({"id": campaign_id, "name": campaign_name})
-                        logger.info(f"Created Smartlead webhook for campaign: {campaign_name}")
-                        
-                except Exception as e:
-                    results["failed"].append({"id": campaign_id, "name": campaign_name, "error": str(e)})
-                    logger.warning(f"Failed to set up webhook for campaign {campaign_name}: {e}")
-            
+                    except Exception as e:
+                        results["failed"].append({"id": campaign_id, "name": campaign_name, "error": str(e)})
+
+            await asyncio.gather(*[_check_one(c) for c in active])
+
         except Exception as e:
             logger.error(f"Failed to get Smartlead campaigns: {e}")
             results["error"] = str(e)
-        
+
         return results
 
 
@@ -783,6 +773,8 @@ class CRMSyncService:
             # Update existing contact
             existing.smartlead_id = smartlead_id
             existing.smartlead_status = smartlead_status
+            if not existing.domain and email and '@' in email:
+                existing.domain = email.split('@')[1].lower()
             if has_replied and not existing.has_replied:
                 existing.has_replied = True
                 existing.reply_channel = "email"
@@ -827,6 +819,7 @@ class CRMSyncService:
             contact = Contact(
                 company_id=company_id,
                 email=email,
+                domain=email.split('@')[1].lower() if email and '@' in email else None,
                 first_name=_truncate(lead.get("first_name"), 255),
                 last_name=_truncate(lead.get("last_name"), 255),
                 company_name=_truncate(lead.get("company_name"), 500),
@@ -918,6 +911,8 @@ class CRMSyncService:
             # Update existing contact
             existing.getsales_id = getsales_id
             existing.getsales_status = getsales_status
+            if not existing.domain and email and '@' in email:
+                existing.domain = email.split('@')[1].lower()
             if not existing.linkedin_url and linkedin_raw:
                 existing.linkedin_url = linkedin_raw
             if "getsales" not in (existing.source or ""):
@@ -958,9 +953,11 @@ class CRMSyncService:
                     "status": getsales_status
                 }]
 
+            actual_email = email or f"linkedin_{linkedin}@placeholder.local"
             contact = Contact(
                 company_id=company_id,
-                email=email or f"linkedin_{linkedin}@placeholder.local",  # Placeholder for LinkedIn-only contacts
+                email=actual_email,
+                domain=email.split('@')[1].lower() if email and '@' in email else None,
                 first_name=lead.get("first_name"),
                 last_name=lead.get("last_name"),
                 company_name=lead.get("company_name"),
@@ -1035,9 +1032,9 @@ class CRMSyncService:
             for c in contacts:
                 if self.normalize_linkedin(c.linkedin_url) == linkedin:
                     return c
-        
+
         return None
-    
+
     @staticmethod
     def _strip_html(html: str) -> str:
         """Strip HTML tags, CSS, and clean up whitespace from email body."""
@@ -1145,7 +1142,7 @@ class CRMSyncService:
                                     func.lower(ProcessedReply.lead_email) == email.lower(),
                                     ProcessedReply.campaign_id == str(campaign_id)
                                 )
-                            )
+                            ).limit(1)
                         )
                         if existing_pr.scalar_one_or_none():
                             stats["existing"] += 1
@@ -1216,7 +1213,7 @@ class CRMSyncService:
                         # Build webhook-compatible payload
                         webhook_payload = {
                             "event_type": "EMAIL_REPLY",
-                            "campaign_id": campaign_id,
+                            "campaign_id": str(campaign_id),
                             "campaign_name": campaign_name,
                             "lead_email": email,
                             "to_email": email,

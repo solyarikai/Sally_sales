@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Search,
   Send,
@@ -11,7 +10,6 @@ import {
   ThumbsUp,
   ThumbsDown,
   Download,
-  ChevronRight,
   Sparkles,
   Layers,
   ExternalLink,
@@ -486,7 +484,6 @@ function ExampleCompanyRow({
 }
 
 export function DataSearchPage() {
-  const navigate = useNavigate();
   const [searchMode, setSearchMode] = useState<SearchMode>('chat');
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -520,7 +517,8 @@ export function DataSearchPage() {
   const [projectSpending, setProjectSpending] = useState<SpendingInfo | null>(null);
   const [isProjectSearching, setIsProjectSearching] = useState(false);
   const [showTargetsOnly, setShowTargetsOnly] = useState(false);
-  const [maxQueries, setMaxQueries] = useState(100);
+  const [maxQueries, setMaxQueries] = useState(500);
+  const [targetGoal, setTargetGoal] = useState(1000);
   const [expandedResultId, setExpandedResultId] = useState<number | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -560,7 +558,7 @@ export function DataSearchPage() {
     setHasSearched(true);
 
     try {
-      const { job_id } = await projectSearchApi.runProjectSearch(selectedProjectId, maxQueries);
+      const { job_id } = await projectSearchApi.runProjectSearch(selectedProjectId, maxQueries, targetGoal);
       setProjectSearchJobId(job_id);
 
       // Start SSE stream
@@ -846,64 +844,50 @@ export function DataSearchPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col relative">
+    <div className="h-full bg-gradient-to-b from-gray-50 to-white flex flex-col relative">
       <AnimatedBackground />
-      
-      {/* Header */}
-      <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center px-6 sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <span className="font-bold text-gray-900 text-lg tracking-tight">
-              Data Search
-            </span>
-            <p className="text-xs text-gray-500">AI-powered company discovery</p>
-          </div>
-        </div>
 
-        {/* Mode Toggle */}
-        {!hasSearched && (
-          <div className="ml-8 flex items-center bg-gray-100 rounded-xl p-1">
-            <button
-              onClick={() => setSearchMode('chat')}
-              className={cn(
-                "px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition-all duration-200",
-                searchMode === 'chat'
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              )}
-            >
-              <MessageSquare className="w-4 h-4" />
-              Natural Language
-            </button>
-            <button
-              onClick={() => setSearchMode('reverse')}
-              className={cn(
-                "px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition-all duration-200",
-                searchMode === 'reverse'
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              )}
-            >
-              <GitCompareArrows className="w-4 h-4" />
-              Find Similar
-            </button>
-            <button
-              onClick={() => setSearchMode('project')}
-              className={cn(
-                "px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition-all duration-200",
-                searchMode === 'project'
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              )}
-            >
-              <FolderSearch className="w-4 h-4" />
-              Project Search
-            </button>
-          </div>
-        )}
+      {/* Mode toggle + actions bar (no sub-header label to avoid double header) */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center px-6 py-2 sticky top-0 z-40">
+        {/* Mode Toggle — always visible */}
+        <div className="flex items-center bg-gray-100 rounded-xl p-1">
+          <button
+            onClick={() => { setSearchMode('chat'); if (hasSearched && searchMode !== 'chat') handleNewSearch(); }}
+            className={cn(
+              "px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition-all duration-200",
+              searchMode === 'chat'
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            )}
+          >
+            <MessageSquare className="w-4 h-4" />
+            Natural Language
+          </button>
+          <button
+            onClick={() => { setSearchMode('reverse'); if (hasSearched && searchMode !== 'reverse') handleNewSearch(); }}
+            className={cn(
+              "px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition-all duration-200",
+              searchMode === 'reverse'
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            )}
+          >
+            <GitCompareArrows className="w-4 h-4" />
+            Find Similar
+          </button>
+          <button
+            onClick={() => { setSearchMode('project'); if (hasSearched && searchMode !== 'project') handleNewSearch(); }}
+            className={cn(
+              "px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition-all duration-200",
+              searchMode === 'project'
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            )}
+          >
+            <FolderSearch className="w-4 h-4" />
+            Project Search
+          </button>
+        </div>
 
         <div className="flex-1" />
 
@@ -916,15 +900,7 @@ export function DataSearchPage() {
             New Search
           </button>
         )}
-
-        <button
-          onClick={() => navigate('/companies')}
-          className="text-sm text-gray-600 hover:text-indigo-600 flex items-center gap-1.5 font-medium transition-colors"
-        >
-          Companies
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </header>
+      </div>
 
       {/* Main content */}
       <main className="flex-1 flex flex-col max-w-7xl mx-auto w-full relative z-10">
@@ -1175,20 +1151,36 @@ export function DataSearchPage() {
                       </div>
                     )}
 
-                    {/* Max queries */}
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Max Queries (max 100 for test)
-                      </label>
-                      <input
-                        type="number"
-                        value={maxQueries}
-                        onChange={(e) => setMaxQueries(Math.min(100, Math.max(1, Number(e.target.value))))}
-                        min={1}
-                        max={100}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Test limit: max 100 Yandex queries. Each query costs ~$0.00075.</p>
+                    {/* Settings row */}
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Max Queries Budget
+                        </label>
+                        <input
+                          type="number"
+                          value={maxQueries}
+                          onChange={(e) => setMaxQueries(Math.min(5000, Math.max(1, Number(e.target.value))))}
+                          min={1}
+                          max={5000}
+                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Total Yandex queries (~$0.00075 each)</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Target Goal
+                        </label>
+                        <input
+                          type="number"
+                          value={targetGoal}
+                          onChange={(e) => setTargetGoal(Math.min(10000, Math.max(1, Number(e.target.value))))}
+                          min={1}
+                          max={10000}
+                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Auto-stop when this many targets found</p>
+                      </div>
                     </div>
 
                     {/* Run button */}
@@ -1312,12 +1304,14 @@ export function DataSearchPage() {
               <div className="px-6 py-3 bg-white border-b border-gray-100 flex items-center gap-6 text-sm">
                 <div className="flex items-center gap-1.5 text-gray-600">
                   <DollarSign className="w-4 h-4 text-emerald-500" />
-                  <span className="font-medium">Cost:</span> ${projectSpending.total_estimate.toFixed(4)}
+                  <span className="font-medium">Total:</span> ${projectSpending.total_estimate.toFixed(4)}
                 </div>
                 <div className="text-gray-400">|</div>
                 <div className="text-gray-500">Yandex: ${projectSpending.yandex_cost.toFixed(4)} ({projectSpending.queries_count} queries)</div>
                 <div className="text-gray-400">|</div>
                 <div className="text-gray-500">OpenAI: ${projectSpending.openai_cost_estimate.toFixed(4)} ({projectSpending.openai_tokens_used.toLocaleString()} tokens)</div>
+                <div className="text-gray-400">|</div>
+                <div className="text-gray-500">Crona: ${projectSpending.crona_cost.toFixed(4)} ({projectSpending.crona_credits_used} credits)</div>
               </div>
             )}
 

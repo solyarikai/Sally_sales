@@ -12,6 +12,7 @@ import { RepliesPage } from './pages/RepliesPage';
 import { AutomationsPage } from './pages/AutomationsPage';
 import PromptDebugPage from './pages/PromptDebugPage';
 import { ContactsPage } from './pages/ContactsPage';
+import { ContactDetailPage } from './pages/ContactDetailPage';
 import { TasksPage } from './pages/TasksPage';
 import { SearchResultsPage } from './pages/SearchResultsPage';
 import { PipelinePage } from './pages/PipelinePage';
@@ -37,8 +38,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Data Search - the new homepage */}
-        <Route path="/" element={<DataSearchPage />} />
-        <Route path="/data-search" element={<DataSearchPage />} />
+        <Route path="/" element={<Layout><DataSearchPage /></Layout>} />
+        <Route path="/data-search" element={<Layout><DataSearchPage /></Layout>} />
         
         {/* Companies page - formerly the homepage */}
         <Route path="/companies" element={<HomePage />} />
@@ -122,6 +123,13 @@ function App() {
         <Route path="/projects" element={
           <Layout>
             <ProjectsPage />
+          </Layout>
+        } />
+
+        {/* Contact detail page (shareable URL) */}
+        <Route path="/contacts/:contactId" element={
+          <Layout>
+            <ContactDetailPage />
           </Layout>
         } />
 

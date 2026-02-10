@@ -145,6 +145,8 @@ class SearchJobFullDetail(BaseModel):
     yandex_cost: float = 0.0
     openai_tokens_used: int = 0
     openai_cost_estimate: float = 0.0
+    crona_credits_used: int = 0
+    crona_cost: float = 0.0
     total_cost_estimate: float = 0.0
 
     class Config:

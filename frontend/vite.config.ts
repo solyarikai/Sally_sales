@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -8,14 +7,14 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://46.62.210.24:8000',
         changeOrigin: true,
       },
     },
   },
   test: {
     environment: 'happy-dom',
-    globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    globals: true,
   },
 })

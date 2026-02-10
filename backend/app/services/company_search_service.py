@@ -29,7 +29,7 @@ from app.models.contact import Project
 from app.models.domain import (
     SearchJob, SearchJobStatus, SearchEngine,
     SearchQuery, SearchResult,
-    DomainSource, ProjectSearchKnowledge,
+    DomainSource, ProjectSearchKnowledge, ProjectBlacklist,
 )
 from app.services.search_service import search_service
 from app.services.domain_service import domain_service
@@ -175,21 +175,80 @@ class CompanySearchService:
         analysis["scores"] = scores
         return analysis
 
+    async def _count_project_targets(self, session: AsyncSession, project_id: int) -> int:
+        """Count confirmed/unrejected targets for a project."""
+        result = await session.execute(
+            select(func.count()).select_from(SearchResult).where(
+                SearchResult.project_id == project_id,
+                SearchResult.is_target == True,
+                SearchResult.review_status != "rejected",
+            )
+        )
+        return result.scalar() or 0
+
+    async def _build_skip_set(self, session: AsyncSession, project_id: int) -> set:
+        """
+        Build the full set of domains to skip for a project.
+        Sources:
+        1. Already-processed: SearchResult entries within SEARCH_DOMAIN_RECHECK_DAYS
+        2. Blacklisted: ProjectBlacklist entries
+        3. Already target: confirmed targets (don't re-scrape)
+        """
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(days=settings.SEARCH_DOMAIN_RECHECK_DAYS)
+
+        skip = set()
+
+        # 1. Already analyzed within recheck window
+        result = await session.execute(
+            select(SearchResult.domain).where(
+                SearchResult.project_id == project_id,
+                SearchResult.analyzed_at >= cutoff,
+            )
+        )
+        for row in result.fetchall():
+            skip.add(row[0])
+
+        # 2. Blacklisted
+        result = await session.execute(
+            select(ProjectBlacklist.domain).where(
+                ProjectBlacklist.project_id == project_id,
+            )
+        )
+        for row in result.fetchall():
+            skip.add(row[0])
+
+        # 3. Confirmed targets (already analyzed as target, don't re-process)
+        result = await session.execute(
+            select(SearchResult.domain).where(
+                SearchResult.project_id == project_id,
+                SearchResult.is_target == True,
+            )
+        )
+        for row in result.fetchall():
+            skip.add(row[0])
+
+        return skip
+
     async def run_project_search(
         self,
         session: AsyncSession,
         project_id: int,
         company_id: int,
-        max_queries: int = 100,
+        max_queries: int = 500,
+        target_goal: Optional[int] = None,
         job_id: Optional[int] = None,
     ) -> SearchJob:
         """
-        Full pipeline: generate queries -> Yandex search -> filter -> scrape -> analyze.
+        Iterative search pipeline: generates batches of queries, searches, scrapes,
+        and analyzes until target_goal targets are found or limits are reached.
 
         If job_id is provided, uses that existing job (updates it).
         Otherwise creates a new one.
         Returns the SearchJob with results populated.
         """
+        target_goal = target_goal or settings.SEARCH_TARGET_GOAL
+
         # 1. Load project
         result = await session.execute(
             select(Project).where(Project.id == project_id)
@@ -203,8 +262,171 @@ class CompanySearchService:
 
         target_segments = project.target_segments
 
-        # Load project knowledge for feedback loop (Phase 4)
-        knowledge_data = None
+        # Load project knowledge for feedback loop
+        knowledge_data = await self._load_project_knowledge(session, project_id)
+
+        good_queries = (knowledge_data or {}).get("good_query_patterns", [])
+        bad_queries = (knowledge_data or {}).get("bad_query_patterns", [])
+
+        # Count existing targets
+        existing_targets = await self._count_project_targets(session, project_id)
+        logger.info(f"Project {project_id}: {existing_targets}/{target_goal} targets already found")
+
+        # Get or create SearchJob
+        job_config = {
+            "max_queries": max_queries,
+            "target_goal": target_goal,
+            "target_segments": target_segments,
+            "max_pages": settings.SEARCH_MAX_PAGES,
+            "workers": settings.SEARCH_WORKERS,
+            "openai_tokens_used": 0,
+            "queries_generated": 0,
+        }
+
+        if job_id:
+            result = await session.execute(
+                select(SearchJob).where(SearchJob.id == job_id)
+            )
+            job = result.scalar_one_or_none()
+            if not job:
+                raise ValueError(f"Job {job_id} not found")
+            job.config = job_config
+        else:
+            job = SearchJob(
+                company_id=company_id,
+                status=SearchJobStatus.PENDING,
+                search_engine=SearchEngine.YANDEX_API,
+                queries_total=0,
+                project_id=project_id,
+                config=job_config,
+            )
+            session.add(job)
+            await session.flush()
+
+        await session.commit()
+
+        # Collect all query texts used so far (for dedup across iterations)
+        all_used_queries: List[str] = []
+
+        # Get confirmed target domains for query generation feedback
+        confirmed_targets_result = await session.execute(
+            select(SearchResult.domain, SearchResult.company_info).where(
+                SearchResult.project_id == project_id,
+                SearchResult.is_target == True,
+                SearchResult.review_status != "rejected",
+            ).limit(50)
+        )
+        confirmed_target_examples = [
+            row[0] for row in confirmed_targets_result.fetchall()
+        ]
+
+        iteration = 0
+        total_queries_used = 0
+
+        while existing_targets < target_goal and iteration < settings.SEARCH_MAX_ITERATIONS:
+            iteration += 1
+            batch_size = min(settings.SEARCH_BATCH_QUERIES, max_queries - total_queries_used)
+            if batch_size <= 0:
+                logger.info(f"Iteration {iteration}: query budget exhausted ({total_queries_used}/{max_queries})")
+                break
+
+            logger.info(
+                f"Iteration {iteration}: generating {batch_size} queries "
+                f"({existing_targets}/{target_goal} targets, {total_queries_used}/{max_queries} queries used)"
+            )
+
+            # Generate queries with feedback
+            queries = await search_service.generate_queries(
+                session=session,
+                count=batch_size,
+                model="gpt-4o-mini",
+                target_segments=target_segments,
+                project_id=project_id,
+                existing_queries=all_used_queries,
+                good_queries=good_queries,
+                bad_queries=bad_queries,
+                confirmed_targets=confirmed_target_examples,
+            )
+
+            if not queries:
+                logger.warning(f"Iteration {iteration}: no queries generated, stopping")
+                break
+
+            # Track query generation tokens
+            qg_tokens = search_service.last_query_gen_tokens
+            config = dict(job.config or {})
+            config["query_gen_tokens"] = config.get("query_gen_tokens", 0) + qg_tokens.get("total", 0)
+
+            all_used_queries.extend(queries)
+            total_queries_used += len(queries)
+
+            # Update job totals
+            job.queries_total = (job.queries_total or 0) + len(queries)
+            config["queries_generated"] = total_queries_used
+            config["iteration"] = iteration
+            job.config = config
+
+            # Add queries to DB
+            for q_text in queries:
+                sq = SearchQuery(search_job_id=job.id, query_text=q_text)
+                session.add(sq)
+            await session.commit()
+
+            # Run Yandex search for this batch
+            logger.info(f"Iteration {iteration}: running Yandex search with {len(queries)} queries")
+            await search_service.run_search_job(session, job.id)
+            await session.refresh(job)
+
+            # Build skip set and get new domains
+            skip_set = await self._build_skip_set(session, project_id)
+            new_domains = await self._get_new_domains_from_job(session, job, skip_set)
+
+            logger.info(
+                f"Iteration {iteration}: {len(new_domains)} new domains to analyze "
+                f"({len(skip_set)} in skip set)"
+            )
+
+            if new_domains:
+                await self._scrape_and_analyze_domains(
+                    session=session,
+                    job=job,
+                    domains=new_domains,
+                    target_segments=target_segments,
+                )
+
+            await session.commit()
+
+            # Refresh target count
+            existing_targets = await self._count_project_targets(session, project_id)
+
+            # Reload knowledge for next iteration
+            knowledge_data = await self._load_project_knowledge(session, project_id)
+            good_queries = (knowledge_data or {}).get("good_query_patterns", [])
+            bad_queries = (knowledge_data or {}).get("bad_query_patterns", [])
+
+            logger.info(
+                f"Iteration {iteration} complete: "
+                f"{existing_targets}/{target_goal} targets found"
+            )
+
+        # Mark job complete
+        job.status = SearchJobStatus.COMPLETED
+        job.completed_at = datetime.utcnow()
+        config = dict(job.config or {})
+        config["iterations_run"] = iteration
+        config["final_targets"] = existing_targets
+        job.config = config
+        await session.commit()
+
+        logger.info(
+            f"Project search complete: {iteration} iterations, "
+            f"{existing_targets}/{target_goal} targets, "
+            f"{total_queries_used} queries used"
+        )
+        return job
+
+    async def _load_project_knowledge(self, session: AsyncSession, project_id: int) -> Optional[Dict[str, Any]]:
+        """Load project knowledge for feedback loop."""
         try:
             k_result = await session.execute(
                 select(ProjectSearchKnowledge).where(
@@ -213,7 +435,7 @@ class CompanySearchService:
             )
             knowledge = k_result.scalar_one_or_none()
             if knowledge:
-                knowledge_data = {
+                return {
                     "good_query_patterns": knowledge.good_query_patterns or [],
                     "bad_query_patterns": knowledge.bad_query_patterns or [],
                     "confirmed_domains": knowledge.confirmed_domains or [],
@@ -223,100 +445,27 @@ class CompanySearchService:
                 }
         except Exception as e:
             logger.warning(f"Failed to load project knowledge: {e}")
-
-        # 2. Generate queries via GPT-4o-mini (with knowledge feedback)
-        logger.info(f"Generating {max_queries} queries for project {project_id}: {target_segments}")
-
-        # Feed effective/ineffective queries from past jobs (Phase 3d)
-        good_queries = (knowledge_data or {}).get("good_query_patterns", [])
-        bad_queries = (knowledge_data or {}).get("bad_query_patterns", [])
-
-        queries = await search_service.generate_queries(
-            session=session,
-            count=max_queries,
-            model="gpt-4o-mini",
-            target_segments=target_segments,
-            project_id=project_id,
-            good_queries=good_queries,
-            bad_queries=bad_queries,
-        )
-        logger.info(f"Generated {len(queries)} queries")
-
-        if not queries:
-            raise ValueError("Query generation returned no results")
-
-        # 3. Get or create SearchJob
-        query_gen_prompt = f"target_segments: {target_segments}"
-        job_config = {
-            "max_queries": max_queries,
-            "target_segments": target_segments,
-            "query_generation_prompt": query_gen_prompt,
-            "max_pages": settings.SEARCH_MAX_PAGES,
-            "workers": settings.SEARCH_WORKERS,
-            "openai_tokens_used": 0,
-            "queries_generated": len(queries),
-        }
-
-        if job_id:
-            # Use existing placeholder job
-            result = await session.execute(
-                select(SearchJob).where(SearchJob.id == job_id)
-            )
-            job = result.scalar_one_or_none()
-            if not job:
-                raise ValueError(f"Job {job_id} not found")
-            job.queries_total = len(queries)
-            job.config = job_config
-        else:
-            job = SearchJob(
-                company_id=company_id,
-                status=SearchJobStatus.PENDING,
-                search_engine=SearchEngine.YANDEX_API,
-                queries_total=len(queries),
-                project_id=project_id,
-                config=job_config,
-            )
-            session.add(job)
-            await session.flush()
-
-        for q_text in queries:
-            sq = SearchQuery(
-                search_job_id=job.id,
-                query_text=q_text,
-            )
-            session.add(sq)
-
-        await session.commit()
-
-        # 4. Run Yandex search (updates job status/counters)
-        logger.info(f"Starting Yandex search job {job.id} with {len(queries)} queries")
-        await search_service.run_search_job(session, job.id)
-
-        # Reload job to get updated stats
-        await session.refresh(job)
-
-        # 5. Scrape and analyze new domains
-        new_domains = await self._get_new_domains_from_job(session, job)
-        logger.info(f"Job {job.id} found {len(new_domains)} new domains to analyze")
-
-        if new_domains:
-            await self._scrape_and_analyze_domains(
-                session=session,
-                job=job,
-                domains=new_domains,
-                target_segments=target_segments,
-            )
-
-        await session.commit()
-        return job
+        return None
 
     async def _get_new_domains_from_job(
         self,
         session: AsyncSession,
         job: SearchJob,
+        skip_set: Optional[set] = None,
     ) -> List[str]:
-        """Get list of new (non-trash, non-duplicate) domains found by the job."""
+        """
+        Get list of new domains found by the job, excluding the skip set.
+
+        The skip set contains:
+        - Already-analyzed domains (within SEARCH_DOMAIN_RECHECK_DAYS)
+        - Blacklisted domains
+        - Already confirmed targets
+        """
         from app.models.domain import Domain, DomainStatus
+
+        if skip_set is None:
+            skip_set = await self._build_skip_set(session, job.project_id)
+
         # Get active domains that were sourced from search
         result = await session.execute(
             select(Domain.domain).where(
@@ -324,7 +473,18 @@ class CompanySearchService:
                 Domain.source.in_([DomainSource.SEARCH_YANDEX, DomainSource.SEARCH_GOOGLE]),
             ).order_by(Domain.last_seen.desc()).limit(job.domains_new or 500)
         )
-        return [row[0] for row in result.fetchall()]
+        all_domains = [row[0] for row in result.fetchall()]
+
+        # Filter out skip set
+        new_domains = [d for d in all_domains if d not in skip_set]
+        skipped = len(all_domains) - len(new_domains)
+        if skipped > 0:
+            logger.info(
+                f"Job {job.id}: {len(all_domains)} candidate domains, "
+                f"{skipped} skipped (already analyzed/blacklisted/target), "
+                f"{len(new_domains)} to process"
+            )
+        return new_domains
 
     async def scrape_domain(self, domain: str) -> Optional[str]:
         """
@@ -530,17 +690,15 @@ SCORING GUIDE:
         total_tokens = (job.config or {}).get("openai_tokens_used", 0)
         crona_credits_used = 0
 
-        # Filter out already-analyzed domains
-        to_analyze = []
-        for domain in domains:
-            existing = await session.execute(
-                select(func.count()).select_from(SearchResult).where(
-                    SearchResult.search_job_id == job.id,
-                    SearchResult.domain == domain,
-                )
+        # Filter out already-analyzed domains for this PROJECT (batch query, not per-domain)
+        existing_result = await session.execute(
+            select(SearchResult.domain).where(
+                SearchResult.project_id == job.project_id,
+                SearchResult.domain.in_(domains),
             )
-            if (existing.scalar() or 0) == 0:
-                to_analyze.append(domain)
+        )
+        existing_domains = {row[0] for row in existing_result.fetchall()}
+        to_analyze = [d for d in domains if d not in existing_domains]
 
         if not to_analyze:
             return
@@ -553,11 +711,25 @@ SCORING GUIDE:
 
         if crona_service.is_configured:
             # Batch scrape via Crona (JS-rendered, handles SPA sites)
-            batch_size = 50  # Crona handles batches well
-            for i in range(0, len(to_analyze), batch_size):
-                batch = to_analyze[i:i + batch_size]
-                batch_results = await crona_service.scrape_domains(batch)
-                scraped_texts.update(batch_results)
+            # Run up to 3 Crona batches in parallel for speed
+            batch_size = 50
+            crona_semaphore = asyncio.Semaphore(3)
+
+            async def scrape_crona_batch(batch: List[str]) -> Dict[str, Optional[str]]:
+                async with crona_semaphore:
+                    return await crona_service.scrape_domains(batch)
+
+            batches = [to_analyze[i:i + batch_size] for i in range(0, len(to_analyze), batch_size)]
+            batch_results = await asyncio.gather(
+                *[scrape_crona_batch(b) for b in batches],
+                return_exceptions=True,
+            )
+            for result in batch_results:
+                if isinstance(result, dict):
+                    scraped_texts.update(result)
+                elif isinstance(result, Exception):
+                    logger.error(f"Crona batch failed: {result}")
+
             crona_credits_used = crona_service.credits_used
             used_crona = True
             logger.info(f"Crona scraped {len(to_analyze)} domains, credits_used={crona_credits_used}")
@@ -575,13 +747,32 @@ SCORING GUIDE:
 
         scraped_at = datetime.utcnow()
 
+        # Read domain→query mapping from ALL jobs for this project (not just current)
+        # so domains found by earlier jobs also get source_query_id
+        domain_to_query: Dict[str, int] = {}
+        if job.project_id:
+            all_jobs_result = await session.execute(
+                select(SearchJob.config).where(
+                    SearchJob.project_id == job.project_id,
+                    SearchJob.config.isnot(None),
+                )
+            )
+            for (config,) in all_jobs_result.fetchall():
+                if config and isinstance(config, dict) and "domain_to_query" in config:
+                    for d, qid in config["domain_to_query"].items():
+                        if d not in domain_to_query:
+                            domain_to_query[d] = qid
+        else:
+            domain_to_query = (job.config or {}).get("domain_to_query", {})
+
         # --- Analyze phase: GPT scoring ---
-        semaphore = asyncio.Semaphore(5)  # Max 5 concurrent GPT calls
+        semaphore = asyncio.Semaphore(20)  # Max 20 concurrent GPT calls
 
         async def analyze_domain(domain: str):
             nonlocal total_tokens
             async with semaphore:
                 content = scraped_texts.get(domain)
+                source_qid = domain_to_query.get(domain)
 
                 if not content or len(content) < 50:
                     sr = SearchResult(
@@ -593,6 +784,7 @@ SCORING GUIDE:
                         confidence=0,
                         reasoning="Failed to scrape website",
                         scraped_at=scraped_at,
+                        source_query_id=source_qid,
                     )
                     session.add(sr)
                     return
@@ -619,11 +811,12 @@ SCORING GUIDE:
                     html_snippet=content[:2000],
                     scraped_at=scraped_at,
                     analyzed_at=analyzed_at,
+                    source_query_id=source_qid,
                 )
                 session.add(sr)
 
-        # Process in batches of 10
-        batch_size = 10
+        # Process in batches of 20
+        batch_size = 20
         for i in range(0, len(to_analyze), batch_size):
             batch = to_analyze[i:i + batch_size]
             tasks = [analyze_domain(d) for d in batch]
@@ -649,6 +842,12 @@ SCORING GUIDE:
         try:
             from app.services.review_service import review_service
             review_stats = await review_service.review_batch(session, job.id, target_segments)
+            review_tokens = review_stats.get("review_tokens_used", 0)
+            if review_tokens:
+                config = dict(job.config or {})
+                config["review_tokens"] = config.get("review_tokens", 0) + review_tokens
+                config["openai_tokens_used"] = config.get("openai_tokens_used", 0) + review_tokens
+                job.config = config
             logger.info(f"Auto-review for job {job.id}: {review_stats}")
         except Exception as e:
             logger.error(f"Auto-review failed for job {job.id}: {e}")
@@ -657,16 +856,19 @@ SCORING GUIDE:
         self,
         session: AsyncSession,
         project_id: int,
+        targets_only: bool = False,
     ) -> List[SearchResult]:
-        """Get all analyzed results for a project."""
-        result = await session.execute(
-            select(SearchResult).where(
-                SearchResult.project_id == project_id,
-            ).order_by(
-                SearchResult.is_target.desc(),
-                SearchResult.confidence.desc(),
-            )
+        """Get analyzed results for a project."""
+        query = select(SearchResult).where(
+            SearchResult.project_id == project_id,
         )
+        if targets_only:
+            query = query.where(SearchResult.is_target == True)
+        query = query.order_by(
+            SearchResult.is_target.desc(),
+            SearchResult.confidence.desc(),
+        )
+        result = await session.execute(query)
         return list(result.scalars().all())
 
     async def get_project_spending(
@@ -683,27 +885,42 @@ SCORING GUIDE:
         total_queries = 0
         total_openai_tokens = 0
         total_crona_credits = 0
+        total_query_gen_tokens = 0
+        total_review_tokens = 0
 
         for job in jobs:
             total_queries += job.queries_total or 0
             config = job.config or {}
             total_openai_tokens += config.get("openai_tokens_used", 0)
             total_crona_credits += config.get("crona_credits_used", 0)
+            total_query_gen_tokens += config.get("query_gen_tokens", 0)
+            total_review_tokens += config.get("review_tokens", 0)
+
+        # Analysis tokens = total - query_gen - review
+        analysis_tokens = max(0, total_openai_tokens - total_review_tokens)
 
         # Yandex cost: each query = 1 request per page, default 3 pages
         yandex_requests = total_queries * settings.SEARCH_MAX_PAGES
         yandex_cost = (yandex_requests / 1000) * YANDEX_COST_PER_1K_REQUESTS
 
-        # OpenAI cost estimate
-        openai_cost = (total_openai_tokens / 1_000_000) * OPENAI_COST_PER_1M_INPUT_TOKENS
+        # OpenAI cost estimate (all tokens combined)
+        all_tokens = total_openai_tokens + total_query_gen_tokens
+        openai_cost = (all_tokens / 1_000_000) * OPENAI_COST_PER_1M_INPUT_TOKENS
+
+        # Crona cost: 1 credit = ~$0.001 (approximate)
+        crona_cost = total_crona_credits * 0.001
 
         return {
             "queries_count": total_queries,
             "yandex_cost": round(yandex_cost, 4),
-            "openai_tokens_used": total_openai_tokens,
+            "openai_tokens_used": all_tokens,
             "openai_cost_estimate": round(openai_cost, 4),
+            "openai_analysis_tokens": analysis_tokens,
+            "openai_query_gen_tokens": total_query_gen_tokens,
+            "openai_review_tokens": total_review_tokens,
             "crona_credits_used": total_crona_credits,
-            "total_estimate": round(yandex_cost + openai_cost, 4),
+            "crona_cost": round(crona_cost, 4),
+            "total_estimate": round(yandex_cost + openai_cost + crona_cost, 4),
         }
 
 

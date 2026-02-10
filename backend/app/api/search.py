@@ -16,7 +16,7 @@ Endpoints:
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query as QueryParam
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func as sqlfunc
 from typing import Optional, List
 from datetime import datetime
 import asyncio
@@ -26,7 +26,7 @@ import logging
 from app.db import get_session, async_session_maker
 from app.api.companies import get_required_company
 from app.models.user import Company
-from app.models.contact import Project
+from app.models.contact import Project, Contact
 from app.models.domain import (
     SearchJob, SearchJobStatus, SearchEngine,
     SearchQuery, SearchQueryStatus, SearchResult,
@@ -64,7 +64,8 @@ class SearchJobDetailResponse(SearchJobResponse):
 
 
 class ProjectRunRequest(BaseModel):
-    max_queries: int = Field(100, ge=1, le=1000, description="Max queries to generate (default 100)")
+    max_queries: int = Field(500, ge=1, le=5000, description="Max queries budget (default 500)")
+    target_goal: Optional[int] = Field(None, ge=1, le=10000, description="Stop when this many targets found (default from settings)")
 
 
 class ProjectRunResponse(BaseModel):
@@ -259,6 +260,52 @@ async def get_search_job(
     return SearchJobDetailResponse(**job_data)
 
 
+@router.get("/jobs/{job_id}/queries")
+async def get_job_queries(
+    job_id: int,
+    page: int = QueryParam(1, ge=1),
+    page_size: int = QueryParam(100, ge=1, le=500),
+    status: Optional[str] = QueryParam(None, description="Filter by status"),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get paginated queries for a search job."""
+    result = await db.execute(
+        select(SearchJob).where(
+            SearchJob.id == job_id,
+            SearchJob.company_id == company.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Search job not found")
+
+    base_filter = [SearchQuery.search_job_id == job_id]
+    if status:
+        base_filter.append(SearchQuery.status == status)
+
+    count_q = await db.execute(
+        select(sqlfunc.count()).select_from(SearchQuery).where(*base_filter)
+    )
+    total = count_q.scalar() or 0
+
+    q = (
+        select(SearchQuery)
+        .where(*base_filter)
+        .order_by(SearchQuery.id)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = await db.execute(q)
+    queries = rows.scalars().all()
+
+    return {
+        "items": [SearchQueryResponse.model_validate(q) for q in queries],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_search_job(
     job_id: int,
@@ -440,12 +487,12 @@ async def run_project_search(
     await db.commit()
 
     # Run full pipeline in background
-    background_tasks.add_task(_run_project_search_background, job.id, project_id, company.id, body.max_queries)
+    background_tasks.add_task(_run_project_search_background, job.id, project_id, company.id, body.max_queries, body.target_goal)
 
     return ProjectRunResponse(job_id=job.id, status="running")
 
 
-async def _run_project_search_background(job_id: int, project_id: int, company_id: int, max_queries: int):
+async def _run_project_search_background(job_id: int, project_id: int, company_id: int, max_queries: int, target_goal: int = None):
     """Background task for full project search pipeline."""
     try:
         async with async_session_maker() as session:
@@ -455,6 +502,7 @@ async def _run_project_search_background(job_id: int, project_id: int, company_i
                     project_id=project_id,
                     company_id=company_id,
                     max_queries=max_queries,
+                    target_goal=target_goal,
                     job_id=job_id,
                 )
             except Exception as e:
@@ -472,14 +520,14 @@ async def _run_project_search_background(job_id: int, project_id: int, company_i
         logger.error(f"Background project search crashed: {e}")
 
 
-@router.get("/projects/{project_id}/results", response_model=List[SearchResultResponse])
-async def get_project_results(
+@router.get("/projects/{project_id}/results/stats")
+async def get_project_results_stats(
     project_id: int,
-    targets_only: bool = QueryParam(False, description="Show only targets"),
+    job_id: Optional[int] = QueryParam(None, description="Filter by job ID"),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
-    """Get analyzed search results for a project."""
+    """Fast stats endpoint — total counts and avg confidence via aggregate queries."""
     # Verify project belongs to company
     result = await db.execute(
         select(Project).where(
@@ -490,18 +538,106 @@ async def get_project_results(
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
 
-    query = select(SearchResult).where(SearchResult.project_id == project_id)
-    if targets_only:
-        query = query.where(SearchResult.is_target == True)
+    base_filter = [SearchResult.project_id == project_id]
+    if job_id:
+        base_filter.append(SearchResult.search_job_id == job_id)
 
-    query = query.order_by(
-        SearchResult.is_target.desc(),
-        SearchResult.confidence.desc(),
+    # Total count
+    total_q = await db.execute(
+        select(sqlfunc.count()).select_from(SearchResult).where(*base_filter)
     )
+    total = total_q.scalar() or 0
 
+    # Targets count
+    targets_q = await db.execute(
+        select(sqlfunc.count()).select_from(SearchResult).where(
+            *base_filter, SearchResult.is_target == True
+        )
+    )
+    targets = targets_q.scalar() or 0
+
+    # Avg confidence of targets
+    avg_q = await db.execute(
+        select(sqlfunc.avg(SearchResult.confidence)).where(
+            *base_filter, SearchResult.is_target == True
+        )
+    )
+    avg_confidence = avg_q.scalar()
+
+    return {
+        "total": total,
+        "targets": targets,
+        "non_targets": total - targets,
+        "avg_confidence": round(avg_confidence, 3) if avg_confidence else None,
+    }
+
+
+@router.get("/projects/{project_id}/results")
+async def get_project_results(
+    project_id: int,
+    targets_only: bool = QueryParam(False, description="Show only targets"),
+    job_id: Optional[int] = QueryParam(None, description="Filter by job ID"),
+    page: int = QueryParam(1, ge=1, description="Page number"),
+    page_size: int = QueryParam(100, ge=1, le=500, description="Results per page"),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get analyzed search results for a project (paginated)."""
+    # Verify project belongs to company
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.company_id == company.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    base_filter = [SearchResult.project_id == project_id]
+    if job_id:
+        base_filter.append(SearchResult.search_job_id == job_id)
+    if targets_only:
+        base_filter.append(SearchResult.is_target == True)
+
+    # Total count
+    count_q = await db.execute(
+        select(sqlfunc.count()).select_from(SearchResult).where(*base_filter)
+    )
+    total = count_q.scalar() or 0
+
+    # Fetch page
+    query = (
+        select(SearchResult)
+        .where(*base_filter)
+        .order_by(SearchResult.is_target.desc(), SearchResult.confidence.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
     result = await db.execute(query)
     results = result.scalars().all()
-    return [SearchResultResponse.model_validate(r) for r in results]
+
+    # Build source query text map
+    qids = [r.source_query_id for r in results if r.source_query_id]
+    qmap: dict[int, str] = {}
+    if qids:
+        qrows = (await db.execute(
+            select(SearchQuery.id, SearchQuery.query_text).where(SearchQuery.id.in_(qids))
+        )).fetchall()
+        qmap = {row[0]: row[1] for row in qrows}
+
+    items = []
+    for r in results:
+        resp = SearchResultResponse.model_validate(r)
+        if r.source_query_id and r.source_query_id in qmap:
+            resp.source_query_text = qmap[r.source_query_id]
+        items.append(resp)
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @router.get("/projects/{project_id}/spending", response_model=SpendingInfo)
@@ -593,16 +729,22 @@ async def get_review_summary(
 
 # ============ Google Sheet Export ============
 
+class ExportSheetRequest(BaseModel):
+    targets_only: bool = Field(False, description="Export only target domains")
+    exclude_contacted: bool = Field(False, description="Exclude domains already in campaigns")
+
+
 @router.post("/projects/{project_id}/export-sheet", response_model=ExportSheetResponse)
 async def export_to_google_sheet(
     project_id: int,
+    body: ExportSheetRequest = ExportSheetRequest(),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
     """Export search results to a new Google Sheet."""
-    from app.services.google_sheets_service import GoogleSheetsService
+    from app.services.google_sheets_service import google_sheets_service as sheets_service
+    from sqlalchemy import func as sqlfunc
 
-    sheets_service = GoogleSheetsService()
     if not sheets_service._initialize():
         raise HTTPException(status_code=503, detail="Google Sheets not configured")
 
@@ -618,57 +760,92 @@ async def export_to_google_sheet(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Get results
-    results = await company_search_service.get_project_results(db, project_id)
+    results = await company_search_service.get_project_results(
+        db, project_id, targets_only=body.targets_only,
+    )
     if not results:
         raise HTTPException(status_code=400, detail="No search results to export")
 
+    # Filter out contacted domains if requested
+    if body.exclude_contacted:
+        result_domains = [r.domain.lower() for r in results if r.domain]
+        contacted_result = await db.execute(
+            select(sqlfunc.lower(Contact.domain)).where(
+                Contact.company_id == company.id,
+                Contact.domain.isnot(None),
+                sqlfunc.lower(Contact.domain).in_(result_domains),
+            ).distinct()
+        )
+        contacted_domains = {row[0] for row in contacted_result.fetchall()}
+        results = [r for r in results if r.domain and r.domain.lower() not in contacted_domains]
+
+    if not results:
+        raise HTTPException(status_code=400, detail="No results after filtering (all domains already contacted)")
+
+    # Build title
+    label_parts = []
+    if body.targets_only:
+        label_parts.append("Targets")
+    else:
+        label_parts.append("Results")
+    if body.exclude_contacted:
+        label_parts.append("Fresh")
+    sheet_title = f"{' '.join(label_parts)} - {project.name} ({len(results)}) - {datetime.utcnow().strftime('%Y-%m-%d')}"
+
+    # Build source query map
+    query_ids = [r.source_query_id for r in results if r.source_query_id]
+    query_map: dict[int, str] = {}
+    if query_ids:
+        from sqlalchemy import func as sqlfunc2
+        qrows = (await db.execute(
+            select(SearchQuery.id, SearchQuery.query_text).where(
+                SearchQuery.id.in_(query_ids)
+            )
+        )).fetchall()
+        query_map = {row[0]: row[1] for row in qrows}
+
     # Create Google Sheet
     try:
-        sheet_title = f"Search Results - {project.name} - {datetime.utcnow().strftime('%Y-%m-%d')}"
-
-        spreadsheet = sheets_service.sheets_service.spreadsheets().create(
-            body={
-                "properties": {"title": sheet_title},
-                "sheets": [{"properties": {"title": "Results"}}],
-            }
-        ).execute()
-
-        spreadsheet_id = spreadsheet["spreadsheetId"]
-        sheet_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
-
-        # Make sheet accessible
-        sheets_service.drive_service.permissions().create(
-            fileId=spreadsheet_id,
-            body={"type": "anyone", "role": "reader"},
-        ).execute()
-
-        # Write headers
-        headers = ["Domain", "Company", "Is Target", "Confidence", "Reasoning", "Services", "Location", "Industry"]
+        headers = ["Domain", "Website", "Company", "Confidence", "Industry",
+                    "Services", "Location", "Description", "Source Query", "Reasoning"]
         rows = [headers]
 
+        project_name_lower = (project.name or "").lower()
         for r in results:
             info = r.company_info or {}
-            services = ", ".join(info.get("services", [])) if info.get("services") else ""
+            services = ", ".join(info.get("services", [])) if isinstance(info.get("services"), list) else info.get("services", "")
+            desc = info.get("description", "") or ""
+            company_name = info.get("name", info.get("company_name", ""))
+            # Fix: don't use project name as company name
+            if company_name and company_name.lower() == project_name_lower:
+                company_name = ""
+            source_query = query_map.get(r.source_query_id, "") if r.source_query_id else ""
             rows.append([
                 r.domain,
-                info.get("name", ""),
-                "Yes" if r.is_target else "No",
+                f"https://{r.domain}",
+                company_name,
                 f"{(r.confidence or 0) * 100:.0f}%",
-                r.reasoning or "",
+                info.get("industry", ""),
                 services,
                 info.get("location", ""),
-                info.get("industry", ""),
+                desc[:200],
+                source_query,
+                (r.reasoning or "")[:300],
             ])
 
-        sheets_service.sheets_service.spreadsheets().values().update(
-            spreadsheetId=spreadsheet_id,
-            range="Results!A1",
-            valueInputOption="RAW",
-            body={"values": rows},
-        ).execute()
+        sheet_url = sheets_service.create_and_populate(
+            title=sheet_title,
+            data=rows,
+            share_with=["pn@getsally.io"],
+        )
+
+        if not sheet_url:
+            raise HTTPException(status_code=500, detail="Failed to create Google Sheet")
 
         return ExportSheetResponse(sheet_url=sheet_url)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Google Sheet export failed: {e}")
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
@@ -734,7 +911,8 @@ async def get_search_history(
                 project_name = row[0]
 
         config = job.config or {}
-        tokens_used = config.get("openai_tokens_used", 0)
+        tokens_used = config.get("openai_tokens_used", 0) + config.get("query_gen_tokens", 0)
+        crona_credits = config.get("crona_credits_used", 0)
 
         items.append({
             "id": job.id,
@@ -756,6 +934,7 @@ async def get_search_history(
             "created_at": job.created_at.isoformat() if job.created_at else None,
             "error_message": job.error_message,
             "openai_tokens_used": tokens_used,
+            "crona_credits_used": crona_credits,
         })
 
     return {
@@ -822,9 +1001,13 @@ async def get_search_job_full(
     # Spending
     config = job.config or {}
     tokens_used = config.get("openai_tokens_used", 0)
+    query_gen_tokens = config.get("query_gen_tokens", 0)
+    all_tokens = tokens_used + query_gen_tokens
+    crona_credits = config.get("crona_credits_used", 0)
     yandex_requests = (job.queries_total or 0) * 3  # 3 pages per query
     yandex_cost = (yandex_requests / 1000) * 0.25
-    openai_cost = (tokens_used / 1_000_000) * 0.15
+    openai_cost = (all_tokens / 1_000_000) * 0.15
+    crona_cost = crona_credits * 0.001
 
     return {
         "id": job.id,
@@ -848,10 +1031,68 @@ async def get_search_job_full(
         "targets_found": total_targets,
         "avg_confidence": round(avg_confidence, 3) if avg_confidence else None,
         "yandex_cost": round(yandex_cost, 4),
-        "openai_tokens_used": tokens_used,
+        "openai_tokens_used": all_tokens,
         "openai_cost_estimate": round(openai_cost, 4),
-        "total_cost_estimate": round(yandex_cost + openai_cost, 4),
+        "crona_credits_used": crona_credits,
+        "crona_cost": round(crona_cost, 4),
+        "total_cost_estimate": round(yandex_cost + openai_cost + crona_cost, 4),
     }
+
+
+@router.get("/jobs/{job_id}/results")
+async def get_job_results(
+    job_id: int,
+    targets_only: bool = QueryParam(False),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get all results for a job with source query text."""
+    result = await db.execute(
+        select(SearchJob).where(
+            SearchJob.id == job_id,
+            SearchJob.company_id == company.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Search job not found")
+
+    query = select(SearchResult).where(SearchResult.search_job_id == job_id)
+    if targets_only:
+        query = query.where(SearchResult.is_target == True)
+    query = query.order_by(SearchResult.is_target.desc(), SearchResult.confidence.desc())
+
+    results_q = await db.execute(query)
+    results = results_q.scalars().all()
+
+    # Build query_id -> query_text map for source tracking
+    q_result = await db.execute(
+        select(SearchQuery.id, SearchQuery.query_text).where(
+            SearchQuery.search_job_id == job_id
+        )
+    )
+    query_map = {row[0]: row[1] for row in q_result.fetchall()}
+
+    items = []
+    for r in results:
+        info = r.company_info or {}
+        items.append({
+            "id": r.id,
+            "domain": r.domain,
+            "url": r.url,
+            "is_target": r.is_target,
+            "confidence": r.confidence,
+            "reasoning": r.reasoning,
+            "company_info": info,
+            "scores": r.scores,
+            "review_status": r.review_status,
+            "review_note": r.review_note,
+            "source_query_id": r.source_query_id,
+            "source_query_text": query_map.get(r.source_query_id) if r.source_query_id else None,
+            "scraped_at": r.scraped_at.isoformat() if r.scraped_at else None,
+            "analyzed_at": r.analyzed_at.isoformat() if r.analyzed_at else None,
+        })
+
+    return {"items": items, "total": len(items)}
 
 
 @router.get("/jobs/{job_id}/results/download")
@@ -912,3 +1153,147 @@ async def download_job_results_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=search_job_{job_id}_results.csv"},
     )
+
+
+# ============ Domain-Campaign Lookup ============
+
+class DomainCampaignsRequest(BaseModel):
+    domains: List[str] = Field(..., min_length=1, max_length=500, description="List of domains to look up")
+
+
+@router.post("/domain-campaigns")
+async def get_domain_campaigns(
+    body: DomainCampaignsRequest,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """
+    Batch lookup: for a list of domains, find contacts with campaign data.
+    Matches by TWO methods:
+    1. Email domain match: contact.domain (from email) == search result domain
+    2. Website domain match: contact.company_name contains the domain root
+    Returns campaign info grouped by domain with match_type indicator.
+    """
+    from sqlalchemy import func as sqlfunc, or_
+
+    # Normalize domains
+    domains = [d.lower().strip() for d in body.domains if d and d.strip()]
+    if not domains:
+        return {}
+
+    # --- Match 1: Email domain (contact.domain == search domain) ---
+    result = await db.execute(
+        select(Contact).where(
+            Contact.company_id == company.id,
+            Contact.domain.in_(domains),
+            Contact.is_deleted == False,
+        )
+    )
+    email_contacts = result.scalars().all()
+
+    # Build email domain match map
+    email_matched: dict[str, list] = {}
+    for c in email_contacts:
+        d = c.domain.lower() if c.domain else None
+        if d:
+            email_matched.setdefault(d, []).append(c)
+
+    # --- Match 2: Website domain (extract root from domain, check company_name) ---
+    # e.g., domain "alfacapital.ru" → root "alfacapital" → search in company_name
+    website_matched: dict[str, list] = {}
+    domain_roots = {}
+    for d in domains:
+        parts = d.split(".")
+        if len(parts) >= 2:
+            root = parts[0] if len(parts[0]) > 3 else ".".join(parts[:2])
+            domain_roots[d] = root
+
+    # Only search for domains NOT already matched by email
+    unmatched_domains = [d for d in domains if d not in email_matched and d in domain_roots]
+    if unmatched_domains:
+        # Build OR conditions for company_name ILIKE '%root%'
+        from sqlalchemy import or_ as sql_or
+        conditions = []
+        for d in unmatched_domains:
+            root = domain_roots[d]
+            if len(root) >= 4:  # avoid too-short matches
+                conditions.append(
+                    sqlfunc.lower(Contact.company_name).contains(root.lower())
+                )
+
+        if conditions:
+            result2 = await db.execute(
+                select(Contact).where(
+                    Contact.company_id == company.id,
+                    Contact.is_deleted == False,
+                    sql_or(*conditions),
+                )
+            )
+            website_contacts = result2.scalars().all()
+
+            for c in website_contacts:
+                cn = (c.company_name or "").lower()
+                for d in unmatched_domains:
+                    root = domain_roots.get(d, "")
+                    if len(root) >= 4 and root.lower() in cn:
+                        website_matched.setdefault(d, []).append(c)
+
+    # --- Combine results ---
+    domain_map: dict = {}
+
+    def add_contacts_to_map(d: str, contacts: list, match_type: str):
+        if d not in domain_map:
+            domain_map[d] = {
+                "contacts_count": 0,
+                "has_replies": False,
+                "first_contacted_at": None,
+                "campaigns": [],
+                "contacts": [],
+                "match_type": match_type,
+            }
+
+        entry = domain_map[d]
+        seen_ids = {ct["id"] for ct in entry["contacts"]}
+
+        for c in contacts:
+            if c.id in seen_ids:
+                continue
+            entry["contacts_count"] += 1
+            if c.has_replied:
+                entry["has_replies"] = True
+
+            if c.created_at:
+                created_str = c.created_at.isoformat()
+                if entry["first_contacted_at"] is None or created_str < entry["first_contacted_at"]:
+                    entry["first_contacted_at"] = created_str
+
+            if c.campaigns:
+                seen_campaigns = {(cp.get("name"), cp.get("source")) for cp in entry["campaigns"]}
+                for cp in c.campaigns:
+                    key = (cp.get("name"), cp.get("source"))
+                    if key not in seen_campaigns:
+                        entry["campaigns"].append({
+                            "name": cp.get("name"),
+                            "source": cp.get("source"),
+                            "status": cp.get("status"),
+                        })
+                        seen_campaigns.add(key)
+
+            name_parts = [c.first_name or "", c.last_name or ""]
+            name = " ".join(p for p in name_parts if p).strip() or None
+            entry["contacts"].append({
+                "id": c.id,
+                "name": name,
+                "email": c.email if c.email and "@placeholder" not in c.email else None,
+                "status": c.status,
+                "has_replied": c.has_replied or False,
+                "match_type": match_type,
+            })
+            seen_ids.add(c.id)
+
+    for d, contacts in email_matched.items():
+        add_contacts_to_map(d, contacts, "email_domain")
+    for d, contacts in website_matched.items():
+        add_contacts_to_map(d, contacts, "website_domain")
+
+    return domain_map

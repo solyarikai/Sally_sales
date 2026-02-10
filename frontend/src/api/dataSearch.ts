@@ -50,6 +50,8 @@ export interface SearchResultItem {
   html_snippet?: string;
   scraped_at?: string;
   analyzed_at?: string;
+  source_query_id?: number;
+  source_query_text?: string;
 }
 
 export interface SpendingInfo {
@@ -57,7 +59,11 @@ export interface SpendingInfo {
   yandex_cost: number;
   openai_tokens_used: number;
   openai_cost_estimate: number;
+  openai_analysis_tokens: number;
+  openai_query_gen_tokens: number;
+  openai_review_tokens: number;
   crona_credits_used: number;
+  crona_cost: number;
   total_estimate: number;
 }
 
@@ -390,11 +396,12 @@ export const projectSearchApi = {
   // Run full search pipeline for a project
   runProjectSearch: async (
     projectId: number,
-    maxQueries: number = 100
+    maxQueries: number = 500,
+    targetGoal?: number
   ): Promise<{ job_id: number; status: string }> => {
-    const response = await api.post(`/search/projects/${projectId}/run`, {
-      max_queries: maxQueries,
-    });
+    const body: any = { max_queries: maxQueries };
+    if (targetGoal) body.target_goal = targetGoal;
+    const response = await api.post(`/search/projects/${projectId}/run`, body);
     return response.data;
   },
 
@@ -404,13 +411,42 @@ export const projectSearchApi = {
     return response.data;
   },
 
-  // Get analyzed results for a project
+  // Get analyzed results for a project (paginated)
   getProjectResults: async (
     projectId: number,
-    targetsOnly: boolean = false
-  ): Promise<SearchResultItem[]> => {
+    opts?: { jobId?: number; page?: number; pageSize?: number; targetsOnly?: boolean }
+  ): Promise<{ items: SearchResultItem[]; total: number; page: number; page_size: number }> => {
     const response = await api.get(`/search/projects/${projectId}/results`, {
-      params: { targets_only: targetsOnly },
+      params: {
+        targets_only: opts?.targetsOnly ?? false,
+        job_id: opts?.jobId,
+        page: opts?.page ?? 1,
+        page_size: opts?.pageSize ?? 100,
+      },
+    });
+    return response.data;
+  },
+
+  // Fast stats for project results
+  getProjectResultsStats: async (
+    projectId: number,
+    jobId?: number
+  ): Promise<{ total: number; targets: number; non_targets: number; avg_confidence: number | null }> => {
+    const response = await api.get(`/search/projects/${projectId}/results/stats`, {
+      params: { job_id: jobId },
+    });
+    return response.data;
+  },
+
+  // Paginated queries for a job
+  getJobQueries: async (
+    jobId: number,
+    page: number = 1,
+    pageSize: number = 100,
+    status?: string
+  ): Promise<{ items: QueryItem[]; total: number; page: number; page_size: number }> => {
+    const response = await api.get(`/search/jobs/${jobId}/queries`, {
+      params: { page, page_size: pageSize, status },
     });
     return response.data;
   },
@@ -484,10 +520,12 @@ export const projectSearchApi = {
 
   // Export results to Google Sheet
   exportToGoogleSheet: async (
-    projectId: number
+    projectId: number,
+    options?: { targets_only?: boolean; exclude_contacted?: boolean }
   ): Promise<{ sheet_url: string }> => {
     const response = await api.post(
-      `/search/projects/${projectId}/export-sheet`
+      `/search/projects/${projectId}/export-sheet`,
+      options || {},
     );
     return response.data;
   },
@@ -530,6 +568,14 @@ export const projectSearchApi = {
     const response = await api.get(`/search/jobs/${jobId}/results/download`, {
       responseType: 'blob',
     });
+    return response.data;
+  },
+
+  // Batch domain-campaign lookup
+  getDomainCampaigns: async (
+    domains: string[]
+  ): Promise<DomainCampaignsMap> => {
+    const response = await api.post('/search/domain-campaigns', { domains });
     return response.data;
   },
 
@@ -576,7 +622,43 @@ export interface SearchJobFullDetail {
   yandex_cost: number;
   openai_tokens_used: number;
   openai_cost_estimate: number;
+  crona_credits_used: number;
+  crona_cost: number;
   total_cost_estimate: number;
+}
+
+// ============ Domain-Campaign lookup types ============
+
+export interface DomainCampaignContact {
+  id: number;
+  name: string | null;
+  email: string | null;
+  status: string;
+  has_replied: boolean;
+  match_type?: 'email_domain' | 'website_domain';
+}
+
+export interface DomainCampaignInfo {
+  contacts_count: number;
+  has_replies: boolean;
+  first_contacted_at: string | null;
+  match_type: 'email_domain' | 'website_domain';
+  campaigns: Array<{
+    name: string;
+    source: string;
+    status?: string;
+  }>;
+  contacts: DomainCampaignContact[];
+}
+
+export type DomainCampaignsMap = Record<string, DomainCampaignInfo>;
+
+export interface QueryItem {
+  id: number;
+  query_text: string;
+  status: string;
+  domains_found: number;
+  pages_scraped?: number;
 }
 
 export interface SearchHistoryItem {
@@ -599,4 +681,5 @@ export interface SearchHistoryItem {
   created_at?: string;
   error_message?: string;
   openai_tokens_used: number;
+  crona_credits_used: number;
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Dataset, DataRow, PromptTemplate, EnrichmentJob, OpenAISettings, User, Environment, EnvironmentWithStats, Company, CompanyWithStats } from '../types';
+import type { Project } from '../api/contacts';
 
 interface AppState {
   // User, Environment & Company (multi-tenant hierarchy)
@@ -9,6 +10,13 @@ interface AppState {
   currentEnvironment: Environment | null;
   companies: CompanyWithStats[];
   currentCompany: Company | null;
+
+  // Project-centric navigation
+  projects: Project[];
+  currentProject: Project | null;
+  setProjects: (projects: Project[]) => void;
+  setCurrentProject: (project: Project | null) => void;
+
   setCurrentUser: (user: User | null) => void;
   setEnvironments: (environments: EnvironmentWithStats[]) => void;
   setCurrentEnvironment: (environment: Environment | null) => void;
@@ -71,6 +79,19 @@ export const useAppStore = create<AppState>()(
       currentEnvironment: null,
       companies: [],
       currentCompany: null,
+
+      // Project-centric navigation
+      projects: [],
+      currentProject: null,
+      setProjects: (projects) => set({ projects }),
+      setCurrentProject: (project) => set(() => {
+        if (!project) return { currentProject: null };
+        // Auto-resolve company from project's company_id (if we have it in companies list)
+        // The project doesn't directly have company_id in its interface, but we set company
+        // from the first loaded company for now
+        return { currentProject: project };
+      }),
+
       setCurrentUser: (user) => set({ currentUser: user }),
       setEnvironments: (environments) => set({ environments }),
       setCurrentEnvironment: (environment) => set({ currentEnvironment: environment }),
@@ -173,6 +194,7 @@ export const useAppStore = create<AppState>()(
         // Only persist these fields
         currentEnvironment: state.currentEnvironment,
         currentCompany: state.currentCompany,
+        currentProject: state.currentProject,
       }),
     }
   )

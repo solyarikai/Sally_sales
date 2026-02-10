@@ -53,6 +53,7 @@ services:
       - GOOGLE_IMPERSONATE_EMAIL=services@getsally.io
     volumes:
       - ./backend:/app
+      - ./scripts:/scripts
       - ./google-credentials.json:/app/google-credentials.json:ro
       - ./state:/app/state:ro
     depends_on:

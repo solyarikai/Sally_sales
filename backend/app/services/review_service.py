@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.domain import (
     SearchJob, SearchQuery, SearchResult,
-    ProjectSearchKnowledge,
+    ProjectSearchKnowledge, ProjectBlacklist,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,9 +59,10 @@ class ReviewService:
         results = list(result.scalars().all())
 
         if not results:
-            return {"confirmed": 0, "rejected": 0, "flagged": 0}
+            return {"confirmed": 0, "rejected": 0, "flagged": 0, "review_tokens_used": 0}
 
         stats = {"confirmed": 0, "rejected": 0, "flagged": 0}
+        self._last_review_tokens = 0
 
         # Process in batches of 20
         batch_size = 20
@@ -88,6 +89,7 @@ class ReviewService:
         if project_id:
             await self.update_project_knowledge(session, project_id)
 
+        stats["review_tokens_used"] = self._last_review_tokens
         logger.info(f"Auto-review for job {job_id}: {stats}")
         return stats
 
@@ -157,6 +159,8 @@ RULES:
                 data = resp.json()
 
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+            self._last_review_tokens = getattr(self, "_last_review_tokens", 0) + usage.get("total_tokens", 0)
 
             try:
                 verdicts = json.loads(content)
@@ -207,6 +211,27 @@ RULES:
             r.review_note = note
             r.reviewed_at = now
 
+        # Auto-blacklist rejected domains
+        try:
+            for r in results:
+                if r.review_status == "rejected" and r.project_id and r.domain:
+                    # Upsert into ProjectBlacklist
+                    existing = await session.execute(
+                        select(ProjectBlacklist).where(
+                            ProjectBlacklist.project_id == r.project_id,
+                            ProjectBlacklist.domain == r.domain,
+                        )
+                    )
+                    if not existing.scalar_one_or_none():
+                        session.add(ProjectBlacklist(
+                            project_id=r.project_id,
+                            domain=r.domain,
+                            reason=r.review_note or "Auto-rejected by review",
+                            source="auto_review",
+                        ))
+        except Exception as e:
+            logger.warning(f"Failed to auto-blacklist rejected domains: {e}")
+
         # Also update corresponding DiscoveredCompany records for rejections
         try:
             from app.models.pipeline import DiscoveredCompany, DiscoveredCompanyStatus
@@ -249,6 +274,21 @@ RULES:
         if verdict == "rejected":
             sr.is_target = False
             sr.confidence = min(sr.confidence or 0, 0.2)
+            # Auto-blacklist on manual rejection
+            if sr.project_id and sr.domain:
+                existing = await session.execute(
+                    select(ProjectBlacklist).where(
+                        ProjectBlacklist.project_id == sr.project_id,
+                        ProjectBlacklist.domain == sr.domain,
+                    )
+                )
+                if not existing.scalar_one_or_none():
+                    session.add(ProjectBlacklist(
+                        project_id=sr.project_id,
+                        domain=sr.domain,
+                        reason=note or "Manual rejection",
+                        source="manual",
+                    ))
         elif verdict == "confirmed":
             sr.is_target = True
 
