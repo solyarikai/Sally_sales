@@ -28,7 +28,7 @@ class CRMScheduler:
     def __init__(
         self,
         sync_interval_minutes: int = 30,
-        reply_check_interval_minutes: int = 15,
+        reply_check_interval_minutes: int = 30,
         webhook_check_interval_hours: int = 6,
         report_interval_hours: int = 4,
         prompt_refresh_interval_hours: int = 168,  # Weekly (7 days)
@@ -91,9 +91,13 @@ class CRMScheduler:
             await asyncio.sleep(self.sync_interval)
     
     async def _run_reply_loop(self):
-        """Reply check loop - runs every 15 minutes to catch replies via API."""
+        """Reply check loop - runs every 30 minutes to catch replies via API."""
         await asyncio.sleep(60)  # Initial delay
         while self._running:
+            try:
+                await self._auto_assign_new_campaigns()
+            except Exception as e:
+                logger.error(f"Auto-assign campaigns error: {e}")
             try:
                 await self._check_replies()
                 self._reply_count += 1
@@ -189,6 +193,64 @@ class CRMScheduler:
                 logger.error(f"Sync failed: {e}")
                 raise
     
+    async def _auto_assign_new_campaigns(self):
+        """Auto-discover new Smartlead campaigns and assign to matching projects."""
+        from app.models.contact import Project
+        from sqlalchemy import select, and_
+
+        sync_service = get_crm_sync_service()
+        if not sync_service.smartlead:
+            return
+
+        try:
+            all_campaigns = await sync_service.smartlead.get_campaigns()
+        except Exception as e:
+            logger.warning(f"Failed to fetch campaigns for auto-assign: {e}")
+            return
+
+        async with async_session_maker() as session:
+            try:
+                result = await session.execute(
+                    select(Project).where(
+                        and_(
+                            Project.campaign_filters.isnot(None),
+                            Project.deleted_at.is_(None),
+                        )
+                    )
+                )
+                projects = result.scalars().all()
+
+                if not projects:
+                    return
+
+                assigned_names = set()
+                for p in projects:
+                    for name in (p.campaign_filters or []):
+                        assigned_names.add(name.lower())
+
+                assigned_count = 0
+                for campaign in all_campaigns:
+                    c_name = campaign.get("name", "")
+                    if not c_name or c_name.lower() in assigned_names:
+                        continue
+
+                    for project in projects:
+                        if project.name.lower() in c_name.lower():
+                            filters = list(project.campaign_filters or [])
+                            filters.append(c_name)
+                            project.campaign_filters = filters
+                            assigned_names.add(c_name.lower())
+                            assigned_count += 1
+                            logger.info(f"Auto-assigned campaign '{c_name}' to project '{project.name}'")
+                            break
+
+                if assigned_count > 0:
+                    await session.commit()
+                    logger.info(f"Auto-assigned {assigned_count} new campaigns to projects")
+
+            except Exception as e:
+                logger.error(f"Auto-assign campaigns failed: {e}")
+
     async def _check_replies(self):
         """Check for new replies via API polling (backup to webhooks)."""
         logger.info(f"Checking replies via API (run #{self._reply_count + 1})")
