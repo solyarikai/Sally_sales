@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Search,
   Send,
@@ -11,7 +10,6 @@ import {
   ThumbsUp,
   ThumbsDown,
   Download,
-  ChevronRight,
   Sparkles,
   Layers,
   ExternalLink,
@@ -486,7 +484,6 @@ function ExampleCompanyRow({
 }
 
 export function DataSearchPage() {
-  const navigate = useNavigate();
   const [searchMode, setSearchMode] = useState<SearchMode>('chat');
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);

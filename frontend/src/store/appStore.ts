@@ -84,7 +84,7 @@ export const useAppStore = create<AppState>()(
       projects: [],
       currentProject: null,
       setProjects: (projects) => set({ projects }),
-      setCurrentProject: (project) => set((state) => {
+      setCurrentProject: (project) => set(() => {
         if (!project) return { currentProject: null };
         // Auto-resolve company from project's company_id (if we have it in companies list)
         // The project doesn't directly have company_id in its interface, but we set company

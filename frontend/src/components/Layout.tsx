@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, MessageSquare, Contact, ListTodo, Search, Zap, Target, Layers, FolderOpen } from 'lucide-react';
+import { Database, Settings, BookOpen, Users, ChevronDown, MessageSquare, Contact, Search, Target, Layers, FolderOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -17,7 +17,7 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const { companyId } = useParams<{ companyId: string }>();
   const {
-    currentCompany, companies, setCurrentCompany, setCompanies, resetCompanyData,
+    currentCompany, companies, setCurrentCompany, setCompanies,
     currentProject, projects, setCurrentProject, setProjects,
   } = useAppStore();
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
