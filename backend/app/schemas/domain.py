@@ -137,5 +137,9 @@ class SpendingInfo(BaseModel):
     yandex_cost: float = 0.0
     openai_tokens_used: int = 0
     openai_cost_estimate: float = 0.0
+    openai_analysis_tokens: int = 0
+    openai_query_gen_tokens: int = 0
+    openai_review_tokens: int = 0
     crona_credits_used: int = 0
+    crona_cost: float = 0.0
     total_estimate: float = 0.0

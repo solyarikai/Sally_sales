@@ -9,6 +9,7 @@ SAFETY FIRST:
 import logging
 import json
 import os
+from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -90,12 +91,25 @@ class GoogleSheetsService:
                     creds_info,
                     scopes=self.SCOPES
                 )
-            elif credentials_path and os.path.exists(credentials_path):
-                # Use credentials file
-                self.credentials = service_account.Credentials.from_service_account_file(
-                    credentials_path,
-                    scopes=self.SCOPES
-                )
+            elif credentials_path:
+                # Resolve relative paths against this file's directory (backend/app/services/)
+                cred_path = Path(credentials_path)
+                if not cred_path.is_absolute():
+                    cred_path = (Path(__file__).resolve().parent / cred_path).resolve()
+                if not cred_path.exists():
+                    # Also try relative to the backend/ directory
+                    alt_path = (Path(__file__).resolve().parent.parent.parent / credentials_path).resolve()
+                    if alt_path.exists():
+                        cred_path = alt_path
+
+                if cred_path.exists() and cred_path.stat().st_size > 0:
+                    self.credentials = service_account.Credentials.from_service_account_file(
+                        str(cred_path),
+                        scopes=self.SCOPES
+                    )
+                else:
+                    logger.warning(f"Credentials file not found or empty: {cred_path}")
+                    return False
             else:
                 logger.warning("No Google service account credentials configured")
                 return False

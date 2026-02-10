@@ -783,6 +783,8 @@ class CRMSyncService:
             # Update existing contact
             existing.smartlead_id = smartlead_id
             existing.smartlead_status = smartlead_status
+            if not existing.domain and email and '@' in email:
+                existing.domain = email.split('@')[1].lower()
             if has_replied and not existing.has_replied:
                 existing.has_replied = True
                 existing.reply_channel = "email"
@@ -827,6 +829,7 @@ class CRMSyncService:
             contact = Contact(
                 company_id=company_id,
                 email=email,
+                domain=email.split('@')[1].lower() if email and '@' in email else None,
                 first_name=_truncate(lead.get("first_name"), 255),
                 last_name=_truncate(lead.get("last_name"), 255),
                 company_name=_truncate(lead.get("company_name"), 500),
@@ -918,6 +921,8 @@ class CRMSyncService:
             # Update existing contact
             existing.getsales_id = getsales_id
             existing.getsales_status = getsales_status
+            if not existing.domain and email and '@' in email:
+                existing.domain = email.split('@')[1].lower()
             if not existing.linkedin_url and linkedin_raw:
                 existing.linkedin_url = linkedin_raw
             if "getsales" not in (existing.source or ""):
@@ -958,9 +963,11 @@ class CRMSyncService:
                     "status": getsales_status
                 }]
 
+            actual_email = email or f"linkedin_{linkedin}@placeholder.local"
             contact = Contact(
                 company_id=company_id,
-                email=email or f"linkedin_{linkedin}@placeholder.local",  # Placeholder for LinkedIn-only contacts
+                email=actual_email,
+                domain=email.split('@')[1].lower() if email and '@' in email else None,
                 first_name=lead.get("first_name"),
                 last_name=lead.get("last_name"),
                 company_name=lead.get("company_name"),

@@ -68,8 +68,14 @@ class Settings(BaseSettings):
 
     # Search settings
     SEARCH_MAX_PAGES: int = 3
-    SEARCH_WORKERS: int = 2
+    SEARCH_WORKERS: int = 8
     SEARCH_REQUEST_TIMEOUT: int = 30
+
+    # Search pipeline settings
+    SEARCH_DOMAIN_RECHECK_DAYS: int = 365       # Skip domains processed within this many days
+    SEARCH_TARGET_GOAL: int = 1000              # Auto-iterate until this many targets found
+    SEARCH_BATCH_QUERIES: int = 50              # Queries per iteration batch
+    SEARCH_MAX_ITERATIONS: int = 30             # Safety cap on iterations
 
     # Crona API (website scraping via headless browser)
     CRONA_API_URL: str = "https://api.crona.ai"

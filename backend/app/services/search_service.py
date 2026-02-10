@@ -55,6 +55,7 @@ def build_project_query_prompt(
     existing_queries: List[str],
     good_queries: Optional[List[str]] = None,
     bad_queries: Optional[List[str]] = None,
+    confirmed_targets: Optional[List[str]] = None,
 ) -> str:
     """
     Build a GPT prompt for generating search queries based on project's target_segments.
@@ -86,6 +87,9 @@ def build_project_query_prompt(
     if bad_queries:
         bad_str = "\n".join(f"  - {q}" for q in bad_queries[:20])
         feedback_section += f"\nНЕЭФФЕКТИВНЫЕ ЗАПРОСЫ (находили только мусор — НЕ генерируй похожие):\n{bad_str}\n"
+    if confirmed_targets:
+        targets_str = "\n".join(f"  - {d}" for d in confirmed_targets[:30])
+        feedback_section += f"\nПОДТВЕРЖДЁННЫЕ ЦЕЛЕВЫЕ ДОМЕНЫ (генерируй запросы, которые нашли бы похожие):\n{targets_str}\n"
 
     prompt = f"""Ты - эксперт по генерации поисковых запросов для B2B лидогенерации.
 
@@ -106,8 +110,9 @@ def build_project_query_prompt(
 ВАРИАЦИИ ЗАПРОСОВ:
 - Прямые: "[тип компании] [город]"
 - Уточнённые: "[тип компании] для [целевой аудитории]"
-- Географические: варьируй города (Москва, СПб, регионы, международные)
-- Английские: для международных запросов
+- Географические: варьируй города России (Москва, СПб, Екатеринбург, Новосибирск, Казань, Нижний Новгород, Ростов, Краснодар, и другие крупные города)
+- Английские: для поиска российских компаний на английском
+- СТРОГО следуй географическим ограничениям в описании целевого сегмента
 
 УЖЕ ИСПОЛЬЗОВАННЫЕ ЗАПРОСЫ (НЕ ПОВТОРЯЙ!):
 {existing_str}
@@ -235,6 +240,7 @@ class SearchService:
         project_id: Optional[int] = None,
         good_queries: Optional[List[str]] = None,
         bad_queries: Optional[List[str]] = None,
+        confirmed_targets: Optional[List[str]] = None,
     ) -> List[str]:
         """
         Generate search queries via OpenAI.
@@ -265,6 +271,7 @@ class SearchService:
             existing_queries=existing_queries or [],
             good_queries=good_queries,
             bad_queries=bad_queries,
+            confirmed_targets=confirmed_targets,
         )
 
         payload = {
@@ -305,6 +312,12 @@ class SearchService:
             raise
 
         content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        usage = data.get("usage", {})
+        self._last_query_gen_tokens = {
+            "total": usage.get("total_tokens", 0),
+            "input": usage.get("prompt_tokens", 0),
+            "output": usage.get("completion_tokens", 0),
+        }
         raw_queries = _extract_json_array(content)
 
         # Dedup against existing
@@ -322,6 +335,11 @@ class SearchService:
             result_queries.append(q2)
 
         return result_queries
+
+    @property
+    def last_query_gen_tokens(self) -> Dict[str, int]:
+        """Token usage from the last generate_queries() call."""
+        return getattr(self, "_last_query_gen_tokens", {"total": 0, "input": 0, "output": 0})
 
     # ------------------------------------------------------------------
     # Google SERP scraping
@@ -566,12 +584,15 @@ class SearchService:
             semaphore = asyncio.Semaphore(workers)
             _cancelled = False
 
+            # Track which query found each domain (first query wins)
+            domain_to_query: Dict[str, int] = {}
+
             async def process_query(sq: SearchQuery):
                 nonlocal _cancelled
                 async with semaphore:
                     if _cancelled:
                         sq.status = SearchQueryStatus.FAILED
-                        return []
+                        return (sq.id, [])
 
                     if not is_yandex:
                         await asyncio.sleep(random.uniform(0.3, 1.5))
@@ -588,13 +609,13 @@ class SearchService:
                     except Exception as e:
                         logger.error(f"Query '{sq.query_text}' error: {e}")
                         sq.status = SearchQueryStatus.FAILED
-                        return []
+                        return (sq.id, [])
 
                     sq.status = SearchQueryStatus.DONE
                     sq.domains_found = len(domains)
                     sq.pages_scraped = max_pages
 
-                    return list(domains)
+                    return (sq.id, list(domains))
 
             tasks = [process_query(sq) for sq in queries]
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -604,7 +625,12 @@ class SearchService:
                     queries[i].status = SearchQueryStatus.FAILED
                     logger.error(f"Query '{queries[i].query_text}' failed: {res}")
                 else:
-                    all_found_domains.extend(res)
+                    query_id, domains_list = res
+                    all_found_domains.extend(domains_list)
+                    # Track first query that found each domain
+                    for d in domains_list:
+                        if d not in domain_to_query:
+                            domain_to_query[d] = query_id
 
                 job.queries_completed += 1
 
@@ -630,6 +656,14 @@ class SearchService:
             job.domains_duplicate = len(filter_result["duplicate"])
             job.status = SearchJobStatus.COMPLETED
             job.completed_at = datetime.utcnow()
+
+            # Store domain→query mapping for source tracking
+            config = dict(job.config or {})
+            # Merge with any existing mapping (for iterative runs)
+            existing_mapping = config.get("domain_to_query", {})
+            existing_mapping.update(domain_to_query)
+            config["domain_to_query"] = existing_mapping
+            job.config = config
 
         except Exception as e:
             logger.error(f"SearchJob {job_id} failed: {e}")

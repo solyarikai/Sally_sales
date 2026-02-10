@@ -26,7 +26,7 @@ import logging
 from app.db import get_session, async_session_maker
 from app.api.companies import get_required_company
 from app.models.user import Company
-from app.models.contact import Project
+from app.models.contact import Project, Contact
 from app.models.domain import (
     SearchJob, SearchJobStatus, SearchEngine,
     SearchQuery, SearchQueryStatus, SearchResult,
@@ -64,7 +64,8 @@ class SearchJobDetailResponse(SearchJobResponse):
 
 
 class ProjectRunRequest(BaseModel):
-    max_queries: int = Field(100, ge=1, le=1000, description="Max queries to generate (default 100)")
+    max_queries: int = Field(500, ge=1, le=5000, description="Max queries budget (default 500)")
+    target_goal: Optional[int] = Field(None, ge=1, le=10000, description="Stop when this many targets found (default from settings)")
 
 
 class ProjectRunResponse(BaseModel):
@@ -440,12 +441,12 @@ async def run_project_search(
     await db.commit()
 
     # Run full pipeline in background
-    background_tasks.add_task(_run_project_search_background, job.id, project_id, company.id, body.max_queries)
+    background_tasks.add_task(_run_project_search_background, job.id, project_id, company.id, body.max_queries, body.target_goal)
 
     return ProjectRunResponse(job_id=job.id, status="running")
 
 
-async def _run_project_search_background(job_id: int, project_id: int, company_id: int, max_queries: int):
+async def _run_project_search_background(job_id: int, project_id: int, company_id: int, max_queries: int, target_goal: int = None):
     """Background task for full project search pipeline."""
     try:
         async with async_session_maker() as session:
@@ -455,6 +456,7 @@ async def _run_project_search_background(job_id: int, project_id: int, company_i
                     project_id=project_id,
                     company_id=company_id,
                     max_queries=max_queries,
+                    target_goal=target_goal,
                     job_id=job_id,
                 )
             except Exception as e:
@@ -600,9 +602,8 @@ async def export_to_google_sheet(
     company: Company = Depends(get_required_company),
 ):
     """Export search results to a new Google Sheet."""
-    from app.services.google_sheets_service import GoogleSheetsService
+    from app.services.google_sheets_service import google_sheets_service as sheets_service
 
-    sheets_service = GoogleSheetsService()
     if not sheets_service._initialize():
         raise HTTPException(status_code=503, detail="Google Sheets not configured")
 
@@ -734,7 +735,8 @@ async def get_search_history(
                 project_name = row[0]
 
         config = job.config or {}
-        tokens_used = config.get("openai_tokens_used", 0)
+        tokens_used = config.get("openai_tokens_used", 0) + config.get("query_gen_tokens", 0)
+        crona_credits = config.get("crona_credits_used", 0)
 
         items.append({
             "id": job.id,
@@ -756,6 +758,7 @@ async def get_search_history(
             "created_at": job.created_at.isoformat() if job.created_at else None,
             "error_message": job.error_message,
             "openai_tokens_used": tokens_used,
+            "crona_credits_used": crona_credits,
         })
 
     return {
@@ -822,9 +825,13 @@ async def get_search_job_full(
     # Spending
     config = job.config or {}
     tokens_used = config.get("openai_tokens_used", 0)
+    query_gen_tokens = config.get("query_gen_tokens", 0)
+    all_tokens = tokens_used + query_gen_tokens
+    crona_credits = config.get("crona_credits_used", 0)
     yandex_requests = (job.queries_total or 0) * 3  # 3 pages per query
     yandex_cost = (yandex_requests / 1000) * 0.25
-    openai_cost = (tokens_used / 1_000_000) * 0.15
+    openai_cost = (all_tokens / 1_000_000) * 0.15
+    crona_cost = crona_credits * 0.001
 
     return {
         "id": job.id,
@@ -848,10 +855,68 @@ async def get_search_job_full(
         "targets_found": total_targets,
         "avg_confidence": round(avg_confidence, 3) if avg_confidence else None,
         "yandex_cost": round(yandex_cost, 4),
-        "openai_tokens_used": tokens_used,
+        "openai_tokens_used": all_tokens,
         "openai_cost_estimate": round(openai_cost, 4),
-        "total_cost_estimate": round(yandex_cost + openai_cost, 4),
+        "crona_credits_used": crona_credits,
+        "crona_cost": round(crona_cost, 4),
+        "total_cost_estimate": round(yandex_cost + openai_cost + crona_cost, 4),
     }
+
+
+@router.get("/jobs/{job_id}/results")
+async def get_job_results(
+    job_id: int,
+    targets_only: bool = QueryParam(False),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get all results for a job with source query text."""
+    result = await db.execute(
+        select(SearchJob).where(
+            SearchJob.id == job_id,
+            SearchJob.company_id == company.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Search job not found")
+
+    query = select(SearchResult).where(SearchResult.search_job_id == job_id)
+    if targets_only:
+        query = query.where(SearchResult.is_target == True)
+    query = query.order_by(SearchResult.is_target.desc(), SearchResult.confidence.desc())
+
+    results_q = await db.execute(query)
+    results = results_q.scalars().all()
+
+    # Build query_id -> query_text map for source tracking
+    q_result = await db.execute(
+        select(SearchQuery.id, SearchQuery.query_text).where(
+            SearchQuery.search_job_id == job_id
+        )
+    )
+    query_map = {row[0]: row[1] for row in q_result.fetchall()}
+
+    items = []
+    for r in results:
+        info = r.company_info or {}
+        items.append({
+            "id": r.id,
+            "domain": r.domain,
+            "url": r.url,
+            "is_target": r.is_target,
+            "confidence": r.confidence,
+            "reasoning": r.reasoning,
+            "company_info": info,
+            "scores": r.scores,
+            "review_status": r.review_status,
+            "review_note": r.review_note,
+            "source_query_id": r.source_query_id,
+            "source_query_text": query_map.get(r.source_query_id) if r.source_query_id else None,
+            "scraped_at": r.scraped_at.isoformat() if r.scraped_at else None,
+            "analyzed_at": r.analyzed_at.isoformat() if r.analyzed_at else None,
+        })
+
+    return {"items": items, "total": len(items)}
 
 
 @router.get("/jobs/{job_id}/results/download")
@@ -912,3 +977,92 @@ async def download_job_results_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=search_job_{job_id}_results.csv"},
     )
+
+
+# ============ Domain-Campaign Lookup ============
+
+class DomainCampaignsRequest(BaseModel):
+    domains: List[str] = Field(..., min_length=1, max_length=500, description="List of domains to look up")
+
+
+@router.post("/domain-campaigns")
+async def get_domain_campaigns(
+    body: DomainCampaignsRequest,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """
+    Batch lookup: for a list of domains, find contacts with campaign data.
+    Returns campaign info grouped by domain for domains that have matches.
+    """
+    from sqlalchemy import func as sqlfunc, or_
+
+    # Normalize domains
+    domains = [d.lower().strip() for d in body.domains if d and d.strip()]
+    if not domains:
+        return {}
+
+    # Query contacts with matching domains that have campaign data
+    result = await db.execute(
+        select(Contact).where(
+            Contact.company_id == company.id,
+            Contact.domain.in_(domains),
+            Contact.is_deleted == False,
+        )
+    )
+    contacts = result.scalars().all()
+
+    # Group by domain
+    domain_map: dict = {}
+    for c in contacts:
+        d = c.domain.lower() if c.domain else None
+        if not d:
+            continue
+
+        if d not in domain_map:
+            domain_map[d] = {
+                "contacts_count": 0,
+                "has_replies": False,
+                "first_contacted_at": None,
+                "campaigns": [],
+                "contacts": [],
+            }
+
+        entry = domain_map[d]
+        entry["contacts_count"] += 1
+
+        if c.has_replied:
+            entry["has_replies"] = True
+
+        # Track first contact date
+        if c.created_at:
+            created_str = c.created_at.isoformat()
+            if entry["first_contacted_at"] is None or created_str < entry["first_contacted_at"]:
+                entry["first_contacted_at"] = created_str
+
+        # Add campaigns (deduplicate)
+        if c.campaigns:
+            seen_campaigns = {(cp.get("name"), cp.get("source")) for cp in entry["campaigns"]}
+            for cp in c.campaigns:
+                key = (cp.get("name"), cp.get("source"))
+                if key not in seen_campaigns:
+                    entry["campaigns"].append({
+                        "name": cp.get("name"),
+                        "source": cp.get("source"),
+                        "status": cp.get("status"),
+                    })
+                    seen_campaigns.add(key)
+
+        # Add contact summary
+        name_parts = [c.first_name or "", c.last_name or ""]
+        name = " ".join(p for p in name_parts if p).strip() or None
+
+        entry["contacts"].append({
+            "id": c.id,
+            "name": name,
+            "email": c.email if c.email and "@placeholder" not in c.email else None,
+            "status": c.status,
+            "has_replied": c.has_replied or False,
+        })
+
+    return domain_map

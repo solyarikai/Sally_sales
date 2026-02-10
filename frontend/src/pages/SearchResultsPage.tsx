@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Target, Search, Download, FileSpreadsheet, ArrowLeft,
   Loader2, AlertCircle, Clock, CheckCircle2, XCircle,
   ChevronDown, ChevronRight, ExternalLink, DollarSign,
-  BarChart3, Globe, Zap,
+  BarChart3, Globe, Zap, Mail, MessageSquare,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -14,6 +14,8 @@ import {
   type SearchHistoryItem,
   type SearchResultItem,
   type SearchQueryResponse,
+  type DomainCampaignsMap,
+  type DomainCampaignInfo,
 } from '../api/dataSearch';
 
 // Extend SearchQueryResponse if not exported
@@ -223,6 +225,7 @@ function JobDetailView({ jobId }: { jobId: number }) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [exportingSheet, setExportingSheet] = useState(false);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
+  const [domainCampaigns, setDomainCampaigns] = useState<DomainCampaignsMap>({});
 
   useEffect(() => {
     loadJob();
@@ -240,11 +243,27 @@ function JobDetailView({ jobId }: { jobId: number }) {
       setQueries(jobDetail.queries || []);
 
       // Load results if project-based
+      let loadedResults: SearchResultItem[] = [];
       if (jobData.project_id) {
         const resultData = await projectSearchApi.getProjectResults(jobData.project_id);
         // Filter to only this job's results
         const jobResults = resultData.filter(r => r.search_job_id === jobId);
-        setResults(jobResults.length > 0 ? jobResults : resultData);
+        loadedResults = jobResults.length > 0 ? jobResults : resultData;
+        setResults(loadedResults);
+      }
+
+      // Load domain-campaign data for all result domains
+      if (loadedResults.length > 0) {
+        const domains = [...new Set(loadedResults.map(r => r.domain).filter(Boolean))];
+        if (domains.length > 0) {
+          try {
+            const campaigns = await projectSearchApi.getDomainCampaigns(domains);
+            setDomainCampaigns(campaigns);
+          } catch (err) {
+            // Non-critical, just log
+            console.error('Failed to load domain campaigns:', err);
+          }
+        }
       }
     } catch (err: any) {
       setError(err.userMessage || 'Failed to load job details');
@@ -370,7 +389,7 @@ function JobDetailView({ jobId }: { jobId: number }) {
         <h3 className="text-sm font-medium text-neutral-700 mb-3 flex items-center gap-2">
           <DollarSign className="w-4 h-4" /> Resource Spending
         </h3>
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-4 gap-6">
           <div>
             <div className="text-xs text-neutral-500">Yandex API</div>
             <div className="text-lg font-semibold text-neutral-900">${job.yandex_cost.toFixed(4)}</div>
@@ -380,6 +399,11 @@ function JobDetailView({ jobId }: { jobId: number }) {
             <div className="text-xs text-neutral-500">OpenAI (GPT-4o-mini)</div>
             <div className="text-lg font-semibold text-neutral-900">${job.openai_cost_estimate.toFixed(4)}</div>
             <div className="text-xs text-neutral-400">{(job.openai_tokens_used || 0).toLocaleString()} tokens</div>
+          </div>
+          <div>
+            <div className="text-xs text-neutral-500">Crona (Scraping)</div>
+            <div className="text-lg font-semibold text-neutral-900">${(job.crona_cost || 0).toFixed(4)}</div>
+            <div className="text-xs text-neutral-400">{(job.crona_credits_used || 0).toLocaleString()} credits</div>
           </div>
           <div>
             <div className="text-xs text-neutral-500">Total Estimate</div>
@@ -421,6 +445,7 @@ function JobDetailView({ jobId }: { jobId: number }) {
                 <th className="px-4 py-3">Company</th>
                 <th className="px-4 py-3 text-center">Target</th>
                 <th className="px-4 py-3 text-right">Confidence</th>
+                <th className="px-4 py-3">Outreach</th>
                 <th className="px-4 py-3">Industry</th>
               </tr>
             </thead>
@@ -428,6 +453,7 @@ function JobDetailView({ jobId }: { jobId: number }) {
               {results.map((r) => {
                 const isExpanded = expandedRows.has(r.id);
                 const info = r.company_info || {};
+                const campaign = domainCampaigns[r.domain?.toLowerCase()];
                 return (
                   <>
                     <tr
@@ -468,12 +494,19 @@ function JobDetailView({ jobId }: { jobId: number }) {
                           {r.confidence ? `${(r.confidence * 100).toFixed(0)}%` : '-'}
                         </span>
                       </td>
+                      <td className="px-4 py-2.5">
+                        {campaign ? (
+                          <CampaignBadge campaign={campaign} />
+                        ) : (
+                          <span className="text-xs text-neutral-300">-</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2.5 text-sm text-neutral-500">{info.industry || '-'}</td>
                     </tr>
                     {isExpanded && (
                       <tr key={`${r.id}-detail`} className="border-b border-neutral-100 bg-neutral-50/50">
-                        <td colSpan={6} className="px-8 py-4">
-                          <div className="space-y-2 text-sm">
+                        <td colSpan={7} className="px-8 py-4">
+                          <div className="space-y-3 text-sm">
                             {r.reasoning && (
                               <div><span className="font-medium text-neutral-700">Reasoning:</span> <span className="text-neutral-600">{r.reasoning}</span></div>
                             )}
@@ -491,6 +524,9 @@ function JobDetailView({ jobId }: { jobId: number }) {
                             {info.location && (
                               <div><span className="font-medium text-neutral-700">Location:</span> <span className="text-neutral-600">{info.location}</span></div>
                             )}
+
+                            {/* Outreach Status Section */}
+                            {campaign && <OutreachDetail campaign={campaign} />}
                           </div>
                         </td>
                       </tr>
@@ -500,7 +536,7 @@ function JobDetailView({ jobId }: { jobId: number }) {
               })}
               {results.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-neutral-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-neutral-400">
                     No results yet
                   </td>
                 </tr>
@@ -543,6 +579,84 @@ function JobDetailView({ jobId }: { jobId: number }) {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============ Campaign Badge + Outreach Detail ============
+
+function CampaignBadge({ campaign }: { campaign: DomainCampaignInfo }) {
+  const mainCampaign = campaign.campaigns[0];
+  const label = mainCampaign?.name
+    ? (mainCampaign.name.length > 20 ? mainCampaign.name.slice(0, 18) + '...' : mainCampaign.name)
+    : 'Contacted';
+
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium max-w-[160px] truncate',
+      campaign.has_replies
+        ? 'bg-green-100 text-green-700 ring-1 ring-green-300 animate-pulse'
+        : 'bg-orange-100 text-orange-700'
+    )}>
+      <Mail className="w-3 h-3 flex-shrink-0" />
+      <span className="truncate">{label}</span>
+      {campaign.contacts_count > 1 && (
+        <span className="text-[10px] opacity-70">({campaign.contacts_count})</span>
+      )}
+    </span>
+  );
+}
+
+function OutreachDetail({ campaign }: { campaign: DomainCampaignInfo }) {
+  return (
+    <div className="mt-2 p-3 bg-orange-50/50 border border-orange-100 rounded-lg">
+      <div className="flex items-center gap-2 mb-2">
+        <MessageSquare className="w-4 h-4 text-orange-600" />
+        <span className="font-medium text-neutral-700">Outreach Status</span>
+        {campaign.has_replies && (
+          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-semibold">HAS REPLIES</span>
+        )}
+      </div>
+
+      {/* Campaigns */}
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {campaign.campaigns.map((c, i) => (
+          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-neutral-200 rounded text-xs">
+            {c.source === 'getsales' ? 'LI' : <Mail className="w-3 h-3" />}
+            <span className="font-medium">{c.name}</span>
+            {c.status && <span className="text-neutral-400">{c.status}</span>}
+          </span>
+        ))}
+      </div>
+
+      {/* First contacted */}
+      {campaign.first_contacted_at && (
+        <div className="text-xs text-neutral-500 mb-2">
+          First contacted: {new Date(campaign.first_contacted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </div>
+      )}
+
+      {/* Contact list */}
+      <div className="space-y-1">
+        {campaign.contacts.map((c) => (
+          <div key={c.id} className="flex items-center gap-2 text-xs">
+            <Link
+              to={`/contacts/${c.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+            >
+              {c.name || c.email || `Contact #${c.id}`}
+            </Link>
+            {c.email && <span className="text-neutral-400">{c.email}</span>}
+            <span className={cn(
+              'px-1.5 py-0.5 rounded text-[10px] font-medium',
+              c.has_replied ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-500'
+            )}>
+              {c.has_replied ? 'replied' : c.status}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

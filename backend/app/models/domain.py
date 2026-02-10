@@ -179,6 +179,25 @@ class SearchResult(Base):
     )
 
 
+class ProjectBlacklist(Base):
+    """
+    Per-project blacklist — domains that should never be re-scraped or re-analyzed.
+    Populated automatically from rejected SearchResults and manually.
+    """
+    __tablename__ = "project_blacklist"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    domain = Column(String(255), nullable=False)
+    reason = Column(Text, nullable=True)
+    source = Column(String(50), default="auto_review")  # auto_review, manual
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_project_blacklist_project_domain", "project_id", "domain", unique=True),
+    )
+
+
 class ProjectSearchKnowledge(Base):
     """
     Accumulated search knowledge for a project — patterns learned from past searches

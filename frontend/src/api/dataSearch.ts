@@ -57,7 +57,11 @@ export interface SpendingInfo {
   yandex_cost: number;
   openai_tokens_used: number;
   openai_cost_estimate: number;
+  openai_analysis_tokens: number;
+  openai_query_gen_tokens: number;
+  openai_review_tokens: number;
   crona_credits_used: number;
+  crona_cost: number;
   total_estimate: number;
 }
 
@@ -390,11 +394,12 @@ export const projectSearchApi = {
   // Run full search pipeline for a project
   runProjectSearch: async (
     projectId: number,
-    maxQueries: number = 100
+    maxQueries: number = 500,
+    targetGoal?: number
   ): Promise<{ job_id: number; status: string }> => {
-    const response = await api.post(`/search/projects/${projectId}/run`, {
-      max_queries: maxQueries,
-    });
+    const body: any = { max_queries: maxQueries };
+    if (targetGoal) body.target_goal = targetGoal;
+    const response = await api.post(`/search/projects/${projectId}/run`, body);
     return response.data;
   },
 
@@ -533,6 +538,14 @@ export const projectSearchApi = {
     return response.data;
   },
 
+  // Batch domain-campaign lookup
+  getDomainCampaigns: async (
+    domains: string[]
+  ): Promise<DomainCampaignsMap> => {
+    const response = await api.post('/search/domain-campaigns', { domains });
+    return response.data;
+  },
+
   // Search history — paginated job list with summary stats
   getSearchHistory: async (
     page: number = 1,
@@ -576,8 +589,34 @@ export interface SearchJobFullDetail {
   yandex_cost: number;
   openai_tokens_used: number;
   openai_cost_estimate: number;
+  crona_credits_used: number;
+  crona_cost: number;
   total_cost_estimate: number;
 }
+
+// ============ Domain-Campaign lookup types ============
+
+export interface DomainCampaignContact {
+  id: number;
+  name: string | null;
+  email: string | null;
+  status: string;
+  has_replied: boolean;
+}
+
+export interface DomainCampaignInfo {
+  contacts_count: number;
+  has_replies: boolean;
+  first_contacted_at: string | null;
+  campaigns: Array<{
+    name: string;
+    source: string;
+    status?: string;
+  }>;
+  contacts: DomainCampaignContact[];
+}
+
+export type DomainCampaignsMap = Record<string, DomainCampaignInfo>;
 
 export interface SearchHistoryItem {
   id: number;
@@ -599,4 +638,5 @@ export interface SearchHistoryItem {
   created_at?: string;
   error_message?: string;
   openai_tokens_used: number;
+  crona_credits_used: number;
 }
