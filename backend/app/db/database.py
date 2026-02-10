@@ -52,14 +52,12 @@ async def get_session() -> AsyncSession:
 
 
 async def init_db():
-    """Create tables that don't exist yet. Safe to run repeatedly."""
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-    except Exception as e:
-        # Table already exists errors are safe to ignore on startup
-        import logging
-        logging.getLogger(__name__).warning(f"init_db warning (safe to ignore): {e}")
+    """No-op: Alembic handles all schema migrations.
+
+    create_all conflicts with asyncpg when tables already exist
+    (DuplicateTableError not catchable through greenlet stack).
+    """
+    pass
 
 
 async def close_db():
