@@ -370,12 +370,6 @@ function JobDetailView({ jobId }: { jobId: number }) {
               setTotalResults(data.total);
             })
           );
-          promises.push(
-            projectSearchApi.getProjectResultsStats(jobData.project_id, jobId).then(stats => {
-              if (cancelled) return;
-              setTotalResults(stats.total);
-            })
-          );
         }
         promises.push(
           projectSearchApi.getJobQueries(jobId, 1, QUERIES_PAGE_SIZE).then(data => {
@@ -647,21 +641,17 @@ function JobDetailView({ jobId }: { jobId: number }) {
       {/* Results tab — virtual scroll */}
       {tab === 'results' && (
         <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-          {/* Fixed header */}
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                <th className="px-4 py-3 w-8"></th>
-                <th className="px-4 py-3">Domain</th>
-                <th className="px-4 py-3">Company</th>
-                <th className="px-4 py-3 text-center">Target</th>
-                <th className="px-4 py-3 text-right">Confidence</th>
-                <th className="px-4 py-3">Outreach</th>
-                <th className="px-4 py-3">Industry</th>
-                <th className="px-4 py-3">Source Query</th>
-              </tr>
-            </thead>
-          </table>
+          {/* Fixed header — must use same flex layout as body rows */}
+          <div className="flex items-center border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+            <div className="px-4 py-3 w-8 flex-shrink-0"></div>
+            <div className="px-4 py-3 flex-1 min-w-0">Domain</div>
+            <div className="px-4 py-3 w-[140px] flex-shrink-0">Company</div>
+            <div className="px-4 py-3 w-[70px] flex-shrink-0 text-center">Target</div>
+            <div className="px-4 py-3 w-[90px] flex-shrink-0 text-right">Confidence</div>
+            <div className="px-4 py-3 w-[200px] flex-shrink-0">Outreach</div>
+            <div className="px-4 py-3 w-[120px] flex-shrink-0">Industry</div>
+            <div className="px-4 py-3 w-[200px] flex-shrink-0">Source Query</div>
+          </div>
           {/* Scrollable virtual body */}
           <div
             ref={resultsParentRef}
@@ -811,15 +801,11 @@ function JobDetailView({ jobId }: { jobId: number }) {
       {/* Queries tab — virtual scroll */}
       {tab === 'queries' && (
         <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                <th className="px-4 py-3">Query</th>
-                <th className="px-4 py-3 text-center w-[100px]">Status</th>
-                <th className="px-4 py-3 text-right w-[120px]">Domains Found</th>
-              </tr>
-            </thead>
-          </table>
+          <div className="flex items-center border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+            <div className="px-4 py-3 flex-1">Query</div>
+            <div className="px-4 py-3 w-[100px] flex-shrink-0 text-center">Status</div>
+            <div className="px-4 py-3 w-[120px] flex-shrink-0 text-right">Domains Found</div>
+          </div>
           <div
             ref={queriesParentRef}
             className="overflow-auto"
