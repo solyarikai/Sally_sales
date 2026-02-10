@@ -1038,6 +1038,37 @@ class CRMSyncService:
         
         return None
     
+    @staticmethod
+    def _strip_html(html: str) -> str:
+        """Strip HTML tags, CSS, and clean up whitespace from email body."""
+        import re
+        if not html or ("<" not in html):
+            return html or ""
+        text = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<script[^>]*>.*?</script>", "", text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"\*\s*\{[^}]*\}", "", text)  # inline CSS
+        text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"</?(?:div|p|tr|li|h[1-6])[^>]*>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"</?(?:td|th)[^>]*>", " ", text, flags=re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = text.replace("&nbsp;", " ").replace("&amp;", "&")
+        text = text.replace("&lt;", "<").replace("&gt;", ">")
+        text = text.replace("&quot;", '"').replace("&apos;", "'")
+        text = re.sub(r"&#(\d+);", lambda m: chr(int(m.group(1))), text)
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n[ \t]+", "\n", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        # Remove quoted content (previous emails in thread)
+        for marker in ["\nOn ", "\nEl ", "\nDe: ", "\nFrom: ", "\nEnviado: ", "\nSent: ", "\n------"]:
+            if marker in text:
+                parts = text.split(marker, 1)
+                if len(parts) > 1 and len(parts[0]) > 20:
+                    suffix_lower = parts[1][:200].lower()
+                    if any(x in suffix_lower for x in ["wrote:", "escribi", "forwarded", "original message"]):
+                        text = parts[0].strip()
+                        break
+        return text.strip()
+
     async def sync_smartlead_replies(
         self,
         session: AsyncSession,
@@ -1045,132 +1076,200 @@ class CRMSyncService:
         since: datetime = None
     ) -> Dict[str, int]:
         """
-        Sync reply activities from Smartlead using per-campaign approach.
-        
-        Iterates through ACTIVE and PAUSED campaigns to find replied leads.
-        Uses Redis cache to avoid redundant DB queries.
+        Sync reply activities from Smartlead using per-campaign polling.
+
+        Uses the statistics endpoint (GET /campaigns/{id}/statistics) to find
+        ALL leads with reply_time set (regardless of category). This catches
+        replies that webhooks missed. For each new reply:
+        1. Enrich via global GET /leads/?email= for lead_id, company, etc.
+        2. Fetch message history using numeric lead_id for actual reply text
+        3. Strip HTML and extract clean reply body
+        4. Run through the full reply pipeline (classify, draft, notify)
+
+        Uses Redis cache for fast dedup, falls back to DB check.
         """
         if not self.smartlead:
             raise ValueError("Smartlead API key not configured")
-        
+
+        from app.models.reply import ProcessedReply
+        from app.services.smartlead_service import smartlead_service
+
         stats = {"new_replies": 0, "existing": 0, "cached": 0, "campaigns_checked": 0, "errors": 0}
-        new_reply_ids = []
-        
+        new_cache_keys = []
+
         try:
-            # Get all campaigns
             campaigns = await self.smartlead.get_campaigns()
             logger.info(f"Reply sync: checking {len(campaigns)} campaigns")
-            
+
             for campaign in campaigns:
                 status = campaign.get("status", "").upper()
                 campaign_id = campaign.get("id")
                 campaign_name = campaign.get("name", "Unknown")
-                
-                # Check ACTIVE, PAUSED, and COMPLETED campaigns for replies
+
                 if status not in ("ACTIVE", "PAUSED", "COMPLETED"):
                     continue
-                
+
                 stats["campaigns_checked"] += 1
-                
+
                 try:
-                    # Fetch ONLY replied leads using category filter (9 = replied)
-                    # This is the correct Smartlead API approach - reply_time/REPLIED status don't exist
-                    replied_leads = await self.smartlead.get_campaign_leads(
-                        campaign_id, limit=100, lead_category_id=9
+                    # Fetch ALL replied leads via statistics endpoint
+                    replied_leads = await smartlead_service.get_all_campaign_replied_leads(
+                        str(campaign_id)
                     )
-                    
+
                     if not replied_leads:
                         await asyncio.sleep(0.1)
                         continue
-                    
-                    # Bulk check which leads are already cached
-                    lead_ids = [str(ld.get("lead", ld).get("id")) for ld in replied_leads]
-                    cached_ids = await bulk_check_replies("smartlead", lead_ids)
-                    
-                    for lead_data in replied_leads:
-                        lead = lead_data.get("lead", lead_data)
-                        email = self.normalize_email(lead.get("email"))
-                        lead_id = str(lead.get("id"))
-                        
-                        # Check Redis cache first (fast path)
-                        if lead_id in cached_ids:
+
+                    logger.info(f"Reply sync: campaign '{campaign_name}' has {len(replied_leads)} replied leads")
+
+                    # Bulk check Redis cache using email+campaign as key
+                    cache_keys = [f"{rl['lead_email']}_{campaign_id}" for rl in replied_leads]
+                    cached_keys = await bulk_check_replies("smartlead_replies", cache_keys)
+
+                    for reply_data in replied_leads:
+                        email = self.normalize_email(reply_data.get("lead_email"))
+                        cache_key = f"{email}_{campaign_id}"
+
+                        if cache_key in cached_keys:
                             stats["cached"] += 1
                             continue
-                        
-                        # Find contact
-                        contact = await self._find_contact(
-                            session, company_id, email=email, smartlead_id=lead_id
-                        )
-                        
-                        if not contact:
-                            new_reply_ids.append(lead_id)  # Still cache it
+
+                        if not email:
                             continue
-                        
-                        # Check if we already have this reply activity (fallback)
-                        existing = await session.execute(
-                            select(ContactActivity).where(
+
+                        # Check if ProcessedReply already exists
+                        existing_pr = await session.execute(
+                            select(ProcessedReply).where(
                                 and_(
-                                    ContactActivity.contact_id == contact.id,
-                                    ContactActivity.activity_type == "email_replied",
-                                    ContactActivity.source == "smartlead",
-                                    ContactActivity.source_id == lead_id
+                                    func.lower(ProcessedReply.lead_email) == email.lower(),
+                                    ProcessedReply.campaign_id == str(campaign_id)
                                 )
                             )
                         )
-                        
-                        if existing.scalar_one_or_none():
+                        if existing_pr.scalar_one_or_none():
                             stats["existing"] += 1
-                            new_reply_ids.append(lead_id)  # Add to cache
+                            new_cache_keys.append(cache_key)
                             continue
-                        
-                        # Create activity (note: API doesn't provide reply_time or message content)
-                        # This is a fallback for contacts missed by webhook - just marks as replied
-                        activity = ContactActivity(
-                            contact_id=contact.id,
-                            company_id=company_id,
-                            activity_type="email_replied",
-                            channel="email",
-                            direction="inbound",
-                            source="smartlead",
-                            source_id=lead_id,
-                            snippet="[Reply detected via API - content available in Smartlead]",
-                            extra_data={
-                                "campaign_id": campaign_id,
-                                "campaign_name": campaign_name,
-                                "detected_via": "api_category_filter"
-                            },
-                            activity_at=datetime.utcnow()
-                        )
-                        session.add(activity)
-                        
-                        # Update contact
-                        contact.has_replied = True
-                        contact.reply_channel = "email"
-                        contact.last_reply_at = activity.activity_at
-                        contact.status = "replied"
-                        
-                        stats["new_replies"] += 1
-                        new_reply_ids.append(lead_id)
-                    
-                    # Small delay to avoid rate limits
-                    await asyncio.sleep(0.1)
-                    
+
+                        # Enrich lead data via global search
+                        first_name = ""
+                        last_name = ""
+                        company_name = ""
+                        custom_fields = {}
+                        website = ""
+                        linkedin_profile = ""
+                        location = ""
+                        lead_id = None
+                        campaign_lead_map_id = ""
+
+                        try:
+                            global_lead = await smartlead_service.get_lead_by_email_global(email)
+                            if global_lead:
+                                lead_id = str(global_lead.get("id", ""))
+                                first_name = global_lead.get("first_name", "")
+                                last_name = global_lead.get("last_name", "")
+                                company_name = global_lead.get("company_name", "")
+                                custom_fields = global_lead.get("custom_fields") or {}
+                                website = global_lead.get("website", "")
+                                linkedin_profile = global_lead.get("linkedin_profile", "")
+                                location = global_lead.get("location", "")
+                                # Find campaign_lead_map_id from lead_campaign_data
+                                for cd in global_lead.get("lead_campaign_data", []):
+                                    if str(cd.get("campaign_id")) == str(campaign_id):
+                                        campaign_lead_map_id = str(cd.get("campaign_lead_map_id", ""))
+                                        break
+                        except Exception as enrich_err:
+                            logger.warning(f"Lead enrichment failed for {email}: {enrich_err}")
+
+                        # Fallback: parse name from statistics data
+                        if not first_name:
+                            name_parts = (reply_data.get("lead_name") or "").strip().split()
+                            first_name = name_parts[0] if name_parts else ""
+                            last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+                        # Fetch message history for reply content (needs lead_id)
+                        reply_body = ""
+                        reply_subject = reply_data.get("email_subject", "")
+                        reply_time = reply_data.get("reply_time")
+
+                        if lead_id:
+                            try:
+                                thread = await smartlead_service.get_email_thread(
+                                    str(campaign_id), lead_id
+                                )
+                                for msg in reversed(thread):
+                                    if (msg.get("type") or "").upper() == "REPLY":
+                                        raw_body = msg.get("email_body") or ""
+                                        reply_body = self._strip_html(raw_body)
+                                        if msg.get("subject"):
+                                            reply_subject = msg["subject"]
+                                        if msg.get("time"):
+                                            reply_time = msg["time"]
+                                        break
+                                if not reply_body and thread:
+                                    raw_body = thread[-1].get("email_body") or ""
+                                    reply_body = self._strip_html(raw_body)
+                            except Exception as thread_err:
+                                logger.warning(f"Could not fetch thread for {email} (lead {lead_id}): {thread_err}")
+
+                        # Build webhook-compatible payload
+                        webhook_payload = {
+                            "event_type": "EMAIL_REPLY",
+                            "campaign_id": campaign_id,
+                            "campaign_name": campaign_name,
+                            "lead_email": email,
+                            "to_email": email,
+                            "to_name": f"{first_name} {last_name}".strip(),
+                            "first_name": first_name,
+                            "last_name": last_name,
+                            "company_name": company_name,
+                            "email_subject": reply_subject,
+                            "preview_text": reply_body,
+                            "email_body": reply_body,
+                            "sl_email_lead_id": lead_id or "",
+                            "sl_email_lead_map_id": campaign_lead_map_id,
+                            "custom_fields": custom_fields,
+                            "website": website,
+                            "linkedin_profile": linkedin_profile,
+                            "location": location,
+                            "time_replied": reply_time,
+                            "_source": "api_polling",
+                        }
+
+                        # Run the full reply processing pipeline
+                        try:
+                            from app.services.reply_processor import process_reply_webhook
+                            processed = await process_reply_webhook(webhook_payload, session)
+                            if processed:
+                                stats["new_replies"] += 1
+                                logger.info(f"Reply sync: processed reply from {email} in '{campaign_name}'")
+                            else:
+                                logger.warning(f"Reply sync: process_reply_webhook returned None for {email}")
+                        except Exception as proc_err:
+                            stats["errors"] += 1
+                            logger.warning(f"Reply sync: failed to process {email}: {proc_err}")
+
+                        new_cache_keys.append(cache_key)
+                        await asyncio.sleep(0.3)  # Rate limit per lead
+
+                    await asyncio.sleep(0.2)  # Rate limit per campaign
+
                 except Exception as e:
                     stats["errors"] += 1
-                    logger.warning(f"Error checking campaign {campaign_name}: {e}")
-            
+                    logger.warning(f"Error checking campaign '{campaign_name}': {e}")
+
             await session.commit()
-            
-            # Bulk add new reply IDs to cache
-            if new_reply_ids:
-                await bulk_add_replies("smartlead", new_reply_ids)
-            
+
+            if new_cache_keys:
+                await bulk_add_replies("smartlead_replies", new_cache_keys)
+
             logger.info(f"Reply sync complete: {stats}")
-            
+
         except Exception as e:
             logger.error(f"Reply sync failed: {e}")
             stats["error"] = str(e)
-        
+
         return stats
 
     async def sync_getsales_replies(

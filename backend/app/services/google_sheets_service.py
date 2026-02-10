@@ -391,6 +391,58 @@ class GoogleSheetsService:
             logger.warning(f"Could not determine tab name: {e}")
             return 'Sheet1'
 
+    def read_sheet_data(self, sheet_id: str, range_or_tab: str = None) -> List[Dict[str, Any]]:
+        """Read all rows from a Google Sheet, returning list of dicts keyed by column headers.
+
+        Args:
+            sheet_id: The Google Sheet ID
+            range_or_tab: Tab name or A1 range (e.g. 'Sheet1' or 'Replies!A:Z').
+                          If None, auto-detects the first tab.
+
+        Returns:
+            List of dicts, one per row (header row becomes keys).
+            Returns empty list on error.
+        """
+        if not self._initialize():
+            logger.error("Google Sheets service not initialized")
+            return []
+
+        try:
+            # Determine range
+            if not range_or_tab:
+                range_or_tab = self._get_tab_name(sheet_id)
+
+            # If only a tab name (no '!'), read all columns
+            if '!' not in range_or_tab:
+                range_or_tab = f"'{range_or_tab}'"
+
+            result = self.sheets_service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=range_or_tab
+            ).execute()
+
+            rows = result.get('values', [])
+            if len(rows) < 2:
+                # No data rows (only header or empty)
+                return []
+
+            headers = [h.strip().lower() for h in rows[0]]
+            data = []
+            for row in rows[1:]:
+                # Pad short rows with empty strings
+                padded = row + [''] * (len(headers) - len(row))
+                data.append(dict(zip(headers, padded)))
+
+            logger.info(f"Read {len(data)} rows from sheet {sheet_id}")
+            return data
+
+        except HttpError as e:
+            logger.error(f"Google API error reading sheet: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Error reading sheet data: {e}")
+            return []
+
     def get_sheet_info(self, sheet_id: str) -> Optional[Dict[str, Any]]:
         """Get information about a sheet.
         

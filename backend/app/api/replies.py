@@ -2430,3 +2430,139 @@ async def sync_historical_replies(
         "errors": errors[:10],
         "message": f"Synced {synced} replies to Google Sheet"
     }
+
+
+# ============= Rizzult Comparison =============
+
+RIZZULT_REFERENCE_SHEET_ID = "1Zg-ER4ZlhlHuLFWya_ROi5VuMJ6ld_ERh3ONcB2sJ3s"
+RIZZULT_REFERENCE_GID = "1599376288"
+
+
+@router.get("/rizzult-comparison")
+async def rizzult_comparison(
+    session: AsyncSession = Depends(get_session),
+):
+    """Compare our collected replies with n8n's reference Google Sheet.
+
+    Reads the Rizzult reference sheet (gid 1599376288), queries local
+    ProcessedReply records, and returns:
+    - missed: replies in n8n sheet but NOT in our DB
+    - extra: replies in our DB but NOT in n8n sheet
+    - matched: replies present in both
+    """
+    from app.services.google_sheets_service import google_sheets_service
+
+    # Read reference sheet
+    # The gid maps to a tab; we need to figure out the tab name.
+    # Try reading metadata first to resolve gid -> tab name.
+    tab_name = None
+    try:
+        if google_sheets_service._initialize():
+            meta = google_sheets_service.sheets_service.spreadsheets().get(
+                spreadsheetId=RIZZULT_REFERENCE_SHEET_ID
+            ).execute()
+            for sheet in meta.get("sheets", []):
+                props = sheet.get("properties", {})
+                if str(props.get("sheetId")) == RIZZULT_REFERENCE_GID:
+                    tab_name = props.get("title")
+                    break
+    except Exception as e:
+        logger.warning(f"Could not resolve gid to tab name: {e}")
+
+    if not tab_name:
+        tab_name = "Sheet1"  # fallback
+
+    sheet_rows = google_sheets_service.read_sheet_data(
+        RIZZULT_REFERENCE_SHEET_ID, tab_name
+    )
+
+    if not sheet_rows:
+        return {
+            "error": "Could not read reference sheet or sheet is empty",
+            "sheet_id": RIZZULT_REFERENCE_SHEET_ID,
+            "tab": tab_name,
+        }
+
+    # Build set of (email, campaign_id) from n8n sheet
+    # Headers are lowercased by read_sheet_data; look for common column names
+    n8n_replies = {}
+    for row in sheet_rows:
+        email = (
+            row.get("target_lead_email")
+            or row.get("lead_email")
+            or row.get("email")
+            or ""
+        ).strip().lower()
+        cid = (
+            row.get("campaign_id")
+            or row.get("campaignid")
+            or ""
+        ).strip()
+        if email:
+            key = (email, cid)
+            n8n_replies[key] = {
+                "email": email,
+                "campaign_id": cid,
+                "campaign": row.get("campaign", ""),
+                "text": (row.get("text") or "")[:200],
+                "time": row.get("time", ""),
+                "category": row.get("category", ""),
+                "source": row.get("source", ""),
+                "name": f"{row.get('first name', '')} {row.get('last name', '')}".strip(),
+                "company": row.get("company ", row.get("company", "")),
+            }
+
+    # Query local ProcessedReply records
+    result = await session.execute(select(ProcessedReply))
+    local_replies_list = result.scalars().all()
+
+    local_replies = {}
+    for r in local_replies_list:
+        email = (r.lead_email or "").strip().lower()
+        cid = (r.campaign_id or "").strip()
+        key = (email, cid)
+        local_replies[key] = {
+            "id": r.id,
+            "email": email,
+            "campaign_id": cid,
+            "campaign_name": r.campaign_name,
+            "category": r.category,
+            "received_at": r.received_at.isoformat() if r.received_at else None,
+            "body_preview": (r.email_body or "")[:200],
+        }
+
+    n8n_keys = set(n8n_replies.keys())
+    local_keys = set(local_replies.keys())
+
+    missed_keys = n8n_keys - local_keys
+    extra_keys = local_keys - n8n_keys
+    matched_keys = n8n_keys & local_keys
+
+    # Break down by source (Email vs LinkedIn)
+    missed_by_source = {"Email": 0, "LinkedIn": 0, "other": 0}
+    for k in missed_keys:
+        source = n8n_replies[k].get("source", "")
+        if "LinkedIn" in source:
+            missed_by_source["LinkedIn"] += 1
+        elif "Email" in source or not source:
+            missed_by_source["Email"] += 1
+        else:
+            missed_by_source["other"] += 1
+
+    return {
+        "summary": {
+            "n8n_total": len(n8n_keys),
+            "local_total": len(local_keys),
+            "matched": len(matched_keys),
+            "missed": len(missed_keys),
+            "extra": len(extra_keys),
+            "missed_by_source": missed_by_source,
+            "coverage_pct": round(len(matched_keys) / len(n8n_keys) * 100, 1) if n8n_keys else 0,
+        },
+        "missed": [n8n_replies[k] for k in sorted(missed_keys)],
+        "extra": [local_replies[k] for k in sorted(extra_keys)[:50]],
+        "matched": [
+            {"n8n": n8n_replies[k], "local": local_replies[k]}
+            for k in sorted(matched_keys)[:50]
+        ],
+    }

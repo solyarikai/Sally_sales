@@ -218,33 +218,39 @@ class SmartleadService:
             return None
 
     async def get_campaign_leads(
-        self, 
-        campaign_id: str, 
-        offset: int = 0, 
-        limit: int = 100
+        self,
+        campaign_id: str,
+        offset: int = 0,
+        limit: int = 100,
+        lead_category_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """Get leads for a specific campaign.
-        
+
         Args:
             campaign_id: Campaign ID
             offset: Pagination offset
             limit: Number of leads to fetch
-            
+            lead_category_id: Filter by category (e.g. 9 = replied)
+
         Returns:
             Dict with leads list and pagination info
         """
         if not self._api_key:
             raise ValueError("API key not set")
-        
+
         try:
+            params = {
+                "api_key": self._api_key,
+                "offset": offset,
+                "limit": limit
+            }
+            if lead_category_id is not None:
+                params["lead_category_id"] = lead_category_id
+
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
                     f"{self.base_url}/campaigns/{campaign_id}/leads",
-                    params={
-                        "api_key": self._api_key,
-                        "offset": offset,
-                        "limit": limit
-                    }
+                    params=params
                 )
                 
                 if response.status_code == 200:
@@ -260,22 +266,22 @@ class SmartleadService:
             return {"leads": [], "total": 0}
 
     async def get_lead_by_email(
-        self, 
-        campaign_id: str, 
+        self,
+        campaign_id: str,
         email: str
     ) -> Optional[Dict[str, Any]]:
         """Get a specific lead by email from a campaign.
-        
+
         Args:
             campaign_id: Campaign ID
             email: Lead's email address
-            
+
         Returns:
             Lead object or None
         """
         if not self._api_key:
             raise ValueError("API key not set")
-        
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
@@ -285,7 +291,7 @@ class SmartleadService:
                         "email": email
                     }
                 )
-                
+
                 if response.status_code == 200:
                     data = response.json()
                     leads = data if isinstance(data, list) else data.get("leads", [])
@@ -300,42 +306,136 @@ class SmartleadService:
             logger.error(f"Error fetching Smartlead lead: {e}")
             return None
 
-    async def get_email_thread(
-        self, 
-        campaign_id: str, 
-        email: str
-    ) -> List[Dict[str, Any]]:
-        """Get email thread/conversation for a lead.
-        
-        Args:
-            campaign_id: Campaign ID
-            email: Lead's email address
-            
-        Returns:
-            List of email messages in the thread
+    async def get_lead_by_email_global(self, email: str) -> Optional[Dict[str, Any]]:
+        """Get lead data by email across all campaigns (global search).
+
+        This is the endpoint n8n uses for lead enrichment:
+        GET /api/v1/leads/?email={email}
+
+        Returns lead data including custom_fields, company_name, website,
+        linkedin_profile, location, and lead_campaign_data.
         """
         if not self._api_key:
             raise ValueError("API key not set")
-        
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # Smartlead API endpoint for email history
                 response = await client.get(
-                    f"{self.base_url}/campaigns/{campaign_id}/leads/{email}/message-history",
+                    f"{self.base_url}/leads/",
+                    params={"api_key": self._api_key, "email": email}
+                )
+
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.warning(f"Global lead search for {email}: {response.status_code}")
+                    return None
+        except Exception as e:
+            logger.error(f"Error in global lead search for {email}: {e}")
+            return None
+
+    async def get_email_thread(
+        self,
+        campaign_id: str,
+        lead_id: str
+    ) -> List[Dict[str, Any]]:
+        """Get email thread/conversation for a lead.
+
+        Args:
+            campaign_id: Campaign ID
+            lead_id: Numeric lead ID (NOT email address)
+
+        Returns:
+            List of email messages in the thread (from history key)
+        """
+        if not self._api_key:
+            raise ValueError("API key not set")
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{self.base_url}/campaigns/{campaign_id}/leads/{lead_id}/message-history",
                     params={"api_key": self._api_key}
                 )
-                
+
                 if response.status_code == 200:
                     data = response.json()
-                    if isinstance(data, list):
-                        return data
-                    return data.get("messages", data.get("history", []))
+                    return data.get("history", data.get("messages", []))
                 else:
-                    logger.error(f"Failed to fetch email thread: {response.status_code}")
+                    logger.error(f"Failed to fetch email thread for lead {lead_id}: {response.status_code}")
                     return []
         except Exception as e:
-            logger.error(f"Error fetching email thread: {e}")
+            logger.error(f"Error fetching email thread for lead {lead_id}: {e}")
             return []
+
+    async def get_all_campaign_replied_leads(
+        self,
+        campaign_id: str,
+        max_pages: int = 20
+    ) -> List[Dict[str, Any]]:
+        """Fetch ALL replied leads from a campaign using the statistics endpoint.
+
+        Uses GET /campaigns/{id}/statistics with pagination, filtering for
+        entries with reply_time set and is_bounced=false.
+
+        Returns unique (by email) replied leads with their reply metadata.
+        For each, also fetches full lead data via global search.
+
+        Args:
+            campaign_id: Campaign ID
+            max_pages: Safety limit on pages (500 entries per page)
+
+        Returns:
+            List of dicts with keys: lead_email, lead_name, reply_time,
+            lead_category, stats_id, email_subject, plus full lead data
+            from global search (company_name, website, linkedin_profile, etc.)
+        """
+        if not self._api_key:
+            raise ValueError("API key not set")
+
+        import asyncio
+        replied_by_email = {}
+        offset = 0
+        page_size = 500
+
+        for page in range(max_pages):
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.get(
+                        f"{self.base_url}/campaigns/{campaign_id}/statistics",
+                        params={"api_key": self._api_key, "limit": page_size, "offset": offset}
+                    )
+
+                if response.status_code != 200:
+                    logger.error(f"Statistics API error for campaign {campaign_id}: {response.status_code}")
+                    break
+
+                data = response.json()
+                entries = data.get("data", [])
+                if not entries:
+                    break
+
+                for entry in entries:
+                    if entry.get("reply_time") and not entry.get("is_bounced"):
+                        email = (entry.get("lead_email") or "").lower().strip()
+                        if email and email not in replied_by_email:
+                            replied_by_email[email] = {
+                                "lead_email": email,
+                                "lead_name": entry.get("lead_name", ""),
+                                "reply_time": entry.get("reply_time"),
+                                "lead_category": entry.get("lead_category"),
+                                "stats_id": entry.get("stats_id"),
+                                "email_subject": entry.get("email_subject", ""),
+                            }
+
+                offset += page_size
+                await asyncio.sleep(0.2)
+
+            except Exception as e:
+                logger.error(f"Error fetching statistics page {page} for campaign {campaign_id}: {e}")
+                break
+
+        return list(replied_by_email.values())
 
     async def send_reply(
         self,

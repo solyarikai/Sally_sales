@@ -3,7 +3,7 @@ CRM Sync Scheduler - Background job for periodic sync.
 
 Runs CRM sync at configurable intervals with:
 - Full sync every 30 minutes
-- Reply check via API every 15 minutes (backup to webhooks)
+- Reply check via API every 30 minutes (backup to webhooks)
 - Webhook setup check every 6 hours (for new campaigns)
 """
 import asyncio
@@ -28,7 +28,7 @@ class CRMScheduler:
     def __init__(
         self,
         sync_interval_minutes: int = 30,
-        reply_check_interval_minutes: int = 15,
+        reply_check_interval_minutes: int = 30,
         webhook_check_interval_hours: int = 6,
         report_interval_hours: int = 4,
         prompt_refresh_interval_hours: int = 168,  # Weekly (7 days)
@@ -91,7 +91,7 @@ class CRMScheduler:
             await asyncio.sleep(self.sync_interval)
     
     async def _run_reply_loop(self):
-        """Reply check loop - runs every 15 minutes to catch replies via API."""
+        """Reply check loop - runs every 30 minutes to catch replies via API."""
         await asyncio.sleep(60)  # Initial delay
         while self._running:
             try:
