@@ -489,10 +489,12 @@ export const projectSearchApi = {
 
   // Export results to Google Sheet
   exportToGoogleSheet: async (
-    projectId: number
+    projectId: number,
+    options?: { targets_only?: boolean; exclude_contacted?: boolean }
   ): Promise<{ sheet_url: string }> => {
     const response = await api.post(
-      `/search/projects/${projectId}/export-sheet`
+      `/search/projects/${projectId}/export-sheet`,
+      options || {},
     );
     return response.data;
   },

@@ -595,14 +595,21 @@ async def get_review_summary(
 
 # ============ Google Sheet Export ============
 
+class ExportSheetRequest(BaseModel):
+    targets_only: bool = Field(False, description="Export only target domains")
+    exclude_contacted: bool = Field(False, description="Exclude domains already in campaigns")
+
+
 @router.post("/projects/{project_id}/export-sheet", response_model=ExportSheetResponse)
 async def export_to_google_sheet(
     project_id: int,
+    body: ExportSheetRequest = ExportSheetRequest(),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
     """Export search results to a new Google Sheet."""
     from app.services.google_sheets_service import google_sheets_service as sheets_service
+    from sqlalchemy import func as sqlfunc
 
     if not sheets_service._initialize():
         raise HTTPException(status_code=503, detail="Google Sheets not configured")
@@ -619,57 +626,73 @@ async def export_to_google_sheet(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Get results
-    results = await company_search_service.get_project_results(db, project_id)
+    results = await company_search_service.get_project_results(
+        db, project_id, targets_only=body.targets_only,
+    )
     if not results:
         raise HTTPException(status_code=400, detail="No search results to export")
 
+    # Filter out contacted domains if requested
+    if body.exclude_contacted:
+        result_domains = [r.domain.lower() for r in results if r.domain]
+        contacted_result = await db.execute(
+            select(sqlfunc.lower(Contact.domain)).where(
+                Contact.company_id == company.id,
+                Contact.domain.isnot(None),
+                sqlfunc.lower(Contact.domain).in_(result_domains),
+            ).distinct()
+        )
+        contacted_domains = {row[0] for row in contacted_result.fetchall()}
+        results = [r for r in results if r.domain and r.domain.lower() not in contacted_domains]
+
+    if not results:
+        raise HTTPException(status_code=400, detail="No results after filtering (all domains already contacted)")
+
+    # Build title
+    label_parts = []
+    if body.targets_only:
+        label_parts.append("Targets")
+    else:
+        label_parts.append("Results")
+    if body.exclude_contacted:
+        label_parts.append("Fresh")
+    sheet_title = f"{' '.join(label_parts)} - {project.name} ({len(results)}) - {datetime.utcnow().strftime('%Y-%m-%d')}"
+
     # Create Google Sheet
     try:
-        sheet_title = f"Search Results - {project.name} - {datetime.utcnow().strftime('%Y-%m-%d')}"
-
-        spreadsheet = sheets_service.sheets_service.spreadsheets().create(
-            body={
-                "properties": {"title": sheet_title},
-                "sheets": [{"properties": {"title": "Results"}}],
-            }
-        ).execute()
-
-        spreadsheet_id = spreadsheet["spreadsheetId"]
-        sheet_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
-
-        # Make sheet accessible
-        sheets_service.drive_service.permissions().create(
-            fileId=spreadsheet_id,
-            body={"type": "anyone", "role": "reader"},
-        ).execute()
-
-        # Write headers
-        headers = ["Domain", "Company", "Is Target", "Confidence", "Reasoning", "Services", "Location", "Industry"]
+        headers = ["Domain", "Website", "Company", "Confidence", "Industry",
+                    "Services", "Location", "Description", "Reasoning"]
         rows = [headers]
 
         for r in results:
             info = r.company_info or {}
-            services = ", ".join(info.get("services", [])) if info.get("services") else ""
+            services = ", ".join(info.get("services", [])) if isinstance(info.get("services"), list) else info.get("services", "")
+            desc = info.get("description", "") or ""
             rows.append([
                 r.domain,
-                info.get("name", ""),
-                "Yes" if r.is_target else "No",
+                f"https://{r.domain}",
+                info.get("name", info.get("company_name", "")),
                 f"{(r.confidence or 0) * 100:.0f}%",
-                r.reasoning or "",
+                info.get("industry", ""),
                 services,
                 info.get("location", ""),
-                info.get("industry", ""),
+                desc[:200],
+                (r.reasoning or "")[:300],
             ])
 
-        sheets_service.sheets_service.spreadsheets().values().update(
-            spreadsheetId=spreadsheet_id,
-            range="Results!A1",
-            valueInputOption="RAW",
-            body={"values": rows},
-        ).execute()
+        sheet_url = sheets_service.create_and_populate(
+            title=sheet_title,
+            data=rows,
+            share_with=["pn@getsally.io"],
+        )
+
+        if not sheet_url:
+            raise HTTPException(status_code=500, detail="Failed to create Google Sheet")
 
         return ExportSheetResponse(sheet_url=sheet_url)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Google Sheet export failed: {e}")
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")

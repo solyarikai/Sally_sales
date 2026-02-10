@@ -270,11 +270,14 @@ function JobDetailView({ jobId }: { jobId: number }) {
     }
   };
 
-  const handleExportSheet = async () => {
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const handleExportSheet = async (options?: { targets_only?: boolean; exclude_contacted?: boolean }) => {
     if (!job?.project_id) return;
     setExportingSheet(true);
+    setShowExportMenu(false);
     try {
-      const { sheet_url } = await projectSearchApi.exportToGoogleSheet(job.project_id);
+      const { sheet_url } = await projectSearchApi.exportToGoogleSheet(job.project_id, options);
       window.open(sheet_url, '_blank');
     } catch (err: any) {
       alert(err.userMessage || 'Export failed');
@@ -353,14 +356,30 @@ function JobDetailView({ jobId }: { jobId: number }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportSheet}
-            disabled={exportingSheet || !job.project_id}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-40"
-          >
-            {exportingSheet ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-            Google Sheet
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(v => !v)}
+              disabled={exportingSheet || !job.project_id}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-40"
+            >
+              {exportingSheet ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+              Google Sheet
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-50">
+                <button onClick={() => handleExportSheet()} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50">
+                  All Results
+                </button>
+                <button onClick={() => handleExportSheet({ targets_only: true })} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50">
+                  <span className="flex items-center gap-2"><Target className="w-3.5 h-3.5 text-green-600" /> Targets Only</span>
+                </button>
+                <button onClick={() => handleExportSheet({ targets_only: true, exclude_contacted: true })} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 font-medium text-green-700">
+                  <span className="flex items-center gap-2"><Target className="w-3.5 h-3.5" /> Fresh Targets (no overlap)</span>
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={handleDownloadCsv}
             disabled={downloadingCsv}

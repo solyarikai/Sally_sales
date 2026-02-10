@@ -841,16 +841,19 @@ SCORING GUIDE:
         self,
         session: AsyncSession,
         project_id: int,
+        targets_only: bool = False,
     ) -> List[SearchResult]:
-        """Get all analyzed results for a project."""
-        result = await session.execute(
-            select(SearchResult).where(
-                SearchResult.project_id == project_id,
-            ).order_by(
-                SearchResult.is_target.desc(),
-                SearchResult.confidence.desc(),
-            )
+        """Get analyzed results for a project."""
+        query = select(SearchResult).where(
+            SearchResult.project_id == project_id,
         )
+        if targets_only:
+            query = query.where(SearchResult.is_target == True)
+        query = query.order_by(
+            SearchResult.is_target.desc(),
+            SearchResult.confidence.desc(),
+        )
+        result = await session.execute(query)
         return list(result.scalars().all())
 
     async def get_project_spending(
