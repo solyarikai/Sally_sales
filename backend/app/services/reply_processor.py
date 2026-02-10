@@ -380,7 +380,7 @@ async def process_reply_webhook(
     
     try:
         # Extract data from payload - handle Smartlead's various field names
-        campaign_id = payload.get("campaign_id")
+        campaign_id = str(payload.get("campaign_id", "")) or None
         
         # Lead email: try multiple field names
         lead_email = (
