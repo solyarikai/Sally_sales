@@ -139,6 +139,7 @@ class CompanySearchService:
         self,
         analysis: Dict[str, Any],
         clean_text: Dict[str, Any],
+        target_segments: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Hard rules that override GPT output to catch obvious errors.
@@ -148,8 +149,16 @@ class CompanySearchService:
         cyrillic_ratio = clean_text.get("cyrillic_ratio", 0.0)
         reasoning = analysis.get("reasoning", "")
 
-        # Rule 1: Non-Russian site with Russian target → force language_match=0
-        if cyrillic_ratio < 0.1:
+        # Detect if target geography allows non-Russian (English) sites
+        ts_lower = (target_segments or "").lower()
+        allows_english = any(kw in ts_lower for kw in [
+            "dubai", "дубай", "абу-даби", "abu dhabi", "uae", "оаэ",
+            "английском", "english",
+        ])
+
+        # Rule 1: Non-Russian site with Russian-only target → force language_match=0
+        # Skip this rule for projects targeting Dubai/UAE where English sites are normal
+        if cyrillic_ratio < 0.1 and not allows_english:
             scores["language_match"] = 0.0
             if analysis.get("is_target"):
                 analysis["is_target"] = False
@@ -570,11 +579,12 @@ class CompanySearchService:
         system_prompt = """You are an expert at analyzing company websites to determine if they match a B2B target customer segment. You use a strict multi-criteria scoring system.
 
 CRITICAL RULES — violations mean AUTOMATIC FAILURE:
-1. Non-Russian website + Russian target geography → ALL scores = 0, is_target = false
+1. Website language must be compatible with target geography. For Russian market: non-Russian site = language_match 0. For UAE/Dubai market: English OR Russian OR Arabic are all acceptable.
 2. If your reasoning says the company doesn't match → confidence MUST be < 0.3, is_target MUST be false
-3. Aggregators, directories, news sites, job boards, freelancer platforms → ALWAYS is_target = false
-4. When in doubt → score LOW. False positives are WORSE than false negatives.
-5. confidence = MINIMUM of all individual scores (never higher)
+3. Aggregators, directories, news sites, job boards, freelancer platforms, property listing portals → ALWAYS is_target = false
+4. Mega-corporations and publicly-traded developers (e.g. DAMAC, Emaar, Nakheel, Aldar, Meraas, Dubai Properties) → is_target = false unless the target segment EXPLICITLY includes them
+5. When in doubt → score LOW. False positives are WORSE than false negatives.
+6. confidence = MINIMUM of all individual scores (never higher)
 
 Respond ONLY with valid JSON."""
 
@@ -606,10 +616,10 @@ Respond with JSON:
 }}
 
 SCORING GUIDE:
-- language_match: 0 if site language doesn't match target geography (e.g. English-only site for Russian market)
-- industry_match: 0 if clearly wrong industry, 0.5 if adjacent, 1.0 if exact match
-- service_match: how well the company's services match the target segment needs
-- company_type: 1.0 for real operating companies, 0.5 for consulting/agencies, 0 for aggregators/news/directories/job boards
+- language_match: 1.0 if site language is compatible with target geography. For Russian market: must be Russian. For UAE/Dubai: English, Russian, or Arabic all score 1.0.
+- industry_match: 0 if clearly wrong industry, 0.3 if adjacent (e.g. interior design only, no construction), 0.7 if close (e.g. commercial construction), 1.0 if exact match (e.g. villa builder)
+- service_match: how well the company's ACTUAL services (not just listings) match the target. 0 for pure listing/portal sites that don't build anything. 0.3 for brokers with no development. 1.0 for companies that actually build/develop/construct.
+- company_type: 1.0 for real operating companies doing the work, 0.5 for consulting/agencies/brokers, 0.3 for franchises/reseller pages, 0 for aggregators/news/directories/job boards/property portals
 - geography_match: 1.0 if serves target geography, 0.5 if partially overlaps, 0 if completely different region"""
 
         payload = {
@@ -660,7 +670,7 @@ SCORING GUIDE:
                 result["scores"] = {}
 
             # Phase 1c: Post-processing validation
-            result = self._validate_analysis(result, clean)
+            result = self._validate_analysis(result, clean, target_segments=target_segments)
 
             result["tokens_used"] = tokens_used
             return result

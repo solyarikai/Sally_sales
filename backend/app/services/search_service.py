@@ -62,7 +62,7 @@ def build_project_query_prompt(
     This replaces the hardcoded ICP_MASTER_PROMPT_V4 from origin/fim.
     """
     # Sample existing queries for dedup context
-    sample_k = 30
+    sample_k = 80
     existing_sample: List[str] = []
     seen_count = 0
     for q in (existing_queries or []):
@@ -83,41 +83,67 @@ def build_project_query_prompt(
     feedback_section = ""
     if good_queries:
         good_str = "\n".join(f"  - {q}" for q in good_queries[:20])
-        feedback_section += f"\nЭФФЕКТИВНЫЕ ЗАПРОСЫ (находили целевые компании — генерируй похожие):\n{good_str}\n"
+        feedback_section += f"\nEFFECTIVE QUERIES (found target companies — generate similar ones):\n{good_str}\n"
     if bad_queries:
         bad_str = "\n".join(f"  - {q}" for q in bad_queries[:20])
-        feedback_section += f"\nНЕЭФФЕКТИВНЫЕ ЗАПРОСЫ (находили только мусор — НЕ генерируй похожие):\n{bad_str}\n"
+        feedback_section += f"\nINEFFECTIVE QUERIES (found only junk — do NOT generate similar ones):\n{bad_str}\n"
     if confirmed_targets:
         targets_str = "\n".join(f"  - {d}" for d in confirmed_targets[:30])
-        feedback_section += f"\nПОДТВЕРЖДЁННЫЕ ЦЕЛЕВЫЕ ДОМЕНЫ (генерируй запросы, которые нашли бы похожие):\n{targets_str}\n"
+        feedback_section += f"\nCONFIRMED TARGET DOMAINS (generate queries that would find similar companies):\n{targets_str}\n"
 
-    prompt = f"""Ты - эксперт по генерации поисковых запросов для B2B лидогенерации.
+    prompt = f"""You are an expert at generating search queries for B2B lead generation.
 
-ЦЕЛЕВОЙ СЕГМЕНТ: {target_segments}
+TARGET SEGMENT: {target_segments}
 
-ЗАДАЧА: Сгенерируй поисковые запросы для поиска компаний в этом сегменте через Яндекс и Google.
+TASK: Generate exactly {count} MAXIMALLY DIVERSE search queries to find companies in this segment via Yandex and Google.
 
-ПРАВИЛА:
-- Каждый запрос 3-8 слов
-- Естественный язык как в Яндексе/Google
-- 85% на русском, 15% на английском
-- Разнообразие: названия компаний, услуги, города, подсегменты
-- НЕ генерируй информационные запросы ("что такое...", "как работает...")
-- НЕ генерируй buyer intent ("купить...", "цены на...")
-- НЕ генерируй вакансии ("работа в...", "вакансии...")
-- Ищем B2B партнёров и компании, НЕ конечных потребителей
+RULES:
+- Each query 3-10 words
+- Natural search engine language (as users would type in Yandex/Google)
+- Do NOT generate informational queries ("what is...", "how to...")
+- Do NOT generate job queries ("jobs at...", "vacancies...")
+- We are looking for B2B partners and companies, NOT end consumers
+- STRICTLY follow geographic constraints in the target segment description!
+- Each query MUST be unique and substantially different from others
 
-ВАРИАЦИИ ЗАПРОСОВ:
-- Прямые: "[тип компании] [город]"
-- Уточнённые: "[тип компании] для [целевой аудитории]"
-- Географические: варьируй города России (Москва, СПб, Екатеринбург, Новосибирск, Казань, Нижний Новгород, Ростов, Краснодар, и другие крупные города)
-- Английские: для поиска российских компаний на английском
-- СТРОГО следуй географическим ограничениям в описании целевого сегмента
+MANDATORY QUERY CATEGORIES (distribute evenly):
 
-УЖЕ ИСПОЛЬЗОВАННЫЕ ЗАПРОСЫ (НЕ ПОВТОРЯЙ!):
+1. DIRECT by company type (20%):
+   English: "villa contractor Dubai", "building company villas Abu Dhabi", "villa construction company UAE"
+   Russian: "строительная компания вилл Дубай", "подрядчик строительства вилл ОАЭ"
+
+2. BY DISTRICTS — matrix [district × company type] (25%):
+   Generate queries for EVERY district from the target segment. Both languages.
+   English: "villa developers Palm Jumeirah", "construction company Emirates Hills", "villa builders Saadiyat Island"
+   Russian: "строительство вилл Palm Jumeirah", "застройщик вилл Dubai Hills", "строительная компания Arabian Ranches"
+
+3. BY SERVICES/SUBSEGMENTS (15%):
+   design-build, turnkey construction, architectural design, fit-out, renovation, landscaping, MEP
+   English: "design build villa Abu Dhabi", "turnkey villa construction Dubai", "villa fit out contractor UAE"
+   Russian: "проектирование и строительство вилл ОАЭ", "виллы под ключ Дубай подрядчик"
+
+4. COMPETITOR-BASED — if confirmed target companies exist (10%):
+   English: "companies similar to [target]", "[target] competitors Dubai", "companies like [target]"
+   Russian: "компании похожие на [target]", "альтернативы [target] Дубай"
+
+5. BUSINESS MODEL (10%):
+   English: "custom built villa Dubai contractor", "bespoke villa developer Dubai", "villa on investor plot Abu Dhabi"
+   Russian: "построить виллу на участке Дубай", "виллы off plan от застройщика"
+
+6. REGISTRIES & LISTS (10%):
+   English: "top villa builders Dubai 2025", "DEWA approved contractors villas", "best construction companies Abu Dhabi"
+   Russian: "лучшие строительные компании Дубай", "рейтинг застройщиков вилл ОАЭ"
+
+7. NICHE/ASSOCIATIONS/AWARDS (10%):
+   English: "Dubai construction awards villa", "CIOB members UAE", "Big 5 construction exhibitors villas"
+   Russian: "строительная выставка Дубай участники", "Dubai Property Awards villa builder"
+
+LANGUAGE: For Dubai/UAE — 50% Russian, 50% English. MUST include both Dubai AND Abu Dhabi queries (at least 20% Abu Dhabi if in target geography).
+
+ALREADY USED QUERIES (DO NOT REPEAT!):
 {existing_str}
 {feedback_section}
-Сгенерируй ровно {count} уникальных запросов. Верни ТОЛЬКО JSON массив: ["запрос1", "запрос2", ...]"""
+Generate exactly {count} unique queries. Return ONLY a JSON array: ["query1", "query2", ...]"""
 
     return prompt
 
