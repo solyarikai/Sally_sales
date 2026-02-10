@@ -51,16 +51,6 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     contacts = relationship("Contact", back_populates="project", cascade="all, delete-orphan")
     
 
-    @property
-    def needs_followup(self) -> bool:
-        """Check if contact needs follow-up (no reply after 3 days)."""
-        from datetime import datetime, timedelta
-        if self.has_replied:
-            return False
-        if self.last_synced_at is None:
-            return False
-        return self.last_synced_at < datetime.utcnow() - timedelta(days=3)
-
     __table_args__ = (
         Index('ix_projects_company_name', 'company_id', 'name'),
     )
@@ -131,6 +121,16 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     company = relationship("Company", back_populates="contacts")
     project = relationship("Project", back_populates="contacts")
     activities = relationship("ContactActivity", back_populates="contact", order_by="desc(ContactActivity.created_at)")
+
+    @property
+    def needs_followup(self) -> bool:
+        """Check if contact needs follow-up (no reply after 3 days)."""
+        from datetime import timedelta
+        if self.has_replied:
+            return False
+        if self.last_synced_at is None:
+            return False
+        return self.last_synced_at < datetime.utcnow() - timedelta(days=3)
     
     # Indexes for common queries
     __table_args__ = (
