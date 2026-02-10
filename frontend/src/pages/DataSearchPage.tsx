@@ -570,7 +570,7 @@ export function DataSearchPage() {
           if (event.phase === 'completed' || event.phase === 'error' || event.phase === 'cancelled') {
             setIsProjectSearching(false);
             // Load final results
-            projectSearchApi.getProjectResults(selectedProjectId).then(setProjectResults);
+            projectSearchApi.getProjectResults(selectedProjectId).then(data => setProjectResults(data.items));
             projectSearchApi.getProjectSpending(selectedProjectId).then(setProjectSpending);
           }
         },
