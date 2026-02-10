@@ -541,6 +541,9 @@ function JobDetailView({ jobId }: { jobId: number }) {
                             {info.location && (
                               <div><span className="font-medium text-neutral-700">Location:</span> <span className="text-neutral-600">{info.location}</span></div>
                             )}
+                            {r.source_query_text && (
+                              <div><span className="font-medium text-neutral-700">Source Query:</span> <span className="text-neutral-600 italic">{r.source_query_text}</span></div>
+                            )}
 
                             {/* Outreach Status Section */}
                             {campaign && <OutreachDetail campaign={campaign} />}

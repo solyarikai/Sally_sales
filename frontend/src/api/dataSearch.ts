@@ -50,6 +50,8 @@ export interface SearchResultItem {
   html_snippet?: string;
   scraped_at?: string;
   analyzed_at?: string;
+  source_query_id?: number;
+  source_query_text?: string;
 }
 
 export interface SpendingInfo {

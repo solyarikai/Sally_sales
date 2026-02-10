@@ -127,6 +127,8 @@ class SearchResultResponse(BaseModel):
     scraped_at: Optional[datetime] = None
     analyzed_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    source_query_id: Optional[int] = None
+    source_query_text: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -503,7 +503,23 @@ async def get_project_results(
 
     result = await db.execute(query)
     results = result.scalars().all()
-    return [SearchResultResponse.model_validate(r) for r in results]
+
+    # Build source query text map
+    qids = [r.source_query_id for r in results if r.source_query_id]
+    qmap: dict[int, str] = {}
+    if qids:
+        qrows = (await db.execute(
+            select(SearchQuery.id, SearchQuery.query_text).where(SearchQuery.id.in_(qids))
+        )).fetchall()
+        qmap = {row[0]: row[1] for row in qrows}
+
+    out = []
+    for r in results:
+        resp = SearchResultResponse.model_validate(r)
+        if r.source_query_id and r.source_query_id in qmap:
+            resp.source_query_text = qmap[r.source_query_id]
+        out.append(resp)
+    return out
 
 
 @router.get("/projects/{project_id}/spending", response_model=SpendingInfo)
@@ -658,25 +674,44 @@ async def export_to_google_sheet(
         label_parts.append("Fresh")
     sheet_title = f"{' '.join(label_parts)} - {project.name} ({len(results)}) - {datetime.utcnow().strftime('%Y-%m-%d')}"
 
+    # Build source query map
+    query_ids = [r.source_query_id for r in results if r.source_query_id]
+    query_map: dict[int, str] = {}
+    if query_ids:
+        from sqlalchemy import func as sqlfunc2
+        qrows = (await db.execute(
+            select(SearchQuery.id, SearchQuery.query_text).where(
+                SearchQuery.id.in_(query_ids)
+            )
+        )).fetchall()
+        query_map = {row[0]: row[1] for row in qrows}
+
     # Create Google Sheet
     try:
         headers = ["Domain", "Website", "Company", "Confidence", "Industry",
-                    "Services", "Location", "Description", "Reasoning"]
+                    "Services", "Location", "Description", "Source Query", "Reasoning"]
         rows = [headers]
 
+        project_name_lower = (project.name or "").lower()
         for r in results:
             info = r.company_info or {}
             services = ", ".join(info.get("services", [])) if isinstance(info.get("services"), list) else info.get("services", "")
             desc = info.get("description", "") or ""
+            company_name = info.get("name", info.get("company_name", ""))
+            # Fix: don't use project name as company name
+            if company_name and company_name.lower() == project_name_lower:
+                company_name = ""
+            source_query = query_map.get(r.source_query_id, "") if r.source_query_id else ""
             rows.append([
                 r.domain,
                 f"https://{r.domain}",
-                info.get("name", info.get("company_name", "")),
+                company_name,
                 f"{(r.confidence or 0) * 100:.0f}%",
                 info.get("industry", ""),
                 services,
                 info.get("location", ""),
                 desc[:200],
+                source_query,
                 (r.reasoning or "")[:300],
             ])
 
