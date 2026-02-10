@@ -602,12 +602,14 @@ export interface DomainCampaignContact {
   email: string | null;
   status: string;
   has_replied: boolean;
+  match_type?: 'email_domain' | 'website_domain';
 }
 
 export interface DomainCampaignInfo {
   contacts_count: number;
   has_replies: boolean;
   first_contacted_at: string | null;
+  match_type: 'email_domain' | 'website_domain';
   campaigns: Array<{
     name: string;
     source: string;

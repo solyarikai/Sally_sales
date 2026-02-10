@@ -588,29 +588,50 @@ function CampaignBadge({ campaign }: { campaign: DomainCampaignInfo }) {
   const label = mainCampaign?.name
     ? (mainCampaign.name.length > 20 ? mainCampaign.name.slice(0, 18) + '...' : mainCampaign.name)
     : 'Contacted';
+  const isEmailMatch = campaign.match_type === 'email_domain';
 
   return (
     <span className={cn(
-      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium max-w-[160px] truncate',
+      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium max-w-[200px] truncate',
       campaign.has_replies
         ? 'bg-green-100 text-green-700 ring-1 ring-green-300 animate-pulse'
         : 'bg-orange-100 text-orange-700'
     )}>
-      <Mail className="w-3 h-3 flex-shrink-0" />
+      {isEmailMatch
+        ? <Mail className="w-3 h-3 flex-shrink-0" />
+        : <Globe className="w-3 h-3 flex-shrink-0" />
+      }
       <span className="truncate">{label}</span>
       {campaign.contacts_count > 1 && (
         <span className="text-[10px] opacity-70">({campaign.contacts_count})</span>
       )}
+      <span className={cn(
+        'px-1 py-px rounded text-[9px] font-bold uppercase flex-shrink-0',
+        isEmailMatch ? 'bg-orange-200/60 text-orange-800' : 'bg-blue-200/60 text-blue-800'
+      )}>
+        {isEmailMatch ? '@' : 'www'}
+      </span>
     </span>
   );
 }
 
 function OutreachDetail({ campaign }: { campaign: DomainCampaignInfo }) {
+  const isEmailMatch = campaign.match_type === 'email_domain';
+
   return (
-    <div className="mt-2 p-3 bg-orange-50/50 border border-orange-100 rounded-lg">
+    <div className={cn(
+      'mt-2 p-3 border rounded-lg',
+      isEmailMatch ? 'bg-orange-50/50 border-orange-100' : 'bg-blue-50/50 border-blue-100'
+    )}>
       <div className="flex items-center gap-2 mb-2">
         <MessageSquare className="w-4 h-4 text-orange-600" />
         <span className="font-medium text-neutral-700">Outreach Status</span>
+        <span className={cn(
+          'px-1.5 py-0.5 rounded text-[10px] font-semibold',
+          isEmailMatch ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+        )}>
+          {isEmailMatch ? '@ email domain match' : 'www website domain match'}
+        </span>
         {campaign.has_replies && (
           <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-semibold">HAS REPLIES</span>
         )}
@@ -646,6 +667,14 @@ function OutreachDetail({ campaign }: { campaign: DomainCampaignInfo }) {
               {c.name || c.email || `Contact #${c.id}`}
             </Link>
             {c.email && <span className="text-neutral-400">{c.email}</span>}
+            {c.match_type && (
+              <span className={cn(
+                'px-1 py-px rounded text-[9px] font-bold',
+                c.match_type === 'email_domain' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
+              )}>
+                {c.match_type === 'email_domain' ? '@' : 'www'}
+              </span>
+            )}
             <span className={cn(
               'px-1.5 py-0.5 rounded text-[10px] font-medium',
               c.has_replied ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-500'

@@ -993,7 +993,10 @@ async def get_domain_campaigns(
 ):
     """
     Batch lookup: for a list of domains, find contacts with campaign data.
-    Returns campaign info grouped by domain for domains that have matches.
+    Matches by TWO methods:
+    1. Email domain match: contact.domain (from email) == search result domain
+    2. Website domain match: contact.company_name contains the domain root
+    Returns campaign info grouped by domain with match_type indicator.
     """
     from sqlalchemy import func as sqlfunc, or_
 
@@ -1002,7 +1005,7 @@ async def get_domain_campaigns(
     if not domains:
         return {}
 
-    # Query contacts with matching domains that have campaign data
+    # --- Match 1: Email domain (contact.domain == search domain) ---
     result = await db.execute(
         select(Contact).where(
             Contact.company_id == company.id,
@@ -1010,15 +1013,59 @@ async def get_domain_campaigns(
             Contact.is_deleted == False,
         )
     )
-    contacts = result.scalars().all()
+    email_contacts = result.scalars().all()
 
-    # Group by domain
-    domain_map: dict = {}
-    for c in contacts:
+    # Build email domain match map
+    email_matched: dict[str, list] = {}
+    for c in email_contacts:
         d = c.domain.lower() if c.domain else None
-        if not d:
-            continue
+        if d:
+            email_matched.setdefault(d, []).append(c)
 
+    # --- Match 2: Website domain (extract root from domain, check company_name) ---
+    # e.g., domain "alfacapital.ru" → root "alfacapital" → search in company_name
+    website_matched: dict[str, list] = {}
+    domain_roots = {}
+    for d in domains:
+        parts = d.split(".")
+        if len(parts) >= 2:
+            root = parts[0] if len(parts[0]) > 3 else ".".join(parts[:2])
+            domain_roots[d] = root
+
+    # Only search for domains NOT already matched by email
+    unmatched_domains = [d for d in domains if d not in email_matched and d in domain_roots]
+    if unmatched_domains:
+        # Build OR conditions for company_name ILIKE '%root%'
+        from sqlalchemy import or_ as sql_or
+        conditions = []
+        for d in unmatched_domains:
+            root = domain_roots[d]
+            if len(root) >= 4:  # avoid too-short matches
+                conditions.append(
+                    sqlfunc.lower(Contact.company_name).contains(root.lower())
+                )
+
+        if conditions:
+            result2 = await db.execute(
+                select(Contact).where(
+                    Contact.company_id == company.id,
+                    Contact.is_deleted == False,
+                    sql_or(*conditions),
+                )
+            )
+            website_contacts = result2.scalars().all()
+
+            for c in website_contacts:
+                cn = (c.company_name or "").lower()
+                for d in unmatched_domains:
+                    root = domain_roots.get(d, "")
+                    if len(root) >= 4 and root.lower() in cn:
+                        website_matched.setdefault(d, []).append(c)
+
+    # --- Combine results ---
+    domain_map: dict = {}
+
+    def add_contacts_to_map(d: str, contacts: list, match_type: str):
         if d not in domain_map:
             domain_map[d] = {
                 "contacts_count": 0,
@@ -1026,43 +1073,51 @@ async def get_domain_campaigns(
                 "first_contacted_at": None,
                 "campaigns": [],
                 "contacts": [],
+                "match_type": match_type,
             }
 
         entry = domain_map[d]
-        entry["contacts_count"] += 1
+        seen_ids = {ct["id"] for ct in entry["contacts"]}
 
-        if c.has_replied:
-            entry["has_replies"] = True
+        for c in contacts:
+            if c.id in seen_ids:
+                continue
+            entry["contacts_count"] += 1
+            if c.has_replied:
+                entry["has_replies"] = True
 
-        # Track first contact date
-        if c.created_at:
-            created_str = c.created_at.isoformat()
-            if entry["first_contacted_at"] is None or created_str < entry["first_contacted_at"]:
-                entry["first_contacted_at"] = created_str
+            if c.created_at:
+                created_str = c.created_at.isoformat()
+                if entry["first_contacted_at"] is None or created_str < entry["first_contacted_at"]:
+                    entry["first_contacted_at"] = created_str
 
-        # Add campaigns (deduplicate)
-        if c.campaigns:
-            seen_campaigns = {(cp.get("name"), cp.get("source")) for cp in entry["campaigns"]}
-            for cp in c.campaigns:
-                key = (cp.get("name"), cp.get("source"))
-                if key not in seen_campaigns:
-                    entry["campaigns"].append({
-                        "name": cp.get("name"),
-                        "source": cp.get("source"),
-                        "status": cp.get("status"),
-                    })
-                    seen_campaigns.add(key)
+            if c.campaigns:
+                seen_campaigns = {(cp.get("name"), cp.get("source")) for cp in entry["campaigns"]}
+                for cp in c.campaigns:
+                    key = (cp.get("name"), cp.get("source"))
+                    if key not in seen_campaigns:
+                        entry["campaigns"].append({
+                            "name": cp.get("name"),
+                            "source": cp.get("source"),
+                            "status": cp.get("status"),
+                        })
+                        seen_campaigns.add(key)
 
-        # Add contact summary
-        name_parts = [c.first_name or "", c.last_name or ""]
-        name = " ".join(p for p in name_parts if p).strip() or None
+            name_parts = [c.first_name or "", c.last_name or ""]
+            name = " ".join(p for p in name_parts if p).strip() or None
+            entry["contacts"].append({
+                "id": c.id,
+                "name": name,
+                "email": c.email if c.email and "@placeholder" not in c.email else None,
+                "status": c.status,
+                "has_replied": c.has_replied or False,
+                "match_type": match_type,
+            })
+            seen_ids.add(c.id)
 
-        entry["contacts"].append({
-            "id": c.id,
-            "name": name,
-            "email": c.email if c.email and "@placeholder" not in c.email else None,
-            "status": c.status,
-            "has_replied": c.has_replied or False,
-        })
+    for d, contacts in email_matched.items():
+        add_contacts_to_map(d, contacts, "email_domain")
+    for d, contacts in website_matched.items():
+        add_contacts_to_map(d, contacts, "website_domain")
 
     return domain_map
