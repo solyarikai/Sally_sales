@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft, MessageSquare, Contact, ListTodo, Search, Zap, Target, Layers } from 'lucide-react';
+import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft, MessageSquare, Contact, ListTodo, Search, Zap, Target, Layers, FolderOpen, Settings2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
 import { companiesApi } from '../api';
+import { contactsApi } from '../api/contacts';
+import type { ProjectLite } from '../api/contacts';
 import type { CompanyWithStats } from '../types';
 import { SectionErrorBoundary } from './ErrorBoundary';
 interface LayoutProps {
@@ -15,9 +17,12 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { companyId } = useParams<{ companyId: string }>();
-  const { currentCompany, companies, setCurrentCompany, setCompanies, resetCompanyData } = useAppStore();
+  const { currentCompany, companies, setCurrentCompany, setCompanies, resetCompanyData, currentProject, setCurrentProject } = useAppStore();
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [projects, setProjects] = useState<ProjectLite[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
 
   // Build nav items with company prefix
   const companyPrefix = companyId ? `/company/${companyId}` : '';
@@ -29,7 +34,9 @@ export function Layout({ children }: LayoutProps) {
     { path: `${companyPrefix}/prospects`, icon: Users, label: 'All Prospects' },
     { path: `${companyPrefix}/contacts`, icon: Contact, label: 'CRM' },
     { path: `${companyPrefix}/knowledge-base`, icon: BookOpen, label: 'Knowledge Base' },
+    { path: '/projects', icon: FolderOpen, label: 'Projects', global: true },
     { path: '/replies', icon: MessageSquare, label: 'Replies' },
+    { path: '/automations', icon: Settings2, label: 'Automations', global: true },
     { path: '/prompt-debug', icon: Zap, label: 'Prompt Debug' },
     { path: '/tasks', icon: ListTodo, label: 'Tasks' },
     { path: '/templates', icon: FileText, label: 'Prompt Templates' },
@@ -64,11 +71,19 @@ export function Layout({ children }: LayoutProps) {
     }
   }, [companyId, companies]);
 
-  // Close dropdown when clicking outside
+  // Load projects on mount
+  useEffect(() => {
+    contactsApi.listProjectsLite().then(setProjects).catch(console.error);
+  }, []);
+
+  // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowCompanyDropdown(false);
+      }
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(event.target as Node)) {
+        setShowProjectDropdown(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -184,6 +199,63 @@ export function Layout({ children }: LayoutProps) {
                     <ArrowLeft className="w-4 h-4" />
                     All Companies
                   </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Project Selector */}
+        {projects.length > 0 && (
+          <div className="relative mr-4" ref={projectDropdownRef}>
+            <button
+              onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+              className={cn(
+                'flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm',
+                currentProject
+                  ? 'bg-violet-50 text-violet-700 hover:bg-violet-100'
+                  : 'text-neutral-500 hover:bg-neutral-100'
+              )}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span className="font-medium max-w-[140px] truncate">
+                {currentProject ? currentProject.name : 'All Projects'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+
+            {showProjectDropdown && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-neutral-200 rounded-xl shadow-lg z-50 py-1">
+                <div className="px-3 py-2 border-b border-neutral-100">
+                  <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                    Filter by Project
+                  </span>
+                </div>
+                <div className="max-h-64 overflow-y-auto py-1">
+                  <button
+                    onClick={() => { setCurrentProject(null); setShowProjectDropdown(false); }}
+                    className={cn(
+                      'w-full px-3 py-2 text-left text-sm hover:bg-neutral-50 transition-colors',
+                      !currentProject && 'bg-neutral-50 font-medium'
+                    )}
+                  >
+                    All Projects
+                  </button>
+                  {projects.map((project) => (
+                    <button
+                      key={project.id}
+                      onClick={() => { setCurrentProject(project); setShowProjectDropdown(false); }}
+                      className={cn(
+                        'w-full px-3 py-2 flex items-center justify-between text-sm hover:bg-neutral-50 transition-colors',
+                        currentProject?.id === project.id && 'bg-violet-50'
+                      )}
+                    >
+                      <span className="truncate">{project.name}</span>
+                      {currentProject?.id === project.id && (
+                        <div className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0 ml-2" />
+                      )}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

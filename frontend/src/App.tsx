@@ -9,11 +9,13 @@ import { SettingsPage } from './pages/SettingsPage';
 import KnowledgeBasePage from './pages/KnowledgeBasePage';
 import { AllProspectsPage } from './pages/AllProspectsPage';
 import { RepliesPage } from './pages/RepliesPage';
+import { AutomationsPage } from './pages/AutomationsPage';
 import PromptDebugPage from './pages/PromptDebugPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { TasksPage } from './pages/TasksPage';
 import { SearchResultsPage } from './pages/SearchResultsPage';
 import { PipelinePage } from './pages/PipelinePage';
+import { ProjectsPage } from './pages/ProjectsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -62,6 +64,13 @@ function App() {
             <RepliesPage />
           </Layout>
         } />
+
+        {/* Automations page */}
+        <Route path="/automations" element={
+          <Layout>
+            <AutomationsPage />
+          </Layout>
+        } />
         
         {/* Shared routes (templates and settings) - not company-scoped */}
         <Route path="/prompt-debug" element={
@@ -106,6 +115,13 @@ function App() {
         <Route path="/pipeline" element={
           <Layout>
             <PipelinePage />
+          </Layout>
+        } />
+
+        {/* Projects management */}
+        <Route path="/projects" element={
+          <Layout>
+            <ProjectsPage />
           </Layout>
         } />
 

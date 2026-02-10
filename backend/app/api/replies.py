@@ -592,14 +592,16 @@ async def test_automation_webhook(
 async def list_replies(
     automation_id: Optional[int] = None,
     campaign_id: Optional[str] = None,
+    campaign_names: Optional[str] = Query(None, description="Comma-separated campaign names to filter by"),
     category: Optional[str] = None,
     approval_status: Optional[str] = Query(None, description="Filter by status: pending, approved, dismissed"),
+    needs_reply: Optional[bool] = Query(None, description="Filter to replies with no outbound activity after received_at"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     session: AsyncSession = Depends(get_session)
 ):
     """List processed replies with filters.
-    
+
     Dashboard can filter by approval_status to show pending/approved/dismissed replies.
     """
     query = select(ProcessedReply)
@@ -613,7 +615,13 @@ async def list_replies(
     if campaign_id:
         query = query.where(ProcessedReply.campaign_id == campaign_id)
         count_query = count_query.where(ProcessedReply.campaign_id == campaign_id)
-    
+
+    if campaign_names:
+        names = [n.strip() for n in campaign_names.split(",") if n.strip()]
+        if names:
+            query = query.where(ProcessedReply.campaign_name.in_(names))
+            count_query = count_query.where(ProcessedReply.campaign_name.in_(names))
+
     if category:
         query = query.where(ProcessedReply.category == category)
         count_query = count_query.where(ProcessedReply.category == category)
@@ -634,17 +642,40 @@ async def list_replies(
             query = query.where(ProcessedReply.approval_status == approval_status)
             count_query = count_query.where(ProcessedReply.approval_status == approval_status)
     
+    # Filter: needs_reply — pending replies with no outbound activity after received_at
+    if needs_reply:
+        from app.models.contact import Contact, ContactActivity
+        from sqlalchemy import and_, exists, or_
+
+        outbound_after = exists(
+            select(ContactActivity.id).join(
+                Contact, ContactActivity.contact_id == Contact.id
+            ).where(
+                and_(
+                    func.lower(Contact.email) == func.lower(ProcessedReply.lead_email),
+                    ContactActivity.direction == "outbound",
+                    ContactActivity.activity_at > ProcessedReply.received_at,
+                )
+            )
+        )
+        pending_cond = or_(
+            ProcessedReply.approval_status == None,
+            ProcessedReply.approval_status == "pending",
+        )
+        query = query.where(and_(pending_cond, ~outbound_after))
+        count_query = count_query.where(and_(pending_cond, ~outbound_after))
+
     # Get total count
     total_result = await session.execute(count_query)
     total = total_result.scalar()
-    
+
     # Apply pagination and ordering
     query = query.order_by(desc(ProcessedReply.processed_at))
     query = query.offset((page - 1) * page_size).limit(page_size)
-    
+
     result = await session.execute(query)
     replies = result.scalars().all()
-    
+
     return ProcessedReplyListResponse(
         replies=[ProcessedReplyResponse.model_validate(r) for r in replies],
         total=total,
@@ -657,19 +688,28 @@ async def list_replies(
 async def get_reply_stats(
     automation_id: Optional[int] = None,
     campaign_id: Optional[str] = None,
+    campaign_names: Optional[str] = Query(None, description="Comma-separated campaign names to filter by"),
     session: AsyncSession = Depends(get_session)
 ):
     """Get statistics for processed replies."""
     base_query = select(ProcessedReply)
-    
+
     if automation_id:
         base_query = base_query.where(ProcessedReply.automation_id == automation_id)
     if campaign_id:
         base_query = base_query.where(ProcessedReply.campaign_id == campaign_id)
+
+    # Multi-campaign name filter (from global project selector)
+    _campaign_name_list = None
+    if campaign_names:
+        _campaign_name_list = [n.strip() for n in campaign_names.split(",") if n.strip()]
+        if _campaign_name_list:
+            base_query = base_query.where(ProcessedReply.campaign_name.in_(_campaign_name_list))
     
     # Total count
+    sub = base_query.subquery()
     total_result = await session.execute(
-        select(func.count(ProcessedReply.id)).select_from(base_query.subquery())
+        select(func.count()).select_from(sub)
     )
     total = total_result.scalar() or 0
     
@@ -683,10 +723,12 @@ async def get_reply_stats(
         category_query = category_query.where(ProcessedReply.automation_id == automation_id)
     if campaign_id:
         category_query = category_query.where(ProcessedReply.campaign_id == campaign_id)
-    
+    if _campaign_name_list:
+        category_query = category_query.where(ProcessedReply.campaign_name.in_(_campaign_name_list))
+
     category_result = await session.execute(category_query)
     by_category = {row[0] or "unknown": row[1] for row in category_result.all()}
-    
+
     # Today count
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     today_query = select(func.count(ProcessedReply.id)).where(
@@ -696,10 +738,12 @@ async def get_reply_stats(
         today_query = today_query.where(ProcessedReply.automation_id == automation_id)
     if campaign_id:
         today_query = today_query.where(ProcessedReply.campaign_id == campaign_id)
-    
+    if _campaign_name_list:
+        today_query = today_query.where(ProcessedReply.campaign_name.in_(_campaign_name_list))
+
     today_result = await session.execute(today_query)
     today = today_result.scalar() or 0
-    
+
     # This week count
     week_start = today_start - timedelta(days=today_start.weekday())
     week_query = select(func.count(ProcessedReply.id)).where(
@@ -709,10 +753,12 @@ async def get_reply_stats(
         week_query = week_query.where(ProcessedReply.automation_id == automation_id)
     if campaign_id:
         week_query = week_query.where(ProcessedReply.campaign_id == campaign_id)
-    
+    if _campaign_name_list:
+        week_query = week_query.where(ProcessedReply.campaign_name.in_(_campaign_name_list))
+
     week_result = await session.execute(week_query)
     this_week = week_result.scalar() or 0
-    
+
     # Sent to Slack count
     slack_query = select(func.count(ProcessedReply.id)).where(
         ProcessedReply.sent_to_slack == True
@@ -721,21 +767,25 @@ async def get_reply_stats(
         slack_query = slack_query.where(ProcessedReply.automation_id == automation_id)
     if campaign_id:
         slack_query = slack_query.where(ProcessedReply.campaign_id == campaign_id)
-    
+    if _campaign_name_list:
+        slack_query = slack_query.where(ProcessedReply.campaign_name.in_(_campaign_name_list))
+
     slack_result = await session.execute(slack_query)
     sent_to_slack = slack_result.scalar() or 0
-    
+
     # Count by approval status (for dashboard)
     status_query = select(
         ProcessedReply.approval_status,
         func.count(ProcessedReply.id)
     ).group_by(ProcessedReply.approval_status)
-    
+
     if automation_id:
         status_query = status_query.where(ProcessedReply.automation_id == automation_id)
     if campaign_id:
         status_query = status_query.where(ProcessedReply.campaign_id == campaign_id)
-    
+    if _campaign_name_list:
+        status_query = status_query.where(ProcessedReply.campaign_name.in_(_campaign_name_list))
+
     status_result = await session.execute(status_query)
     by_status = {}
     pending_count = 0
@@ -765,7 +815,9 @@ async def get_reply_stats(
     
     if campaign_id:
         automation_query = automation_query.where(ProcessedReply.campaign_id == campaign_id)
-    
+    if _campaign_name_list:
+        automation_query = automation_query.where(ProcessedReply.campaign_name.in_(_campaign_name_list))
+
     automation_result = await session.execute(automation_query)
     by_automation = {}
     for row in automation_result.all():
@@ -1153,6 +1205,62 @@ async def clear_webhook_history(
     return {"deleted": result.rowcount, "older_than_days": older_than_days}
 
 
+@router.get("/{reply_id}/conversation")
+async def get_reply_conversation(
+    reply_id: int,
+    session: AsyncSession = Depends(get_session)
+):
+    """Get the conversation thread for a reply's contact."""
+    from app.models.contact import Contact, ContactActivity
+    from sqlalchemy import and_
+
+    result = await session.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    if not reply.lead_email:
+        return {"messages": []}
+
+    # Find contact by email
+    contact_result = await session.execute(
+        select(Contact).where(
+            and_(
+                func.lower(Contact.email) == reply.lead_email.lower(),
+                Contact.deleted_at.is_(None),
+            )
+        )
+    )
+    contact = contact_result.scalar_one_or_none()
+    if not contact:
+        return {"messages": []}
+
+    # Get all activities for this contact, ordered chronologically
+    activities_result = await session.execute(
+        select(ContactActivity).where(
+            ContactActivity.contact_id == contact.id
+        ).order_by(ContactActivity.activity_at.asc())
+    )
+    activities = activities_result.scalars().all()
+
+    messages = []
+    for a in activities:
+        messages.append({
+            "direction": a.direction,
+            "channel": a.channel,
+            "subject": a.subject,
+            "body": a.body or a.snippet,
+            "activity_at": a.activity_at.isoformat() if a.activity_at else None,
+            "source": a.source,
+            "activity_type": a.activity_type,
+            "extra_data": a.extra_data,
+        })
+
+    return {"messages": messages, "contact_id": contact.id}
+
+
 @router.get("/{reply_id}", response_model=ProcessedReplyResponse)
 async def get_reply(
     reply_id: int,
@@ -1300,6 +1408,126 @@ async def send_reply(
         "campaign_id": campaign_id,
         "smartlead_response": send_result.get("message"),
     }
+
+
+@router.post("/{reply_id}/approve-and-send")
+async def approve_and_send_reply(
+    reply_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    """One-click approve and send: validates draft, checks DEBUG for dry-run, sends via SmartLead.
+
+    On DEBUG=true (localhost), sets approval_status to 'approved_dry_run' without calling SmartLead.
+    On production, sends the reply and sets approval_status to 'approved'.
+    """
+    from app.core.config import settings
+    from app.services.smartlead_service import SmartleadService
+    from app.models.contact import Contact
+    from app.services.google_sheets_service import google_sheets_service
+
+    result = await db.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    if not reply.draft_reply:
+        raise HTTPException(status_code=400, detail="No draft reply to send")
+
+    if reply.approval_status in ("approved", "approved_dry_run"):
+        raise HTTPException(status_code=400, detail="Reply already approved")
+
+    # --- Dry-run mode (DEBUG=true) ---
+    if settings.DEBUG:
+        reply.approval_status = "approved_dry_run"
+        reply.approved_at = datetime.utcnow()
+        db.add(reply)
+        await db.commit()
+        await db.refresh(reply)
+
+        # Sync to Google Sheets
+        await _sync_approval_to_sheet(db, reply, "approved_dry_run", google_sheets_service)
+
+        return {
+            "status": "approved_dry_run",
+            "dry_run": True,
+            "reply_id": reply_id,
+            "message": "Approved (dry run) — SmartLead send skipped in DEBUG mode",
+        }
+
+    # --- Production: find contact and send ---
+    contact = None
+    if reply.lead_email:
+        contact_result = await db.execute(
+            select(Contact).where(
+                func.lower(Contact.email) == reply.lead_email.lower(),
+                Contact.deleted_at.is_(None),
+            )
+        )
+        contact = contact_result.scalar_one_or_none()
+
+    if not contact or not contact.smartlead_id:
+        raise HTTPException(status_code=400, detail="Contact not found or no SmartLead ID")
+
+    campaign_id = reply.campaign_id
+    if not campaign_id and contact.campaigns:
+        camps = contact.campaigns if isinstance(contact.campaigns, list) else []
+        for c in camps:
+            if isinstance(c, dict) and c.get("source") == "smartlead" and c.get("id"):
+                campaign_id = str(c["id"])
+                break
+
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="No SmartLead campaign_id found")
+
+    sl = SmartleadService()
+    send_result = await sl.send_reply(
+        campaign_id=str(campaign_id),
+        lead_id=contact.smartlead_id,
+        email_body=f"<p>{reply.draft_reply}</p>",
+    )
+
+    if "error" in send_result:
+        raise HTTPException(status_code=502, detail=send_result["error"])
+
+    reply.approval_status = "approved"
+    reply.approved_at = datetime.utcnow()
+    db.add(reply)
+    await db.commit()
+    await db.refresh(reply)
+
+    # Sync to Google Sheets
+    await _sync_approval_to_sheet(db, reply, "approved", google_sheets_service)
+
+    return {
+        "status": "approved",
+        "dry_run": False,
+        "reply_id": reply_id,
+        "lead_email": reply.lead_email,
+        "campaign_id": campaign_id,
+        "smartlead_response": send_result.get("message"),
+    }
+
+
+async def _sync_approval_to_sheet(db, reply, status, google_sheets_service):
+    """Sync approval status to Google Sheets if configured."""
+    try:
+        if reply.automation_id and reply.google_sheet_row:
+            auto_result = await db.execute(
+                select(ReplyAutomation).where(ReplyAutomation.id == reply.automation_id)
+            )
+            automation = auto_result.scalar_one_or_none()
+            if automation and automation.google_sheet_id:
+                google_sheets_service.update_reply_status(
+                    automation.google_sheet_id,
+                    reply.google_sheet_row,
+                    status,
+                    approved_by='',
+                    approved_at=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+                )
+    except Exception as e:
+        logger.warning(f"Failed to sync approval to Google Sheets: {e}")
 
 
 @router.post("/{reply_id}/resend-notification")

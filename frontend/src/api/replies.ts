@@ -142,6 +142,9 @@ export interface ProcessedReply {
   processed_at: string;
   sent_to_slack: boolean;
   slack_sent_at: string | null;
+  approval_status: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
   created_at: string;
 }
 
@@ -276,11 +279,30 @@ export async function getSingleAutomationMonitoring(id: number): Promise<Automat
 export async function getReplies(params: {
   automation_id?: number;
   campaign_id?: string;
+  campaign_names?: string;
   category?: ReplyCategory;
+  approval_status?: string;
+  needs_reply?: boolean;
   page?: number;
   page_size?: number;
 }): Promise<{ replies: ProcessedReply[]; total: number; page: number; page_size: number }> {
   const response = await api.get('/replies/', { params });
+  return response.data;
+}
+
+export interface ConversationMessage {
+  direction: string | null;
+  channel: string;
+  subject: string | null;
+  body: string | null;
+  activity_at: string | null;
+  source: string;
+  activity_type: string;
+  extra_data: Record<string, unknown> | null;
+}
+
+export async function getConversation(replyId: number): Promise<{ messages: ConversationMessage[]; contact_id?: number }> {
+  const response = await api.get(`/replies/${replyId}/conversation`);
   return response.data;
 }
 
@@ -292,6 +314,7 @@ export async function getReply(id: number): Promise<ProcessedReply> {
 export async function getReplyStats(params?: {
   automation_id?: number;
   campaign_id?: string;
+  campaign_names?: string;
 }): Promise<ProcessedReplyStats> {
   const response = await api.get('/replies/stats', { params });
   return response.data;
@@ -383,6 +406,31 @@ export async function testSlackChannel(channelId: string): Promise<{ success: bo
   return response.data;
 }
 
+// ============= Approval / Moderation =============
+
+export async function approveAndSendReply(replyId: number): Promise<{
+  status: string;
+  dry_run: boolean;
+  reply_id: number;
+  message?: string;
+  lead_email?: string;
+  campaign_id?: string;
+}> {
+  const response = await api.post(`/replies/${replyId}/approve-and-send`);
+  return response.data;
+}
+
+export async function dismissReply(replyId: number): Promise<{
+  success: boolean;
+  reply_id: number;
+  approval_status: string;
+}> {
+  const response = await api.patch(`/replies/${replyId}/status`, null, {
+    params: { approval_status: 'dismissed' }
+  });
+  return response.data;
+}
+
 // Export all functions as named object for consistency
 export const repliesApi = {
   // Smartlead
@@ -405,7 +453,11 @@ export const repliesApi = {
   getReplies,
   getReply,
   getReplyStats,
+  getConversation,
   resendNotification,
+  // Approval / Moderation
+  approveAndSendReply,
+  dismissReply,
   // Testing
   simulateReply,
   // Google Sheets

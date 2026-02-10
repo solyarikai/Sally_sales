@@ -1,48 +1,21 @@
 import toast, { Toaster } from 'react-hot-toast';
 import { useEffect, useState, useCallback } from 'react';
-import { 
-  MessageSquare, Search, RefreshCw, Plus, Settings2, 
-  Send, Bell, X, Copy, Check, AlertCircle,
-  Zap, Hash, Calendar, Mail, Building2,
-  TestTube2, FileSpreadsheet, ExternalLink, Pencil
+import {
+  MessageSquare, Search, RefreshCw,
+  X, Copy, Check,
+  Calendar, Mail, Building2,
+  ExternalLink,
+  CheckCircle, XCircle, Shield, Zap, Hash, Send, MessageCircle
 } from 'lucide-react';
-import { 
-  repliesApi, 
-  type ProcessedReply, 
-  type ProcessedReplyStats, 
-  type ReplyAutomation,
+import {
+  repliesApi,
+  type ProcessedReply,
+  type ProcessedReplyStats,
   type ReplyCategory,
-  type SmartleadCampaign,
-  type ReplyAutomationCreate,
-  type SimulateReplyPayload,
-  type SimulateReplyResponse,
-  type GoogleSheetsStatus
+  type ConversationMessage,
 } from '../api/replies';
 import { cn, formatNumber } from '../lib/utils';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-
-// Category configuration
-// Helper function to extract Google Sheet ID from URL
-const extractSheetId = (url: string): string => {
-  if (!url) return "";
-  const match = url.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  if (match) return match[1];
-  if (url.match(/^[a-zA-Z0-9-_]+$/)) return url;
-  return url;
-};
-
-// Helper function to extract gid (tab ID) from Google Sheet URL
-const extractSheetGid = (url: string): string | null => {
-  if (!url) return null;
-  const match = url.match(/[?&#]gid=(\d+)/);
-  return match ? match[1] : null;
-};
-
-// Helper to create sheet name with gid for storage (format: "TabName#gid")
-const createSheetNameWithGid = (url: string): string | undefined => {
-  const gid = extractSheetGid(url);
-  return gid ? `Replies#${gid}` : undefined;  // Default tab name + gid
-};
+import { useAppStore } from '../store/appStore';
 
 const CATEGORY_CONFIG: Record<ReplyCategory, { label: string; color: string; emoji: string }> = {
   interested: { label: 'Interested', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', emoji: '🟢' },
@@ -56,75 +29,37 @@ const CATEGORY_CONFIG: Record<ReplyCategory, { label: string; color: string; emo
 };
 
 export function RepliesPage() {
+  const { currentProject } = useAppStore();
+
   // Data state
   const [replies, setReplies] = useState<ProcessedReply[]>([]);
   const [stats, setStats] = useState<ProcessedReplyStats | null>(null);
-  const [automations, setAutomations] = useState<ReplyAutomation[]>([]);
-  const [campaigns, setCampaigns] = useState<SmartleadCampaign[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [campaignsLoading, setCampaignsLoading] = useState(false);
-  const [smartleadError, setSmartleadError] = useState<string | null>(null);
-  
+
   // Filters
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<ReplyCategory | null>(null);
-  const [automationFilter, setAutomationFilter] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [needsReplyFilter, setNeedsReplyFilter] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
-  
+
   // UI state
   const [selectedReply, setSelectedReply] = useState<ProcessedReply | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedCampaignsForCreate, setSelectedCampaignsForCreate] = useState<string[]>([]);
-  const [editingAutomation, setEditingAutomation] = useState<ReplyAutomation | null>(null);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editGoogleSheetUrl, setEditGoogleSheetUrl] = useState('');
-  const [editNewChannelName, setEditNewChannelName] = useState('');
-  const [editCreatingChannel, setEditCreatingChannel] = useState(false);
-  const [editCreatingSheet, setEditCreatingSheet] = useState(false);
-  const [editSheetName, setEditSheetName] = useState('');
-  const [editSlackChannel, setEditSlackChannel] = useState('');
-  const [editCampaigns, setEditCampaigns] = useState<string[]>([]);
-  const [editCampaignSearch, setEditCampaignSearch] = useState('');
-  const [editClassificationPrompt, setEditClassificationPrompt] = useState('');
-  const [editReplyPrompt, setEditReplyPrompt] = useState('');
-  const [editClassificationTemplate, setEditClassificationTemplate] = useState<string>('default');
-  const [editReplyTemplate, setEditReplyTemplate] = useState<string>('default');
-  const [editPromptTemplates, setEditPromptTemplates] = useState<any[]>([]);
-  const [sidebarWidth, setSidebarWidth] = useState(320);
-  const [isResizing, setIsResizing] = useState(false);
-  const [slackChannelsEdit, setSlackChannelsEdit] = useState<Array<{id: string, name: string}>>([]);
-  const [promptTestText, setPromptTestText] = useState('');
-  const [promptTestResult, setPromptTestResult] = useState<{category?: string, reply?: string} | null>(null);
-  const [testingPrompt, setTestingPrompt] = useState(false);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [showTestModal, setShowTestModal] = useState(false);
-  const [showTestFlowModal, setShowTestFlowModal] = useState(false);
-  const [testFlowStep, setTestFlowStep] = useState(1);
-  const [testEmailAccounts, setTestEmailAccounts] = useState<Array<{id: number, email: string, name: string, remaining: number}>>([]);
-  const [selectedEmailAccount, setSelectedEmailAccount] = useState<number | null>(null);
-  const [testUserEmail, setTestUserEmail] = useState('');
-  
-  const [testCampaignResult, setTestCampaignResult] = useState<{campaign_id?: string, campaign_name?: string, message?: string} | null>(null);
-  const [testFlowLoading, setTestFlowLoading] = useState(false);
-  const [testCampaigns, setTestCampaigns] = useState<Array<{id: string, name: string, status: string}>>([]);
-  const [testCampaignStatus, setTestCampaignStatus] = useState<string | null>(null);
-  const [launchingCampaign, setLaunchingCampaign] = useState(false);
-  const [confirmDialog, setConfirmDialog] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   // Load data
   const loadReplies = useCallback(async () => {
     setIsLoading(true);
     try {
+      const campaignNames = currentProject?.campaign_filters?.length
+        ? currentProject.campaign_filters.join(',')
+        : undefined;
       const response = await repliesApi.getReplies({
-        automation_id: automationFilter || undefined,
+        campaign_names: campaignNames,
         category: categoryFilter || undefined,
+        approval_status: statusFilter || undefined,
+        needs_reply: needsReplyFilter || undefined,
         page,
         page_size: pageSize,
       });
@@ -135,230 +70,117 @@ export function RepliesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [automationFilter, categoryFilter, page, pageSize]);
+  }, [categoryFilter, statusFilter, needsReplyFilter, page, pageSize, currentProject]);
 
   const loadStats = useCallback(async () => {
     try {
-      const data = await repliesApi.getReplyStats({
-        automation_id: automationFilter || undefined,
-      });
+      const campaignNames = currentProject?.campaign_filters?.length
+        ? currentProject.campaign_filters.join(',')
+        : undefined;
+      const data = await repliesApi.getReplyStats({ campaign_names: campaignNames });
       setStats(data);
     } catch (err) {
       console.error('Failed to load stats:', err);
     }
-  }, [automationFilter]);
+  }, [currentProject]);
 
-  const loadAutomations = useCallback(async () => {
-    try {
-      const data = await repliesApi.getAutomations(false);
-      setAutomations(data);
-    } catch (err) {
-      console.error('Failed to load automations:', err);
-    }
-  }, []);
-
-  const loadSlackChannels = useCallback(async () => {
-    try {
-      const response = await repliesApi.getSlackChannels();
-      setSlackChannelsEdit(response.channels || []);
-    } catch (err) {
-      console.error("Failed to load slack channels:", err);
-    }
-  }, []);
-
-  // Sidebar resize handlers
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      const newWidth = Math.min(Math.max(200, e.clientX), 600);
-      setSidebarWidth(newWidth);
-    };
-    const handleMouseUp = () => setIsResizing(false);
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    }
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isResizing]);
-
-  const loadEditTemplates = async () => {
-    try {
-      const resp = await fetch("/api/replies/prompt-templates");
-      const data = await resp.json();
-      setEditPromptTemplates(data.templates || []);
-    } catch (e) {
-      console.error("Failed to load templates", e);
-    }
-  };
-
-  const loadCampaigns = useCallback(async () => {
-    setCampaignsLoading(true);
-    setSmartleadError(null);
-    try {
-      const data = await repliesApi.getSmartleadCampaigns();
-      setCampaigns(data);
-    } catch (err: any) {
-      console.error('Failed to load campaigns:', err);
-      setSmartleadError(err.response?.data?.detail || 'Failed to load Smartlead campaigns. Check API key in Settings.');
-    } finally {
-      setCampaignsLoading(false);
-    }
-  }, []);
+  useEffect(() => { setPage(1); }, [currentProject]);
 
   useEffect(() => {
     loadReplies();
     loadStats();
   }, [loadReplies, loadStats]);
 
-  useEffect(() => {
-    loadAutomations();
-    loadSlackChannels();  // Load for channel name display in sidebar
-    loadCampaigns();  // Load for campaign name display in sidebar
-  }, [loadAutomations, loadSlackChannels, loadCampaigns]);
-
-  const handleRefresh = () => {
-    loadReplies();
-    loadStats();
-    loadAutomations();
-  };
+  const handleRefresh = () => { loadReplies(); loadStats(); };
 
   const handleCopyDraft = async (reply: ProcessedReply) => {
     if (reply.draft_reply) {
       await navigator.clipboard.writeText(reply.draft_reply);
-      alert('Draft copied to clipboard!');
+      toast.success('Draft copied!');
     }
   };
 
-  const handleResendNotification = async (replyId: number) => {
+  const handleApproveAndSend = async (replyId: number) => {
     try {
-      const result = await repliesApi.resendNotification(replyId);
-      if (result.success) {
-        alert('Notification sent!');
-        loadReplies();
-      } else {
-        alert(`Failed: ${result.message}`);
-      }
-    } catch (err) {
-      console.error('Failed to resend notification:', err);
-      alert('Failed to send notification');
+      const result = await repliesApi.approveAndSendReply(replyId);
+      toast.success(result.dry_run ? 'Approved (dry run)' : 'Reply sent!');
+      loadReplies();
+      loadStats();
+      if (selectedReply?.id === replyId) setSelectedReply(null);
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to approve and send');
     }
   };
 
-  const handleDeleteAutomation = async (automation: ReplyAutomation) => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Delete Automation',
-      message: `Are you sure you want to delete "${automation.name}"? This cannot be undone.`,
-      onConfirm: async () => {
-        try {
-          await repliesApi.deleteAutomation(automation.id);
-          loadAutomations();
-        } catch (err) {
-          console.error('Failed to delete automation:', err);
-        }
-        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-      }
-    });
-  };
-
-  const handleToggleAutomation = async (automation: ReplyAutomation) => {
+  const handleDismissReply = async (replyId: number) => {
     try {
-      await repliesApi.updateAutomation(automation.id, { active: !automation.active });
-      loadAutomations();
-    } catch (err) {
-      console.error('Failed to toggle automation:', err);
+      await repliesApi.dismissReply(replyId);
+      toast.success('Reply skipped');
+      loadReplies();
+      loadStats();
+      if (selectedReply?.id === replyId) setSelectedReply(null);
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to dismiss');
     }
   };
 
   const totalPages = Math.ceil(total / pageSize);
 
-  // Filter replies by search
+  // Client-side search filter
   const filteredReplies = (replies || []).filter(reply => {
     if (!search) return true;
-    const searchLower = search.toLowerCase();
+    const s = search.toLowerCase();
     return (
-      reply.lead_email?.toLowerCase().includes(searchLower) ||
-      reply.lead_first_name?.toLowerCase().includes(searchLower) ||
-      reply.lead_last_name?.toLowerCase().includes(searchLower) ||
-      reply.lead_company?.toLowerCase().includes(searchLower) ||
-      reply.email_subject?.toLowerCase().includes(searchLower)
+      reply.lead_email?.toLowerCase().includes(s) ||
+      reply.lead_first_name?.toLowerCase().includes(s) ||
+      reply.lead_last_name?.toLowerCase().includes(s) ||
+      reply.lead_company?.toLowerCase().includes(s) ||
+      reply.email_subject?.toLowerCase().includes(s) ||
+      reply.campaign_name?.toLowerCase().includes(s)
     );
   });
+
+  // Top categories for stats bar
+  const topCategories = stats?.by_category
+    ? Object.entries(stats.by_category).sort(([, a], [, b]) => b - a).slice(0, 4)
+    : [];
 
   return (
     <div className="h-full flex flex-col bg-neutral-50">
       <Toaster position="top-center" />
+
       {/* Header */}
       <div className="bg-white border-b border-neutral-200 px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
               <MessageSquare className="w-5 h-5 text-violet-600" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-neutral-900">Email Replies</h1>
-              <p className="text-sm text-neutral-500">
-                {formatNumber(total)} replies processed
-              </p>
+              <h1 className="text-xl font-semibold text-neutral-900">Replies</h1>
+              <p className="text-sm text-neutral-500">{formatNumber(total)} total</p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button onClick={handleRefresh} className="btn btn-secondary btn-sm">
-              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-            </button>
-            <button onClick={async () => {
-              setShowTestFlowModal(true);
-              setTestFlowStep(1);
-              try {
-                const [accountsData, campaignsData] = await Promise.all([
-                  repliesApi.getTestEmailAccounts(),
-                  repliesApi.getTestCampaigns()
-                ]);
-                setTestEmailAccounts(accountsData.accounts || []);
-                setTestCampaigns(campaignsData.campaigns || []);
-              } catch (e) { console.error(e); }
-            }} className="btn btn-secondary">
-              <TestTube2 className="w-4 h-4" />
-              Test Flow
-            </button>
-            <button onClick={() => { loadCampaigns(); setShowCreateModal(true); }} className="btn btn-primary">
-              <Plus className="w-4 h-4" />
-              New Automation
-            </button>
-          </div>
+          <button onClick={handleRefresh} className="btn btn-secondary btn-sm">
+            <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+          </button>
         </div>
 
-        {/* Stats */}
+        {/* Stats row */}
         {stats && (
-          <div className="flex items-center gap-2 flex-wrap mb-4">
-            <StatCard label="Total" value={formatNumber(stats.total)} />
-            <StatCard label="Today" value={formatNumber(stats.today)} color="blue" />
-            <StatCard label="This Week" value={formatNumber(stats.this_week)} color="purple" />
-            {Object.entries(stats.by_category || {}).slice(0, 5).map(([cat, count]) => {
+          <div className="flex items-center gap-2 flex-wrap mb-3">
+            <StatBadge label="Total" value={formatNumber(stats.total)} />
+            <StatBadge label="Pending" value={formatNumber(stats.pending)} color="amber" />
+            <StatBadge label="Today" value={formatNumber(stats.today)} color="blue" />
+            {topCategories.map(([cat, count]) => {
               const config = CATEGORY_CONFIG[cat as ReplyCategory];
-              return (
-                <StatCard 
-                  key={cat} 
-                  label={config?.label || cat} 
-                  value={formatNumber(count)} 
-                  emoji={config?.emoji}
-                />
-              );
+              return <StatBadge key={cat} label={config?.label || cat} value={formatNumber(count)} emoji={config?.emoji} />;
             })}
           </div>
         )}
 
         {/* Filters */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 max-w-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
             <input
@@ -382,1031 +204,193 @@ export function RepliesPage() {
           </select>
 
           <select
-            value={automationFilter || ''}
-            onChange={(e) => { setAutomationFilter(e.target.value ? parseInt(e.target.value) : null); setPage(1); }}
+            value={statusFilter || ''}
+            onChange={(e) => { setStatusFilter(e.target.value || null); setPage(1); }}
             className="input text-sm"
           >
-            <option value="">All Automations</option>
-            {automations.map(a => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="dismissed">Dismissed</option>
           </select>
+
+          <button
+            onClick={() => { setNeedsReplyFilter(!needsReplyFilter); setPage(1); }}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors",
+              needsReplyFilter
+                ? "bg-orange-100 text-orange-700 border-orange-300"
+                : "bg-white text-neutral-600 border-neutral-200 hover:border-orange-300 hover:text-orange-700"
+            )}
+          >
+            <MessageCircle className="w-4 h-4" />
+            Needs Reply
+          </button>
+
+          <button
+            onClick={() => { setStatusFilter(prev => prev === 'pending' ? null : 'pending'); setPage(1); }}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors",
+              statusFilter === 'pending'
+                ? "bg-amber-100 text-amber-700 border-amber-300"
+                : "bg-white text-neutral-600 border-neutral-200 hover:border-amber-300 hover:text-amber-700"
+            )}
+          >
+            <Shield className="w-4 h-4" />
+            Moderation
+            {stats?.pending ? (
+              <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-amber-500 text-white font-semibold">
+                {stats.pending}
+              </span>
+            ) : null}
+          </button>
         </div>
       </div>
 
-      {/* Content - 2 columns: Automations + Replies */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left sidebar - Automations */}
-        <div style={{ width: sidebarWidth }} className="border-r border-neutral-200 bg-white overflow-auto flex-shrink-0 relative">
-          <div className="p-4 border-b border-neutral-200">
-            <h2 className="text-sm font-semibold text-neutral-700 flex items-center gap-2">
-              <Zap className="w-4 h-4" />
-              Reply Automations
-            </h2>
+      {/* Reply list - full width */}
+      <div className="flex-1 overflow-auto p-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <RefreshCw className="w-6 h-6 animate-spin text-neutral-400" />
           </div>
-          
-          {automations.length === 0 ? (
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
-                <Settings2 className="w-6 h-6 text-neutral-400" />
-              </div>
-              <p className="text-sm text-neutral-500 mb-3">No automations yet</p>
-              <button 
-                onClick={() => { loadCampaigns(); setShowCreateModal(true); }}
-                className="btn btn-primary btn-sm"
-              >
-                <Plus className="w-4 h-4" />
-                Create First
-              </button>
+        ) : filteredReplies.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-16 h-16 rounded-xl bg-neutral-100 flex items-center justify-center mb-4">
+              <Mail className="w-8 h-8 text-neutral-400" />
             </div>
-          ) : (
-            <div className="divide-y divide-neutral-100">
-              {automations.map(automation => (
-                <div 
-                  key={automation.id} 
-                  className={cn(
-                    "p-4 cursor-pointer transition-all",
-                    automationFilter === automation.id 
-                      ? "bg-violet-100 border-l-4 border-violet-500" 
-                      : "hover:bg-neutral-50"
-                  )}
-                  onClick={() => setAutomationFilter(automationFilter === automation.id ? null : automation.id)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={cn(
-                          "w-2 h-2 rounded-full",
-                          automation.active ? "bg-emerald-500" : "bg-neutral-300"
-                        )} />
-                        <span className="font-medium text-sm truncate">{automation.name}</span>
-                      </div>
-                      <div 
-                        className="text-xs text-neutral-500 mt-1 cursor-help relative group"
-                        title={automation.campaign_ids.map(id => campaigns.find(c => String(c.id) === String(id))?.name || id).join(', ')}
-                      >
-                        {automation.campaign_ids.length} campaign{automation.campaign_ids.length !== 1 ? 's' : ''}
-                        {/* Hover tooltip with campaign names */}
-                        <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block bg-neutral-800 text-white text-xs rounded-lg py-2 px-3 shadow-lg min-w-[200px] max-w-[300px]">
-                          <div className="font-medium mb-1">Campaigns:</div>
-                          {automation.campaign_ids.map(id => (
-                            <div key={id} className="truncate py-0.5">{campaigns.find(c => String(c.id) === String(id))?.name || id}</div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          const count = automation.campaign_ids?.length || 0;
-                          if (!confirm(`Launch ${count} campaign${count !== 1 ? 's' : ''}? This will start sending emails.`)) return;
-                          const toastId = toast.loading('Launching...');
-                          try {
-                            for (const cid of automation.campaign_ids || []) {
-                              await repliesApi.launchCampaign(String(cid));
-                            }
-                            toast.success('Launched! Email sending started.', { id: toastId });
-                          } catch (err: any) {
-                            toast.error(err?.response?.data?.detail || 'Launch failed', { id: toastId });
-                          }
-                        }}
-                        className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 hover:text-emerald-600"
-                        title="Launch campaigns"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingAutomation(automation); setEditCampaigns(automation.campaign_ids?.map(String) || []); setEditSlackChannel(automation.slack_channel || ""); setEditGoogleSheetUrl(automation.google_sheet_id ? `https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}${automation.google_sheet_name?.includes('#') ? '/edit?gid=' + automation.google_sheet_name.split('#')[1] + '#gid=' + automation.google_sheet_name.split('#')[1] : ''}` : ""); setEditClassificationPrompt(automation.classification_prompt || ""); setEditReplyPrompt(automation.reply_prompt || ""); setIsEditMode(true); loadCampaigns(); loadSlackChannels(); loadEditTemplates();
-                          // Set template state based on existing prompt
-                          setEditClassificationTemplate(automation.classification_prompt ? 'custom' : 'default');
-                          setEditReplyTemplate(automation.reply_prompt ? 'custom' : 'default');
-                        }}
-                        className="p-1.5 rounded-lg text-neutral-400 hover:bg-violet-50 hover:text-violet-600"
-                        title="Edit"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleToggleAutomation(automation); }}
-                        className={cn(
-                          "p-1.5 rounded-lg transition-colors",
-                          automation.active ? "text-emerald-600 hover:bg-emerald-50" : "text-neutral-400 hover:bg-neutral-100"
-                        )}
-                        title={automation.active ? 'Deactivate' : 'Activate'}
-                      >
-                        <Zap className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteAutomation(automation); }}
-                        className="p-1.5 rounded-lg text-neutral-400 hover:bg-red-50 hover:text-red-500"
-                        title="Delete"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                  {automation.google_sheet_id && (
-                    <div className="flex items-center gap-1 text-xs text-neutral-500 mt-2">
-                      <FileSpreadsheet className="w-3 h-3" />
-                      <a href={`https://docs.google.com/spreadsheets/d/${automation.google_sheet_id}${automation.google_sheet_name?.includes('#') ? '/edit?gid=' + automation.google_sheet_name.split('#')[1] + '#gid=' + automation.google_sheet_name.split('#')[1] : ''}`} target="_blank" rel="noopener" className="text-green-600 hover:underline truncate max-w-[180px]">
-                        {automation.google_sheet_name?.split('#')[0] || "Google Sheet"}
-                      </a>
-                    </div>
-                  )}
-                  {(automation.slack_webhook_url || automation.slack_channel) && (
-                    <div className="flex items-center gap-1 text-xs text-neutral-500 mt-2">
-                      <Bell className="w-3 h-3" />
-                      {automation.slack_channel ? `#${slackChannelsEdit.find((c: {id: string, name: string}) => c.id === automation.slack_channel)?.name || automation.slack_channel}` : "Slack notifications enabled"}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {/* Resize handle */}
-          <div
-            onMouseDown={handleMouseDown}
-            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-violet-300 transition-colors"
-            style={{ backgroundColor: isResizing ? "#8b5cf6" : "transparent" }}
-          />
-        </div>
-
-        {/* Main content - Replies list */}
-        <div className="flex-1 overflow-auto p-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <RefreshCw className="w-6 h-6 animate-spin text-neutral-400" />
-            </div>
-          ) : filteredReplies.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-16 h-16 rounded-xl bg-neutral-100 flex items-center justify-center mb-4">
-                <Mail className="w-8 h-8 text-neutral-400" />
-              </div>
-              <p className="text-neutral-500">No replies found</p>
-              <p className="text-sm text-neutral-400 mt-1">
-                Replies will appear here when your campaigns receive responses
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredReplies.map(reply => (
-                <ReplyCard 
-                  key={reply.id} 
-                  reply={reply}
-                  onClick={() => setSelectedReply(reply)}
-                  onCopyDraft={() => handleCopyDraft(reply)}
-                  onResend={() => handleResendNotification(reply.id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+            <p className="text-neutral-500">No replies found</p>
+            <p className="text-sm text-neutral-400 mt-1">
+              {needsReplyFilter ? 'No leads currently need a response' : 'Replies will appear here when your campaigns receive responses'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredReplies.map(reply => (
+              <ReplyCard
+                key={reply.id}
+                reply={reply}
+                onClick={() => setSelectedReply(reply)}
+                onApprove={() => handleApproveAndSend(reply.id)}
+                onDismiss={() => handleDismissReply(reply.id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="bg-white border-t border-neutral-200 px-6 py-3 flex items-center justify-between">
-          <div className="text-sm text-neutral-500">
-            Page {page} of {totalPages}
-          </div>
+          <div className="text-sm text-neutral-500">Page {page} of {totalPages}</div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="btn btn-secondary btn-sm"
-            >
-              Prev
-            </button>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="btn btn-secondary btn-sm"
-            >
-              Next
-            </button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn btn-secondary btn-sm">Prev</button>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn btn-secondary btn-sm">Next</button>
           </div>
         </div>
       )}
 
-      {/* Reply Detail Panel */}
+      {/* Reply Detail Slide-out */}
       {selectedReply && (
-        <ReplyDetailPanel 
-          reply={selectedReply} 
+        <ReplyDetailPanel
+          reply={selectedReply}
           onClose={() => setSelectedReply(null)}
           onCopyDraft={() => handleCopyDraft(selectedReply)}
-          onResend={() => handleResendNotification(selectedReply.id)}
+          onApprove={() => handleApproveAndSend(selectedReply.id)}
+          onDismiss={() => handleDismissReply(selectedReply.id)}
         />
       )}
-
-      {/* Create Automation Modal */}
-      {/* Edit Automation Modal */}
-      {editingAutomation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setEditingAutomation(null)} />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-violet-600" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold">{editingAutomation.name}</h2>
-                  <p className="text-sm text-neutral-500">{editingAutomation.campaign_ids?.length || 0} campaigns</p>
-                </div>
-              </div>
-              <button onClick={() => setEditingAutomation(null)} className="p-2 hover:bg-neutral-100 rounded-lg">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4 overflow-y-auto max-h-[60vh]">
-              {/* Google Sheets */}
-              <div className="p-4 bg-neutral-50 rounded-xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                  <span className="text-sm font-medium">Google Sheet</span>
-                </div>
-                {isEditMode ? (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      placeholder="Paste Google Sheet URL (include #gid= for specific tab)..."
-                      value={editGoogleSheetUrl}
-                      onChange={(e) => setEditGoogleSheetUrl(e.target.value)}
-                      className="input w-full text-sm"
-                    />
-                    <div className="text-xs text-neutral-400">Or create a new sheet:</div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="New sheet name..."
-                        value={editSheetName}
-                        onChange={(e) => setEditSheetName(e.target.value)}
-                        className="input flex-1 text-sm"
-                      />
-                      <button
-                        onClick={async () => {
-                          if (!editSheetName) return;
-                          setEditCreatingSheet(true);
-                          try {
-                            const result = await repliesApi.createGoogleSheet(editSheetName);
-                            if (result.sheet_url) {
-                              setEditGoogleSheetUrl(result.sheet_url);
-                              setEditSheetName('');
-                            }
-                          } catch (err) {
-                            alert('Failed to create sheet');
-                          } finally {
-                            setEditCreatingSheet(false);
-                          }
-                        }}
-                        disabled={!editSheetName || editCreatingSheet}
-                        className="btn btn-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                      >
-                        {editCreatingSheet ? 'Creating...' : 'Create'}
-                      </button>
-                    </div>
-                  </div>
-                ) : editingAutomation.google_sheet_id ? (
-                  <a 
-                    href={`https://docs.google.com/spreadsheets/d/${editingAutomation.google_sheet_id}${editingAutomation.google_sheet_name?.includes('#') ? '/edit?gid=' + editingAutomation.google_sheet_name.split('#')[1] + '#gid=' + editingAutomation.google_sheet_name.split('#')[1] : ''}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-green-600 hover:underline break-all"
-                  >
-                    {editingAutomation.google_sheet_name?.split('#')[0] || 'Google Sheet'}
-                  </a>
-                ) : (
-                  <span className="text-sm text-neutral-400">Not configured</span>
-                )}
-              </div>
-              
-              {/* Slack */}
-              <div className="p-4 bg-neutral-50 rounded-xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <Bell className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium">Slack Notifications</span>
-                </div>
-                {isEditMode ? (
-                  <div className="space-y-2">
-                    <select
-                      value={editSlackChannel}
-                      onChange={(e) => setEditSlackChannel(e.target.value)}
-                      className="input w-full text-sm"
-                    >
-                      <option value="">Select channel...</option>
-                      {slackChannelsEdit.map(ch => (
-                        <option key={ch.id} value={ch.id}>#{ch.name}</option>
-                      ))}
-                    </select>
-                    {slackChannelsEdit.length === 0 && (
-                      <div className="text-xs text-neutral-400">Loading channels...</div>
-                    )}
-                    <div className="text-xs text-neutral-400">Or create a new channel:</div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="new-channel-name"
-                        value={editNewChannelName}
-                        onChange={(e) => setEditNewChannelName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
-                        className="input flex-1 text-sm"
-                      />
-                      <button
-                        onClick={async () => {
-                          if (!editNewChannelName) return;
-                          setEditCreatingChannel(true);
-                          try {
-                            const result = await repliesApi.createSlackChannel(editNewChannelName);
-                            if (result.channel) {
-                              const ch = result.channel;
-                              setSlackChannelsEdit(prev => [...prev, { id: ch.id, name: ch.name }]);
-                              setEditSlackChannel(ch.id);
-                              setEditNewChannelName('');
-                            }
-                          } catch (err) {
-                            alert('Failed to create channel');
-                          } finally {
-                            setEditCreatingChannel(false);
-                          }
-                        }}
-                        disabled={!editNewChannelName || editCreatingChannel}
-                        className="btn btn-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        {editCreatingChannel ? 'Creating...' : 'Create'}
-                      </button>
-                    </div>
-                  </div>
-                ) : editingAutomation.slack_channel ? (
-                  <span className="text-sm text-blue-600">#{slackChannelsEdit.find(c => c.id === editingAutomation.slack_channel)?.name || editingAutomation.slack_channel}</span>
-                ) : editingAutomation.slack_webhook_url ? (
-                  <span className="text-sm text-blue-600">Webhook configured</span>
-                ) : (
-                  <span className="text-sm text-neutral-400">Not configured</span>
-                )}
-              </div>
-              
-              {/* Campaigns */}
-              <div className="p-4 bg-neutral-50 rounded-xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <Mail className="w-4 h-4 text-violet-600" />
-                  <span className="text-sm font-medium">Campaigns</span>
-                </div>
-                {isEditMode ? (
-                  <div className="space-y-2">
-                    {/* Selected campaigns - always visible */}
-                    {editCampaigns.length > 0 && (
-                      <div className="space-y-1 pb-2 border-b border-neutral-200">
-                        <div className="text-xs text-emerald-600 font-medium">Selected:</div>
-                        {editCampaigns.map(id => {
-                          const campaign = campaigns.find(c => String(c.id) === String(id));
-                          return (
-                            <label key={id} className="flex items-center gap-2 p-1 bg-emerald-50 hover:bg-emerald-100 rounded cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={true}
-                                onChange={() => setEditCampaigns(editCampaigns.filter(cid => cid !== id))}
-                                className="rounded text-emerald-600"
-                              />
-                              <span className="text-sm truncate text-emerald-700">{campaign?.name || id}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <input
-                      type="text"
-                      placeholder="Search campaigns to add..."
-                      value={editCampaignSearch}
-                      onChange={(e) => setEditCampaignSearch(e.target.value)}
-                      className="input w-full text-sm"
-                    />
-                    <div className="max-h-32 overflow-y-auto space-y-1">
-                      {campaigns
-                        .filter(c => !editCampaigns.includes(String(c.id)))  /* Hide already selected */
-                        .filter(c => !editCampaignSearch || c.name?.toLowerCase().includes(editCampaignSearch.toLowerCase()))
-                        .slice(0, 10)
-                        .map(c => (
-                          <label key={c.id} className="flex items-center gap-2 p-1 hover:bg-neutral-100 rounded cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={false}
-                              onChange={() => setEditCampaigns([...editCampaigns, String(c.id)])}
-                              className="rounded"
-                            />
-                            <span className="text-sm truncate">{c.name}</span>
-                          </label>
-                        ))}
-                    </div>
-                    <div className="text-xs text-neutral-400">{editCampaigns.length} campaign{editCampaigns.length !== 1 ? 's' : ''} selected</div>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {editingAutomation.campaign_ids?.map(id => (
-                      <div key={id} className="text-sm text-neutral-600">{campaigns.find(c => String(c.id) === String(id))?.name || id}</div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              
-              {/* AI Features */}
-              <div className="p-4 bg-neutral-50 rounded-xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <Zap className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm font-medium">AI Features</span>
-                </div>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2">
-                    {editingAutomation.auto_classify ? <Check className="w-4 h-4 text-emerald-500" /> : <X className="w-4 h-4 text-neutral-300" />}
-                    <span>Auto-classify replies</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {editingAutomation.auto_generate_reply ? <Check className="w-4 h-4 text-emerald-500" /> : <X className="w-4 h-4 text-neutral-300" />}
-                    <span>Generate draft replies</span>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Prompt Templates */}
-              {isEditMode && (
-                <div className="space-y-4">
-                  <div className="text-sm font-medium text-neutral-700">Prompt Templates</div>
-                  <p className="text-xs text-neutral-500">Select existing or paste custom prompts (auto-saved)</p>
-                  
-                  {/* Classification Prompt */}
-                  <div className="space-y-2">
-                    <label className="text-sm text-neutral-600">Classification Prompt</label>
-                    <select
-                      value={editClassificationTemplate}
-                      onChange={(e) => {
-                        setEditClassificationTemplate(e.target.value);
-                        if (e.target.value === 'default') {
-                          setEditClassificationPrompt('');
-                        } else if (e.target.value !== 'custom') {
-                          const tpl = editPromptTemplates.find(t => t.id?.toString() === e.target.value);
-                          if (tpl) setEditClassificationPrompt(tpl.prompt_text);
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm"
-                    >
-                      <option value="default">Default Classification</option>
-                      {editPromptTemplates.filter(t => !t.is_default).map(t => (
-                        <option key={t.id} value={t.id?.toString()}>{t.name}</option>
-                      ))}
-                      <option value="custom">Custom (paste below)</option>
-                    </select>
-                    {editClassificationTemplate === 'custom' && (
-                      <textarea
-                        placeholder="Paste your classification prompt..."
-                        value={editClassificationPrompt}
-                        onChange={(e) => setEditClassificationPrompt(e.target.value)}
-                        className="w-full h-24 p-3 border border-neutral-200 rounded-lg text-sm font-mono resize-none"
-                      />
-                    )}
-                  </div>
-
-                  {/* Reply Prompt */}
-                  <div className="space-y-2">
-                    <label className="text-sm text-neutral-600">Reply Prompt</label>
-                    <select
-                      value={editReplyTemplate}
-                      onChange={(e) => {
-                        setEditReplyTemplate(e.target.value);
-                        if (e.target.value === 'default') {
-                          setEditReplyPrompt('');
-                        } else if (e.target.value !== 'custom') {
-                          const tpl = editPromptTemplates.find(t => t.id?.toString() === e.target.value);
-                          if (tpl) setEditReplyPrompt(tpl.prompt_text);
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm"
-                    >
-                      <option value="default">Default Reply</option>
-                      {editPromptTemplates.filter(t => !t.is_default).map(t => (
-                        <option key={t.id} value={t.id?.toString()}>{t.name}</option>
-                      ))}
-                      <option value="custom">Custom (paste below)</option>
-                    </select>
-                    {editReplyTemplate === 'custom' && (
-                      <textarea
-                        placeholder="Paste your reply prompt..."
-                        value={editReplyPrompt}
-                        onChange={(e) => setEditReplyPrompt(e.target.value)}
-                        className="w-full h-24 p-3 border border-neutral-200 rounded-lg text-sm font-mono resize-none"
-                      />
-                    )}
-                  </div>
-
-                  {/* Prompt Debug Section */}
-                  <div className="rounded-xl border-2 border-cyan-200 overflow-hidden">
-                    <div className="bg-cyan-100 px-4 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">🧪</span>
-                        <div>
-                          <div className="font-medium text-cyan-900">Test Your Prompts</div>
-                          <div className="text-xs text-cyan-600">Paste any email text to see how AI will classify and reply</div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-4 bg-white space-y-3">
-                      <textarea
-                        placeholder="Paste email text here to test...
-
-Example:
-Hi, thanks for reaching out. We're definitely interested in learning more about your solution. Could we schedule a call next week?"
-                        value={promptTestText}
-                        onChange={(e) => setPromptTestText(e.target.value)}
-                        className="w-full text-sm h-24 p-3 border border-cyan-200 rounded-lg focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 resize-none"
-                      />
-                      <button
-                        onClick={async () => {
-                          if (!promptTestText.trim()) return;
-                          setTestingPrompt(true);
-                          setPromptTestResult(null);
-                          try {
-                            const result = await repliesApi.simulateReply({
-                              email_body: promptTestText,
-                              classification_prompt: editClassificationPrompt || undefined,
-                              reply_prompt: editReplyPrompt || undefined,
-                            });
-                            setPromptTestResult({
-                              category: result.category,
-                              reply: result.draft_reply,
-                            });
-                          } catch (err) {
-                            setPromptTestResult({ category: 'Error: Failed to test' });
-                          } finally {
-                            setTestingPrompt(false);
-                          }
-                        }}
-                        disabled={testingPrompt || !promptTestText.trim()}
-                        className="btn btn-secondary w-full"
-                      >
-                        {testingPrompt ? 'Testing...' : '🚀 Test Prompts'}
-                      </button>
-                      {promptTestResult && (
-                        <div className="space-y-2">
-                          <div className="p-3 bg-cyan-50 rounded-lg">
-                            <div className="text-xs font-medium text-cyan-700 mb-1">Classification Result:</div>
-                            <div className="text-sm font-semibold text-cyan-900">{promptTestResult.category}</div>
-                          </div>
-                          {promptTestResult.reply && (
-                            <div className="p-3 bg-emerald-50 rounded-lg">
-                              <div className="text-xs font-medium text-emerald-700 mb-1">Generated Reply:</div>
-                              <div className="text-sm text-emerald-900 whitespace-pre-wrap">{promptTestResult.reply}</div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="px-6 py-4 border-t border-neutral-200 flex gap-2">
-              <button
-                onClick={() => { setEditingAutomation(null); setIsEditMode(false); }}
-                className="btn btn-secondary flex-1"
-              >
-                Cancel
-              </button>
-              {isEditMode ? (
-                <button 
-                  onClick={async () => {
-                    setSavingEdit(true);
-                    try {
-                      // Auto-save custom prompts as templates
-                      if (editClassificationTemplate === 'custom' && editClassificationPrompt) {
-                        await fetch('/api/replies/prompt-templates', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            name: 'Classification ' + new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-                            
-                            prompt_text: editClassificationPrompt,
-                            is_default: false
-                          })
-                        }).catch(e => console.error('Failed to save classification template', e));
-                      }
-                      if (editReplyTemplate === 'custom' && editReplyPrompt) {
-                        await fetch('/api/replies/prompt-templates', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            name: 'Reply ' + new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-                            
-                            prompt_text: editReplyPrompt,
-                            is_default: false
-                          })
-                        }).catch(e => console.error('Failed to save reply template', e));
-                      }
-
-                      await repliesApi.updateAutomation(editingAutomation.id, {
-                        google_sheet_id: editGoogleSheetUrl ? extractSheetId(editGoogleSheetUrl) : undefined,
-                        google_sheet_name: editGoogleSheetUrl ? createSheetNameWithGid(editGoogleSheetUrl) : undefined,
-                        slack_channel: editSlackChannel || undefined,
-                        campaign_ids: editCampaigns.length > 0 ? editCampaigns : undefined,
-                        classification_prompt: editClassificationTemplate !== 'default' ? editClassificationPrompt : undefined,
-                        reply_prompt: editReplyTemplate !== 'default' ? editReplyPrompt : undefined,
-                      });
-                      await loadAutomations();
-                      setIsEditMode(false);
-                      setEditingAutomation(null);
-                    } catch (err) {
-                      alert('Failed to save');
-                    } finally {
-                      setSavingEdit(false);
-                    }
-                  }}
-                  disabled={savingEdit}
-                  className="btn btn-primary flex-1"
-                >
-                  {savingEdit ? 'Saving...' : 'Save Changes'}
-                </button>
-              ) : (
-                <button 
-                  onClick={() => {
-                    setIsEditMode(true);
-                    setEditGoogleSheetUrl(editingAutomation.google_sheet_id ? `https://docs.google.com/spreadsheets/d/\${editingAutomation.google_sheet_id}` : '');
-                    setEditSlackChannel(editingAutomation.slack_channel || '');
-                  }}
-                  className="btn btn-primary flex-1"
-                >
-                  Edit
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showCreateModal && (
-        <CreateAutomationModal
-          campaigns={campaigns}
-          campaignsLoading={campaignsLoading}
-          smartleadError={smartleadError}
-          onClose={() => { setShowCreateModal(false); setSelectedCampaignsForCreate([]); }}
-          onCreated={() => {
-            setShowCreateModal(false);
-            setSelectedCampaignsForCreate([]);
-            loadAutomations();
-          }}
-          onRetryCampaigns={loadCampaigns}
-          initialSelectedCampaigns={selectedCampaignsForCreate}
-        />
-      )}
-
-
-      {/* Test Flow Modal */}
-      {showTestFlowModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowTestFlowModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-neutral-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                    <TestTube2 className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold">Test Auto-Reply Flow</h2>
-                    <p className="text-sm text-neutral-500">Step {testFlowStep} of 3</p>
-                  </div>
-                </div>
-                <button onClick={() => setShowTestFlowModal(false)} className="p-2 hover:bg-neutral-100 rounded-lg">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6 overflow-y-auto flex-1">
-              {testFlowStep === 1 && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-emerald-50 rounded-xl">
-                    <p className="text-sm text-emerald-800">
-                      <strong>Step 1:</strong> Create a test campaign and send yourself an email.
-                      Reply to it to test the full automation flow!
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Your Email</label>
-                    <input
-                      type="email"
-                      value={testUserEmail}
-                      onChange={(e) => setTestUserEmail(e.target.value)}
-                      placeholder="your@email.com"
-                      className="input w-full"
-                    />
-                    <p className="text-xs text-neutral-400 mt-1">You'll receive a test email here</p>
-                  </div>
-                  
-                  
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Send From (Email Account)</label>
-                    <select
-                      value={selectedEmailAccount || ''}
-                      onChange={(e) => setSelectedEmailAccount(e.target.value ? Number(e.target.value) : null)}
-                      className="input w-full"
-                    >
-                      <option value="">Auto-select best account</option>
-                      {testEmailAccounts.map(acc => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.email} ({acc.remaining} emails remaining today)
-                        </option>
-                      ))}
-                    </select>
-                    {testEmailAccounts.length === 0 && (
-                      <p className="text-xs text-amber-600 mt-1">Loading email accounts...</p>
-                    )}
-                  </div>
-                  
-                  {testCampaigns.length > 0 && (
-                    <div className="p-3 bg-neutral-50 rounded-lg">
-                      <p className="text-xs text-neutral-500 mb-2">Existing test campaigns:</p>
-                      <div className="space-y-1">
-                        {testCampaigns.slice(0, 3).map(c => (
-                          <div key={c.id} className="text-xs text-neutral-600">{c.name} ({c.status})</div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {testFlowStep === 2 && testCampaignResult && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-                      <span className="text-xs font-medium text-amber-700">DRAFT</span>
-                    </div>
-                    <p className="text-sm font-medium text-emerald-900">{testCampaignResult.campaign_name}</p>
-                    <p className="text-xs text-emerald-600 mt-1">Will send to: {testUserEmail}</p>
-                  </div>
-                  
-                  <div className="p-4 bg-neutral-50 rounded-xl">
-                    <p className="text-sm text-neutral-700">Set up automation to capture replies in Google Sheet and Slack, then launch the campaign.</p>
-                  </div>
-                </div>
-              )}
-              
-              {testFlowStep === 3 && (
-                <div className="space-y-4">
-                  {testCampaignResult && (
-                    <div className="p-4 bg-blue-50 rounded-xl flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-blue-800 font-medium">Campaign: {testCampaignResult.campaign_name}</p>
-                        <p className="text-xs text-blue-600">Status: {testCampaignStatus || 'Checking...'}</p>
-                      </div>
-                      {testCampaignStatus !== 'ACTIVE' && (
-                        <button
-                          onClick={async () => {
-                            if (!testCampaignResult?.campaign_id) return;
-                            setLaunchingCampaign(true);
-                            try {
-                              await repliesApi.launchCampaign(testCampaignResult.campaign_id);
-                              setTestCampaignStatus('ACTIVE');
-                            } catch (e) { console.error(e); }
-                            setLaunchingCampaign(false);
-                          }}
-                          disabled={launchingCampaign}
-                          className="btn btn-sm bg-emerald-500 text-white hover:bg-emerald-600"
-                        >
-                          {launchingCampaign ? 'Launching...' : 'Launch'}
-                        </button>
-                      )}
-                      {testCampaignStatus === 'ACTIVE' && (
-                        <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full">Running</span>
-                      )}
-                    </div>
-                  )}
-                  
-                  <div className="p-4 bg-emerald-50 rounded-xl">
-                    <p className="text-sm text-emerald-800 font-medium">Test the flow:</p>
-                    <ol className="text-sm text-emerald-700 mt-2 space-y-2 list-decimal list-inside">
-                      <li><strong>Check your email</strong> ({testUserEmail}) - arrives in ~5 min</li>
-                      <li><strong>Reply to the email</strong> with any message</li>
-                      <li><strong>Watch it appear</strong> in Google Sheet and Slack!</li>
-                    </ol>
-                  </div>
-                  
-                  <div className="p-4 bg-violet-50 rounded-xl">
-                    <p className="text-sm text-violet-700 font-medium">Try these replies:</p>
-                    <ul className="text-sm text-violet-600 mt-2 space-y-1">
-                      <li>• "Yes, interested!" → <span className="text-emerald-600">Interested</span></li>
-                      <li>• "Let's schedule a call" → <span className="text-blue-600">Meeting</span></li>
-                      <li>• "Not interested" → <span className="text-red-600">Not Interested</span></li>
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className="p-6 border-t border-neutral-100 flex justify-between">
-              {testFlowStep > 1 ? (
-                <button onClick={() => setTestFlowStep(s => s - 1)} className="btn btn-secondary">
-                  Back
-                </button>
-              ) : (
-                <div />
-              )}
-              
-              {testFlowStep === 1 && (
-                <button
-                  onClick={async () => {
-                    if (!testUserEmail) { toast.error('Please enter your email'); return; }
-                    setTestFlowLoading(true);
-                    const toastId = toast.loading('Creating test campaign...');
-                    try {
-                      const result = await repliesApi.createTestCampaign(
-                        testUserEmail,
-                        testUserEmail.split('@')[0] || 'Test User',
-                        selectedEmailAccount || undefined
-                      );
-                      if (result.success) {
-                        toast.success('Campaign created! Setting up...', { id: toastId });
-                        setTestCampaignResult(result);
-                        // Store campaign ID to auto-select
-                        if (result.campaign_id) {
-                          setSelectedCampaignsForCreate([result.campaign_id]);
-                        }
-                        setShowTestFlowModal(false);
-                        // Open modal - it will load campaigns and auto-select
-                        loadCampaigns();
-                        setShowCreateModal(true);
-                      } else {
-                        toast.error(result.error || 'Failed to create campaign', { id: toastId });
-                      }
-                    } catch (e: any) {
-                      toast.error(e.response?.data?.detail || 'Failed to create campaign', { id: toastId });
-                    } finally {
-                      setTestFlowLoading(false);
-                    }
-                  }}
-                  disabled={testFlowLoading || !testUserEmail}
-                  className="btn btn-primary"
-                >
-                  {testFlowLoading ? 'Creating...' : 'Create Test Campaign'}
-                </button>
-              )}
-              
-              {testFlowStep === 2 && (
-                <button
-                  onClick={async () => {
-                    setShowTestFlowModal(false);
-                    toast.loading('Loading campaigns...', { id: 'setup' });
-                    await loadCampaigns();
-                    if (testCampaignResult?.campaign_id) {
-                      setSelectedCampaignsForCreate([testCampaignResult.campaign_id]);
-                    }
-                    toast.success('Ready! Configure your automation.', { id: 'setup' });
-                    setShowCreateModal(true);
-                  }}
-                  className="btn btn-primary"
-                >
-                  Set Up Automation
-                </button>
-              )}
-              
-              {testFlowStep === 3 && (
-                <button onClick={() => setShowTestFlowModal(false)} className="btn btn-primary">
-                  Done
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {/* Test Reply Modal */}
-      {showTestModal && (
-        <TestReplyModal
-          onClose={() => setShowTestModal(false)}
-          onSuccess={() => {
-            setShowTestModal(false);
-            handleRefresh();
-          }}
-        />
-      )}
-
-      {/* Confirm Dialog */}
-      <ConfirmDialog
-        isOpen={confirmDialog.isOpen}
-        title={confirmDialog.title}
-        message={confirmDialog.message}
-        onConfirm={confirmDialog.onConfirm}
-        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-      />
     </div>
   );
 }
 
-// Stat card component
-function StatCard({ label, value, color, emoji }: { label: string; value: string; color?: string; emoji?: string }) {
-  const colorClasses: Record<string, string> = {
-    blue: 'bg-blue-50 border-blue-200',
-    purple: 'bg-purple-50 border-purple-200',
-    green: 'bg-emerald-50 border-emerald-200',
+// ---------- Stat Badge ----------
+function StatBadge({ label, value, color, emoji }: { label: string; value: string; color?: string; emoji?: string }) {
+  const colors: Record<string, string> = {
+    blue: 'bg-blue-50 border-blue-200 text-blue-700',
+    amber: 'bg-amber-50 border-amber-200 text-amber-700',
+    purple: 'bg-purple-50 border-purple-200 text-purple-700',
+    green: 'bg-emerald-50 border-emerald-200 text-emerald-700',
   };
-  
   return (
-    <div className={cn(
-      "rounded-lg px-3 py-2 border",
-      color ? colorClasses[color] || 'bg-neutral-50 border-neutral-100' : 'bg-neutral-50 border-neutral-100'
-    )}>
-      <div className="flex items-center gap-2">
-        {emoji && <span className="text-lg">{emoji}</span>}
-        <div className="text-lg font-semibold text-neutral-900">{value}</div>
-      </div>
-      <div className="text-xs text-neutral-500">{label}</div>
+    <div className={cn("rounded-lg px-3 py-1.5 border text-sm", color ? colors[color] : 'bg-neutral-50 border-neutral-100')}>
+      {emoji && <span className="mr-1">{emoji}</span>}
+      <span className="font-semibold">{value}</span>
+      <span className="text-xs ml-1 opacity-70">{label}</span>
     </div>
   );
 }
 
-// Reply card component
+// ---------- Reply Card ----------
 interface ReplyCardProps {
   reply: ProcessedReply;
   onClick: () => void;
-  onCopyDraft: () => void;
-  onResend: () => void;
+  onApprove: () => void;
+  onDismiss: () => void;
 }
 
-function ReplyCard({ reply, onClick, onCopyDraft, onResend }: ReplyCardProps) {
+function ReplyCard({ reply, onClick, onApprove, onDismiss }: ReplyCardProps) {
   const category = reply.category as ReplyCategory;
   const categoryConfig = category ? CATEGORY_CONFIG[category] : CATEGORY_CONFIG.other;
-  
   const leadName = [reply.lead_first_name, reply.lead_last_name].filter(Boolean).join(' ') || reply.lead_email;
-  
+
   return (
-    <div 
+    <div
       onClick={onClick}
       className="bg-white rounded-xl border border-neutral-200 p-4 hover:border-violet-300 hover:shadow-sm cursor-pointer transition-all"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          {/* Header row */}
+          {/* Header */}
           <div className="flex items-center gap-2 mb-2">
-            <span className={cn(
-              "px-2 py-0.5 rounded-full text-xs font-medium border",
-              categoryConfig.color
-            )}>
+            <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium border", categoryConfig.color)}>
               {categoryConfig.emoji} {categoryConfig.label}
             </span>
             {reply.category_confidence && (
-              <span className="text-xs text-neutral-400">
-                {reply.category_confidence} confidence
-              </span>
+              <span className="text-xs text-neutral-400">{reply.category_confidence}</span>
             )}
             {reply.sent_to_slack && (
-              <span className="text-xs text-emerald-600 flex items-center gap-1">
-                <Check className="w-3 h-3" />
-                Slack sent
-              </span>
+              <span className="text-xs text-emerald-600 flex items-center gap-1"><Check className="w-3 h-3" />Slack</span>
             )}
           </div>
-          
+
           {/* Lead info */}
           <div className="flex items-center gap-3 mb-1">
             <span className="font-medium text-neutral-900">{leadName}</span>
             {reply.lead_company && (
               <span className="text-sm text-neutral-500 flex items-center gap-1">
-                <Building2 className="w-3 h-3" />
-                {reply.lead_company}
+                <Building2 className="w-3 h-3" />{reply.lead_company}
               </span>
             )}
           </div>
-          
-          {/* Subject */}
-          <div className="text-sm text-neutral-600 mb-2">
+
+          {/* Subject + snippet */}
+          <div className="text-sm text-neutral-600 mb-1">
             <strong>Subject:</strong> {reply.email_subject || '(no subject)'}
           </div>
-          
-          {/* Body preview */}
           <div className="text-sm text-neutral-500 line-clamp-2">
             {reply.email_body || reply.reply_text || '(empty)'}
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex flex-col gap-1">
-          {reply.draft_reply && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onCopyDraft(); }}
-              className="btn btn-secondary btn-sm"
-              title="Copy draft reply"
-            >
-              <Copy className="w-4 h-4" />
+        <div className="flex flex-col gap-1 flex-shrink-0">
+          {reply.approval_status === 'approved' && (
+            <span className="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-lg flex items-center gap-1"><CheckCircle className="w-3 h-3" />Sent</span>
+          )}
+          {reply.approval_status === 'approved_dry_run' && (
+            <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-lg flex items-center gap-1"><CheckCircle className="w-3 h-3" />Dry Run</span>
+          )}
+          {reply.approval_status === 'dismissed' && (
+            <span className="px-2 py-1 text-xs font-medium bg-neutral-100 text-neutral-500 rounded-lg flex items-center gap-1"><XCircle className="w-3 h-3" />Skipped</span>
+          )}
+          {(!reply.approval_status || reply.approval_status === 'pending') && reply.draft_reply && (
+            <button onClick={(e) => { e.stopPropagation(); onApprove(); }} className="px-3 py-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg flex items-center gap-1" title="Approve & send">
+              <CheckCircle className="w-3.5 h-3.5" />OK
             </button>
           )}
-          {!reply.sent_to_slack && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onResend(); }}
-              className="btn btn-secondary btn-sm"
-              title="Send to Slack"
-            >
-              <Send className="w-4 h-4" />
+          {(!reply.approval_status || reply.approval_status === 'pending') && (
+            <button onClick={(e) => { e.stopPropagation(); onDismiss(); }} className="px-2 py-1.5 text-xs text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="Skip">
+              <XCircle className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
@@ -1416,98 +400,121 @@ function ReplyCard({ reply, onClick, onCopyDraft, onResend }: ReplyCardProps) {
       <div className="flex items-center gap-4 mt-3 pt-3 border-t border-neutral-100 text-xs text-neutral-400">
         <span className="flex items-center gap-1">
           <Calendar className="w-3 h-3" />
-          {reply.received_at ? new Date(reply.received_at).toLocaleDateString() : 'Unknown date'}
+          {reply.received_at ? new Date(reply.received_at).toLocaleDateString() : 'Unknown'}
         </span>
         {reply.campaign_name && (
-          <span className="flex items-center gap-1">
-            <Hash className="w-3 h-3" />
-            {reply.campaign_name}
-          </span>
+          <span className="flex items-center gap-1"><Hash className="w-3 h-3" />{reply.campaign_name}</span>
         )}
       </div>
     </div>
   );
 }
 
-// Reply detail panel
+// ---------- Reply Detail Panel ----------
 interface ReplyDetailPanelProps {
   reply: ProcessedReply;
   onClose: () => void;
   onCopyDraft: () => void;
-  onResend: () => void;
+  onApprove: () => void;
+  onDismiss: () => void;
 }
 
-function ReplyDetailPanel({ reply, onClose, onCopyDraft, onResend }: ReplyDetailPanelProps) {
+function ReplyDetailPanel({ reply, onClose, onCopyDraft, onApprove, onDismiss }: ReplyDetailPanelProps) {
   const category = reply.category as ReplyCategory;
   const categoryConfig = category ? CATEGORY_CONFIG[category] : CATEGORY_CONFIG.other;
   const leadName = [reply.lead_first_name, reply.lead_last_name].filter(Boolean).join(' ') || reply.lead_email;
 
+  // Conversation thread
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [loadingConversation, setLoadingConversation] = useState(false);
+
+  useEffect(() => {
+    setLoadingConversation(true);
+    repliesApi.getConversation(reply.id)
+      .then(data => setMessages(data.messages || []))
+      .catch(() => setMessages([]))
+      .finally(() => setLoadingConversation(false));
+  }, [reply.id]);
+
   return (
-    <div className="fixed inset-y-0 right-0 w-[500px] bg-white shadow-2xl border-l border-neutral-200 z-50 flex flex-col">
+    <div className="fixed inset-y-0 right-0 w-[520px] bg-white shadow-2xl border-l border-neutral-200 z-50 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
         <h2 className="text-lg font-semibold">Reply Details</h2>
-        <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg">
-          <X className="w-4 h-4" />
-        </button>
+        <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg"><X className="w-4 h-4" /></button>
       </div>
 
-      <div className="flex-1 overflow-auto p-6 space-y-6">
-        {/* Category badge */}
+      <div className="flex-1 overflow-auto p-6 space-y-5">
+        {/* Category */}
         <div className="flex items-center gap-2">
-          <span className={cn(
-            "px-3 py-1 rounded-full text-sm font-medium border",
-            categoryConfig.color
-          )}>
+          <span className={cn("px-3 py-1 rounded-full text-sm font-medium border", categoryConfig.color)}>
             {categoryConfig.emoji} {categoryConfig.label}
           </span>
-          {reply.category_confidence && (
-            <span className="text-sm text-neutral-500">
-              {reply.category_confidence} confidence
-            </span>
-          )}
+          {reply.category_confidence && <span className="text-sm text-neutral-500">{reply.category_confidence}</span>}
         </div>
 
         {/* Lead info */}
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">From</h4>
-          <div className="p-4 bg-neutral-50 rounded-xl">
-            <div className="font-medium text-neutral-900">{leadName}</div>
-            <div className="text-sm text-neutral-600 mt-1">{reply.lead_email}</div>
-            {reply.lead_company && (
-              <div className="text-sm text-neutral-500 flex items-center gap-1 mt-1">
-                <Building2 className="w-3 h-3" />
-                {reply.lead_company}
-              </div>
-            )}
-            {reply.inbox_link && (
-              <a 
-                href={reply.inbox_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-sm text-violet-600 hover:text-violet-700 hover:underline"
-              >
-                <ExternalLink className="w-3 h-3" />
-                Open in Smartlead Inbox
-              </a>
-            )}
-          </div>
+        <div className="p-4 bg-neutral-50 rounded-xl">
+          <div className="font-medium text-neutral-900">{leadName}</div>
+          <div className="text-sm text-neutral-600 mt-1">{reply.lead_email}</div>
+          {reply.lead_company && (
+            <div className="text-sm text-neutral-500 flex items-center gap-1 mt-1"><Building2 className="w-3 h-3" />{reply.lead_company}</div>
+          )}
+          {reply.inbox_link && (
+            <a href={reply.inbox_link} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-sm text-violet-600 hover:underline">
+              <ExternalLink className="w-3 h-3" />Open in Smartlead
+            </a>
+          )}
         </div>
 
-        {/* Original message */}
+        {/* Conversation Thread */}
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide flex items-center gap-1.5">
+            <MessageCircle className="w-3.5 h-3.5" />Conversation
+          </h4>
+          {loadingConversation ? (
+            <div className="flex items-center justify-center py-4">
+              <RefreshCw className="w-4 h-4 animate-spin text-neutral-400" />
+              <span className="ml-2 text-sm text-neutral-400">Loading...</span>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="p-3 bg-neutral-50 rounded-lg text-sm text-neutral-400">No conversation history found</div>
+          ) : (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {messages.map((msg, i) => {
+                const isInbound = msg.direction === 'inbound';
+                return (
+                  <div key={i} className={cn("flex", isInbound ? "justify-start" : "justify-end")}>
+                    <div className={cn(
+                      "max-w-[85%] rounded-xl px-3 py-2 text-sm",
+                      isInbound
+                        ? "bg-blue-50 border border-blue-100 text-blue-900"
+                        : "bg-neutral-100 border border-neutral-200 text-neutral-800"
+                    )}>
+                      {msg.subject && <div className="font-medium text-xs mb-1 opacity-70">{msg.subject}</div>}
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">{msg.body || '(no content)'}</div>
+                      <div className="text-xs mt-1 opacity-50">
+                        {msg.activity_at ? new Date(msg.activity_at).toLocaleString() : ''}
+                        {msg.channel && ` · ${msg.channel}`}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Original reply */}
         <div className="space-y-2">
           <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Original Reply</h4>
           <div className="p-4 bg-neutral-50 rounded-xl">
-            <div className="text-sm font-medium text-neutral-700 mb-2">
-              {reply.email_subject || '(no subject)'}
-            </div>
-            <div className="text-sm text-neutral-600 whitespace-pre-wrap">
-              {reply.email_body || reply.reply_text || '(empty)'}
-            </div>
+            <div className="text-sm font-medium text-neutral-700 mb-2">{reply.email_subject || '(no subject)'}</div>
+            <div className="text-sm text-neutral-600 whitespace-pre-wrap">{reply.email_body || reply.reply_text || '(empty)'}</div>
           </div>
         </div>
 
-        {/* AI Classification reasoning */}
+        {/* AI Analysis */}
         {reply.classification_reasoning && (
           <div className="space-y-2">
             <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">AI Analysis</h4>
@@ -1516,50 +523,17 @@ function ReplyDetailPanel({ reply, onClose, onCopyDraft, onResend }: ReplyDetail
             </div>
           </div>
         )}
-        
-        {/* Prompt Used - Link to debug */}
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Prompt Used</h4>
-          <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200">
-            <div className="text-sm text-neutral-600 mb-2">
-              Classification: <span className="font-medium">Default Classification</span>
-            </div>
-            {reply.draft_reply && (
-              <div className="text-sm text-neutral-600 mb-3">
-                Reply Generation: <span className="font-medium">Default Reply</span>
-              </div>
-            )}
-            <a 
-              href={`/prompt-debug?input=${encodeURIComponent(reply.email_body || reply.reply_text || '')}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-violet-100 text-violet-700 rounded-lg hover:bg-violet-200 transition-colors"
-            >
-              <Zap className="w-3.5 h-3.5" />
-              Debug & Refine Prompt
-            </a>
-          </div>
-        </div>
 
         {/* Draft reply */}
         {reply.draft_reply && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Suggested Draft</h4>
-              <button onClick={onCopyDraft} className="btn btn-secondary btn-sm">
-                <Copy className="w-3 h-3" />
-                Copy
-              </button>
+              <button onClick={onCopyDraft} className="btn btn-secondary btn-sm"><Copy className="w-3 h-3" />Copy</button>
             </div>
             <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-              {reply.draft_subject && (
-                <div className="text-sm font-medium text-emerald-800 mb-2">
-                  {reply.draft_subject}
-                </div>
-              )}
-              <div className="text-sm text-emerald-700 whitespace-pre-wrap">
-                {reply.draft_reply}
-              </div>
+              {reply.draft_subject && <div className="text-sm font-medium text-emerald-800 mb-2">{reply.draft_subject}</div>}
+              <div className="text-sm text-emerald-700 whitespace-pre-wrap">{reply.draft_reply}</div>
             </div>
           </div>
         )}
@@ -1567,1197 +541,45 @@ function ReplyDetailPanel({ reply, onClose, onCopyDraft, onResend }: ReplyDetail
         {/* Metadata */}
         <div className="space-y-2">
           <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Info</h4>
-          <div className="text-sm space-y-2 text-neutral-600">
-            <div className="flex justify-between">
-              <span>Campaign:</span>
-              <span className="font-medium">{reply.campaign_name || reply.campaign_id || 'Unknown'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Received:</span>
-              <span className="font-medium">
-                {reply.received_at ? new Date(reply.received_at).toLocaleString() : 'Unknown'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>Processed:</span>
-              <span className="font-medium">
-                {new Date(reply.processed_at).toLocaleString()}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>Slack:</span>
-              <span className={cn("font-medium", reply.sent_to_slack ? "text-emerald-600" : "text-neutral-400")}>
-                {reply.sent_to_slack ? 'Sent' : 'Not sent'}
-              </span>
-            </div>
+          <div className="text-sm space-y-1.5 text-neutral-600">
+            <div className="flex justify-between"><span>Campaign:</span><span className="font-medium">{reply.campaign_name || reply.campaign_id || 'Unknown'}</span></div>
+            <div className="flex justify-between"><span>Received:</span><span className="font-medium">{reply.received_at ? new Date(reply.received_at).toLocaleString() : 'Unknown'}</span></div>
+            <div className="flex justify-between"><span>Processed:</span><span className="font-medium">{new Date(reply.processed_at).toLocaleString()}</span></div>
           </div>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="p-4 border-t border-neutral-200 flex gap-2">
-        {reply.draft_reply && (
-          <button onClick={onCopyDraft} className="btn btn-primary flex-1">
-            <Copy className="w-4 h-4" />
-            Copy Draft
-          </button>
+      {/* Actions footer */}
+      <div className="p-4 border-t border-neutral-200 space-y-2">
+        {reply.approval_status === 'approved' && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700 font-medium">
+            <CheckCircle className="w-4 h-4" />Reply sent
+            {reply.approved_at && <span className="text-xs text-emerald-500 ml-auto">{new Date(reply.approved_at).toLocaleString()}</span>}
+          </div>
         )}
-        {!reply.sent_to_slack && (
-          <button onClick={onResend} className="btn btn-secondary flex-1">
-            <Send className="w-4 h-4" />
-            Send to Slack
-          </button>
+        {reply.approval_status === 'approved_dry_run' && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 font-medium">
+            <CheckCircle className="w-4 h-4" />Approved (dry run)
+          </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-// Create Automation Modal - Chat-Style 4-Step Wizard
-interface CreateAutomationModalProps {
-  campaigns: SmartleadCampaign[];
-  campaignsLoading: boolean;
-  smartleadError: string | null;
-  onClose: () => void;
-  onCreated: () => void;
-  onRetryCampaigns: () => void;
-  initialSelectedCampaigns?: string[];
-}
-
-// Step indicator component
-function WizardSteps({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
-  const stepNames = ['Campaigns', 'Google Sheet', 'Slack', 'Review'];
-
-  return (
-    <div className="flex items-center justify-center gap-1 px-4 py-2 bg-neutral-50">
-      {Array.from({ length: totalSteps }).map((_, i) => {
-        const stepNum = i + 1;
-        const isComplete = stepNum < currentStep;
-        const isCurrent = stepNum === currentStep;
-        return (
-          <div key={stepNum} className="flex items-center gap-1">
-            <div className={cn(
-              "w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors",
-              isComplete && "bg-emerald-500 text-white",
-              isCurrent && "bg-violet-600 text-white",
-              !isComplete && !isCurrent && "bg-neutral-200 text-neutral-500"
-            )}>
-              {isComplete ? <Check className="w-4 h-4" /> : stepNum}
-            </div>
-            <span className={cn(
-              "text-xs hidden sm:block",
-              isCurrent && "text-violet-600 font-medium",
-              !isCurrent && "text-neutral-400"
-            )}>
-              {stepNames[i]}
-            </span>
-            {stepNum < totalSteps && (
-              <div className={cn(
-                "w-6 h-0.5 mx-1",
-                stepNum < currentStep ? "bg-emerald-500" : "bg-neutral-200"
-              )} />
-            )}
+        {reply.approval_status === 'dismissed' && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-500 font-medium">
+            <XCircle className="w-4 h-4" />Skipped
           </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function CreateAutomationModal({ 
-  campaigns, 
-  campaignsLoading, 
-  smartleadError,
-  onClose, 
-  onCreated,
-  onRetryCampaigns,
-  initialSelectedCampaigns = []
-}: CreateAutomationModalProps) {
-  const [step, setStep] = useState(1);
-  const TOTAL_STEPS = 4;
-  
-  // Step 1: Campaign selection
-  const [name, setName] = useState('');
-  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>(initialSelectedCampaigns);
-  
-  // Auto-select initial campaigns and set name when they become available
-  useEffect(() => {
-    if (initialSelectedCampaigns.length > 0) {
-      // Set name immediately for test flow
-      const now = new Date();
-      const day = String(now.getDate()).padStart(2, '0');
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      setName(`Demo reply automation ${day}/${month}`);
-    }
-  }, [initialSelectedCampaigns]);
-  
-  useEffect(() => {
-    if (initialSelectedCampaigns.length > 0 && campaigns.length > 0 && selectedCampaigns.length === 0) {
-      // Find and select matching campaign
-      const matchingIds = initialSelectedCampaigns.filter(id => 
-        campaigns.some(c => c.id === id)
-      );
-      if (matchingIds.length > 0) {
-        setSelectedCampaigns(matchingIds);
-      }
-    }
-  }, [campaigns, initialSelectedCampaigns]);
-  const [searchCampaigns, setSearchCampaigns] = useState('');
-  
-  // Fetch Slack channels when entering step 3
-  useEffect(() => {
-    if (step === 3 && slackChannels.length === 0 && !loadingSlackChannels) {
-      setLoadingSlackChannels(true);
-      repliesApi.getSlackChannels()
-        .then(res => {
-          if (res.channels) {
-            setSlackChannels(res.channels.map(c => ({ id: c.id, name: c.name })));
-          }
-        })
-        .catch(err => console.error('Failed to load Slack channels:', err))
-        .finally(() => setLoadingSlackChannels(false));
-    }
-  }, [step]);
-
-  // Step 2: Google Sheets
-  const [createGoogleSheet, setCreateGoogleSheet] = useState(true);
-  const [useExistingSheet, setUseExistingSheet] = useState(false);
-  const [existingSheetUrl, setExistingSheetUrl] = useState('');
-  const [shareSheetEmail, setShareSheetEmail] = useState('');
-  const [sheetsStatus, setSheetsStatus] = useState<GoogleSheetsStatus | null>(null);
-  const [loadingSheetsStatus, setLoadingSheetsStatus] = useState(false);
-  
-  // Step 3: Slack
-  // Removed: webhook not needed when using channel selection
-  const [slackChannel, setSlackChannel] = useState('');
-  const [slackChannels, setSlackChannels] = useState<Array<{id: string, name: string}>>([]);
-  const [slackSearch, setSlackSearch] = useState('');
-  const [showChannelDropdown, setShowChannelDropdown] = useState(false);
-  const [loadingSlackChannels, setLoadingSlackChannels] = useState(false);
-  const [newChannelName, setNewChannelName] = useState('');
-  const [creatingChannel, setCreatingChannel] = useState(false);
-  const [testingChannel, setTestingChannel] = useState(false);
-  const [testResult, setTestResult] = useState<{success: boolean; message: string} | null>(null);
-  
-  // Step 4: Review settings
-  const [autoClassify, setAutoClassify] = useState(true);
-  const [autoGenerateReply, setAutoGenerateReply] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  
-  // Prompt templates
-  const [classificationTemplate, setClassificationTemplate] = useState<string>('default');
-  const [replyTemplate, setReplyTemplate] = useState<string>('default');
-  const [customClassificationPrompt, setCustomClassificationPrompt] = useState('');
-  const [customReplyPrompt, setCustomReplyPrompt] = useState('');
-  const [promptTemplates, setPromptTemplates] = useState<Array<{id: number, name: string, prompt_type?: string, is_default?: boolean}>>([]);
-
-  // Load Google Sheets status when entering step 2
-  useEffect(() => {
-    if (step === 2 && !sheetsStatus && !loadingSheetsStatus) {
-      setLoadingSheetsStatus(true);
-      repliesApi.getGoogleSheetsStatus()
-        .then(setSheetsStatus)
-        .catch(err => {
-          console.error('Failed to get Google Sheets status:', err);
-          setSheetsStatus({ configured: false, service_account_email: null, message: 'Failed to check status' });
-        })
-        .finally(() => setLoadingSheetsStatus(false));
-    }
-  }, [step, sheetsStatus, loadingSheetsStatus]);
-
-  // Load prompt templates when entering step 4
-  useEffect(() => {
-    if (step === 4 && promptTemplates.length === 0) {
-      fetch('/api/replies/prompt-templates')
-        .then(res => res.json())
-        .then(data => setPromptTemplates(data.templates || []))
-        .catch(err => console.error('Failed to load templates', err));
-    }
-  }, [step, promptTemplates.length]);
-
-  const filteredCampaigns = campaigns.filter(c => 
-    c.name?.toLowerCase().includes(searchCampaigns.toLowerCase()) ||
-    String(c.id || "").toLowerCase().includes(searchCampaigns.toLowerCase())
-  );
-
-  const handleCreate = async () => {
-    if (!name || selectedCampaigns.length === 0) return;
-    
-    setIsCreating(true);
-    try {
-      // Handle custom prompts - auto-save as templates
-      let finalClassificationPrompt: string | undefined;
-      let finalReplyPrompt: string | undefined;
-      
-      if (autoClassify && classificationTemplate === 'custom' && customClassificationPrompt) {
-        const now = new Date();
-        const templateName = `Classification ${now.toLocaleDateString('en-GB')} ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
-        try {
-          await fetch('/api/replies/prompt-templates', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: templateName,
-              
-              prompt_text: customClassificationPrompt,
-              is_default: false
-            })
-          });
-        } catch (e) {
-          console.error('Failed to save classification template', e);
-        }
-        finalClassificationPrompt = customClassificationPrompt;
-      }
-      
-      if (autoGenerateReply && replyTemplate === 'custom' && customReplyPrompt) {
-        const now = new Date();
-        const templateName = `Reply ${now.toLocaleDateString('en-GB')} ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
-        try {
-          await fetch('/api/replies/prompt-templates', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: templateName,
-              
-              prompt_text: customReplyPrompt,
-              is_default: false
-            })
-          });
-        } catch (e) {
-          console.error('Failed to save reply template', e);
-        }
-        finalReplyPrompt = customReplyPrompt;
-      }
-
-      const data: ReplyAutomationCreate = {
-        name,
-        campaign_ids: selectedCampaigns,
-        slack_channel: slackChannel || undefined,
-        create_google_sheet: createGoogleSheet && !useExistingSheet,
-        google_sheet_id: useExistingSheet ? extractSheetId(existingSheetUrl) : undefined,
-        google_sheet_name: useExistingSheet ? createSheetNameWithGid(existingSheetUrl) || 'Existing Sheet' : undefined,
-        share_sheet_with_email: shareSheetEmail || undefined,
-        auto_classify: autoClassify,
-        auto_generate_reply: autoGenerateReply,
-        classification_prompt: finalClassificationPrompt,
-        reply_prompt: finalReplyPrompt,
-        active: true,
-      };
-      
-      await repliesApi.createAutomation(data);
-      onCreated();
-    } catch (err: any) {
-      console.error('Failed to create automation:', err);
-      const errorMsg = err?.response?.data?.detail || err?.message || 'Unknown error';
-      alert(`Failed to create automation: ${errorMsg}`);
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-
-
-  const handleCreateChannel = async () => {
-    if (!newChannelName) return;
-    setCreatingChannel(true);
-    setTestResult(null);
-    try {
-      const result = await repliesApi.createSlackChannel(newChannelName);
-      if (result.channel) {
-        const ch = result.channel;
-        setSlackChannels(prev => [...prev, { id: ch.id, name: ch.name }]);
-        setSlackChannel(ch.id);
-        setNewChannelName('');
-        setTestResult({ success: true, message: `Channel #${ch.name} created!` });
-      }
-    } catch (err: any) {
-      setTestResult({ success: false, message: err.response?.data?.detail || 'Failed to create channel' });
-    } finally {
-      setCreatingChannel(false);
-    }
-  };
-
-  const handleTestSlackChannel = async () => {
-    if (!slackChannel) return;
-    setTestingChannel(true);
-    setTestResult(null);
-    try {
-      const result = await repliesApi.testSlackChannel(slackChannel);
-      setTestResult(result);
-    } catch (err: any) {
-      setTestResult({ success: false, message: err.response?.data?.detail || 'Failed to send test message' });
-    } finally {
-      setTestingChannel(false);
-    }
-  };
-
-  const canProceed = () => {
-    switch (step) {
-      case 1: return name.trim() && selectedCampaigns.length > 0;
-      case 2: return true; // Optional step
-      case 3: return true; // Optional step
-      case 4: return true;
-      default: return false;
-    }
-  };
-
-  const getSelectedCampaignNames = () => {
-    return selectedCampaigns
-      .map(id => campaigns.find(c => c.id === id)?.name || id)
-      .slice(0, 3)
-      .join(', ') + (selectedCampaigns.length > 3 ? ` +${selectedCampaigns.length - 3} more` : '');
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-violet-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Create Reply Automation</h2>
-              <p className="text-sm text-neutral-500">Configure your automation</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Step indicator */}
-        <WizardSteps currentStep={step} totalSteps={TOTAL_STEPS} />
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-6">
-          {/* Step 1: Select Campaigns */}
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 mb-4">
-                <div className="flex items-start gap-3">
-                  <MessageSquare className="w-5 h-5 text-violet-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-violet-800 font-medium">Which campaigns should I monitor?</p>
-                    <p className="text-xs text-violet-600 mt-1">Select the Smartlead campaigns to track for incoming replies.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Automation Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g., Sales Campaign Replies"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="input w-full"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Select Campaigns
-                </label>
-                
-                {smartleadError ? (
-                  <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-red-700">{smartleadError}</p>
-                        <button 
-                          onClick={onRetryCampaigns}
-                          className="text-sm text-red-600 underline mt-2"
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : campaignsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <RefreshCw className="w-5 h-5 animate-spin text-neutral-400" />
-                    <span className="ml-2 text-sm text-neutral-500">Loading campaigns...</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="relative mb-2">
-                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                      <input
-                        type="text"
-                        placeholder="Search campaigns..."
-                        value={searchCampaigns}
-                        onChange={(e) => setSearchCampaigns(e.target.value)}
-                        className="input pl-9 w-full text-sm"
-                      />
-                    </div>
-                    
-                    <div className="border border-neutral-200 rounded-xl max-h-48 overflow-auto">
-                      {filteredCampaigns.length === 0 ? (
-                        <div className="p-4 text-center text-neutral-500 text-sm">
-                          No campaigns found
-                        </div>
-                      ) : (
-                        filteredCampaigns.map(campaign => (
-                          <label 
-                            key={campaign.id}
-                            className="flex items-center gap-3 p-3 hover:bg-neutral-50 cursor-pointer border-b border-neutral-100 last:border-b-0"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedCampaigns.includes(String(campaign.id))}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedCampaigns([...selectedCampaigns, String(campaign.id)]);
-                                } else {
-                                  setSelectedCampaigns(selectedCampaigns.filter(id => id !== String(campaign.id)));
-                                }
-                              }}
-                              className="rounded text-violet-600"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium truncate">{campaign.name || campaign.id}</div>
-                              {campaign.status && (
-                                <div className="text-xs text-neutral-400">{campaign.status}</div>
-                              )}
-                            </div>
-                          </label>
-                        ))
-                      )}
-                    </div>
-                    {selectedCampaigns.length > 0 && (
-                      <div className="text-sm text-violet-600 mt-2 font-medium">
-                        {selectedCampaigns.length} campaign{selectedCampaigns.length !== 1 ? 's' : ''} selected
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Google Sheets */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mb-4">
-                <div className="flex items-start gap-3">
-                  <FileSpreadsheet className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-emerald-800 font-medium">Want to log replies to a Google Sheet?</p>
-                    <p className="text-xs text-emerald-600 mt-1">I can create a new sheet and automatically log every reply for you.</p>
-                  </div>
-                </div>
-              </div>
-
-              {loadingSheetsStatus ? (
-                <div className="flex items-center justify-center py-8">
-                  <RefreshCw className="w-5 h-5 animate-spin text-neutral-400" />
-                  <span className="ml-2 text-sm text-neutral-500">Checking Google Sheets status...</span>
-                </div>
-              ) : !sheetsStatus?.configured ? (
-                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-amber-800 font-medium">Google Sheets not configured</p>
-                      <p className="text-xs text-amber-600 mt-1">
-                        {sheetsStatus?.message || 'Set up service account credentials to enable this feature.'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Choice cards */}
-                  <div 
-                    onClick={() => { setCreateGoogleSheet(true); setUseExistingSheet(false); }}
-                    className={cn(
-                      "p-4 rounded-xl border-2 cursor-pointer transition-all",
-                      createGoogleSheet 
-                        ? "border-emerald-500 bg-emerald-50" 
-                        : "border-neutral-200 hover:border-emerald-300"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                        createGoogleSheet ? "border-emerald-500 bg-emerald-500" : "border-neutral-300"
-                      )}>
-                        {createGoogleSheet && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-neutral-900">Create new Google Sheet</p>
-                        <p className="text-xs text-neutral-500 mt-0.5">Automatically log all replies to a spreadsheet</p>
-                      </div>
-                      <FileSpreadsheet className="w-5 h-5 text-emerald-500" />
-                    </div>
-                  </div>
-
-                  {/* Use existing sheet option */}
-                  <div 
-                    onClick={() => { setCreateGoogleSheet(false); setUseExistingSheet(true); }}
-                    className={cn(
-                      "p-4 rounded-xl border-2 cursor-pointer transition-all",
-                      useExistingSheet 
-                        ? "border-blue-500 bg-blue-50" 
-                        : "border-neutral-200 hover:border-blue-300"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                        useExistingSheet ? "border-blue-500 bg-blue-500" : "border-neutral-300"
-                      )}>
-                        {useExistingSheet && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-neutral-900">Use existing Google Sheet</p>
-                        <p className="text-xs text-neutral-500 mt-0.5">Paste a sheet URL to log replies there</p>
-                      </div>
-                      <FileSpreadsheet className="w-5 h-5 text-blue-500" />
-                    </div>
-                  </div>
-
-                  {/* Existing sheet URL input */}
-                  {useExistingSheet && (
-                    <div className="mt-4 p-4 bg-blue-50 rounded-xl">
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">
-                        Google Sheet URL or ID
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="https://docs.google.com/spreadsheets/d/..."
-                        value={existingSheetUrl}
-                        onChange={(e) => setExistingSheetUrl(e.target.value)}
-                        className="input w-full text-sm"
-                      />
-                      <p className="text-xs text-neutral-400 mt-1">
-                        Paste the full URL or just the sheet ID
-                      </p>
-                      {existingSheetUrl && (
-                        <p className="text-xs text-blue-600 mt-2">
-                          Sheet ID: {extractSheetId(existingSheetUrl)}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-
-
-                  {/* Share email input - only show if creating sheet */}
-                  {createGoogleSheet && (
-                    <div className="mt-4 p-4 bg-neutral-50 rounded-xl">
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">
-                        Share sheet with (optional)
-                      </label>
-                      <input
-                        type="email"
-                        placeholder="team@yourcompany.com"
-                        value={shareSheetEmail}
-                        onChange={(e) => setShareSheetEmail(e.target.value)}
-                        className="input w-full text-sm"
-                      />
-                      <p className="text-xs text-neutral-400 mt-1">
-                        The sheet will be shared with editor access
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step 3: Slack */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4">
-                <div className="flex items-start gap-3">
-                  <Bell className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-blue-800 font-medium">Where should I send notifications?</p>
-                    <p className="text-xs text-blue-600 mt-1">Get instant Slack alerts when new replies come in with approve/reject buttons.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Channel Selection with Search */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Select Slack Channel
-                </label>
-                {loadingSlackChannels ? (
-                  <div className="text-sm text-neutral-500 py-2">Loading channels...</div>
-                ) : (
-                  <div className="relative">
-                    <div className="relative">
-                      <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                      <input
-                        type="text"
-                        placeholder="Search channels..."
-                        value={slackSearch || (slackChannel ? slackChannels.find(c => c.id === slackChannel)?.name || '' : '')}
-                        onChange={(e) => { setSlackSearch(e.target.value); setShowChannelDropdown(true); }}
-                        onFocus={() => setShowChannelDropdown(true)}
-                        className="input pl-9 w-full"
-                      />
-                    </div>
-                    {showChannelDropdown && (
-                      <>
-                      <div className="fixed inset-0 z-[5]" onClick={() => setShowChannelDropdown(false)} />
-                      <div className="absolute z-10 mt-1 w-full bg-white border border-neutral-200 rounded-xl shadow-lg max-h-48 overflow-auto">
-                        {slackChannels
-                          .filter(ch => !slackSearch || ch.name.toLowerCase().includes(slackSearch.toLowerCase()))
-                          .map(ch => (
-                            <div
-                              key={ch.id}
-                              onClick={() => { setSlackChannel(ch.id); setSlackSearch(''); setShowChannelDropdown(false); }}
-                              className={cn(
-                                "px-4 py-2 cursor-pointer hover:bg-neutral-50 flex items-center gap-2",
-                                slackChannel === ch.id && "bg-violet-50 text-violet-700"
-                              )}
-                            >
-                              <Hash className="w-3 h-3" />
-                              {ch.name}
-                              {slackChannel === ch.id && <Check className="w-4 h-4 ml-auto" />}
-                            </div>
-                          ))}
-                        {slackChannels.filter(ch => !slackSearch || ch.name.toLowerCase().includes(slackSearch.toLowerCase())).length === 0 && (
-                          <div className="px-4 py-2 text-sm text-neutral-500">No channels found</div>
-                        )}
-                      </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Create New Channel */}
-              <div className="border-t border-neutral-100 pt-4">
-                <p className="text-sm font-medium text-neutral-700 mb-2">Or create a new channel</p>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                    <input
-                      type="text"
-                      placeholder="new-channel-name"
-                      value={newChannelName}
-                      onChange={(e) => setNewChannelName(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, "-"))}
-                      className="input pl-9 w-full"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCreateChannel}
-                    disabled={!newChannelName || creatingChannel}
-                    className="btn btn-secondary whitespace-nowrap"
-                  >
-                    {creatingChannel ? "Creating..." : "Create Channel"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Test Message */}
-              {slackChannel && (
-                <div className="border-t border-neutral-100 pt-4">
-                  <button
-                    type="button"
-                    onClick={handleTestSlackChannel}
-                    disabled={testingChannel}
-                    className="btn btn-secondary w-full"
-                  >
-                    {testingChannel ? "Sending..." : "Send Test Message"}
-                  </button>
-                </div>
-              )}
-
-              {/* Test Result */}
-              {testResult && (
-                <div className={cn(
-                  "p-3 rounded-xl text-sm flex items-center gap-2",
-                  testResult.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                )}>
-                  {testResult.success ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                  {testResult.message}
-                </div>
-              )}
-
-              {!slackChannel && (
-                <div className="p-3 bg-neutral-50 rounded-xl">
-                  <p className="text-xs text-neutral-500">
-                    <strong>Tip:</strong> You can skip this step and add Slack later. Replies will still be classified and stored.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step 4: Review & Activate */}
-          {step === 4 && (
-            <div className="space-y-4">
-              <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 mb-4">
-                <div className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-violet-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-violet-800 font-medium">Ready to activate!</p>
-                    <p className="text-xs text-violet-600 mt-1">Review your settings and create the automation.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Summary */}
-              <div className="border border-neutral-200 rounded-xl divide-y divide-neutral-100">
-                <div className="p-4">
-                  <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Name</div>
-                  <div className="font-medium">{name}</div>
-                </div>
-                <div className="p-4">
-                  <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Campaigns</div>
-                  <div className="font-medium text-sm">{getSelectedCampaignNames()}</div>
-                </div>
-                <div className="p-4 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Google Sheet</div>
-                    <div className="font-medium">{createGoogleSheet ? 'Create new sheet' : 'Not configured'}</div>
-                  </div>
-                  <FileSpreadsheet className={cn("w-5 h-5", createGoogleSheet ? "text-emerald-500" : "text-neutral-300")} />
-                </div>
-                <div className="p-4 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Slack Notifications</div>
-                    <div className="font-medium">{slackChannel ? `#${slackChannels.find(c => c.id === slackChannel)?.name || slackChannel}` : "Not configured"}</div>
-                  </div>
-                  <Bell className={cn("w-5 h-5", slackChannel ? "text-blue-500" : "text-neutral-300")} />
-                </div>
-              </div>
-
-              {/* AI Features toggles */}
-              <div className="space-y-2">
-                <p className="text-xs text-neutral-500 uppercase tracking-wide">AI Features</p>
-                <label className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-amber-500" />
-                    <span className="text-sm font-medium">Auto-classify replies</span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={autoClassify}
-                    onChange={(e) => setAutoClassify(e.target.checked)}
-                    className="rounded text-violet-600"
-                  />
-                </label>
-                
-                <label className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-cyan-500" />
-                    <span className="text-sm font-medium">Generate draft replies</span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={autoGenerateReply}
-                    onChange={(e) => setAutoGenerateReply(e.target.checked)}
-                    className="rounded text-violet-600"
-                  />
-                </label>
-              </div>
-
-              {/* Prompt Templates */}
-              {(autoClassify || autoGenerateReply) && (
-                <div className="space-y-3 mt-4 pt-4 border-t border-neutral-100">
-                  <p className="text-xs text-neutral-500 uppercase tracking-wide">Prompt Templates</p>
-                  <p className="text-xs text-neutral-400">Select existing or paste custom prompts (auto-saved)</p>
-                  
-                  {autoClassify && (
-                    <div className="p-3 bg-neutral-50 rounded-xl">
-                      <label className="block text-xs font-medium text-neutral-600 mb-2">Classification Prompt</label>
-                      <select
-                        value={classificationTemplate}
-                        onChange={(e) => setClassificationTemplate(e.target.value)}
-                        className="input w-full text-sm mb-2"
-                      >
-                        <option value="default">Default Classification</option>
-                        {promptTemplates.filter(t => !t.is_default).map(t => (
-                          <option key={t.id} value={String(t.id)}>{t.name}</option>
-                        ))}
-                        <option value="custom">Custom (paste below)</option>
-                      </select>
-                      {classificationTemplate === 'custom' && (
-                        <textarea
-                          value={customClassificationPrompt}
-                          onChange={(e) => setCustomClassificationPrompt(e.target.value)}
-                          placeholder="Paste your classification prompt..."
-                          className="w-full h-20 p-2 text-xs border border-neutral-200 rounded-lg resize-none"
-                        />
-                      )}
-                    </div>
-                  )}
-                  
-                  {autoGenerateReply && (
-                    <div className="p-3 bg-neutral-50 rounded-xl">
-                      <label className="block text-xs font-medium text-neutral-600 mb-2">Reply Prompt</label>
-                      <select
-                        value={replyTemplate}
-                        onChange={(e) => setReplyTemplate(e.target.value)}
-                        className="input w-full text-sm mb-2"
-                      >
-                        <option value="default">Default Reply</option>
-                        {promptTemplates.filter(t => !t.is_default).map(t => (
-                          <option key={t.id} value={String(t.id)}>{t.name}</option>
-                        ))}
-                        <option value="custom">Custom (paste below)</option>
-                      </select>
-                      {replyTemplate === 'custom' && (
-                        <textarea
-                          value={customReplyPrompt}
-                          onChange={(e) => setCustomReplyPrompt(e.target.value)}
-                          placeholder="Paste your reply prompt..."
-                          className="w-full h-20 p-2 text-xs border border-neutral-200 rounded-lg resize-none"
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-neutral-200 flex gap-3">
-          {step > 1 && (
-            <button 
-              onClick={() => setStep(s => s - 1)}
-              className="btn btn-secondary"
-            >
-              Back
+        )}
+        <div className="flex gap-2">
+          {(!reply.approval_status || reply.approval_status === 'pending') && reply.draft_reply && (
+            <button onClick={onApprove} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold transition-colors">
+              <CheckCircle className="w-4 h-4" />Approve & Send
             </button>
           )}
-          <div className="flex-1" />
-          {step < TOTAL_STEPS ? (
-            <button 
-              onClick={() => setStep(s => s + 1)}
-              disabled={!canProceed()}
-              className="btn btn-primary"
-            >
-              Continue
-            </button>
-          ) : (
-            <button 
-              onClick={handleCreate}
-              disabled={isCreating}
-              className="btn btn-primary"
-            >
-              {isCreating ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4" />
-                  Activate Automation
-                </>
-              )}
+          {(!reply.approval_status || reply.approval_status === 'pending') && (
+            <button onClick={onDismiss} className="flex items-center justify-center gap-2 px-4 py-2.5 border border-neutral-200 hover:border-red-300 hover:text-red-600 text-neutral-500 rounded-lg font-medium transition-colors">
+              <XCircle className="w-4 h-4" />Skip
             </button>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Test Reply Modal
-interface TestReplyModalProps {
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-function TestReplyModal({ onClose, onSuccess }: TestReplyModalProps) {
-  const [formData, setFormData] = useState<SimulateReplyPayload>({
-    lead_email: 'test@example.com',
-    first_name: 'John',
-    last_name: 'Doe',
-    company_name: 'Acme Corp',
-    email_subject: 'Re: Your offer',
-    email_body: "I'm interested in learning more about your services. Could you tell me more about pricing?"
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<SimulateReplyResponse | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.lead_email || !formData.email_body) return;
-
-    setIsSubmitting(true);
-    setResult(null);
-    
-    try {
-      const response = await repliesApi.simulateReply(formData);
-      setResult(response);
-    } catch (err: any) {
-      setResult({ 
-        success: false, 
-        error: err.response?.data?.detail || err.message || 'Failed to simulate reply'
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const categoryConfig = result?.category ? CATEGORY_CONFIG[result.category] : null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center">
-              <TestTube2 className="w-5 h-5 text-cyan-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Test Reply Classification</h2>
-              <p className="text-sm text-neutral-500">Simulate an incoming email reply</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  value={formData.lead_email}
-                  onChange={(e) => setFormData(prev => ({ ...prev, lead_email: e.target.value }))}
-                  className="input w-full"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Company
-                </label>
-                <input
-                  type="text"
-                  value={formData.company_name || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
-                  className="input w-full"
-                />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  First Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.first_name || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, first_name: e.target.value }))}
-                  className="input w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Last Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.last_name || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, last_name: e.target.value }))}
-                  className="input w-full"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Subject
-              </label>
-              <input
-                type="text"
-                value={formData.email_subject || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, email_subject: e.target.value }))}
-                className="input w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Reply Body *
-              </label>
-              <textarea
-                value={formData.email_body}
-                onChange={(e) => setFormData(prev => ({ ...prev, email_body: e.target.value }))}
-                className="input w-full h-32 resize-none"
-                placeholder="Enter the email reply text to classify..."
-                required
-              />
-            </div>
-
-            {/* Quick test examples */}
-            <div className="flex flex-wrap gap-2">
-              <span className="text-xs text-neutral-500">Quick tests:</span>
-              <button
-                type="button"
-                onClick={() => setFormData(prev => ({ 
-                  ...prev, 
-                  email_body: "I'm interested in learning more about your services. Could you send me pricing information?"
-                }))}
-                className="text-xs px-2 py-1 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100"
-              >
-                Interested
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData(prev => ({ 
-                  ...prev, 
-                  email_body: "Can we schedule a call this week? I'd like to discuss this further."
-                }))}
-                className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
-              >
-                Meeting Request
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData(prev => ({ 
-                  ...prev, 
-                  email_body: "Thanks for reaching out, but we're not interested at this time."
-                }))}
-                className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100"
-              >
-                Not Interested
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData(prev => ({ 
-                  ...prev, 
-                  email_body: "I'm currently out of the office until next Monday. I'll respond when I return."
-                }))}
-                className="text-xs px-2 py-1 bg-amber-50 text-amber-600 rounded hover:bg-amber-100"
-              >
-                Out of Office
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData(prev => ({ 
-                  ...prev, 
-                  email_body: "Please remove me from your mailing list. Unsubscribe."
-                }))}
-                className="text-xs px-2 py-1 bg-neutral-100 text-neutral-600 rounded hover:bg-neutral-200"
-              >
-                Unsubscribe
-              </button>
-            </div>
-
-            <button 
-              type="submit"
-              disabled={isSubmitting || !formData.email_body}
-              className="btn btn-primary w-full"
-            >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <TestTube2 className="w-4 h-4" />
-                  Classify Reply
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Results */}
-          {result && (
-            <div className="mt-6 space-y-4">
-              <div className="border-t border-neutral-200 pt-4">
-                <h3 className="font-semibold text-neutral-900 mb-3">Classification Result</h3>
-                
-                {result.success ? (
-                  <div className="space-y-4">
-                    {/* Category badge */}
-                    <div className="flex items-center gap-3">
-                      <span className={cn(
-                        "px-3 py-1.5 rounded-full text-sm font-medium border",
-                        categoryConfig?.color || 'bg-neutral-100'
-                      )}>
-                        {categoryConfig?.emoji} {categoryConfig?.label || result.category}
-                      </span>
-                      <span className="text-sm text-neutral-500">
-                        {result.confidence} confidence
-                      </span>
-                    </div>
-
-                    {/* Reasoning */}
-                    {result.reasoning && (
-                      <div className="p-3 bg-violet-50 rounded-xl border border-violet-100">
-                        <div className="text-xs font-medium text-violet-600 mb-1">AI Reasoning</div>
-                        <div className="text-sm text-violet-800">{result.reasoning}</div>
-                      </div>
-                    )}
-
-                    {/* Draft reply */}
-                    {result.draft_reply && (
-                      <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                        <div className="text-xs font-medium text-emerald-600 mb-1">Suggested Draft</div>
-                        {result.draft_subject && (
-                          <div className="text-sm font-medium text-emerald-800 mb-1">{result.draft_subject}</div>
-                        )}
-                        <div className="text-sm text-emerald-700 whitespace-pre-wrap">{result.draft_reply}</div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between text-sm text-neutral-500">
-                      <span>Reply ID: {result.reply_id}</span>
-                      {result.sent_to_slack && (
-                        <span className="flex items-center gap-1 text-emerald-600">
-                          <Check className="w-3 h-3" />
-                          Sent to Slack
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <div className="font-medium text-red-700">Classification Failed</div>
-                        <div className="text-sm text-red-600">{result.error || result.message}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-neutral-200 flex gap-3">
-          <button onClick={onClose} className="btn btn-secondary flex-1">
-            Close
-          </button>
-          {result?.success && (
-            <button onClick={onSuccess} className="btn btn-primary flex-1">
-              View in Dashboard
-            </button>
+          {reply.draft_reply && (
+            <button onClick={onCopyDraft} className="btn btn-secondary flex-1"><Copy className="w-4 h-4" />Copy Draft</button>
           )}
         </div>
       </div>
