@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Target, Download, FileSpreadsheet, ArrowLeft,
   Loader2, AlertCircle, CheckCircle2, XCircle,
@@ -13,18 +14,10 @@ import {
   type SearchJobFullDetail,
   type SearchHistoryItem,
   type SearchResultItem,
+  type QueryItem,
   type DomainCampaignsMap,
   type DomainCampaignInfo,
 } from '../api/dataSearch';
-
-// Extend SearchQueryResponse if not exported
-interface QueryItem {
-  id: number;
-  query_text: string;
-  status: string;
-  domains_found: number;
-  pages_scraped?: number;
-}
 
 const statusColors: Record<string, string> = {
   completed: 'bg-green-100 text-green-800',
@@ -53,6 +46,24 @@ function JobHistoryView() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<{ items: SearchHistoryItem[]; total: number } | null>(null);
   const [page, setPage] = useState(1);
+  const [exportingTargets, setExportingTargets] = useState(false);
+
+  const handleExportTargets = async () => {
+    const projectId = data?.items?.[0]?.project_id;
+    if (!projectId) return;
+    setExportingTargets(true);
+    try {
+      const { sheet_url } = await projectSearchApi.exportToGoogleSheet(projectId, {
+        targets_only: true,
+        exclude_contacted: true,
+      });
+      window.open(sheet_url, '_blank');
+    } catch (err: any) {
+      alert(err.userMessage || 'Export failed');
+    } finally {
+      setExportingTargets(false);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!currentCompany) return;
@@ -105,6 +116,16 @@ function JobHistoryView() {
           <h1 className="text-2xl font-bold text-neutral-900">Search Results</h1>
           <p className="text-neutral-500 text-sm mt-1">View search job history, results, and spending</p>
         </div>
+        {data?.items?.[0]?.project_id && (
+          <button
+            onClick={handleExportTargets}
+            disabled={exportingTargets}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            {exportingTargets ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+            Export Targets
+          </button>
+        )}
       </div>
 
       {error && (
@@ -210,67 +231,239 @@ function JobHistoryView() {
   );
 }
 
-// ============ Job Detail View ============
+// ============ Job Detail View (virtualized) ============
+
+const RESULTS_PAGE_SIZE = 100;
+const QUERIES_PAGE_SIZE = 100;
 
 function JobDetailView({ jobId }: { jobId: number }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [job, setJob] = useState<SearchJobFullDetail | null>(null);
-  const [results, setResults] = useState<SearchResultItem[]>([]);
-  const [queries, setQueries] = useState<QueryItem[]>([]);
   const [tab, setTab] = useState<'results' | 'queries'>('results');
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [exportingSheet, setExportingSheet] = useState(false);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
-  const [domainCampaigns, setDomainCampaigns] = useState<DomainCampaignsMap>({});
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Results page cache
+  const [resultPages, setResultPages] = useState<Map<number, SearchResultItem[]>>(new Map());
+  const [totalResults, setTotalResults] = useState(0);
+  const [loadingResultPages, setLoadingResultPages] = useState<Set<number>>(new Set());
+
+  // Queries page cache
+  const [queryPages, setQueryPages] = useState<Map<number, QueryItem[]>>(new Map());
+  const [totalQueries, setTotalQueries] = useState(0);
+  const [loadingQueryPages, setLoadingQueryPages] = useState<Set<number>>(new Set());
+
+  // Domain campaigns — loaded progressively
+  const [domainCampaigns, setDomainCampaigns] = useState<DomainCampaignsMap>({});
+  const campaignFetchedRef = useRef<Set<string>>(new Set());
+  const campaignTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Virtual scroll refs
+  const resultsParentRef = useRef<HTMLDivElement>(null);
+  const queriesParentRef = useRef<HTMLDivElement>(null);
+
+  // Resolve a result by absolute index from page cache
+  const getResultByIndex = useCallback((index: number): SearchResultItem | null => {
+    const pageNum = Math.floor(index / RESULTS_PAGE_SIZE) + 1;
+    const pageItems = resultPages.get(pageNum);
+    if (!pageItems) return null;
+    return pageItems[index % RESULTS_PAGE_SIZE] ?? null;
+  }, [resultPages]);
+
+  // Resolve a query by absolute index from page cache
+  const getQueryByIndex = useCallback((index: number): QueryItem | null => {
+    const pageNum = Math.floor(index / QUERIES_PAGE_SIZE) + 1;
+    const pageItems = queryPages.get(pageNum);
+    if (!pageItems) return null;
+    return pageItems[index % QUERIES_PAGE_SIZE] ?? null;
+  }, [queryPages]);
+
+  // Fetch a results page if not cached
+  const fetchResultPage = useCallback(async (pageNum: number, projectId: number) => {
+    if (resultPages.has(pageNum) || loadingResultPages.has(pageNum)) return;
+    setLoadingResultPages(prev => new Set(prev).add(pageNum));
+    try {
+      const data = await projectSearchApi.getProjectResults(projectId, {
+        jobId: jobId,
+        page: pageNum,
+        pageSize: RESULTS_PAGE_SIZE,
+      });
+      setResultPages(prev => new Map(prev).set(pageNum, data.items));
+      setTotalResults(data.total);
+    } catch (err) {
+      console.error(`Failed to load results page ${pageNum}:`, err);
+    } finally {
+      setLoadingResultPages(prev => {
+        const s = new Set(prev);
+        s.delete(pageNum);
+        return s;
+      });
+    }
+  }, [resultPages, loadingResultPages, jobId]);
+
+  // Fetch a queries page if not cached
+  const fetchQueryPage = useCallback(async (pageNum: number) => {
+    if (queryPages.has(pageNum) || loadingQueryPages.has(pageNum)) return;
+    setLoadingQueryPages(prev => new Set(prev).add(pageNum));
+    try {
+      const data = await projectSearchApi.getJobQueries(jobId, pageNum, QUERIES_PAGE_SIZE);
+      setQueryPages(prev => new Map(prev).set(pageNum, data.items));
+      setTotalQueries(data.total);
+    } catch (err) {
+      console.error(`Failed to load queries page ${pageNum}:`, err);
+    } finally {
+      setLoadingQueryPages(prev => {
+        const s = new Set(prev);
+        s.delete(pageNum);
+        return s;
+      });
+    }
+  }, [queryPages, loadingQueryPages, jobId]);
+
+  // Results virtualizer
+  const resultsVirtualizer = useVirtualizer({
+    count: totalResults,
+    getScrollElement: () => resultsParentRef.current,
+    estimateSize: () => 44,
+    overscan: 20,
+  });
+
+  // Queries virtualizer
+  const queriesVirtualizer = useVirtualizer({
+    count: totalQueries,
+    getScrollElement: () => queriesParentRef.current,
+    estimateSize: () => 40,
+    overscan: 20,
+  });
+
+  // Load job + stats + first page on mount
   useEffect(() => {
-    loadJob();
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      setResultPages(new Map());
+      setQueryPages(new Map());
+      setDomainCampaigns({});
+      campaignFetchedRef.current = new Set();
+      try {
+        // Parallel: job full + stats (if project-based we'll get stats)
+        const jobData = await projectSearchApi.getJobFull(jobId);
+        if (cancelled) return;
+        setJob(jobData);
+
+        // Load first page of results and queries in parallel
+        const promises: Promise<void>[] = [];
+        if (jobData.project_id) {
+          promises.push(
+            projectSearchApi.getProjectResults(jobData.project_id, {
+              jobId: jobId,
+              page: 1,
+              pageSize: RESULTS_PAGE_SIZE,
+            }).then(data => {
+              if (cancelled) return;
+              setResultPages(new Map([[1, data.items]]));
+              setTotalResults(data.total);
+            })
+          );
+          promises.push(
+            projectSearchApi.getProjectResultsStats(jobData.project_id, jobId).then(stats => {
+              if (cancelled) return;
+              setTotalResults(stats.total);
+            })
+          );
+        }
+        promises.push(
+          projectSearchApi.getJobQueries(jobId, 1, QUERIES_PAGE_SIZE).then(data => {
+            if (cancelled) return;
+            setQueryPages(new Map([[1, data.items]]));
+            setTotalQueries(data.total);
+          })
+        );
+        await Promise.all(promises);
+      } catch (err: any) {
+        if (!cancelled) setError(err.userMessage || 'Failed to load job details');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, [jobId]);
 
-  const loadJob = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [jobData, jobDetail] = await Promise.all([
-        projectSearchApi.getJobFull(jobId),
-        projectSearchApi.getSearchJobStatus(jobId),
-      ]);
-      setJob(jobData);
-      setQueries(jobDetail.queries || []);
+  // Fetch results pages for visible virtual items
+  useEffect(() => {
+    if (!job?.project_id || totalResults === 0) return;
+    const visibleItems = resultsVirtualizer.getVirtualItems();
+    if (visibleItems.length === 0) return;
 
-      // Load results if project-based
-      let loadedResults: SearchResultItem[] = [];
-      if (jobData.project_id) {
-        const resultData = await projectSearchApi.getProjectResults(jobData.project_id);
-        // Filter to only this job's results
-        const jobResults = resultData.filter(r => r.search_job_id === jobId);
-        loadedResults = jobResults.length > 0 ? jobResults : resultData;
-        setResults(loadedResults);
-      }
+    const neededPages = new Set<number>();
+    for (const item of visibleItems) {
+      neededPages.add(Math.floor(item.index / RESULTS_PAGE_SIZE) + 1);
+    }
+    for (const pageNum of neededPages) {
+      fetchResultPage(pageNum, job.project_id);
+    }
+  }, [resultsVirtualizer.getVirtualItems(), job?.project_id, totalResults, fetchResultPage]);
 
-      // Load domain-campaign data for all result domains
-      if (loadedResults.length > 0) {
-        const domains = [...new Set(loadedResults.map(r => r.domain).filter(Boolean))];
-        if (domains.length > 0) {
-          try {
-            const campaigns = await projectSearchApi.getDomainCampaigns(domains);
-            setDomainCampaigns(campaigns);
-          } catch (err) {
-            // Non-critical, just log
-            console.error('Failed to load domain campaigns:', err);
-          }
+  // Fetch query pages for visible virtual items
+  useEffect(() => {
+    if (totalQueries === 0) return;
+    const visibleItems = queriesVirtualizer.getVirtualItems();
+    if (visibleItems.length === 0) return;
+
+    const neededPages = new Set<number>();
+    for (const item of visibleItems) {
+      neededPages.add(Math.floor(item.index / QUERIES_PAGE_SIZE) + 1);
+    }
+    for (const pageNum of neededPages) {
+      fetchQueryPage(pageNum);
+    }
+  }, [queriesVirtualizer.getVirtualItems(), totalQueries, fetchQueryPage]);
+
+  // Viewport-driven domain campaign loading (debounced 200ms)
+  useEffect(() => {
+    if (tab !== 'results' || totalResults === 0) return;
+    if (campaignTimerRef.current) clearTimeout(campaignTimerRef.current);
+
+    campaignTimerRef.current = setTimeout(() => {
+      const visibleItems = resultsVirtualizer.getVirtualItems();
+      const domainsToFetch: string[] = [];
+
+      for (const vItem of visibleItems) {
+        const r = getResultByIndex(vItem.index);
+        if (!r?.domain) continue;
+        const d = r.domain.toLowerCase();
+        if (!campaignFetchedRef.current.has(d)) {
+          domainsToFetch.push(d);
+          campaignFetchedRef.current.add(d);
         }
       }
-    } catch (err: any) {
-      setError(err.userMessage || 'Failed to load job details');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const [showExportMenu, setShowExportMenu] = useState(false);
+      if (domainsToFetch.length > 0) {
+        projectSearchApi.getDomainCampaigns(domainsToFetch).then(campaigns => {
+          setDomainCampaigns(prev => ({ ...prev, ...campaigns }));
+        }).catch(err => {
+          console.error('Failed to load domain campaigns:', err);
+          // Remove from fetched so they can be retried
+          for (const d of domainsToFetch) campaignFetchedRef.current.delete(d);
+        });
+      }
+    }, 200);
+
+    return () => {
+      if (campaignTimerRef.current) clearTimeout(campaignTimerRef.current);
+    };
+  }, [resultsVirtualizer.getVirtualItems(), tab, totalResults, getResultByIndex]);
+
+  // Recalculate virtual sizes when expanded rows change
+  useEffect(() => {
+    resultsVirtualizer.measure();
+  }, [expandedRows]);
 
   const handleExportSheet = async (options?: { targets_only?: boolean; exclude_contacted?: boolean }) => {
     if (!job?.project_id) return;
@@ -438,7 +631,7 @@ function JobDetailView({ jobId }: { jobId: number }) {
             tab === 'results' ? 'border-black text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
           )}
         >
-          Results ({results.length})
+          Results ({totalResults.toLocaleString()})
         </button>
         <button
           onClick={() => setTab('queries')}
@@ -447,13 +640,14 @@ function JobDetailView({ jobId }: { jobId: number }) {
             tab === 'queries' ? 'border-black text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
           )}
         >
-          Queries ({queries.length})
+          Queries ({totalQueries.toLocaleString()})
         </button>
       </div>
 
-      {/* Tab content */}
+      {/* Results tab — virtual scroll */}
       {tab === 'results' && (
         <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+          {/* Fixed header */}
           <table className="w-full">
             <thead>
               <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
@@ -464,45 +658,93 @@ function JobDetailView({ jobId }: { jobId: number }) {
                 <th className="px-4 py-3 text-right">Confidence</th>
                 <th className="px-4 py-3">Outreach</th>
                 <th className="px-4 py-3">Industry</th>
+                <th className="px-4 py-3">Source Query</th>
               </tr>
             </thead>
-            <tbody>
-              {results.map((r) => {
+          </table>
+          {/* Scrollable virtual body */}
+          <div
+            ref={resultsParentRef}
+            className="overflow-auto"
+            style={{ maxHeight: 'calc(100vh - 480px)', minHeight: '300px' }}
+          >
+            <div style={{ height: `${resultsVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+              {resultsVirtualizer.getVirtualItems().map((virtualRow) => {
+                const r = getResultByIndex(virtualRow.index);
+                if (!r) {
+                  // Skeleton row
+                  return (
+                    <div
+                      key={`skeleton-${virtualRow.index}`}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '44px',
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                      className="flex items-center px-4 border-b border-neutral-50"
+                    >
+                      <div className="w-full flex gap-4">
+                        <div className="h-3 w-6 bg-neutral-100 rounded animate-pulse" />
+                        <div className="h-3 w-32 bg-neutral-100 rounded animate-pulse" />
+                        <div className="h-3 w-24 bg-neutral-100 rounded animate-pulse" />
+                        <div className="h-3 w-8 bg-neutral-100 rounded animate-pulse" />
+                        <div className="h-3 w-12 bg-neutral-100 rounded animate-pulse" />
+                      </div>
+                    </div>
+                  );
+                }
+
                 const isExpanded = expandedRows.has(r.id);
                 const info = r.company_info || {};
                 const campaign = domainCampaigns[r.domain?.toLowerCase()];
+
                 return (
-                  <>
-                    <tr
-                      key={r.id}
+                  <div
+                    key={r.id}
+                    data-index={virtualRow.index}
+                    ref={resultsVirtualizer.measureElement}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    {/* Main row */}
+                    <div
                       onClick={() => toggleRow(r.id)}
                       className={cn(
-                        'border-b border-neutral-50 cursor-pointer transition-colors',
+                        'flex items-center border-b border-neutral-50 cursor-pointer transition-colors',
                         r.is_target ? 'bg-green-50/50 hover:bg-green-50' : 'hover:bg-neutral-50'
                       )}
+                      style={{ minHeight: '44px' }}
                     >
-                      <td className="px-4 py-2.5">
+                      <div className="px-4 py-2.5 w-8 flex-shrink-0">
                         {isExpanded ? <ChevronDown className="w-4 h-4 text-neutral-400" /> : <ChevronRight className="w-4 h-4 text-neutral-400" />}
-                      </td>
-                      <td className="px-4 py-2.5">
+                      </div>
+                      <div className="px-4 py-2.5 flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-neutral-900">{r.domain}</span>
+                          <span className="text-sm font-medium text-neutral-900 truncate">{r.domain}</span>
                           {r.url && (
                             <a href={r.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                              <ExternalLink className="w-3.5 h-3.5 text-neutral-400 hover:text-blue-500" />
+                              <ExternalLink className="w-3.5 h-3.5 text-neutral-400 hover:text-blue-500 flex-shrink-0" />
                             </a>
                           )}
                         </div>
-                      </td>
-                      <td className="px-4 py-2.5 text-sm text-neutral-600">{info.name || '-'}</td>
-                      <td className="px-4 py-2.5 text-center">
+                      </div>
+                      <div className="px-4 py-2.5 w-[140px] flex-shrink-0 text-sm text-neutral-600 truncate">{info.name || '-'}</div>
+                      <div className="px-4 py-2.5 w-[70px] flex-shrink-0 text-center">
                         {r.is_target ? (
                           <CheckCircle2 className="w-4 h-4 text-green-600 mx-auto" />
                         ) : (
                           <XCircle className="w-4 h-4 text-neutral-300 mx-auto" />
                         )}
-                      </td>
-                      <td className="px-4 py-2.5 text-sm text-right">
+                      </div>
+                      <div className="px-4 py-2.5 w-[90px] flex-shrink-0 text-sm text-right">
                         <span className={cn(
                           'font-medium',
                           (r.confidence || 0) >= 0.8 ? 'text-green-700' :
@@ -510,93 +752,130 @@ function JobDetailView({ jobId }: { jobId: number }) {
                         )}>
                           {r.confidence ? `${(r.confidence * 100).toFixed(0)}%` : '-'}
                         </span>
-                      </td>
-                      <td className="px-4 py-2.5">
+                      </div>
+                      <div className="px-4 py-2.5 w-[200px] flex-shrink-0">
                         {campaign ? (
                           <CampaignBadge campaign={campaign} />
                         ) : (
                           <span className="text-xs text-neutral-300">-</span>
                         )}
-                      </td>
-                      <td className="px-4 py-2.5 text-sm text-neutral-500">{info.industry || '-'}</td>
-                    </tr>
+                      </div>
+                      <div className="px-4 py-2.5 w-[120px] flex-shrink-0 text-sm text-neutral-500 truncate">{info.industry || '-'}</div>
+                      <div className="px-4 py-2.5 w-[200px] flex-shrink-0 text-sm text-neutral-400 truncate" title={r.source_query_text || ''}>
+                        {r.source_query_text
+                          ? (r.source_query_text.length > 50 ? r.source_query_text.slice(0, 48) + '...' : r.source_query_text)
+                          : '-'}
+                      </div>
+                    </div>
+                    {/* Expanded detail */}
                     {isExpanded && (
-                      <tr key={`${r.id}-detail`} className="border-b border-neutral-100 bg-neutral-50/50">
-                        <td colSpan={7} className="px-8 py-4">
-                          <div className="space-y-3 text-sm">
-                            {r.reasoning && (
-                              <div><span className="font-medium text-neutral-700">Reasoning:</span> <span className="text-neutral-600">{r.reasoning}</span></div>
-                            )}
-                            {info.description && (
-                              <div><span className="font-medium text-neutral-700">Description:</span> <span className="text-neutral-600">{info.description}</span></div>
-                            )}
-                            {info.services && info.services.length > 0 && (
-                              <div>
-                                <span className="font-medium text-neutral-700">Services:</span>{' '}
-                                {info.services.map((s, i) => (
-                                  <span key={i} className="inline-block px-2 py-0.5 bg-neutral-100 rounded text-xs mr-1 mb-1">{s}</span>
-                                ))}
-                              </div>
-                            )}
-                            {info.location && (
-                              <div><span className="font-medium text-neutral-700">Location:</span> <span className="text-neutral-600">{info.location}</span></div>
-                            )}
-                            {r.source_query_text && (
-                              <div><span className="font-medium text-neutral-700">Source Query:</span> <span className="text-neutral-600 italic">{r.source_query_text}</span></div>
-                            )}
-
-                            {/* Outreach Status Section */}
-                            {campaign && <OutreachDetail campaign={campaign} />}
-                          </div>
-                        </td>
-                      </tr>
+                      <div className="border-b border-neutral-100 bg-neutral-50/50 px-8 py-4">
+                        <div className="space-y-3 text-sm">
+                          {r.reasoning && (
+                            <div><span className="font-medium text-neutral-700">Reasoning:</span> <span className="text-neutral-600">{r.reasoning}</span></div>
+                          )}
+                          {info.description && (
+                            <div><span className="font-medium text-neutral-700">Description:</span> <span className="text-neutral-600">{info.description}</span></div>
+                          )}
+                          {info.services && info.services.length > 0 && (
+                            <div>
+                              <span className="font-medium text-neutral-700">Services:</span>{' '}
+                              {info.services.map((s, i) => (
+                                <span key={i} className="inline-block px-2 py-0.5 bg-neutral-100 rounded text-xs mr-1 mb-1">{s}</span>
+                              ))}
+                            </div>
+                          )}
+                          {info.location && (
+                            <div><span className="font-medium text-neutral-700">Location:</span> <span className="text-neutral-600">{info.location}</span></div>
+                          )}
+                          {r.source_query_text && (
+                            <div><span className="font-medium text-neutral-700">Source Query:</span> <span className="text-neutral-600 italic">{r.source_query_text}</span></div>
+                          )}
+                          {campaign && <OutreachDetail campaign={campaign} />}
+                        </div>
+                      </div>
                     )}
-                  </>
+                  </div>
                 );
               })}
-              {results.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-neutral-400">
-                    No results yet
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+            </div>
+            {totalResults === 0 && !loading && (
+              <div className="px-4 py-12 text-center text-neutral-400">
+                No results yet
+              </div>
+            )}
+          </div>
         </div>
       )}
 
+      {/* Queries tab — virtual scroll */}
       {tab === 'queries' && (
         <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                 <th className="px-4 py-3">Query</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-right">Domains Found</th>
+                <th className="px-4 py-3 text-center w-[100px]">Status</th>
+                <th className="px-4 py-3 text-right w-[120px]">Domains Found</th>
               </tr>
             </thead>
-            <tbody>
-              {queries.map((q) => (
-                <tr key={q.id} className="border-b border-neutral-50">
-                  <td className="px-4 py-2.5 text-sm text-neutral-900">{q.query_text}</td>
-                  <td className="px-4 py-2.5 text-center">
-                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusColors[q.status] || 'bg-gray-100 text-gray-700')}>
-                      {q.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 text-sm text-neutral-600 text-right">{q.domains_found}</td>
-                </tr>
-              ))}
-              {queries.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-4 py-12 text-center text-neutral-400">
-                    No queries
-                  </td>
-                </tr>
-              )}
-            </tbody>
           </table>
+          <div
+            ref={queriesParentRef}
+            className="overflow-auto"
+            style={{ maxHeight: 'calc(100vh - 480px)', minHeight: '300px' }}
+          >
+            <div style={{ height: `${queriesVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+              {queriesVirtualizer.getVirtualItems().map((virtualRow) => {
+                const q = getQueryByIndex(virtualRow.index);
+                if (!q) {
+                  return (
+                    <div
+                      key={`qskel-${virtualRow.index}`}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '40px',
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                      className="flex items-center px-4 border-b border-neutral-50"
+                    >
+                      <div className="h-3 w-64 bg-neutral-100 rounded animate-pulse" />
+                    </div>
+                  );
+                }
+                return (
+                  <div
+                    key={q.id}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '40px',
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                    className="flex items-center border-b border-neutral-50"
+                  >
+                    <div className="px-4 py-2.5 flex-1 text-sm text-neutral-900 truncate">{q.query_text}</div>
+                    <div className="px-4 py-2.5 w-[100px] text-center">
+                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusColors[q.status] || 'bg-gray-100 text-gray-700')}>
+                        {q.status}
+                      </span>
+                    </div>
+                    <div className="px-4 py-2.5 w-[120px] text-sm text-neutral-600 text-right">{q.domains_found}</div>
+                  </div>
+                );
+              })}
+            </div>
+            {totalQueries === 0 && !loading && (
+              <div className="px-4 py-12 text-center text-neutral-400">
+                No queries
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

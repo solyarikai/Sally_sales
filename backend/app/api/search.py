@@ -16,7 +16,7 @@ Endpoints:
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query as QueryParam
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func as sqlfunc
 from typing import Optional, List
 from datetime import datetime
 import asyncio
@@ -260,6 +260,52 @@ async def get_search_job(
     return SearchJobDetailResponse(**job_data)
 
 
+@router.get("/jobs/{job_id}/queries")
+async def get_job_queries(
+    job_id: int,
+    page: int = QueryParam(1, ge=1),
+    page_size: int = QueryParam(100, ge=1, le=500),
+    status: Optional[str] = QueryParam(None, description="Filter by status"),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get paginated queries for a search job."""
+    result = await db.execute(
+        select(SearchJob).where(
+            SearchJob.id == job_id,
+            SearchJob.company_id == company.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Search job not found")
+
+    base_filter = [SearchQuery.search_job_id == job_id]
+    if status:
+        base_filter.append(SearchQuery.status == status)
+
+    count_q = await db.execute(
+        select(sqlfunc.count()).select_from(SearchQuery).where(*base_filter)
+    )
+    total = count_q.scalar() or 0
+
+    q = (
+        select(SearchQuery)
+        .where(*base_filter)
+        .order_by(SearchQuery.id)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = await db.execute(q)
+    queries = rows.scalars().all()
+
+    return {
+        "items": [SearchQueryResponse.model_validate(q) for q in queries],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_search_job(
     job_id: int,
@@ -474,14 +520,14 @@ async def _run_project_search_background(job_id: int, project_id: int, company_i
         logger.error(f"Background project search crashed: {e}")
 
 
-@router.get("/projects/{project_id}/results", response_model=List[SearchResultResponse])
-async def get_project_results(
+@router.get("/projects/{project_id}/results/stats")
+async def get_project_results_stats(
     project_id: int,
-    targets_only: bool = QueryParam(False, description="Show only targets"),
+    job_id: Optional[int] = QueryParam(None, description="Filter by job ID"),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
-    """Get analyzed search results for a project."""
+    """Fast stats endpoint — total counts and avg confidence via aggregate queries."""
     # Verify project belongs to company
     result = await db.execute(
         select(Project).where(
@@ -492,15 +538,81 @@ async def get_project_results(
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
 
-    query = select(SearchResult).where(SearchResult.project_id == project_id)
-    if targets_only:
-        query = query.where(SearchResult.is_target == True)
+    base_filter = [SearchResult.project_id == project_id]
+    if job_id:
+        base_filter.append(SearchResult.search_job_id == job_id)
 
-    query = query.order_by(
-        SearchResult.is_target.desc(),
-        SearchResult.confidence.desc(),
+    # Total count
+    total_q = await db.execute(
+        select(sqlfunc.count()).select_from(SearchResult).where(*base_filter)
     )
+    total = total_q.scalar() or 0
 
+    # Targets count
+    targets_q = await db.execute(
+        select(sqlfunc.count()).select_from(SearchResult).where(
+            *base_filter, SearchResult.is_target == True
+        )
+    )
+    targets = targets_q.scalar() or 0
+
+    # Avg confidence of targets
+    avg_q = await db.execute(
+        select(sqlfunc.avg(SearchResult.confidence)).where(
+            *base_filter, SearchResult.is_target == True
+        )
+    )
+    avg_confidence = avg_q.scalar()
+
+    return {
+        "total": total,
+        "targets": targets,
+        "non_targets": total - targets,
+        "avg_confidence": round(avg_confidence, 3) if avg_confidence else None,
+    }
+
+
+@router.get("/projects/{project_id}/results")
+async def get_project_results(
+    project_id: int,
+    targets_only: bool = QueryParam(False, description="Show only targets"),
+    job_id: Optional[int] = QueryParam(None, description="Filter by job ID"),
+    page: int = QueryParam(1, ge=1, description="Page number"),
+    page_size: int = QueryParam(100, ge=1, le=500, description="Results per page"),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get analyzed search results for a project (paginated)."""
+    # Verify project belongs to company
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.company_id == company.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    base_filter = [SearchResult.project_id == project_id]
+    if job_id:
+        base_filter.append(SearchResult.search_job_id == job_id)
+    if targets_only:
+        base_filter.append(SearchResult.is_target == True)
+
+    # Total count
+    count_q = await db.execute(
+        select(sqlfunc.count()).select_from(SearchResult).where(*base_filter)
+    )
+    total = count_q.scalar() or 0
+
+    # Fetch page
+    query = (
+        select(SearchResult)
+        .where(*base_filter)
+        .order_by(SearchResult.is_target.desc(), SearchResult.confidence.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
     result = await db.execute(query)
     results = result.scalars().all()
 
@@ -513,13 +625,19 @@ async def get_project_results(
         )).fetchall()
         qmap = {row[0]: row[1] for row in qrows}
 
-    out = []
+    items = []
     for r in results:
         resp = SearchResultResponse.model_validate(r)
         if r.source_query_id and r.source_query_id in qmap:
             resp.source_query_text = qmap[r.source_query_id]
-        out.append(resp)
-    return out
+        items.append(resp)
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @router.get("/projects/{project_id}/spending", response_model=SpendingInfo)

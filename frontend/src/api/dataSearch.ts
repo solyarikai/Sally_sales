@@ -411,13 +411,42 @@ export const projectSearchApi = {
     return response.data;
   },
 
-  // Get analyzed results for a project
+  // Get analyzed results for a project (paginated)
   getProjectResults: async (
     projectId: number,
-    targetsOnly: boolean = false
-  ): Promise<SearchResultItem[]> => {
+    opts?: { jobId?: number; page?: number; pageSize?: number; targetsOnly?: boolean }
+  ): Promise<{ items: SearchResultItem[]; total: number; page: number; page_size: number }> => {
     const response = await api.get(`/search/projects/${projectId}/results`, {
-      params: { targets_only: targetsOnly },
+      params: {
+        targets_only: opts?.targetsOnly ?? false,
+        job_id: opts?.jobId,
+        page: opts?.page ?? 1,
+        page_size: opts?.pageSize ?? 100,
+      },
+    });
+    return response.data;
+  },
+
+  // Fast stats for project results
+  getProjectResultsStats: async (
+    projectId: number,
+    jobId?: number
+  ): Promise<{ total: number; targets: number; non_targets: number; avg_confidence: number | null }> => {
+    const response = await api.get(`/search/projects/${projectId}/results/stats`, {
+      params: { job_id: jobId },
+    });
+    return response.data;
+  },
+
+  // Paginated queries for a job
+  getJobQueries: async (
+    jobId: number,
+    page: number = 1,
+    pageSize: number = 100,
+    status?: string
+  ): Promise<{ items: QueryItem[]; total: number; page: number; page_size: number }> => {
+    const response = await api.get(`/search/jobs/${jobId}/queries`, {
+      params: { page, page_size: pageSize, status },
     });
     return response.data;
   },
@@ -623,6 +652,14 @@ export interface DomainCampaignInfo {
 }
 
 export type DomainCampaignsMap = Record<string, DomainCampaignInfo>;
+
+export interface QueryItem {
+  id: number;
+  query_text: string;
+  status: string;
+  domains_found: number;
+  pages_scraped?: number;
+}
 
 export interface SearchHistoryItem {
   id: number;

@@ -747,8 +747,23 @@ SCORING GUIDE:
 
         scraped_at = datetime.utcnow()
 
-        # Read domain→query mapping for source_query_id tracking
-        domain_to_query = (job.config or {}).get("domain_to_query", {})
+        # Read domain→query mapping from ALL jobs for this project (not just current)
+        # so domains found by earlier jobs also get source_query_id
+        domain_to_query: Dict[str, int] = {}
+        if job.project_id:
+            all_jobs_result = await session.execute(
+                select(SearchJob.config).where(
+                    SearchJob.project_id == job.project_id,
+                    SearchJob.config.isnot(None),
+                )
+            )
+            for (config,) in all_jobs_result.fetchall():
+                if config and isinstance(config, dict) and "domain_to_query" in config:
+                    for d, qid in config["domain_to_query"].items():
+                        if d not in domain_to_query:
+                            domain_to_query[d] = qid
+        else:
+            domain_to_query = (job.config or {}).get("domain_to_query", {})
 
         # --- Analyze phase: GPT scoring ---
         semaphore = asyncio.Semaphore(20)  # Max 20 concurrent GPT calls
