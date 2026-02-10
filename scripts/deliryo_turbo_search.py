@@ -20,8 +20,13 @@ import logging
 import signal
 from datetime import datetime
 
-# Add backend to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
+# Add backend to path — works both locally and in Docker
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_backend_dir = os.path.join(_script_dir, '..', 'backend')
+if os.path.isdir(_backend_dir):
+    sys.path.insert(0, _backend_dir)
+elif os.path.isdir('/app'):
+    sys.path.insert(0, '/app')
 
 os.environ.setdefault("SEARCH_WORKERS", "20")
 os.environ.setdefault("SEARCH_BATCH_QUERIES", "100")
