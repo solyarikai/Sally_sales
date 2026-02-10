@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, String
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
 import csv
 import io
@@ -118,7 +118,18 @@ class ContactResponse(BaseModel):
     campaigns: Optional[List[Dict[str, Any]]] = None
     created_at: datetime
     updated_at: datetime
-    
+
+    @field_validator('campaigns', mode='before')
+    @classmethod
+    def parse_campaigns_json(cls, v):
+        if isinstance(v, str):
+            import json
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return v
+
     class Config:
         from_attributes = True
 
