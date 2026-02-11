@@ -391,15 +391,38 @@ async def stream_search_job(
                     if progress_ratio > 0:
                         estimated_remaining = round(elapsed / progress_ratio - elapsed, 1)
 
-                # Count results
+                # Count results and targets
                 results_count = 0
+                targets_found = 0
+                latest_targets = []
                 if current_job.project_id:
                     r = await session.execute(
                         select(SearchResult).where(
                             SearchResult.search_job_id == job_id,
                         )
                     )
-                    results_count = len(r.scalars().all())
+                    all_results = r.scalars().all()
+                    results_count = len(all_results)
+
+                    target_results = [sr for sr in all_results if sr.is_target]
+                    targets_found = len(target_results)
+
+                    # Get last 3 targets for live display
+                    sorted_targets = sorted(target_results, key=lambda x: x.analyzed_at or x.scraped_at or datetime.min, reverse=True)
+                    for t in sorted_targets[:3]:
+                        info = t.company_info or {}
+                        latest_targets.append({
+                            "domain": t.domain,
+                            "name": info.get("name", info.get("company_name", t.domain)),
+                            "confidence": t.confidence,
+                        })
+
+                # Build phase detail
+                current_phase_detail = None
+                if phase == "searching" and current_job.queries_completed and current_job.queries_total:
+                    current_phase_detail = f"Searching ({current_job.queries_completed}/{current_job.queries_total} queries)"
+                elif phase == "generating_queries":
+                    current_phase_detail = "Generating search queries with AI..."
 
                 data = {
                     "phase": phase,
@@ -409,6 +432,9 @@ async def stream_search_job(
                     "domains_found": current_job.domains_found or 0,
                     "domains_new": current_job.domains_new or 0,
                     "results_analyzed": results_count,
+                    "targets_found": targets_found,
+                    "latest_targets": latest_targets,
+                    "current_phase_detail": current_phase_detail,
                     "elapsed_seconds": round(elapsed, 1),
                     "estimated_remaining_seconds": estimated_remaining,
                     "error_message": current_job.error_message,
