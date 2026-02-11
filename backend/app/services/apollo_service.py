@@ -28,10 +28,13 @@ class ApolloService:
         return bool(self.api_key)
 
     def _get_headers(self) -> Dict[str, str]:
-        return {
+        headers = {
             "Content-Type": "application/json",
             "Cache-Control": "no-cache",
         }
+        if self.api_key:
+            headers["X-Api-Key"] = self.api_key
+        return headers
 
     async def enrich_by_domain(
         self,
@@ -50,7 +53,6 @@ class ApolloService:
             return []
 
         payload: Dict[str, Any] = {
-            "api_key": self.api_key,
             "q_organization_domains": domain,
             "page": 1,
             "per_page": min(limit, 25),
@@ -124,7 +126,6 @@ class ApolloService:
                 resp = await client.post(
                     f"{self.base_url}/mixed_people/search",
                     json={
-                        "api_key": self.api_key,
                         "q_organization_domains": "apollo.io",
                         "per_page": 1,
                     },
