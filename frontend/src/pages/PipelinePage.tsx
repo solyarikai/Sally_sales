@@ -3,7 +3,7 @@ import {
   Layers, Target, Mail, Download,
   Loader2, AlertCircle, CheckCircle2, XCircle, Search,
   ExternalLink, Zap, UserPlus,
-  X,
+  X, Settings2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -68,6 +68,13 @@ export function PipelinePage() {
 
   // Action state
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Apollo settings popover
+  const [showApolloSettings, setShowApolloSettings] = useState(false);
+  const [apolloTitles, setApolloTitles] = useState<string[]>(['CEO', 'Founder', 'Managing Director', 'Owner']);
+  const [apolloMaxPeople, setApolloMaxPeople] = useState(5);
+  const [apolloMaxCredits, setApolloMaxCredits] = useState(50);
+  const [apolloTitleInput, setApolloTitleInput] = useState('');
 
   // Load projects for filter dropdown
   useEffect(() => {
@@ -154,10 +161,19 @@ export function PipelinePage() {
 
   const handleEnrichApollo = async () => {
     if (selectedCompanyIds.length === 0) return;
+    setShowApolloSettings(false);
     setActionLoading('apollo');
     try {
-      const result = await pipelineApi.enrichApollo(selectedCompanyIds, 5);
-      alert(`Found ${result.people_found} people from ${result.processed} companies via Apollo`);
+      const result = await pipelineApi.enrichApollo(selectedCompanyIds, {
+        maxPeople: apolloMaxPeople,
+        titles: apolloTitles,
+        maxCredits: apolloMaxCredits,
+      });
+      alert(
+        `Apollo: ${result.people_found} people from ${result.processed} companies\n` +
+        `Credits used: ${result.credits_used}` +
+        (result.skipped ? ` | Skipped: ${result.skipped} (already enriched)` : '')
+      );
       setSelectedIds(new Set());
       loadData();
     } catch (err: any) {
@@ -336,14 +352,108 @@ export function PipelinePage() {
             {actionLoading === 'extract' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
             Extract Contacts
           </button>
-          <button
-            onClick={handleEnrichApollo}
-            disabled={!!actionLoading}
-            className="flex items-center gap-1.5 px-3 py-1 text-sm rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50"
-          >
-            {actionLoading === 'apollo' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-            Enrich Apollo
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowApolloSettings(!showApolloSettings)}
+              disabled={!!actionLoading}
+              className="flex items-center gap-1.5 px-3 py-1 text-sm rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50"
+            >
+              {actionLoading === 'apollo' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+              Enrich Apollo
+              <Settings2 className="w-3 h-3 opacity-50" />
+            </button>
+            {showApolloSettings && (
+              <div className="absolute bottom-full left-0 mb-2 w-80 bg-white text-neutral-900 rounded-xl shadow-xl border border-neutral-200 p-4 z-50" onClick={e => e.stopPropagation()}>
+                <div className="text-sm font-semibold mb-3">Apollo Settings</div>
+
+                {/* Title filters */}
+                <div className="mb-3">
+                  <label className="text-xs text-neutral-500 block mb-1">Role/Title Filters</label>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {apolloTitles.map((t, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs">
+                        {t}
+                        <button onClick={() => setApolloTitles(prev => prev.filter((_, j) => j !== i))} className="hover:text-purple-900">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {apolloTitles.length === 0 && <span className="text-xs text-neutral-400">No filter (all roles)</span>}
+                  </div>
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={apolloTitleInput}
+                      onChange={e => setApolloTitleInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && apolloTitleInput.trim()) {
+                          setApolloTitles(prev => [...prev, apolloTitleInput.trim()]);
+                          setApolloTitleInput('');
+                        }
+                      }}
+                      placeholder="Add role..."
+                      className="flex-1 px-2 py-1 text-xs rounded border border-neutral-200 bg-white"
+                    />
+                    <button
+                      onClick={() => {
+                        if (apolloTitleInput.trim()) {
+                          setApolloTitles(prev => [...prev, apolloTitleInput.trim()]);
+                          setApolloTitleInput('');
+                        }
+                      }}
+                      className="px-2 py-1 text-xs bg-neutral-100 rounded hover:bg-neutral-200"
+                    >Add</button>
+                  </div>
+                </div>
+
+                {/* Max people per company */}
+                <div className="mb-3">
+                  <label className="text-xs text-neutral-500 block mb-1">Max people per company</label>
+                  <input
+                    type="number"
+                    min={1} max={25}
+                    value={apolloMaxPeople}
+                    onChange={e => setApolloMaxPeople(parseInt(e.target.value) || 5)}
+                    className="w-full px-2 py-1 text-xs rounded border border-neutral-200"
+                  />
+                </div>
+
+                {/* Max credits */}
+                <div className="mb-3">
+                  <label className="text-xs text-neutral-500 block mb-1">Max credits (1 credit = 1 domain lookup)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={apolloMaxCredits}
+                    onChange={e => setApolloMaxCredits(parseInt(e.target.value) || 50)}
+                    className="w-full px-2 py-1 text-xs rounded border border-neutral-200"
+                  />
+                </div>
+
+                {/* Summary */}
+                <div className="text-xs text-neutral-500 mb-3 bg-neutral-50 rounded-lg p-2">
+                  Will search <strong>{Math.min(selectedIds.size, apolloMaxCredits)}</strong> domains,
+                  up to <strong>{apolloMaxPeople}</strong> people each
+                  {apolloTitles.length > 0 && <>, filtered by: <strong>{apolloTitles.join(', ')}</strong></>}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleEnrichApollo}
+                    className="flex-1 px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  >
+                    Run Enrichment
+                  </button>
+                  <button
+                    onClick={() => setShowApolloSettings(false)}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-neutral-200 hover:bg-neutral-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           <button
             onClick={handlePromoteToCrm}
             disabled={!!actionLoading}

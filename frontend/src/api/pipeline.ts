@@ -113,14 +113,22 @@ export const pipelineApi = {
   },
 
   // Enrich via Apollo
-  enrichApollo: async (ids: number[], maxPeople: number = 5): Promise<{
+  enrichApollo: async (ids: number[], opts: {
+    maxPeople?: number;
+    titles?: string[];
+    maxCredits?: number;
+  } = {}): Promise<{
     processed: number;
     people_found: number;
     errors: number;
+    credits_used: number;
+    skipped: number;
   }> => {
     const response = await api.post('/pipeline/enrich-apollo', {
       discovered_company_ids: ids,
-      max_people: maxPeople,
+      max_people: opts.maxPeople ?? 5,
+      titles: opts.titles?.length ? opts.titles : undefined,
+      max_credits: opts.maxCredits ?? undefined,
     });
     return response.data;
   },

@@ -175,6 +175,8 @@ class ExtractContactsRequest(BaseModel):
 class ApolloEnrichRequest(BaseModel):
     discovered_company_ids: List[int] = Field(..., min_length=1)
     max_people: int = Field(5, ge=1, le=25)
+    titles: Optional[List[str]] = Field(None, description="Filter by job titles, e.g. ['CEO', 'CTO', 'Founder']")
+    max_credits: Optional[int] = Field(None, ge=1, description="Max Apollo credits to use")
 
 
 class PromoteToContactsRequest(BaseModel):

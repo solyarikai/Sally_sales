@@ -109,6 +109,8 @@ async def enrich_apollo(
         discovered_company_ids=body.discovered_company_ids,
         company_id=company.id,
         max_people=body.max_people,
+        titles=body.titles,
+        max_credits=body.max_credits,
     )
     return stats
 

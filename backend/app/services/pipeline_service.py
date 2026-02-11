@@ -249,6 +249,7 @@ class PipelineService:
         company_id: int,
         max_people: int = 5,
         max_credits: Optional[int] = None,
+        titles: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Run Apollo enrichment on selected DiscoveredCompanies."""
         if not apollo_service.is_configured():
@@ -275,7 +276,7 @@ class PipelineService:
                 break
 
             try:
-                people = await apollo_service.enrich_by_domain(dc.domain, limit=max_people)
+                people = await apollo_service.enrich_by_domain(dc.domain, limit=max_people, titles=titles)
 
                 for person in people:
                     ec = ExtractedContact(
