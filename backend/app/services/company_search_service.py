@@ -187,13 +187,13 @@ class CompanySearchService:
         # Detect if target geography allows non-Russian (English) sites
         ts_lower = (target_segments or "").lower()
         allows_english = any(kw in ts_lower for kw in [
-            "dubai", "дубай", "абу-даби", "abu dhabi", "uae", "оаэ",
-            "английском", "english",
+            "dubai", "дубай", "дубае", "абу-даби", "abu dhabi", "uae", "оаэ",
+            "английск", "english",
             # International HNWI hubs
             "cyprus", "кипр", "monaco", "монако", "london", "лондон",
-            "switzerland", "швейцария", "israel", "израиль",
-            "singapore", "сингапур", "montenegro", "черногория",
-            "serbia", "сербия", "turkey", "турция", "istanbul", "стамбул",
+            "switzerland", "швейцар", "israel", "израил",
+            "singapore", "сингапур", "montenegro", "черногор",
+            "serbia", "серби", "turkey", "турц", "istanbul", "стамбул",
             "international", "международн",
         ])
 
