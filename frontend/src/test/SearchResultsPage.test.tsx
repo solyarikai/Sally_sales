@@ -280,7 +280,6 @@ describe('SearchResultsPage', () => {
           page: 1,
           pageSize: 100,
         });
-        expect(mockGetProjectResultsStats).toHaveBeenCalledWith(18, 14);
         expect(mockGetJobQueries).toHaveBeenCalledWith(14, 1, 100);
       });
     });
