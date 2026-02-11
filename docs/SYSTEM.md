@@ -347,8 +347,8 @@ YANDEX_SEARCH_FOLDER_ID=b1ghcrnch8s4l0saftba
 CRONA_EMAIL=pn@getsally.io
 CRONA_PASSWORD=Qweqweqwe1
 
-# Apollo (people enrichment) — NOT YET SET ON SERVER
-APOLLO_API_KEY=<needs to be configured>
+# Apollo (people enrichment)
+APOLLO_API_KEY=1Wri9zD9UNY__p34jeAfVg
 
 # Slack
 SLACK_BOT_TOKEN=xoxb-5059703821363-10410114252597-Vm4M95iovQPBhzdFBuGalj7m
@@ -369,8 +369,17 @@ docker run -d --name <SCRIPT_NAME> \
   --network repo_default \
   -v ~/magnum-opus-project/repo/backend:/app \
   -v ~/magnum-opus-project/repo/scripts:/scripts \
+  -v ~/magnum-opus-project/repo/google-credentials.json:/app/google-credentials.json:ro \
   -e DATABASE_URL=postgresql+asyncpg://leadgen:leadgen_secret@postgres:5432/leadgen \
   -e OPENAI_API_KEY=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 \
+  -e YANDEX_SEARCH_API_KEY=AQVNyM68azFp-ua5Gx9UKCi2kjd9ceASfYLYLYhd \
+  -e YANDEX_SEARCH_FOLDER_ID=b1ghcrnch8s4l0saftba \
+  -e CRONA_EMAIL=pn@getsally.io \
+  -e CRONA_PASSWORD=Qweqweqwe1 \
+  -e APOLLO_API_KEY=1Wri9zD9UNY__p34jeAfVg \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json \
+  -e GOOGLE_IMPERSONATE_EMAIL=services@getsally.io \
+  -e SHARED_DRIVE_ID=0AEvTjlJFlWnZUk9PVA \
   python:3.11 bash -c 'pip install -q -r /app/requirements.txt && python /scripts/<SCRIPT_NAME>.py'
 ```
 
