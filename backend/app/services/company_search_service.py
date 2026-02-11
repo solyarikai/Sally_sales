@@ -135,6 +135,41 @@ class CompanySearchService:
         re.IGNORECASE,
     )
 
+    # False positive detection patterns for construction-related projects
+    FITOUT_INDICATORS = re.compile(
+        r"fit[\s-]?out|отделк|отделочн|ремонт(?!.*строительств)|renovation(?!.*construction)"
+        r"|interior design|дизайн интерьер|интерьерн|interior fit"
+        r"|finishing works|чистов|декор(?:ирование|атор)|furnish"
+        r"|обои|покраск|штукатур|сантехник|электрик",
+        re.IGNORECASE,
+    )
+
+    ARCH_ONLY_INDICATORS = re.compile(
+        r"architect(?:ural|ure)?\s+(?:studio|firm|bureau|бюро)"
+        r"|архитектурн\w+\s+(?:бюро|студия|мастерская)"
+        r"|(?:only|только)\s+(?:design|проект)"
+        r"|design\s+(?:studio|firm|company)(?!\s*(?:and|&)\s*(?:build|construct))"
+        r"|проектн\w+\s+(?:бюро|компания|организация)",
+        re.IGNORECASE,
+    )
+
+    CONSTRUCTION_INDICATORS = re.compile(
+        r"строительств|construction|build(?:er|ing)|застройщик|подрядчик"
+        r"|девелопер|developer|general\s+contractor|генподрядчик"
+        r"|villa\s+(?:build|construct|develop)"
+        r"|ground[\s-]?up|с\s*нуля|новое\s+строительство",
+        re.IGNORECASE,
+    )
+
+    @staticmethod
+    def _is_construction_target(target_segments_lower: str) -> bool:
+        """Check if target segments are construction-related (where fit-out false positives apply)."""
+        return any(kw in target_segments_lower for kw in [
+            "строительств", "construction", "build", "застройщик",
+            "подрядчик", "contractor", "developer", "девелопер",
+            "villa", "вилл",
+        ])
+
     def _validate_analysis(
         self,
         analysis: Dict[str, Any],
@@ -154,6 +189,12 @@ class CompanySearchService:
         allows_english = any(kw in ts_lower for kw in [
             "dubai", "дубай", "абу-даби", "abu dhabi", "uae", "оаэ",
             "английском", "english",
+            # International HNWI hubs
+            "cyprus", "кипр", "monaco", "монако", "london", "лондон",
+            "switzerland", "швейцария", "israel", "израиль",
+            "singapore", "сингапур", "montenegro", "черногория",
+            "serbia", "сербия", "turkey", "турция", "istanbul", "стамбул",
+            "international", "международн",
         ])
 
         # Rule 1: Non-Russian site with Russian-only target → force language_match=0
@@ -180,6 +221,34 @@ class CompanySearchService:
             analysis["is_target"] = False
             analysis["confidence"] = min(analysis.get("confidence", 0), 0.2)
             analysis["reasoning"] = f"[AUTO-CORRECTED: reasoning contradicts is_target] {reasoning}"
+
+        # Rule 4: False positive detection for fit-out/interior/renovation/competitor companies
+        # Only apply for construction-related target segments (ArchiStruct-like)
+        if analysis.get("is_target") and self._is_construction_target(ts_lower):
+            company_info = analysis.get("company_info", {})
+            ci_text = (
+                f"{company_info.get('name', '')} {company_info.get('description', '')} "
+                f"{' '.join(company_info.get('services', []))} {company_info.get('industry', '')} "
+                f"{reasoning}"
+            ).lower()
+
+            # Fit-out / interior design / renovation only (not ground-up construction)
+            fitout_only = self.FITOUT_INDICATORS.search(ci_text) and not self.CONSTRUCTION_INDICATORS.search(ci_text)
+            if fitout_only:
+                scores["industry_match"] = min(scores.get("industry_match", 1.0), 0.2)
+                scores["service_match"] = min(scores.get("service_match", 1.0), 0.2)
+                analysis["is_target"] = False
+                analysis["confidence"] = 0.0
+                analysis["reasoning"] = f"[AUTO-REJECTED: fit-out/interior only, no construction] {reasoning}"
+
+            # Architecture/design only (no build capability)
+            arch_only = self.ARCH_ONLY_INDICATORS.search(ci_text) and not self.CONSTRUCTION_INDICATORS.search(ci_text)
+            if arch_only and not fitout_only:
+                scores["industry_match"] = min(scores.get("industry_match", 1.0), 0.3)
+                scores["service_match"] = min(scores.get("service_match", 1.0), 0.3)
+                analysis["is_target"] = False
+                analysis["confidence"] = 0.0
+                analysis["reasoning"] = f"[AUTO-REJECTED: architecture/design only, no build] {reasoning}"
 
         analysis["scores"] = scores
         return analysis
@@ -616,11 +685,16 @@ Respond with JSON:
 }}
 
 SCORING GUIDE:
-- language_match: 1.0 if site language is compatible with target geography. For Russian market: must be Russian. For UAE/Dubai: English, Russian, or Arabic all score 1.0.
-- industry_match: 0 if clearly wrong industry, 0.3 if adjacent (e.g. interior design only, no construction), 0.7 if close (e.g. commercial construction), 1.0 if exact match (e.g. villa builder)
-- service_match: how well the company's ACTUAL services (not just listings) match the target. 0 for pure listing/portal sites that don't build anything. 0.3 for brokers with no development. 1.0 for companies that actually build/develop/construct.
+- language_match: 1.0 if site language is compatible with target geography. For Russian market: must be Russian. For UAE/Dubai: English, Russian, or Arabic all score 1.0. For international HNWI hubs (Cyprus, Monaco, UK, Switzerland, etc.): English is acceptable.
+- industry_match: 0 if clearly wrong industry. 0.2 for interior fit-out ONLY (no ground-up construction). 0.2 for repair/renovation brigades and small handyman services. 0.3 for pure architecture/design firms (they design but don't build). 0.0 for companies providing the SAME service as the client (competitors, not customers). 0.7 if close (e.g. commercial construction for a villa segment). 1.0 if exact match.
+- service_match: how well the company's ACTUAL services match the target. 0 for pure listing/portal sites. 0.2 for finishing/fit-out ONLY companies. 0.0 for competitors (companies offering the same service package as the client). 0.3 for brokers with no development. 1.0 for companies that actually build/develop/construct.
 - company_type: 1.0 for real operating companies doing the work, 0.5 for consulting/agencies/brokers, 0.3 for franchises/reseller pages, 0 for aggregators/news/directories/job boards/property portals
-- geography_match: 1.0 if serves target geography, 0.5 if partially overlaps, 0 if completely different region"""
+- geography_match: 1.0 if serves target geography, 0.5 if partially overlaps, 0 if completely different region
+
+CRITICAL FALSE POSITIVE RULES:
+- Interior design firms, fit-out contractors, renovation companies, and architecture studios that don't build are NOT target customers — they are adjacent services or competitors. Score industry_match ≤ 0.3.
+- Companies providing the EXACT SAME service as the searching client (e.g. design+build+fit-out packages when the client does design+build) are COMPETITORS, not targets. Score service_match = 0.0, industry_match = 0.0.
+- "Ремонтные бригады" (renovation crews), "отделочные работы" (finishing works), "дизайн интерьера" (interior design) without construction capability = NOT targets."""
 
         payload = {
             "model": "gpt-4o-mini",
