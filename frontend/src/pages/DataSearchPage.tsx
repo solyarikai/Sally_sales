@@ -523,15 +523,15 @@ export function DataSearchPage() {
 
   // Project/web search state
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedProjectId] = useState<number | null>(null);
   const [projectSearchJobId, setProjectSearchJobId] = useState<number | null>(null);
   const [projectProgress, setProjectProgress] = useState<SearchProgressEvent | null>(null);
   const [projectResults, setProjectResults] = useState<SearchResultItem[]>([]);
   const [projectSpending, setProjectSpending] = useState<SpendingInfo | null>(null);
   const [isProjectSearching, setIsProjectSearching] = useState(false);
   const [showTargetsOnly, setShowTargetsOnly] = useState(false);
-  const [maxQueries, setMaxQueries] = useState(500);
-  const [targetGoal, setTargetGoal] = useState(200);
+  const [maxQueries] = useState(500);
+  const [targetGoal] = useState(200);
   const [expandedResultId, setExpandedResultId] = useState<number | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -615,44 +615,7 @@ export function DataSearchPage() {
     };
   }, []);
 
-  const selectedProject = projects.find(p => p.id === selectedProjectId);
-
-  const handleProjectSearch = useCallback(async () => {
-    if (!selectedProjectId || isProjectSearching) return;
-
-    setIsProjectSearching(true);
-    setProjectProgress(null);
-    setProjectResults([]);
-    setProjectSpending(null);
-    setHasSearched(true);
-
-    try {
-      const { job_id } = await projectSearchApi.runProjectSearch(selectedProjectId, maxQueries, targetGoal);
-      setProjectSearchJobId(job_id);
-
-      // Start SSE stream
-      eventSourceRef.current?.close();
-      const es = projectSearchApi.streamSearchJob(
-        job_id,
-        (event) => {
-          setProjectProgress(event);
-          if (event.phase === 'completed' || event.phase === 'error' || event.phase === 'cancelled') {
-            setIsProjectSearching(false);
-            // Load final results
-            projectSearchApi.getProjectResults(selectedProjectId).then(data => setProjectResults(data.items));
-            projectSearchApi.getProjectSpending(selectedProjectId).then(setProjectSpending);
-          }
-        },
-        () => {
-          setIsProjectSearching(false);
-        }
-      );
-      eventSourceRef.current = es;
-    } catch (error: any) {
-      console.error('Project search failed:', error);
-      setIsProjectSearching(false);
-    }
-  }, [selectedProjectId, isProjectSearching, maxQueries]);
+  void projects; void selectedProjectId; void maxQueries; void targetGoal; // used by chat search
 
   const handleCancelProjectSearch = useCallback(async () => {
     if (!projectSearchJobId) return;
@@ -665,15 +628,7 @@ export function DataSearchPage() {
     }
   }, [projectSearchJobId]);
 
-  const handleExportSheet = useCallback(async () => {
-    if (!selectedProjectId) return;
-    try {
-      const { sheet_url } = await projectSearchApi.exportToGoogleSheet(selectedProjectId);
-      window.open(sheet_url, '_blank');
-    } catch (error: any) {
-      console.error('Export failed:', error);
-    }
-  }, [selectedProjectId]);
+  // handleExportSheet removed — using chat-driven search export instead
 
   // Chat-based web search handler
   const handleWebSearchChat = useCallback(async () => {
