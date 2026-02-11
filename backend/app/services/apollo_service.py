@@ -18,6 +18,7 @@ class ApolloService:
 
     def __init__(self):
         self.base_url = settings.APOLLO_API_URL
+        self.credits_used: int = 0
 
     @property
     def api_key(self) -> Optional[str]:
@@ -98,7 +99,8 @@ class ApolloService:
                     },
                 })
 
-            logger.info(f"Apollo found {len(results)} people for {domain}")
+            self.credits_used += 1
+            logger.info(f"Apollo found {len(results)} people for {domain} (credits_used={self.credits_used})")
             return results
 
         except httpx.HTTPStatusError as e:
@@ -107,6 +109,10 @@ class ApolloService:
         except Exception as e:
             logger.error(f"Apollo enrichment failed for {domain}: {e}")
             return []
+
+    def reset_credits(self):
+        """Reset the credit counter."""
+        self.credits_used = 0
 
     async def test_connection(self) -> bool:
         """Test Apollo API connection."""

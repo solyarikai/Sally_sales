@@ -142,9 +142,14 @@ class PipelineService:
         )
         companies = result.scalars().all()
 
-        stats = {"processed": 0, "contacts_found": 0, "errors": 0}
+        stats = {"processed": 0, "contacts_found": 0, "errors": 0, "skipped": 0}
 
         for dc in companies:
+            # Skip if contacts already extracted
+            if dc.contacts_count and dc.contacts_count > 0:
+                stats["skipped"] += 1
+                continue
+
             html = dc.scraped_html or ""
             if not html.strip():
                 # Try to scrape if no cached HTML
@@ -161,6 +166,36 @@ class PipelineService:
 
             try:
                 contacts = await contact_extraction_service.extract_contacts_from_html(dc.domain, html)
+
+                # Regex fallback: find emails/phones GPT missed
+                gpt_emails = {(c.get("email") or "").lower() for c in contacts if c.get("email")}
+                gpt_phones = {(c.get("phone") or "").strip() for c in contacts if c.get("phone")}
+
+                regex_emails = contact_extraction_service.extract_emails_regex(html)
+                regex_phones = contact_extraction_service.extract_phones_regex(html)
+
+                for re_email in regex_emails:
+                    if re_email.lower() not in gpt_emails:
+                        contacts.append({
+                            "email": re_email.lower(),
+                            "phone": None,
+                            "first_name": None,
+                            "last_name": None,
+                            "job_title": None,
+                            "confidence": 0.4,
+                            "source": "regex",
+                        })
+                for re_phone in regex_phones:
+                    if re_phone not in gpt_phones:
+                        contacts.append({
+                            "email": None,
+                            "phone": re_phone,
+                            "first_name": None,
+                            "last_name": None,
+                            "job_title": None,
+                            "confidence": 0.4,
+                            "source": "regex",
+                        })
 
                 # Store contacts
                 emails = []
@@ -213,6 +248,7 @@ class PipelineService:
         discovered_company_ids: List[int],
         company_id: int,
         max_people: int = 5,
+        max_credits: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Run Apollo enrichment on selected DiscoveredCompanies."""
         if not apollo_service.is_configured():
@@ -226,9 +262,18 @@ class PipelineService:
         )
         companies = result.scalars().all()
 
-        stats = {"processed": 0, "people_found": 0, "errors": 0}
+        stats = {"processed": 0, "people_found": 0, "errors": 0, "credits_used": 0, "skipped": 0}
 
         for dc in companies:
+            # Skip if already Apollo-enriched
+            if dc.apollo_enriched_at is not None:
+                stats["skipped"] += 1
+                continue
+
+            if max_credits is not None and apollo_service.credits_used >= max_credits:
+                logger.info(f"Apollo credit cap reached ({max_credits}), stopping enrichment")
+                break
+
             try:
                 people = await apollo_service.enrich_by_domain(dc.domain, limit=max_people)
 
@@ -267,6 +312,7 @@ class PipelineService:
                 stats["errors"] += 1
                 self._add_event(session, dc, PipelineEventType.ERROR, company_id, error_message=str(e))
 
+        stats["credits_used"] = apollo_service.credits_used
         await session.commit()
         return stats
 
