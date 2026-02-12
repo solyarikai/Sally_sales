@@ -71,6 +71,12 @@ export interface PipelineStats {
   rejected: number;
   total_contacts: number;
   total_apollo_people: number;
+  apollo_contacts: number;
+  apollo_with_email: number;
+  apollo_with_linkedin: number;
+  website_contacts: number;
+  website_with_email: number;
+  website_with_phone: number;
 }
 
 export interface PaginatedResponse<T> {

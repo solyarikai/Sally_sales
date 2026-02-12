@@ -164,6 +164,13 @@ class PipelineStats(BaseModel):
     rejected: int = 0
     total_contacts: int = 0
     total_apollo_people: int = 0
+    # Contact breakdown
+    apollo_contacts: int = 0
+    apollo_with_email: int = 0
+    apollo_with_linkedin: int = 0
+    website_contacts: int = 0
+    website_with_email: int = 0
+    website_with_phone: int = 0
 
 
 # ============ Request Models ============

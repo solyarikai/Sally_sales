@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Layers, Target, Mail, Download,
+  Layers, Target, Mail, Download, Globe, Phone,
   Loader2, AlertCircle, CheckCircle2, XCircle, Search,
-  ExternalLink, Zap, UserPlus,
+  ExternalLink, Zap, UserPlus, Linkedin,
   X, Settings2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -282,12 +282,58 @@ export function PipelinePage() {
 
       {/* Stats cards */}
       {stats && (
-        <div className="grid grid-cols-5 gap-3">
-          <PipelineStatCard label="Discovered" value={stats.total_discovered} icon={Layers} />
-          <PipelineStatCard label="Targets" value={stats.targets} icon={Target} color="green" />
-          <PipelineStatCard label="Contacts Extracted" value={stats.contacts_extracted} icon={Mail} color="purple" />
-          <PipelineStatCard label="Enriched" value={stats.enriched} icon={Zap} color="blue" />
-          <PipelineStatCard label="Exported" value={stats.exported} icon={CheckCircle2} color="emerald" />
+        <div className="space-y-3">
+          <div className="grid grid-cols-5 gap-3">
+            <PipelineStatCard label="Discovered" value={stats.total_discovered} icon={Layers} />
+            <PipelineStatCard label="Targets" value={stats.targets} icon={Target} color="green" />
+            <PipelineStatCard label="Contacts Extracted" value={stats.contacts_extracted} icon={Mail} color="purple" />
+            <PipelineStatCard label="Enriched" value={stats.enriched} icon={Zap} color="blue" />
+            <PipelineStatCard label="Exported" value={stats.exported} icon={CheckCircle2} color="emerald" />
+          </div>
+          {/* Contact breakdown */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-xl border border-neutral-200 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-4 h-4 text-orange-500" />
+                <span className="text-sm font-medium text-neutral-700">Apollo Enrichment</span>
+                <span className="ml-auto text-xs text-neutral-400">{stats.apollo_contacts} credits used</span>
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <div className="text-xl font-bold text-neutral-900">{stats.apollo_contacts.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">contacts</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-blue-600">{stats.apollo_with_email.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">with email</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-sky-600">{stats.apollo_with_linkedin.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">with LinkedIn</div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-neutral-200 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Globe className="w-4 h-4 text-purple-500" />
+                <span className="text-sm font-medium text-neutral-700">Website Scraping</span>
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <div className="text-xl font-bold text-neutral-900">{stats.website_contacts.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">contacts</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-blue-600">{stats.website_with_email.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">with email</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-green-600">{stats.website_with_phone.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">with phone</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
