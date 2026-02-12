@@ -921,6 +921,10 @@ async def getsales_webhook(
     
     logger.info(f"GetSales webhook: contact={contact_data.get('name')}, message_type={message_type}, automation={automation_data.get('name')}")
     
+    # Signal webhook health to the scheduler
+    from app.services.crm_scheduler import mark_webhook_received
+    mark_webhook_received()
+    
     # Find contact by UUID, email, or LinkedIn
     contact = None
     
@@ -1208,22 +1212,19 @@ async def getsales_webhook(
         else:
             contact.getsales_raw = {"webhooks": [webhook_entry]}
         
-        # Send Telegram notification for LinkedIn reply
+        # Send Telegram notification for LinkedIn reply (with per-project routing)
         try:
+            from app.services.notification_service import notify_linkedin_reply
             flow_name = automation_data.get("name") or get_getsales_flow_name(None, contact.campaigns)
             contact_name = f"{contact_data.get('first_name', '')} {contact_data.get('last_name', '')}".strip() or "Unknown"
-            message_preview = (message_text or "")[:300]
             
-            telegram_msg = f"""💬 <b>New LinkedIn Reply!</b>
-
-<b>From:</b> {contact_name}
-<b>Email:</b> {contact.email or 'N/A'}
-<b>Flow:</b> {flow_name}
-
-<b>Message:</b>
-<code>{message_preview}</code>
-"""
-            await send_telegram_notification(telegram_msg.strip())
+            await notify_linkedin_reply(
+                contact_name=contact_name,
+                contact_email=contact.email or "N/A",
+                flow_name=flow_name,
+                message_text=message_text or "",
+                campaign_name=flow_name  # Use flow name for project routing
+            )
         except Exception as e:
             logger.warning(f"Telegram notification failed (non-fatal): {e}")
     

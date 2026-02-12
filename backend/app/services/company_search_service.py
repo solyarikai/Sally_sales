@@ -457,8 +457,9 @@ class CompanySearchService:
                 session.add(sq)
             await session.commit()
 
-            # Run Yandex search for this batch
-            logger.info(f"Iteration {iteration}: running Yandex search with {len(queries)} queries")
+            # Run search for this batch
+            engine_name = job.search_engine.value if job.search_engine else "unknown"
+            logger.info(f"Iteration {iteration}: running {engine_name} search with {len(queries)} queries")
             await search_service.run_search_job(session, job.id)
             await session.refresh(job)
 

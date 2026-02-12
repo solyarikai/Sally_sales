@@ -693,15 +693,12 @@ async def process_reply_webhook(
             # Continue processing - Slack failure should not break webhook handling
         
         # Send Telegram notification only for actual inbound replies
-        # Skip for EMAIL_SENT and other event types (still stored in DB for analytics)
-        # Also skip outbound sends that Smartlead reports as EMAIL_REPLY
-        # Also skip for old replies discovered via API polling (prevents spam after Redis flush)
+        # Uses DB-backed dedup (telegram_sent_at) to prevent duplicates even after Redis flush
         import re
         event_type = payload.get("event_type", "EMAIL_REPLY")
         should_notify = event_type == "EMAIL_REPLY"
 
         # Detect outbound sends masquerading as EMAIL_REPLY
-        # Pattern: "Email N sent to X for campaign Y"
         if should_notify and body:
             outbound_pattern = r"^Email \d+ sent to .+ for campaign"
             if re.match(outbound_pattern, body.strip()):
@@ -724,15 +721,50 @@ async def process_reply_webhook(
                 except Exception:
                     pass  # If we can't parse the time, notify anyway
 
+        # DB-backed dedup: check if Telegram was already sent for this reply
+        # (survives Redis flush, prevents duplicate notifications)
+        if should_notify and processed_reply.telegram_sent_at:
+            should_notify = False
+            logger.info(f"[PROCESSOR] Skipping Telegram — already sent at {processed_reply.telegram_sent_at}")
+
+        # Also check Redis for fast dedup (avoids DB queries on re-processed replies)
+        if should_notify:
+            try:
+                from app.services.cache_service import cache_service
+                if cache_service.is_connected and cache_service._redis:
+                    redis_key = f"telegram:reply:{processed_reply.id}"
+                    already_sent = await cache_service._redis.get(redis_key)
+                    if already_sent:
+                        should_notify = False
+                        logger.info(f"[PROCESSOR] Skipping Telegram — Redis dedup hit for reply {processed_reply.id}")
+            except Exception:
+                pass  # Redis failure should not block notifications
+
         if should_notify:
             try:
                 from app.services.notification_service import notify_reply_needs_attention
-                await notify_reply_needs_attention(processed_reply, classification["category"])
+                campaign_name = payload.get("campaign_name") or processed_reply.campaign_name
+                sent = await notify_reply_needs_attention(
+                    processed_reply, 
+                    classification["category"],
+                    campaign_name=campaign_name
+                )
+                if sent:
+                    # Mark as sent in DB (source of truth for dedup)
+                    processed_reply.telegram_sent_at = datetime.utcnow()
+                    # Also cache in Redis (fast dedup, 48h TTL)
+                    try:
+                        from app.services.cache_service import cache_service
+                        if cache_service.is_connected and cache_service._redis:
+                            await cache_service._redis.set(
+                                f"telegram:reply:{processed_reply.id}", "1", ex=48 * 3600
+                            )
+                    except Exception:
+                        pass  # Redis failure is non-fatal
             except Exception as telegram_error:
                 logger.error(f"[PROCESSOR] Telegram notification failed (non-fatal): {telegram_error}")
-                # Continue processing - Telegram failure should not break webhook handling
         else:
-            logger.info(f"[PROCESSOR] Skipping Telegram notification for event_type: {event_type}, source: {payload.get('_source', 'webhook')}")
+            logger.info(f"[PROCESSOR] Skipping Telegram for event_type: {event_type}, source: {payload.get('_source', 'webhook')}")
         
         # Log to Google Sheets if automation has a sheet configured
         if automation and automation.google_sheet_id:
