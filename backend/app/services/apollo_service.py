@@ -195,6 +195,88 @@ class ApolloService:
         )
         return results
 
+    async def search_organizations(
+        self,
+        keyword_tags: List[str],
+        locations: Optional[List[str]] = None,
+        num_employees_ranges: Optional[List[str]] = None,
+        page: int = 1,
+        per_page: int = 100,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Search for organizations via Apollo /mixed_companies/search endpoint.
+
+        Args:
+            keyword_tags: keyword array e.g. ["family office", "wealth management"]
+            locations: country names e.g. ["Russia", "Cyprus"]
+            num_employees_ranges: size ranges e.g. ["1,10", "11,50"]
+            page: page number (1-indexed)
+            per_page: results per page (max 100)
+
+        Returns raw API response with 'organizations' list + 'pagination' info,
+        or None on failure.
+        """
+        if not self.api_key:
+            logger.warning("Apollo API key not configured")
+            return None
+
+        payload: Dict[str, Any] = {
+            "q_organization_keyword_tags": keyword_tags,
+            "page": page,
+            "per_page": min(per_page, 100),
+        }
+        if locations:
+            payload["organization_locations"] = locations
+        if num_employees_ranges:
+            payload["organization_num_employees_ranges"] = num_employees_ranges
+
+        return await self._api_call("POST", "/mixed_companies/search", payload)
+
+    async def search_organizations_all_pages(
+        self,
+        keyword_tags: List[str],
+        locations: Optional[List[str]] = None,
+        num_employees_ranges: Optional[List[str]] = None,
+        max_pages: int = 50,
+        per_page: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Paginated wrapper around search_organizations.
+        Loops pages 1..N until total_pages reached or max_pages cap.
+
+        Returns flat list of all organization dicts.
+        Each page = 1 API credit.
+        """
+        all_orgs: List[Dict[str, Any]] = []
+
+        for page in range(1, max_pages + 1):
+            data = await self.search_organizations(
+                keyword_tags=keyword_tags,
+                locations=locations,
+                num_employees_ranges=num_employees_ranges,
+                page=page,
+                per_page=per_page,
+            )
+            if not data:
+                break
+
+            orgs = data.get("organizations", [])
+            all_orgs.extend(orgs)
+
+            pagination = data.get("pagination", {})
+            total_pages = pagination.get("total_pages", 1)
+
+            logger.info(
+                f"Apollo org search: page {page}/{total_pages}, "
+                f"got {len(orgs)} orgs (total so far: {len(all_orgs)}), "
+                f"keywords={keyword_tags}, locations={locations}"
+            )
+
+            if page >= total_pages:
+                break
+
+        return all_orgs
+
     def reset_credits(self):
         """Reset the credit counter."""
         self.credits_used = 0

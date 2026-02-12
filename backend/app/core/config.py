@@ -87,6 +87,9 @@ class Settings(BaseSettings):
     APOLLO_API_KEY: Optional[str] = None
     APOLLO_API_URL: str = "https://api.apollo.io/api/v1"
 
+    # Clay API (company enrichment via webhooks)
+    CLAY_API_KEY: Optional[str] = None
+
     # Apify proxy (for Google SERP scraping)
     APIFY_PROXY_HOST: str = "proxy.apify.com"
     APIFY_PROXY_PORT: int = 8000
