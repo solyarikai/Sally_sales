@@ -3060,3 +3060,136 @@ async def sync_outbound_status(
             "errors": errors[:10],
         },
     }
+
+
+# ============= Telegram Bot Webhook =============
+
+
+@router.post("/telegram/webhook")
+async def telegram_webhook(
+    request_body: dict,
+    db: AsyncSession = Depends(get_session),
+):
+    """Handle Telegram bot webhook updates.
+
+    When an operator sends /start to @impecablebot, this endpoint:
+    1. Extracts their username and chat_id
+    2. Upserts a TelegramRegistration record
+    3. Replies with a confirmation message
+
+    This allows the project page to resolve @username -> chat_id for notifications.
+    """
+    from app.models.reply import TelegramRegistration
+    from app.services.notification_service import send_telegram_notification
+
+    message = request_body.get("message", {})
+    if not message:
+        return {"ok": True}
+
+    chat = message.get("chat", {})
+    from_user = message.get("from", {})
+    text = (message.get("text") or "").strip()
+    chat_id = str(chat.get("id", ""))
+    username = (from_user.get("username") or "").lower().strip()
+    first_name = from_user.get("first_name", "")
+
+    if not chat_id:
+        return {"ok": True}
+
+    # Handle /start command
+    if text.startswith("/start"):
+        if not username:
+            await send_telegram_notification(
+                "Please set a Telegram username in your profile settings first, "
+                "then send /start again.",
+                chat_id=chat_id,
+                parse_mode="HTML",
+            )
+            return {"ok": True}
+
+        # Upsert registration
+        existing = await db.execute(
+            select(TelegramRegistration).where(
+                TelegramRegistration.telegram_username == username
+            )
+        )
+        reg = existing.scalar_one_or_none()
+
+        if reg:
+            reg.telegram_chat_id = chat_id
+            reg.telegram_first_name = first_name
+            reg.updated_at = datetime.utcnow()
+        else:
+            reg = TelegramRegistration(
+                telegram_username=username,
+                telegram_chat_id=chat_id,
+                telegram_first_name=first_name,
+            )
+            db.add(reg)
+
+        await db.commit()
+
+        await send_telegram_notification(
+            f"Registered! Your username <b>@{username}</b> is now linked.\n\n"
+            f"Ask your admin to add <code>@{username}</code> to a project in the app "
+            f"to receive reply notifications for that project.",
+            chat_id=chat_id,
+            parse_mode="HTML",
+        )
+        logger.info(f"Telegram registration: @{username} -> chat_id={chat_id}")
+        return {"ok": True}
+
+    # Handle /status command
+    if text.startswith("/status"):
+        if not username:
+            await send_telegram_notification(
+                "No username set on your Telegram account.",
+                chat_id=chat_id,
+                parse_mode="HTML",
+            )
+            return {"ok": True}
+
+        existing = await db.execute(
+            select(TelegramRegistration).where(
+                TelegramRegistration.telegram_username == username
+            )
+        )
+        reg = existing.scalar_one_or_none()
+
+        if reg:
+            # Find projects using this username
+            from app.models.contact import Project
+            projects_result = await db.execute(
+                select(Project.name).where(
+                    and_(
+                        Project.telegram_username == username,
+                        Project.deleted_at.is_(None),
+                    )
+                )
+            )
+            project_names = [r[0] for r in projects_result.all()]
+
+            if project_names:
+                project_list = "\n".join(f"  - {name}" for name in project_names)
+                await send_telegram_notification(
+                    f"You're registered as <b>@{username}</b>.\n\n"
+                    f"Receiving notifications for:\n{project_list}",
+                    chat_id=chat_id,
+                    parse_mode="HTML",
+                )
+            else:
+                await send_telegram_notification(
+                    f"You're registered as <b>@{username}</b>, but no projects "
+                    f"are linked yet. Ask your admin to set your username in a project.",
+                    chat_id=chat_id,
+                    parse_mode="HTML",
+                )
+        else:
+            await send_telegram_notification(
+                f"You're not registered yet. Send /start first.",
+                chat_id=chat_id,
+                parse_mode="HTML",
+            )
+        return {"ok": True}
+
+    return {"ok": True}

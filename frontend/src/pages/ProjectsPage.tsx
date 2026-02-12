@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { FolderOpen, Plus, Trash2, X, Search, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
+import { FolderOpen, Plus, Trash2, X, Search, Pencil, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
 import { contactsApi, type ProjectLite } from '../api/contacts';
 
 interface CampaignOption {
@@ -21,7 +21,9 @@ export function ProjectsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editCampaignFilters, setEditCampaignFilters] = useState<string[]>([]);
+  const [editTelegramUsername, setEditTelegramUsername] = useState('');
   const [saving, setSaving] = useState(false);
+  const [telegramError, setTelegramError] = useState('');
 
   const [expandedProject, setExpandedProject] = useState<number | null>(null);
 
@@ -78,15 +80,23 @@ export function ProjectsPage() {
   const handleSaveEdit = async () => {
     if (!editingId || !editName.trim()) return;
     setSaving(true);
+    setTelegramError('');
     try {
+      const cleanUsername = editTelegramUsername.trim().replace(/^@/, '').toLowerCase();
       await contactsApi.updateProject(editingId, {
         name: editName.trim(),
         campaign_filters: editCampaignFilters,
+        telegram_username: cleanUsername || undefined,
       });
       setEditingId(null);
       await loadProjects();
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to update project');
+      const detail = err.response?.data?.detail || 'Failed to update project';
+      if (detail.includes('Telegram') || detail.includes('telegram')) {
+        setTelegramError(detail);
+      } else {
+        alert(detail);
+      }
     } finally {
       setSaving(false);
     }
@@ -106,6 +116,8 @@ export function ProjectsPage() {
     setEditingId(project.id);
     setEditName(project.name);
     setEditCampaignFilters(project.campaign_filters || []);
+    setEditTelegramUsername(project.telegram_username || '');
+    setTelegramError('');
   };
 
   const toggleCampaign = (
@@ -212,6 +224,37 @@ export function ProjectsPage() {
                       onToggle={(name) => toggleCampaign(name, editCampaignFilters, setEditCampaignFilters)}
                       onRemove={(name) => setEditCampaignFilters(editCampaignFilters.filter(c => c !== name))}
                     />
+
+                    {/* Telegram Notifications */}
+                    <div className="border-t border-neutral-100 pt-4">
+                      <label className="flex items-center gap-2 text-sm font-medium text-neutral-700 mb-2">
+                        <MessageCircle className="w-4 h-4" />
+                        Telegram Notifications
+                      </label>
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">@</span>
+                          <input
+                            type="text"
+                            value={editTelegramUsername}
+                            onChange={e => { setEditTelegramUsername(e.target.value); setTelegramError(''); }}
+                            placeholder="operator_username"
+                            className="w-full pl-8 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                          />
+                        </div>
+                        {telegramError && (
+                          <p className="text-xs text-red-600">{telegramError}</p>
+                        )}
+                        <p className="text-xs text-neutral-400">
+                          Operator must first send <code className="bg-neutral-100 px-1 rounded">/start</code> to{' '}
+                          <a href="https://t.me/impecablebot" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            @impecablebot
+                          </a>{' '}
+                          to register. Then enter their username here.
+                        </p>
+                      </div>
+                    </div>
+
                     <div className="flex gap-3">
                       <button
                         onClick={handleSaveEdit}
@@ -239,8 +282,14 @@ export function ProjectsPage() {
                       </div>
                       <div className="min-w-0">
                         <h3 className="font-semibold text-neutral-900 truncate">{project.name}</h3>
-                        <div className="text-xs text-neutral-500">
-                          {(project.campaign_filters || []).length} campaigns
+                        <div className="text-xs text-neutral-500 flex items-center gap-2">
+                          <span>{(project.campaign_filters || []).length} campaigns</span>
+                          {project.telegram_username && (
+                            <span className="inline-flex items-center gap-1 text-blue-600" title={`Telegram: @${project.telegram_username}`}>
+                              <MessageCircle className="w-3 h-3" />
+                              @{project.telegram_username}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

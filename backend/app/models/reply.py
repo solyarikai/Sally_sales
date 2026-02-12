@@ -151,6 +151,23 @@ class ReplyPromptTemplateModel(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class TelegramRegistration(Base):
+    """Maps Telegram @username to chat_id for per-project notifications.
+
+    Populated when a user sends /start to the bot. The project page
+    lets operators enter their @username, and the backend resolves it
+    to a chat_id from this table.
+    """
+    __tablename__ = "telegram_registrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_username = Column(String(100), unique=True, index=True, nullable=False)  # lowercase, no @
+    telegram_chat_id = Column(String(100), nullable=False)
+    telegram_first_name = Column(String(100), nullable=True)
+    registered_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class WebhookEventModel(Base):
     """Store webhook events for history, replay, and automatic recovery."""
     __tablename__ = "webhook_events"

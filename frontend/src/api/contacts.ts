@@ -60,6 +60,8 @@ export interface Project {
   target_industries?: string;
   target_segments?: string;
   campaign_filters?: string[];
+  telegram_chat_id?: string;
+  telegram_username?: string;
   contact_count: number;
   created_at: string;
   updated_at: string;
@@ -69,6 +71,7 @@ export interface ProjectLite {
   id: number;
   name: string;
   campaign_filters: string[];
+  telegram_username?: string;
 }
 
 export interface AISDRProject extends Project {
@@ -306,7 +309,7 @@ export const contactsApi = {
   },
 
   // Update project
-  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[] }): Promise<Project> {
+  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[]; telegram_username?: string }): Promise<Project> {
     const response = await api.patch(`/contacts/projects/${id}`, updates);
     return response.data;
   },

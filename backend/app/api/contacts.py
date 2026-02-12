@@ -160,7 +160,8 @@ class ProjectUpdate(BaseModel):
     target_industries: Optional[str] = None
     target_segments: Optional[str] = None
     campaign_filters: Optional[List[str]] = None
-    telegram_chat_id: Optional[str] = None  # Operator's Telegram chat ID for notifications
+    telegram_chat_id: Optional[str] = None  # Resolved chat ID (set automatically)
+    telegram_username: Optional[str] = None  # Operator @username for notifications
 
 
 class ProjectResponse(BaseModel):
@@ -171,6 +172,7 @@ class ProjectResponse(BaseModel):
     target_segments: Optional[str] = None
     campaign_filters: Optional[List[str]] = None
     telegram_chat_id: Optional[str] = None
+    telegram_username: Optional[str] = None
     contact_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -1088,12 +1090,12 @@ async def list_projects_lite(
 ):
     """List all projects without contact counts — instant response for dropdowns."""
     result = await session.execute(
-        select(Project.id, Project.name, Project.campaign_filters)
+        select(Project.id, Project.name, Project.campaign_filters, Project.telegram_username)
         .where(and_(Project.company_id == company_id if company_id else True, Project.deleted_at.is_(None)))
         .order_by(Project.name)
     )
     return [
-        {"id": row[0], "name": row[1], "campaign_filters": row[2] or []}
+        {"id": row[0], "name": row[1], "campaign_filters": row[2] or [], "telegram_username": row[3]}
         for row in result.all()
     ]
 
@@ -1218,6 +1220,32 @@ async def update_project(
         raise HTTPException(status_code=404, detail="Project not found")
     
     update_data = updates.model_dump(exclude_unset=True)
+
+    # Resolve telegram_username -> chat_id from registrations table
+    if "telegram_username" in update_data:
+        username = (update_data["telegram_username"] or "").strip().lstrip("@").lower()
+        if username:
+            from app.models.reply import TelegramRegistration
+            reg_result = await session.execute(
+                select(TelegramRegistration).where(
+                    TelegramRegistration.telegram_username == username
+                )
+            )
+            reg = reg_result.scalar_one_or_none()
+            if reg:
+                update_data["telegram_chat_id"] = reg.telegram_chat_id
+                update_data["telegram_username"] = username
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Telegram user @{username} has not registered with the bot yet. "
+                           f"Ask them to send /start to @impecablebot first."
+                )
+        else:
+            # Clear both fields if username is empty
+            update_data["telegram_username"] = None
+            update_data["telegram_chat_id"] = None
+
     for key, value in update_data.items():
         setattr(project, key, value)
     
@@ -1241,6 +1269,7 @@ async def update_project(
         target_segments=project.target_segments,
         campaign_filters=project.campaign_filters,
         telegram_chat_id=project.telegram_chat_id,
+        telegram_username=project.telegram_username,
         contact_count=contact_count,
         created_at=project.created_at,
         updated_at=project.updated_at,
