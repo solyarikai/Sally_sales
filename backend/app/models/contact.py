@@ -45,6 +45,9 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # {"auto_extract": true, "auto_apollo": false, "apollo_titles": ["CEO","Founder"], "apollo_max_people": 5, "apollo_max_credits": 50}
     auto_enrich_config = Column(JSON, nullable=True)
 
+    # Telegram notification routing — operator's chat ID for this project
+    telegram_chat_id = Column(String(100), nullable=True)
+
     # Generated content (for AI SDR later)
     tam_analysis = Column(Text, nullable=True)       # Total Addressable Market analysis
     gtm_plan = Column(Text, nullable=True)           # Go-to-market plan

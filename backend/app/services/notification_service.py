@@ -613,55 +613,138 @@ async def send_test_notification(channel_id: str = "C09REGUQWTG", webhook_url: O
     return {"success": False, "message": "No SLACK_BOT_TOKEN configured and no webhook URL provided"}
 
 
+# ============= Telegram Notifications =============
+
 # Telegram configuration
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "57344339")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "57344339")  # Admin chat (receives ALL)
+
+# In-memory cache for project-campaign mapping (refreshed every 5 min)
+_project_cache = {"data": {}, "last_refresh": None}
+_PROJECT_CACHE_TTL = 300  # 5 minutes
 
 
-async def send_telegram_notification(message: str, parse_mode: str = "HTML") -> bool:
-    """Send a notification to Telegram.
+async def send_telegram_notification(
+    message: str, 
+    chat_id: str = None, 
+    parse_mode: str = "HTML",
+    max_retries: int = 3
+) -> bool:
+    """Send a notification to Telegram with retry and exponential backoff.
     
     Args:
         message: The message to send (HTML or Markdown)
+        chat_id: Target chat ID. Defaults to admin TELEGRAM_CHAT_ID.
         parse_mode: Parse mode for formatting (HTML or Markdown)
+        max_retries: Number of retry attempts on failure
         
     Returns:
         True if sent successfully, False otherwise
     """
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    import asyncio
+    
+    target_chat = chat_id or TELEGRAM_CHAT_ID
+    if not TELEGRAM_BOT_TOKEN or not target_chat:
         logger.warning("Telegram not configured - missing BOT_TOKEN or CHAT_ID")
         return False
     
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(url, data={
-                "chat_id": TELEGRAM_CHAT_ID,
-                "text": message,
-                "parse_mode": parse_mode
-            })
-            
-            result = response.json()
-            
-            if result.get("ok"):
-                logger.info("Telegram notification sent successfully")
-                return True
-            else:
-                logger.error(f"Telegram API error: {result.get('description')}")
-                return False
-                
-    except Exception as e:
-        logger.error(f"Error sending Telegram notification: {e}")
-        return False
-
-
-async def notify_reply_needs_attention(reply, category: str) -> bool:
-    """Send Telegram notification for ALL new replies.
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     
-    Notifies for every reply regardless of category.
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(url, data={
+                    "chat_id": target_chat,
+                    "text": message,
+                    "parse_mode": parse_mode
+                })
+                
+                result = response.json()
+                
+                if result.get("ok"):
+                    logger.info(f"Telegram notification sent to {target_chat}")
+                    return True
+                
+                # Handle Telegram rate limiting (429)
+                if response.status_code == 429:
+                    retry_after = result.get("parameters", {}).get("retry_after", 5)
+                    logger.warning(f"Telegram rate limit, waiting {retry_after}s (attempt {attempt + 1})")
+                    await asyncio.sleep(retry_after)
+                    continue
+                    
+                logger.error(f"Telegram API error: {result.get('description')} (attempt {attempt + 1})")
+                    
+        except Exception as e:
+            logger.error(f"Telegram send error (attempt {attempt + 1}): {e}")
+        
+        # Exponential backoff before retry
+        if attempt < max_retries - 1:
+            wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
+            await asyncio.sleep(wait)
+    
+    logger.error(f"Telegram notification failed after {max_retries} attempts to {target_chat}")
+    return False
+
+
+async def _get_project_for_campaign(campaign_name: str):
+    """Find the project that owns a campaign. Uses in-memory cache."""
+    from datetime import datetime, timedelta
+    
+    now = datetime.utcnow()
+    
+    # Refresh cache if stale
+    if (not _project_cache["last_refresh"] or 
+        (now - _project_cache["last_refresh"]).total_seconds() > _PROJECT_CACHE_TTL):
+        try:
+            await _refresh_project_cache()
+        except Exception as e:
+            logger.warning(f"Failed to refresh project cache: {e}")
+    
+    # Look up campaign in cache
+    campaign_lower = campaign_name.lower()
+    for project_data in _project_cache["data"].values():
+        filters = project_data.get("campaign_filters") or []
+        for f in filters:
+            if isinstance(f, str) and f.lower() == campaign_lower:
+                return project_data
+    
+    return None
+
+
+async def _refresh_project_cache():
+    """Refresh the in-memory project-campaign mapping cache."""
+    from datetime import datetime
+    from app.db import async_session_maker
+    from app.models.contact import Project
+    from sqlalchemy import select
+    
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Project).where(Project.deleted_at.is_(None))
+        )
+        projects = result.scalars().all()
+        
+        cache = {}
+        for p in projects:
+            cache[p.id] = {
+                "id": p.id,
+                "name": p.name,
+                "telegram_chat_id": p.telegram_chat_id,
+                "campaign_filters": p.campaign_filters or [],
+            }
+        
+        _project_cache["data"] = cache
+        _project_cache["last_refresh"] = datetime.utcnow()
+        logger.info(f"Project cache refreshed: {len(cache)} projects")
+
+
+async def notify_reply_needs_attention(reply, category: str, campaign_name: str = None) -> bool:
+    """Send Telegram notification for new replies with per-project routing.
+    
+    - Admin (TELEGRAM_CHAT_ID) always receives ALL replies
+    - If the campaign belongs to a project with telegram_chat_id, 
+      the operator's chat receives it too
     """
-    # Emoji based on category
     emoji_map = {
         "interested": "🟢",
         "meeting_request": "📅",
@@ -671,8 +754,7 @@ async def notify_reply_needs_attention(reply, category: str) -> bool:
     }
     emoji = emoji_map.get(category, "💬")
     
-    message = f"""
-{emoji} <b>New Email Reply!</b>
+    message = f"""{emoji} <b>New Email Reply!</b>
 
 <b>Category:</b> {category.replace('_', ' ').title()}
 <b>From:</b> {reply.lead_email}
@@ -682,7 +764,61 @@ async def notify_reply_needs_attention(reply, category: str) -> bool:
 <b>Message:</b>
 <code>{(reply.email_body or reply.reply_text or 'No body')[:500]}</code>
 
-<a href="{reply.inbox_link or 'https://app.smartlead.ai/app/master-inbox'}">Open in Smartlead</a>
-"""
+<a href="{reply.inbox_link or 'https://app.smartlead.ai/app/master-inbox'}">Open in Smartlead</a>"""
     
-    return await send_telegram_notification(message.strip())
+    # 1. Always send to admin chat (you get ALL replies)
+    admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)
+    
+    # 2. Route to project operator if campaign is linked to a project with telegram_chat_id
+    if campaign_name:
+        try:
+            project = await _get_project_for_campaign(campaign_name)
+            if project and project.get("telegram_chat_id"):
+                operator_chat = project["telegram_chat_id"]
+                if operator_chat != TELEGRAM_CHAT_ID:  # Don't send twice to admin
+                    await send_telegram_notification(message.strip(), chat_id=operator_chat)
+                    logger.info(f"Telegram sent to operator chat {operator_chat} for project '{project.get('name')}'")
+        except Exception as e:
+            logger.warning(f"Project routing failed (non-fatal): {e}")
+    
+    return admin_sent
+
+
+async def notify_linkedin_reply(
+    contact_name: str,
+    contact_email: str,
+    flow_name: str,
+    message_text: str,
+    campaign_name: str = None
+) -> bool:
+    """Send Telegram notification for LinkedIn replies with per-project routing.
+    
+    Used by GetSales webhook handler.
+    """
+    message_preview = (message_text or "")[:300]
+    
+    message = f"""💬 <b>New LinkedIn Reply!</b>
+
+<b>From:</b> {contact_name}
+<b>Email:</b> {contact_email or 'N/A'}
+<b>Flow:</b> {flow_name}
+
+<b>Message:</b>
+<code>{message_preview}</code>"""
+    
+    # 1. Always send to admin
+    admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)
+    
+    # 2. Route to project operator
+    lookup_name = campaign_name or flow_name
+    if lookup_name:
+        try:
+            project = await _get_project_for_campaign(lookup_name)
+            if project and project.get("telegram_chat_id"):
+                operator_chat = project["telegram_chat_id"]
+                if operator_chat != TELEGRAM_CHAT_ID:
+                    await send_telegram_notification(message.strip(), chat_id=operator_chat)
+        except Exception as e:
+            logger.warning(f"LinkedIn project routing failed (non-fatal): {e}")
+    
+    return admin_sent

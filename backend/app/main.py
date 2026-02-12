@@ -134,7 +134,50 @@ app.include_router(api_router)
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "app": settings.APP_NAME}
+    """Health check endpoint — used by Docker healthcheck.
+    
+    Returns 200 if DB is reachable (minimum requirement).
+    Returns 503 if DB is down (triggers Docker restart).
+    Also reports Redis, scheduler, and webhook health status.
+    """
+    from fastapi.responses import JSONResponse
+    
+    checks = {
+        "db": False,
+        "redis": cache_service.is_connected if cache_service else False,
+        "scheduler": False,
+        "webhook_healthy": True,
+    }
+    
+    # Quick DB check
+    try:
+        async with async_session_maker() as session:
+            from sqlalchemy import text
+            await session.execute(text("SELECT 1"))
+            checks["db"] = True
+    except Exception:
+        pass
+    
+    # Scheduler status
+    try:
+        from app.services.crm_scheduler import get_crm_scheduler
+        scheduler = get_crm_scheduler()
+        checks["scheduler"] = scheduler._running if scheduler else False
+        checks["webhook_healthy"] = scheduler._webhook_healthy if scheduler else True
+    except Exception:
+        pass
+    
+    healthy = checks["db"]  # DB is the minimum requirement
+    status_code = 200 if healthy else 503
+    
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if healthy else "unhealthy",
+            "app": settings.APP_NAME,
+            "checks": checks
+        }
+    )
 
 
 if __name__ == "__main__":

@@ -328,6 +328,7 @@ class CompanySearchService:
         max_queries: int = 500,
         target_goal: Optional[int] = None,
         job_id: Optional[int] = None,
+        search_engine: Optional[SearchEngine] = None,
     ) -> SearchJob:
         """
         Iterative search pipeline: generates batches of queries, searches, scrapes,
@@ -385,7 +386,7 @@ class CompanySearchService:
             job = SearchJob(
                 company_id=company_id,
                 status=SearchJobStatus.PENDING,
-                search_engine=SearchEngine.YANDEX_API,
+                search_engine=search_engine or SearchEngine.YANDEX_API,
                 queries_total=0,
                 project_id=project_id,
                 config=job_config,
@@ -464,8 +465,9 @@ class CompanySearchService:
                 session.add(sq)
             await session.commit()
 
-            # Run Yandex search for this batch
-            logger.info(f"Iteration {iteration}: running Yandex search with {len(queries)} queries")
+            # Run search for this batch
+            engine_name = job.search_engine.value if job.search_engine else "unknown"
+            logger.info(f"Iteration {iteration}: running {engine_name} search with {len(queries)} queries")
             await search_service.run_search_job(session, job.id)
             await session.refresh(job)
 

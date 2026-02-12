@@ -1,14 +1,42 @@
 """Smartlead API endpoints for campaign and lead management."""
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, and_
 from typing import Optional, List
 from pydantic import BaseModel
+from datetime import datetime
+import asyncio
+import json
 import logging
 
-from app.db import get_session
+from app.db import get_session, async_session_maker
 from app.services.smartlead_service import smartlead_service
 
 logger = logging.getLogger(__name__)
+
+# Event types that represent actual inbound replies
+REPLY_EVENT_TYPES = {"EMAIL_REPLY", "lead.replied", "email.replied", "reply"}
+
+# Map Smartlead event types to ContactActivity types
+ACTIVITY_TYPE_MAP = {
+    "EMAIL_REPLY": "email_replied",
+    "lead.replied": "email_replied",
+    "email.replied": "email_replied",
+    "reply": "email_replied",
+    "EMAIL_SENT": "email_sent",
+    "email.sent": "email_sent",
+    "sent": "email_sent",
+    "EMAIL_OPENED": "email_opened",
+    "email.opened": "email_opened",
+    "open": "email_opened",
+    "EMAIL_CLICKED": "email_clicked",
+    "email.clicked": "email_clicked",
+    "click": "email_clicked",
+    "EMAIL_BOUNCED": "email_bounced",
+    "email.bounced": "email_bounced",
+    "bounce": "email_bounced",
+    "LEAD_CATEGORY_UPDATED": "category_updated",
+}
 
 router = APIRouter(prefix="/smartlead", tags=["smartlead"])
 
@@ -222,138 +250,335 @@ async def receive_webhook_raw(request: Request):
 @router.post("/webhook")
 async def receive_webhook(
     request: Request,
-    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session)
 ):
-    """Receive webhook events from Smartlead.
+    """Receive ALL webhook events from Smartlead.
     
-    This endpoint receives email reply notifications from Smartlead.
-    Configure this URL in Smartlead webhook settings:
-    https://your-domain.com/api/smartlead/webhook
+    Handles: EMAIL_REPLY, EMAIL_SENT, EMAIL_OPENED, EMAIL_CLICKED,
+    EMAIL_BOUNCED, LEAD_CATEGORY_UPDATED.
     
-    The webhook will:
-    1. Log the incoming reply
-    2. Queue it for AI classification
-    3. Generate draft response
-    4. Send Slack notification
+    ALL events are stored in DB (webhook_events + contact_activities) for analytics.
+    ONLY EMAIL_REPLY events trigger the reply pipeline (AI classification + Telegram).
+    
+    Phase 1 (within request session): Store event + create ContactActivity
+    Phase 2 (async, own session): Process reply pipeline for EMAIL_REPLY only
     """
-    import json
-    from datetime import datetime
+    from app.models.reply import WebhookEventModel
+    from app.models.contact import Contact, ContactActivity
     
-    logger.info("="*60)
-    logger.info(f"[WEBHOOK] Received at {datetime.now().isoformat()}")
-    
-    # First get raw body for debugging
-    raw_body = await request.body()
-    logger.info(f"[WEBHOOK] Raw body: {raw_body.decode()[:2000]}")
-    
-    # Log event to history for replay capability
-    try:
-        from app.models.reply import WebhookEventModel
-        webhook_event = WebhookEventModel(
-            event_type="EMAIL_REPLY",
-            campaign_id=str(data.get("campaign_id", "") if isinstance(data, dict) else ""),
-            lead_email=data.get("sl_lead_email") or data.get("to_email") if isinstance(data, dict) else None,
-            payload=raw_body.decode(),
-            processed=False
-        )
-        session.add(webhook_event)
-        await session.flush()
-        logger.info(f"[WEBHOOK] Event logged with ID: {webhook_event.id}")
-    except Exception as log_err:
-        logger.warning(f"[WEBHOOK] Failed to log event: {log_err}")
-    
-    # Parse JSON manually
+    # Parse JSON
     try:
         data = await request.json()
-        logger.info(f"[WEBHOOK] Parsed keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
     except Exception as e:
         logger.error(f"[WEBHOOK] JSON parse error: {e}")
         return {"status": "error", "message": str(e)}
     
-    # Convert to payload model
-    try:
-        payload = WebhookPayload(**data)
-    except Exception as e:
-        logger.warning(f"[WEBHOOK] Pydantic validation error: {e}")
-        logger.info(f"[WEBHOOK] Proceeding with raw data")
-        # Create minimal payload from raw data
-        # Smartlead sends different fields depending on webhook version
-        payload = WebhookPayload()
-        payload.campaign_id = str(data.get("campaign_id") or data.get("body", {}).get("campaign_id") or "")
-        
-        # Lead email: sl_lead_email or to_email (in flat format, to_email is the lead who receives)
-        payload.lead_email = data.get("sl_lead_email") or data.get("to_email") or data.get("body", {}).get("from_email")
-        
-        # Subject
-        payload.email_subject = data.get("subject")
-        
-        # Reply body: try multiple locations (including description field)
-        reply_body = (
-            data.get("reply_body") or 
-            data.get("preview_text") or
-            data.get("description") or  # Smartlead sends reply text in description field
-            (data.get("reply_message", {}) or {}).get("text") or
-            (data.get("reply_message", {}) or {}).get("html") or
-            data.get("body", {}).get("preview_text") or
-            data.get("body", {}).get("email_text")
-        )
-        
-        # Log what we found for debugging
-        logger.info(f"[WEBHOOK] description={data.get('description', 'N/A')[:200] if data.get('description') else 'None'}")
-        payload.email_body = reply_body
-        payload.reply_text = reply_body
-        
-        # Store full conversation history if available
-        payload.received_at = data.get("time_replied") or data.get("event_timestamp")
-        payload.event_type = "EMAIL_REPLY"
-        
-        # Log extracted fields
-        logger.info(f"[WEBHOOK] Extracted fields: subject={payload.email_subject}, body_len={len(payload.email_body) if payload.email_body else 0}")
+    # Determine the REAL event type — never override
+    actual_event_type = _extract_event_type(data)
     
-    logger.info(f"[WEBHOOK] Payload: campaign_id={payload.campaign_id}, lead_email={payload.lead_email}")
+    # Extract lead email and campaign info
+    lead_email = _extract_lead_email(data)
+    campaign_id = _extract_campaign_id(data)
+    campaign_name = _extract_campaign_name(data)
+    lead_data = data.get("lead_data", {})
     
-    # Handle both wrapped (body) and flat formats
-    if payload.body:
-        # Smartlead sends data wrapped in body
-        body = payload.body
-        logger.info(f"[WEBHOOK] Format: WRAPPED (body object detected)")
-        logger.info(f"[WEBHOOK] body.campaign_id={body.campaign_id}")
-        logger.info(f"[WEBHOOK] body.from_email={body.from_email}")
-        logger.info(f"[WEBHOOK] body.to_email={body.to_email}")
-        logger.info(f"[WEBHOOK] body.preview_text={body.preview_text[:200] if body.preview_text else None}")
-        logger.info(f"[WEBHOOK] body.campaign_name={body.campaign_name}")
-        
-        # Convert to flat format for processor
-        payload.campaign_id = str(body.campaign_id) if body.campaign_id else None
-        payload.lead_email = body.from_email  # to_email is our lead
-        payload.email_body = body.preview_text or body.email_text
-        payload.event_type = "EMAIL_REPLY"
-        logger.info(f"[WEBHOOK] Converted: campaign_id={payload.campaign_id}, lead_email={payload.lead_email}")
-    else:
-        logger.info(f"[WEBHOOK] Format: FLAT")
-        logger.info(f"[WEBHOOK] event_type={payload.event_type}")
-        logger.info(f"[WEBHOOK] campaign_id={payload.campaign_id}")
-        logger.info(f"[WEBHOOK] lead_email={payload.lead_email}")
-        logger.info(f"[WEBHOOK] email_body={payload.email_body[:200] if payload.email_body else None}")
+    logger.info(f"[WEBHOOK] {actual_event_type} for {lead_email} (campaign: {campaign_name or campaign_id})")
     
-    logger.info("="*60)
+    # ===== PHASE 1: Store everything in DB (within request session) =====
     
-    # Import here to avoid circular imports
-    from app.services.reply_processor import process_reply_webhook
-    
-    # Process in background to return quickly to Smartlead
-    # Merge raw data with payload so processor has access to all Smartlead fields
-    # (like sl_email_lead_map_id, to_name, preview_text, etc.)
-    full_payload = {**data, **payload.model_dump()}
-    
-    background_tasks.add_task(
-        process_reply_webhook,
-        payload=full_payload,
-        session=session
+    # 1a. Store raw webhook event for replay/recovery
+    webhook_event = WebhookEventModel(
+        event_type=actual_event_type,
+        campaign_id=str(campaign_id) if campaign_id else None,
+        lead_email=lead_email,
+        payload=json.dumps(data, default=str),
+        processed=False
     )
+    session.add(webhook_event)
+    await session.flush()
+    event_id = webhook_event.id
     
-    return {"status": "received", "message": "Webhook processed"}
+    # 1b. Find or create contact
+    contact = None
+    if lead_email:
+        result = await session.execute(
+            select(Contact).where(
+                and_(func.lower(Contact.email) == lead_email.lower(), Contact.deleted_at.is_(None))
+            )
+        )
+        contact = result.scalar_one_or_none()
+    
+    # Try by smartlead_id
+    lead_id = data.get("lead_id") or lead_data.get("id")
+    if not contact and lead_id:
+        result = await session.execute(
+            select(Contact).where(
+                and_(Contact.smartlead_id == str(lead_id), Contact.deleted_at.is_(None))
+            )
+        )
+        contact = result.scalar_one_or_none()
+    
+    if not contact and lead_email:
+        contact = Contact(
+            company_id=1,
+            email=lead_email.lower().strip(),
+            first_name=lead_data.get("first_name") or data.get("first_name"),
+            last_name=lead_data.get("last_name") or data.get("last_name"),
+            company_name=lead_data.get("company_name") or data.get("company_name"),
+            source="smartlead",
+            smartlead_id=str(lead_id) if lead_id else None,
+            status="new",
+            last_synced_at=datetime.utcnow(),
+            campaigns=json.dumps([{
+                "name": campaign_name,
+                "id": str(campaign_id) if campaign_id else None,
+                "source": "smartlead"
+            }]) if campaign_name or campaign_id else None
+        )
+        session.add(contact)
+        await session.flush()
+    
+    # 1c. Create ContactActivity for ALL event types (analytics!)
+    activity_type = ACTIVITY_TYPE_MAP.get(actual_event_type, actual_event_type or "unknown")
+    is_reply = actual_event_type in REPLY_EVENT_TYPES
+    
+    # Extract reply content if available
+    reply_text = _extract_reply_text(data)
+    subject = _extract_subject(data)
+    
+    # Parse event timestamp
+    event_time = datetime.utcnow()
+    for ts_field in ("event_timestamp", "time_replied", "timestamp"):
+        ts_val = data.get(ts_field)
+        if ts_val:
+            try:
+                event_time = datetime.fromisoformat(str(ts_val).replace("Z", "+00:00")).replace(tzinfo=None)
+            except Exception:
+                pass
+            break
+    
+    if contact:
+        activity = ContactActivity(
+            contact_id=contact.id,
+            company_id=contact.company_id,
+            activity_type=activity_type,
+            channel="email",
+            direction="inbound" if is_reply else "outbound",
+            source="smartlead",
+            source_id=str(lead_id) if lead_id else None,
+            subject=subject,
+            body=reply_text,
+            snippet=(reply_text or "")[:200] if reply_text else None,
+            extra_data={
+                "campaign_id": campaign_id,
+                "campaign_name": campaign_name,
+                "raw_event": actual_event_type,
+                "category": lead_data.get("category"),
+                "webhook_event_id": event_id,
+            },
+            activity_at=event_time
+        )
+        session.add(activity)
+        
+        # 1d. Update contact status based on event type
+        if is_reply:
+            contact.has_replied = True
+            contact.reply_channel = "email"
+            contact.last_reply_at = event_time
+            if contact.status in (None, "", "new", "contacted", "lead"):
+                contact.status = "warm"
+        
+        if actual_event_type == "LEAD_CATEGORY_UPDATED":
+            _update_contact_from_category(contact, lead_data)
+        
+        if actual_event_type == "EMAIL_BOUNCED":
+            contact.status = "bounced"
+        
+        # Update smartlead_id if not set
+        if lead_id and not contact.smartlead_id:
+            contact.smartlead_id = str(lead_id)
+    
+    # Session commits on return via get_session() dependency
+    # At this point, event is safely stored regardless of what happens next
+    
+    # Signal webhook health to the scheduler
+    from app.services.crm_scheduler import mark_webhook_received
+    mark_webhook_received()
+    
+    # ===== PHASE 2: Process reply pipeline async (own session) =====
+    if is_reply and lead_email:
+        # Build the payload for the reply processor
+        full_payload = _build_reply_payload(data)
+        asyncio.create_task(_process_reply_safe(event_id, full_payload))
+        logger.info(f"[WEBHOOK] Reply processing queued for event {event_id}")
+    else:
+        # Non-reply events are fully handled — mark as processed
+        webhook_event.processed = True
+        webhook_event.processed_at = datetime.utcnow()
+        logger.info(f"[WEBHOOK] Non-reply event {actual_event_type} stored (event {event_id})")
+    
+    return {"status": "received", "event_id": event_id, "event_type": actual_event_type}
+
+
+async def _process_reply_safe(event_id: int, payload: dict):
+    """Process a reply with its own DB session. Failures are recoverable via event recovery loop."""
+    from app.services.reply_processor import process_reply_webhook
+    from app.models.reply import WebhookEventModel
+    
+    try:
+        async with async_session_maker() as session:
+            result = await process_reply_webhook(payload, session)
+            
+            # Mark event as successfully processed
+            event = await session.get(WebhookEventModel, event_id)
+            if event:
+                event.processed = True
+                event.processed_at = datetime.utcnow()
+                event.error = None
+            await session.commit()
+            
+            if result:
+                logger.info(f"[WEBHOOK] Reply processed for event {event_id}: category={result.category}")
+            else:
+                logger.warning(f"[WEBHOOK] process_reply_webhook returned None for event {event_id}")
+    except Exception as e:
+        logger.error(f"[WEBHOOK] Reply processing failed for event {event_id}: {e}")
+        # Mark event with error for recovery loop to pick up
+        try:
+            async with async_session_maker() as err_session:
+                event = await err_session.get(WebhookEventModel, event_id)
+                if event:
+                    event.error = str(e)[:500]
+                    event.retry_count = (event.retry_count or 0) + 1
+                await err_session.commit()
+        except Exception as mark_err:
+            logger.error(f"[WEBHOOK] Failed to mark event {event_id} error: {mark_err}")
+
+
+# ===== Helper functions for webhook data extraction =====
+
+def _extract_event_type(data: dict) -> str:
+    """Extract the real event type from webhook data. Never hardcode."""
+    # Try flat format first
+    event_type = data.get("event_type")
+    if event_type:
+        return event_type
+    # Try nested body format
+    body = data.get("body")
+    if isinstance(body, dict):
+        event_type = body.get("event_type")
+        if event_type:
+            return event_type
+    # Default to EMAIL_REPLY for backwards compatibility with older webhook formats
+    # that don't include event_type but are always reply webhooks
+    return "EMAIL_REPLY"
+
+
+def _extract_lead_email(data: dict) -> Optional[str]:
+    """Extract lead email from various webhook formats."""
+    email = (
+        data.get("sl_lead_email") or
+        data.get("to_email") or
+        data.get("lead_email") or
+        (data.get("body") or {}).get("from_email") or
+        (data.get("lead_data") or {}).get("email")
+    )
+    return email.lower().strip() if email else None
+
+
+def _extract_campaign_id(data: dict) -> Optional[str]:
+    """Extract campaign ID from various webhook formats."""
+    cid = data.get("campaign_id") or (data.get("body") or {}).get("campaign_id")
+    return str(cid) if cid else None
+
+
+def _extract_campaign_name(data: dict) -> Optional[str]:
+    """Extract campaign name from various webhook formats."""
+    return data.get("campaign_name") or (data.get("body") or {}).get("campaign_name")
+
+
+def _extract_reply_text(data: dict) -> Optional[str]:
+    """Extract reply text content from webhook data."""
+    return (
+        data.get("reply_body") or
+        data.get("preview_text") or
+        data.get("description") or
+        (data.get("reply_message") or {}).get("text") or
+        (data.get("reply_message") or {}).get("html") or
+        (data.get("body") or {}).get("preview_text") or
+        (data.get("body") or {}).get("email_text") or
+        (data.get("last_reply") or {}).get("email_body")
+    )
+
+
+def _extract_subject(data: dict) -> Optional[str]:
+    """Extract email subject from webhook data."""
+    subject = data.get("subject") or data.get("email_subject")
+    if not subject:
+        for entry in data.get("history", []):
+            if entry.get("subject"):
+                subject = entry["subject"]
+                break
+    return subject
+
+
+def _update_contact_from_category(contact, lead_data: dict):
+    """Update contact status from Smartlead category change event."""
+    category = lead_data.get("category", {})
+    if not isinstance(category, dict):
+        return
+    cat_name = category.get("name", "").lower()
+    contact.smartlead_status = category.get("name")
+    status_map = {
+        "interested": "warm",
+        "meeting booked": "warm",
+        "out of office": "out_of_office",
+        "not interested": "not_interested",
+        "wrong person": "not_interested",
+        "do not contact": "not_interested",
+        "auto reply": "out_of_office",
+    }
+    mapped = status_map.get(cat_name)
+    if mapped:
+        contact.status = mapped
+
+
+def _build_reply_payload(data: dict) -> dict:
+    """Build a flat payload dict for process_reply_webhook from raw webhook data."""
+    body = data.get("body") or {}
+    lead_data = data.get("lead_data") or {}
+    
+    lead_email = _extract_lead_email(data)
+    campaign_id = _extract_campaign_id(data)
+    campaign_name = _extract_campaign_name(data)
+    reply_text = _extract_reply_text(data)
+    subject = _extract_subject(data)
+    
+    return {
+        "event_type": "EMAIL_REPLY",
+        "campaign_id": campaign_id,
+        "campaign_name": campaign_name,
+        "lead_email": lead_email,
+        "to_email": lead_email,
+        "to_name": data.get("to_name", ""),
+        "first_name": lead_data.get("first_name") or data.get("first_name", ""),
+        "last_name": lead_data.get("last_name") or data.get("last_name", ""),
+        "company_name": lead_data.get("company_name") or data.get("company_name", ""),
+        "email_subject": subject,
+        "preview_text": reply_text,
+        "email_body": reply_text,
+        "sl_email_lead_id": str(data.get("lead_id", "")) if data.get("lead_id") else "",
+        "sl_email_lead_map_id": str(data.get("sl_email_lead_map_id", "")),
+        "custom_fields": lead_data.get("custom_fields") or data.get("custom_fields", {}),
+        "website": lead_data.get("website") or data.get("website", ""),
+        "linkedin_profile": lead_data.get("linkedin_profile") or data.get("linkedin_profile", ""),
+        "location": lead_data.get("location") or data.get("location", ""),
+        "time_replied": data.get("time_replied") or data.get("event_timestamp"),
+        "history": data.get("history", []),
+        "ui_master_inbox_link": body.get("ui_master_inbox_link") or data.get("ui_master_inbox_link"),
+        # Preserve all original data for the processor
+        **{k: v for k, v in data.items() if k not in ("body", "lead_data")},
+    }
 
 
 class SimulateReplyPayload(BaseModel):
