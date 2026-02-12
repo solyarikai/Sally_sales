@@ -1184,7 +1184,6 @@ async def getsales_webhook(
         }
         if contact.touches:
             try:
-                import json
                 touches = json.loads(contact.touches) if isinstance(contact.touches, str) else contact.touches
                 touches.append(touch)
                 contact.touches = touches
