@@ -206,4 +206,58 @@ export const pipelineApi = {
     });
     return response.data;
   },
+
+  // Project-level auto-enrich config (used by DataSearchPage)
+  getAutoEnrichConfig: async (_projectId: number): Promise<{
+    auto_extract?: boolean;
+    auto_apollo?: boolean;
+    max_people?: number;
+    titles?: string[];
+    max_credits?: number;
+  } | null> => {
+    try {
+      const response = await api.get('/pipeline/auto-enrich-config', {
+        params: { project_id: _projectId },
+      });
+      return response.data;
+    } catch {
+      return null;
+    }
+  },
+
+  // Extract contacts for all target companies in a project
+  extractContactsForProject: async (
+    projectId: number,
+    _onProgress?: (done: number, total: number) => void,
+  ): Promise<{ processed: number; contacts_found: number; errors: number }> => {
+    const list = await api.get('/pipeline/discovered-companies', {
+      params: { project_id: projectId, is_target: true, page_size: 500 },
+    });
+    const ids = (list.data?.items ?? []).map((c: { id: number }) => c.id);
+    if (ids.length === 0) return { processed: 0, contacts_found: 0, errors: 0 };
+    const response = await api.post('/pipeline/extract-contacts', {
+      discovered_company_ids: ids,
+    });
+    return response.data;
+  },
+
+  // Apollo enrich for all companies in a project
+  enrichApolloForProject: async (
+    projectId: number,
+    opts?: { max_people?: number; titles?: string[]; max_credits?: number },
+    _onProgress?: (done: number, total: number) => void,
+  ): Promise<{ processed: number; people_found: number; errors: number; credits_used: number; skipped: number }> => {
+    const list = await api.get('/pipeline/discovered-companies', {
+      params: { project_id: projectId, page_size: 500 },
+    });
+    const ids = (list.data?.items ?? []).map((c: { id: number }) => c.id);
+    if (ids.length === 0) return { processed: 0, people_found: 0, errors: 0, credits_used: 0, skipped: 0 };
+    const response = await api.post('/pipeline/enrich-apollo', {
+      discovered_company_ids: ids,
+      max_people: opts?.max_people ?? 5,
+      titles: opts?.titles,
+      max_credits: opts?.max_credits,
+    });
+    return response.data;
+  },
 };

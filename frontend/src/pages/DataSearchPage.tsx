@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
   Send,
@@ -33,6 +34,7 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   XCircle,
+  StopCircle,
   PanelLeftClose,
   PanelLeftOpen,
   ChevronDown,
@@ -43,9 +45,20 @@ import { cn } from '../lib/utils';
 import type { SearchFilter, CompanyResult, ChatMessage, ExtractedPattern, VerificationCriteria, SearchProgressEvent, SearchResultItem, SpendingInfo } from '../api/dataSearch';
 import { dataSearchApi, projectSearchApi } from '../api/dataSearch';
 import { contactsApi, type Project } from '../api/contacts';
+import { pipelineApi } from '../api/pipeline';
 
 // Search modes
 type SearchMode = 'chat' | 'reverse' | 'project';
+
+// Pipeline stage for project search (used by cache and handlers)
+type PipelineStage = 'idle' | 'searching' | 'search_done' | 'contacts' | 'contacts_done' | 'enrichment' | 'done';
+interface AutoEnrichConfig {
+  auto_extract?: boolean;
+  auto_apollo?: boolean;
+  max_people?: number;
+  titles?: string[];
+  max_credits?: number;
+}
 
 // Chat message for project search (extended with system role)
 interface ProjectChatMessage {
@@ -554,6 +567,14 @@ export function DataSearchPage() {
   const [showTargetsOnly, setShowTargetsOnly] = useState(false);
   const [expandedResultId, setExpandedResultId] = useState<number | null>(null);
   const webChatEndRef = useRef<HTMLDivElement>(null);
+
+  // Pipeline stage and progress (for project mode)
+  const [pipelineStage, setPipelineStage] = useState<PipelineStage>('idle');
+  const [autoEnrichConfig, setAutoEnrichConfig] = useState<AutoEnrichConfig | null>(null);
+  const [contactsProgress, setContactsProgress] = useState<string | null>(null);
+  const [enrichProgress, setEnrichProgress] = useState<string | null>(null);
+
+  const navigate = useNavigate();
 
   // Scroll to bottom of messages
   useEffect(() => {
@@ -1321,8 +1342,8 @@ export function DataSearchPage() {
                   </button>
                 </div>
 
-                {/* Pipeline stage indicator */}
-                {pipelineStage !== 'idle' && (
+                {/* Pipeline stage indicator — PipelineStageIndicator component not implemented, block commented out */}
+                {/* {pipelineStage !== 'idle' && (
                   <PipelineStageIndicator
                     stage={pipelineStage}
                     contactsProgress={contactsProgress}
@@ -1331,7 +1352,7 @@ export function DataSearchPage() {
                     onEnrichApollo={handleEnrichApollo}
                     autoConfig={autoEnrichConfig}
                   />
-                )}
+                )} */}
 
                 {/* Chat messages */}
                 <div className="flex-1 overflow-y-auto">
@@ -1840,7 +1861,7 @@ export function DataSearchPage() {
               </>
             ) : null}
           </div>
-        ) : searchMode === 'project' && hasSearched ? (
+        ) : (searchMode as SearchMode) === 'project' && hasSearched ? (
           // Chat-driven web search results view — split layout
           <div className="flex-1 flex overflow-hidden">
             {/* Left: Chat panel */}
