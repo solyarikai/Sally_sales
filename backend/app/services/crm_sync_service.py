@@ -1141,12 +1141,14 @@ class CRMSyncService:
         Uses the statistics endpoint (GET /campaigns/{id}/statistics) to find
         ALL leads with reply_time set (regardless of category). This catches
         replies that webhooks missed. For each new reply:
-        1. Enrich via global GET /leads/?email= for lead_id, company, etc.
-        2. Fetch message history using numeric lead_id for actual reply text
-        3. Strip HTML and extract clean reply body
-        4. Run through the full reply pipeline (classify, draft, notify)
+        1. Look up lead_id from local DB (contacts.smartlead_id) — no API call
+        2. Fall back to statistics lead_id, then API call as last resort
+        3. Fetch message history using lead_id for actual reply text
+        4. Strip HTML and extract clean reply body
+        5. Run through the full reply pipeline (classify, draft, notify)
 
         Uses Redis cache for fast dedup, falls back to DB check.
+        Reuses a single httpx client for all message-history fetches.
         """
         if not self.smartlead:
             raise ValueError("Smartlead API key not configured")
@@ -1154,170 +1156,212 @@ class CRMSyncService:
         from app.models.reply import ProcessedReply
         from app.services.smartlead_service import smartlead_service
 
-        stats = {"new_replies": 0, "existing": 0, "cached": 0, "campaigns_checked": 0, "errors": 0}
+        stats = {
+            "new_replies": 0, "existing": 0, "cached": 0,
+            "campaigns_checked": 0, "errors": 0,
+            "lead_id_from_db": 0, "lead_id_from_stats": 0, "lead_id_from_api": 0,
+        }
         new_cache_keys = []
 
         try:
             campaigns = await self.smartlead.get_campaigns()
             logger.info(f"Reply sync: checking {len(campaigns)} campaigns")
 
-            for campaign in campaigns:
-                status = campaign.get("status", "").upper()
-                campaign_id = campaign.get("id")
-                campaign_name = campaign.get("name", "Unknown")
+            # Reuse a single httpx client for all message-history fetches
+            async with httpx.AsyncClient(timeout=30.0) as http_client:
+                for campaign in campaigns:
+                    status = campaign.get("status", "").upper()
+                    campaign_id = campaign.get("id")
+                    campaign_name = campaign.get("name", "Unknown")
 
-                if status not in ("ACTIVE", "PAUSED", "COMPLETED"):
-                    continue
-
-                stats["campaigns_checked"] += 1
-
-                try:
-                    # Fetch ALL replied leads via statistics endpoint
-                    replied_leads = await smartlead_service.get_all_campaign_replied_leads(
-                        str(campaign_id)
-                    )
-
-                    if not replied_leads:
-                        await asyncio.sleep(0.1)
+                    if status not in ("ACTIVE", "PAUSED", "COMPLETED"):
                         continue
 
-                    logger.info(f"Reply sync: campaign '{campaign_name}' has {len(replied_leads)} replied leads")
+                    stats["campaigns_checked"] += 1
 
-                    # Bulk check Redis cache using email+campaign as key
-                    cache_keys = [f"{rl['lead_email']}_{campaign_id}" for rl in replied_leads]
-                    cached_keys = await bulk_check_replies("smartlead_replies", cache_keys)
-
-                    for reply_data in replied_leads:
-                        email = self.normalize_email(reply_data.get("lead_email"))
-                        cache_key = f"{email}_{campaign_id}"
-
-                        if cache_key in cached_keys:
-                            stats["cached"] += 1
-                            continue
-
-                        if not email:
-                            continue
-
-                        # Check if ProcessedReply already exists
-                        existing_pr = await session.execute(
-                            select(ProcessedReply).where(
-                                and_(
-                                    func.lower(ProcessedReply.lead_email) == email.lower(),
-                                    ProcessedReply.campaign_id == str(campaign_id)
-                                )
-                            ).limit(1)
+                    try:
+                        # Fetch ALL replied leads via statistics endpoint
+                        replied_leads = await smartlead_service.get_all_campaign_replied_leads(
+                            str(campaign_id)
                         )
-                        if existing_pr.scalar_one_or_none():
-                            stats["existing"] += 1
-                            new_cache_keys.append(cache_key)
+
+                        if not replied_leads:
+                            await asyncio.sleep(0.1)
                             continue
 
-                        # Enrich lead data via global search
-                        first_name = ""
-                        last_name = ""
-                        company_name = ""
-                        custom_fields = {}
-                        website = ""
-                        linkedin_profile = ""
-                        location = ""
-                        lead_id = None
-                        campaign_lead_map_id = ""
+                        logger.info(f"Reply sync: campaign '{campaign_name}' has {len(replied_leads)} replied leads")
 
-                        try:
-                            global_lead = await smartlead_service.get_lead_by_email_global(email)
-                            if global_lead:
-                                lead_id = str(global_lead.get("id", ""))
-                                first_name = global_lead.get("first_name", "")
-                                last_name = global_lead.get("last_name", "")
-                                company_name = global_lead.get("company_name", "")
-                                custom_fields = global_lead.get("custom_fields") or {}
-                                website = global_lead.get("website", "")
-                                linkedin_profile = global_lead.get("linkedin_profile", "")
-                                location = global_lead.get("location", "")
-                                # Find campaign_lead_map_id from lead_campaign_data
-                                for cd in global_lead.get("lead_campaign_data", []):
-                                    if str(cd.get("campaign_id")) == str(campaign_id):
-                                        campaign_lead_map_id = str(cd.get("campaign_lead_map_id", ""))
-                                        break
-                        except Exception as enrich_err:
-                            logger.warning(f"Lead enrichment failed for {email}: {enrich_err}")
+                        # Bulk check Redis cache using email+campaign as key
+                        cache_keys = [f"{rl['lead_email']}_{campaign_id}" for rl in replied_leads]
+                        cached_keys = await bulk_check_replies("smartlead_replies", cache_keys)
 
-                        # Fallback: parse name from statistics data
-                        if not first_name:
-                            name_parts = (reply_data.get("lead_name") or "").strip().split()
-                            first_name = name_parts[0] if name_parts else ""
-                            last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+                        for reply_data in replied_leads:
+                            email = self.normalize_email(reply_data.get("lead_email"))
+                            cache_key = f"{email}_{campaign_id}"
 
-                        # Fetch message history for reply content (needs lead_id)
-                        reply_body = ""
-                        reply_subject = reply_data.get("email_subject", "")
-                        reply_time = reply_data.get("reply_time")
+                            if cache_key in cached_keys:
+                                stats["cached"] += 1
+                                continue
 
-                        if lead_id:
+                            if not email:
+                                continue
+
+                            # Check if ProcessedReply already exists
+                            existing_pr = await session.execute(
+                                select(ProcessedReply).where(
+                                    and_(
+                                        func.lower(ProcessedReply.lead_email) == email.lower(),
+                                        ProcessedReply.campaign_id == str(campaign_id)
+                                    )
+                                ).limit(1)
+                            )
+                            if existing_pr.scalar_one_or_none():
+                                stats["existing"] += 1
+                                new_cache_keys.append(cache_key)
+                                continue
+
+                            # --- Resolve lead data: DB first, then stats, then API ---
+                            first_name = ""
+                            last_name = ""
+                            company_name = ""
+                            custom_fields = {}
+                            website = ""
+                            linkedin_profile = ""
+                            location = ""
+                            lead_id = None
+                            campaign_lead_map_id = ""
+
+                            # 1) Local DB lookup (free, instant)
                             try:
-                                thread = await smartlead_service.get_email_thread(
-                                    str(campaign_id), lead_id
+                                contact_result = await session.execute(
+                                    select(Contact).where(
+                                        and_(
+                                            func.lower(Contact.email) == email.lower(),
+                                            Contact.deleted_at.is_(None)
+                                        )
+                                    ).limit(1)
                                 )
-                                for msg in reversed(thread):
-                                    if (msg.get("type") or "").upper() == "REPLY":
-                                        raw_body = msg.get("email_body") or ""
+                                contact = contact_result.scalar_one_or_none()
+                                if contact and contact.smartlead_id:
+                                    lead_id = str(contact.smartlead_id)
+                                    first_name = contact.first_name or ""
+                                    last_name = contact.last_name or ""
+                                    company_name = contact.company_name or ""
+                                    linkedin_profile = contact.linkedin_url or ""
+                                    location = contact.location or ""
+                                    stats["lead_id_from_db"] += 1
+                            except Exception as db_err:
+                                logger.warning(f"DB lookup failed for {email}: {db_err}")
+
+                            # 2) Statistics response lead_id (already fetched, free)
+                            if not lead_id:
+                                stats_lead_id = reply_data.get("lead_id")
+                                if stats_lead_id:
+                                    lead_id = str(stats_lead_id)
+                                    stats["lead_id_from_stats"] += 1
+
+                            # 3) SmartLead API as last resort (only if DB + stats both failed)
+                            if not lead_id:
+                                try:
+                                    global_lead = await smartlead_service.get_lead_by_email_global(email)
+                                    if global_lead:
+                                        lead_id = str(global_lead.get("id", ""))
+                                        if not first_name:
+                                            first_name = global_lead.get("first_name", "")
+                                        if not last_name:
+                                            last_name = global_lead.get("last_name", "")
+                                        if not company_name:
+                                            company_name = global_lead.get("company_name", "")
+                                        custom_fields = global_lead.get("custom_fields") or {}
+                                        website = global_lead.get("website", "")
+                                        if not linkedin_profile:
+                                            linkedin_profile = global_lead.get("linkedin_profile", "")
+                                        if not location:
+                                            location = global_lead.get("location", "")
+                                        for cd in global_lead.get("lead_campaign_data", []):
+                                            if str(cd.get("campaign_id")) == str(campaign_id):
+                                                campaign_lead_map_id = str(cd.get("campaign_lead_map_id", ""))
+                                                break
+                                        stats["lead_id_from_api"] += 1
+                                except Exception as enrich_err:
+                                    logger.warning(f"API lead lookup failed for {email}: {enrich_err}")
+
+                            # Fallback: parse name from statistics data
+                            if not first_name:
+                                name_parts = (reply_data.get("lead_name") or "").strip().split()
+                                first_name = name_parts[0] if name_parts else ""
+                                last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+                            # Fetch message history for reply content (needs lead_id)
+                            reply_body = ""
+                            reply_subject = reply_data.get("email_subject", "")
+                            reply_time = reply_data.get("reply_time")
+
+                            if lead_id:
+                                try:
+                                    thread = await smartlead_service.get_email_thread_with_client(
+                                        http_client, str(campaign_id), lead_id
+                                    )
+                                    for msg in reversed(thread):
+                                        if (msg.get("type") or "").upper() == "REPLY":
+                                            raw_body = msg.get("email_body") or ""
+                                            reply_body = self._strip_html(raw_body)
+                                            if msg.get("subject"):
+                                                reply_subject = msg["subject"]
+                                            if msg.get("time"):
+                                                reply_time = msg["time"]
+                                            break
+                                    if not reply_body and thread:
+                                        raw_body = thread[-1].get("email_body") or ""
                                         reply_body = self._strip_html(raw_body)
-                                        if msg.get("subject"):
-                                            reply_subject = msg["subject"]
-                                        if msg.get("time"):
-                                            reply_time = msg["time"]
-                                        break
-                                if not reply_body and thread:
-                                    raw_body = thread[-1].get("email_body") or ""
-                                    reply_body = self._strip_html(raw_body)
-                            except Exception as thread_err:
-                                logger.warning(f"Could not fetch thread for {email} (lead {lead_id}): {thread_err}")
+                                except Exception as thread_err:
+                                    logger.warning(f"Could not fetch thread for {email} (lead {lead_id}): {thread_err}")
 
-                        # Build webhook-compatible payload
-                        webhook_payload = {
-                            "event_type": "EMAIL_REPLY",
-                            "campaign_id": str(campaign_id),
-                            "campaign_name": campaign_name,
-                            "lead_email": email,
-                            "to_email": email,
-                            "to_name": f"{first_name} {last_name}".strip(),
-                            "first_name": first_name,
-                            "last_name": last_name,
-                            "company_name": company_name,
-                            "email_subject": reply_subject,
-                            "preview_text": reply_body,
-                            "email_body": reply_body,
-                            "sl_email_lead_id": lead_id or "",
-                            "sl_email_lead_map_id": campaign_lead_map_id,
-                            "custom_fields": custom_fields,
-                            "website": website,
-                            "linkedin_profile": linkedin_profile,
-                            "location": location,
-                            "time_replied": reply_time,
-                            "_source": "api_polling",
-                        }
+                            # Build webhook-compatible payload
+                            webhook_payload = {
+                                "event_type": "EMAIL_REPLY",
+                                "campaign_id": str(campaign_id),
+                                "campaign_name": campaign_name,
+                                "lead_email": email,
+                                "to_email": email,
+                                "to_name": f"{first_name} {last_name}".strip(),
+                                "first_name": first_name,
+                                "last_name": last_name,
+                                "company_name": company_name,
+                                "email_subject": reply_subject,
+                                "preview_text": reply_body,
+                                "email_body": reply_body,
+                                "sl_email_lead_id": lead_id or "",
+                                "sl_email_lead_map_id": campaign_lead_map_id,
+                                "custom_fields": custom_fields,
+                                "website": website,
+                                "linkedin_profile": linkedin_profile,
+                                "location": location,
+                                "time_replied": reply_time,
+                                "_source": "api_polling",
+                            }
 
-                        # Run the full reply processing pipeline
-                        try:
-                            from app.services.reply_processor import process_reply_webhook
-                            processed = await process_reply_webhook(webhook_payload, session)
-                            if processed:
-                                stats["new_replies"] += 1
-                                logger.info(f"Reply sync: processed reply from {email} in '{campaign_name}'")
-                            else:
-                                logger.warning(f"Reply sync: process_reply_webhook returned None for {email}")
-                        except Exception as proc_err:
-                            stats["errors"] += 1
-                            logger.warning(f"Reply sync: failed to process {email}: {proc_err}")
+                            # Run the full reply processing pipeline
+                            try:
+                                from app.services.reply_processor import process_reply_webhook
+                                processed = await process_reply_webhook(webhook_payload, session)
+                                if processed:
+                                    stats["new_replies"] += 1
+                                    logger.info(f"Reply sync: processed reply from {email} in '{campaign_name}'")
+                                else:
+                                    logger.warning(f"Reply sync: process_reply_webhook returned None for {email}")
+                            except Exception as proc_err:
+                                stats["errors"] += 1
+                                logger.warning(f"Reply sync: failed to process {email}: {proc_err}")
 
-                        new_cache_keys.append(cache_key)
-                        await asyncio.sleep(0.3)  # Rate limit per lead
+                            new_cache_keys.append(cache_key)
+                            await asyncio.sleep(0.3)  # Rate limit per lead
 
-                    await asyncio.sleep(0.2)  # Rate limit per campaign
+                        await asyncio.sleep(0.2)  # Rate limit per campaign
 
-                except Exception as e:
-                    stats["errors"] += 1
-                    logger.warning(f"Error checking campaign '{campaign_name}': {e}")
+                    except Exception as e:
+                        stats["errors"] += 1
+                        logger.warning(f"Error checking campaign '{campaign_name}': {e}")
 
             await session.commit()
 

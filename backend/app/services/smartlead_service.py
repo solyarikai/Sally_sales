@@ -422,6 +422,7 @@ class SmartleadService:
                             replied_by_email[email] = {
                                 "lead_email": email,
                                 "lead_name": entry.get("lead_name", ""),
+                                "lead_id": entry.get("lead_id") or entry.get("id"),
                                 "reply_time": entry.get("reply_time"),
                                 "lead_category": entry.get("lead_category"),
                                 "stats_id": entry.get("stats_id"),
@@ -436,6 +437,35 @@ class SmartleadService:
                 break
 
         return list(replied_by_email.values())
+
+    async def get_email_thread_with_client(
+        self,
+        client: httpx.AsyncClient,
+        campaign_id: str,
+        lead_id: str
+    ) -> List[Dict[str, Any]]:
+        """Get email thread using a shared httpx client (avoids per-call connection overhead).
+
+        Same as get_email_thread but accepts an external client for batching.
+        """
+        if not self._api_key:
+            raise ValueError("API key not set")
+
+        try:
+            response = await client.get(
+                f"{self.base_url}/campaigns/{campaign_id}/leads/{lead_id}/message-history",
+                params={"api_key": self._api_key}
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("history", data.get("messages", []))
+            else:
+                logger.error(f"Failed to fetch email thread for lead {lead_id}: {response.status_code}")
+                return []
+        except Exception as e:
+            logger.error(f"Error fetching email thread for lead {lead_id}: {e}")
+            return []
 
     async def send_reply(
         self,
