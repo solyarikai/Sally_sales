@@ -1,7 +1,12 @@
 """
 Apollo Service — People enrichment via Apollo.io API.
 
-Finds people by domain with verified emails, titles, LinkedIn profiles.
+Two-step flow:
+1. Search: /mixed_people/api_search → find people names + titles at a domain
+2. Enrich: /people/enrich → get email, LinkedIn, phone for each person
+
+The search endpoint does NOT return contact info (emails, LinkedIn, phones).
+The enrich endpoint reveals them (uses email credits).
 """
 import asyncio
 import logging
@@ -18,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ApolloService:
     """Service for interacting with Apollo.io API."""
 
-    # Apollo free tier: 50 API calls per minute
+    # Apollo rate limit: 50 API calls per minute
     RATE_LIMIT_PER_MINUTE = 50
     RATE_LIMIT_INTERVAL = 60.0 / RATE_LIMIT_PER_MINUTE + 0.1  # ~1.3s between calls
 
@@ -43,6 +48,55 @@ class ApolloService:
             headers["X-Api-Key"] = self.api_key
         return headers
 
+    async def _rate_limit(self):
+        """Wait to stay under API rate limit."""
+        now = time.monotonic()
+        elapsed = now - self._last_call_time
+        if elapsed < self.RATE_LIMIT_INTERVAL:
+            await asyncio.sleep(self.RATE_LIMIT_INTERVAL - elapsed)
+        self._last_call_time = time.monotonic()
+
+    async def _api_call(self, method: str, endpoint: str, json_data: dict = None) -> Optional[dict]:
+        """Make a rate-limited API call with 429 retry."""
+        await self._rate_limit()
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                if method == "POST":
+                    resp = await client.post(
+                        f"{self.base_url}{endpoint}",
+                        json=json_data,
+                        headers=self._get_headers(),
+                    )
+                else:
+                    resp = await client.get(
+                        f"{self.base_url}{endpoint}",
+                        headers=self._get_headers(),
+                    )
+                if resp.status_code == 429:
+                    logger.warning(f"Apollo 429, waiting 65s...")
+                    await asyncio.sleep(65)
+                    self._last_call_time = time.monotonic()
+                    if method == "POST":
+                        resp = await client.post(
+                            f"{self.base_url}{endpoint}",
+                            json=json_data,
+                            headers=self._get_headers(),
+                        )
+                    else:
+                        resp = await client.get(
+                            f"{self.base_url}{endpoint}",
+                            headers=self._get_headers(),
+                        )
+                resp.raise_for_status()
+                self.credits_used += 1
+                return resp.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Apollo API {endpoint}: {e.response.status_code} - {e.response.text[:200]}")
+            return None
+        except Exception as e:
+            logger.error(f"Apollo API {endpoint} failed: {e}")
+            return None
+
     async def enrich_by_domain(
         self,
         domain: str,
@@ -50,114 +104,90 @@ class ApolloService:
         titles: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Search Apollo for people at a given domain.
+        Find and enrich people at a domain.
+
+        Step 1: Search /mixed_people/api_search for people (names + titles)
+        Step 2: Enrich each person via /people/enrich (get email, LinkedIn, phone)
 
         Returns list of people with:
-        {email, first_name, last_name, job_title, linkedin_url, is_verified, raw_data}
+        {email, first_name, last_name, job_title, linkedin_url, is_verified, phone, raw_data}
         """
         if not self.api_key:
             logger.warning("Apollo API key not configured")
             return []
 
+        # Step 1: Search for people at domain
         payload: Dict[str, Any] = {
             "q_organization_domains": domain,
             "page": 1,
             "per_page": min(limit, 25),
         }
-
-        # Optional title filter (e.g., ["CEO", "CTO", "VP"])
         if titles:
             payload["person_titles"] = titles
 
-        try:
-            # Rate limiting: wait to stay under 50 calls/min
-            now = time.monotonic()
-            elapsed = now - self._last_call_time
-            if elapsed < self.RATE_LIMIT_INTERVAL:
-                await asyncio.sleep(self.RATE_LIMIT_INTERVAL - elapsed)
-            self._last_call_time = time.monotonic()
-
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
-                    f"{self.base_url}/mixed_people/api_search",
-                    json=payload,
-                    headers=self._get_headers(),
-                )
-                resp.raise_for_status()
-                data = resp.json()
-
-            people = data.get("people", [])
-            results = []
-
-            for person in people:
-                # Include all people — free tier may not reveal emails/LinkedIn
-                # but names + titles are still useful for outreach
-                email = person.get("email")
-                results.append({
-                    "email": email,
-                    "first_name": person.get("first_name"),
-                    "last_name": person.get("last_name"),
-                    "job_title": person.get("title"),
-                    "linkedin_url": person.get("linkedin_url"),
-                    "is_verified": person.get("email_status") == "verified",
-                    "phone": (person.get("phone_numbers") or [{}])[0].get("sanitized_number") if person.get("phone_numbers") else None,
-                    "raw_data": {
-                        "id": person.get("id"),
-                        "organization": person.get("organization", {}).get("name"),
-                        "headline": person.get("headline"),
-                        "city": person.get("city"),
-                        "state": person.get("state"),
-                        "country": person.get("country"),
-                        "email_status": person.get("email_status"),
-                        "seniority": person.get("seniority"),
-                        "departments": person.get("departments"),
-                    },
-                })
-
-            self.credits_used += 1
-            logger.info(f"Apollo found {len(results)} people for {domain} (credits_used={self.credits_used})")
-            return results
-
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 429:
-                # Rate limited — wait 65 seconds and retry once
-                logger.warning(f"Apollo 429 for {domain}, waiting 65s and retrying...")
-                await asyncio.sleep(65)
-                self._last_call_time = time.monotonic()
-                try:
-                    async with httpx.AsyncClient(timeout=30) as client:
-                        resp = await client.post(
-                            f"{self.base_url}/mixed_people/api_search",
-                            json=payload,
-                            headers=self._get_headers(),
-                        )
-                        resp.raise_for_status()
-                        data = resp.json()
-                    people = data.get("people", [])
-                    results = []
-                    for person in people:
-                        email = person.get("email")
-                        results.append({
-                            "email": email,
-                            "first_name": person.get("first_name"),
-                            "last_name": person.get("last_name"),
-                            "job_title": person.get("title"),
-                            "linkedin_url": person.get("linkedin_url"),
-                            "is_verified": person.get("email_status") == "verified",
-                            "phone": (person.get("phone_numbers") or [{}])[0].get("sanitized_number") if person.get("phone_numbers") else None,
-                            "raw_data": {"id": person.get("id"), "organization": person.get("organization", {}).get("name")},
-                        })
-                    self.credits_used += 1
-                    logger.info(f"Apollo retry found {len(results)} people for {domain} (credits_used={self.credits_used})")
-                    return results
-                except Exception as retry_err:
-                    logger.error(f"Apollo retry also failed for {domain}: {retry_err}")
-                    return []
-            logger.error(f"Apollo API error for {domain}: {e.response.status_code} - {e.response.text[:200]}")
+        search_data = await self._api_call("POST", "/mixed_people/api_search", payload)
+        if not search_data:
             return []
-        except Exception as e:
-            logger.error(f"Apollo enrichment failed for {domain}: {e}")
+
+        people = search_data.get("people", [])
+        if not people:
+            logger.info(f"Apollo search: 0 people at {domain} (credits_used={self.credits_used})")
             return []
+
+        # Step 2: Enrich each person to get actual contact info
+        results = []
+        for person in people:
+            first_name = person.get("first_name")
+            last_name = person.get("last_name")
+            if not first_name:
+                continue
+
+            enrich_payload = {
+                "first_name": first_name,
+                "last_name": last_name or "",
+                "organization_domain": domain,
+                "reveal_personal_emails": True,
+            }
+
+            enrich_data = await self._api_call("POST", "/people/enrich", enrich_payload)
+            if not enrich_data:
+                continue
+
+            enriched = enrich_data.get("person", {})
+            email = enriched.get("email")
+            linkedin = enriched.get("linkedin_url")
+            title = enriched.get("title") or person.get("title")
+            phone = None
+            if enriched.get("phone_numbers"):
+                phone = enriched["phone_numbers"][0].get("sanitized_number")
+
+            results.append({
+                "email": email,
+                "first_name": enriched.get("first_name") or first_name,
+                "last_name": enriched.get("last_name") or last_name,
+                "job_title": title,
+                "linkedin_url": linkedin,
+                "is_verified": enriched.get("email_status") == "verified",
+                "phone": phone,
+                "raw_data": {
+                    "id": enriched.get("id"),
+                    "organization": enriched.get("organization", {}).get("name") if enriched.get("organization") else None,
+                    "headline": enriched.get("headline"),
+                    "city": enriched.get("city"),
+                    "state": enriched.get("state"),
+                    "country": enriched.get("country"),
+                    "email_status": enriched.get("email_status"),
+                    "seniority": enriched.get("seniority"),
+                    "departments": enriched.get("departments"),
+                    "personal_emails": enriched.get("personal_emails", []),
+                },
+            })
+
+        logger.info(
+            f"Apollo found {len(results)} enriched people for {domain} "
+            f"(searched={len(people)}, credits_used={self.credits_used})"
+        )
+        return results
 
     def reset_credits(self):
         """Reset the credit counter."""
@@ -167,21 +197,11 @@ class ApolloService:
         """Test Apollo API connection."""
         if not self.api_key:
             return False
-
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(
-                    f"{self.base_url}/mixed_people/api_search",
-                    json={
-                        "q_organization_domains": "apollo.io",
-                        "per_page": 1,
-                    },
-                    headers=self._get_headers(),
-                )
-                return resp.status_code == 200
-        except Exception as e:
-            logger.error(f"Apollo connection test failed: {e}")
-            return False
+        data = await self._api_call("POST", "/mixed_people/api_search", {
+            "q_organization_domains": "apollo.io",
+            "per_page": 1,
+        })
+        return data is not None
 
 
 # Module-level singleton
