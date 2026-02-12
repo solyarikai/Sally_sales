@@ -91,20 +91,28 @@ class ApolloService:
                         headers=self._get_headers(),
                     )
                 if resp.status_code == 429:
-                    logger.warning(f"Apollo 429, waiting 65s...")
-                    await asyncio.sleep(65)
-                    self._last_call_time = time.monotonic()
-                    if method == "POST":
-                        resp = await client.post(
-                            f"{self.base_url}{endpoint}",
-                            json=json_data,
-                            headers=self._get_headers(),
-                        )
+                    body = resp.text
+                    # Detect hourly vs per-minute limit
+                    if "per hour" in body or "times per hour" in body:
+                        wait = 900  # 15 min for hourly limit
+                        logger.warning(f"Apollo HOURLY limit hit, waiting {wait}s...")
                     else:
-                        resp = await client.get(
-                            f"{self.base_url}{endpoint}",
-                            headers=self._get_headers(),
-                        )
+                        wait = 65
+                        logger.warning(f"Apollo per-minute limit hit, waiting {wait}s...")
+                    await asyncio.sleep(wait)
+                    self._last_call_time = time.monotonic()
+                    async with httpx.AsyncClient(timeout=30) as retry_client:
+                        if method == "POST":
+                            resp = await retry_client.post(
+                                f"{self.base_url}{endpoint}",
+                                json=json_data,
+                                headers=self._get_headers(),
+                            )
+                        else:
+                            resp = await retry_client.get(
+                                f"{self.base_url}{endpoint}",
+                                headers=self._get_headers(),
+                            )
                 resp.raise_for_status()
                 self.credits_used += 1
                 return resp.json()
