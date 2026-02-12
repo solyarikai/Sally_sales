@@ -414,9 +414,14 @@ export async function approveAndSendReply(replyId: number): Promise<{
   reply_id: number;
   message?: string;
   lead_email?: string;
+  sent_to?: string;
+  test_mode?: boolean;
   campaign_id?: string;
 }> {
-  const response = await api.post(`/replies/${replyId}/approve-and-send`);
+  // On localhost, always send in test_mode so emails go to pn@getsally.io instead of real leads
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const params = isLocal ? { test_mode: true } : {};
+  const response = await api.post(`/replies/${replyId}/approve-and-send`, null, { params });
   return response.data;
 }
 

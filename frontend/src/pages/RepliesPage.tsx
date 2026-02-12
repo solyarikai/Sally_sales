@@ -106,7 +106,13 @@ export function RepliesPage() {
     setIsSending(true);
     try {
       const result = await repliesApi.approveAndSendReply(replyId);
-      toast.success(result.dry_run ? 'Approved (dry run)' : 'Reply sent!');
+      if (result.test_mode) {
+        toast.success(`Test sent to ${result.sent_to || 'pn@getsally.io'}`);
+      } else if (result.dry_run) {
+        toast.success('Approved (dry run)');
+      } else {
+        toast.success('Reply sent!');
+      }
       setConfirmReply(null);
       loadReplies();
       loadStats();
@@ -396,6 +402,9 @@ function ReplyCard({ reply, onClick, onApprove, onDismiss }: ReplyCardProps) {
           {reply.approval_status === 'approved_dry_run' && (
             <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-lg flex items-center gap-1"><CheckCircle className="w-3 h-3" />Dry Run</span>
           )}
+          {reply.approval_status === 'approved_test' && (
+            <span className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-lg flex items-center gap-1"><CheckCircle className="w-3 h-3" />Test Sent</span>
+          )}
           {reply.approval_status === 'dismissed' && (
             <span className="px-2 py-1 text-xs font-medium bg-neutral-100 text-neutral-500 rounded-lg flex items-center gap-1"><XCircle className="w-3 h-3" />Skipped</span>
           )}
@@ -578,6 +587,12 @@ function ReplyDetailPanel({ reply, onClose, onCopyDraft, onApprove, onDismiss }:
             <CheckCircle className="w-4 h-4" />Approved (dry run)
           </div>
         )}
+        {reply.approval_status === 'approved_test' && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 font-medium">
+            <CheckCircle className="w-4 h-4" />Test sent to pn@getsally.io
+            {reply.approved_at && <span className="text-xs text-amber-500 ml-auto">{new Date(reply.approved_at).toLocaleString()}</span>}
+          </div>
+        )}
         {reply.approval_status === 'dismissed' && (
           <div className="flex items-center gap-2 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-500 font-medium">
             <XCircle className="w-4 h-4" />Skipped
@@ -613,6 +628,7 @@ interface SendConfirmDialogProps {
 
 function SendConfirmDialog({ reply, isSending, onConfirm, onCancel }: SendConfirmDialogProps) {
   const leadName = [reply.lead_first_name, reply.lead_last_name].filter(Boolean).join(' ') || reply.lead_email;
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
@@ -621,12 +637,16 @@ function SendConfirmDialog({ reply, isSending, onConfirm, onCancel }: SendConfir
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-neutral-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-              <Send className="w-5 h-5 text-emerald-600" />
+            <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", isLocal ? "bg-amber-100" : "bg-emerald-100")}>
+              <Send className={cn("w-5 h-5", isLocal ? "text-amber-600" : "text-emerald-600")} />
             </div>
             <div>
               <h3 className="font-semibold text-neutral-900">Confirm Send Reply</h3>
-              <p className="text-xs text-neutral-500">This will send a real email via Smartlead</p>
+              {isLocal ? (
+                <p className="text-xs text-amber-600 font-medium">TEST MODE — will send to pn@getsally.io, not the real lead</p>
+              ) : (
+                <p className="text-xs text-neutral-500">This will send a real email via Smartlead</p>
+              )}
             </div>
           </div>
           <button onClick={onCancel} className="p-2 hover:bg-neutral-100 rounded-lg">

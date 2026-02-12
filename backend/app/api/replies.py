@@ -1473,17 +1473,21 @@ async def send_reply(
 @router.post("/{reply_id}/approve-and-send")
 async def approve_and_send_reply(
     reply_id: int,
+    test_mode: bool = Query(False, description="When true, sends to TEST_RECIPIENT_EMAIL instead of real lead"),
     db: AsyncSession = Depends(get_session),
 ):
-    """One-click approve and send: validates draft, checks DEBUG for dry-run, sends via SmartLead.
+    """One-click approve and send: validates draft, sends via SmartLead.
 
-    On DEBUG=true (localhost), sets approval_status to 'approved_dry_run' without calling SmartLead.
-    On production, sends the reply and sets approval_status to 'approved'.
+    Safety: pass ?test_mode=true to redirect the email to TEST_RECIPIENT_EMAIL
+    (defaults to pn@getsally.io) so real leads are never affected during testing.
     """
+    import os
     from app.core.config import settings
     from app.services.smartlead_service import SmartleadService
     from app.models.contact import Contact
     from app.services.google_sheets_service import google_sheets_service
+
+    TEST_RECIPIENT_EMAIL = os.environ.get("TEST_RECIPIENT_EMAIL", "pn@getsally.io")
 
     result = await db.execute(
         select(ProcessedReply).where(ProcessedReply.id == reply_id)
@@ -1498,25 +1502,7 @@ async def approve_and_send_reply(
     if reply.approval_status in ("approved", "approved_dry_run"):
         raise HTTPException(status_code=400, detail="Reply already approved")
 
-    # --- Dry-run mode (DEBUG=true) ---
-    if settings.DEBUG:
-        reply.approval_status = "approved_dry_run"
-        reply.approved_at = datetime.utcnow()
-        db.add(reply)
-        await db.commit()
-        await db.refresh(reply)
-
-        # Sync to Google Sheets
-        await _sync_approval_to_sheet(db, reply, "approved_dry_run", google_sheets_service)
-
-        return {
-            "status": "approved_dry_run",
-            "dry_run": True,
-            "reply_id": reply_id,
-            "message": "Approved (dry run) — SmartLead send skipped in DEBUG mode",
-        }
-
-    # --- Production: find contact and send ---
+    # --- Find contact and campaign ---
     contact = None
     if reply.lead_email:
         contact_result = await db.execute(
@@ -1527,11 +1513,10 @@ async def approve_and_send_reply(
         )
         contact = contact_result.scalar_one_or_none()
 
-    if not contact or not contact.smartlead_id:
-        raise HTTPException(status_code=400, detail="Contact not found or no SmartLead ID")
-
     campaign_id = reply.campaign_id
-    if not campaign_id and contact.campaigns:
+
+    # Try to resolve campaign_id from contact if missing
+    if not campaign_id and contact and contact.campaigns:
         camps = contact.campaigns if isinstance(contact.campaigns, list) else []
         for c in camps:
             if isinstance(c, dict) and c.get("source") == "smartlead" and c.get("id"):
@@ -1541,30 +1526,67 @@ async def approve_and_send_reply(
     if not campaign_id:
         raise HTTPException(status_code=400, detail="No SmartLead campaign_id found")
 
+    # --- Determine lead_id to use ---
+    # In test_mode we still need a real SmartLead lead_id so the API works,
+    # but we prepend "[TEST for <real_email>]" to the body so it's obvious.
+    lead_id = contact.smartlead_id if contact else None
+
+    if test_mode:
+        # Build a test-safe email body
+        body_prefix = (
+            f"<p><strong>[TEST — original recipient: {reply.lead_email}]</strong></p>"
+            f"<p><em>Campaign: {reply.campaign_name or campaign_id}</em></p><hr/>"
+        )
+        email_body = body_prefix + f"<p>{reply.draft_reply}</p>"
+
+        # If the lead has no SmartLead ID, we can't send via the thread API.
+        # But we still mark it approved so the flow is testable.
+        if not lead_id:
+            reply.approval_status = "approved_dry_run"
+            reply.approved_at = datetime.utcnow()
+            db.add(reply)
+            await db.commit()
+            await db.refresh(reply)
+            return {
+                "status": "approved_dry_run",
+                "dry_run": True,
+                "reply_id": reply_id,
+                "test_mode": True,
+                "message": f"No SmartLead lead_id — marked approved (dry run). Would send to {TEST_RECIPIENT_EMAIL}.",
+            }
+    else:
+        email_body = f"<p>{reply.draft_reply}</p>"
+        if not contact or not lead_id:
+            raise HTTPException(status_code=400, detail="Contact not found or no SmartLead ID")
+
+    # --- Send via SmartLead ---
     sl = SmartleadService()
     send_result = await sl.send_reply(
         campaign_id=str(campaign_id),
-        lead_id=contact.smartlead_id,
-        email_body=f"<p>{reply.draft_reply}</p>",
+        lead_id=lead_id,
+        email_body=email_body,
     )
 
     if "error" in send_result:
         raise HTTPException(status_code=502, detail=send_result["error"])
 
-    reply.approval_status = "approved"
+    status = "approved_test" if test_mode else "approved"
+    reply.approval_status = status
     reply.approved_at = datetime.utcnow()
     db.add(reply)
     await db.commit()
     await db.refresh(reply)
 
     # Sync to Google Sheets
-    await _sync_approval_to_sheet(db, reply, "approved", google_sheets_service)
+    await _sync_approval_to_sheet(db, reply, status, google_sheets_service)
 
     return {
-        "status": "approved",
+        "status": status,
         "dry_run": False,
+        "test_mode": test_mode,
         "reply_id": reply_id,
         "lead_email": reply.lead_email,
+        "sent_to": TEST_RECIPIENT_EMAIL if test_mode else reply.lead_email,
         "campaign_id": campaign_id,
         "smartlead_response": send_result.get("message"),
     }
