@@ -23,14 +23,18 @@ logger = logging.getLogger(__name__)
 class ApolloService:
     """Service for interacting with Apollo.io API."""
 
-    # Apollo rate limit: 50 API calls per minute
-    RATE_LIMIT_PER_MINUTE = 50
-    RATE_LIMIT_INTERVAL = 60.0 / RATE_LIMIT_PER_MINUTE + 0.1  # ~1.3s between calls
+    # Apollo rate limits: 50 calls/min, 200 calls/hour
+    # Use the stricter hourly limit: 200/hour = ~3.3/min = 18s between calls
+    # But burst up to 50/min is OK, so use 1.5s between calls + track hourly
+    RATE_LIMIT_INTERVAL = 1.5  # seconds between calls
+    HOURLY_LIMIT = 200
+    HOURLY_WINDOW = 3600  # seconds
 
     def __init__(self):
         self.base_url = settings.APOLLO_API_URL
         self.credits_used: int = 0
         self._last_call_time: float = 0
+        self._hourly_calls: List[float] = []  # timestamps of calls in current hour
 
     @property
     def api_key(self) -> Optional[str]:
@@ -49,12 +53,26 @@ class ApolloService:
         return headers
 
     async def _rate_limit(self):
-        """Wait to stay under API rate limit."""
+        """Wait to stay under API rate limits (50/min and 200/hour)."""
         now = time.monotonic()
+
+        # Per-call interval
         elapsed = now - self._last_call_time
         if elapsed < self.RATE_LIMIT_INTERVAL:
             await asyncio.sleep(self.RATE_LIMIT_INTERVAL - elapsed)
+
+        # Hourly limit: prune old calls, wait if at limit
+        self._hourly_calls = [t for t in self._hourly_calls if time.monotonic() - t < self.HOURLY_WINDOW]
+        if len(self._hourly_calls) >= self.HOURLY_LIMIT - 5:  # leave 5 call buffer
+            oldest = self._hourly_calls[0]
+            wait_time = self.HOURLY_WINDOW - (time.monotonic() - oldest) + 5
+            if wait_time > 0:
+                logger.warning(f"Apollo hourly limit approaching ({len(self._hourly_calls)}/{self.HOURLY_LIMIT}), waiting {wait_time:.0f}s")
+                await asyncio.sleep(wait_time)
+                self._hourly_calls = [t for t in self._hourly_calls if time.monotonic() - t < self.HOURLY_WINDOW]
+
         self._last_call_time = time.monotonic()
+        self._hourly_calls.append(self._last_call_time)
 
     async def _api_call(self, method: str, endpoint: str, json_data: dict = None) -> Optional[dict]:
         """Make a rate-limited API call with 429 retry."""
