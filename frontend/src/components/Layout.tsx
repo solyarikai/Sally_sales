@@ -21,7 +21,6 @@ export function Layout({ children }: LayoutProps) {
     currentProject, projects, setCurrentProject, setProjects,
   } = useAppStore();
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const projectDropdownRef = useRef<HTMLDivElement>(null);
 
   // Auto-resolve company prefix from currentCompany (not URL)
@@ -82,12 +81,9 @@ export function Layout({ children }: LayoutProps) {
     }).catch(console.error);
   }, []);
 
-  // Close dropdowns when clicking outside
+  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowProjectDropdown(false);
-      }
       if (projectDropdownRef.current && !projectDropdownRef.current.contains(event.target as Node)) {
         setShowProjectDropdown(false);
       }
@@ -95,15 +91,6 @@ export function Layout({ children }: LayoutProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const handleProjectChange = (project: Project) => {
-    setCurrentProject(project);
-    setShowProjectDropdown(false);
-    // Auto-set company from first company (projects belong to company via API)
-    if (companies.length > 0 && !currentCompany) {
-      setCurrentCompany(companies[0]);
-    }
-  };
 
   const isPathActive = (path: string) => {
     if (path === '/') {
@@ -129,62 +116,6 @@ export function Layout({ children }: LayoutProps) {
           </div>
           <span className="font-semibold text-neutral-900 text-base tracking-tight">LeadGen</span>
         </Link>
-
-        {/* Project Selector */}
-        <div className="relative mr-5" ref={dropdownRef}>
-          <button
-            onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-neutral-100 transition-colors"
-          >
-            <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center">
-              <FolderOpen className="w-3.5 h-3.5 text-emerald-600" />
-            </div>
-            <span className="font-medium text-sm max-w-[180px] truncate text-neutral-900">
-              {currentProject ? currentProject.name : 'Select Project'}
-            </span>
-            <ChevronDown className="w-4 h-4 text-neutral-500" />
-          </button>
-
-          {showProjectDropdown && (
-            <div className="absolute top-full left-0 mt-1 w-72 bg-white border border-neutral-200 rounded-xl shadow-lg z-50 py-1">
-              <div className="px-3 py-2 border-b border-neutral-100">
-                <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  Switch Project
-                </span>
-              </div>
-              <div className="max-h-64 overflow-y-auto py-1">
-                {projects.length === 0 && (
-                  <div className="px-3 py-2 text-sm text-neutral-400">No projects found</div>
-                )}
-                {projects.map((project) => (
-                  <button
-                    key={project.id}
-                    onClick={() => handleProjectChange(project)}
-                    className={cn(
-                      'w-full px-3 py-2 flex items-center gap-3 hover:bg-neutral-50 transition-colors',
-                      currentProject?.id === project.id && 'bg-neutral-50'
-                    )}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                      <FolderOpen className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <div className="font-medium text-neutral-900 text-sm truncate">
-                        {project.name}
-                      </div>
-                      <div className="text-xs text-neutral-500 truncate">
-                        {project.target_segments || 'No target segments'}
-                      </div>
-                    </div>
-                    {currentProject?.id === project.id && (
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Project Selector */}
         {projects.length > 0 && (
