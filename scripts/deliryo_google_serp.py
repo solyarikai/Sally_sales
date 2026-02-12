@@ -43,7 +43,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 PROJECT_ID = 18
-COMPANY_ID = 4  # Deliryo company
+COMPANY_ID = 1  # Deliryo company (company_id=1 in DB)
 
 
 async def main():
