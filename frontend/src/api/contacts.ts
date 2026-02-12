@@ -319,6 +319,17 @@ export const contactsApi = {
     await api.delete(`/contacts/projects/${id}`);
   },
 
+  // Telegram: check if project has notifications connected
+  async getTelegramStatus(projectId: number): Promise<{ connected: boolean; first_name?: string; username?: string }> {
+    const response = await api.get(`/replies/telegram/project-status`, { params: { project_id: projectId } });
+    return response.data;
+  },
+
+  // Telegram: disconnect notifications from project
+  async disconnectTelegram(projectId: number): Promise<void> {
+    await api.post(`/replies/telegram/disconnect`, null, { params: { project_id: projectId } });
+  },
+
   // AI SDR - Get project with generated content
   async getProjectAISDR(projectId: number): Promise<AISDRProject> {
     const response = await api.get(`/contacts/projects/${projectId}/ai-sdr`);

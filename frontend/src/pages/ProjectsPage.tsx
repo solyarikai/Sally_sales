@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { FolderOpen, Plus, Trash2, X, Search, Pencil, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
+import { FolderOpen, Plus, Trash2, X, Search, Pencil, ChevronDown, ChevronUp, MessageCircle, Check, Loader2, Unlink } from 'lucide-react';
 import { contactsApi, type ProjectLite } from '../api/contacts';
 
 interface CampaignOption {
@@ -21,9 +21,7 @@ export function ProjectsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editCampaignFilters, setEditCampaignFilters] = useState<string[]>([]);
-  const [editTelegramUsername, setEditTelegramUsername] = useState('');
   const [saving, setSaving] = useState(false);
-  const [telegramError, setTelegramError] = useState('');
 
   const [expandedProject, setExpandedProject] = useState<number | null>(null);
 
@@ -80,23 +78,15 @@ export function ProjectsPage() {
   const handleSaveEdit = async () => {
     if (!editingId || !editName.trim()) return;
     setSaving(true);
-    setTelegramError('');
     try {
-      const cleanUsername = editTelegramUsername.trim().replace(/^@/, '').toLowerCase();
       await contactsApi.updateProject(editingId, {
         name: editName.trim(),
         campaign_filters: editCampaignFilters,
-        telegram_username: cleanUsername || undefined,
       });
       setEditingId(null);
       await loadProjects();
     } catch (err: any) {
-      const detail = err.response?.data?.detail || 'Failed to update project';
-      if (detail.includes('Telegram') || detail.includes('telegram')) {
-        setTelegramError(detail);
-      } else {
-        alert(detail);
-      }
+      alert(err.response?.data?.detail || 'Failed to update project');
     } finally {
       setSaving(false);
     }
@@ -116,8 +106,6 @@ export function ProjectsPage() {
     setEditingId(project.id);
     setEditName(project.name);
     setEditCampaignFilters(project.campaign_filters || []);
-    setEditTelegramUsername(project.telegram_username || '');
-    setTelegramError('');
   };
 
   const toggleCampaign = (
@@ -224,37 +212,6 @@ export function ProjectsPage() {
                       onToggle={(name) => toggleCampaign(name, editCampaignFilters, setEditCampaignFilters)}
                       onRemove={(name) => setEditCampaignFilters(editCampaignFilters.filter(c => c !== name))}
                     />
-
-                    {/* Telegram Notifications */}
-                    <div className="border-t border-neutral-100 pt-4">
-                      <label className="flex items-center gap-2 text-sm font-medium text-neutral-700 mb-2">
-                        <MessageCircle className="w-4 h-4" />
-                        Telegram Notifications
-                      </label>
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">@</span>
-                          <input
-                            type="text"
-                            value={editTelegramUsername}
-                            onChange={e => { setEditTelegramUsername(e.target.value); setTelegramError(''); }}
-                            placeholder="operator_username"
-                            className="w-full pl-8 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
-                          />
-                        </div>
-                        {telegramError && (
-                          <p className="text-xs text-red-600">{telegramError}</p>
-                        )}
-                        <p className="text-xs text-neutral-400">
-                          Operator must first send <code className="bg-neutral-100 px-1 rounded">/start</code> to{' '}
-                          <a href="https://t.me/impecablebot" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                            @impecablebot
-                          </a>{' '}
-                          to register. Then enter their username here.
-                        </p>
-                      </div>
-                    </div>
-
                     <div className="flex gap-3">
                       <button
                         onClick={handleSaveEdit}
@@ -334,17 +291,22 @@ export function ProjectsPage() {
                       )}
                     </div>
                   </div>
-                  {/* Expanded campaign list */}
-                  {expandedProject === project.id && (project.campaign_filters || []).length > 0 && (
-                    <div className="px-5 pb-4 border-t border-neutral-100 pt-3">
-                      <div className="text-xs font-medium text-neutral-500 mb-2">Campaign Filters</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(project.campaign_filters || []).map(name => (
-                          <span key={name} className="px-2 py-1 bg-neutral-100 text-neutral-700 rounded-md text-xs">
-                            {name}
-                          </span>
-                        ))}
-                      </div>
+                  {/* Expanded details */}
+                  {expandedProject === project.id && (
+                    <div className="px-5 pb-4 border-t border-neutral-100 pt-3 space-y-4">
+                      {(project.campaign_filters || []).length > 0 && (
+                        <div>
+                          <div className="text-xs font-medium text-neutral-500 mb-2">Campaign Filters</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(project.campaign_filters || []).map(name => (
+                              <span key={name} className="px-2 py-1 bg-neutral-100 text-neutral-700 rounded-md text-xs">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <TelegramConnect projectId={project.id} onUpdate={loadProjects} />
                     </div>
                   )}
                 </>
@@ -356,6 +318,128 @@ export function ProjectsPage() {
     </div>
   );
 }
+
+/* One-click Telegram connect component */
+function TelegramConnect({ projectId, onUpdate }: { projectId: number; onUpdate: () => void }) {
+  const [status, setStatus] = useState<'idle' | 'waiting' | 'connected'>('idle');
+  const [firstName, setFirstName] = useState('');
+  const [username, setUsername] = useState('');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Check initial status on mount
+  useEffect(() => {
+    let cancelled = false;
+    contactsApi.getTelegramStatus(projectId).then(data => {
+      if (cancelled) return;
+      if (data.connected) {
+        setStatus('connected');
+        setFirstName(data.first_name || '');
+        setUsername(data.username || '');
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const handleConnect = () => {
+    // Open Telegram deep link
+    window.open(`https://t.me/ImpecableBot?start=project_${projectId}`, '_blank');
+    setStatus('waiting');
+
+    // Poll every 2s for up to 60s
+    pollRef.current = setInterval(async () => {
+      try {
+        const data = await contactsApi.getTelegramStatus(projectId);
+        if (data.connected) {
+          setStatus('connected');
+          setFirstName(data.first_name || '');
+          setUsername(data.username || '');
+          if (pollRef.current) clearInterval(pollRef.current);
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          onUpdate();
+        }
+      } catch {}
+    }, 2000);
+
+    // Stop after 60s
+    timeoutRef.current = setTimeout(() => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (status === 'waiting') setStatus('idle');
+    }, 60000);
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await contactsApi.disconnectTelegram(projectId);
+      setStatus('idle');
+      setFirstName('');
+      setUsername('');
+      onUpdate();
+    } catch {}
+  };
+
+  if (status === 'connected') {
+    return (
+      <div className="flex items-center justify-between py-2 px-3 bg-green-50 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-green-700">
+          <Check className="w-4 h-4" />
+          <span>Telegram connected{firstName ? ` as ${firstName}` : ''}{username ? ` (@${username})` : ''}</span>
+        </div>
+        <button
+          onClick={handleDisconnect}
+          className="flex items-center gap-1 text-xs text-neutral-400 hover:text-red-500 transition-colors"
+          title="Disconnect"
+        >
+          <Unlink className="w-3.5 h-3.5" />
+          Disconnect
+        </button>
+      </div>
+    );
+  }
+
+  if (status === 'waiting') {
+    return (
+      <div className="flex items-center gap-3 py-2 px-3 bg-blue-50 rounded-lg">
+        <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+        <div className="text-sm text-blue-700">
+          Tap <b>Start</b> in Telegram to connect...
+        </div>
+        <button
+          onClick={() => {
+            if (pollRef.current) clearInterval(pollRef.current);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            setStatus('idle');
+          }}
+          className="ml-auto text-xs text-neutral-400 hover:text-neutral-600"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={handleConnect}
+        className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+      >
+        <MessageCircle className="w-4 h-4" />
+        Connect Telegram
+      </button>
+      <span className="text-xs text-neutral-400">Get reply notifications in Telegram</span>
+    </div>
+  );
+}
+
 
 /* Reusable campaign picker component */
 function CampaignPicker({

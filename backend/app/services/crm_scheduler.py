@@ -480,7 +480,12 @@ class CRMScheduler:
                 await asyncio.sleep(5)
 
     async def _handle_telegram_update(self, update: dict):
-        """Process a single Telegram update (message)."""
+        """Process a single Telegram update (message).
+
+        Supports deep links: /start project_22 -> auto-links chat to project 22.
+        Plain /start -> registers username for manual linking.
+        /status -> shows linked projects.
+        """
         from app.models.reply import TelegramRegistration
         from app.models.contact import Project
         from app.services.notification_service import send_telegram_notification
@@ -502,85 +507,98 @@ class CRMScheduler:
 
         async with async_session_maker() as session:
             if text.startswith("/start"):
-                if not username:
+                # Parse deep link payload: /start project_22
+                parts = text.split(maxsplit=1)
+                payload = parts[1].strip() if len(parts) > 1 else ""
+
+                # Deep link: /start project_<id>
+                if payload.startswith("project_"):
+                    try:
+                        project_id = int(payload.replace("project_", ""))
+                    except ValueError:
+                        await send_telegram_notification(
+                            "Invalid project link.", chat_id=chat_id,
+                        )
+                        return
+
+                    result = await session.execute(
+                        select(Project).where(
+                            and_(Project.id == project_id, Project.deleted_at.is_(None))
+                        )
+                    )
+                    project = result.scalar_one_or_none()
+
+                    if not project:
+                        await send_telegram_notification(
+                            "Project not found.", chat_id=chat_id,
+                        )
+                        return
+
+                    project.telegram_chat_id = chat_id
+                    project.telegram_first_name = first_name
+                    if username:
+                        project.telegram_username = username
+                    await session.commit()
+
                     await send_telegram_notification(
-                        "Please set a Telegram username in your profile settings first, "
-                        "then send /start again.",
+                        f"Connected to <b>{project.name}</b>!\n\n"
+                        f"You'll receive notifications for new replies in this project.",
                         chat_id=chat_id,
+                    )
+                    logger.info(
+                        f"Telegram deep link: project {project_id} ({project.name}) "
+                        f"-> chat_id={chat_id} ({first_name})"
                     )
                     return
 
-                existing = await session.execute(
-                    select(TelegramRegistration).where(
-                        TelegramRegistration.telegram_username == username
+                # Plain /start (no deep link) — register username for backward compat
+                if username:
+                    existing = await session.execute(
+                        select(TelegramRegistration).where(
+                            TelegramRegistration.telegram_username == username
+                        )
                     )
-                )
-                reg = existing.scalar_one_or_none()
-
-                if reg:
-                    reg.telegram_chat_id = chat_id
-                    reg.telegram_first_name = first_name
-                    from datetime import datetime as dt
-                    reg.updated_at = dt.utcnow()
-                else:
-                    reg = TelegramRegistration(
-                        telegram_username=username,
-                        telegram_chat_id=chat_id,
-                        telegram_first_name=first_name,
-                    )
-                    session.add(reg)
-
-                await session.commit()
+                    reg = existing.scalar_one_or_none()
+                    if reg:
+                        reg.telegram_chat_id = chat_id
+                        reg.telegram_first_name = first_name
+                        from datetime import datetime as dt
+                        reg.updated_at = dt.utcnow()
+                    else:
+                        reg = TelegramRegistration(
+                            telegram_username=username,
+                            telegram_chat_id=chat_id,
+                            telegram_first_name=first_name,
+                        )
+                        session.add(reg)
+                    await session.commit()
 
                 await send_telegram_notification(
-                    f"Registered! Your username <b>@{username}</b> is now linked.\n\n"
-                    f"Ask your admin to add <code>@{username}</code> to a project "
-                    f"to receive reply notifications.",
+                    f"Hi {first_name}! To connect to a project, "
+                    f"use the <b>Connect Telegram</b> button in the app.",
                     chat_id=chat_id,
                 )
-                logger.info(f"Telegram registration: @{username} -> chat_id={chat_id}")
 
             elif text.startswith("/status"):
-                if not username:
-                    await send_telegram_notification(
-                        "No username set on your Telegram account.",
-                        chat_id=chat_id,
-                    )
-                    return
-
-                existing = await session.execute(
-                    select(TelegramRegistration).where(
-                        TelegramRegistration.telegram_username == username
+                projects_result = await session.execute(
+                    select(Project.name).where(
+                        and_(
+                            Project.telegram_chat_id == chat_id,
+                            Project.deleted_at.is_(None),
+                        )
                     )
                 )
-                reg = existing.scalar_one_or_none()
+                project_names = [r[0] for r in projects_result.all()]
 
-                if reg:
-                    projects_result = await session.execute(
-                        select(Project.name).where(
-                            and_(
-                                Project.telegram_username == username,
-                                Project.deleted_at.is_(None),
-                            )
-                        )
+                if project_names:
+                    project_list = "\n".join(f"  - {name}" for name in project_names)
+                    await send_telegram_notification(
+                        f"Receiving notifications for:\n{project_list}",
+                        chat_id=chat_id,
                     )
-                    project_names = [r[0] for r in projects_result.all()]
-
-                    if project_names:
-                        project_list = "\n".join(f"  - {name}" for name in project_names)
-                        await send_telegram_notification(
-                            f"Registered as <b>@{username}</b>.\n\n"
-                            f"Notifications for:\n{project_list}",
-                            chat_id=chat_id,
-                        )
-                    else:
-                        await send_telegram_notification(
-                            f"Registered as <b>@{username}</b>, but no projects linked yet.",
-                            chat_id=chat_id,
-                        )
                 else:
                     await send_telegram_notification(
-                        "Not registered. Send /start first.",
+                        "No projects linked. Use the <b>Connect Telegram</b> button in the app.",
                         chat_id=chat_id,
                     )
 

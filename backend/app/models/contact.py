@@ -41,9 +41,10 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # Auto-reply prompt linked from conversation analysis
     reply_prompt_template_id = Column(Integer, ForeignKey("reply_prompt_templates.id", ondelete="SET NULL"), nullable=True)
 
-    # Telegram notification routing
-    telegram_chat_id = Column(String(100), nullable=True)  # Resolved numeric chat ID
+    # Telegram notification routing (set by bot /start deep link)
+    telegram_chat_id = Column(String(100), nullable=True)  # Numeric chat ID
     telegram_username = Column(String(100), nullable=True)  # @username (lowercase, no @)
+    telegram_first_name = Column(String(100), nullable=True)  # Display name from Telegram
 
     # Generated content (for AI SDR later)
     tam_analysis = Column(Text, nullable=True)       # Total Addressable Market analysis
