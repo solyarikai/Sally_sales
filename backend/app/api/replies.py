@@ -97,7 +97,24 @@ async def test_full_notification():
     }
 
 
-# ============= Reply Automations =============
+# ============= Reply Automations (DISABLED) =============
+# Automations are redundant: the app now tracks all replies automatically
+# across all campaigns. Per-project campaign_filters + auto-gathered prompts
+# handle classification and draft generation. No per-automation setup needed.
+#
+# To re-enable, create a separate router_automations and include it.
+
+_AUTOMATIONS_DISABLED = True  # flip to False to re-enable automation routes
+
+
+def _check_automations_disabled():
+    """Raise 410 Gone if automations are disabled."""
+    if _AUTOMATIONS_DISABLED:
+        raise HTTPException(
+            status_code=410,
+            detail="Automation management is disabled. Replies are now tracked automatically per-project via campaign_filters."
+        )
+
 
 @router.get("/automations", response_model=ReplyAutomationListResponse)
 async def list_automations(
@@ -106,6 +123,7 @@ async def list_automations(
     session: AsyncSession = Depends(get_session)
 ):
     """List all reply automations."""
+    _check_automations_disabled()
     query = select(ReplyAutomation).where(ReplyAutomation.is_active == True)
     
     if active_only:
@@ -226,6 +244,7 @@ async def create_automation(
     session: AsyncSession = Depends(get_session)
 ):
     """Create a new reply automation."""
+    _check_automations_disabled()
     
     # Handle Google Sheet creation if requested
     google_sheet_id = data.google_sheet_id
@@ -298,6 +317,7 @@ async def get_automation_monitoring_list(
     session: AsyncSession = Depends(get_session)
 ):
     """Get detailed monitoring stats for all automations."""
+    _check_automations_disabled()
     # Get all active (not soft-deleted) automations
     result = await session.execute(
         select(ReplyAutomation).where(ReplyAutomation.is_active == True).order_by(desc(ReplyAutomation.created_at))
@@ -414,6 +434,7 @@ async def get_automation(
     session: AsyncSession = Depends(get_session)
 ):
     """Get a specific reply automation."""
+    _check_automations_disabled()
     result = await session.execute(
         select(ReplyAutomation).where(
             ReplyAutomation.id == automation_id,
@@ -435,6 +456,7 @@ async def update_automation(
     session: AsyncSession = Depends(get_session)
 ):
     """Update a reply automation."""
+    _check_automations_disabled()
     result = await session.execute(
         select(ReplyAutomation).where(
             ReplyAutomation.id == automation_id,
@@ -465,6 +487,7 @@ async def delete_automation(
     session: AsyncSession = Depends(get_session)
 ):
     """Delete (soft) a reply automation."""
+    _check_automations_disabled()
     result = await session.execute(
         select(ReplyAutomation).where(
             ReplyAutomation.id == automation_id,
@@ -495,6 +518,7 @@ async def add_campaigns_to_automation(
     
     This appends to the existing campaign list without replacing.
     """
+    _check_automations_disabled()
     result = await session.execute(
         select(ReplyAutomation).where(
             ReplyAutomation.id == automation_id,
@@ -541,6 +565,7 @@ async def remove_campaign_from_automation(
     session: AsyncSession = Depends(get_session)
 ):
     """Remove a campaign from an automation."""
+    _check_automations_disabled()
     result = await session.execute(
         select(ReplyAutomation).where(
             ReplyAutomation.id == automation_id,
@@ -567,6 +592,7 @@ async def test_automation_webhook(
     session: AsyncSession = Depends(get_session)
 ):
     """Test the Slack webhook for an automation."""
+    _check_automations_disabled()
     result = await session.execute(
         select(ReplyAutomation).where(
             ReplyAutomation.id == automation_id,
@@ -2426,7 +2452,8 @@ async def test_slack_channel(channel_id: str):
     result = await send_test_notification(channel_id=channel_id)
     return result
 
-# ============= Automation Controls =============
+# ============= Automation Controls (DISABLED) =============
+# Same reason as above: per-automation controls are redundant.
 
 @router.post("/automations/{automation_id}/pause")
 async def pause_automation(
@@ -2434,6 +2461,7 @@ async def pause_automation(
     session: AsyncSession = Depends(get_session)
 ):
     """Pause an automation (sets active=False)."""
+    _check_automations_disabled()
     result = await session.execute(
         select(ReplyAutomation).where(
             ReplyAutomation.id == automation_id,
@@ -2459,6 +2487,7 @@ async def resume_automation(
     session: AsyncSession = Depends(get_session)
 ):
     """Resume a paused automation (sets active=True)."""
+    _check_automations_disabled()
     result = await session.execute(
         select(ReplyAutomation).where(
             ReplyAutomation.id == automation_id,
@@ -2484,6 +2513,7 @@ async def get_single_automation_monitoring(
     session: AsyncSession = Depends(get_session)
 ):
     """Get detailed monitoring stats for a single automation."""
+    _check_automations_disabled()
     result = await session.execute(
         select(ReplyAutomation).where(
             ReplyAutomation.id == automation_id,
@@ -2584,6 +2614,7 @@ async def sync_historical_replies(
     db: AsyncSession = Depends(get_session)
 ):
     """Sync historical replies from local DB to Google Sheet."""
+    _check_automations_disabled()
     import re
     
     result = await db.execute(
