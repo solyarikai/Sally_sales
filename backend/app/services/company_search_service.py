@@ -400,6 +400,7 @@ class CompanySearchService:
 
         iteration = 0
         total_queries_used = 0
+        consecutive_zero_target_iterations = 0
 
         while existing_targets < target_goal and iteration < settings.SEARCH_MAX_ITERATIONS:
             iteration += 1
@@ -475,7 +476,21 @@ class CompanySearchService:
             await session.commit()
 
             # Refresh target count
+            prev_targets = existing_targets
             existing_targets = await self._count_project_targets(session, project_id)
+            new_targets_this_iter = existing_targets - prev_targets
+
+            # Stall detection: break if 3 consecutive iterations yield zero new targets
+            if new_targets_this_iter == 0:
+                consecutive_zero_target_iterations += 1
+                if consecutive_zero_target_iterations >= 3:
+                    logger.warning(
+                        f"Iteration {iteration}: 3 consecutive iterations with zero new targets — "
+                        f"search exhausted. Breaking at {existing_targets}/{target_goal} targets."
+                    )
+                    break
+            else:
+                consecutive_zero_target_iterations = 0
 
             # Reload knowledge for next iteration
             knowledge_data = await self._load_project_knowledge(session, project_id)
@@ -484,7 +499,9 @@ class CompanySearchService:
 
             logger.info(
                 f"Iteration {iteration} complete: "
-                f"{existing_targets}/{target_goal} targets found"
+                f"{existing_targets}/{target_goal} targets found "
+                f"(+{new_targets_this_iter} this iter, "
+                f"{consecutive_zero_target_iterations} consecutive zero-yield iters)"
             )
 
         # Mark job complete
