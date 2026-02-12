@@ -177,7 +177,6 @@ class ApolloService:
         bulk_data = await self._api_call("POST", "/people/bulk_match", {
             "details": details,
             "reveal_personal_emails": True,
-            "reveal_phone_number": True,
         })
         if not bulk_data:
             return []
