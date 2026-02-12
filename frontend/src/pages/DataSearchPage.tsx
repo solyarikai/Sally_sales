@@ -887,7 +887,6 @@ export function DataSearchPage() {
       const result = await pipelineApi.enrichApolloForProject(
         webSearchProjectId,
         autoEnrichConfig ?? undefined,
-        (done, total) => setEnrichProgress(`${done}/${total} companies`),
       );
       setEnrichProgress(null);
       setPipelineStage('done');

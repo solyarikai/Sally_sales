@@ -1,0 +1,15 @@
+
+── 6. SAMPLE REPLIED CONTACTS (local activity count) ──
+  (What: 10 most recent replied contacts with their activity breakdown)
+  (Where: DB contacts + contact_activities)
+
+  [74301] pn@getsally.io                           src=smartlead       ch=email    activities=5 (in=3, out=2)
+  [ 4197] alexander.vedenin@brandlink.pro          src=getsales+smartlead ch=linkedin activities=2 (in=2, out=0)
+  [ 3939] linkedin_laputs-sergei@placeholder.local src=getsales        ch=linkedin activities=16 (in=3, out=13)
+  [ 2358] amartynova@one-philosophy.com            src=getsales        ch=linkedin activities=2 (in=1, out=1)
+  [76362] mohammed.alajmi@neom.com                 src=getsales        ch=linkedin activities=1 (in=1, out=0)
+  [75447] linkedin_aleksandra-g-4149b0236@placehol src=getsales        ch=linkedin activities=1 (in=1, out=0)
+  [76352] rayane.wazni@neom.com                    src=getsales        ch=linkedin activities=1 (in=1, out=0)
+  [75657] hesham@pure-consulting.com               src=getsales        ch=email    activities=0 (in=0, out=0)
+  [76343] guillem.sabipedrico@neom.com             src=getsales        ch=linkedin activities=1 (in=1, out=0)
+  [ 2937] alina.mikhailova@goahead.ai              src=getsales+smartlead ch=linkedin activities=4 (in=2, out=2)

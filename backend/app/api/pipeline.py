@@ -19,7 +19,7 @@ from app.schemas.pipeline import (
     DiscoveredCompanyResponse, DiscoveredCompanyDetail,
     ExtractedContactResponse, PipelineEventResponse,
     PipelineStats, SpendingDetail,
-    ExtractContactsRequest, ApolloEnrichRequest,
+    ExtractContactsRequest, ApolloEnrichRequest, ProjectEnrichRequest,
     PromoteToContactsRequest, BulkStatusUpdateRequest,
     PipelineExportSheetRequest, PipelineExportSheetResponse,
 )
@@ -166,6 +166,86 @@ async def enrich_apollo(
         max_credits=body.max_credits,
     )
     return stats
+
+
+@router.post("/enrich-project/{project_id}")
+async def enrich_project_apollo(
+    project_id: int,
+    body: ProjectEnrichRequest,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Server-side Apollo enrichment for an entire project — no pagination gap.
+
+    Queries ALL unenriched target companies server-side, batches internally,
+    enforces credit budget, and returns total stats.
+    """
+    from app.models.pipeline import DiscoveredCompany
+    from app.models.contact import Project
+    from sqlalchemy import select
+
+    # Verify project belongs to allowed projects
+    proj = await db.execute(select(Project).where(Project.id == project_id))
+    project = proj.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.name.lower() not in APOLLO_ALLOWED_PROJECTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Apollo enrichment is restricted to {', '.join(APOLLO_ALLOWED_PROJECTS)}. Project: {project.name}",
+        )
+
+    # Query ALL unenriched targets — server-side, no pagination gap
+    result = await db.execute(
+        select(DiscoveredCompany.id).where(
+            DiscoveredCompany.project_id == project_id,
+            DiscoveredCompany.company_id == company.id,
+            DiscoveredCompany.is_target == True,
+            DiscoveredCompany.apollo_enriched_at.is_(None),
+        ).order_by(DiscoveredCompany.confidence.desc())
+    )
+    all_ids = [r[0] for r in result.fetchall()]
+
+    if not all_ids:
+        return {"processed": 0, "people_found": 0, "errors": 0, "credits_used": 0, "skipped": 0,
+                "total_unenriched": 0, "message": "All targets already enriched"}
+
+    logger.info(f"Project {project_id} ({project.name}): {len(all_ids)} unenriched targets, "
+                f"max_credits={body.max_credits}, max_people={body.max_people}")
+
+    # Process in batches of 10 server-side
+    BATCH_SIZE = 10
+    total_stats = {"processed": 0, "people_found": 0, "errors": 0, "credits_used": 0, "skipped": 0,
+                   "total_unenriched": len(all_ids)}
+
+    for i in range(0, len(all_ids), BATCH_SIZE):
+        batch_ids = all_ids[i:i + BATCH_SIZE]
+
+        # Check remaining credit budget
+        remaining_credits = None
+        if body.max_credits is not None:
+            remaining_credits = body.max_credits - total_stats["credits_used"]
+            if remaining_credits <= 0:
+                logger.info(f"Credit budget exhausted ({body.max_credits}), stopping at batch {i // BATCH_SIZE + 1}")
+                break
+
+        batch_stats = await pipeline_service.enrich_apollo_batch(
+            session=db,
+            discovered_company_ids=batch_ids,
+            company_id=company.id,
+            max_people=body.max_people,
+            titles=body.titles,
+            max_credits=remaining_credits,
+        )
+
+        total_stats["processed"] += batch_stats.get("processed", 0)
+        total_stats["people_found"] += batch_stats.get("people_found", 0)
+        total_stats["errors"] += batch_stats.get("errors", 0)
+        total_stats["credits_used"] += batch_stats.get("credits_used", 0)
+        total_stats["skipped"] += batch_stats.get("skipped", 0)
+
+    logger.info(f"Project {project_id} enrichment complete: {total_stats}")
+    return total_stats
 
 
 # ============ Promote to CRM ============
@@ -346,16 +426,28 @@ async def export_google_sheet(
     headers = [
         "Domain", "Website", "Company Name", "Is Target", "Confidence", "Status",
         "Industry", "Services", "Location", "Description",
-        "Contacts Count", "Emails", "Phones", "Apollo People", "Reasoning",
+        "Contacts Count", "Emails", "Phones", "Apollo People", "Reasoning", "Tracking",
     ]
     rows = [headers]
 
+    import json as _json
     for dc in data["items"]:
         info = dc.company_info or {}
         services = ", ".join(info.get("services", [])) if info.get("services") else ""
         emails = ", ".join(dc.emails_found or [])
         phones = ", ".join(dc.phones_found or [])
         desc = info.get("description", "") or ""
+
+        # Build tracking JSON
+        tracking = {}
+        if dc.created_at:
+            tracking["discovered_at"] = dc.created_at.strftime("%Y-%m-%d %H:%M") if hasattr(dc.created_at, 'strftime') else str(dc.created_at)
+        if dc.scraped_at:
+            tracking["scraped_at"] = dc.scraped_at.strftime("%Y-%m-%d %H:%M") if hasattr(dc.scraped_at, 'strftime') else str(dc.scraped_at)
+        if dc.apollo_enriched_at:
+            tracking["apollo_enriched_at"] = dc.apollo_enriched_at.strftime("%Y-%m-%d %H:%M") if hasattr(dc.apollo_enriched_at, 'strftime') else str(dc.apollo_enriched_at)
+        if getattr(dc, 'apollo_credits_used', None):
+            tracking["apollo_credits"] = dc.apollo_credits_used
 
         rows.append([
             dc.domain,
@@ -373,6 +465,7 @@ async def export_google_sheet(
             phones,
             dc.apollo_people_count or 0,
             (dc.reasoning or "")[:300],
+            _json.dumps(tracking, ensure_ascii=False, default=str) if tracking else "",
         ])
 
     sheets_service = GoogleSheetsService()
@@ -451,7 +544,7 @@ async def update_auto_enrich_config(
 CONTACTS_HEADERS = [
     "Domain", "URL", "Company Name", "Description", "Industry", "Location", "Confidence",
     "Reasoning", "First Name", "Last Name", "Email", "Phone", "Job Title", "LinkedIn",
-    "Source", "Source Details", "Campaign Status", "Smartlead Info",
+    "Source", "Source Details", "Campaign Status", "Smartlead Info", "Tracking",
 ]
 
 
@@ -496,7 +589,13 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
             COALESCE(sq.query_text, sq2.query_text) as search_query,
             sj.search_engine as search_engine,
             sl_info.campaign_status,
-            sl_info.smartlead_json
+            sl_info.smartlead_json,
+            dc.created_at as discovered_at,
+            dc.scraped_at,
+            dc.apollo_enriched_at,
+            COALESCE(dc.apollo_credits_used, 0) as apollo_credits_used,
+            dc.apollo_people_count,
+            CAST(dc.status AS text) as pipeline_status
         FROM extracted_contacts ec
         JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
         LEFT JOIN search_results sr ON sr.id = dc.search_result_id
@@ -567,6 +666,31 @@ def _build_source_details(row) -> str:
     return json.dumps(details, ensure_ascii=False, default=str)
 
 
+def _build_tracking_json(row) -> str:
+    """Build tracking JSON with enrichment audit data (timestamps, credits, status, engine)."""
+    import json
+    tracking = {}
+
+    if getattr(row, 'discovered_at', None):
+        tracking["discovered_at"] = row.discovered_at.strftime("%Y-%m-%d %H:%M") if hasattr(row.discovered_at, 'strftime') else str(row.discovered_at)
+    if getattr(row, 'scraped_at', None):
+        tracking["scraped_at"] = row.scraped_at.strftime("%Y-%m-%d %H:%M") if hasattr(row.scraped_at, 'strftime') else str(row.scraped_at)
+    if getattr(row, 'apollo_enriched_at', None):
+        tracking["apollo_enriched_at"] = row.apollo_enriched_at.strftime("%Y-%m-%d %H:%M") if hasattr(row.apollo_enriched_at, 'strftime') else str(row.apollo_enriched_at)
+    if getattr(row, 'apollo_credits_used', None):
+        tracking["apollo_credits"] = row.apollo_credits_used
+    if getattr(row, 'apollo_people_count', None):
+        tracking["apollo_people"] = row.apollo_people_count
+    if getattr(row, 'pipeline_status', None):
+        tracking["status"] = row.pipeline_status
+    if getattr(row, 'search_engine', None):
+        tracking["search_engine"] = row.search_engine
+
+    if not tracking:
+        return ""
+    return json.dumps(tracking, ensure_ascii=False, default=str)
+
+
 def _contacts_to_rows(rows) -> List[List[str]]:
     """Convert DB rows to list-of-lists (for CSV or Sheets)."""
     data = [CONTACTS_HEADERS]
@@ -582,6 +706,7 @@ def _contacts_to_rows(rows) -> List[List[str]]:
             _build_source_details(r),
             campaign_status,
             smartlead_json,
+            _build_tracking_json(r),
         ])
     return data
 

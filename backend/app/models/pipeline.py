@@ -83,6 +83,7 @@ class DiscoveredCompany(Base):
     # Apollo enrichment
     apollo_people_count = Column(Integer, default=0)
     apollo_enriched_at = Column(DateTime(timezone=True), nullable=True)
+    apollo_credits_used = Column(Integer, default=0)  # Actual credits spent on this domain
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

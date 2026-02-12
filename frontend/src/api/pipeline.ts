@@ -284,44 +284,23 @@ export const pipelineApi = {
     return { processed: totalProcessed, contacts_found: totalContacts, errors: totalErrors };
   },
 
-  /** Fetch all target discovered companies for a project, then enrich via Apollo. */
-  enrichApolloForProject: async (projectId: number, config?: AutoEnrichConfig, onProgress?: (done: number, total: number) => void): Promise<{
+  /**
+   * Server-side Apollo enrichment for entire project.
+   * Queries ALL unenriched targets on backend — no pagination gap, no client-side batching.
+   */
+  enrichApolloForProject: async (projectId: number, config?: AutoEnrichConfig): Promise<{
     processed: number;
     people_found: number;
     errors: number;
     credits_used: number;
     skipped: number;
+    total_unenriched: number;
   }> => {
-    const { items } = await pipelineApi.listDiscoveredCompanies({
-      project_id: projectId,
-      is_target: true,
-      page_size: 200,
+    const response = await api.post(`/pipeline/enrich-project/${projectId}`, {
+      max_people: config?.apollo_max_people ?? 5,
+      titles: config?.apollo_titles,
+      max_credits: config?.apollo_max_credits ?? 50,
     });
-
-    if (items.length === 0) return { processed: 0, people_found: 0, errors: 0, credits_used: 0, skipped: 0 };
-
-    const needEnrich = items.filter(c => !c.apollo_enriched_at);
-    if (needEnrich.length === 0) return { processed: 0, people_found: 0, errors: 0, credits_used: 0, skipped: 0 };
-
-    const ids = needEnrich.map(c => c.id);
-    const BATCH = 10;
-    let totalProcessed = 0, totalPeople = 0, totalErrors = 0, totalCredits = 0, totalSkipped = 0;
-
-    for (let i = 0; i < ids.length; i += BATCH) {
-      const batch = ids.slice(i, i + BATCH);
-      const result = await pipelineApi.enrichApollo(batch, {
-        maxPeople: config?.apollo_max_people ?? 5,
-        titles: config?.apollo_titles,
-        maxCredits: config?.apollo_max_credits,
-      });
-      totalProcessed += result.processed;
-      totalPeople += result.people_found;
-      totalErrors += result.errors;
-      totalCredits += result.credits_used;
-      totalSkipped += result.skipped;
-      onProgress?.(Math.min(i + BATCH, ids.length), ids.length);
-    }
-
-    return { processed: totalProcessed, people_found: totalPeople, errors: totalErrors, credits_used: totalCredits, skipped: totalSkipped };
+    return response.data;
   },
 };

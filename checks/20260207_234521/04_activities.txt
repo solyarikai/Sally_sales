@@ -1,0 +1,12 @@
+
+── 4. ACTIVITIES BY TYPE + DIRECTION ──
+  (What: contact_activities breakdown — verifies both inbound AND outbound exist)
+  (Where: DB contact_activities table)
+
+  getsales     linkedin   linkedin_replied          inbound    count=1383
+  getsales     linkedin   linkedin_sent             outbound   count=11775
+  smartlead    email      email_replied             inbound    count=941
+  smartlead    email      email_sent                outbound   count=2
+
+  Has inbound activities:  YES
+  Has outbound activities: YES

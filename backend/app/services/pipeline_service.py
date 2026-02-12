@@ -256,28 +256,37 @@ class PipelineService:
         if not apollo_service.is_configured():
             return {"error": "Apollo API key not configured", "processed": 0}
 
+        # SQL-level guard: only load companies that haven't been Apollo-enriched yet
         result = await session.execute(
             select(DiscoveredCompany).where(
                 DiscoveredCompany.id.in_(discovered_company_ids),
                 DiscoveredCompany.company_id == company_id,
+                DiscoveredCompany.apollo_enriched_at.is_(None),  # Never re-enrich
             )
         )
         companies = result.scalars().all()
 
-        stats = {"processed": 0, "people_found": 0, "errors": 0, "credits_used": 0, "skipped": 0}
+        # Count skipped (requested but already enriched)
+        skipped_count = len(discovered_company_ids) - len(companies)
+
+        stats = {"processed": 0, "people_found": 0, "errors": 0, "credits_used": 0, "skipped": skipped_count}
+
+        # Snapshot credits BEFORE this batch — return delta, not cumulative
+        credits_before = apollo_service.credits_used
 
         for dc in companies:
-            # Skip if already Apollo-enriched
-            if dc.apollo_enriched_at is not None:
-                stats["skipped"] += 1
-                continue
-
-            if max_credits is not None and apollo_service.credits_used >= max_credits:
-                logger.info(f"Apollo credit cap reached ({max_credits}), stopping enrichment")
+            # Credit budget check uses batch delta, not cumulative total
+            batch_credits = apollo_service.credits_used - credits_before
+            if max_credits is not None and batch_credits >= max_credits:
+                logger.info(f"Apollo credit cap reached ({max_credits}), stopping enrichment. Batch used {batch_credits} credits.")
                 break
+
+            credits_before_company = apollo_service.credits_used
 
             try:
                 people = await apollo_service.enrich_by_domain(dc.domain, limit=max_people, titles=titles)
+
+                credits_for_company = apollo_service.credits_used - credits_before_company
 
                 for person in people:
                     ec = ExtractedContact(
@@ -297,6 +306,7 @@ class PipelineService:
 
                 dc.apollo_people_count = len(people)
                 dc.apollo_enriched_at = datetime.utcnow()
+                dc.apollo_credits_used = credits_for_company
                 dc.contacts_count = (dc.contacts_count or 0) + len(people)
                 if dc.status in (DiscoveredCompanyStatus.NEW, DiscoveredCompanyStatus.SCRAPED, DiscoveredCompanyStatus.ANALYZED, DiscoveredCompanyStatus.CONTACTS_EXTRACTED):
                     dc.status = DiscoveredCompanyStatus.ENRICHED
@@ -306,15 +316,19 @@ class PipelineService:
 
                 self._add_event(session, dc, PipelineEventType.APOLLO_ENRICHED, company_id, detail={
                     "people_found": len(people),
+                    "credits_used": credits_for_company,
                     "domain": dc.domain,
                 })
+
+                logger.info(f"Apollo enriched {dc.domain}: {len(people)} people, {credits_for_company} credits")
 
             except Exception as e:
                 logger.error(f"Apollo enrichment failed for {dc.domain}: {e}")
                 stats["errors"] += 1
                 self._add_event(session, dc, PipelineEventType.ERROR, company_id, error_message=str(e))
 
-        stats["credits_used"] = apollo_service.credits_used
+        # Return BATCH DELTA — not cumulative total
+        stats["credits_used"] = apollo_service.credits_used - credits_before
         await session.commit()
         return stats
 

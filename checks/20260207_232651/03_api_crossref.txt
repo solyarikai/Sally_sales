@@ -1,0 +1,27 @@
+
+── 3. LIVE API CROSS-REFERENCE ──
+  (What: compare DB campaign counts with live SmartLead + GetSales APIs)
+  (Where: SmartLead API /campaigns, GetSales API /automations)
+
+  SmartLead API: 1700 total campaigns, 100 active
+  SmartLead DB:  396 unique campaign names in contacts
+
+  SmartLead campaigns NOT in DB (35):
+    [2912612] Rizzult Streaming 06.02.26 Aleks (ACTIVE)
+    [2912127] EasyStaff - Jobs- Intrl (ACTIVE)
+    [2909277] Mifort Partners Salesforce  Low-code (ACTIVE)
+    [2909256] Mifort Partners  Java Enterprise (ACTIVE)
+    [2909172] Maincard 29.01 Fedor 2 (ACTIVE)
+    [2908854] GWC ICE 2(full) PostConf- Orchestrations (ACTIVE)
+    [2908834] GWC ICE 2(full)  PostConf- Platforms   (ACTIVE)
+    [2908819] GWC ICE 2 (Full) Post Conf- Operators (Crypto+Fiat) (ACTIVE)
+    [2908733] EasyStaff - Canada_Argentina (ACTIVE)
+    [2907728] EasyStaff - AU_Malaysia (ACTIVE)
+    [2907583] Mifort Partners PHP (ACTIVE)
+    [2907042] Internal - Sally B2C >100 emp - Ksenia (ACTIVE)
+    [2905853] TFP — Vinted parsing gen emails (ACTIVE)
+    [2904565] EasyStaff -AU_South_Korea (ACTIVE)
+    [2904244] EasyStaff -AU/SG_Myanmar (ACTIVE)
+
+  GetSales API:  20 automations/flows
+  GetSales DB:   111 unique campaign names in contacts

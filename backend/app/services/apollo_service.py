@@ -129,7 +129,7 @@ class ApolloService:
         if not search_data:
             return []
 
-        people = search_data.get("people", [])
+        people = search_data.get("people", [])[:limit]  # Truncate to requested limit — 1 credit per person
         if not people:
             logger.info(f"Apollo search: 0 people at {domain} (credits_used={self.credits_used})")
             return []
@@ -290,9 +290,7 @@ class ApolloService:
         if not self.api_key:
             return None
         data = await self._api_call("POST", "/organizations/enrich", {"domain": domain})
-        # Don't count this as a credit since org enrich is free
-        if data:
-            self.credits_used = max(0, self.credits_used - 1)
+        # Org enrich is free — no credit adjustment needed
         return data.get("organization") if data else None
 
     def reset_credits(self):

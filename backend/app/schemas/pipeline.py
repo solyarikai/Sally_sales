@@ -93,6 +93,7 @@ class DiscoveredCompanyResponse(BaseModel):
     phones_found: Optional[List[str]] = None
     apollo_people_count: int = 0
     apollo_enriched_at: Optional[datetime] = None
+    apollo_credits_used: int = 0
     scraped_at: Optional[datetime] = None
     search_job_id: Optional[int] = None
     created_at: Optional[datetime] = None
@@ -219,3 +220,9 @@ class PromoteToContactsRequest(BaseModel):
 class BulkStatusUpdateRequest(BaseModel):
     discovered_company_ids: List[int] = Field(..., min_length=1)
     status: DiscoveredCompanyStatusEnum
+
+
+class ProjectEnrichRequest(BaseModel):
+    max_people: int = Field(5, ge=1, le=25)
+    titles: Optional[List[str]] = Field(None, description="Filter by job titles, e.g. ['CEO', 'CTO', 'Founder']")
+    max_credits: Optional[int] = Field(50, ge=1, description="Max Apollo credits to use for this project enrichment")
