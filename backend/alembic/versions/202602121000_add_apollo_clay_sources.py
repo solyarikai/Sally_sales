@@ -21,10 +21,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE domainsource ADD VALUE IF NOT EXISTS 'search_apollo'")
-    op.execute("ALTER TYPE domainsource ADD VALUE IF NOT EXISTS 'search_clay'")
-    op.execute("ALTER TYPE searchengine ADD VALUE IF NOT EXISTS 'apollo_org'")
-    op.execute("ALTER TYPE searchengine ADD VALUE IF NOT EXISTS 'clay'")
+    # SQLAlchemy sends uppercase enum names; PostgreSQL needs both cases
+    op.execute("ALTER TYPE domainsource ADD VALUE IF NOT EXISTS 'SEARCH_APOLLO'")
+    op.execute("ALTER TYPE domainsource ADD VALUE IF NOT EXISTS 'SEARCH_CLAY'")
+    op.execute("ALTER TYPE searchengine ADD VALUE IF NOT EXISTS 'APOLLO_ORG'")
+    op.execute("ALTER TYPE searchengine ADD VALUE IF NOT EXISTS 'CLAY'")
 
 
 def downgrade() -> None:
