@@ -16,7 +16,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('projects', sa.Column('auto_enrich_config', sa.JSON(), nullable=True))
+    conn = op.get_bind()
+    result = conn.execute(sa.text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'projects' AND column_name = 'auto_enrich_config'"
+    ))
+    if result.fetchone() is None:
+        op.add_column('projects', sa.Column('auto_enrich_config', sa.JSON(), nullable=True))
 
 
 def downgrade() -> None:
