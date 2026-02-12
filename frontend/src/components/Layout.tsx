@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Database, FileText, Settings, BookOpen, Users, ChevronDown, Building2, ArrowLeft, MessageSquare, Contact, ListTodo, Search, Zap, Target, Layers, FolderOpen } from 'lucide-react';
+import { Database, FileText, Settings, BookOpen, Users, ChevronDown, MessageSquare, Contact, ListTodo, Search, Zap, Target, Layers, FolderOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';

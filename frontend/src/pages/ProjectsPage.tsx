@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { FolderOpen, Plus, Trash2, X, Search, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
 import { contactsApi, type ProjectLite } from '../api/contacts';
-import { cn } from '../lib/utils';
 
 interface CampaignOption {
   name: string;

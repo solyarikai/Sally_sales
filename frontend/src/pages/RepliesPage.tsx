@@ -5,7 +5,7 @@ import {
   X, Copy, Check,
   Calendar, Mail, Building2,
   ExternalLink,
-  CheckCircle, XCircle, Shield, Zap, Hash, Send, MessageCircle
+  CheckCircle, XCircle, Shield, Hash, Send, MessageCircle
 } from 'lucide-react';
 import {
   repliesApi,

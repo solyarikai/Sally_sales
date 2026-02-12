@@ -1,3 +1,5 @@
+// @ts-nocheck
+// This page is disabled — automations are now handled automatically per-project.
 import toast, { Toaster } from 'react-hot-toast';
 import { useEffect, useState, useCallback } from 'react';
 import {
