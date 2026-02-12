@@ -20,7 +20,7 @@ import hmac
 from app.db import get_session
 from app.models import Company, Contact, ContactActivity
 from app.api.companies import get_required_company
-from app.services.crm_sync_service import get_crm_sync_service, CRMSyncService, get_getsales_flow_name
+from app.services.crm_sync_service import get_crm_sync_service, CRMSyncService, get_getsales_flow_name, parse_campaigns
 from app.services.notification_service import send_telegram_notification
 
 logger = logging.getLogger(__name__)
@@ -303,11 +303,11 @@ async def fetch_smartlead_replies(
                                     has_replied=True,
                                     reply_channel="email",
                                     last_synced_at=datetime.utcnow(),
-                                    campaigns=json.dumps([{
+                                    campaigns=[{
                                         "name": campaign.get("name"),
                                         "id": campaign_id,
                                         "source": "smartlead"
-                                    }])
+                                    }]
                                 )
                                 # Parse reply_time
                                 reply_time_str = reply.get("reply_time")
@@ -627,19 +627,11 @@ async def smartlead_webhook(
                 "id": str(campaign_id) if campaign_id else None,
                 "source": "smartlead"
             }
-            existing_campaigns = []
-            if contact.campaigns:
-                try:
-                    if isinstance(contact.campaigns, str):
-                        existing_campaigns = json.loads(contact.campaigns)
-                    elif isinstance(contact.campaigns, list):
-                        existing_campaigns = contact.campaigns
-                except:
-                    existing_campaigns = []
+            existing_campaigns = parse_campaigns(contact.campaigns)
             existing_ids = {c.get("id") for c in existing_campaigns if isinstance(c, dict)}
             if str(campaign_id) not in existing_ids:
                 existing_campaigns.append(campaign_entry)
-                contact.campaigns = json.dumps(existing_campaigns)
+                contact.campaigns = existing_campaigns
     
     if not contact:
         # Create new contact from webhook data
@@ -655,11 +647,11 @@ async def smartlead_webhook(
             smartlead_id=str(lead_id) if lead_id else None,
             status="new",
             last_synced_at=datetime.utcnow(),
-            campaigns=json.dumps([{
+            campaigns=[{
                 "name": campaign_name,
                 "id": str(campaign_id) if campaign_id else None,
                 "source": "smartlead"
-            }]) if campaign_name or campaign_id else None
+            }] if campaign_name or campaign_id else None
         )
         session.add(contact)
         await session.flush()  # Get contact.id
@@ -1010,12 +1002,12 @@ async def getsales_webhook(
             has_replied=is_reply,
             last_synced_at=datetime.utcnow(),
             # Add flow/automation info from webhook
-            campaigns=json.dumps([{
+            campaigns=[{
                 "name": automation_data.get("name"),
                 "id": automation_data.get("uuid"),
                 "source": "getsales",
                 "status": "active"
-            }]) if automation_data.get("name") or automation_data.get("uuid") else None
+            }] if automation_data.get("name") or automation_data.get("uuid") else None
         )
         session.add(contact)
         await session.flush()
@@ -1238,21 +1230,13 @@ async def getsales_webhook(
             "status": "active"
         }
         # Parse existing campaigns
-        existing_campaigns = []
-        if contact.campaigns:
-            try:
-                if isinstance(contact.campaigns, str):
-                    existing_campaigns = json.loads(contact.campaigns)
-                elif isinstance(contact.campaigns, list):
-                    existing_campaigns = contact.campaigns
-            except:
-                existing_campaigns = []
+        existing_campaigns = parse_campaigns(contact.campaigns)
         
         # Check if this flow is already in campaigns
         existing_flow_ids = {c.get("id") for c in existing_campaigns if isinstance(c, dict)}
         if automation_data.get("uuid") not in existing_flow_ids:
             existing_campaigns.append(flow_entry)
-            contact.campaigns = json.dumps(existing_campaigns)
+            contact.campaigns = existing_campaigns
     
     await session.commit()
     

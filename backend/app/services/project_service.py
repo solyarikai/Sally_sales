@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, String
 
 from app.models.contact import Contact, Project
+from app.services.crm_sync_service import parse_campaigns
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ async def get_all_campaign_names(session: AsyncSession) -> List[Dict[str, Any]]:
     for row in result.scalars():
         if not row:
             continue
-        for camp in row:
+        for camp in parse_campaigns(row):
             name = camp.get("name")
             source = camp.get("source")
             if name and (name, source) not in seen:

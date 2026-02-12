@@ -564,7 +564,6 @@ async def process_reply_webhook(
             # This fixes a critical bug where 97%+ of reply senders were never 
             # imported into the contacts table
             if not contact:
-                import json as _json
                 logger.info(f"[PROCESSOR] Contact not found for {lead_email}, creating from reply data")
                 contact = Contact(
                     company_id=1,  # Default company
@@ -575,11 +574,11 @@ async def process_reply_webhook(
                     source="smartlead",
                     status="replied",
                     last_synced_at=datetime.utcnow(),
-                    campaigns=_json.dumps([{
+                    campaigns=[{
                         "name": campaign_name,
                         "id": str(campaign_id) if campaign_id else None,
                         "source": "smartlead"
-                    }]) if campaign_name or campaign_id else None
+                    }] if campaign_name or campaign_id else None
                 )
                 session.add(contact)
                 await session.flush()  # Get contact.id

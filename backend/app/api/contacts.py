@@ -18,7 +18,7 @@ import httpx
 
 from app.db import get_session
 from app.models.contact import Contact, Project, ContactActivity
-from app.services.crm_sync_service import get_getsales_flow_name
+from app.services.crm_sync_service import get_getsales_flow_name, parse_campaigns
 from app.services.smartlead_service import smartlead_service
 from app.core.config import settings
 from app.models import Company
@@ -513,7 +513,7 @@ async def get_campaigns_list(
     campaigns_set = set()
     for row in result.scalars():
         if row:
-            for camp in row:
+            for camp in parse_campaigns(row):
                 name = camp.get("name")
                 camp_source = camp.get("source")
                 if name:
@@ -2138,8 +2138,7 @@ async def update_contact_status(
             # Get campaign ID from contact's campaigns
             campaign_id = None
             if contact.campaigns:
-                campaigns = contact.campaigns if isinstance(contact.campaigns, list) else []
-                for c in campaigns:
+                for c in parse_campaigns(contact.campaigns):
                     if isinstance(c, dict) and c.get("source") == "smartlead":
                         campaign_id = c.get("id")
                         break

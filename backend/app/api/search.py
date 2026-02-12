@@ -37,6 +37,7 @@ from app.schemas.domain import (
 )
 from app.services.search_service import search_service
 from app.services.company_search_service import company_search_service
+from app.services.crm_sync_service import parse_campaigns
 from app.core.config import settings
 from pydantic import BaseModel, Field
 
@@ -1295,7 +1296,7 @@ async def get_domain_campaigns(
 
             if c.campaigns:
                 seen_campaigns = {(cp.get("name"), cp.get("source")) for cp in entry["campaigns"]}
-                for cp in c.campaigns:
+                for cp in parse_campaigns(c.campaigns):
                     key = (cp.get("name"), cp.get("source"))
                     if key not in seen_campaigns:
                         entry["campaigns"].append({

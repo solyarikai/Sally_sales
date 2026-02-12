@@ -329,11 +329,11 @@ async def receive_webhook(
             smartlead_id=str(lead_id) if lead_id else None,
             status="new",
             last_synced_at=datetime.utcnow(),
-            campaigns=json.dumps([{
+            campaigns=[{
                 "name": campaign_name,
                 "id": str(campaign_id) if campaign_id else None,
                 "source": "smartlead"
-            }]) if campaign_name or campaign_id else None
+            }] if campaign_name or campaign_id else None
         )
         session.add(contact)
         await session.flush()

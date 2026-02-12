@@ -30,6 +30,7 @@ from app.services.notification_service import (
 )
 from app.services.google_sheets_service import google_sheets_service
 from app.services.smartlead_service import smartlead_service
+from app.services.crm_sync_service import parse_campaigns
 
 logger = logging.getLogger(__name__)
 
@@ -1444,8 +1445,7 @@ async def send_reply(
     # Determine campaign_id — use from reply or first SmartLead campaign on contact
     campaign_id = reply.campaign_id
     if not campaign_id and contact.campaigns:
-        camps = contact.campaigns if isinstance(contact.campaigns, list) else []
-        for c in camps:
+        for c in parse_campaigns(contact.campaigns):
             if isinstance(c, dict) and c.get("source") == "smartlead" and c.get("id"):
                 campaign_id = str(c["id"])
                 break
@@ -1525,8 +1525,7 @@ async def approve_and_send_reply(
 
     # Try to resolve campaign_id from contact if missing
     if not campaign_id and contact and contact.campaigns:
-        camps = contact.campaigns if isinstance(contact.campaigns, list) else []
-        for c in camps:
+        for c in parse_campaigns(contact.campaigns):
             if isinstance(c, dict) and c.get("source") == "smartlead" and c.get("id"):
                 campaign_id = str(c["id"])
                 break

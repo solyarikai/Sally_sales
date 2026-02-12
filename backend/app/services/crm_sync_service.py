@@ -10,6 +10,7 @@ Provides:
 """
 import os
 import re
+import json
 import logging
 import httpx
 from datetime import datetime, timedelta
@@ -21,6 +22,32 @@ from app.models.contact import Contact, ContactActivity
 from app.services.cache_service import acquire_sync_lock, release_sync_lock, bulk_check_replies, bulk_add_replies, add_processed_reply
 
 logger = logging.getLogger(__name__)
+
+
+def parse_campaigns(campaigns) -> list:
+    """Normalize campaigns field to always return a list of dicts.
+    
+    Handles all storage formats found in the database:
+    - None -> []
+    - list of dicts -> returned as-is
+    - JSON string (double-encoded by json.dumps before SQLAlchemy JSON column) -> parsed
+    - Double-encoded string -> parsed twice
+    """
+    if campaigns is None:
+        return []
+    if isinstance(campaigns, list):
+        return campaigns
+    if isinstance(campaigns, str):
+        try:
+            parsed = json.loads(campaigns)
+            if isinstance(parsed, list):
+                return parsed
+            if isinstance(parsed, str):
+                # Double-encoded — parse again
+                return json.loads(parsed)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return []
 
 
 # Keyword patterns for quick classification
@@ -169,6 +196,7 @@ def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: 
             flow_name = GETSALES_FLOW_NAMES[uuid]
     
     # Fallback 2: Check contact campaigns for valid flow names
+    contact_campaigns = parse_campaigns(contact_campaigns)
     if not flow_name and contact_campaigns:
         # First try to find UUID match in mapping
         for camp in contact_campaigns:
@@ -818,7 +846,7 @@ class CRMSyncService:
                 else:
                     existing.source = "smartlead"
             # Merge campaign data
-            existing_campaigns = existing.campaigns or []
+            existing_campaigns = parse_campaigns(existing.campaigns)
             new_campaigns = [
                 {
                     "name": c.get("campaign_name"),
@@ -954,7 +982,7 @@ class CRMSyncService:
                 else:
                     existing.source = "getsales"
             # Merge campaign data from GetSales list
-            existing_campaigns = existing.campaigns or []
+            existing_campaigns = parse_campaigns(existing.campaigns)
             new_campaigns = []
             if list_name:
                 new_campaigns.append({
