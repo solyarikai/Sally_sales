@@ -27,6 +27,25 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 logger = logging.getLogger(__name__)
 
 
+# ============ Projects (for dropdown) ============
+
+@router.get("/projects")
+async def list_pipeline_projects(
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """List projects that have discovered companies (fast, for dropdown)."""
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT DISTINCT dc.project_id as id, p.name
+        FROM discovered_companies dc
+        JOIN projects p ON p.id = dc.project_id
+        WHERE dc.company_id = :company_id
+        ORDER BY p.name
+    """), {"company_id": company.id})
+    return [{"id": row.id, "name": row.name} for row in result.fetchall()]
+
+
 # ============ Discovered Companies ============
 
 @router.get("/discovered-companies")

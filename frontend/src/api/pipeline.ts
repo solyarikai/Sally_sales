@@ -153,6 +153,12 @@ export const pipelineApi = {
     return response.data;
   },
 
+  // List projects that have discovered companies (fast, for dropdown)
+  listProjects: async (): Promise<{ id: number; name: string }[]> => {
+    const response = await api.get('/pipeline/projects');
+    return response.data;
+  },
+
   // Get pipeline stats
   getStats: async (projectId?: number): Promise<PipelineStats> => {
     const response = await api.get('/pipeline/stats', {

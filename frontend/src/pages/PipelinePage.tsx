@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
-import { contactsApi } from '../api/contacts';
 import {
   pipelineApi,
   type DiscoveredCompany,
@@ -76,10 +75,10 @@ export function PipelinePage() {
   const [apolloMaxCredits, setApolloMaxCredits] = useState(50);
   const [apolloTitleInput, setApolloTitleInput] = useState('');
 
-  // Load projects for filter dropdown
+  // Load projects for filter dropdown (fast endpoint from pipeline API)
   useEffect(() => {
-    contactsApi.listProjects().then(data => {
-      setProjects(data.map((p: any) => ({ id: p.id, name: p.name })));
+    pipelineApi.listProjects().then(data => {
+      setProjects(data);
     }).catch(() => {});
   }, []);
 
