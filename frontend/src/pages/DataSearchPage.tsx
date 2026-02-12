@@ -35,6 +35,9 @@ import {
   XCircle,
   PanelLeftClose,
   PanelLeftOpen,
+  ChevronDown,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { SearchFilter, CompanyResult, ChatMessage, ExtractedPattern, VerificationCriteria, SearchProgressEvent, SearchResultItem, SpendingInfo } from '../api/dataSearch';
@@ -548,6 +551,8 @@ export function DataSearchPage() {
   const [webSearchProjectId, setWebSearchProjectId] = useState<number | null>(null);
   const [webSearchSuggestions, setWebSearchSuggestions] = useState<string[]>([]);
   const [lastSeenTargets, setLastSeenTargets] = useState<string[]>([]);
+  const [showTargetsOnly, setShowTargetsOnly] = useState(false);
+  const [expandedResultId, setExpandedResultId] = useState<number | null>(null);
   const webChatEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom of messages

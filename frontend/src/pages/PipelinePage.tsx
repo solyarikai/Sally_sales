@@ -50,7 +50,7 @@ export function PipelinePage() {
   const [page, setPage] = useState(1);
   const [stats, setStats] = useState<PipelineStats | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [_projectsLoading, setProjectsLoading] = useState(false);
 
   // Filters
   const [projectId, setProjectId] = useState<number | undefined>(undefined);
