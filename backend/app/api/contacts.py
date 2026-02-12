@@ -1210,6 +1210,59 @@ async def create_project(
     )
 
 
+@router.get("/projects/{project_id}", response_model=ProjectResponse)
+async def get_project(
+    project_id: int,
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Get a single project by ID"""
+    result = await session.execute(
+        select(Project).where(
+            and_(
+                Project.id == project_id,
+                Project.company_id == company_id if company_id else True,
+                Project.deleted_at.is_(None),
+            )
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Contact count
+    if project.campaign_filters and len(project.campaign_filters) > 0:
+        campaign_conditions = [
+            Contact.campaigns.cast(String).ilike(f'%{cf}%')
+            for cf in project.campaign_filters
+        ]
+        count_result = await session.execute(
+            select(func.count(Contact.id.distinct())).where(
+                and_(or_(*campaign_conditions), Contact.deleted_at.is_(None))
+            )
+        )
+    else:
+        count_result = await session.execute(
+            select(func.count()).where(
+                and_(Contact.project_id == project.id, Contact.deleted_at.is_(None))
+            )
+        )
+    contact_count = count_result.scalar() or 0
+
+    return ProjectResponse(
+        id=project.id,
+        name=project.name,
+        description=project.description,
+        target_industries=project.target_industries,
+        target_segments=project.target_segments,
+        campaign_filters=project.campaign_filters,
+        telegram_chat_id=project.telegram_chat_id,
+        contact_count=contact_count,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+    )
+
+
 @router.patch("/projects/{project_id}", response_model=ProjectResponse)
 async def update_project(
     project_id: int,

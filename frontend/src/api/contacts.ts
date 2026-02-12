@@ -308,6 +308,12 @@ export const contactsApi = {
     return response.data;
   },
 
+  // Get single project by ID
+  async getProject(id: number): Promise<Project> {
+    const response = await api.get(`/contacts/projects/${id}`);
+    return response.data;
+  },
+
   // Create project
   async createProject(project: { name: string; description?: string; campaign_filters?: string[] }): Promise<Project> {
     const response = await api.post('/contacts/projects', project);

@@ -18,6 +18,7 @@ import { TasksPage } from './pages/TasksPage';
 import { SearchResultsPage } from './pages/SearchResultsPage';
 import { PipelinePage } from './pages/PipelinePage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { ProjectPage } from './pages/ProjectPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -120,6 +121,11 @@ function App() {
         <Route path="/projects" element={
           <Layout>
             <ProjectsPage />
+          </Layout>
+        } />
+        <Route path="/projects/:id" element={
+          <Layout>
+            <ProjectPage />
           </Layout>
         } />
 

@@ -14,6 +14,7 @@ import {
   type ReplyCategory,
   type ConversationMessage,
 } from '../api/replies';
+import { contactsApi, type ProjectLite } from '../api/contacts';
 import { cn, formatNumber } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 
@@ -29,13 +30,16 @@ const CATEGORY_CONFIG: Record<ReplyCategory, { label: string; color: string; emo
 };
 
 export function RepliesPage() {
-  const { currentProject } = useAppStore();
+  const { currentProject, setCurrentProject } = useAppStore();
 
   // Data state
   const [replies, setReplies] = useState<ProcessedReply[]>([]);
   const [stats, setStats] = useState<ProcessedReplyStats | null>(null);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Projects for selector bar
+  const [projectsList, setProjectsList] = useState<ProjectLite[]>([]);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -87,6 +91,10 @@ export function RepliesPage() {
   }, [currentProject]);
 
   useEffect(() => { setPage(1); }, [currentProject]);
+
+  useEffect(() => {
+    contactsApi.listProjectsLite().then(setProjectsList).catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadReplies();
@@ -177,6 +185,37 @@ export function RepliesPage() {
             <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
           </button>
         </div>
+
+        {/* Project selector bar */}
+        {projectsList.length > 0 && (
+          <div className="flex items-center gap-1.5 mb-3 overflow-x-auto pb-0.5">
+            <button
+              onClick={() => setCurrentProject(null)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border",
+                !currentProject
+                  ? "bg-violet-100 text-violet-700 border-violet-200"
+                  : "bg-white text-neutral-600 border-neutral-200 hover:border-violet-200 hover:text-violet-700"
+              )}
+            >
+              All Projects
+            </button>
+            {projectsList.map(p => (
+              <button
+                key={p.id}
+                onClick={() => setCurrentProject(p as any)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border",
+                  currentProject?.id === p.id
+                    ? "bg-violet-100 text-violet-700 border-violet-200"
+                    : "bg-white text-neutral-600 border-neutral-200 hover:border-violet-200 hover:text-violet-700"
+                )}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Stats row */}
         {stats && (

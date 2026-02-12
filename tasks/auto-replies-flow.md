@@ -138,6 +138,49 @@ one-click setup flow directly in the project settings.
 - Rate-limited to ~1.5 req/s to avoid Smartlead 429s
 - Manual trigger via `POST /sync-outbound-status?project_id=X`
 
+### US11: Search Projects
+> As an operator, I search for a project by name on the projects list page
+> so I can quickly find the right project even with many entries.
+
+**Acceptance:**
+- Search input at top of `/projects` page
+- Filters project list by name in real time (client-side)
+- Shows "No projects matching ..." message when no results
+- Clearing search shows all projects again
+
+### US12: View Project Page (shareable URL)
+> As an operator, I open a dedicated project page with a shareable URL
+> (`/projects/:id`) to see and manage all project settings in one place.
+
+**Acceptance:**
+- Each project card in the list links to `/projects/:id`
+- Project page shows: editable name, campaigns with source badges, Telegram connect
+- Campaigns show `SL` (blue) badge for Smartlead, `GS` (green) badge for GetSales
+- Add/remove campaigns with autocomplete search dropdown
+- Back button returns to project list
+- Delete project button with confirmation
+- URL is shareable — visiting `/projects/22` directly opens the Rizzult project
+
+### US13: See Campaign Sources
+> As an operator, I can see which campaigns are from Smartlead vs GetSales
+> at a glance, both on the project page and in the campaign picker.
+
+**Acceptance:**
+- Each campaign has a source badge: `SL` (blue, Smartlead) or `GS` (green, GetSales)
+- Visible on project page campaign chips and in the campaign search dropdown
+- Source data comes from `/api/contacts/campaigns` endpoint (already returns `{name, source}`)
+
+### US14: Select Project on Replies Page
+> As an operator, I switch between projects directly on the Replies page
+> using a prominent tab bar, without navigating to settings or opening a dropdown.
+
+**Acceptance:**
+- Horizontal row of project tabs at top of Replies page header
+- "All Projects" tab + one tab per project
+- Active tab highlighted with violet background
+- Clicking a tab sets `currentProject` in global store and filters replies
+- Tab bar scrolls horizontally if many projects
+
 ---
 
 ## Data Model
@@ -182,6 +225,19 @@ AND pr.category NOT IN ('out_of_office', 'unsubscribe')
 | out_of_office | 189 |
 | other | 487 |
 | unsubscribe | 5 |
+
+---
+
+## Auto-Tests (Playwright)
+
+E2E tests in `frontend/e2e/projects-replies.spec.ts`:
+
+1. **Projects list**: loads, search filters projects by name
+2. **Project navigation**: clicking project card goes to `/projects/:id`
+3. **Project page**: shows campaigns with source badges, Telegram, editable name
+4. **Back button**: returns to projects list
+5. **Replies project selector**: shows tab bar, clicking filters replies
+6. **Telegram button**: visible on project page (connect or connected state)
 
 ---
 
