@@ -130,10 +130,9 @@ class ApolloService:
         titles: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Find and enrich people at a domain.
-
-        Step 1: Search /mixed_people/api_search for people (names + titles)
-        Step 2: Enrich each person via /people/enrich (get email, LinkedIn, phone)
+        Find and enrich people at a domain using 2 API calls:
+        1. Search /mixed_people/api_search → find people names + titles
+        2. Bulk enrich /people/bulk_match → get emails, LinkedIn, phones (up to 10 per call)
 
         Returns list of people with:
         {email, first_name, last_name, job_title, linkedin_url, is_verified, phone, raw_data}
@@ -146,7 +145,7 @@ class ApolloService:
         payload: Dict[str, Any] = {
             "q_organization_domains": domain,
             "page": 1,
-            "per_page": min(limit, 25),
+            "per_page": min(limit, 10),  # max 10 for bulk_match
         }
         if titles:
             payload["person_titles"] = titles
@@ -160,58 +159,64 @@ class ApolloService:
             logger.info(f"Apollo search: 0 people at {domain} (credits_used={self.credits_used})")
             return []
 
-        # Step 2: Enrich each person to get actual contact info
-        results = []
+        # Step 2: Bulk enrich all found people in one call (max 10)
+        details = []
         for person in people:
             first_name = person.get("first_name")
-            last_name = person.get("last_name")
             if not first_name:
                 continue
-
-            enrich_payload = {
+            details.append({
                 "first_name": first_name,
-                "last_name": last_name or "",
-                "organization_domain": domain,
-                "reveal_personal_emails": True,
-            }
+                "last_name": person.get("last_name") or "",
+                "domain": domain,
+            })
 
-            enrich_data = await self._api_call("POST", "/people/enrich", enrich_payload)
-            if not enrich_data:
+        if not details:
+            return []
+
+        bulk_data = await self._api_call("POST", "/people/bulk_match", {
+            "details": details,
+            "reveal_personal_emails": True,
+            "reveal_phone_number": True,
+        })
+        if not bulk_data:
+            return []
+
+        matches = bulk_data.get("matches", [])
+        results = []
+        for match in matches:
+            if not match:
                 continue
-
-            enriched = enrich_data.get("person", {})
-            email = enriched.get("email")
-            linkedin = enriched.get("linkedin_url")
-            title = enriched.get("title") or person.get("title")
+            email = match.get("email")
+            linkedin = match.get("linkedin_url")
+            title = match.get("title")
             phone = None
-            if enriched.get("phone_numbers"):
-                phone = enriched["phone_numbers"][0].get("sanitized_number")
+            if match.get("phone_numbers"):
+                phone = match["phone_numbers"][0].get("sanitized_number")
 
             results.append({
                 "email": email,
-                "first_name": enriched.get("first_name") or first_name,
-                "last_name": enriched.get("last_name") or last_name,
+                "first_name": match.get("first_name"),
+                "last_name": match.get("last_name"),
                 "job_title": title,
                 "linkedin_url": linkedin,
-                "is_verified": enriched.get("email_status") == "verified",
+                "is_verified": match.get("email_status") == "verified",
                 "phone": phone,
                 "raw_data": {
-                    "id": enriched.get("id"),
-                    "organization": enriched.get("organization", {}).get("name") if enriched.get("organization") else None,
-                    "headline": enriched.get("headline"),
-                    "city": enriched.get("city"),
-                    "state": enriched.get("state"),
-                    "country": enriched.get("country"),
-                    "email_status": enriched.get("email_status"),
-                    "seniority": enriched.get("seniority"),
-                    "departments": enriched.get("departments"),
-                    "personal_emails": enriched.get("personal_emails", []),
+                    "id": match.get("id"),
+                    "organization": match.get("organization", {}).get("name") if match.get("organization") else None,
+                    "headline": match.get("headline"),
+                    "city": match.get("city"),
+                    "country": match.get("country"),
+                    "email_status": match.get("email_status"),
+                    "seniority": match.get("seniority"),
+                    "personal_emails": match.get("personal_emails", []),
                 },
             })
 
         logger.info(
-            f"Apollo found {len(results)} enriched people for {domain} "
-            f"(searched={len(people)}, credits_used={self.credits_used})"
+            f"Apollo: {len(results)} enriched people for {domain} "
+            f"(searched={len(people)}, bulk_matched={len(matches)}, credits_used={self.credits_used})"
         )
         return results
 
