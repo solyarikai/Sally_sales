@@ -2,7 +2,7 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, and_, or_
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime, timedelta
