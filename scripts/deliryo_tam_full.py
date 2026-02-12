@@ -184,7 +184,8 @@ async def part_b_apollo_org_search(session, skip_set: Set[str]) -> Dict[str, Any
     """
     from app.services.apollo_service import apollo_service
 
-    BACKUP_FILE = "/tmp/deliryo_apollo_domains.json"
+    # Use /scripts/ (mounted volume) so backup survives container restart
+    BACKUP_FILE = "/scripts/deliryo_apollo_domains.json"
 
     logger.info("=" * 60)
     logger.info("PART B: Apollo Organization Search")
@@ -619,6 +620,8 @@ async def main():
     logger.info(f"Started at: {datetime.utcnow().isoformat()}")
     logger.info("=" * 60)
 
+    BACKUP_FILE = "/scripts/deliryo_apollo_domains.json"
+
     async with async_session_maker() as session:
         # Get company_id
         row = await session.execute(text("SELECT company_id FROM projects WHERE id = :pid"), {"pid": PROJECT_ID})
@@ -629,21 +632,39 @@ async def main():
         skip_set = await company_search_service._build_skip_set(session, PROJECT_ID)
         logger.info(f"Skip set: {len(skip_set)} domains already processed")
 
-        # ── Part A ──
-        patterns = await part_a_analyze_existing_targets(session)
+        # ── Check for resume: load domains from backup if available ──
+        new_domains = []
+        apollo_result = {"new_domains": [], "stats": {}, "credits_used": 0}
 
-        # ── Part B ──
-        apollo_result = await part_b_apollo_org_search(session, skip_set)
-        new_domains = apollo_result["new_domains"]
+        try:
+            with open(BACKUP_FILE) as f:
+                backup = json.load(f)
+            backup_domains = [d for d in backup["domains"] if d not in skip_set]
+            if backup_domains:
+                logger.info(f"RESUME MODE: loaded {len(backup_domains)} unscored domains from {BACKUP_FILE}")
+                new_domains = backup_domains
+                apollo_result = {
+                    "new_domains": backup_domains,
+                    "stats": backup.get("stats", {}),
+                    "credits_used": backup.get("credits_used", 0),
+                }
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass
+
+        if not new_domains:
+            # ── Part A ──
+            patterns = await part_a_analyze_existing_targets(session)
+
+            # ── Part B ──
+            apollo_result = await part_b_apollo_org_search(session, skip_set)
+            new_domains = apollo_result["new_domains"]
 
         if not new_domains:
             logger.info("No new domains found from Apollo org search")
+            scoring_result = {"targets_found": 0, "analyzed": 0, "config": {}}
         else:
             # ── Part C ──
             scoring_result = await part_c_score_domains(session, new_domains, company_id)
-
-        if not new_domains:
-            scoring_result = {"targets_found": 0, "analyzed": 0, "config": {}}
 
         # ── Part D ──
         enrich_result = await part_d_enrich_contacts(session, company_id)
