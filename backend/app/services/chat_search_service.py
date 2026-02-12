@@ -1,7 +1,6 @@
 """
-Chat-based search service — unified intent classification for search, refine, and questions.
-
-Single entry point: classify_and_process() handles all chat messages within a project scope.
+Chat-based search service — parses natural language into search parameters
+and classifies feedback for knowledge updates.
 """
 import json
 import logging
@@ -13,38 +12,34 @@ logger = logging.getLogger(__name__)
 
 
 class ChatSearchService:
-    """Classifies chat messages into search/refine/question intents."""
+    """Parses chat messages into search intents and feedback."""
 
-    async def classify_and_process(
+    async def parse_search_intent(
         self,
         message: str,
         context: Optional[List[Dict[str, str]]] = None,
         project_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Unified intent classification. Returns:
-        {
-            "intent": "search" | "refine" | "question",
-            "target_segments": str | null,
-            "knowledge_updates": {
-                "anti_keywords": [], "industry_keywords": [],
-                "good_query_patterns": [], "bad_query_patterns": []
-            },
-            "reply": str,
-            "suggestions": [str, ...]
-        }
+        Parse a natural language message into structured search parameters.
+        Receives project context (existing results, knowledge) for smart strategy.
+
+        Returns:
+            {
+                "target_segments": str,  # formatted for project.target_segments
+                "project_name": str,
+                "geography": str,
+                "industry": str,
+                "reply": str,  # AI reply to show user
+            }
         """
-        has_results = False
+        # Build project context block
         project_block = ""
         if project_context:
-            has_results = (project_context.get("total_results_analyzed", 0) > 0)
             parts = [f"PROJECT: {project_context.get('project_name', 'Unknown')}"]
             if project_context.get("existing_target_segments"):
                 parts.append(f"CURRENT TARGET DEFINITION:\n{project_context['existing_target_segments']}")
-            parts.append(
-                f"RESULTS SO FAR: {project_context.get('total_results_analyzed', 0)} companies analyzed, "
-                f"{project_context.get('total_targets_found', 0)} targets found"
-            )
+            parts.append(f"RESULTS SO FAR: {project_context.get('total_results_analyzed', 0)} companies analyzed, {project_context.get('total_targets_found', 0)} targets found")
             if project_context.get("top_targets"):
                 parts.append(f"TOP TARGETS: {', '.join(project_context['top_targets'][:10])}")
             knowledge = project_context.get("knowledge", {})
@@ -54,51 +49,36 @@ class ChatSearchService:
                 parts.append(f"CONFIRMED KEYWORDS: {', '.join(knowledge['industry_keywords'][:15])}")
             project_block = "\n".join(parts)
 
-        system_prompt = f"""You are a search assistant that classifies user messages into one of three intents and produces structured output.
+        system_prompt = f"""You are a search assistant that operates within a project scope. The user describes target companies and you convert this into structured search parameters to IMMEDIATELY launch a web scraping pipeline.
 
-{f"EXISTING PROJECT CONTEXT:{chr(10)}{project_block}" if project_block else "This is a NEW project with NO prior data."}
+{f"EXISTING PROJECT CONTEXT:{chr(10)}{project_block}" if project_block else "This is a new project with no prior data."}
 
-INTENT CLASSIFICATION RULES:
-1. "search" — User wants to start a NEW search for a DIFFERENT type of company. Use when:
-   - Project has NO results yet (first message)
-   - User explicitly says "search for X instead", "start over", "find Y instead", "new search"
-   - The request describes a completely different target than current target_segments
-
-2. "refine" — User wants to ADJUST the current search. DEFAULT when project has results. Use when:
-   - User says "exclude X", "skip Y", "also look in Z", "focus on W"
-   - User gives feedback about results ("too many portals", "need bigger companies")
-   - User adds criteria ("also in France", "only with 50+ employees")
-   {"- THIS IS THE DEFAULT when the project already has results" if has_results else ""}
-
-3. "question" — User is asking about results or the search, NOT requesting changes. Use when:
-   - "how many targets?", "what's excluded?", "show me stats"
-   - "what are the top results?", "which industries are represented?"
-   - Pure information requests that don't change anything
-
-RESPONSE FORMAT — respond ONLY with valid JSON (no markdown fences):
-{{
-    "intent": "search" | "refine" | "question",
-    "target_segments": "full ICP document if intent is search, null otherwise",
-    "knowledge_updates": {{
-        "anti_keywords": ["keywords to EXCLUDE from results"],
-        "industry_keywords": ["keywords that indicate a GOOD match"],
-        "good_query_patterns": ["effective search query patterns"],
-        "bad_query_patterns": ["ineffective query patterns to avoid"]
-    }},
-    "reply": "1-2 sentence confirmation of what you're doing",
-    "suggestions": ["2-3 follow-up suggestions for the user"]
-}}
+Your task:
+1. Create/update a "target_segments" text block (ICP document) based on the user's description
+2. If the project already has results, consider them when refining the target definition
+3. Generate a SHORT action confirmation reply
 
 CRITICAL RULES:
-- NEVER ask clarifying questions. Act immediately.
-- For "search" intent, target_segments MUST be a non-empty structured ICP document with КОМПАНИЯ, УСЛУГИ, ГЕОГРАФИЯ, ЯЗЫК sections.
-- For "refine" intent, populate knowledge_updates with the refinements. If the user mentions ANY new geography, country, industry, or company type — you MUST provide UPDATED full target_segments (copy the existing ICP and add the new elements). Only set target_segments to null if the refinement is purely about exclusions/keywords.
-- For "question" intent, reply with the answer based on project context. knowledge_updates should have empty arrays.
-- The reply MUST be 1-2 sentences confirming the action taken, NEVER a question.
-- target_segments MUST be a flat string (NOT a JSON object/dict). Use "SECTION: value" format separated by newlines.
-- suggestions should be contextual follow-up actions the user might want.
-- Reply and suggestions MUST match the language of the user's message (Russian message → Russian reply/suggestions, English → English).
-- Expand acronyms (HNWI = High Net Worth Individual, SaaS = Software as a Service, etc.)"""
+- You MUST ALWAYS return a non-empty "target_segments" string. Never return null or empty.
+- NEVER ask clarifying questions. Interpret and start searching immediately.
+- Expand acronyms (HNWI = High Net Worth Individual, SaaS = Software as a Service, etc.)
+- If the project already has targets, your reply should acknowledge existing data and what the new search will add.
+- The "reply" MUST be 1 sentence confirming the search is starting.
+
+Format target_segments as a structured document:
+- КОМПАНИЯ (company type, size, characteristics)
+- УСЛУГИ (services they provide)
+- ГЕОГРАФИЯ (geography/location)
+- ЯЗЫК (website language)
+
+Respond ONLY with valid JSON (no markdown fences):
+{{
+    "target_segments": "...",
+    "project_name": "...",
+    "geography": "...",
+    "industry": "...",
+    "reply": "Searching for [what] in [where] — results will appear as websites are analyzed."
+}}"""
 
         # Build user prompt with conversation context
         user_parts = []
@@ -110,55 +90,120 @@ CRITICAL RULES:
         user_prompt = "\n".join(user_parts)
 
         try:
-            import openai
+            from app.services.gemini_client import is_gemini_available, gemini_generate, extract_json_from_gemini
 
-            client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            if is_gemini_available():
+                # Gemini 2.5 Pro — better at understanding complex intents
+                gen_result = await gemini_generate(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=0.3,
+                    max_tokens=1500,
+                )
+                raw = extract_json_from_gemini(gen_result["content"])
+                logger.info(f"Gemini intent parsing: {gen_result['tokens']['total']} tokens (thinking: {gen_result['tokens'].get('thinking', 0)})")
+                result = json.loads(raw)
+            else:
+                # OpenAI fallback
+                import openai
+                client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+                response = await client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": message},
+                    ] if not context else [
+                        {"role": "system", "content": system_prompt},
+                        *context,
+                        {"role": "user", "content": message},
+                    ],
+                    temperature=0.3,
+                    response_format={"type": "json_object"},
+                    max_tokens=1500,
+                )
+                result = json.loads(response.choices[0].message.content)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to parse search intent: {e}")
+            return {
+                "target_segments": None,
+                "project_name": None,
+                "reply": f"I couldn't understand your request. Could you describe the companies you're looking for in more detail?",
+                "error": str(e),
+            }
+
+    async def parse_feedback(
+        self,
+        message: str,
+        project_knowledge: Optional[Dict[str, Any]] = None,
+        target_segments: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Classify user feedback and return knowledge updates.
+
+        Returns:
+            {
+                "action": "update_knowledge" | "adjust_search" | "info",
+                "reply": str,
+                "knowledge_updates": {
+                    "anti_keywords": [...],
+                    "industry_keywords": [...],
+                    "good_query_patterns": [...],
+                    "bad_query_patterns": [...],
+                }
+            }
+        """
+        import openai
+
+        client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+        system_prompt = f"""You are a search feedback classifier. The user is running a company search and providing feedback about results.
+
+Current search target: {target_segments or 'Not specified'}
+Current knowledge: {json.dumps(project_knowledge or {}, ensure_ascii=False)[:500]}
+
+Classify the user's feedback and determine what knowledge updates to make.
+
+Possible actions:
+- "update_knowledge": User wants to exclude/include certain types of companies
+- "adjust_search": User wants to change search parameters
+- "info": User is asking a question, no action needed
+
+Respond in JSON:
+{{
+    "action": "update_knowledge" | "adjust_search" | "info",
+    "reply": "...",
+    "knowledge_updates": {{
+        "anti_keywords": ["keywords to exclude"],
+        "industry_keywords": ["keywords to prioritize"],
+        "good_query_patterns": ["effective query patterns"],
+        "bad_query_patterns": ["ineffective query patterns"]
+    }}
+}}"""
+
+        try:
             response = await client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
+                    {"role": "user", "content": message},
                 ],
                 temperature=0.3,
                 response_format={"type": "json_object"},
-                max_tokens=1500,
+                max_tokens=800,
             )
+
             result = json.loads(response.choices[0].message.content)
-
-            # Normalize result
-            if "intent" not in result:
-                result["intent"] = "search" if not has_results else "refine"
-            if "knowledge_updates" not in result:
-                result["knowledge_updates"] = {}
-            ku = result.setdefault("knowledge_updates", {})
-            for field in ["anti_keywords", "industry_keywords", "good_query_patterns", "bad_query_patterns"]:
-                val = ku.get(field)
-                if val is None:
-                    ku[field] = []
-                elif isinstance(val, str):
-                    ku[field] = [val]
-                elif not isinstance(val, list):
-                    ku[field] = []
-            if "suggestions" not in result or not isinstance(result["suggestions"], list):
-                result["suggestions"] = []
-            if "reply" not in result:
-                result["reply"] = ""
-
-            logger.info(f"Chat intent: {result['intent']} for message: {message[:80]!r}")
             return result
 
         except Exception as e:
-            logger.error(f"Failed to classify message: {e}")
+            logger.error(f"Failed to parse feedback: {e}")
             return {
-                "intent": "search" if not has_results else "refine",
-                "target_segments": message.strip() if not has_results else None,
-                "knowledge_updates": {
-                    "anti_keywords": [], "industry_keywords": [],
-                    "good_query_patterns": [], "bad_query_patterns": [],
-                },
-                "reply": f"Processing your request..." if not has_results else "Noted, adjusting the search.",
-                "suggestions": [],
-                "error": str(e),
+                "action": "info",
+                "reply": "I noted your feedback. The search will continue with current settings.",
+                "knowledge_updates": {},
             }
 
 

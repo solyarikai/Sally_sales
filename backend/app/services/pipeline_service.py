@@ -218,11 +218,12 @@ class PipelineService:
                     if c_data.get("phone"):
                         phones.append(c_data["phone"])
 
-                dc.contacts_count = len(contacts)
-                dc.emails_found = emails
-                dc.phones_found = phones
-                if dc.status in (DiscoveredCompanyStatus.NEW, DiscoveredCompanyStatus.SCRAPED, DiscoveredCompanyStatus.ANALYZED):
-                    dc.status = DiscoveredCompanyStatus.CONTACTS_EXTRACTED
+                if len(contacts) > 0:
+                    dc.contacts_count = len(contacts)
+                    dc.emails_found = emails
+                    dc.phones_found = phones
+                    if dc.status in (DiscoveredCompanyStatus.NEW, DiscoveredCompanyStatus.SCRAPED, DiscoveredCompanyStatus.ANALYZED):
+                        dc.status = DiscoveredCompanyStatus.CONTACTS_EXTRACTED
 
                 stats["contacts_found"] += len(contacts)
                 stats["processed"] += 1
@@ -508,6 +509,18 @@ class PipelineService:
 
     # ========== List / Get ==========
 
+    # Allowed sort columns (whitelist to prevent SQL injection)
+    SORT_COLUMNS = {
+        "domain": DiscoveredCompany.domain,
+        "name": DiscoveredCompany.name,
+        "status": DiscoveredCompany.status,
+        "is_target": DiscoveredCompany.is_target,
+        "confidence": DiscoveredCompany.confidence,
+        "contacts_count": DiscoveredCompany.contacts_count,
+        "apollo_people_count": DiscoveredCompany.apollo_people_count,
+        "created_at": DiscoveredCompany.created_at,
+    }
+
     async def list_discovered_companies(
         self,
         session: AsyncSession,
@@ -516,6 +529,8 @@ class PipelineService:
         status: Optional[str] = None,
         is_target: Optional[bool] = None,
         search: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = "desc",
         page: int = 1,
         page_size: int = 50,
     ) -> Dict[str, Any]:
@@ -539,15 +554,23 @@ class PipelineService:
         )
         total = count_q.scalar() or 0
 
+        # Build order_by
+        order_clauses = []
+        if sort_by and sort_by in self.SORT_COLUMNS:
+            col = self.SORT_COLUMNS[sort_by]
+            order_clauses.append(col.asc() if sort_order == "asc" else col.desc())
+        else:
+            order_clauses = [
+                DiscoveredCompany.is_target.desc(),
+                DiscoveredCompany.confidence.desc(),
+                DiscoveredCompany.created_at.desc(),
+            ]
+
         # Fetch
         result = await session.execute(
             select(DiscoveredCompany)
             .where(*filters)
-            .order_by(
-                DiscoveredCompany.is_target.desc(),
-                DiscoveredCompany.confidence.desc(),
-                DiscoveredCompany.created_at.desc(),
-            )
+            .order_by(*order_clauses)
             .offset((page - 1) * page_size)
             .limit(page_size)
         )

@@ -155,6 +155,17 @@ class SearchJobFullDetail(BaseModel):
 
 # ============ Pipeline Stats ============
 
+class SpendingDetail(BaseModel):
+    yandex_cost: float = 0.0
+    openai_cost_estimate: float = 0.0
+    gemini_cost_estimate: float = 0.0
+    ai_cost_estimate: float = 0.0
+    crona_cost: float = 0.0
+    apollo_credits_used: int = 0
+    apollo_cost_estimate: float = 0.0
+    total_estimate: float = 0.0
+
+
 class PipelineStats(BaseModel):
     total_discovered: int = 0
     targets: int = 0
@@ -166,6 +177,7 @@ class PipelineStats(BaseModel):
     rejected: int = 0
     total_contacts: int = 0
     total_apollo_people: int = 0
+    spending: Optional[SpendingDetail] = None
     # Contact breakdown
     apollo_contacts: int = 0
     apollo_with_email: int = 0
@@ -173,6 +185,16 @@ class PipelineStats(BaseModel):
     website_contacts: int = 0
     website_with_email: int = 0
     website_with_phone: int = 0
+
+
+# ============ Export Models ============
+
+class PipelineExportSheetRequest(BaseModel):
+    project_id: Optional[int] = None
+    is_target: Optional[bool] = None
+
+class PipelineExportSheetResponse(BaseModel):
+    sheet_url: str
 
 
 # ============ Request Models ============

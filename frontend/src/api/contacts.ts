@@ -296,9 +296,15 @@ export const contactsApi = {
     return response.data;
   },
 
-  // List projects
+  // List projects (full data — slow, use listProjectNames for dropdowns)
   async listProjects(): Promise<Project[]> {
     const response = await api.get('/contacts/projects/list');
+    return response.data;
+  },
+
+  // List project names only (fast — for dropdowns and nav)
+  async listProjectNames(): Promise<Pick<Project, 'id' | 'name'>[]> {
+    const response = await api.get('/contacts/projects/names');
     return response.data;
   },
 

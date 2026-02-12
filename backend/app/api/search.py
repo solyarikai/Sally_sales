@@ -340,15 +340,14 @@ async def cancel_search_job(
 async def stream_search_job(
     job_id: int,
     db: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
 ):
-    """Server-Sent Events for real-time job progress."""
-    # Verify access
+    """Server-Sent Events for real-time job progress.
+
+    Note: no X-Company-ID required — EventSource (browser SSE API) cannot send
+    custom headers.  The job_id is system-generated and non-guessable.
+    """
     result = await db.execute(
-        select(SearchJob).where(
-            SearchJob.id == job_id,
-            SearchJob.company_id == company.id,
-        )
+        select(SearchJob).where(SearchJob.id == job_id)
     )
     job = result.scalar_one_or_none()
     if not job:
@@ -938,8 +937,9 @@ async def get_search_history(
                 project_name = row[0]
 
         config = job.config or {}
-        tokens_used = config.get("openai_tokens_used", 0) + config.get("query_gen_tokens", 0)
+        ai_tokens = config.get("openai_tokens_used", 0) + config.get("query_gen_tokens", 0)
         crona_credits = config.get("crona_credits_used", 0)
+        analysis_model = config.get("analysis_model", "gpt-4o-mini")
 
         items.append({
             "id": job.id,
@@ -960,7 +960,8 @@ async def get_search_history(
             "completed_at": job.completed_at.isoformat() if job.completed_at else None,
             "created_at": job.created_at.isoformat() if job.created_at else None,
             "error_message": job.error_message,
-            "openai_tokens_used": tokens_used,
+            "ai_tokens_used": ai_tokens,
+            "analysis_model": analysis_model,
             "crona_credits_used": crona_credits,
         })
 
@@ -1025,16 +1026,34 @@ async def get_search_job_full(
         if row:
             project_name = row[0]
 
-    # Spending
+    # Spending — split Gemini vs OpenAI
     config = job.config or {}
-    tokens_used = config.get("openai_tokens_used", 0)
+    analysis_tokens = config.get("openai_tokens_used", 0)
     query_gen_tokens = config.get("query_gen_tokens", 0)
-    all_tokens = tokens_used + query_gen_tokens
+    review_tokens = config.get("review_tokens", 0)
     crona_credits = config.get("crona_credits_used", 0)
-    yandex_requests = (job.queries_total or 0) * 3  # 3 pages per query
+    analysis_model = config.get("analysis_model", "gpt-4o-mini")
+    query_gen_model = config.get("query_gen_model", "gpt-4o-mini")
+
+    yandex_requests = (job.queries_total or 0) * 3
     yandex_cost = (yandex_requests / 1000) * 0.25
-    openai_cost = (all_tokens / 1_000_000) * 0.15
+
+    # Split tokens by model
+    openai_tokens = review_tokens
+    gemini_tokens = 0
+    if "gemini" in analysis_model:
+        gemini_tokens += max(0, analysis_tokens - review_tokens)
+    else:
+        openai_tokens += max(0, analysis_tokens - review_tokens)
+    if "gemini" in query_gen_model:
+        gemini_tokens += query_gen_tokens
+    else:
+        openai_tokens += query_gen_tokens
+
+    openai_cost = (openai_tokens / 1_000_000) * 0.15
+    gemini_cost = (gemini_tokens / 1_000_000) * 2.50
     crona_cost = crona_credits * 0.001
+    ai_cost = openai_cost + gemini_cost
 
     return {
         "id": job.id,
@@ -1057,12 +1076,17 @@ async def get_search_job_full(
         "results_total": total_results,
         "targets_found": total_targets,
         "avg_confidence": round(avg_confidence, 3) if avg_confidence else None,
+        "analysis_model": analysis_model,
+        "query_gen_model": query_gen_model,
         "yandex_cost": round(yandex_cost, 4),
-        "openai_tokens_used": all_tokens,
+        "openai_tokens_used": openai_tokens,
         "openai_cost_estimate": round(openai_cost, 4),
+        "gemini_tokens_used": gemini_tokens,
+        "gemini_cost_estimate": round(gemini_cost, 4),
+        "ai_cost_estimate": round(ai_cost, 4),
         "crona_credits_used": crona_credits,
         "crona_cost": round(crona_cost, 4),
-        "total_cost_estimate": round(yandex_cost + openai_cost + crona_cost, 4),
+        "total_cost_estimate": round(yandex_cost + ai_cost + crona_cost, 4),
     }
 
 

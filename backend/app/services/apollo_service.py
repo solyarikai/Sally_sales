@@ -59,47 +59,44 @@ class ApolloService:
         self._last_call_time = time.monotonic()
 
     async def _api_call(self, method: str, endpoint: str, json_data: dict = None) -> Optional[dict]:
-        """Make a rate-limited API call with 429 retry."""
-        await self._rate_limit()
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                if method == "POST":
-                    resp = await client.post(
-                        f"{self.base_url}{endpoint}",
-                        json=json_data,
-                        headers=self._get_headers(),
-                    )
-                else:
-                    resp = await client.get(
-                        f"{self.base_url}{endpoint}",
-                        headers=self._get_headers(),
-                    )
-                if resp.status_code == 429:
-                    wait = 30
-                    logger.warning(f"Apollo 429 rate limit, waiting {wait}s...")
-                    await asyncio.sleep(wait)
-                    self._last_call_time = time.monotonic()
-                    async with httpx.AsyncClient(timeout=30) as retry_client:
-                        if method == "POST":
-                            resp = await retry_client.post(
-                                f"{self.base_url}{endpoint}",
-                                json=json_data,
-                                headers=self._get_headers(),
-                            )
+        """Make a rate-limited API call with 429 retry and exponential backoff."""
+        MAX_RETRIES = 3
+        backoff_waits = [30, 60, 120]  # seconds
+
+        for attempt in range(MAX_RETRIES + 1):
+            await self._rate_limit()
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    if method == "POST":
+                        resp = await client.post(
+                            f"{self.base_url}{endpoint}",
+                            json=json_data,
+                            headers=self._get_headers(),
+                        )
+                    else:
+                        resp = await client.get(
+                            f"{self.base_url}{endpoint}",
+                            headers=self._get_headers(),
+                        )
+                    if resp.status_code == 429:
+                        if attempt < MAX_RETRIES:
+                            wait = backoff_waits[attempt]
+                            logger.warning(f"Apollo 429 rate limit on {endpoint}, attempt {attempt + 1}/{MAX_RETRIES}, waiting {wait}s...")
+                            await asyncio.sleep(wait)
+                            self._last_call_time = time.monotonic()
+                            continue
                         else:
-                            resp = await retry_client.get(
-                                f"{self.base_url}{endpoint}",
-                                headers=self._get_headers(),
-                            )
-                resp.raise_for_status()
-                self.credits_used += 1
-                return resp.json()
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Apollo API {endpoint}: {e.response.status_code} - {e.response.text[:200]}")
-            return None
-        except Exception as e:
-            logger.error(f"Apollo API {endpoint} failed: {e}")
-            return None
+                            logger.error(f"Apollo 429 rate limit on {endpoint}: exhausted all {MAX_RETRIES} retries")
+                            return None
+                    resp.raise_for_status()
+                    return resp.json()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Apollo API {endpoint}: {e.response.status_code} - {e.response.text[:200]}")
+                return None
+            except Exception as e:
+                logger.error(f"Apollo API {endpoint} failed: {e}")
+                return None
+        return None
 
     async def enrich_by_domain(
         self,
@@ -158,6 +155,10 @@ class ApolloService:
             return []
 
         matches = bulk_data.get("matches", [])
+        # Credit tracking: bulk_match uses 1 credit per person revealed (not per API call)
+        revealed_count = sum(1 for m in matches if m)
+        self.credits_used += revealed_count
+
         results = []
         for match in matches:
             if not match:

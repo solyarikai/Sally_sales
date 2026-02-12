@@ -59,6 +59,8 @@ export interface SpendingInfo {
   yandex_cost: number;
   openai_tokens_used: number;
   openai_cost_estimate: number;
+  gemini_cost_estimate?: number;
+  ai_cost_estimate?: number;
   openai_analysis_tokens: number;
   openai_query_gen_tokens: number;
   openai_review_tokens: number;
@@ -603,6 +605,7 @@ export const projectSearchApi = {
     message: string,
     opts?: {
       projectId?: number;
+      jobId?: number;
       maxQueries?: number;
       targetGoal?: number;
       context?: { role: string; content: string }[];
@@ -611,6 +614,7 @@ export const projectSearchApi = {
     const response = await api.post('/search/chat', {
       message,
       project_id: opts?.projectId,
+      job_id: opts?.jobId,
       max_queries: opts?.maxQueries ?? 500,
       target_goal: opts?.targetGoal ?? 200,
       context: opts?.context ?? [],

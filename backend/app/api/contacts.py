@@ -1100,6 +1100,20 @@ async def list_projects_lite(
     ]
 
 
+@router.get("/projects/names")
+async def list_project_names(
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Fast endpoint: return just id+name for dropdowns (no contact counts)."""
+    result = await session.execute(
+        select(Project.id, Project.name)
+        .where(and_(Project.company_id == company_id if company_id else True, Project.deleted_at.is_(None)))
+        .order_by(Project.name)
+    )
+    return [{"id": row.id, "name": row.name} for row in result.all()]
+
+
 @router.get("/projects/list", response_model=List[ProjectResponse])
 async def list_projects(
     session: AsyncSession = Depends(get_session),

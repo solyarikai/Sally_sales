@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # OpenAI - MUST be set via .env file
     OPENAI_API_KEY: Optional[str] = None
     DEFAULT_OPENAI_MODEL: str = "gpt-4o-mini"
+
+    # Google Gemini - for complex reasoning tasks (query generation, website analysis)
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-2.5-pro"
     
     # Available OpenAI models for enrichment (latest models)
     AVAILABLE_MODELS: List[str] = [
