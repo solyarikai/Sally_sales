@@ -769,16 +769,16 @@ Respond with JSON:
 }}
 
 SCORING GUIDE:
-- language_match: 1.0 if site language is compatible with target geography. For Russian market: must be Russian. For UAE/Dubai: English, Russian, or Arabic all score 1.0. For international HNWI hubs (Cyprus, Monaco, UK, Switzerland, etc.): English is acceptable.
-- industry_match: 0 if clearly wrong industry. 0.2 for interior fit-out ONLY (no ground-up construction). 0.2 for repair/renovation brigades and small handyman services. 0.3 for pure architecture/design firms (they design but don't build). 0.0 for companies providing the SAME service as the client (competitors, not customers). 0.7 if close (e.g. commercial construction for a villa segment). 1.0 if exact match.
-- service_match: how well the company's ACTUAL services match the target. 0 for pure listing/portal sites. 0.2 for finishing/fit-out ONLY companies. 0.0 for competitors (companies offering the same service package as the client). 0.3 for brokers with no development. 1.0 for companies that actually build/develop/construct.
-- company_type: 1.0 for real operating companies doing the work, 0.5 for consulting/agencies/brokers, 0.3 for franchises/reseller pages, 0 for aggregators/news/directories/job boards/property portals
+- language_match: 1.0 if site language is compatible with target geography/clients. If target mentions Russian-speaking clients: Russian-language sites score 1.0, English sites in international hubs (Cyprus, Monaco, UAE, etc.) score 0.7-0.8. Pure local-language sites (Thai, Turkish, etc.) without Russian/English = 0.2.
+- industry_match: 1.0 if exact match to target segment. 0.7 if adjacent/close. 0.3 if loosely related. 0.0 if completely wrong industry. Read the TARGET SEGMENT carefully and match against THAT, not some generic idea.
+- service_match: 1.0 if the company's services directly match what's described in the target segment. 0.5 if partially overlapping. 0.0 for aggregators, directories, listing portals, news sites.
+- company_type: 1.0 for real operating B2B companies providing services, 0.5 for small agencies/solo consultants, 0.3 for franchises/reseller pages, 0 for aggregators/news/directories/job boards/portals
 - geography_match: 1.0 if serves target geography, 0.5 if partially overlaps, 0 if completely different region
 
 CRITICAL FALSE POSITIVE RULES:
-- Interior design firms, fit-out contractors, renovation companies, and architecture studios that don't build are NOT target customers — they are adjacent services or competitors. Score industry_match ≤ 0.3.
-- Companies providing the EXACT SAME service as the searching client (e.g. design+build+fit-out packages when the client does design+build) are COMPETITORS, not targets. Score service_match = 0.0, industry_match = 0.0.
-- "Ремонтные бригады" (renovation crews), "отделочные работы" (finishing works), "дизайн интерьера" (interior design) without construction capability = NOT targets.
+- Aggregators, directories, news sites, job boards, property listing portals, forums → ALWAYS is_target = false
+- Blog sites, informational sites, personal blogs → ALWAYS is_target = false
+- Companies that don't provide any of the services described in TARGET SEGMENT → is_target = false
 - IMPORTANT: "name" in company_info must be the name of the company whose WEBSITE you are analyzing, extracted from the website content (title, logo, about page). NEVER use the client/searcher name from the TARGET SEGMENT description. If you cannot find the company name on the website, use the domain name."""
 
         payload = {

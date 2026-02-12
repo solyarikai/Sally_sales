@@ -93,57 +93,49 @@ def build_project_query_prompt(
 
     prompt = f"""You are an expert at generating search queries for B2B lead generation.
 
-TARGET SEGMENT: {target_segments}
+TARGET SEGMENT:
+{target_segments}
 
-TASK: Generate exactly {count} MAXIMALLY DIVERSE search queries to find companies in this segment via Yandex and Google.
+TASK: Generate exactly {count} MAXIMALLY DIVERSE search queries to find companies in this target segment via Yandex and Google.
 
 RULES:
-- Each query 3-10 words
-- Natural search engine language (as users would type in Yandex/Google)
-- Do NOT generate informational queries ("what is...", "how to...")
-- Do NOT generate job queries ("jobs at...", "vacancies...")
-- We are looking for B2B partners and companies, NOT end consumers
-- STRICTLY follow geographic constraints in the target segment description!
+- Each query 3-10 words, natural search-engine language (as people type in Yandex/Google)
+- Do NOT generate informational queries ("what is...", "how to...", "definition of...")
+- Do NOT generate job/vacancy queries
+- We seek B2B partner companies, NOT end consumers
+- STRICTLY follow the geographic constraints described above — cover ALL listed geos
 - Each query MUST be unique and substantially different from others
+- Queries MUST directly relate to the target segments described — read them carefully!
 
-MANDATORY QUERY CATEGORIES (distribute evenly):
+MANDATORY QUERY CATEGORIES (distribute evenly across ALL listed geographies and segments):
 
-1. DIRECT by company type (20%):
-   English: "villa contractor Dubai", "building company villas Abu Dhabi", "villa construction company UAE"
-   Russian: "строительная компания вилл Дубай", "подрядчик строительства вилл ОАЭ"
+1. DIRECT by company type + geography (25%):
+   For EACH geography and EACH segment listed above, generate "[company type] [city/country]" queries.
+   Both Russian and English where the segment mentions Russian-speaking clients.
 
-2. BY DISTRICTS — matrix [district × company type] (25%):
-   Generate queries for EVERY district from the target segment. Both languages.
-   English: "villa developers Palm Jumeirah", "construction company Emirates Hills", "villa builders Saadiyat Island"
-   Russian: "строительство вилл Palm Jumeirah", "застройщик вилл Dubai Hills", "строительная компания Arabian Ranches"
+2. BY SPECIFIC CITIES/REGIONS (25%):
+   Matrix: [each city from geography] × [each company/service type from segments].
+   Cover ALL cities mentioned in the geography section.
 
-3. BY SERVICES/SUBSEGMENTS (15%):
-   design-build, turnkey construction, architectural design, fit-out, renovation, landscaping, MEP
-   English: "design build villa Abu Dhabi", "turnkey villa construction Dubai", "villa fit out contractor UAE"
-   Russian: "проектирование и строительство вилл ОАЭ", "виллы под ключ Дубай подрядчик"
+3. BY SERVICES/SUBSEGMENTS (20%):
+   For each sub-service mentioned in the segment description, generate targeted queries.
+   E.g. if segment mentions "wealth management" → "wealth management for HNWI Cyprus", "управление активами Кипр"
 
-4. COMPETITOR-BASED — if confirmed target companies exist (10%):
-   English: "companies similar to [target]", "[target] competitors Dubai", "companies like [target]"
-   Russian: "компании похожие на [target]", "альтернативы [target] Дубай"
+4. REGISTRIES, LISTS & RANKINGS (15%):
+   "top [company type] [geography] 2025", "лучшие [company type] [geography]", "рейтинг [service] [city]"
 
-5. BUSINESS MODEL (10%):
-   English: "custom built villa Dubai contractor", "bespoke villa developer Dubai", "villa on investor plot Abu Dhabi"
-   Russian: "построить виллу на участке Дубай", "виллы off plan от застройщика"
+5. COMPETITOR/SIMILAR (15%):
+   If confirmed targets exist, generate "companies like [target]", "[target] alternatives [city]"
 
-6. REGISTRIES & LISTS (10%):
-   English: "top villa builders Dubai 2025", "DEWA approved contractors villas", "best construction companies Abu Dhabi"
-   Russian: "лучшие строительные компании Дубай", "рейтинг застройщиков вилл ОАЭ"
+LANGUAGE:
+- If the target segment mentions Russian-speaking clients, generate 50-60% Russian queries, rest English
+- Russian-language queries are critical for finding companies that serve Russian clients
+- Use natural Russian phrasing, not transliteration
 
-7. NICHE/ASSOCIATIONS/AWARDS (10%):
-   English: "Dubai construction awards villa", "CIOB members UAE", "Big 5 construction exhibitors villas"
-   Russian: "строительная выставка Дубай участники", "Dubai Property Awards villa builder"
-
-LANGUAGE: For Dubai/UAE — 50% Russian, 50% English. MUST include both Dubai AND Abu Dhabi queries (at least 20% Abu Dhabi if in target geography).
-
-ALREADY USED QUERIES (DO NOT REPEAT!):
+ALREADY USED QUERIES (DO NOT REPEAT OR GENERATE SIMILAR):
 {existing_str}
 {feedback_section}
-Generate exactly {count} unique queries. Return ONLY a JSON array: ["query1", "query2", ...]"""
+Generate exactly {count} unique queries covering ALL geographies and ALL segments. Return ONLY a JSON array: ["query1", "query2", ...]"""
 
     return prompt
 
