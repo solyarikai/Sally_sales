@@ -3,7 +3,9 @@ Apollo Service — People enrichment via Apollo.io API.
 
 Finds people by domain with verified emails, titles, LinkedIn profiles.
 """
+import asyncio
 import logging
+import time
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -16,9 +18,14 @@ logger = logging.getLogger(__name__)
 class ApolloService:
     """Service for interacting with Apollo.io API."""
 
+    # Apollo free tier: 50 API calls per minute
+    RATE_LIMIT_PER_MINUTE = 50
+    RATE_LIMIT_INTERVAL = 60.0 / RATE_LIMIT_PER_MINUTE + 0.1  # ~1.3s between calls
+
     def __init__(self):
         self.base_url = settings.APOLLO_API_URL
         self.credits_used: int = 0
+        self._last_call_time: float = 0
 
     @property
     def api_key(self) -> Optional[str]:
@@ -63,6 +70,13 @@ class ApolloService:
             payload["person_titles"] = titles
 
         try:
+            # Rate limiting: wait to stay under 50 calls/min
+            now = time.monotonic()
+            elapsed = now - self._last_call_time
+            if elapsed < self.RATE_LIMIT_INTERVAL:
+                await asyncio.sleep(self.RATE_LIMIT_INTERVAL - elapsed)
+            self._last_call_time = time.monotonic()
+
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(
                     f"{self.base_url}/mixed_people/api_search",
@@ -76,10 +90,11 @@ class ApolloService:
             results = []
 
             for person in people:
+                # Include people even without verified email (LinkedIn is valuable too)
                 email = person.get("email")
-                if not email:
+                linkedin = person.get("linkedin_url")
+                if not email and not linkedin:
                     continue
-
                 results.append({
                     "email": email,
                     "first_name": person.get("first_name"),
@@ -106,6 +121,43 @@ class ApolloService:
             return results
 
         except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                # Rate limited — wait 65 seconds and retry once
+                logger.warning(f"Apollo 429 for {domain}, waiting 65s and retrying...")
+                await asyncio.sleep(65)
+                self._last_call_time = time.monotonic()
+                try:
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        resp = await client.post(
+                            f"{self.base_url}/mixed_people/api_search",
+                            json=payload,
+                            headers=self._get_headers(),
+                        )
+                        resp.raise_for_status()
+                        data = resp.json()
+                    people = data.get("people", [])
+                    results = []
+                    for person in people:
+                        email = person.get("email")
+                        linkedin = person.get("linkedin_url")
+                        if not email and not linkedin:
+                            continue
+                        results.append({
+                            "email": email,
+                            "first_name": person.get("first_name"),
+                            "last_name": person.get("last_name"),
+                            "job_title": person.get("title"),
+                            "linkedin_url": person.get("linkedin_url"),
+                            "is_verified": person.get("email_status") == "verified",
+                            "phone": (person.get("phone_numbers") or [{}])[0].get("sanitized_number") if person.get("phone_numbers") else None,
+                            "raw_data": {"id": person.get("id"), "organization": person.get("organization", {}).get("name")},
+                        })
+                    self.credits_used += 1
+                    logger.info(f"Apollo retry found {len(results)} people for {domain} (credits_used={self.credits_used})")
+                    return results
+                except Exception as retry_err:
+                    logger.error(f"Apollo retry also failed for {domain}: {retry_err}")
+                    return []
             logger.error(f"Apollo API error for {domain}: {e.response.status_code} - {e.response.text[:200]}")
             return []
         except Exception as e:
