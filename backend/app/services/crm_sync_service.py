@@ -1738,8 +1738,8 @@ async def sync_conversation_histories(
                 else:
                     stats["still_pending"] += 1
 
-                # Rate limit
-                await asyncio.sleep(0.35)
+                # Rate limit: Smartlead allows ~2 req/s
+                await asyncio.sleep(0.6)
 
             except Exception as e:
                 logger.error(f"sync_conversation_histories: error checking lead {reply.lead_email}: {e}")

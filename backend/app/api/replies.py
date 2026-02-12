@@ -3022,7 +3022,8 @@ async def sync_outbound_status(
                     still_pending_list.append(r)
 
                 # Rate limit: ~3 req/s
-                await asyncio.sleep(0.35)
+                # Rate limit: Smartlead allows ~2 req/s, use 0.6s to be safe
+                await asyncio.sleep(0.6)
 
             except Exception as e:
                 errors.append({"reply_id": r.id, "error": str(e)})
