@@ -2889,3 +2889,174 @@ async def rizzult_comparison(
             for k in sorted(matched_keys)[:50]
         ],
     }
+
+
+# ============= Smartlead Outbound Sync =============
+
+@router.post("/sync-outbound-status")
+async def sync_outbound_status(
+    project_id: Optional[int] = Query(None, description="Limit to a project's campaigns"),
+    limit: int = Query(100, ge=1, le=500, description="Max replies to check"),
+    dry_run: bool = Query(False, description="Preview without updating"),
+    db: AsyncSession = Depends(get_session),
+):
+    """Check Smartlead message history for pending replies to detect operator replies.
+
+    For each pending reply, fetches the Smartlead conversation and checks if the
+    last message is outbound (meaning someone already replied from Smartlead UI).
+    Those replies are marked as 'replied_externally'.
+
+    Returns a summary of what was found/updated.
+    """
+    import httpx
+    import asyncio
+    from app.services.smartlead_service import SmartleadService
+
+    sl = SmartleadService()
+    if not sl._api_key:
+        raise HTTPException(status_code=500, detail="SMARTLEAD_API_KEY not configured")
+
+    # Build query for pending replies
+    query = select(ProcessedReply).where(
+        or_(
+            ProcessedReply.approval_status == None,
+            ProcessedReply.approval_status == "pending",
+        )
+    ).order_by(ProcessedReply.received_at.desc())
+
+    # Filter by project campaigns if specified
+    if project_id:
+        from app.models.contact import Project
+        proj_result = await db.execute(
+            select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
+        )
+        project = proj_result.scalar_one_or_none()
+        if project and project.campaign_filters:
+            camp_names = [c for c in project.campaign_filters if isinstance(c, str)]
+            if camp_names:
+                query = query.where(ProcessedReply.campaign_name.in_(camp_names))
+
+    query = query.limit(limit)
+    result = await db.execute(query)
+    pending_replies = result.scalars().all()
+
+    if not pending_replies:
+        return {"checked": 0, "already_replied": 0, "still_pending": 0, "errors": 0}
+
+    # Deduplicate by (campaign_id, lead_email) — only check once per lead per campaign
+    seen = set()
+    to_check = []
+    for r in pending_replies:
+        key = (r.campaign_id, (r.lead_email or "").lower())
+        if key not in seen and r.campaign_id and r.lead_email:
+            seen.add(key)
+            to_check.append(r)
+
+    # Batch check Smartlead message histories
+    already_replied = []
+    still_pending_list = []
+    errors = []
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for r in to_check:
+            try:
+                # We need a lead_id for the Smartlead API.
+                # Try to find it from raw_webhook_data or contact
+                lead_id = None
+                if r.raw_webhook_data and isinstance(r.raw_webhook_data, dict):
+                    lead_id = str(
+                        r.raw_webhook_data.get("sl_lead_id")
+                        or r.raw_webhook_data.get("lead_id")
+                        or ""
+                    )
+
+                if not lead_id:
+                    # Try from contact
+                    from app.models.contact import Contact
+                    contact_result = await db.execute(
+                        select(Contact.smartlead_id).where(
+                            func.lower(Contact.email) == r.lead_email.lower(),
+                            Contact.deleted_at.is_(None),
+                        )
+                    )
+                    row = contact_result.first()
+                    lead_id = row[0] if row and row[0] else None
+
+                if not lead_id:
+                    still_pending_list.append(r)
+                    continue
+
+                # Fetch message history from Smartlead
+                resp = await client.get(
+                    f"https://server.smartlead.ai/api/v1/campaigns/{r.campaign_id}/leads/{lead_id}/message-history",
+                    params={"api_key": sl._api_key},
+                )
+
+                if resp.status_code != 200:
+                    errors.append({"reply_id": r.id, "error": f"API {resp.status_code}"})
+                    continue
+
+                history = resp.json().get("history", [])
+                if not history:
+                    still_pending_list.append(r)
+                    continue
+
+                # Check if last message is outbound (type != REPLY)
+                last_msg = history[-1]
+                msg_type = last_msg.get("type", "")
+
+                if msg_type != "REPLY":
+                    # Last message is outbound — operator already replied
+                    already_replied.append({
+                        "reply_id": r.id,
+                        "lead_email": r.lead_email,
+                        "campaign": r.campaign_name,
+                        "last_msg_type": msg_type,
+                        "messages_total": len(history),
+                    })
+                    if not dry_run:
+                        r.approval_status = "replied_externally"
+                        r.approved_at = datetime.utcnow()
+                        db.add(r)
+                else:
+                    still_pending_list.append(r)
+
+                # Rate limit: ~3 req/s
+                await asyncio.sleep(0.35)
+
+            except Exception as e:
+                errors.append({"reply_id": r.id, "error": str(e)})
+
+    # Also mark ALL other pending replies for the same lead+campaign
+    if not dry_run and already_replied:
+        for item in already_replied:
+            await db.execute(
+                ProcessedReply.__table__.update()
+                .where(
+                    and_(
+                        func.lower(ProcessedReply.lead_email) == item["lead_email"].lower(),
+                        ProcessedReply.campaign_name == item["campaign"],
+                        or_(
+                            ProcessedReply.approval_status == None,
+                            ProcessedReply.approval_status == "pending",
+                        ),
+                    )
+                )
+                .values(
+                    approval_status="replied_externally",
+                    approved_at=datetime.utcnow(),
+                )
+            )
+        await db.commit()
+
+    return {
+        "checked": len(to_check),
+        "already_replied": len(already_replied),
+        "still_pending": len(still_pending_list),
+        "errors": len(errors),
+        "dry_run": dry_run,
+        "details": {
+            "already_replied": already_replied[:20],
+            "errors": errors[:10],
+        },
+    }
