@@ -362,6 +362,7 @@ class SmartleadClient:
         """
         Set up CRM webhooks for all active Smartlead campaigns.
         Runs up to 10 checks concurrently with a shared HTTP client.
+        Filters out campaigns with non-numeric IDs (test entries).
         """
         import asyncio
 
@@ -369,11 +370,21 @@ class SmartleadClient:
 
         try:
             campaigns = await self.get_campaigns()
-            active = [c for c in campaigns if c.get("status", "").upper() == "ACTIVE"]
-            skipped = [c for c in campaigns if c.get("status", "").upper() != "ACTIVE"]
-            results["skipped"] = [{"id": c.get("id"), "name": c.get("name", "Unknown"), "status": c.get("status")} for c in skipped]
+            active = []
+            for c in campaigns:
+                cid = c.get("id")
+                status = (c.get("status") or "").upper()
+                # Skip inactive campaigns
+                if status != "ACTIVE":
+                    results["skipped"].append({"id": cid, "name": c.get("name", "Unknown"), "status": c.get("status")})
+                    continue
+                # Skip non-numeric IDs (test entries like "test-123")
+                if not str(cid).isdigit():
+                    results["skipped"].append({"id": cid, "name": c.get("name", "Unknown"), "reason": "non-numeric ID"})
+                    continue
+                active.append(c)
 
-            logger.info(f"Found {len(campaigns)} Smartlead campaigns, {len(active)} active")
+            logger.info(f"Found {len(campaigns)} Smartlead campaigns, {len(active)} active (skipped {len(results['skipped'])})")
 
             sem = asyncio.Semaphore(10)
 
@@ -761,11 +772,25 @@ class CRMSyncService:
         
         # Determine status from campaigns
         campaigns = lead.get("campaigns", [])
-        # Check for replies - either REPLIED status or has reply_time
+        # Check for replies - either REPLIED status, has reply_time,
+        # OR has entries in processed_replies table (critical fix: this was missing,
+        # causing 97%+ of replied contacts to have has_replied=false)
         has_replied = any(
             c.get("lead_status") == "REPLIED" or c.get("reply_time") 
             for c in campaigns
         )
+        
+        # Cross-reference with processed_replies table for definitive reply check
+        if not has_replied and email:
+            from app.models.reply import ProcessedReply
+            reply_check = await session.execute(
+                select(ProcessedReply.id).where(
+                    ProcessedReply.lead_email == email
+                ).limit(1)
+            )
+            if reply_check.scalar():
+                has_replied = True
+                logger.info(f"[SYNC] Found reply in processed_replies for {email} (campaign status didn't reflect it)")
         smartlead_status = campaigns[0].get("lead_status") if campaigns else None
         campaign_names = [c.get("campaign_name") for c in campaigns if c.get("campaign_name")]
         
@@ -775,6 +800,14 @@ class CRMSyncService:
             existing.smartlead_status = smartlead_status
             if not existing.domain and email and '@' in email:
                 existing.domain = email.split('@')[1].lower()
+            # Upgrade placeholder email with real email from Smartlead
+            if email and existing.email and any(
+                p in existing.email for p in ("@linkedin.placeholder", "@getsales.local", "@placeholder.local")
+            ):
+                logger.info(f"[SYNC] Upgrading placeholder email {existing.email} -> {email}")
+                existing.email = email
+                if '@' in email:
+                    existing.domain = email.split('@')[1].lower()
             if has_replied and not existing.has_replied:
                 existing.has_replied = True
                 existing.reply_channel = "email"
@@ -953,7 +986,9 @@ class CRMSyncService:
                     "status": getsales_status
                 }]
 
-            actual_email = email or f"linkedin_{linkedin}@placeholder.local"
+            # Use a more descriptive placeholder email with getsales_id for traceability
+            # This makes it clear this is a LinkedIn-only contact and aids debugging
+            actual_email = email or f"gs_{getsales_id or linkedin}@linkedin.placeholder"
             contact = Contact(
                 company_id=company_id,
                 email=actual_email,

@@ -290,7 +290,36 @@ async def fetch_smartlead_replies(
                             )
                             contact = result.scalars().first()
                             
-                            if contact and not contact.has_replied:
+                            # Create contact if not found (fixes missing contacts bug)
+                            if not contact:
+                                contact = Contact(
+                                    company_id=1,
+                                    email=email,
+                                    first_name=reply.get("first_name"),
+                                    last_name=reply.get("last_name"),
+                                    company_name=reply.get("company_name"),
+                                    source="smartlead",
+                                    status="replied",
+                                    has_replied=True,
+                                    reply_channel="email",
+                                    last_synced_at=datetime.utcnow(),
+                                    campaigns=json.dumps([{
+                                        "name": campaign.get("name"),
+                                        "id": campaign_id,
+                                        "source": "smartlead"
+                                    }])
+                                )
+                                # Parse reply_time
+                                reply_time_str = reply.get("reply_time")
+                                if reply_time_str:
+                                    try:
+                                        contact.last_reply_at = datetime.fromisoformat(reply_time_str.replace("Z", ""))
+                                    except:
+                                        contact.last_reply_at = datetime.utcnow()
+                                bg_session.add(contact)
+                                contacts_updated += 1
+                                logger.info(f"Reply sync: created contact {email} from reply data")
+                            elif not contact.has_replied:
                                 contact.has_replied = True
                                 contact.status = "replied"
                                 # Parse reply_time string to datetime
@@ -321,6 +350,97 @@ async def fetch_smartlead_replies(
     
     return {"success": True, "message": "Reply fetch started in background"}
 
+
+@router.post("/backfill-reply-contacts")
+async def backfill_reply_contacts(
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Backfill contacts from processed_replies table.
+    
+    Fixes the critical bug where reply senders captured via webhooks
+    were stored in processed_replies but never created as contacts.
+    This creates Contact records for all processed_replies that have
+    no matching contact, and fixes has_replied flags on existing contacts.
+    """
+    from app.models.reply import ProcessedReply
+    from sqlalchemy import func, text
+    
+    async def do_backfill():
+        from app.db.database import async_session_maker
+        async with async_session_maker() as bg_session:
+            try:
+                # Step 1: Find all unique reply senders NOT in contacts table
+                result = await bg_session.execute(text("""
+                    SELECT DISTINCT ON (pr.lead_email)
+                        pr.lead_email, pr.lead_first_name, pr.lead_last_name,
+                        pr.lead_company, pr.campaign_name, pr.campaign_id,
+                        pr.category, pr.received_at
+                    FROM processed_replies pr
+                    LEFT JOIN contacts c ON LOWER(c.email) = LOWER(pr.lead_email) 
+                        AND c.deleted_at IS NULL
+                    WHERE c.id IS NULL
+                      AND pr.lead_email IS NOT NULL
+                      AND pr.lead_email != ''
+                    ORDER BY pr.lead_email, pr.received_at DESC
+                """))
+                missing = result.fetchall()
+                
+                created = 0
+                for row in missing:
+                    email, first_name, last_name, company, campaign_name, campaign_id, category, received_at = row
+                    contact = Contact(
+                        company_id=1,
+                        email=email.lower().strip(),
+                        first_name=first_name,
+                        last_name=last_name,
+                        company_name=company,
+                        source="smartlead",
+                        status="replied",
+                        has_replied=True,
+                        reply_channel="email",
+                        last_reply_at=received_at,
+                        last_synced_at=datetime.utcnow(),
+                        campaigns=[{
+                            "name": campaign_name,
+                            "id": str(campaign_id) if campaign_id else None,
+                            "source": "smartlead"
+                        }] if campaign_name or campaign_id else None
+                    )
+                    
+                    bg_session.add(contact)
+                    created += 1
+                
+                await bg_session.flush()
+                
+                # Step 2: Fix existing contacts with has_replied=false that have replies
+                fix_result = await bg_session.execute(text("""
+                    UPDATE contacts c
+                    SET has_replied = true,
+                        reply_channel = COALESCE(c.reply_channel, 'email'),
+                        status = CASE WHEN c.status IN ('new', 'lead', 'contacted') THEN 'replied' ELSE c.status END,
+                        last_reply_at = COALESCE(c.last_reply_at, (
+                            SELECT MAX(pr.received_at) FROM processed_replies pr 
+                            WHERE LOWER(pr.lead_email) = LOWER(c.email)
+                        ))
+                    FROM processed_replies pr
+                    WHERE LOWER(c.email) = LOWER(pr.lead_email)
+                      AND c.deleted_at IS NULL
+                      AND c.has_replied = false
+                """))
+                fixed = fix_result.rowcount
+                
+                await bg_session.commit()
+                logger.info(f"Backfill complete: {created} contacts created, {fixed} contacts fixed")
+                
+            except Exception as e:
+                await bg_session.rollback()
+                logger.error(f"Backfill failed: {e}")
+    
+    background_tasks.add_task(do_backfill)
+    
+    return {"success": True, "message": "Backfill started in background. Check logs for progress."}
 
 
 @router.get("/webhooks")
@@ -492,6 +612,14 @@ async def smartlead_webhook(
         contact.smartlead_id = str(lead_id) if lead_id else None
         if linkedin_profile and not contact.linkedin_url:
             contact.linkedin_url = _normalize_linkedin(linkedin_profile)
+        # Upgrade placeholder email with real email from Smartlead
+        if lead_email and contact.email and any(
+            p in contact.email for p in ("@linkedin.placeholder", "@getsales.local", "@placeholder.local")
+        ):
+            logger.info(f"Upgrading placeholder email {contact.email} -> {lead_email}")
+            contact.email = lead_email.lower().strip()
+            if '@' in lead_email:
+                contact.domain = lead_email.split('@')[1].lower()
         # Add campaign to existing campaigns if not already there
         if campaign_name or campaign_id:
             campaign_entry = {
@@ -837,6 +965,15 @@ async def getsales_webhook(
         if linkedin_url and not contact.linkedin_url:
             contact.linkedin_url = linkedin_url
     
+    # If contact has a placeholder email and webhook provides a real one, update it
+    if is_existing_contact and lead_email and contact.email and any(
+        p in contact.email for p in ("@linkedin.placeholder", "@getsales.local", "@placeholder.local")
+    ):
+        logger.info(f"Updating placeholder email {contact.email} -> {lead_email}")
+        contact.email = lead_email.lower().strip()
+        if '@' in lead_email:
+            contact.domain = lead_email.split('@')[1].lower()
+    
     if not contact:
         # Contact not in our system yet - create it
         logger.info(f"Creating new contact from GetSales webhook: {lead_email or linkedin_url}")
@@ -855,7 +992,7 @@ async def getsales_webhook(
         
         contact = Contact(
             company_id=1,  # Default company
-            email=lead_email or f"linkedin_{lead_uuid}@getsales.local",
+            email=lead_email or f"gs_{lead_uuid}@linkedin.placeholder",
             first_name=contact_data.get("first_name"),
             last_name=contact_data.get("last_name"),
             company_name=contact_data.get("company_name") or account_data.get("name"),

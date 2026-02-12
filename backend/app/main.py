@@ -74,15 +74,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to setup file sync: {e}")
     
-    # Sync Smartlead webhooks for active automations
-    try:
-        from app.services.smartlead_service import sync_webhooks_on_startup
-        result = await sync_webhooks_on_startup()
-        logger.info(f"Webhook sync: {result}")
-    except Exception as e:
-        logger.warning(f"Webhook sync failed: {e}")
-    
     # Start CRM sync scheduler (optional - comment out to disable)
+    # Note: webhook registration is handled by the scheduler's startup routine
+    # (setup_crm_webhooks_on_startup) which covers ALL active campaigns.
     try:
         from app.services.crm_scheduler import start_crm_scheduler
         await start_crm_scheduler()

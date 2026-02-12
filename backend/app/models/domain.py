@@ -20,6 +20,8 @@ class DomainStatus(str, enum.Enum):
 class DomainSource(str, enum.Enum):
     SEARCH_GOOGLE = "search_google"
     SEARCH_YANDEX = "search_yandex"
+    SEARCH_APOLLO = "search_apollo"
+    SEARCH_CLAY = "search_clay"
     MANUAL = "manual"
     IMPORT = "import"
 
@@ -35,6 +37,8 @@ class SearchJobStatus(str, enum.Enum):
 class SearchEngine(str, enum.Enum):
     GOOGLE_SERP = "google_serp"
     YANDEX_API = "yandex_api"
+    APOLLO_ORG = "apollo_org"
+    CLAY = "clay"
 
 
 class SearchQueryStatus(str, enum.Enum):
