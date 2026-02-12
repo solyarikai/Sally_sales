@@ -75,18 +75,11 @@ async def retry_apollo(project_id: int, company_id: int, titles: list, project_n
             return {"processed": 0, "people_found": 0}
 
         apollo_service.reset_credits()
-        stats = {"processed": 0, "people_found": 0, "with_title_filter": 0, "without_title_filter": 0}
+        stats = {"processed": 0, "people_found": 0, "with_email": 0}
 
         for dc in targets:
-            # First try with title filter
-            people = await apollo_service.enrich_by_domain(dc.domain, limit=5, titles=titles)
-            if people:
-                stats["with_title_filter"] += len(people)
-            else:
-                # If no results with titles, try without title filter
-                people = await apollo_service.enrich_by_domain(dc.domain, limit=5, titles=None)
-                if people:
-                    stats["without_title_filter"] += len(people)
+            # Single call — no title filter, grab all people, enrich by ID
+            people = await apollo_service.enrich_by_domain(dc.domain, limit=5)
 
             for person in people:
                 ec = ExtractedContact(
@@ -109,6 +102,7 @@ async def retry_apollo(project_id: int, company_id: int, titles: list, project_n
             dc.contacts_count = (dc.contacts_count or 0) + len(people)
             stats["processed"] += 1
             stats["people_found"] += len(people)
+            stats["with_email"] += sum(1 for p in people if p.get("email"))
 
             # Commit every 20 domains
             if stats["processed"] % 20 == 0:

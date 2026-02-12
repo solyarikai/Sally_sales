@@ -23,18 +23,16 @@ logger = logging.getLogger(__name__)
 class ApolloService:
     """Service for interacting with Apollo.io API."""
 
-    # Apollo rate limits: 50 calls/min, 200 calls/hour
-    # Use the stricter hourly limit: 200/hour = ~3.3/min = 18s between calls
-    # But burst up to 50/min is OK, so use 1.5s between calls + track hourly
-    RATE_LIMIT_INTERVAL = 1.5  # seconds between calls
-    HOURLY_LIMIT = 200
-    HOURLY_WINDOW = 3600  # seconds
+    # Apollo rate limits (paid plan danila@getsally.io):
+    # /mixed_people/api_search: 200/min, 6000/hr, 50000/day
+    # /people/bulk_match: 1000/min, unlimited hr/day
+    # Keep 0.3s between calls to be safe
+    RATE_LIMIT_INTERVAL = 0.3  # seconds between calls
 
     def __init__(self):
         self.base_url = settings.APOLLO_API_URL
         self.credits_used: int = 0
         self._last_call_time: float = 0
-        self._hourly_calls: List[float] = []  # timestamps of calls in current hour
 
     @property
     def api_key(self) -> Optional[str]:
@@ -53,26 +51,12 @@ class ApolloService:
         return headers
 
     async def _rate_limit(self):
-        """Wait to stay under API rate limits (50/min and 200/hour)."""
+        """Wait between API calls to stay under rate limits."""
         now = time.monotonic()
-
-        # Per-call interval
         elapsed = now - self._last_call_time
         if elapsed < self.RATE_LIMIT_INTERVAL:
             await asyncio.sleep(self.RATE_LIMIT_INTERVAL - elapsed)
-
-        # Hourly limit: prune old calls, wait if at limit
-        self._hourly_calls = [t for t in self._hourly_calls if time.monotonic() - t < self.HOURLY_WINDOW]
-        if len(self._hourly_calls) >= self.HOURLY_LIMIT - 5:  # leave 5 call buffer
-            oldest = self._hourly_calls[0]
-            wait_time = self.HOURLY_WINDOW - (time.monotonic() - oldest) + 5
-            if wait_time > 0:
-                logger.warning(f"Apollo hourly limit approaching ({len(self._hourly_calls)}/{self.HOURLY_LIMIT}), waiting {wait_time:.0f}s")
-                await asyncio.sleep(wait_time)
-                self._hourly_calls = [t for t in self._hourly_calls if time.monotonic() - t < self.HOURLY_WINDOW]
-
         self._last_call_time = time.monotonic()
-        self._hourly_calls.append(self._last_call_time)
 
     async def _api_call(self, method: str, endpoint: str, json_data: dict = None) -> Optional[dict]:
         """Make a rate-limited API call with 429 retry."""
@@ -91,14 +75,8 @@ class ApolloService:
                         headers=self._get_headers(),
                     )
                 if resp.status_code == 429:
-                    body = resp.text
-                    # Detect hourly vs per-minute limit
-                    if "per hour" in body or "times per hour" in body:
-                        wait = 900  # 15 min for hourly limit
-                        logger.warning(f"Apollo HOURLY limit hit, waiting {wait}s...")
-                    else:
-                        wait = 65
-                        logger.warning(f"Apollo per-minute limit hit, waiting {wait}s...")
+                    wait = 30
+                    logger.warning(f"Apollo 429 rate limit, waiting {wait}s...")
                     await asyncio.sleep(wait)
                     self._last_call_time = time.monotonic()
                     async with httpx.AsyncClient(timeout=30) as retry_client:
@@ -160,16 +138,14 @@ class ApolloService:
             return []
 
         # Step 2: Bulk enrich all found people in one call (max 10)
+        # Use Apollo person ID — search returns obfuscated last names,
+        # so name+domain matching fails. ID matching always works.
         details = []
         for person in people:
-            first_name = person.get("first_name")
-            if not first_name:
+            person_id = person.get("id")
+            if not person_id:
                 continue
-            details.append({
-                "first_name": first_name,
-                "last_name": person.get("last_name") or "",
-                "domain": domain,
-            })
+            details.append({"id": person_id})
 
         if not details:
             return []
