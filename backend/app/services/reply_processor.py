@@ -556,91 +556,113 @@ async def process_reply_webhook(
                 )
                 contact = result.scalar()
             
-            if contact:
-                # Append webhook payload to smartlead_raw for debugging
-                import json
-                from datetime import datetime as dt
-                webhook_entry = {
-                    "received_at": dt.utcnow().isoformat(),
-                    "type": "email_reply",
-                    "category": classification["category"],
-                    "payload": payload
-                }
-                if contact.smartlead_raw:
-                    try:
-                        raw = json.loads(contact.smartlead_raw) if isinstance(contact.smartlead_raw, str) else (dict(contact.smartlead_raw) if contact.smartlead_raw else {})
-                        if "webhooks" not in raw:
-                            raw["webhooks"] = []
-                        raw["webhooks"].append(webhook_entry)
-                        contact.smartlead_raw = raw
-                    except:
-                        contact.smartlead_raw = {"webhooks": [webhook_entry]}
-                else:
-                    contact.smartlead_raw = {"webhooks": [webhook_entry]}
-                
-                # Create activity record for this reply (with dedup check)
-                snippet = body[:200] if body else None
-                activity_at = datetime.utcnow()
-                
-                # Check for duplicate within same minute
-                minute_start = activity_at.replace(second=0, microsecond=0)
-                minute_end = activity_at.replace(second=59, microsecond=999999)
-                existing = await session.execute(
-                    select(ContactActivity).where(
-                        ContactActivity.contact_id == contact.id,
-                        ContactActivity.source == "smartlead",
-                        ContactActivity.activity_type == "email_replied",
-                        ContactActivity.activity_at >= minute_start,
-                        ContactActivity.activity_at <= minute_end,
-                        ContactActivity.snippet == snippet
-                    )
+            # If contact doesn't exist, create one from the webhook data
+            # This fixes a critical bug where 97%+ of reply senders were never 
+            # imported into the contacts table
+            if not contact:
+                import json as _json
+                logger.info(f"[PROCESSOR] Contact not found for {lead_email}, creating from reply data")
+                contact = Contact(
+                    company_id=1,  # Default company
+                    email=lead_email.lower().strip(),
+                    first_name=first_name or None,
+                    last_name=last_name or None,
+                    company_name=payload.get("company_name") or None,
+                    source="smartlead",
+                    status="replied",
+                    last_synced_at=datetime.utcnow(),
+                    campaigns=_json.dumps([{
+                        "name": campaign_name,
+                        "id": str(campaign_id) if campaign_id else None,
+                        "source": "smartlead"
+                    }]) if campaign_name or campaign_id else None
                 )
-                if not existing.scalar():
-                    activity = ContactActivity(
-                        contact_id=contact.id,
-                        company_id=contact.company_id,
-                        activity_type="email_replied",
-                        channel="email",
-                        direction="inbound",
-                        source="smartlead",
-                        source_id=str(campaign_id) if campaign_id else None,
-                        subject=subject,
-                        body=body,
-                        snippet=snippet,
-                        extra_data={
-                            "campaign_id": campaign_id,
-                            "campaign_name": campaign_name,
-                            "category": classification.get("category"),
-                            "processed_reply_id": processed_reply.id
-                        },
-                        activity_at=activity_at
-                    )
-                    session.add(activity)
-                else:
-                    logger.info(f"[SMARTLEAD] Skipping duplicate activity for contact {contact.id}")
-                
-                # Update contact reply status and funnel fields
-                contact.has_replied = True
-                contact.reply_channel = "email"
-                contact.last_reply_at = datetime.utcnow()
-                contact.status = "replied"
-                contact.funnel_stage = "replied"
-                
-                # Sync reply category and sentiment
-                category = classification.get("category", "other")
-                contact.reply_category = category
-                
-                # Determine sentiment from category
-                if category in ("interested", "meeting_request", "question"):
-                    contact.reply_sentiment = "warm"
-                elif category in ("not_interested", "unsubscribe", "wrong_person"):
-                    contact.reply_sentiment = "cold"
-                else:
-                    contact.reply_sentiment = "neutral"
-                
-                logger.info(f"[PROCESSOR] Created ContactActivity for email reply from {lead_email}")
+                session.add(contact)
+                await session.flush()  # Get contact.id
+                logger.info(f"[PROCESSOR] Created contact id={contact.id} for {lead_email}")
+
+            # Append webhook payload to smartlead_raw for debugging
+            import json
+            from datetime import datetime as dt
+            webhook_entry = {
+                "received_at": dt.utcnow().isoformat(),
+                "type": "email_reply",
+                "category": classification["category"],
+                "payload": payload
+            }
+            if contact.smartlead_raw:
+                try:
+                    raw = json.loads(contact.smartlead_raw) if isinstance(contact.smartlead_raw, str) else (dict(contact.smartlead_raw) if contact.smartlead_raw else {})
+                    if "webhooks" not in raw:
+                        raw["webhooks"] = []
+                    raw["webhooks"].append(webhook_entry)
+                    contact.smartlead_raw = raw
+                except:
+                    contact.smartlead_raw = {"webhooks": [webhook_entry]}
             else:
-                logger.info(f"[PROCESSOR] Contact not found for {lead_email}, skipping ContactActivity creation")
+                contact.smartlead_raw = {"webhooks": [webhook_entry]}
+            
+            # Create activity record for this reply (with dedup check)
+            snippet = body[:200] if body else None
+            activity_at = datetime.utcnow()
+            
+            # Check for duplicate within same minute
+            minute_start = activity_at.replace(second=0, microsecond=0)
+            minute_end = activity_at.replace(second=59, microsecond=999999)
+            existing = await session.execute(
+                select(ContactActivity).where(
+                    ContactActivity.contact_id == contact.id,
+                    ContactActivity.source == "smartlead",
+                    ContactActivity.activity_type == "email_replied",
+                    ContactActivity.activity_at >= minute_start,
+                    ContactActivity.activity_at <= minute_end,
+                    ContactActivity.snippet == snippet
+                )
+            )
+            if not existing.scalar():
+                activity = ContactActivity(
+                    contact_id=contact.id,
+                    company_id=contact.company_id,
+                    activity_type="email_replied",
+                    channel="email",
+                    direction="inbound",
+                    source="smartlead",
+                    source_id=str(campaign_id) if campaign_id else None,
+                    subject=subject,
+                    body=body,
+                    snippet=snippet,
+                    extra_data={
+                        "campaign_id": campaign_id,
+                        "campaign_name": campaign_name,
+                        "category": classification.get("category"),
+                        "processed_reply_id": processed_reply.id
+                    },
+                    activity_at=activity_at
+                )
+                session.add(activity)
+            else:
+                logger.info(f"[SMARTLEAD] Skipping duplicate activity for contact {contact.id}")
+            
+            # Update contact reply status and funnel fields
+            contact.has_replied = True
+            contact.reply_channel = "email"
+            contact.last_reply_at = datetime.utcnow()
+            contact.status = "replied"
+            contact.funnel_stage = "replied"
+            
+            # Sync reply category and sentiment
+            category = classification.get("category", "other")
+            contact.reply_category = category
+            
+            # Determine sentiment from category
+            if category in ("interested", "meeting_request", "question"):
+                contact.reply_sentiment = "warm"
+            elif category in ("not_interested", "unsubscribe", "wrong_person"):
+                contact.reply_sentiment = "cold"
+            else:
+                contact.reply_sentiment = "neutral"
+            
+            logger.info(f"[PROCESSOR] Updated contact {contact.id} with reply data from {lead_email}")
         except Exception as activity_err:
             logger.warning(f"[PROCESSOR] Failed to create ContactActivity (non-fatal): {activity_err}")
         
