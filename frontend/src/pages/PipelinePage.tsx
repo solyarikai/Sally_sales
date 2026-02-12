@@ -212,12 +212,14 @@ export function PipelinePage() {
   };
 
   const handleExportCsv = async () => {
+    const projName = projects.find(p => p.id === projectId)?.name || 'all';
+    const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
     try {
       const blob = await pipelineApi.exportCsv(projectId, targetOnly ? true : undefined);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'pipeline_companies.csv';
+      a.download = `${projName}_companies_${ts}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
@@ -226,12 +228,15 @@ export function PipelinePage() {
   };
 
   const handleExportContacts = async (emailOnly: boolean) => {
+    const projName = projects.find(p => p.id === projectId)?.name || 'all';
+    const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
+    const suffix = emailOnly ? 'contacts_email' : 'contacts_all';
     try {
       const blob = await pipelineApi.exportContactsCsv(projectId, emailOnly);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = emailOnly ? 'contacts_with_email.csv' : 'all_contacts.csv';
+      a.download = `${projName}_${suffix}_${ts}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
