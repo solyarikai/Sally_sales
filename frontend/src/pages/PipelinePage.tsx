@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Layers, Target, Mail, Download, Globe, Phone,
+  Layers, Target, Mail, Download, Globe,
   Loader2, AlertCircle, CheckCircle2, XCircle, Search,
-  ExternalLink, Zap, UserPlus, Linkedin,
+  ExternalLink, Zap, UserPlus,
   X, Settings2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
