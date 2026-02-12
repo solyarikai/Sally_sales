@@ -186,10 +186,21 @@ export const pipelineApi = {
   },
 
   // Export contacts CSV (one row per contact, for Smartlead)
-  exportContactsCsv: async (projectId?: number, emailOnly?: boolean): Promise<Blob> => {
+  exportContactsCsv: async (projectId?: number, emailOnly?: boolean, phoneOnly?: boolean): Promise<Blob> => {
     const response = await api.get('/pipeline/export-contacts-csv', {
-      params: { project_id: projectId, email_only: emailOnly },
+      params: { project_id: projectId, email_only: emailOnly, phone_only: phoneOnly },
       responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // Export contacts to Google Sheets
+  exportContactsSheet: async (projectId?: number, emailOnly?: boolean, phoneOnly?: boolean): Promise<{
+    url: string;
+    rows: number;
+  }> => {
+    const response = await api.post('/pipeline/export-contacts-sheet', null, {
+      params: { project_id: projectId, email_only: emailOnly, phone_only: phoneOnly },
     });
     return response.data;
   },

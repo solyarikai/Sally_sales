@@ -10,6 +10,7 @@ from typing import Optional, List
 import csv
 import io
 import logging
+from datetime import datetime
 
 from app.db import get_session
 from app.api.companies import get_required_company
@@ -256,26 +257,27 @@ async def export_csv(
     )
 
 
-@router.get("/export-contacts-csv")
-async def export_contacts_csv(
-    project_id: Optional[int] = QueryParam(None),
-    email_only: bool = QueryParam(False),
-    db: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
-):
-    """Export contacts as CSV (one row per contact, for Smartlead campaigns)."""
+CONTACTS_HEADERS = [
+    "Domain", "URL", "Company Name", "Description", "Industry", "Location", "Confidence",
+    "First Name", "Last Name", "Email", "Phone", "Job Title", "LinkedIn", "Source", "Verified",
+]
+
+
+async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optional[int],
+                          email_only: bool, phone_only: bool):
+    """Shared query for contacts export (CSV + Google Sheets)."""
     from sqlalchemy import text
 
-    # Build query dynamically to avoid asyncpg ambiguous parameter types
     where_clauses = ["dc.company_id = :company_id", "dc.is_target = true"]
-    params = {"company_id": company.id}
+    params = {"company_id": company_id}
 
     if project_id is not None:
         where_clauses.append("dc.project_id = :project_id")
         params["project_id"] = project_id
-
     if email_only:
         where_clauses.append("ec.email IS NOT NULL")
+    if phone_only:
+        where_clauses.append("ec.phone IS NOT NULL")
 
     query = text(f"""
         SELECT
@@ -300,27 +302,89 @@ async def export_contacts_csv(
         ORDER BY dc.confidence DESC, dc.domain, ec.is_verified DESC
     """)
     result = await db.execute(query, params)
-    rows = result.fetchall()
+    return result.fetchall()
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "Domain", "URL", "Company Name", "Description", "Industry", "Location", "Confidence",
-        "First Name", "Last Name", "Email", "Phone", "Job Title", "LinkedIn", "Source", "Verified",
-    ])
+
+def _contacts_to_rows(rows) -> List[List[str]]:
+    """Convert DB rows to list-of-lists (for CSV or Sheets)."""
+    data = [CONTACTS_HEADERS]
     for r in rows:
-        writer.writerow([
+        data.append([
             r.domain, r.url, r.company_name or "", r.description or "",
             r.industry or "", r.location or "", f"{(r.confidence or 0) * 100:.0f}%",
             r.first_name or "", r.last_name or "", r.email or "", r.phone or "",
             r.job_title or "", r.linkedin_url or "", r.source or "",
             "Yes" if r.is_verified else "",
         ])
+    return data
+
+
+@router.get("/export-contacts-csv")
+async def export_contacts_csv(
+    project_id: Optional[int] = QueryParam(None),
+    email_only: bool = QueryParam(False),
+    phone_only: bool = QueryParam(False),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Export contacts as CSV (one row per contact)."""
+    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only)
+    data = _contacts_to_rows(rows)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    for row in data:
+        writer.writerow(row)
 
     output.seek(0)
-    fname = f"contacts{'_with_email' if email_only else ''}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={fname}"},
+        headers={"Content-Disposition": "attachment; filename=contacts.csv"},
     )
+
+
+@router.post("/export-contacts-sheet")
+async def export_contacts_sheet(
+    project_id: Optional[int] = QueryParam(None),
+    email_only: bool = QueryParam(False),
+    phone_only: bool = QueryParam(False),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Export contacts to Google Sheets. Returns sheet URL."""
+    from app.services.google_sheets_service import google_sheets_service
+
+    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only)
+    if not rows:
+        raise HTTPException(status_code=400, detail="No contacts to export")
+
+    data = _contacts_to_rows(rows)
+
+    # Build title with project name + timestamp
+    proj_name = "All"
+    if project_id:
+        from sqlalchemy import text
+        pq = await db.execute(text("SELECT name FROM projects WHERE id = :id"), {"id": project_id})
+        prow = pq.fetchone()
+        if prow:
+            proj_name = prow.name
+
+    filters = []
+    if email_only:
+        filters.append("email")
+    if phone_only:
+        filters.append("phone")
+    filter_str = f" ({'+'.join(filters)})" if filters else ""
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    title = f"{proj_name} Contacts{filter_str} — {ts}"
+
+    url = google_sheets_service.create_and_populate(
+        title=title,
+        data=data,
+        share_with=["pn@getsally.io"],
+    )
+    if not url:
+        raise HTTPException(status_code=500, detail="Google Sheets export failed")
+
+    return {"url": url, "rows": len(data) - 1}

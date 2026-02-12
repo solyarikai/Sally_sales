@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Layers, Target, Mail, Download, Globe,
+  Layers, Target, Mail, Download, Globe, FileSpreadsheet,
   Loader2, AlertCircle, CheckCircle2, XCircle, Search,
-  ExternalLink, Zap, UserPlus,
+  ExternalLink, Zap, UserPlus, ChevronDown,
   X, Settings2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -74,6 +74,8 @@ export function PipelinePage() {
   const [apolloMaxPeople, setApolloMaxPeople] = useState(5);
   const [apolloMaxCredits, setApolloMaxCredits] = useState(50);
   const [apolloTitleInput, setApolloTitleInput] = useState('');
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
 
   // Load projects for filter dropdown (fast endpoint from pipeline API)
   useEffect(() => {
@@ -211,36 +213,45 @@ export function PipelinePage() {
     }
   };
 
-  const handleExportCsv = async () => {
+  const buildFilename = (suffix: string) => {
     const projName = projects.find(p => p.id === projectId)?.name || 'all';
     const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
+    return `${projName}_${suffix}_${ts}.csv`;
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCsv = async (emailOnly: boolean, phoneOnly: boolean) => {
+    setExportLoading(true);
+    setShowExportMenu(false);
     try {
-      const blob = await pipelineApi.exportCsv(projectId, targetOnly ? true : undefined);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${projName}_companies_${ts}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const blob = await pipelineApi.exportContactsCsv(projectId, emailOnly, phoneOnly);
+      const suffix = emailOnly ? 'email_contacts' : phoneOnly ? 'phone_contacts' : 'all_contacts';
+      downloadBlob(blob, buildFilename(suffix));
     } catch (err: any) {
       alert(err.userMessage || 'CSV export failed');
+    } finally {
+      setExportLoading(false);
     }
   };
 
-  const handleExportContacts = async (emailOnly: boolean) => {
-    const projName = projects.find(p => p.id === projectId)?.name || 'all';
-    const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
-    const suffix = emailOnly ? 'contacts_email' : 'contacts_all';
+  const handleExportSheet = async (emailOnly: boolean, phoneOnly: boolean) => {
+    setExportLoading(true);
+    setShowExportMenu(false);
     try {
-      const blob = await pipelineApi.exportContactsCsv(projectId, emailOnly);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${projName}_${suffix}_${ts}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const result = await pipelineApi.exportContactsSheet(projectId, emailOnly, phoneOnly);
+      window.open(result.url, '_blank');
     } catch (err: any) {
-      alert(err.userMessage || 'Export failed');
+      alert(err.response?.data?.detail || err.userMessage || 'Google Sheets export failed');
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -285,16 +296,44 @@ export function PipelinePage() {
           <h1 className="text-2xl font-bold text-neutral-900">Pipeline</h1>
           <p className="text-neutral-500 text-sm mt-1">Manage discovered companies through the outreach pipeline</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => handleExportContacts(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700">
-            <Mail className="w-4 h-4" /> Export with Email
+        <div className="relative">
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            disabled={exportLoading}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Export
+            <ChevronDown className="w-3.5 h-3.5" />
           </button>
-          <button onClick={() => handleExportContacts(false)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50">
-            <Download className="w-4 h-4" /> All Contacts
-          </button>
-          <button onClick={handleExportCsv} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50 text-neutral-500">
-            <Download className="w-4 h-4" /> Companies
-          </button>
+          {showExportMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
+              <div className="absolute right-0 top-full mt-1 z-20 w-64 bg-white rounded-lg shadow-lg border border-neutral-200 py-1">
+                <div className="px-3 py-1.5 text-xs font-medium text-neutral-400 uppercase">CSV Download</div>
+                <button onClick={() => handleExportCsv(true, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-blue-500" /> Contacts with Email
+                </button>
+                <button onClick={() => handleExportCsv(false, true)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-green-500" /> Contacts with Phone
+                </button>
+                <button onClick={() => handleExportCsv(false, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                  <Download className="w-4 h-4 text-neutral-400" /> All Contacts
+                </button>
+                <div className="border-t border-neutral-100 my-1" />
+                <div className="px-3 py-1.5 text-xs font-medium text-neutral-400 uppercase">Google Sheets</div>
+                <button onClick={() => handleExportSheet(true, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-green-600" /> Contacts with Email
+                </button>
+                <button onClick={() => handleExportSheet(false, true)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-green-600" /> Contacts with Phone
+                </button>
+                <button onClick={() => handleExportSheet(false, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-green-600" /> All Contacts
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
