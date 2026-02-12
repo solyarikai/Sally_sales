@@ -447,6 +447,8 @@ def get_crm_scheduler() -> CRMScheduler:
 
 async def start_crm_scheduler():
     """Start the CRM scheduler."""
+    import asyncio
+    
     scheduler = get_crm_scheduler()
     await scheduler.start()
     
@@ -457,15 +459,26 @@ async def start_crm_scheduler():
     except Exception as e:
         logger.warning(f"Reply cache backfill failed (non-fatal): {e}")
     
-    # Also set up webhooks on startup
-    await setup_crm_webhooks_on_startup()
+    # Set up webhooks in background — don't block app startup
+    asyncio.create_task(_setup_webhooks_background())
+
+
+async def _setup_webhooks_background():
+    """Set up webhooks in background — doesn't block app startup."""
+    import asyncio
+    # Small delay to let the app finish starting
+    await asyncio.sleep(2)
+    try:
+        await setup_crm_webhooks_on_startup()
+    except Exception as e:
+        logger.error(f"Background webhook setup failed: {e}")
 
 
 async def setup_crm_webhooks_on_startup():
     """Set up CRM webhooks in external systems."""
     from app.services.crm_sync_service import get_crm_sync_service
     
-    logger.info("Setting up CRM webhooks for all campaigns...")
+    logger.info("Setting up CRM webhooks for all campaigns (background)...")
     
     webhook_base_url = "http://46.62.210.24:8000/api"
     

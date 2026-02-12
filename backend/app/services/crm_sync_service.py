@@ -362,6 +362,7 @@ class SmartleadClient:
         """
         Set up CRM webhooks for all active Smartlead campaigns.
         Runs up to 10 checks concurrently with a shared HTTP client.
+        Filters out campaigns with non-numeric IDs (test entries).
         """
         import asyncio
 
@@ -369,11 +370,21 @@ class SmartleadClient:
 
         try:
             campaigns = await self.get_campaigns()
-            active = [c for c in campaigns if c.get("status", "").upper() == "ACTIVE"]
-            skipped = [c for c in campaigns if c.get("status", "").upper() != "ACTIVE"]
-            results["skipped"] = [{"id": c.get("id"), "name": c.get("name", "Unknown"), "status": c.get("status")} for c in skipped]
+            active = []
+            for c in campaigns:
+                cid = c.get("id")
+                status = (c.get("status") or "").upper()
+                # Skip inactive campaigns
+                if status != "ACTIVE":
+                    results["skipped"].append({"id": cid, "name": c.get("name", "Unknown"), "status": c.get("status")})
+                    continue
+                # Skip non-numeric IDs (test entries like "test-123")
+                if not str(cid).isdigit():
+                    results["skipped"].append({"id": cid, "name": c.get("name", "Unknown"), "reason": "non-numeric ID"})
+                    continue
+                active.append(c)
 
-            logger.info(f"Found {len(campaigns)} Smartlead campaigns, {len(active)} active")
+            logger.info(f"Found {len(campaigns)} Smartlead campaigns, {len(active)} active (skipped {len(results['skipped'])})")
 
             sem = asyncio.Semaphore(10)
 
