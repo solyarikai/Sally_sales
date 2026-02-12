@@ -60,6 +60,7 @@ class CRMScheduler:
         self._prompt_refresh_task: Optional[asyncio.Task] = None
         self._recovery_task: Optional[asyncio.Task] = None
         self._conversation_sync_task: Optional[asyncio.Task] = None
+        self._telegram_poll_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         
         # Tracking
@@ -89,7 +90,7 @@ class CRMScheduler:
             self._task, self._reply_task, self._webhook_task, 
             self._report_task, self._prompt_refresh_task,
             self._recovery_task, self._conversation_sync_task,
-            self._watchdog_task
+            self._telegram_poll_task, self._watchdog_task
         ]
         for task in all_tasks:
             if task:
@@ -110,6 +111,7 @@ class CRMScheduler:
             ("_prompt_refresh_task", self._run_prompt_refresh_loop, "Prompt refresh"),
             ("_recovery_task", self._run_event_recovery_loop, "Event recovery"),
             ("_conversation_sync_task", self._run_conversation_sync_loop, "Conversation sync"),
+            ("_telegram_poll_task", self._run_telegram_poll_loop, "Telegram poll"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -421,6 +423,166 @@ class CRMScheduler:
             except Exception as e:
                 logger.error(f"Conversation sync error: {e}")
             await asyncio.sleep(interval)
+
+    # ===== Telegram Bot Polling (long-poll every 30s) =====
+
+    async def _run_telegram_poll_loop(self):
+        """Poll Telegram getUpdates for /start and /status commands.
+
+        Since we don't have HTTPS for webhook, we use long-polling instead.
+        Processes updates through the same logic as the webhook endpoint.
+        """
+        import os
+        import httpx
+
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss")
+        if not bot_token:
+            logger.warning("TELEGRAM_BOT_TOKEN not set, Telegram polling disabled")
+            return
+
+        # First, delete any existing webhook so getUpdates works
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(f"https://api.telegram.org/bot{bot_token}/deleteWebhook")
+        except Exception:
+            pass
+
+        offset = 0
+        logger.info("Telegram poll loop started")
+
+        while self._running:
+            try:
+                async with httpx.AsyncClient(timeout=35.0) as client:
+                    resp = await client.get(
+                        f"https://api.telegram.org/bot{bot_token}/getUpdates",
+                        params={"offset": offset, "timeout": 30, "allowed_updates": '["message"]'},
+                    )
+                    data = resp.json()
+
+                if not data.get("ok"):
+                    logger.warning(f"Telegram getUpdates error: {data}")
+                    await asyncio.sleep(5)
+                    continue
+
+                updates = data.get("result", [])
+                for update in updates:
+                    offset = update["update_id"] + 1
+                    try:
+                        await self._handle_telegram_update(update)
+                    except Exception as e:
+                        logger.error(f"Telegram update handling error: {e}")
+
+            except httpx.ReadTimeout:
+                # Normal — long poll timed out with no updates
+                pass
+            except Exception as e:
+                logger.error(f"Telegram poll error: {e}")
+                await asyncio.sleep(5)
+
+    async def _handle_telegram_update(self, update: dict):
+        """Process a single Telegram update (message)."""
+        from app.models.reply import TelegramRegistration
+        from app.models.contact import Project
+        from app.services.notification_service import send_telegram_notification
+        from sqlalchemy import select, and_
+
+        message = update.get("message", {})
+        if not message:
+            return
+
+        chat = message.get("chat", {})
+        from_user = message.get("from", {})
+        text = (message.get("text") or "").strip()
+        chat_id = str(chat.get("id", ""))
+        username = (from_user.get("username") or "").lower().strip()
+        first_name = from_user.get("first_name", "")
+
+        if not chat_id or not text.startswith("/"):
+            return
+
+        async with async_session_maker() as session:
+            if text.startswith("/start"):
+                if not username:
+                    await send_telegram_notification(
+                        "Please set a Telegram username in your profile settings first, "
+                        "then send /start again.",
+                        chat_id=chat_id,
+                    )
+                    return
+
+                existing = await session.execute(
+                    select(TelegramRegistration).where(
+                        TelegramRegistration.telegram_username == username
+                    )
+                )
+                reg = existing.scalar_one_or_none()
+
+                if reg:
+                    reg.telegram_chat_id = chat_id
+                    reg.telegram_first_name = first_name
+                    from datetime import datetime as dt
+                    reg.updated_at = dt.utcnow()
+                else:
+                    reg = TelegramRegistration(
+                        telegram_username=username,
+                        telegram_chat_id=chat_id,
+                        telegram_first_name=first_name,
+                    )
+                    session.add(reg)
+
+                await session.commit()
+
+                await send_telegram_notification(
+                    f"Registered! Your username <b>@{username}</b> is now linked.\n\n"
+                    f"Ask your admin to add <code>@{username}</code> to a project "
+                    f"to receive reply notifications.",
+                    chat_id=chat_id,
+                )
+                logger.info(f"Telegram registration: @{username} -> chat_id={chat_id}")
+
+            elif text.startswith("/status"):
+                if not username:
+                    await send_telegram_notification(
+                        "No username set on your Telegram account.",
+                        chat_id=chat_id,
+                    )
+                    return
+
+                existing = await session.execute(
+                    select(TelegramRegistration).where(
+                        TelegramRegistration.telegram_username == username
+                    )
+                )
+                reg = existing.scalar_one_or_none()
+
+                if reg:
+                    projects_result = await session.execute(
+                        select(Project.name).where(
+                            and_(
+                                Project.telegram_username == username,
+                                Project.deleted_at.is_(None),
+                            )
+                        )
+                    )
+                    project_names = [r[0] for r in projects_result.all()]
+
+                    if project_names:
+                        project_list = "\n".join(f"  - {name}" for name in project_names)
+                        await send_telegram_notification(
+                            f"Registered as <b>@{username}</b>.\n\n"
+                            f"Notifications for:\n{project_list}",
+                            chat_id=chat_id,
+                        )
+                    else:
+                        await send_telegram_notification(
+                            f"Registered as <b>@{username}</b>, but no projects linked yet.",
+                            chat_id=chat_id,
+                        )
+                else:
+                    await send_telegram_notification(
+                        "Not registered. Send /start first.",
+                        chat_id=chat_id,
+                    )
 
     # ===== Reports (every 4 hours, per-project) =====
     
