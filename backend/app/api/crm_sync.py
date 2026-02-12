@@ -400,7 +400,6 @@ async def backfill_reply_contacts(
                         status="replied",
                         has_replied=True,
                         reply_channel="email",
-                        reply_category=category,
                         last_reply_at=received_at,
                         last_synced_at=datetime.utcnow(),
                         campaigns=[{
@@ -409,13 +408,6 @@ async def backfill_reply_contacts(
                             "source": "smartlead"
                         }] if campaign_name or campaign_id else None
                     )
-                    # Set sentiment from category
-                    if category in ("interested", "meeting_request", "question"):
-                        contact.reply_sentiment = "warm"
-                    elif category in ("not_interested", "unsubscribe", "wrong_person"):
-                        contact.reply_sentiment = "cold"
-                    else:
-                        contact.reply_sentiment = "neutral"
                     
                     bg_session.add(contact)
                     created += 1
