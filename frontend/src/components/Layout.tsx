@@ -30,7 +30,7 @@ export function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { path: '/', icon: Search, label: 'Data Search', global: true },
-    { path: '/search-results', icon: Target, label: 'Search Results', global: true },
+    { path: '/search-results', icon: Target, label: 'Query Investigation', global: true },
     { path: '/pipeline', icon: Layers, label: 'Pipeline', global: true },
     { path: `${companyPrefix}/data`, icon: Database, label: 'Data', needsCompany: true },
     { path: `${companyPrefix}/prospects`, icon: Users, label: 'All Prospects', needsCompany: true },

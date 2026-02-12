@@ -3,7 +3,7 @@ import {
   Layers, Target, Mail, Download, Globe, FileSpreadsheet,
   Loader2, AlertCircle, CheckCircle2, XCircle, Search,
   ExternalLink, Zap, UserPlus, ChevronDown,
-  X, Settings2,
+  X, Settings2, RefreshCw,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -77,6 +77,8 @@ export function PipelinePage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+
   // Load projects for filter dropdown (fast endpoint from pipeline API)
   useEffect(() => {
     pipelineApi.listProjects().then(data => {
@@ -103,6 +105,7 @@ export function PipelinePage() {
       setCompanies(companiesData.items);
       setTotal(companiesData.total);
       setStats(statsData);
+      setLastRefreshed(new Date());
     } catch (err: any) {
       setError(err.userMessage || 'Failed to load pipeline data');
     } finally {
@@ -111,6 +114,7 @@ export function PipelinePage() {
   }, [projectId, statusFilter, targetOnly, searchQuery, page, currentCompany]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
 
   // Load detail when modal opens
   useEffect(() => {
@@ -228,12 +232,12 @@ export function PipelinePage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleExportCsv = async (emailOnly: boolean, phoneOnly: boolean) => {
+  const handleExportCsv = async (emailOnly: boolean, phoneOnly: boolean, newOnly: boolean = false) => {
     setExportLoading(true);
     setShowExportMenu(false);
     try {
-      const blob = await pipelineApi.exportContactsCsv(projectId, emailOnly, phoneOnly);
-      const suffix = emailOnly ? 'email_contacts' : phoneOnly ? 'phone_contacts' : 'all_contacts';
+      const blob = await pipelineApi.exportContactsCsv(projectId, emailOnly, phoneOnly, newOnly);
+      const suffix = (newOnly ? 'new_' : '') + (emailOnly ? 'email_contacts' : phoneOnly ? 'phone_contacts' : 'all_contacts');
       downloadBlob(blob, buildFilename(suffix));
     } catch (err: any) {
       alert(err.userMessage || 'CSV export failed');
@@ -242,11 +246,11 @@ export function PipelinePage() {
     }
   };
 
-  const handleExportSheet = async (emailOnly: boolean, phoneOnly: boolean) => {
+  const handleExportSheet = async (emailOnly: boolean, phoneOnly: boolean, newOnly: boolean = false) => {
     setExportLoading(true);
     setShowExportMenu(false);
     try {
-      const result = await pipelineApi.exportContactsSheet(projectId, emailOnly, phoneOnly);
+      const result = await pipelineApi.exportContactsSheet(projectId, emailOnly, phoneOnly, newOnly);
       window.open(result.url, '_blank');
     } catch (err: any) {
       alert(err.response?.data?.detail || err.userMessage || 'Google Sheets export failed');
@@ -294,8 +298,24 @@ export function PipelinePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">Pipeline</h1>
-          <p className="text-neutral-500 text-sm mt-1">Manage discovered companies through the outreach pipeline</p>
+          <p className="text-neutral-500 text-sm mt-1">
+            Manage discovered companies through the outreach pipeline
+            {lastRefreshed && (
+              <span className="ml-2 text-xs text-neutral-400">
+                {lastRefreshed.toLocaleTimeString('ru-RU')}
+              </span>
+            )}
+          </p>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 disabled:opacity-50"
+            title="Refresh data"
+          >
+            <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+          </button>
         <div className="relative">
           <button
             onClick={() => setShowExportMenu(!showExportMenu)}
@@ -309,31 +329,32 @@ export function PipelinePage() {
           {showExportMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 z-20 w-64 bg-white rounded-lg shadow-lg border border-neutral-200 py-1">
-                <div className="px-3 py-1.5 text-xs font-medium text-neutral-400 uppercase">CSV Download</div>
+              <div className="absolute right-0 top-full mt-1 z-20 w-72 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 max-h-[70vh] overflow-y-auto">
+                <div className="px-3 py-1.5 text-xs font-medium text-neutral-400 uppercase">All Targets</div>
                 <button onClick={() => handleExportCsv(true, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-blue-500" /> Contacts with Email
+                  <Mail className="w-4 h-4 text-blue-500" /> CSV — All with Email
                 </button>
-                <button onClick={() => handleExportCsv(false, true)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-green-500" /> Contacts with Phone
+                <button onClick={() => handleExportSheet(true, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-green-600" /> Sheet — All with Email
                 </button>
                 <button onClick={() => handleExportCsv(false, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
-                  <Download className="w-4 h-4 text-neutral-400" /> All Contacts
+                  <Download className="w-4 h-4 text-neutral-400" /> CSV — All Contacts
                 </button>
                 <div className="border-t border-neutral-100 my-1" />
-                <div className="px-3 py-1.5 text-xs font-medium text-neutral-400 uppercase">Google Sheets</div>
-                <button onClick={() => handleExportSheet(true, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-green-600" /> Contacts with Email
+                <div className="px-3 py-1.5 text-xs font-medium text-emerald-600 uppercase">New Only (not in campaigns)</div>
+                <button onClick={() => handleExportCsv(true, false, true)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-emerald-500" /> CSV — New with Email
                 </button>
-                <button onClick={() => handleExportSheet(false, true)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-green-600" /> Contacts with Phone
+                <button onClick={() => handleExportSheet(true, false, true)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Sheet — New with Email
                 </button>
-                <button onClick={() => handleExportSheet(false, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-green-600" /> All Contacts
+                <button onClick={() => handleExportCsv(false, false, true)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                  <Download className="w-4 h-4 text-emerald-400" /> CSV — All New Contacts
                 </button>
               </div>
             </>
           )}
+        </div>
         </div>
       </div>
 
@@ -346,11 +367,12 @@ export function PipelinePage() {
       {/* Stats cards */}
       {stats && (
         <div className="space-y-3">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-5 gap-3">
             <PipelineStatCard label="Discovered" value={stats.total_discovered} icon={Layers} />
             <PipelineStatCard label="Targets" value={stats.targets} icon={Target} color="green" />
+            <PipelineStatCard label="New Targets" value={stats.targets_new} icon={CheckCircle2} color="emerald" subtitle="not in campaigns" />
+            <PipelineStatCard label="In Campaigns" value={stats.targets_in_campaigns} icon={Mail} color="blue" subtitle="already contacted" />
             <PipelineStatCard label="Rejected" value={stats.rejected} icon={XCircle} color="red" />
-            <PipelineStatCard label="Total Contacts" value={stats.total_contacts} icon={Mail} color="purple" />
           </div>
           {/* Contact breakdown */}
           <div className="grid grid-cols-2 gap-3">
@@ -929,12 +951,13 @@ function EventsTab({ events }: { events: PipelineEventItem[] }) {
 
 // ============ Helpers ============
 
-function PipelineStatCard({ label, value, icon: Icon, color }: { label: string; value: number; icon: any; color?: string }) {
+function PipelineStatCard({ label, value, icon: Icon, color, subtitle }: { label: string; value: number; icon: any; color?: string; subtitle?: string }) {
   const colorMap: Record<string, string> = {
     green: 'text-green-600',
     purple: 'text-purple-600',
     blue: 'text-blue-600',
     emerald: 'text-emerald-600',
+    red: 'text-red-600',
   };
 
   return (
@@ -944,6 +967,7 @@ function PipelineStatCard({ label, value, icon: Icon, color }: { label: string; 
         <span className="text-xs text-neutral-500">{label}</span>
       </div>
       <div className="text-2xl font-bold text-neutral-900">{value.toLocaleString()}</div>
+      {subtitle && <div className="text-[10px] text-neutral-400 mt-0.5">{subtitle}</div>}
     </div>
   );
 }

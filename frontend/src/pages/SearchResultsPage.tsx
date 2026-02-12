@@ -113,8 +113,8 @@ function JobHistoryView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Search Results</h1>
-          <p className="text-neutral-500 text-sm mt-1">View search job history, results, and spending</p>
+          <h1 className="text-2xl font-bold text-neutral-900">Query Investigation</h1>
+          <p className="text-neutral-500 text-sm mt-1">Analyze search queries, results, and effectiveness by engine</p>
         </div>
         {data?.items?.[0]?.project_id && (
           <button

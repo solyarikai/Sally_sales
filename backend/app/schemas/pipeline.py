@@ -158,6 +158,8 @@ class SearchJobFullDetail(BaseModel):
 class PipelineStats(BaseModel):
     total_discovered: int = 0
     targets: int = 0
+    targets_new: int = 0
+    targets_in_campaigns: int = 0
     contacts_extracted: int = 0
     enriched: int = 0
     exported: int = 0

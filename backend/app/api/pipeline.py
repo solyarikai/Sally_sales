@@ -288,12 +288,12 @@ async def export_csv(
 CONTACTS_HEADERS = [
     "Domain", "URL", "Company Name", "Description", "Industry", "Location", "Confidence",
     "Reasoning", "First Name", "Last Name", "Email", "Phone", "Job Title", "LinkedIn",
-    "Source", "Source Details",
+    "Source", "Source Details", "Campaign Status", "Smartlead Info",
 ]
 
 
 async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optional[int],
-                          email_only: bool, phone_only: bool):
+                          email_only: bool, phone_only: bool, new_only: bool = False):
     """Shared query for contacts export (CSV + Google Sheets)."""
     from sqlalchemy import text
     import json
@@ -308,6 +308,10 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
         where_clauses.append("ec.email IS NOT NULL")
     if phone_only:
         where_clauses.append("ec.phone IS NOT NULL")
+    if new_only:
+        where_clauses.append(
+            "lower(dc.domain) NOT IN (SELECT DISTINCT lower(c.domain) FROM contacts c WHERE c.domain IS NOT NULL AND c.domain != '')"
+        )
 
     query = text(f"""
         SELECT
@@ -328,7 +332,9 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
             CAST(ec.source AS text) as source,
             ec.raw_data,
             COALESCE(sq.query_text, sq2.query_text) as search_query,
-            sj.search_engine as search_engine
+            sj.search_engine as search_engine,
+            sl_info.campaign_status,
+            sl_info.smartlead_json
         FROM extracted_contacts ec
         JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
         LEFT JOIN search_results sr ON sr.id = dc.search_result_id
@@ -345,6 +351,22 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
             )
             LIMIT 1
         ) sq2 ON sq.id IS NULL
+        LEFT JOIN LATERAL (
+            SELECT
+                'ADDED_TO_SMARTLEAD' as campaign_status,
+                jsonb_build_object(
+                    'smartlead_status', c.smartlead_status,
+                    'campaigns', c.campaigns,
+                    'added_at', c.created_at,
+                    'last_synced_at', c.last_synced_at,
+                    'contact_status', c.status
+                )::text as smartlead_json
+            FROM contacts c
+            WHERE lower(c.domain) = lower(dc.domain)
+              AND c.domain IS NOT NULL AND c.domain != ''
+            ORDER BY c.last_synced_at DESC NULLS LAST
+            LIMIT 1
+        ) sl_info ON true
         WHERE {' AND '.join(where_clauses)}
         ORDER BY dc.confidence DESC, dc.domain
     """)
@@ -387,6 +409,8 @@ def _contacts_to_rows(rows) -> List[List[str]]:
     """Convert DB rows to list-of-lists (for CSV or Sheets)."""
     data = [CONTACTS_HEADERS]
     for r in rows:
+        campaign_status = r.campaign_status or "NEW"
+        smartlead_json = r.smartlead_json or ""
         data.append([
             r.domain, r.url, r.company_name or "", r.description or "",
             r.industry or "", r.location or "", f"{(r.confidence or 0) * 100:.0f}%",
@@ -394,6 +418,8 @@ def _contacts_to_rows(rows) -> List[List[str]]:
             r.first_name or "", r.last_name or "", r.email or "", r.phone or "",
             r.job_title or "", r.linkedin_url or "", r.source or "",
             _build_source_details(r),
+            campaign_status,
+            smartlead_json,
         ])
     return data
 
@@ -403,11 +429,12 @@ async def export_contacts_csv(
     project_id: Optional[int] = QueryParam(None),
     email_only: bool = QueryParam(False),
     phone_only: bool = QueryParam(False),
+    new_only: bool = QueryParam(False),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
     """Export contacts as CSV (one row per contact)."""
-    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only)
+    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only, new_only)
     data = _contacts_to_rows(rows)
 
     output = io.StringIO()
@@ -428,13 +455,14 @@ async def export_contacts_sheet(
     project_id: Optional[int] = QueryParam(None),
     email_only: bool = QueryParam(False),
     phone_only: bool = QueryParam(False),
+    new_only: bool = QueryParam(False),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
     """Export contacts to Google Sheets. Returns sheet URL."""
     from app.services.google_sheets_service import google_sheets_service
 
-    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only)
+    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only, new_only)
     if not rows:
         raise HTTPException(status_code=400, detail="No contacts to export")
 
@@ -450,6 +478,8 @@ async def export_contacts_sheet(
             proj_name = prow.name
 
     filters = []
+    if new_only:
+        filters.append("new")
     if email_only:
         filters.append("email")
     if phone_only:

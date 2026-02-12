@@ -433,6 +433,24 @@ class PipelineService:
         )
         targets = targets_q.scalar() or 0
 
+        # Targets already in campaigns (domain exists in contacts table)
+        campaign_domains_subq = (
+            select(func.lower(Contact.domain))
+            .where(Contact.domain.isnot(None), Contact.domain != "")
+            .distinct()
+            .scalar_subquery()
+        )
+        targets_in_campaigns_q = await session.execute(
+            select(func.count()).select_from(DiscoveredCompany)
+            .where(
+                *base_filter,
+                DiscoveredCompany.is_target == True,
+                func.lower(DiscoveredCompany.domain).in_(campaign_domains_subq),
+            )
+        )
+        targets_in_campaigns = targets_in_campaigns_q.scalar() or 0
+        targets_new = targets - targets_in_campaigns
+
         # Total extracted contacts
         contacts_q = await session.execute(
             select(func.sum(DiscoveredCompany.contacts_count))
@@ -472,6 +490,8 @@ class PipelineService:
         return {
             "total_discovered": total,
             "targets": targets,
+            "targets_new": targets_new,
+            "targets_in_campaigns": targets_in_campaigns,
             "contacts_extracted": status_counts.get(DiscoveredCompanyStatus.CONTACTS_EXTRACTED, 0) + status_counts.get(DiscoveredCompanyStatus.ENRICHED, 0) + status_counts.get(DiscoveredCompanyStatus.EXPORTED, 0),
             "enriched": status_counts.get(DiscoveredCompanyStatus.ENRICHED, 0) + status_counts.get(DiscoveredCompanyStatus.EXPORTED, 0),
             "exported": status_counts.get(DiscoveredCompanyStatus.EXPORTED, 0),
