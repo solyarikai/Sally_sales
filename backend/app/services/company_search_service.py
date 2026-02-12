@@ -195,6 +195,11 @@ class CompanySearchService:
             "singapore", "сингапур", "montenegro", "черногор",
             "serbia", "серби", "turkey", "турц", "istanbul", "стамбул",
             "international", "международн",
+            # Additional hubs
+            "latvia", "латви", "riga", "рига",
+            "estonia", "эстони", "tallinn", "таллин",
+            "georgia", "грузи", "tbilisi", "тбилиси",
+            "portugal", "португал", "lisbon", "лиссабон",
         ])
 
         # Rule 1: Non-Russian site with Russian-only target → force language_match=0

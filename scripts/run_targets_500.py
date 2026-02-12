@@ -173,6 +173,38 @@ DELIRYO_INTERNATIONAL_QUERIES = [
     "trust services Russian clients", "offshore wealth management Russian",
     "фэмили офис для русских клиентов за рубежом",
     "управление капиталом русскоязычные клиенты",
+
+    # --- Russia domestic: new terms / registries / conferences ---
+    "доверительное управление активами", "доверительное управление капиталом",
+    "управляющая компания ЗПИФ", "управляющая компания ПИФ",
+    "инвестиционный советник реестр ЦБ", "лицензия управляющей компании ЦБ",
+    "независимый финансовый советник Москва", "независимый финансовый советник Петербург",
+    "multi family office Москва", "single family office Россия",
+    "family office Москва", "family office Санкт-Петербург",
+    "бутик управления капиталом Москва", "инвестиционный бутик Россия",
+    "консьерж сервис состоятельных клиентов", "lifestyle management HNWI Россия",
+    "частное банковское обслуживание Москва", "premium banking Москва",
+    "финансовое планирование состоятельных", "налоговое планирование HNWI",
+    "структурирование активов", "защита активов Россия",
+    "НАУФОР управляющие компании", "реестр ЦБ инвестиционные советники",
+    "SPIEF family office", "ПМЭФ фэмили офис",
+    "конференция фэмили офис Россия", "wealth management forum Russia",
+    "рейтинг управляющих компаний России", "лучшие фэмили офисы России",
+    "top family offices CIS", "top wealth managers Russia",
+    "управление благосостоянием", "семейный капитал управление",
+    "фонд прямых инвестиций Москва", "private equity Россия",
+    "услуги для UHNW клиентов", "ultra high net worth Россия",
+
+    # --- Latvia / Estonia / Georgia (Russian HNWI hubs) ---
+    "family office Riga", "wealth management Latvia",
+    "family office Tallinn", "investment advisory Estonia",
+    "family office Tbilisi", "wealth management Georgia",
+    "фэмили офис Рига", "управление капиталом Грузия",
+
+    # --- Lisbon / Portugal (golden visa hub) ---
+    "family office Lisbon", "wealth management Portugal",
+    "golden visa advisory Portugal", "HNWI services Portugal",
+    "фэмили офис Португалия",
 ]
 
 
@@ -227,50 +259,71 @@ async def run_deliryo_search():
         company_id = row.scalar_one()
         logger.info(f"Deliryo company_id: {company_id}")
 
-        # Create a search job with pre-built queries
-        job = SearchJob(
-            company_id=company_id,
-            status=SearchJobStatus.PENDING,
-            search_engine=SearchEngine.YANDEX_API,
-            queries_total=len(DELIRYO_INTERNATIONAL_QUERIES),
-            project_id=DELIRYO_PROJECT_ID,
-            config={
-                "max_queries": len(DELIRYO_INTERNATIONAL_QUERIES),
-                "target_goal": 200,
-                "type": "international_hnwi",
-                "max_pages": 3,
-                "workers": 8,
-            },
-        )
-        session.add(job)
-        await session.flush()
-
-        # Add pre-built queries
-        for q_text in DELIRYO_INTERNATIONAL_QUERIES:
-            sq = SearchQuery(search_job_id=job.id, query_text=q_text)
-            session.add(sq)
-        await session.commit()
-
-        logger.info(f"Created Deliryo search job {job.id} with {len(DELIRYO_INTERNATIONAL_QUERIES)} queries")
-
-        # Run Yandex search
-        await search_service.run_search_job(session, job.id)
-        await session.refresh(job)
-        logger.info(f"Deliryo Yandex search done: found={job.domains_found}, new={job.domains_new}")
-
-        # Build skip set and get new domains
-        skip_set = await company_search_service._build_skip_set(session, DELIRYO_PROJECT_ID)
-        new_domains = await company_search_service._get_new_domains_from_job(session, job, skip_set)
-        logger.info(f"Deliryo: {len(new_domains)} new domains to analyze")
-
-        if new_domains:
-            # Use INTERNATIONAL target_segments (not the Russia-only one from DB)
-            await company_search_service._scrape_and_analyze_domains(
-                session=session,
-                job=job,
-                domains=new_domains,
-                target_segments=DELIRYO_INTERNATIONAL_TARGET_SEGMENTS,
+        # Dedup: get existing query texts for this project
+        existing_q = await session.execute(
+            select(SearchQuery.query_text).join(SearchJob).where(
+                SearchJob.project_id == DELIRYO_PROJECT_ID
             )
+        )
+        existing_queries = {r[0].lower().strip() for r in existing_q.fetchall()}
+        logger.info(f"Deliryo existing queries: {len(existing_queries)}")
+
+        # Filter to only new queries
+        new_queries = [
+            q for q in DELIRYO_INTERNATIONAL_QUERIES
+            if q.lower().strip() not in existing_queries
+        ]
+        logger.info(f"New international queries: {len(new_queries)} (of {len(DELIRYO_INTERNATIONAL_QUERIES)} total)")
+
+        if not new_queries:
+            logger.info("All international queries already exist, skipping manual phase")
+            job = None
+        else:
+            # Create a search job with pre-built queries
+            job = SearchJob(
+                company_id=company_id,
+                status=SearchJobStatus.PENDING,
+                search_engine=SearchEngine.YANDEX_API,
+                queries_total=len(new_queries),
+                project_id=DELIRYO_PROJECT_ID,
+                config={
+                    "max_queries": len(new_queries),
+                    "target_goal": 200,
+                    "type": "international_hnwi",
+                    "max_pages": 3,
+                    "workers": 8,
+                },
+            )
+            session.add(job)
+            await session.flush()
+
+            # Add only new queries
+            for q_text in new_queries:
+                sq = SearchQuery(search_job_id=job.id, query_text=q_text)
+                session.add(sq)
+            await session.commit()
+
+        if job:
+            logger.info(f"Created Deliryo search job {job.id} with {len(new_queries)} queries")
+
+            # Run Yandex search
+            await search_service.run_search_job(session, job.id)
+            await session.refresh(job)
+            logger.info(f"Deliryo Yandex search done: found={job.domains_found}, new={job.domains_new}")
+
+            # Build skip set and get new domains
+            skip_set = await company_search_service._build_skip_set(session, DELIRYO_PROJECT_ID)
+            new_domains = await company_search_service._get_new_domains_from_job(session, job, skip_set)
+            logger.info(f"Deliryo: {len(new_domains)} new domains to analyze")
+
+            if new_domains:
+                # Use INTERNATIONAL target_segments (not the Russia-only one from DB)
+                await company_search_service._scrape_and_analyze_domains(
+                    session=session,
+                    job=job,
+                    domains=new_domains,
+                    target_segments=DELIRYO_INTERNATIONAL_TARGET_SEGMENTS,
+                )
 
         # Also run GPT-generated queries for Russia (uses DB target_segments = Russia only)
         logger.info("Generating additional GPT queries for Deliryo (Russia)...")
@@ -317,28 +370,48 @@ async def run_contacts_and_apollo(project_id: int, company_id: int, apollo_title
 
         target_ids = [t.id for t in targets]
 
-        # Step 1: Website contact extraction
+        # Step 1: Website contact extraction (batch of 50)
         logger.info(f"{project_name}: Extracting contacts from websites...")
-        contact_stats = await pipeline_service.extract_contacts_batch(
-            session=session,
-            discovered_company_ids=target_ids,
-            company_id=company_id,
-        )
-        logger.info(f"{project_name} contact extraction: {contact_stats}")
+        total_contact_stats = {"processed": 0, "contacts_found": 0, "errors": 0}
+        for i in range(0, len(target_ids), 50):
+            batch = target_ids[i:i + 50]
+            try:
+                stats = await pipeline_service.extract_contacts_batch(
+                    session=session,
+                    discovered_company_ids=batch,
+                    company_id=company_id,
+                )
+                for k in total_contact_stats:
+                    total_contact_stats[k] += stats.get(k, 0)
+                logger.info(f"  Contact batch {i // 50 + 1}: {stats}")
+            except Exception as e:
+                logger.error(f"  Contact batch {i // 50 + 1} failed: {e}")
+                total_contact_stats["errors"] += len(batch)
+        logger.info(f"{project_name} contact extraction total: {total_contact_stats}")
 
-        # Step 2: Apollo enrichment (no credit limit)
+        # Step 2: Apollo enrichment (batch of 20, no credit limit)
         logger.info(f"{project_name}: Running Apollo enrichment with titles={apollo_titles}...")
-        apollo_stats = await pipeline_service.enrich_apollo_batch(
-            session=session,
-            discovered_company_ids=target_ids,
-            company_id=company_id,
-            max_people=5,
-            max_credits=None,  # No limit
-            titles=apollo_titles,
-        )
-        logger.info(f"{project_name} Apollo enrichment: {apollo_stats}")
+        total_apollo_stats = {"processed": 0, "people_found": 0, "errors": 0, "credits_used": 0}
+        for i in range(0, len(target_ids), 20):
+            batch = target_ids[i:i + 20]
+            try:
+                stats = await pipeline_service.enrich_apollo_batch(
+                    session=session,
+                    discovered_company_ids=batch,
+                    company_id=company_id,
+                    max_people=5,
+                    max_credits=None,  # No limit
+                    titles=apollo_titles,
+                )
+                for k in total_apollo_stats:
+                    total_apollo_stats[k] += stats.get(k, 0)
+                logger.info(f"  Apollo batch {i // 20 + 1}: {stats}")
+            except Exception as e:
+                logger.error(f"  Apollo batch {i // 20 + 1} failed: {e}")
+                total_apollo_stats["errors"] += len(batch)
+        logger.info(f"{project_name} Apollo enrichment total: {total_apollo_stats}")
 
-        return {"contacts": contact_stats, "apollo": apollo_stats}
+        return {"contacts": total_contact_stats, "apollo": total_apollo_stats}
 
 
 # ============================================================
