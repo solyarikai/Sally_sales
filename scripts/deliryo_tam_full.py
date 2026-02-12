@@ -176,8 +176,15 @@ async def part_a_analyze_existing_targets(session) -> Dict[str, Any]:
 # Part B: Apollo Organization Search
 # ══════════════════════════════════════════════════════════════════════════
 async def part_b_apollo_org_search(session, skip_set: Set[str]) -> Dict[str, Any]:
-    """Search Apollo for organizations matching Deliryo ICP."""
+    """Search Apollo for organizations matching Deliryo ICP.
+
+    Saves domains to /tmp/deliryo_apollo_domains.json as backup.
+    If Apollo is unavailable, loads from backup file.
+    Breaks early on credit exhaustion (422) to avoid wasting time.
+    """
     from app.services.apollo_service import apollo_service
+
+    BACKUP_FILE = "/tmp/deliryo_apollo_domains.json"
 
     logger.info("=" * 60)
     logger.info("PART B: Apollo Organization Search")
@@ -191,11 +198,18 @@ async def part_b_apollo_org_search(session, skip_set: Set[str]) -> Dict[str, Any
     apollo_service.reset_credits()
     all_new_domains: Set[str] = set()
     combo_stats: Dict[str, Dict[str, int]] = {}
+    credits_exhausted = False
+    consecutive_failures = 0
 
     all_keywords = KEYWORDS_TIER1 + KEYWORDS_TIER2
 
     for keyword_tags in all_keywords:
+        if credits_exhausted:
+            break
         for location in LOCATIONS:
+            if credits_exhausted:
+                break
+
             combo_key = f"{keyword_tags[0]}|{location}"
             logger.info(f"\n--- Searching: {combo_key} ---")
 
@@ -205,6 +219,16 @@ async def part_b_apollo_org_search(session, skip_set: Set[str]) -> Dict[str, Any
                 num_employees_ranges=SIZE_RANGES,
                 max_pages=50,
             )
+
+            if not orgs:
+                consecutive_failures += 1
+                # 3 consecutive empty results likely means credits exhausted
+                if consecutive_failures >= 3:
+                    logger.warning("3 consecutive empty results — likely credits exhausted, stopping search")
+                    credits_exhausted = True
+                    break
+            else:
+                consecutive_failures = 0
 
             domains_found = set()
             for org in orgs:
@@ -234,6 +258,30 @@ async def part_b_apollo_org_search(session, skip_set: Set[str]) -> Dict[str, Any
     logger.info(f"\nApollo org search complete:")
     logger.info(f"  Total new domains found: {len(all_new_domains)}")
     logger.info(f"  Apollo credits used: {apollo_service.credits_used}")
+    if credits_exhausted:
+        logger.warning("  NOTE: Apollo credits exhausted, not all combos searched")
+
+    # Save domains to backup file
+    sorted_domains = sorted(all_new_domains)
+    try:
+        with open(BACKUP_FILE, "w") as f:
+            json.dump({"domains": sorted_domains, "stats": combo_stats, "credits_used": apollo_service.credits_used}, f)
+        logger.info(f"  Saved {len(sorted_domains)} domains to {BACKUP_FILE}")
+    except Exception as e:
+        logger.error(f"  Failed to save backup: {e}")
+
+    # If no new domains found but backup exists, load from backup
+    if not all_new_domains:
+        try:
+            with open(BACKUP_FILE) as f:
+                backup = json.load(f)
+            backup_domains = set(backup["domains"]) - skip_set
+            if backup_domains:
+                logger.info(f"  Loaded {len(backup_domains)} domains from backup {BACKUP_FILE}")
+                all_new_domains = backup_domains
+                sorted_domains = sorted(all_new_domains)
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass
 
     # Log top combos by new domains
     sorted_combos = sorted(combo_stats.items(), key=lambda x: x[1]["new_domains"], reverse=True)
@@ -242,7 +290,7 @@ async def part_b_apollo_org_search(session, skip_set: Set[str]) -> Dict[str, Any
         logger.info(f"  {combo_key}: {stats['new_domains']} new ({stats['orgs_returned']} orgs total)")
 
     return {
-        "new_domains": sorted(all_new_domains),
+        "new_domains": sorted_domains,
         "stats": combo_stats,
         "credits_used": apollo_service.credits_used,
     }
