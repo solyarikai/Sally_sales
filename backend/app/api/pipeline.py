@@ -10,6 +10,7 @@ from typing import Optional, List
 import csv
 import io
 import logging
+from datetime import datetime
 
 from app.db import get_session
 from app.api.companies import get_required_company
@@ -26,6 +27,25 @@ from app.services.pipeline_service import pipeline_service
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 logger = logging.getLogger(__name__)
+
+
+# ============ Projects (for dropdown) ============
+
+@router.get("/projects")
+async def list_pipeline_projects(
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """List projects that have discovered companies (fast, for dropdown)."""
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT DISTINCT dc.project_id as id, p.name
+        FROM discovered_companies dc
+        JOIN projects p ON p.id = dc.project_id
+        WHERE dc.company_id = :company_id
+        ORDER BY p.name
+    """), {"company_id": company.id})
+    return [{"id": row.id, "name": row.name} for row in result.fetchall()]
 
 
 # ============ Discovered Companies ============
@@ -102,6 +122,10 @@ async def extract_contacts(
 
 # ============ Apollo Enrichment ============
 
+# Only allow Apollo enrichment for these projects (to limit credit usage)
+APOLLO_ALLOWED_PROJECTS = {"archistruct", "deliryo"}
+
+
 @router.post("/enrich-apollo")
 async def enrich_apollo(
     body: ApolloEnrichRequest,
@@ -109,6 +133,30 @@ async def enrich_apollo(
     company: Company = Depends(get_required_company),
 ):
     """Run Apollo enrichment on selected discovered companies."""
+    from app.models.pipeline import DiscoveredCompany
+    from app.models.contact import Project
+    from sqlalchemy import select
+
+    # Check that all selected companies belong to allowed projects
+    result = await db.execute(
+        select(DiscoveredCompany.project_id)
+        .where(DiscoveredCompany.id.in_(body.discovered_company_ids))
+        .distinct()
+    )
+    project_ids = [row[0] for row in result.fetchall()]
+
+    proj_result = await db.execute(
+        select(Project.id, Project.name).where(Project.id.in_(project_ids))
+    )
+    proj_names = {row.id: row.name for row in proj_result.fetchall()}
+
+    blocked = [name for pid, name in proj_names.items() if name.lower() not in APOLLO_ALLOWED_PROJECTS]
+    if blocked:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Apollo enrichment is restricted to archistruct and deliryo projects. Blocked: {', '.join(blocked)}",
+        )
+
     stats = await pipeline_service.enrich_apollo_batch(
         session=db,
         discovered_company_ids=body.discovered_company_ids,
@@ -391,9 +439,192 @@ async def update_auto_enrich_config(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Validate allowed keys
     allowed_keys = {"auto_extract", "auto_apollo", "apollo_titles", "apollo_max_people", "apollo_max_credits"}
     config = {k: v for k, v in body.items() if k in allowed_keys}
     project.auto_enrich_config = config
     await db.commit()
     return config
+
+
+# ============ Contacts Export ============
+
+CONTACTS_HEADERS = [
+    "Domain", "URL", "Company Name", "Description", "Industry", "Location", "Confidence",
+    "Reasoning", "First Name", "Last Name", "Email", "Phone", "Job Title", "LinkedIn",
+    "Source", "Source Details",
+]
+
+
+async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optional[int],
+                          email_only: bool, phone_only: bool):
+    """Shared query for contacts export (CSV + Google Sheets)."""
+    from sqlalchemy import text
+
+    where_clauses = ["dc.company_id = :company_id", "dc.is_target = true"]
+    params = {"company_id": company_id}
+
+    if project_id is not None:
+        where_clauses.append("dc.project_id = :project_id")
+        params["project_id"] = project_id
+    if email_only:
+        where_clauses.append("ec.email IS NOT NULL")
+    if phone_only:
+        where_clauses.append("ec.phone IS NOT NULL")
+
+    query = text(f"""
+        SELECT
+            dc.domain,
+            'https://' || dc.domain as url,
+            dc.company_info->>'name' as company_name,
+            dc.company_info->>'description' as description,
+            dc.company_info->>'industry' as industry,
+            dc.company_info->>'location' as location,
+            dc.confidence,
+            dc.reasoning,
+            ec.first_name,
+            ec.last_name,
+            ec.email,
+            ec.phone,
+            ec.job_title,
+            ec.linkedin_url,
+            CAST(ec.source AS text) as source,
+            ec.raw_data,
+            COALESCE(sq.query_text, sq2.query_text) as search_query,
+            sj.search_engine as search_engine
+        FROM extracted_contacts ec
+        JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+        LEFT JOIN search_results sr ON sr.id = dc.search_result_id
+        LEFT JOIN search_queries sq ON sq.id = sr.source_query_id
+        LEFT JOIN search_jobs sj ON sj.id = dc.search_job_id
+        LEFT JOIN LATERAL (
+            SELECT sq3.query_text FROM search_queries sq3
+            WHERE sq3.search_job_id = dc.search_job_id
+            AND sq3.id = (
+                SELECT sr2.source_query_id FROM search_results sr2
+                WHERE sr2.domain = dc.domain AND sr2.search_job_id = dc.search_job_id
+                AND sr2.source_query_id IS NOT NULL
+                LIMIT 1
+            )
+            LIMIT 1
+        ) sq2 ON sq.id IS NULL
+        WHERE {' AND '.join(where_clauses)}
+        ORDER BY dc.confidence DESC, dc.domain
+    """)
+    result = await db.execute(query, params)
+    return result.fetchall()
+
+
+def _build_source_details(row) -> str:
+    """Build source details JSON from search query + raw_data."""
+    import json
+    details = {}
+
+    if row.search_query:
+        details["query"] = row.search_query
+
+    if getattr(row, 'search_engine', None):
+        details["engine"] = row.search_engine
+
+    if row.raw_data:
+        raw = row.raw_data if isinstance(row.raw_data, dict) else {}
+        if isinstance(row.raw_data, str):
+            try:
+                raw = json.loads(row.raw_data)
+            except Exception:
+                raw = {}
+        if row.source == "APOLLO":
+            for k in ("organization", "seniority", "departments", "city", "country"):
+                if raw.get(k):
+                    details[k] = raw[k]
+        elif row.source == "WEBSITE_SCRAPE":
+            if raw.get("is_generic"):
+                details["generic_email"] = True
+
+    if not details:
+        return ""
+    return json.dumps(details, ensure_ascii=False, default=str)
+
+
+def _contacts_to_rows(rows) -> List[List[str]]:
+    """Convert DB rows to list-of-lists (for CSV or Sheets)."""
+    data = [CONTACTS_HEADERS]
+    for r in rows:
+        data.append([
+            r.domain, r.url, r.company_name or "", r.description or "",
+            r.industry or "", r.location or "", f"{(r.confidence or 0) * 100:.0f}%",
+            r.reasoning or "",
+            r.first_name or "", r.last_name or "", r.email or "", r.phone or "",
+            r.job_title or "", r.linkedin_url or "", r.source or "",
+            _build_source_details(r),
+        ])
+    return data
+
+
+@router.get("/export-contacts-csv")
+async def export_contacts_csv(
+    project_id: Optional[int] = QueryParam(None),
+    email_only: bool = QueryParam(False),
+    phone_only: bool = QueryParam(False),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Export contacts as CSV (one row per contact)."""
+    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only)
+    data = _contacts_to_rows(rows)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    for row in data:
+        writer.writerow(row)
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=contacts.csv"},
+    )
+
+
+@router.post("/export-contacts-sheet")
+async def export_contacts_sheet(
+    project_id: Optional[int] = QueryParam(None),
+    email_only: bool = QueryParam(False),
+    phone_only: bool = QueryParam(False),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Export contacts to Google Sheets. Returns sheet URL."""
+    from app.services.google_sheets_service import google_sheets_service
+
+    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only)
+    if not rows:
+        raise HTTPException(status_code=400, detail="No contacts to export")
+
+    data = _contacts_to_rows(rows)
+
+    proj_name = "All"
+    if project_id:
+        from sqlalchemy import text
+        pq = await db.execute(text("SELECT name FROM projects WHERE id = :id"), {"id": project_id})
+        prow = pq.fetchone()
+        if prow:
+            proj_name = prow.name
+
+    filters = []
+    if email_only:
+        filters.append("email")
+    if phone_only:
+        filters.append("phone")
+    filter_str = f" ({'+'.join(filters)})" if filters else ""
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    title = f"{proj_name} Contacts{filter_str} — {ts}"
+
+    url = google_sheets_service.create_and_populate(
+        title=title,
+        data=data,
+        share_with=["pn@getsally.io"],
+    )
+    if not url:
+        raise HTTPException(status_code=500, detail="Google Sheets export failed")
+
+    return {"url": url, "rows": len(data) - 1}

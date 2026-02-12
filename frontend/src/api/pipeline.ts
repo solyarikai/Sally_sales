@@ -81,6 +81,12 @@ export interface PipelineStats {
   total_contacts: number;
   total_apollo_people: number;
   spending?: SpendingDetail;
+  apollo_contacts: number;
+  apollo_with_email: number;
+  apollo_with_linkedin: number;
+  website_contacts: number;
+  website_with_email: number;
+  website_with_phone: number;
 }
 
 export interface AutoEnrichConfig {
@@ -167,6 +173,12 @@ export const pipelineApi = {
     return response.data;
   },
 
+  // List projects that have discovered companies (fast, for dropdown)
+  listProjects: async (): Promise<{ id: number; name: string }[]> => {
+    const response = await api.get('/pipeline/projects');
+    return response.data;
+  },
+
   // Get pipeline stats
   getStats: async (projectId?: number): Promise<PipelineStats> => {
     const response = await api.get('/pipeline/stats', {
@@ -184,7 +196,7 @@ export const pipelineApi = {
     return response.data;
   },
 
-  // Export CSV
+  // Export CSV (companies)
   exportCsv: async (projectId?: number, isTarget?: boolean): Promise<Blob> => {
     const response = await api.get('/pipeline/export-csv', {
       params: { project_id: projectId, is_target: isTarget },
@@ -193,11 +205,20 @@ export const pipelineApi = {
     return response.data;
   },
 
-  // Export to Google Sheet
+  // Export to Google Sheet (companies)
   exportToGoogleSheet: async (projectId?: number, isTarget?: boolean): Promise<{ sheet_url: string }> => {
     const response = await api.post('/pipeline/export-sheet', {
       project_id: projectId,
       is_target: isTarget,
+    });
+    return response.data;
+  },
+
+  // Export contacts CSV (one row per contact, for Smartlead)
+  exportContactsCsv: async (projectId?: number, emailOnly?: boolean, phoneOnly?: boolean): Promise<Blob> => {
+    const response = await api.get('/pipeline/export-contacts-csv', {
+      params: { project_id: projectId, email_only: emailOnly, phone_only: phoneOnly },
+      responseType: 'blob',
     });
     return response.data;
   },
@@ -213,6 +234,17 @@ export const pipelineApi = {
     return response.data;
   },
 
+  // Export contacts to Google Sheets
+  exportContactsSheet: async (projectId?: number, emailOnly?: boolean, phoneOnly?: boolean): Promise<{
+    url: string;
+    rows: number;
+  }> => {
+    const response = await api.post('/pipeline/export-contacts-sheet', null, {
+      params: { project_id: projectId, email_only: emailOnly, phone_only: phoneOnly },
+    });
+    return response.data;
+  },
+
   // ===== Project-level convenience wrappers =====
 
   /** Fetch all target discovered companies for a project, then extract contacts from them. */
@@ -221,7 +253,6 @@ export const pipelineApi = {
     contacts_found: number;
     errors: number;
   }> => {
-    // 1. List all target companies for this project
     const { items } = await pipelineApi.listDiscoveredCompanies({
       project_id: projectId,
       is_target: true,
@@ -230,7 +261,6 @@ export const pipelineApi = {
 
     if (items.length === 0) return { processed: 0, contacts_found: 0, errors: 0 };
 
-    // 2. Filter to those without contacts yet
     const needExtraction = items.filter(c => (c.contacts_count || 0) === 0);
     if (needExtraction.length === 0) return { processed: 0, contacts_found: 0, errors: 0 };
 
@@ -266,7 +296,6 @@ export const pipelineApi = {
 
     if (items.length === 0) return { processed: 0, people_found: 0, errors: 0, credits_used: 0, skipped: 0 };
 
-    // Filter to those not yet Apollo-enriched
     const needEnrich = items.filter(c => !c.apollo_enriched_at);
     if (needEnrich.length === 0) return { processed: 0, people_found: 0, errors: 0, credits_used: 0, skipped: 0 };
 

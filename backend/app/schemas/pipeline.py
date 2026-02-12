@@ -176,6 +176,13 @@ class PipelineStats(BaseModel):
     total_contacts: int = 0
     total_apollo_people: int = 0
     spending: Optional[SpendingDetail] = None
+    # Contact breakdown
+    apollo_contacts: int = 0
+    apollo_with_email: int = 0
+    apollo_with_linkedin: int = 0
+    website_contacts: int = 0
+    website_with_email: int = 0
+    website_with_phone: int = 0
 
 
 # ============ Export Models ============

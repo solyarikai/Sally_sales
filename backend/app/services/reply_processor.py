@@ -1,7 +1,7 @@
 """Reply processing service for AI classification and draft generation."""
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
@@ -670,10 +670,39 @@ async def process_reply_webhook(
             logger.error(f"[PROCESSOR] Slack notification failed (non-fatal): {slack_error}")
             # Continue processing - Slack failure should not break webhook handling
         
-        # Send Telegram notification only for actual EMAIL_REPLY events
+        # Send Telegram notification only for actual inbound replies
         # Skip for EMAIL_SENT and other event types (still stored in DB for analytics)
+        # Also skip outbound sends that Smartlead reports as EMAIL_REPLY
+        # Also skip for old replies discovered via API polling (prevents spam after Redis flush)
+        import re
         event_type = payload.get("event_type", "EMAIL_REPLY")
-        if event_type == "EMAIL_REPLY":
+        should_notify = event_type == "EMAIL_REPLY"
+
+        # Detect outbound sends masquerading as EMAIL_REPLY
+        # Pattern: "Email N sent to X for campaign Y"
+        if should_notify and body:
+            outbound_pattern = r"^Email \d+ sent to .+ for campaign"
+            if re.match(outbound_pattern, body.strip()):
+                should_notify = False
+                logger.info(f"[PROCESSOR] Skipping Telegram for outbound send: {body[:120]}")
+
+        if should_notify and payload.get("_source") == "api_polling":
+            # Only notify for recent polled replies (< 2 hours old)
+            time_replied = payload.get("time_replied")
+            if time_replied:
+                try:
+                    if isinstance(time_replied, str):
+                        replied_dt = datetime.fromisoformat(time_replied.replace("Z", "+00:00")).replace(tzinfo=None)
+                    else:
+                        replied_dt = time_replied
+                    age = datetime.utcnow() - replied_dt
+                    if age > timedelta(hours=2):
+                        should_notify = False
+                        logger.info(f"[PROCESSOR] Skipping Telegram for old polled reply ({age.days}d old): {lead_email}")
+                except Exception:
+                    pass  # If we can't parse the time, notify anyway
+
+        if should_notify:
             try:
                 from app.services.notification_service import notify_reply_needs_attention
                 await notify_reply_needs_attention(processed_reply, classification["category"])
@@ -681,7 +710,7 @@ async def process_reply_webhook(
                 logger.error(f"[PROCESSOR] Telegram notification failed (non-fatal): {telegram_error}")
                 # Continue processing - Telegram failure should not break webhook handling
         else:
-            logger.info(f"[PROCESSOR] Skipping Telegram notification for event_type: {event_type}")
+            logger.info(f"[PROCESSOR] Skipping Telegram notification for event_type: {event_type}, source: {payload.get('_source', 'webhook')}")
         
         # Log to Google Sheets if automation has a sheet configured
         if automation and automation.google_sheet_id:

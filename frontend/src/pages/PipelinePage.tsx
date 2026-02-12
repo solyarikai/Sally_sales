@@ -17,14 +17,13 @@ const AG_GRID_THEME = "legacy";
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 import {
-  Layers, Target, Mail, Download,
+  Layers, Target, Mail, Download, Globe, FileSpreadsheet,
   Loader2, AlertCircle, CheckCircle2, XCircle, Search,
-  ExternalLink, Zap, UserPlus,
-  X, Settings2, FileSpreadsheet, DollarSign,
+  ExternalLink, Zap, UserPlus, ChevronDown,
+  X, Settings2, DollarSign,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
-import { api } from '../api/client';
 import {
   pipelineApi,
   type DiscoveredCompany,
@@ -115,6 +114,8 @@ export function PipelinePage() {
   const [apolloMaxPeople, setApolloMaxPeople] = useState(5);
   const [apolloMaxCredits, setApolloMaxCredits] = useState(50);
   const [apolloTitleInput, setApolloTitleInput] = useState('');
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
 
   // Sync project_id from URL query param (e.g., navigated from Data Search page)
   useEffect(() => {
@@ -125,16 +126,13 @@ export function PipelinePage() {
     }
   }, [searchParams]);
 
-  // Load projects for filter dropdown — fast endpoint (id+name only, no contact counts)
+  // Load projects for filter dropdown (fast endpoint from pipeline API)
   useEffect(() => {
-    if (!currentCompany) return;
     setProjectsLoading(true);
-    api.get('/contacts/projects/names', {
-      headers: { 'X-Company-ID': String(currentCompany.id) },
-    }).then(res => {
-      setProjects((res.data || []).map((p: any) => ({ id: p.id, name: p.name })));
+    pipelineApi.listProjects().then(data => {
+      setProjects(data);
     }).catch(() => {}).finally(() => setProjectsLoading(false));
-  }, [currentCompany]);
+  }, []);
 
   // Load auto-enrich config when project changes (needs currentCompany for X-Company-ID header)
   useEffect(() => {
@@ -454,36 +452,45 @@ export function PipelinePage() {
     }
   };
 
-  const handleExportSheet = async () => {
-    setSheetLoading(true);
+  const buildFilename = (suffix: string) => {
+    const projName = projects.find(p => p.id === projectId)?.name || 'all';
+    const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
+    return `${projName}_${suffix}_${ts}.csv`;
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCsv = async (emailOnly: boolean, phoneOnly: boolean) => {
+    setExportLoading(true);
+    setShowExportMenu(false);
     try {
-      const result = await pipelineApi.exportToGoogleSheet(projectId, isTargetParam);
-      window.open(result.sheet_url, '_blank');
+      const blob = await pipelineApi.exportContactsCsv(projectId, emailOnly, phoneOnly);
+      const suffix = emailOnly ? 'email_contacts' : phoneOnly ? 'phone_contacts' : 'all_contacts';
+      downloadBlob(blob, buildFilename(suffix));
     } catch (err: any) {
-      const status = err?.response?.status;
-      if (status === 404) {
-        setError('Google Sheets export endpoint not available. Restart the backend with the latest code.');
-      } else if (status === 500) {
-        setError(`Google Sheets export failed: ${err?.response?.data?.detail || 'Check Google credentials'}`);
-      } else {
-        setError(err.userMessage || 'Google Sheets export failed');
-      }
+      alert(err.userMessage || 'CSV export failed');
     } finally {
-      setSheetLoading(false);
+      setExportLoading(false);
     }
   };
 
-  const handleExportCsv = async () => {
+  const handleExportSheet = async (emailOnly: boolean, phoneOnly: boolean) => {
+    setExportLoading(true);
+    setShowExportMenu(false);
     try {
-      const blob = await pipelineApi.exportCsv(projectId, isTargetParam);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'pipeline_companies.csv';
-      a.click();
-      URL.revokeObjectURL(url);
+      const result = await pipelineApi.exportContactsSheet(projectId, emailOnly, phoneOnly);
+      window.open(result.url, '_blank');
     } catch (err: any) {
-      alert(err.userMessage || 'CSV export failed');
+      alert(err.response?.data?.detail || err.userMessage || 'Google Sheets export failed');
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -563,18 +570,44 @@ export function PipelinePage() {
             <h1 className="text-2xl font-bold text-neutral-900">Pipeline</h1>
             <p className="text-neutral-500 text-sm mt-1">Manage discovered companies through the outreach pipeline</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="relative">
             <button
-              onClick={handleExportSheet}
-              disabled={sheetLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={exportLoading}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {sheetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-              Google Sheet
+              {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Export
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
-            <button onClick={handleExportCsv} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50">
-              <Download className="w-4 h-4" /> CSV
-            </button>
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-20 w-64 bg-white rounded-lg shadow-lg border border-neutral-200 py-1">
+                  <div className="px-3 py-1.5 text-xs font-medium text-neutral-400 uppercase">CSV Download</div>
+                  <button onClick={() => handleExportCsv(true, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-blue-500" /> Contacts with Email
+                  </button>
+                  <button onClick={() => handleExportCsv(false, true)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-green-500" /> Contacts with Phone
+                  </button>
+                  <button onClick={() => handleExportCsv(false, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                    <Download className="w-4 h-4 text-neutral-400" /> All Contacts
+                  </button>
+                  <div className="border-t border-neutral-100 my-1" />
+                  <div className="px-3 py-1.5 text-xs font-medium text-neutral-400 uppercase">Google Sheets</div>
+                  <button onClick={() => handleExportSheet(true, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-green-600" /> Contacts with Email
+                  </button>
+                  <button onClick={() => handleExportSheet(false, true)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-green-600" /> Contacts with Phone
+                  </button>
+                  <button onClick={() => handleExportSheet(false, false)} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-green-600" /> All Contacts
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -630,6 +663,53 @@ export function PipelinePage() {
               <div>
                 <span className="text-neutral-500 text-xs font-medium">Total</span>
                 <div className="font-bold text-neutral-900">${stats.spending.total_estimate.toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Contact breakdown */}
+        {stats && (stats.apollo_contacts > 0 || stats.website_contacts > 0) && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-xl border border-neutral-200 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-4 h-4 text-orange-500" />
+                <span className="text-sm font-medium text-neutral-700">Apollo Enrichment</span>
+                <span className="ml-auto text-xs text-neutral-400">{stats.apollo_contacts} contacts</span>
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <div className="text-xl font-bold text-neutral-900">{stats.apollo_contacts.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">contacts</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-blue-600">{stats.apollo_with_email.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">with email</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-sky-600">{stats.apollo_with_linkedin.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">with LinkedIn</div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-neutral-200 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Globe className="w-4 h-4 text-purple-500" />
+                <span className="text-sm font-medium text-neutral-700">Website Scraping</span>
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <div className="text-xl font-bold text-neutral-900">{stats.website_contacts.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">contacts</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-blue-600">{stats.website_with_email.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">with email</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-green-600">{stats.website_with_phone.toLocaleString()}</div>
+                  <div className="text-xs text-neutral-500">with phone</div>
+                </div>
               </div>
             </div>
           </div>

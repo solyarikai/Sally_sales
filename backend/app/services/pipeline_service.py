@@ -448,6 +448,28 @@ class PipelineService:
         )
         total_apollo = apollo_q.scalar() or 0
 
+        # Contact breakdown by source
+        dc_ids_subq = select(DiscoveredCompany.id).where(*base_filter).scalar_subquery()
+        contact_stats_q = await session.execute(
+            select(
+                ExtractedContact.source,
+                func.count().label("total"),
+                func.count().filter(ExtractedContact.email.isnot(None)).label("with_email"),
+                func.count().filter(ExtractedContact.linkedin_url.isnot(None)).label("with_linkedin"),
+                func.count().filter(ExtractedContact.phone.isnot(None)).label("with_phone"),
+            )
+            .where(ExtractedContact.discovered_company_id.in_(dc_ids_subq))
+            .group_by(ExtractedContact.source)
+        )
+        contact_by_source = {}
+        for row in contact_stats_q.fetchall():
+            contact_by_source[row.source] = {
+                "total": row.total, "with_email": row.with_email,
+                "with_linkedin": row.with_linkedin, "with_phone": row.with_phone,
+            }
+        apollo_cs = contact_by_source.get(ContactSource.APOLLO, {})
+        website_cs = contact_by_source.get(ContactSource.WEBSITE_SCRAPE, {})
+
         return {
             "total_discovered": total,
             "targets": targets,
@@ -457,6 +479,12 @@ class PipelineService:
             "rejected": status_counts.get(DiscoveredCompanyStatus.REJECTED, 0),
             "total_contacts": total_contacts,
             "total_apollo_people": total_apollo,
+            "apollo_contacts": apollo_cs.get("total", 0),
+            "apollo_with_email": apollo_cs.get("with_email", 0),
+            "apollo_with_linkedin": apollo_cs.get("with_linkedin", 0),
+            "website_contacts": website_cs.get("total", 0),
+            "website_with_email": website_cs.get("with_email", 0),
+            "website_with_phone": website_cs.get("with_phone", 0),
         }
 
     # ========== List / Get ==========
