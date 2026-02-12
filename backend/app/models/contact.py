@@ -45,9 +45,10 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # {"auto_extract": true, "auto_apollo": false, "apollo_titles": ["CEO","Founder"], "apollo_max_people": 5, "apollo_max_credits": 50}
     auto_enrich_config = Column(JSON, nullable=True)
 
-    # Telegram notification routing
-    telegram_chat_id = Column(String(100), nullable=True)  # Resolved numeric chat ID
+    # Telegram notification routing (set by bot /start deep link)
+    telegram_chat_id = Column(String(100), nullable=True)  # Numeric chat ID
     telegram_username = Column(String(100), nullable=True)  # @username (lowercase, no @)
+    telegram_first_name = Column(String(100), nullable=True)  # Display name from Telegram
 
     # Generated content (for AI SDR later)
     tam_analysis = Column(Text, nullable=True)       # Total Addressable Market analysis
