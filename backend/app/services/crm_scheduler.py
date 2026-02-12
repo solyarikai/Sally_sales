@@ -59,6 +59,7 @@ class CRMScheduler:
         self._report_task: Optional[asyncio.Task] = None
         self._prompt_refresh_task: Optional[asyncio.Task] = None
         self._recovery_task: Optional[asyncio.Task] = None
+        self._conversation_sync_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         
         # Tracking
@@ -87,7 +88,8 @@ class CRMScheduler:
         all_tasks = [
             self._task, self._reply_task, self._webhook_task, 
             self._report_task, self._prompt_refresh_task,
-            self._recovery_task, self._watchdog_task
+            self._recovery_task, self._conversation_sync_task,
+            self._watchdog_task
         ]
         for task in all_tasks:
             if task:
@@ -107,6 +109,7 @@ class CRMScheduler:
             ("_report_task", self._run_report_loop, "Report"),
             ("_prompt_refresh_task", self._run_prompt_refresh_loop, "Prompt refresh"),
             ("_recovery_task", self._run_event_recovery_loop, "Event recovery"),
+            ("_conversation_sync_task", self._run_conversation_sync_loop, "Conversation sync"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -388,6 +391,37 @@ class CRMScheduler:
             
             await session.commit()
     
+    # ===== Conversation History Sync (every 10 min) =====
+
+    async def _run_conversation_sync_loop(self):
+        """Sync Smartlead message histories to detect operator replies.
+
+        Checks pending replies for outbound messages in Smartlead's thread API.
+        Marks replied-to conversations as 'replied_externally' and creates
+        missing outbound ContactActivity records.
+        Runs every 10 minutes, processing up to 100 leads per run.
+        """
+        await asyncio.sleep(180)  # Wait 3 min after startup for other syncs to settle
+        interval = 600  # 10 minutes
+
+        while self._running:
+            try:
+                from app.services.crm_sync_service import sync_conversation_histories
+
+                async with async_session_maker() as session:
+                    stats = await sync_conversation_histories(session, limit=100)
+                    if stats.get("checked", 0) > 0:
+                        logger.info(
+                            f"Conversation sync: checked={stats['checked']} "
+                            f"replied_externally={stats['replied_externally']} "
+                            f"still_pending={stats['still_pending']} "
+                            f"activities_created={stats['activities_created']} "
+                            f"errors={stats['errors']}"
+                        )
+            except Exception as e:
+                logger.error(f"Conversation sync error: {e}")
+            await asyncio.sleep(interval)
+
     # ===== Reports (every 4 hours, per-project) =====
     
     async def _run_report_loop(self):
