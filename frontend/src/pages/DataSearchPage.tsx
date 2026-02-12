@@ -35,8 +35,6 @@ import {
   CheckCircle2,
   XCircle,
   StopCircle,
-  PanelLeftClose,
-  PanelLeftOpen,
   ChevronDown,
   Eye,
   EyeOff,
@@ -83,6 +81,27 @@ const WEB_SEARCH_EXAMPLES = [
   { text: 'Family offices in Moscow managing private wealth', icon: Zap },
   { text: 'Architecture firms in Dubai with villa portfolio', icon: Globe },
 ];
+
+// LocalStorage helpers for project chat messages
+const CHAT_STORAGE_KEY = 'data-search-chat';
+function saveChatMessages(projectId: number, messages: ProjectChatMessage[]): void {
+  try {
+    const raw = JSON.stringify(messages);
+    localStorage.setItem(`${CHAT_STORAGE_KEY}-${projectId}`, raw);
+  } catch {
+    // ignore
+  }
+}
+function loadChatMessages(projectId: number): ProjectChatMessage[] {
+  try {
+    const raw = localStorage.getItem(`${CHAT_STORAGE_KEY}-${projectId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Array<{ id: string; role: 'user' | 'assistant' | 'system'; content: string; timestamp: string }>;
+    return parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+  } catch {
+    return [];
+  }
+}
 
 // Example company for reverse engineering
 interface ExampleCompany {
@@ -562,6 +581,8 @@ export function DataSearchPage() {
   const [webSearchQuery, setWebSearchQuery] = useState('');
   const [isWebSearching, setIsWebSearching] = useState(false);
   const [webSearchProjectId, setWebSearchProjectId] = useState<number | null>(null);
+  const [searchHistory, setSearchHistory] = useState<{ id: number; name: string }[]>([]);
+  const [sidebarOpen, _setSidebarOpen] = useState(true);
   const [webSearchSuggestions, setWebSearchSuggestions] = useState<string[]>([]);
   const [lastSeenTargets, setLastSeenTargets] = useState<string[]>([]);
   const [showTargetsOnly, setShowTargetsOnly] = useState(false);
@@ -571,8 +592,8 @@ export function DataSearchPage() {
   // Pipeline stage and progress (for project mode)
   const [pipelineStage, setPipelineStage] = useState<PipelineStage>('idle');
   const [autoEnrichConfig, setAutoEnrichConfig] = useState<AutoEnrichConfig | null>(null);
-  const [contactsProgress, setContactsProgress] = useState<string | null>(null);
-  const [enrichProgress, setEnrichProgress] = useState<string | null>(null);
+  const [_contactsProgress, setContactsProgress] = useState<string | null>(null);
+  const [_enrichProgress, setEnrichProgress] = useState<string | null>(null);
 
   const navigate = useNavigate();
 
@@ -593,8 +614,8 @@ export function DataSearchPage() {
 
   // Auto-load chat for active project on mount
   useEffect(() => {
-    if (activeSearchProjectId) {
-      loadProjectChat(activeSearchProjectId);
+    if (webSearchProjectId) {
+      loadProjectChat(webSearchProjectId);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -607,8 +628,8 @@ export function DataSearchPage() {
 
   // Load search history (projects that had searches)
   useEffect(() => {
-    contactsApi.listProjectNames().then(list => {
-      setSearchHistory(list as any);
+    contactsApi.listProjects().then((list: Project[]) => {
+      setSearchHistory(list.map(p => ({ id: p.id, name: p.name })));
     }).catch(console.error);
   }, []);
 
@@ -1214,7 +1235,7 @@ export function DataSearchPage() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {searchHistory.map(p => (
+            {searchHistory.map((p: { id: number; name: string }) => (
               <button
                 key={p.id}
                 onClick={() => loadProjectChat(p.id)}
@@ -1311,7 +1332,7 @@ export function DataSearchPage() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Select a Project</h2>
               <p className="text-gray-500 mb-6 text-sm">Choose a project from the sidebar to start searching</p>
               <div className="flex flex-wrap justify-center gap-3">
-                {searchHistory.slice(0, 8).map(p => (
+                {searchHistory.slice(0, 8).map((p: { id: number; name: string }) => (
                   <button
                     key={p.id}
                     onClick={() => loadProjectChat(p.id)}
@@ -1331,7 +1352,7 @@ export function DataSearchPage() {
                 <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
                   <Target className="w-4 h-4 text-emerald-500" />
                   <span className="text-sm font-medium text-gray-700 truncate">
-                    {searchHistory.find(p => p.id === webSearchProjectId)?.name || `Project #${webSearchProjectId}`}
+                    {searchHistory.find((p: { id: number; name: string }) => p.id === webSearchProjectId)?.name || `Project #${webSearchProjectId}`}
                   </span>
                   <button
                     onClick={() => navigate(`/pipeline?project_id=${webSearchProjectId}`)}

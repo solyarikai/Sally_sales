@@ -5,7 +5,7 @@ import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
 import { companiesApi } from '../api';
-import { contactsApi, type Project } from '../api/contacts';
+import { contactsApi } from '../api/contacts';
 import { SectionErrorBoundary } from './ErrorBoundary';
 
 interface LayoutProps {
