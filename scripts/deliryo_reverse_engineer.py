@@ -146,7 +146,41 @@ async def main():
         for rng, cnt in employee_ranges.most_common():
             logger.info(f"  {rng}: {cnt}")
 
-        # Save full data to file
+        # Store patterns in ProjectSearchKnowledge (same as Yandex query data)
+        from app.models.domain import ProjectSearchKnowledge
+        from sqlalchemy import select as sa_select
+
+        knowledge_result = await session.execute(
+            sa_select(ProjectSearchKnowledge).where(
+                ProjectSearchKnowledge.project_id == PROJECT_ID
+            )
+        )
+        knowledge = knowledge_result.scalar_one_or_none()
+        if not knowledge:
+            knowledge = ProjectSearchKnowledge(project_id=PROJECT_ID)
+            session.add(knowledge)
+
+        # Store Apollo reverse-engineered filters as industry_keywords
+        apollo_filters = {
+            "apollo_industries": industries.most_common(30),
+            "apollo_keywords": keywords_counter.most_common(50),
+            "apollo_countries": countries.most_common(20),
+            "apollo_employee_ranges": dict(employee_ranges),
+            "apollo_enriched_targets": enriched_count,
+            "apollo_total_targets": len(targets),
+        }
+        # Merge with existing industry_keywords (may have Yandex data)
+        existing = knowledge.industry_keywords or []
+        if isinstance(existing, list):
+            existing = {"yandex_patterns": existing}
+        existing["apollo_patterns"] = apollo_filters
+        knowledge.industry_keywords = existing
+        knowledge.total_targets_found = len(targets)
+
+        await session.commit()
+        logger.info(f"\nStored Apollo patterns in ProjectSearchKnowledge (project_id={PROJECT_ID})")
+
+        # Save full data to file as backup
         output = {
             "enriched_count": enriched_count,
             "total_targets": len(targets),
@@ -158,7 +192,7 @@ async def main():
         }
         with open("/scripts/deliryo_apollo_patterns.json", "w") as f:
             json.dump(output, f, indent=2, default=str)
-        logger.info(f"\nSaved full data to /scripts/deliryo_apollo_patterns.json")
+        logger.info(f"Saved full data to /scripts/deliryo_apollo_patterns.json")
 
 
 if __name__ == "__main__":
