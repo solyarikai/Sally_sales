@@ -277,6 +277,23 @@ class ApolloService:
 
         return all_orgs
 
+    async def enrich_organization(self, domain: str) -> Optional[Dict[str, Any]]:
+        """
+        Get company data by domain via /organizations/enrich (FREE — no credits spent).
+
+        Returns org dict with: name, industry, keywords, country, city,
+        estimated_num_employees, annual_revenue, founded_year, linkedin_url, etc.
+        Use this for company data enrichment. Only use enrich_by_domain() (people search)
+        for targets where you need contacts — that costs credits.
+        """
+        if not self.api_key:
+            return None
+        data = await self._api_call("POST", "/organizations/enrich", {"domain": domain})
+        # Don't count this as a credit since org enrich is free
+        if data:
+            self.credits_used = max(0, self.credits_used - 1)
+        return data.get("organization") if data else None
+
     def reset_credits(self):
         """Reset the credit counter."""
         self.credits_used = 0
