@@ -90,11 +90,9 @@ class ApolloService:
             results = []
 
             for person in people:
-                # Include people even without verified email (LinkedIn is valuable too)
+                # Include all people — free tier may not reveal emails/LinkedIn
+                # but names + titles are still useful for outreach
                 email = person.get("email")
-                linkedin = person.get("linkedin_url")
-                if not email and not linkedin:
-                    continue
                 results.append({
                     "email": email,
                     "first_name": person.get("first_name"),
@@ -139,9 +137,6 @@ class ApolloService:
                     results = []
                     for person in people:
                         email = person.get("email")
-                        linkedin = person.get("linkedin_url")
-                        if not email and not linkedin:
-                            continue
                         results.append({
                             "email": email,
                             "first_name": person.get("first_name"),
