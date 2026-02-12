@@ -112,14 +112,14 @@ async def part_a_analyze_existing_targets(session) -> Dict[str, Any]:
     logger.info("PART A: Analyzing existing targets' Apollo data")
     logger.info("=" * 60)
 
-    # Get all ExtractedContacts with Apollo raw_data for Deliryo targets
+    # Get all ExtractedContacts with raw_data for Deliryo targets
+    # (avoid raw enum comparison — DB enum values may differ from Python)
     rows = await session.execute(text("""
         SELECT ec.raw_data, dc.domain, dc.company_info
         FROM extracted_contacts ec
         JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
         WHERE dc.project_id = :pid
           AND dc.is_target = true
-          AND ec.source = 'apollo'
           AND ec.raw_data IS NOT NULL
     """), {"pid": PROJECT_ID})
     results = rows.fetchall()
