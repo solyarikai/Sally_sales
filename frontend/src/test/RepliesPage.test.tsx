@@ -173,20 +173,23 @@ describe('RepliesPage', () => {
   // ============ Filters ============
 
   describe('Filters', () => {
-    it('"Needs Reply" button toggles and re-fetches', async () => {
+    it('"Needs Reply" filter starts ON and toggles off to "Show All"', async () => {
       const user = userEvent.setup();
       renderRepliesPage();
 
+      // Starts with needs_reply=true (default ON), button shows "Awaiting Reply (N)"
       await waitFor(() => {
-        expect(screen.getByText('Needs Reply')).toBeInTheDocument();
+        const firstCall = mockGetReplies.mock.calls[0][0];
+        expect(firstCall.needs_reply).toBe(true);
       });
 
-      await user.click(screen.getByText('Needs Reply'));
+      // Click to toggle OFF → label changes to "Show All"
+      const toggleBtn = screen.getByRole('button', { name: /awaiting reply|show all/i });
+      await user.click(toggleBtn);
 
       await waitFor(() => {
-        // getReplies should be called again with needs_reply: true
         const lastCall = mockGetReplies.mock.calls[mockGetReplies.mock.calls.length - 1][0];
-        expect(lastCall.needs_reply).toBe(true);
+        expect(lastCall.needs_reply).toBeFalsy();
       });
     });
 

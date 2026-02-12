@@ -685,11 +685,13 @@ async def list_replies(
             query = query.where(ProcessedReply.approval_status == approval_status)
             count_query = count_query.where(ProcessedReply.approval_status == approval_status)
     
-    # Filter: needs_reply — pending replies with no outbound activity after received_at
+    # Filter: needs_reply — pending replies where lead is waiting for our response
+    # Excludes: already-replied conversations, out_of_office, unsubscribe
     if needs_reply:
         from app.models.contact import Contact, ContactActivity
         from sqlalchemy import and_, exists, or_
 
+        # Exclude conversations where we already sent an outbound after the reply
         outbound_after = exists(
             select(ContactActivity.id).join(
                 Contact, ContactActivity.contact_id == Contact.id
@@ -705,8 +707,14 @@ async def list_replies(
             ProcessedReply.approval_status == None,
             ProcessedReply.approval_status == "pending",
         )
-        query = query.where(and_(pending_cond, ~outbound_after))
-        count_query = count_query.where(and_(pending_cond, ~outbound_after))
+        # Exclude categories that don't need a human reply
+        no_reply_categories = ("out_of_office", "unsubscribe")
+        category_cond = or_(
+            ProcessedReply.category == None,
+            ~ProcessedReply.category.in_(no_reply_categories),
+        )
+        query = query.where(and_(pending_cond, ~outbound_after, category_cond))
+        count_query = count_query.where(and_(pending_cond, ~outbound_after, category_cond))
 
     # Get total count
     total_result = await session.execute(count_query)

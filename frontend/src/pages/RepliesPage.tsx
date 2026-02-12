@@ -41,7 +41,7 @@ export function RepliesPage() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<ReplyCategory | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [needsReplyFilter, setNeedsReplyFilter] = useState(false);
+  const [needsReplyFilter, setNeedsReplyFilter] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
 
@@ -236,7 +236,7 @@ export function RepliesPage() {
             )}
           >
             <MessageCircle className="w-4 h-4" />
-            Needs Reply
+            {needsReplyFilter ? `Awaiting Reply (${total})` : 'Show All'}
           </button>
 
           <button
