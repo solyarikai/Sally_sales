@@ -287,7 +287,8 @@ async def export_csv(
 
 CONTACTS_HEADERS = [
     "Domain", "URL", "Company Name", "Description", "Industry", "Location", "Confidence",
-    "First Name", "Last Name", "Email", "Phone", "Job Title", "LinkedIn", "Source", "Verified",
+    "Reasoning", "First Name", "Last Name", "Email", "Phone", "Job Title", "LinkedIn",
+    "Source", "Source Details",
 ]
 
 
@@ -295,6 +296,7 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
                           email_only: bool, phone_only: bool):
     """Shared query for contacts export (CSV + Google Sheets)."""
     from sqlalchemy import text
+    import json
 
     where_clauses = ["dc.company_id = :company_id", "dc.is_target = true"]
     params = {"company_id": company_id}
@@ -316,6 +318,7 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
             dc.company_info->>'industry' as industry,
             dc.company_info->>'location' as location,
             dc.confidence,
+            dc.reasoning,
             ec.first_name,
             ec.last_name,
             ec.email,
@@ -323,14 +326,48 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
             ec.job_title,
             ec.linkedin_url,
             CAST(ec.source AS text) as source,
-            ec.is_verified
+            ec.raw_data,
+            sq.query_text as search_query
         FROM extracted_contacts ec
         JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+        LEFT JOIN search_results sr ON sr.id = dc.search_result_id
+        LEFT JOIN search_queries sq ON sq.id = sr.source_query_id
         WHERE {' AND '.join(where_clauses)}
-        ORDER BY dc.confidence DESC, dc.domain, ec.is_verified DESC
+        ORDER BY dc.confidence DESC, dc.domain
     """)
     result = await db.execute(query, params)
     return result.fetchall()
+
+
+def _build_source_details(row) -> str:
+    """Build source details string from raw_data and search query."""
+    import json
+    details = {}
+
+    if row.search_query:
+        details["query"] = row.search_query
+
+    if row.raw_data:
+        raw = row.raw_data if isinstance(row.raw_data, dict) else {}
+        if isinstance(row.raw_data, str):
+            try:
+                raw = json.loads(row.raw_data)
+            except Exception:
+                raw = {}
+        # Pick useful fields depending on source
+        if row.source == "APOLLO":
+            for k in ("organization", "seniority", "departments", "city", "country"):
+                if raw.get(k):
+                    details[k] = raw[k]
+        elif row.source == "WEBSITE_SCRAPE":
+            if raw.get("is_generic"):
+                details["generic_email"] = True
+            if raw.get("confidence"):
+                details["extraction_confidence"] = raw["confidence"]
+
+    if not details:
+        return ""
+    return json.dumps(details, ensure_ascii=False, default=str)
 
 
 def _contacts_to_rows(rows) -> List[List[str]]:
@@ -340,9 +377,10 @@ def _contacts_to_rows(rows) -> List[List[str]]:
         data.append([
             r.domain, r.url, r.company_name or "", r.description or "",
             r.industry or "", r.location or "", f"{(r.confidence or 0) * 100:.0f}%",
+            r.reasoning or "",
             r.first_name or "", r.last_name or "", r.email or "", r.phone or "",
             r.job_title or "", r.linkedin_url or "", r.source or "",
-            "Yes" if r.is_verified else "",
+            _build_source_details(r),
         ])
     return data
 
