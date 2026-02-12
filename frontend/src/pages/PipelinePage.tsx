@@ -346,12 +346,11 @@ export function PipelinePage() {
       {/* Stats cards */}
       {stats && (
         <div className="space-y-3">
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <PipelineStatCard label="Discovered" value={stats.total_discovered} icon={Layers} />
             <PipelineStatCard label="Targets" value={stats.targets} icon={Target} color="green" />
-            <PipelineStatCard label="Contacts Extracted" value={stats.contacts_extracted} icon={Mail} color="purple" />
-            <PipelineStatCard label="Enriched" value={stats.enriched} icon={Zap} color="blue" />
-            <PipelineStatCard label="Exported" value={stats.exported} icon={CheckCircle2} color="emerald" />
+            <PipelineStatCard label="Rejected" value={stats.rejected} icon={XCircle} color="red" />
+            <PipelineStatCard label="Total Contacts" value={stats.total_contacts} icon={Mail} color="purple" />
           </div>
           {/* Contact breakdown */}
           <div className="grid grid-cols-2 gap-3">
