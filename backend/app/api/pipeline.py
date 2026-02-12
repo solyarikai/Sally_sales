@@ -235,3 +235,70 @@ async def export_csv(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=pipeline_companies.csv"},
     )
+
+
+@router.get("/export-contacts-csv")
+async def export_contacts_csv(
+    project_id: Optional[int] = QueryParam(None),
+    email_only: bool = QueryParam(False),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Export contacts as CSV (one row per contact, for Smartlead campaigns)."""
+    from sqlalchemy import select, text
+    from app.models.pipeline import DiscoveredCompany, ExtractedContact
+
+    query = text("""
+        SELECT
+            dc.domain,
+            'https://' || dc.domain as url,
+            dc.company_info->>'name' as company_name,
+            dc.company_info->>'description' as description,
+            dc.company_info->>'industry' as industry,
+            dc.company_info->>'location' as location,
+            dc.confidence,
+            ec.first_name,
+            ec.last_name,
+            ec.email,
+            ec.phone,
+            ec.job_title,
+            ec.linkedin_url,
+            ec.source::text as source,
+            ec.is_verified
+        FROM extracted_contacts ec
+        JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+        WHERE dc.company_id = :company_id
+            AND dc.is_target = true
+            AND (:project_id IS NULL OR dc.project_id = :project_id)
+            AND (:email_only = false OR ec.email IS NOT NULL)
+        ORDER BY dc.confidence DESC, dc.domain, ec.is_verified DESC
+    """)
+    result = await db.execute(query, {
+        "company_id": company.id,
+        "project_id": project_id,
+        "email_only": email_only,
+    })
+    rows = result.fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Domain", "URL", "Company Name", "Description", "Industry", "Location", "Confidence",
+        "First Name", "Last Name", "Email", "Phone", "Job Title", "LinkedIn", "Source", "Verified",
+    ])
+    for r in rows:
+        writer.writerow([
+            r.domain, r.url, r.company_name or "", r.description or "",
+            r.industry or "", r.location or "", f"{(r.confidence or 0) * 100:.0f}%",
+            r.first_name or "", r.last_name or "", r.email or "", r.phone or "",
+            r.job_title or "", r.linkedin_url or "", r.source or "",
+            "Yes" if r.is_verified else "",
+        ])
+
+    output.seek(0)
+    fname = f"contacts{'_with_email' if email_only else ''}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={fname}"},
+    )

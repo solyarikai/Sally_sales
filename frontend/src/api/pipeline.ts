@@ -170,10 +170,19 @@ export const pipelineApi = {
     return response.data;
   },
 
-  // Export CSV
+  // Export CSV (companies)
   exportCsv: async (projectId?: number, isTarget?: boolean): Promise<Blob> => {
     const response = await api.get('/pipeline/export-csv', {
       params: { project_id: projectId, is_target: isTarget },
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // Export contacts CSV (one row per contact, for Smartlead)
+  exportContactsCsv: async (projectId?: number, emailOnly?: boolean): Promise<Blob> => {
+    const response = await api.get('/pipeline/export-contacts-csv', {
+      params: { project_id: projectId, email_only: emailOnly },
       responseType: 'blob',
     });
     return response.data;

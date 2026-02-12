@@ -197,7 +197,7 @@ async def export_to_sheets(project_id: int, company_id: int, project_name: str) 
             "Domain", "URL", "Company Name", "Description", "Services",
             "Location", "Industry", "Confidence",
             "Review Status",
-            "Contact Name", "Email", "Phone", "Job Title", "LinkedIn", "Source", "Verified",
+            "First Name", "Last Name", "Email", "Phone", "Job Title", "LinkedIn", "Source", "Verified",
             "Reasoning",
         ]
 
@@ -220,15 +220,15 @@ async def export_to_sheets(project_id: int, company_id: int, project_name: str) 
             contacts = domain_contacts.get(row.domain, [])
             if contacts:
                 for c in contacts:
-                    name = f"{c.first_name or ''} {c.last_name or ''}".strip()
                     data.append(company_cols + [
-                        name, c.email or "", c.phone or "",
+                        c.first_name or "", c.last_name or "",
+                        c.email or "", c.phone or "",
                         c.job_title or "", c.linkedin_url or "",
                         str(c.source or ""), "Yes" if c.is_verified else "",
                         row.reasoning or "",
                     ])
             else:
-                data.append(company_cols + ["", "", "", "", "", "", "", row.reasoning or ""])
+                data.append(company_cols + ["", "", "", "", "", "", "", "", "", row.reasoning or ""])
 
         title = f"{project_name} Targets + Contacts — {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
         url = google_sheets_service.create_and_populate(

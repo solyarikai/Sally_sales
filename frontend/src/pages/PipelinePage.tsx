@@ -226,6 +226,20 @@ export function PipelinePage() {
     }
   };
 
+  const handleExportContacts = async (emailOnly: boolean) => {
+    try {
+      const blob = await pipelineApi.exportContactsCsv(projectId, emailOnly);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = emailOnly ? 'contacts_with_email.csv' : 'all_contacts.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.userMessage || 'Export failed');
+    }
+  };
+
   const handleReject = async () => {
     if (selectedCompanyIds.length === 0) return;
     setActionLoading('reject');
@@ -268,8 +282,14 @@ export function PipelinePage() {
           <p className="text-neutral-500 text-sm mt-1">Manage discovered companies through the outreach pipeline</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleExportCsv} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50">
-            <Download className="w-4 h-4" /> CSV
+          <button onClick={() => handleExportContacts(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+            <Mail className="w-4 h-4" /> Export with Email
+          </button>
+          <button onClick={() => handleExportContacts(false)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50">
+            <Download className="w-4 h-4" /> All Contacts
+          </button>
+          <button onClick={handleExportCsv} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50 text-neutral-500">
+            <Download className="w-4 h-4" /> Companies
           </button>
         </div>
       </div>

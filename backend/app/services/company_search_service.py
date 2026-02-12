@@ -693,7 +693,7 @@ Respond with JSON:
   "confidence": 0.0-1.0,
   "reasoning": "1-2 sentence explanation",
   "company_info": {{
-    "name": "company name if found",
+    "name": "the ACTUAL company name from the WEBSITE (NOT the client/searcher name from TARGET SEGMENT)",
     "description": "what they do",
     "services": ["list", "of", "services"],
     "location": "location if found",
@@ -711,7 +711,8 @@ SCORING GUIDE:
 CRITICAL FALSE POSITIVE RULES:
 - Interior design firms, fit-out contractors, renovation companies, and architecture studios that don't build are NOT target customers — they are adjacent services or competitors. Score industry_match ≤ 0.3.
 - Companies providing the EXACT SAME service as the searching client (e.g. design+build+fit-out packages when the client does design+build) are COMPETITORS, not targets. Score service_match = 0.0, industry_match = 0.0.
-- "Ремонтные бригады" (renovation crews), "отделочные работы" (finishing works), "дизайн интерьера" (interior design) without construction capability = NOT targets."""
+- "Ремонтные бригады" (renovation crews), "отделочные работы" (finishing works), "дизайн интерьера" (interior design) without construction capability = NOT targets.
+- IMPORTANT: "name" in company_info must be the name of the company whose WEBSITE you are analyzing, extracted from the website content (title, logo, about page). NEVER use the client/searcher name from the TARGET SEGMENT description. If you cannot find the company name on the website, use the domain name."""
 
         payload = {
             "model": "gpt-4o-mini",
