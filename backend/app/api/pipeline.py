@@ -245,10 +245,20 @@ async def export_contacts_csv(
     company: Company = Depends(get_required_company),
 ):
     """Export contacts as CSV (one row per contact, for Smartlead campaigns)."""
-    from sqlalchemy import select, text
-    from app.models.pipeline import DiscoveredCompany, ExtractedContact
+    from sqlalchemy import text
 
-    query = text("""
+    # Build query dynamically to avoid asyncpg ambiguous parameter types
+    where_clauses = ["dc.company_id = :company_id", "dc.is_target = true"]
+    params = {"company_id": company.id}
+
+    if project_id is not None:
+        where_clauses.append("dc.project_id = :project_id")
+        params["project_id"] = project_id
+
+    if email_only:
+        where_clauses.append("ec.email IS NOT NULL")
+
+    query = text(f"""
         SELECT
             dc.domain,
             'https://' || dc.domain as url,
@@ -267,17 +277,10 @@ async def export_contacts_csv(
             ec.is_verified
         FROM extracted_contacts ec
         JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
-        WHERE dc.company_id = :company_id
-            AND dc.is_target = true
-            AND (:project_id IS NULL OR dc.project_id = :project_id)
-            AND (:email_only = false OR ec.email IS NOT NULL)
+        WHERE {' AND '.join(where_clauses)}
         ORDER BY dc.confidence DESC, dc.domain, ec.is_verified DESC
     """)
-    result = await db.execute(query, {
-        "company_id": company.id,
-        "project_id": project_id,
-        "email_only": email_only,
-    })
+    result = await db.execute(query, params)
     rows = result.fetchall()
 
     output = io.StringIO()
