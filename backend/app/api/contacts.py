@@ -160,6 +160,7 @@ class ProjectUpdate(BaseModel):
     target_industries: Optional[str] = None
     target_segments: Optional[str] = None
     campaign_filters: Optional[List[str]] = None
+    telegram_chat_id: Optional[str] = None  # Operator's Telegram chat ID for notifications
 
 
 class ProjectResponse(BaseModel):
@@ -169,6 +170,7 @@ class ProjectResponse(BaseModel):
     target_industries: Optional[str] = None
     target_segments: Optional[str] = None
     campaign_filters: Optional[List[str]] = None
+    telegram_chat_id: Optional[str] = None
     contact_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -1142,6 +1144,7 @@ async def list_projects(
             target_industries=project.target_industries,
             target_segments=project.target_segments,
             campaign_filters=project.campaign_filters,
+            telegram_chat_id=project.telegram_chat_id,
             contact_count=contact_count,
             created_at=project.created_at,
             updated_at=project.updated_at,
@@ -1184,6 +1187,7 @@ async def create_project(
         target_industries=db_project.target_industries,
         target_segments=db_project.target_segments,
         campaign_filters=db_project.campaign_filters,
+        telegram_chat_id=db_project.telegram_chat_id,
         contact_count=0,
         created_at=db_project.created_at,
         updated_at=db_project.updated_at,
@@ -1236,6 +1240,7 @@ async def update_project(
         target_industries=project.target_industries,
         target_segments=project.target_segments,
         campaign_filters=project.campaign_filters,
+        telegram_chat_id=project.telegram_chat_id,
         contact_count=contact_count,
         created_at=project.created_at,
         updated_at=project.updated_at,

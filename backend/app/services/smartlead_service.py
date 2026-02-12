@@ -627,9 +627,18 @@ async def sync_webhooks_on_startup():
         automations = result.scalars().all()
 
     all_campaign_ids: set[str] = set()
+    skipped_invalid = 0
     for automation in automations:
         for cid in (automation.campaign_ids or []):
-            all_campaign_ids.add(str(cid))
+            cid_str = str(cid)
+            # Skip non-numeric IDs (test entries like "test-123", "test-campaign")
+            if not cid_str.isdigit():
+                skipped_invalid += 1
+                continue
+            all_campaign_ids.add(cid_str)
+    
+    if skipped_invalid:
+        logger.info(f"Webhook sync: skipped {skipped_invalid} non-numeric campaign IDs")
 
     # Skip campaigns already confirmed this process lifetime
     to_sync = all_campaign_ids - _synced_campaign_ids

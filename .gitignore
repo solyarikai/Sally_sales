@@ -31,3 +31,11 @@ npm-debug.log*
 .pytest_cache/
 .coverage
 htmlcov/
+frontend/test-results/
+
+# Generated data
+scripts/*.json
+
+# Stale artifacts
+bugs/
+screenshots/

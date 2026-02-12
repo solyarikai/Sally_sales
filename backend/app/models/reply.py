@@ -115,6 +115,7 @@ class ProcessedReply(Base, TimestampMixin):
     sent_to_slack = Column(Boolean, default=False, nullable=False)
     slack_sent_at = Column(DateTime, nullable=True)
     slack_message_ts = Column(String(50), nullable=True)  # Slack message ID
+    telegram_sent_at = Column(DateTime, nullable=True)  # When Telegram notification was sent
     
     # Approval workflow
     approval_status = Column(String(50), nullable=True, index=True)  # pending, approved, dismissed, edited
@@ -151,15 +152,17 @@ class ReplyPromptTemplateModel(Base):
 
 
 class WebhookEventModel(Base):
-    """Store webhook events for history and replay."""
+    """Store webhook events for history, replay, and automatic recovery."""
     __tablename__ = "webhook_events"
 
     id = Column(Integer, primary_key=True, index=True)
-    event_type = Column(String(50), nullable=False)  # EMAIL_REPLY, etc.
+    event_type = Column(String(50), nullable=False)  # EMAIL_REPLY, EMAIL_SENT, LEAD_CATEGORY_UPDATED, etc.
     campaign_id = Column(String(50), nullable=True)
     lead_email = Column(String(255), nullable=True)
     payload = Column(Text, nullable=False)  # JSON payload
-    processed = Column(Boolean, default=False)
+    processed = Column(Boolean, default=False, index=True)
     processed_at = Column(DateTime, nullable=True)
     error = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)  # Number of processing attempts
+    next_retry_at = Column(DateTime, nullable=True)  # When to retry next (exponential backoff)
     created_at = Column(DateTime, default=datetime.utcnow)

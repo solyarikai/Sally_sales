@@ -71,6 +71,12 @@ export interface PipelineStats {
   rejected: number;
   total_contacts: number;
   total_apollo_people: number;
+  apollo_contacts: number;
+  apollo_with_email: number;
+  apollo_with_linkedin: number;
+  website_contacts: number;
+  website_with_email: number;
+  website_with_phone: number;
 }
 
 export interface PaginatedResponse<T> {
@@ -113,14 +119,22 @@ export const pipelineApi = {
   },
 
   // Enrich via Apollo
-  enrichApollo: async (ids: number[], maxPeople: number = 5): Promise<{
+  enrichApollo: async (ids: number[], opts: {
+    maxPeople?: number;
+    titles?: string[];
+    maxCredits?: number;
+  } = {}): Promise<{
     processed: number;
     people_found: number;
     errors: number;
+    credits_used: number;
+    skipped: number;
   }> => {
     const response = await api.post('/pipeline/enrich-apollo', {
       discovered_company_ids: ids,
-      max_people: maxPeople,
+      max_people: opts.maxPeople ?? 5,
+      titles: opts.titles?.length ? opts.titles : undefined,
+      max_credits: opts.maxCredits ?? undefined,
     });
     return response.data;
   },
@@ -136,6 +150,12 @@ export const pipelineApi = {
       project_id: projectId,
       segment,
     });
+    return response.data;
+  },
+
+  // List projects that have discovered companies (fast, for dropdown)
+  listProjects: async (): Promise<{ id: number; name: string }[]> => {
+    const response = await api.get('/pipeline/projects');
     return response.data;
   },
 
@@ -156,11 +176,31 @@ export const pipelineApi = {
     return response.data;
   },
 
-  // Export CSV
+  // Export CSV (companies)
   exportCsv: async (projectId?: number, isTarget?: boolean): Promise<Blob> => {
     const response = await api.get('/pipeline/export-csv', {
       params: { project_id: projectId, is_target: isTarget },
       responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // Export contacts CSV (one row per contact, for Smartlead)
+  exportContactsCsv: async (projectId?: number, emailOnly?: boolean, phoneOnly?: boolean): Promise<Blob> => {
+    const response = await api.get('/pipeline/export-contacts-csv', {
+      params: { project_id: projectId, email_only: emailOnly, phone_only: phoneOnly },
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // Export contacts to Google Sheets
+  exportContactsSheet: async (projectId?: number, emailOnly?: boolean, phoneOnly?: boolean): Promise<{
+    url: string;
+    rows: number;
+  }> => {
+    const response = await api.post('/pipeline/export-contacts-sheet', null, {
+      params: { project_id: projectId, email_only: emailOnly, phone_only: phoneOnly },
     });
     return response.data;
   },

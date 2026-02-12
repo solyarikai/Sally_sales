@@ -1,12 +1,17 @@
 """
-CRM Sync Scheduler - Background job for periodic sync.
+CRM Sync Scheduler - Robust background job system.
 
-Runs CRM sync at configurable intervals with:
-- Full sync every 30 minutes
-- Reply check via API every 30 minutes (backup to webhooks)
-- Webhook setup check every 6 hours (for new campaigns)
+Features:
+- Full CRM sync every 30 minutes
+- Adaptive reply polling: 3 min fast (startup/degraded), 10 min steady state
+- Webhook registration every 5 min (1 min retry on failure)
+- Webhook health monitoring
+- Event recovery loop: reprocesses failed webhook events with exponential backoff
+- Task watchdog: resurrects dead scheduler tasks within 60 seconds
+- Per-project periodic reports every 4 hours
 """
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
@@ -17,60 +22,74 @@ from app.services.cache_service import backfill_reply_cache_from_db
 
 logger = logging.getLogger(__name__)
 
+# Shared webhook health state (updated by webhook handlers)
+_last_webhook_received_at: Optional[datetime] = None
+
+
+def mark_webhook_received():
+    """Called by webhook handlers to signal that webhooks are working."""
+    global _last_webhook_received_at
+    _last_webhook_received_at = datetime.utcnow()
+
 
 class CRMScheduler:
     """
-    Background scheduler for CRM sync jobs.
+    Robust background scheduler for CRM sync jobs.
     
-    Runs periodic sync from Smartlead and GetSales.
+    Self-healing: watchdog resurrects dead tasks, recovery loop retries failed events.
     """
     
     def __init__(
         self,
         sync_interval_minutes: int = 30,
-        reply_check_interval_minutes: int = 30,
-        webhook_check_interval_hours: int = 6,
         report_interval_hours: int = 4,
-        prompt_refresh_interval_hours: int = 168,  # Weekly (7 days)
+        prompt_refresh_interval_hours: int = 168,  # Weekly
         company_id: int = 1
     ):
         self.sync_interval = sync_interval_minutes * 60
-        self.reply_check_interval = reply_check_interval_minutes * 60
-        self.webhook_check_interval = webhook_check_interval_hours * 3600
         self.report_interval = report_interval_hours * 3600
         self.prompt_refresh_interval = prompt_refresh_interval_hours * 3600
         self.company_id = company_id
         self._running = False
+        
+        # Task references
         self._task: Optional[asyncio.Task] = None
         self._reply_task: Optional[asyncio.Task] = None
         self._webhook_task: Optional[asyncio.Task] = None
         self._report_task: Optional[asyncio.Task] = None
         self._prompt_refresh_task: Optional[asyncio.Task] = None
+        self._recovery_task: Optional[asyncio.Task] = None
+        self._watchdog_task: Optional[asyncio.Task] = None
+        
+        # Tracking
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
         self._last_webhook_check: Optional[datetime] = None
         self._last_prompt_refresh: Optional[datetime] = None
         self._sync_count = 0
         self._reply_count = 0
+        self._webhook_healthy = True
     
     async def start(self):
-        """Start the scheduler."""
+        """Start all scheduler tasks + watchdog."""
         if self._running:
             logger.warning("CRM scheduler already running")
             return
         
         self._running = True
-        self._task = asyncio.create_task(self._run_loop())
-        self._reply_task = asyncio.create_task(self._run_reply_loop())
-        self._webhook_task = asyncio.create_task(self._run_webhook_loop())
-        self._report_task = asyncio.create_task(self._run_report_loop())
-        self._prompt_refresh_task = asyncio.create_task(self._run_prompt_refresh_loop())
-        logger.info(f"CRM scheduler started (sync: {self.sync_interval // 60}min, replies: {self.reply_check_interval // 60}min, webhooks: {self.webhook_check_interval // 3600}h, reports: {self.report_interval // 3600}h, prompt_refresh: {self.prompt_refresh_interval // 3600}h)")
+        self._start_all_tasks()
+        self._watchdog_task = asyncio.create_task(self._run_watchdog())
+        logger.info("CRM scheduler started (sync: 30min, replies: adaptive 3-10min, webhooks: 5min, reports: 4h, recovery: 5min)")
     
     async def stop(self):
-        """Stop the scheduler."""
+        """Stop all scheduler tasks."""
         self._running = False
-        for task in [self._task, self._reply_task, self._webhook_task, self._report_task, self._prompt_refresh_task]:
+        all_tasks = [
+            self._task, self._reply_task, self._webhook_task, 
+            self._report_task, self._prompt_refresh_task,
+            self._recovery_task, self._watchdog_task
+        ]
+        for task in all_tasks:
             if task:
                 task.cancel()
                 try:
@@ -79,8 +98,50 @@ class CRMScheduler:
                     pass
         logger.info("CRM scheduler stopped")
     
+    def _start_all_tasks(self):
+        """Start or restart all scheduler tasks. Called by watchdog to resurrect dead tasks."""
+        task_configs = [
+            ("_task", self._run_loop, "CRM sync"),
+            ("_reply_task", self._run_reply_loop, "Reply check"),
+            ("_webhook_task", self._run_webhook_loop, "Webhook setup"),
+            ("_report_task", self._run_report_loop, "Report"),
+            ("_prompt_refresh_task", self._run_prompt_refresh_loop, "Prompt refresh"),
+            ("_recovery_task", self._run_event_recovery_loop, "Event recovery"),
+        ]
+        for attr, coro_fn, name in task_configs:
+            existing = getattr(self, attr, None)
+            if existing is None or existing.done():
+                if existing and existing.done():
+                    # Task died — log the exception
+                    try:
+                        exc = existing.exception()
+                    except (asyncio.CancelledError, asyncio.InvalidStateError):
+                        exc = None
+                    logger.error(f"[WATCHDOG] Task '{name}' died! Exception: {exc}. Restarting...")
+                setattr(self, attr, asyncio.create_task(coro_fn()))
+    
+    async def _run_watchdog(self):
+        """Monitor all tasks, resurrect any that died. Runs every 60 seconds."""
+        while self._running:
+            await asyncio.sleep(60)
+            if self._running:
+                self._start_all_tasks()
+                
+                # Check webhook health
+                global _last_webhook_received_at
+                if _last_webhook_received_at:
+                    minutes_since = (datetime.utcnow() - _last_webhook_received_at).total_seconds() / 60
+                    if minutes_since > 15:
+                        if self._webhook_healthy:
+                            logger.warning(f"[WATCHDOG] No webhooks received in {minutes_since:.0f}min — switching to fast polling")
+                            self._webhook_healthy = False
+                    else:
+                        self._webhook_healthy = True
+    
+    # ===== Main CRM Sync Loop (30 min) =====
+    
     async def _run_loop(self):
-        """Main scheduler loop."""
+        """Full CRM sync loop."""
         while self._running:
             try:
                 await self._run_sync()
@@ -90,85 +151,9 @@ class CRMScheduler:
                 logger.error(f"CRM sync error: {e}")
             await asyncio.sleep(self.sync_interval)
     
-    async def _run_reply_loop(self):
-        """Reply check loop - runs every 30 minutes to catch replies via API."""
-        await asyncio.sleep(60)  # Initial delay
-        while self._running:
-            try:
-                await self._auto_assign_new_campaigns()
-            except Exception as e:
-                logger.error(f"Auto-assign campaigns error: {e}")
-            try:
-                await self._check_replies()
-                self._reply_count += 1
-                self._last_reply_check = datetime.utcnow()
-            except Exception as e:
-                logger.error(f"Reply check error: {e}")
-            await asyncio.sleep(self.reply_check_interval)
-    
-    async def _run_webhook_loop(self):
-        """Webhook setup loop - runs every 6 hours to configure new campaigns."""
-        await asyncio.sleep(300)  # Initial delay (5 min)
-        while self._running:
-            try:
-                await self._setup_webhooks()
-                self._last_webhook_check = datetime.utcnow()
-            except Exception as e:
-                logger.error(f"Webhook setup error: {e}")
-            await asyncio.sleep(self.webhook_check_interval)
-    
-    async def _run_prompt_refresh_loop(self):
-        """Prompt refresh loop - runs weekly to regenerate project reply prompts."""
-        await asyncio.sleep(3600)  # Initial delay (1 hour)
-        while self._running:
-            try:
-                await self._refresh_project_prompts()
-                self._last_prompt_refresh = datetime.utcnow()
-            except Exception as e:
-                logger.error(f"Prompt refresh error: {e}")
-            await asyncio.sleep(self.prompt_refresh_interval)
-
-    async def _refresh_project_prompts(self):
-        """Re-generate reply prompts for all projects that have one set."""
-        from app.models.contact import Project
-        from app.services.conversation_analysis_service import generate_auto_reply_prompt
-        from sqlalchemy import select
-
-        logger.info("Starting weekly prompt refresh for projects...")
-
-        async with async_session_maker() as session:
-            try:
-                result = await session.execute(
-                    select(Project).where(
-                        Project.reply_prompt_template_id.isnot(None),
-                        Project.deleted_at.is_(None),
-                    )
-                )
-                projects = result.scalars().all()
-
-                refreshed = 0
-                for project in projects:
-                    try:
-                        result = await generate_auto_reply_prompt(session, project.id)
-                        if result and "error" not in result:
-                            refreshed += 1
-                            logger.info(f"Refreshed prompt for project '{project.name}'")
-                        else:
-                            logger.warning(f"Prompt refresh skipped for '{project.name}': {result.get('error') if result else 'no result'}")
-                    except Exception as e:
-                        logger.warning(f"Prompt refresh failed for '{project.name}': {e}")
-
-                await session.commit()
-                logger.info(f"Weekly prompt refresh complete: {refreshed}/{len(projects)} projects refreshed")
-
-            except Exception as e:
-                logger.error(f"Prompt refresh failed: {e}")
-                raise
-
     async def _run_sync(self):
         """Run a single sync cycle."""
         logger.info(f"Starting scheduled CRM sync (run #{self._sync_count + 1})")
-        
         sync_service = get_crm_sync_service()
         
         async with async_session_maker() as session:
@@ -178,20 +163,48 @@ class CRMScheduler:
                 if results.get("smartlead", {}).get("contacts"):
                     sl = results["smartlead"]["contacts"]
                     logger.info(f"Smartlead sync: {sl.get('created', 0)} created, {sl.get('updated', 0)} updated")
-                
                 if results.get("smartlead", {}).get("replies"):
                     replies = results["smartlead"]["replies"]
                     logger.info(f"Smartlead replies: {replies.get('new_replies', 0)} new")
-                
                 if results.get("getsales", {}).get("contacts"):
                     gs = results["getsales"]["contacts"]
                     logger.info(f"GetSales sync: {gs.get('created', 0)} created, {gs.get('updated', 0)} updated")
                 
                 logger.info("Scheduled CRM sync completed")
-                
             except Exception as e:
                 logger.error(f"Sync failed: {e}")
                 raise
+    
+    # ===== Adaptive Reply Polling (3 min fast / 10 min steady) =====
+    
+    async def _run_reply_loop(self):
+        """Adaptive reply polling — fast after startup, slow when webhooks are healthy."""
+        await asyncio.sleep(30)  # Small initial delay
+        fast_polls = 3  # First 3 polls are fast (catch up after restart)
+        poll_count = 0
+        
+        while self._running:
+            try:
+                await self._auto_assign_new_campaigns()
+            except Exception as e:
+                logger.error(f"Auto-assign campaigns error: {e}")
+            try:
+                await self._check_replies()
+                self._reply_count += 1
+                self._last_reply_check = datetime.utcnow()
+                poll_count += 1
+            except Exception as e:
+                logger.error(f"Reply check error: {e}")
+            
+            # Adaptive interval
+            if poll_count <= fast_polls:
+                interval = 180  # 3 min: startup catch-up
+            elif not self._webhook_healthy:
+                interval = 180  # 3 min: webhooks seem broken, poll fast
+            else:
+                interval = 600  # 10 min: steady state, webhooks are working
+            
+            await asyncio.sleep(interval)
     
     async def _auto_assign_new_campaigns(self):
         """Auto-discover new Smartlead campaigns and assign to matching projects."""
@@ -257,7 +270,7 @@ class CRMScheduler:
 
             except Exception as e:
                 logger.error(f"Auto-assign campaigns failed: {e}")
-
+    
     async def _check_replies(self):
         """Check for new replies via API polling (backup to webhooks)."""
         logger.info(f"Checking replies via API (run #{self._reply_count + 1})")
@@ -265,7 +278,6 @@ class CRMScheduler:
         
         async with async_session_maker() as session:
             try:
-                # Check Smartlead replies
                 if sync_service.smartlead:
                     results = await sync_service.sync_smartlead_replies(session, self.company_id)
                     new_replies = results.get('new_replies', 0)
@@ -275,7 +287,6 @@ class CRMScheduler:
                 logger.error(f"Smartlead reply check failed: {e}")
             
             try:
-                # Check GetSales replies
                 if sync_service.getsales:
                     results = await sync_service.sync_getsales_replies(session, self.company_id)
                     new_replies = results.get('new_replies', 0)
@@ -283,6 +294,100 @@ class CRMScheduler:
                         logger.info(f"GetSales reply check: {new_replies} new replies found")
             except Exception as e:
                 logger.error(f"GetSales reply check failed: {e}")
+    
+    # ===== Webhook Registration (5 min, 1 min on failure) =====
+    
+    async def _run_webhook_loop(self):
+        """Webhook registration — every 5 min, fast retry on failure."""
+        await asyncio.sleep(10)  # Quick start
+        retry_delay = 300  # 5 min default
+        
+        while self._running:
+            try:
+                await self._setup_webhooks()
+                self._last_webhook_check = datetime.utcnow()
+                retry_delay = 300  # 5 min on success
+            except Exception as e:
+                logger.error(f"Webhook setup error: {e}")
+                retry_delay = 60  # 1 min on failure
+            await asyncio.sleep(retry_delay)
+    
+    async def _setup_webhooks(self):
+        """Set up webhooks for any new campaigns."""
+        logger.info("Checking for new campaigns to configure webhooks...")
+        await setup_crm_webhooks_on_startup()
+    
+    # ===== Event Recovery Loop (every 5 min) =====
+    
+    async def _run_event_recovery_loop(self):
+        """Recover failed/unprocessed webhook events. Runs every 5 minutes."""
+        await asyncio.sleep(120)  # Wait 2 min for initial batch to settle
+        while self._running:
+            try:
+                await self._recover_events()
+            except Exception as e:
+                logger.error(f"Event recovery error: {e}")
+            await asyncio.sleep(300)  # Check every 5 min
+    
+    async def _recover_events(self):
+        """Find and reprocess failed webhook events with exponential backoff."""
+        from app.models.reply import WebhookEventModel
+        from app.services.reply_processor import process_reply_webhook
+        from sqlalchemy import select, or_
+        
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        now = datetime.utcnow()
+        
+        async with async_session_maker() as session:
+            # Find unprocessed reply events ready for retry
+            events_query = await session.execute(
+                select(WebhookEventModel).where(
+                    WebhookEventModel.processed == False,
+                    WebhookEventModel.created_at >= cutoff,
+                    WebhookEventModel.event_type.in_(["EMAIL_REPLY", "lead.replied", "email.replied", "reply"]),
+                    or_(
+                        WebhookEventModel.retry_count.is_(None),
+                        WebhookEventModel.retry_count < 5
+                    ),
+                    or_(
+                        WebhookEventModel.next_retry_at.is_(None),
+                        WebhookEventModel.next_retry_at <= now
+                    )
+                ).order_by(WebhookEventModel.created_at.asc()).limit(20)
+            )
+            events_to_retry = events_query.scalars().all()
+            
+            if not events_to_retry:
+                return
+            
+            logger.info(f"[RECOVERY] Found {len(events_to_retry)} events to retry")
+            
+            for event in events_to_retry:
+                try:
+                    payload = json.loads(event.payload)
+                    
+                    # Process with a fresh session
+                    async with async_session_maker() as proc_session:
+                        result = await process_reply_webhook(payload, proc_session)
+                        await proc_session.commit()
+                    
+                    event.processed = True
+                    event.processed_at = datetime.utcnow()
+                    event.error = None
+                    logger.info(f"[RECOVERY] Successfully reprocessed event {event.id}")
+                    
+                except Exception as e:
+                    retry_count = (event.retry_count or 0) + 1
+                    event.error = str(e)[:500]
+                    event.retry_count = retry_count
+                    # Exponential backoff: 5min, 15min, 45min, 2h, 6h (capped)
+                    backoff_minutes = min(5 * (3 ** (retry_count - 1)), 360)
+                    event.next_retry_at = datetime.utcnow() + timedelta(minutes=backoff_minutes)
+                    logger.warning(f"[RECOVERY] Event {event.id} failed (retry {retry_count}, next in {backoff_minutes}min): {e}")
+            
+            await session.commit()
+    
+    # ===== Reports (every 4 hours, per-project) =====
     
     async def _run_report_loop(self):
         """Send Telegram report every 4 hours with reply summary."""
@@ -295,18 +400,16 @@ class CRMScheduler:
             await asyncio.sleep(self.report_interval)
     
     async def _send_reply_report(self):
-        """Generate and send Telegram report of replies in last 24 hours."""
-        from app.db import async_session_maker
+        """Generate and send per-project + admin Telegram reports."""
         from app.models.reply import ProcessedReply
-        from app.models.contact import Contact, ContactActivity
-        from app.services.notification_service import send_telegram_notification
+        from app.models.contact import Contact, ContactActivity, Project
+        from app.services.notification_service import send_telegram_notification, TELEGRAM_CHAT_ID
         from sqlalchemy import select, func, and_
-        from datetime import datetime, timedelta
         
         since = datetime.utcnow() - timedelta(hours=24)
         
         async with async_session_maker() as session:
-            # Get Smartlead warm replies with lead names
+            # Get all replies data
             smartlead_warm_query = await session.execute(
                 select(ProcessedReply).where(
                     and_(
@@ -317,7 +420,6 @@ class CRMScheduler:
             )
             smartlead_warm = smartlead_warm_query.scalars().all()
             
-            # Get Smartlead negative count
             smartlead_negative_query = await session.execute(
                 select(func.count(ProcessedReply.id)).where(
                     and_(
@@ -328,7 +430,6 @@ class CRMScheduler:
             )
             negative_total = smartlead_negative_query.scalar() or 0
             
-            # Get GetSales LinkedIn replies with contact info and flow names
             getsales_query = await session.execute(
                 select(ContactActivity, Contact).join(
                     Contact, ContactActivity.contact_id == Contact.id
@@ -341,80 +442,168 @@ class CRMScheduler:
             )
             getsales_replies = getsales_query.all()
             
-            # Organize email replies by campaign (unique contacts)
-            email_by_campaign = {}
-            seen_email_contacts = set()
-            for reply in smartlead_warm:
-                campaign = reply.campaign_name or "Unknown"
-                contact_key = (campaign, reply.lead_email.lower() if reply.lead_email else "")
-                if contact_key in seen_email_contacts:
+            # Build full report for admin
+            message = self._build_report_message(
+                smartlead_warm, negative_total, getsales_replies, title="All Projects"
+            )
+            await send_telegram_notification(message, chat_id=TELEGRAM_CHAT_ID)
+            
+            # Build per-project reports for operators
+            projects_query = await session.execute(
+                select(Project).where(
+                    and_(
+                        Project.telegram_chat_id.isnot(None),
+                        Project.deleted_at.is_(None),
+                    )
+                )
+            )
+            projects = projects_query.scalars().all()
+            
+            for project in projects:
+                if not project.campaign_filters or project.telegram_chat_id == TELEGRAM_CHAT_ID:
                     continue
-                seen_email_contacts.add(contact_key)
-                if campaign not in email_by_campaign:
-                    email_by_campaign[campaign] = []
-                name = f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip() or reply.lead_email
-                email_by_campaign[campaign].append(name)
-            
-            # Organize LinkedIn replies by flow (unique contacts)
-            linkedin_by_flow = {}
-            seen_linkedin_contacts = set()
-            for activity, contact in getsales_replies:
-                flow_name = get_getsales_flow_name(activity.extra_data, contact.campaigns)
-                contact_key = (flow_name, contact.id)
-                if contact_key in seen_linkedin_contacts:
+                
+                # Filter replies for this project's campaigns
+                campaign_names = {c.lower() for c in (project.campaign_filters or []) if isinstance(c, str)}
+                
+                project_warm = [
+                    r for r in smartlead_warm 
+                    if (r.campaign_name or "").lower() in campaign_names
+                ]
+                project_linkedin = [
+                    (a, c) for a, c in getsales_replies
+                    if get_getsales_flow_name(a.extra_data, c.campaigns).lower() in campaign_names
+                ]
+                
+                if not project_warm and not project_linkedin:
                     continue
-                seen_linkedin_contacts.add(contact_key)
-                if flow_name not in linkedin_by_flow:
-                    linkedin_by_flow[flow_name] = []
-                name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or contact.email
-                linkedin_by_flow[flow_name].append(name)
+                
+                project_msg = self._build_report_message(
+                    project_warm, 0, project_linkedin, title=project.name
+                )
+                await send_telegram_notification(project_msg, chat_id=project.telegram_chat_id)
             
-            # Count unique contacts (after deduplication)
-            warm_email = len(seen_email_contacts)
-            warm_linkedin = len(seen_linkedin_contacts)
-            warm_total = warm_email + warm_linkedin
-            
-            # Build message
-            lines = []
-            lines.append("<b>📊 Replies Report</b> <i>(Last 24h)</i>")
+            warm_email = len(smartlead_warm)
+            warm_linkedin = len(getsales_replies)
+            logger.info(f"Sent reply reports: {warm_email} email warm, {warm_linkedin} LinkedIn, {negative_total} negative")
+    
+    def _build_report_message(self, smartlead_warm, negative_total, getsales_replies, title="All Projects"):
+        """Build a Telegram report message from reply data."""
+        email_by_campaign = {}
+        seen_email_contacts = set()
+        for reply in smartlead_warm:
+            campaign = reply.campaign_name or "Unknown"
+            contact_key = (campaign, reply.lead_email.lower() if reply.lead_email else "")
+            if contact_key in seen_email_contacts:
+                continue
+            seen_email_contacts.add(contact_key)
+            if campaign not in email_by_campaign:
+                email_by_campaign[campaign] = []
+            name = f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip() or reply.lead_email
+            email_by_campaign[campaign].append(name)
+        
+        linkedin_by_flow = {}
+        seen_linkedin_contacts = set()
+        for activity, contact in getsales_replies:
+            flow_name = get_getsales_flow_name(activity.extra_data, contact.campaigns)
+            contact_key = (flow_name, contact.id)
+            if contact_key in seen_linkedin_contacts:
+                continue
+            seen_linkedin_contacts.add(contact_key)
+            if flow_name not in linkedin_by_flow:
+                linkedin_by_flow[flow_name] = []
+            name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or contact.email
+            linkedin_by_flow[flow_name].append(name)
+        
+        warm_email = len(seen_email_contacts)
+        warm_linkedin = len(seen_linkedin_contacts)
+        warm_total = warm_email + warm_linkedin
+        
+        lines = []
+        lines.append(f"<b>📊 Replies Report</b> <i>(Last 24h — {title})</i>")
+        lines.append("")
+        lines.append(f"<b>🔥 WARM LEADS ({warm_total})</b>")
+        
+        if email_by_campaign:
             lines.append("")
-            lines.append(f"<b>🔥 WARM LEADS ({warm_total})</b>")
-            
-            # Email section
-            if email_by_campaign:
-                lines.append("")
-                lines.append(f"<b>📧 Email ({warm_email}):</b>")
-                for campaign, leads in sorted(email_by_campaign.items(), key=lambda x: -len(x[1]))[:8]:
-                    lines.append(f"<code>{campaign[:35]}</code> ({len(leads)})")
-                    for lead in leads[:5]:
-                        lines.append(f"  └ {lead[:25]}")
-                    if len(leads) > 5:
-                        lines.append(f"  └ <i>+{len(leads)-5} more...</i>")
-            
-            # LinkedIn section
-            if linkedin_by_flow:
-                lines.append("")
-                lines.append(f"<b>💼 LinkedIn ({warm_linkedin}):</b>")
-                for flow, leads in sorted(linkedin_by_flow.items(), key=lambda x: -len(x[1]))[:8]:
-                    lines.append(f"<code>{flow[:35]}</code> ({len(leads)})")
-                    for lead in leads[:5]:
-                        lines.append(f"  └ {lead[:25]}")
-                    if len(leads) > 5:
-                        lines.append(f"  └ <i>+{len(leads)-5} more...</i>")
-            
+            lines.append(f"<b>📧 Email ({warm_email}):</b>")
+            for campaign, leads in sorted(email_by_campaign.items(), key=lambda x: -len(x[1]))[:8]:
+                lines.append(f"<code>{campaign[:35]}</code> ({len(leads)})")
+                for lead in leads[:5]:
+                    lines.append(f"  └ {lead[:25]}")
+                if len(leads) > 5:
+                    lines.append(f"  └ <i>+{len(leads)-5} more...</i>")
+        
+        if linkedin_by_flow:
+            lines.append("")
+            lines.append(f"<b>💼 LinkedIn ({warm_linkedin}):</b>")
+            for flow, leads in sorted(linkedin_by_flow.items(), key=lambda x: -len(x[1]))[:8]:
+                lines.append(f"<code>{flow[:35]}</code> ({len(leads)})")
+                for lead in leads[:5]:
+                    lines.append(f"  └ {lead[:25]}")
+                if len(leads) > 5:
+                    lines.append(f"  └ <i>+{len(leads)-5} more...</i>")
+        
+        if negative_total:
             lines.append("")
             lines.append(f"<b>❌ Not Interested:</b> {negative_total}")
-            lines.append("")
-            lines.append(f"<b>📈 Total: {warm_total + negative_total}</b>")
-            
-            message = "\n".join(lines)
-            await send_telegram_notification(message)
-            logger.info(f"Sent reply report: {warm_email} email warm, {warm_linkedin} LinkedIn warm, {negative_total} negative")
+        
+        lines.append("")
+        lines.append(f"<b>📈 Total: {warm_total + negative_total}</b>")
+        
+        return "\n".join(lines)
+    
+    # ===== Prompt Refresh (weekly) =====
+    
+    async def _run_prompt_refresh_loop(self):
+        """Prompt refresh loop — runs weekly to regenerate project reply prompts."""
+        await asyncio.sleep(3600)  # Initial delay (1 hour)
+        while self._running:
+            try:
+                await self._refresh_project_prompts()
+                self._last_prompt_refresh = datetime.utcnow()
+            except Exception as e:
+                logger.error(f"Prompt refresh error: {e}")
+            await asyncio.sleep(self.prompt_refresh_interval)
 
-    async def _setup_webhooks(self):
-        """Set up webhooks for any new campaigns."""
-        logger.info("Checking for new campaigns to configure webhooks...")
-        await setup_crm_webhooks_on_startup()
+    async def _refresh_project_prompts(self):
+        """Re-generate reply prompts for all projects that have one set."""
+        from app.models.contact import Project
+        from app.services.conversation_analysis_service import generate_auto_reply_prompt
+        from sqlalchemy import select
+
+        logger.info("Starting weekly prompt refresh for projects...")
+
+        async with async_session_maker() as session:
+            try:
+                result = await session.execute(
+                    select(Project).where(
+                        Project.reply_prompt_template_id.isnot(None),
+                        Project.deleted_at.is_(None),
+                    )
+                )
+                projects = result.scalars().all()
+
+                refreshed = 0
+                for project in projects:
+                    try:
+                        result = await generate_auto_reply_prompt(session, project.id)
+                        if result and "error" not in result:
+                            refreshed += 1
+                            logger.info(f"Refreshed prompt for project '{project.name}'")
+                        else:
+                            logger.warning(f"Prompt refresh skipped for '{project.name}': {result.get('error') if result else 'no result'}")
+                    except Exception as e:
+                        logger.warning(f"Prompt refresh failed for '{project.name}': {e}")
+
+                await session.commit()
+                logger.info(f"Weekly prompt refresh complete: {refreshed}/{len(projects)} projects refreshed")
+
+            except Exception as e:
+                logger.error(f"Prompt refresh failed: {e}")
+                raise
+    
+    # ===== Status & Manual Triggers =====
     
     async def run_now(self):
         """Trigger an immediate sync outside the schedule."""
@@ -423,24 +612,40 @@ class CRMScheduler:
         self._last_sync = datetime.utcnow()
     
     def get_status(self) -> dict:
-        """Get scheduler status."""
+        """Get scheduler status including health info."""
+        # Check which tasks are alive
+        task_health = {}
+        for attr, name in [
+            ("_task", "sync"), ("_reply_task", "reply_check"),
+            ("_webhook_task", "webhook_setup"), ("_report_task", "report"),
+            ("_recovery_task", "event_recovery"), ("_prompt_refresh_task", "prompt_refresh"),
+        ]:
+            task = getattr(self, attr, None)
+            if task is None:
+                task_health[name] = "not_started"
+            elif task.done():
+                task_health[name] = "dead"
+            else:
+                task_health[name] = "running"
+        
         return {
             "running": self._running,
+            "webhook_healthy": self._webhook_healthy,
+            "task_health": task_health,
             "sync_interval_minutes": self.sync_interval // 60,
-            "reply_check_interval_minutes": self.reply_check_interval // 60,
-            "webhook_check_interval_hours": self.webhook_check_interval // 3600,
             "company_id": self.company_id,
             "last_sync": self._last_sync.isoformat() if self._last_sync else None,
             "last_reply_check": self._last_reply_check.isoformat() if self._last_reply_check else None,
             "last_webhook_check": self._last_webhook_check.isoformat() if self._last_webhook_check else None,
             "last_prompt_refresh": self._last_prompt_refresh.isoformat() if self._last_prompt_refresh else None,
-            "prompt_refresh_interval_hours": self.prompt_refresh_interval // 3600,
+            "last_webhook_received": _last_webhook_received_at.isoformat() if _last_webhook_received_at else None,
             "sync_count": self._sync_count,
             "reply_check_count": self._reply_count
         }
 
 
-# Global scheduler instance
+# ===== Global scheduler instance =====
+
 _crm_scheduler: Optional[CRMScheduler] = None
 
 
@@ -464,15 +669,24 @@ async def start_crm_scheduler():
     except Exception as e:
         logger.warning(f"Reply cache backfill failed (non-fatal): {e}")
     
-    # Also set up webhooks on startup
-    await setup_crm_webhooks_on_startup()
+    # Set up webhooks in background — don't block app startup
+    asyncio.create_task(_setup_webhooks_background())
+
+
+async def _setup_webhooks_background():
+    """Set up webhooks in background — doesn't block app startup."""
+    await asyncio.sleep(2)
+    try:
+        await setup_crm_webhooks_on_startup()
+    except Exception as e:
+        logger.error(f"Background webhook setup failed: {e}")
 
 
 async def setup_crm_webhooks_on_startup():
     """Set up CRM webhooks in external systems."""
     from app.services.crm_sync_service import get_crm_sync_service
     
-    logger.info("Setting up CRM webhooks for all campaigns...")
+    logger.info("Setting up CRM webhooks for all campaigns (background)...")
     
     webhook_base_url = "http://46.62.210.24:8000/api"
     
@@ -487,7 +701,7 @@ async def setup_crm_webhooks_on_startup():
         except Exception as e:
             logger.warning(f"Failed to set up GetSales webhooks: {e}")
     
-    # Set up Smartlead webhooks - using correct endpoint
+    # Set up Smartlead webhooks
     if sync_service.smartlead:
         try:
             smartlead_url = f"{webhook_base_url}/smartlead/webhook"
@@ -498,14 +712,9 @@ async def setup_crm_webhooks_on_startup():
             failed = len(results.get('failed', []))
             active_count = created + existing
             
-            # Log detailed summary
-            logger.info(f"Smartlead webhook setup complete:")
-            logger.info(f"  - Active campaigns with webhooks: {active_count}")
-            logger.info(f"  - New webhooks created: {created}")
-            logger.info(f"  - Already configured: {existing}")
-            logger.info(f"  - Inactive campaigns skipped: {skipped}")
+            logger.info(f"Smartlead webhook setup: {active_count} active, {created} new, {existing} existing, {skipped} skipped")
             if failed > 0:
-                logger.warning(f"  - Failed: {failed}")
+                logger.warning(f"  Failed: {failed}")
                 for f_item in results.get('failed', [])[:5]:
                     logger.warning(f"    {f_item.get('name')}: {f_item.get('error')}")
         except Exception as e:

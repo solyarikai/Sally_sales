@@ -1,7 +1,7 @@
 """Reply processing service for AI classification and draft generation."""
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
@@ -556,91 +556,113 @@ async def process_reply_webhook(
                 )
                 contact = result.scalar()
             
-            if contact:
-                # Append webhook payload to smartlead_raw for debugging
-                import json
-                from datetime import datetime as dt
-                webhook_entry = {
-                    "received_at": dt.utcnow().isoformat(),
-                    "type": "email_reply",
-                    "category": classification["category"],
-                    "payload": payload
-                }
-                if contact.smartlead_raw:
-                    try:
-                        raw = json.loads(contact.smartlead_raw) if isinstance(contact.smartlead_raw, str) else (dict(contact.smartlead_raw) if contact.smartlead_raw else {})
-                        if "webhooks" not in raw:
-                            raw["webhooks"] = []
-                        raw["webhooks"].append(webhook_entry)
-                        contact.smartlead_raw = raw
-                    except:
-                        contact.smartlead_raw = {"webhooks": [webhook_entry]}
-                else:
-                    contact.smartlead_raw = {"webhooks": [webhook_entry]}
-                
-                # Create activity record for this reply (with dedup check)
-                snippet = body[:200] if body else None
-                activity_at = datetime.utcnow()
-                
-                # Check for duplicate within same minute
-                minute_start = activity_at.replace(second=0, microsecond=0)
-                minute_end = activity_at.replace(second=59, microsecond=999999)
-                existing = await session.execute(
-                    select(ContactActivity).where(
-                        ContactActivity.contact_id == contact.id,
-                        ContactActivity.source == "smartlead",
-                        ContactActivity.activity_type == "email_replied",
-                        ContactActivity.activity_at >= minute_start,
-                        ContactActivity.activity_at <= minute_end,
-                        ContactActivity.snippet == snippet
-                    )
+            # If contact doesn't exist, create one from the webhook data
+            # This fixes a critical bug where 97%+ of reply senders were never 
+            # imported into the contacts table
+            if not contact:
+                import json as _json
+                logger.info(f"[PROCESSOR] Contact not found for {lead_email}, creating from reply data")
+                contact = Contact(
+                    company_id=1,  # Default company
+                    email=lead_email.lower().strip(),
+                    first_name=first_name or None,
+                    last_name=last_name or None,
+                    company_name=payload.get("company_name") or None,
+                    source="smartlead",
+                    status="replied",
+                    last_synced_at=datetime.utcnow(),
+                    campaigns=_json.dumps([{
+                        "name": campaign_name,
+                        "id": str(campaign_id) if campaign_id else None,
+                        "source": "smartlead"
+                    }]) if campaign_name or campaign_id else None
                 )
-                if not existing.scalar():
-                    activity = ContactActivity(
-                        contact_id=contact.id,
-                        company_id=contact.company_id,
-                        activity_type="email_replied",
-                        channel="email",
-                        direction="inbound",
-                        source="smartlead",
-                        source_id=str(campaign_id) if campaign_id else None,
-                        subject=subject,
-                        body=body,
-                        snippet=snippet,
-                        extra_data={
-                            "campaign_id": campaign_id,
-                            "campaign_name": campaign_name,
-                            "category": classification.get("category"),
-                            "processed_reply_id": processed_reply.id
-                        },
-                        activity_at=activity_at
-                    )
-                    session.add(activity)
-                else:
-                    logger.info(f"[SMARTLEAD] Skipping duplicate activity for contact {contact.id}")
-                
-                # Update contact reply status and funnel fields
-                contact.has_replied = True
-                contact.reply_channel = "email"
-                contact.last_reply_at = datetime.utcnow()
-                contact.status = "replied"
-                contact.funnel_stage = "replied"
-                
-                # Sync reply category and sentiment
-                category = classification.get("category", "other")
-                contact.reply_category = category
-                
-                # Determine sentiment from category
-                if category in ("interested", "meeting_request", "question"):
-                    contact.reply_sentiment = "warm"
-                elif category in ("not_interested", "unsubscribe", "wrong_person"):
-                    contact.reply_sentiment = "cold"
-                else:
-                    contact.reply_sentiment = "neutral"
-                
-                logger.info(f"[PROCESSOR] Created ContactActivity for email reply from {lead_email}")
+                session.add(contact)
+                await session.flush()  # Get contact.id
+                logger.info(f"[PROCESSOR] Created contact id={contact.id} for {lead_email}")
+
+            # Append webhook payload to smartlead_raw for debugging
+            import json
+            from datetime import datetime as dt
+            webhook_entry = {
+                "received_at": dt.utcnow().isoformat(),
+                "type": "email_reply",
+                "category": classification["category"],
+                "payload": payload
+            }
+            if contact.smartlead_raw:
+                try:
+                    raw = json.loads(contact.smartlead_raw) if isinstance(contact.smartlead_raw, str) else (dict(contact.smartlead_raw) if contact.smartlead_raw else {})
+                    if "webhooks" not in raw:
+                        raw["webhooks"] = []
+                    raw["webhooks"].append(webhook_entry)
+                    contact.smartlead_raw = raw
+                except:
+                    contact.smartlead_raw = {"webhooks": [webhook_entry]}
             else:
-                logger.info(f"[PROCESSOR] Contact not found for {lead_email}, skipping ContactActivity creation")
+                contact.smartlead_raw = {"webhooks": [webhook_entry]}
+            
+            # Create activity record for this reply (with dedup check)
+            snippet = body[:200] if body else None
+            activity_at = datetime.utcnow()
+            
+            # Check for duplicate within same minute
+            minute_start = activity_at.replace(second=0, microsecond=0)
+            minute_end = activity_at.replace(second=59, microsecond=999999)
+            existing = await session.execute(
+                select(ContactActivity).where(
+                    ContactActivity.contact_id == contact.id,
+                    ContactActivity.source == "smartlead",
+                    ContactActivity.activity_type == "email_replied",
+                    ContactActivity.activity_at >= minute_start,
+                    ContactActivity.activity_at <= minute_end,
+                    ContactActivity.snippet == snippet
+                )
+            )
+            if not existing.scalar():
+                activity = ContactActivity(
+                    contact_id=contact.id,
+                    company_id=contact.company_id,
+                    activity_type="email_replied",
+                    channel="email",
+                    direction="inbound",
+                    source="smartlead",
+                    source_id=str(campaign_id) if campaign_id else None,
+                    subject=subject,
+                    body=body,
+                    snippet=snippet,
+                    extra_data={
+                        "campaign_id": campaign_id,
+                        "campaign_name": campaign_name,
+                        "category": classification.get("category"),
+                        "processed_reply_id": processed_reply.id
+                    },
+                    activity_at=activity_at
+                )
+                session.add(activity)
+            else:
+                logger.info(f"[SMARTLEAD] Skipping duplicate activity for contact {contact.id}")
+            
+            # Update contact reply status and funnel fields
+            contact.has_replied = True
+            contact.reply_channel = "email"
+            contact.last_reply_at = datetime.utcnow()
+            contact.status = "replied"
+            contact.funnel_stage = "replied"
+            
+            # Sync reply category and sentiment
+            category = classification.get("category", "other")
+            contact.reply_category = category
+            
+            # Determine sentiment from category
+            if category in ("interested", "meeting_request", "question"):
+                contact.reply_sentiment = "warm"
+            elif category in ("not_interested", "unsubscribe", "wrong_person"):
+                contact.reply_sentiment = "cold"
+            else:
+                contact.reply_sentiment = "neutral"
+            
+            logger.info(f"[PROCESSOR] Updated contact {contact.id} with reply data from {lead_email}")
         except Exception as activity_err:
             logger.warning(f"[PROCESSOR] Failed to create ContactActivity (non-fatal): {activity_err}")
         
@@ -670,18 +692,79 @@ async def process_reply_webhook(
             logger.error(f"[PROCESSOR] Slack notification failed (non-fatal): {slack_error}")
             # Continue processing - Slack failure should not break webhook handling
         
-        # Send Telegram notification only for actual EMAIL_REPLY events
-        # Skip for EMAIL_SENT and other event types (still stored in DB for analytics)
+        # Send Telegram notification only for actual inbound replies
+        # Uses DB-backed dedup (telegram_sent_at) to prevent duplicates even after Redis flush
+        import re
         event_type = payload.get("event_type", "EMAIL_REPLY")
-        if event_type == "EMAIL_REPLY":
+        should_notify = event_type == "EMAIL_REPLY"
+
+        # Detect outbound sends masquerading as EMAIL_REPLY
+        if should_notify and body:
+            outbound_pattern = r"^Email \d+ sent to .+ for campaign"
+            if re.match(outbound_pattern, body.strip()):
+                should_notify = False
+                logger.info(f"[PROCESSOR] Skipping Telegram for outbound send: {body[:120]}")
+
+        if should_notify and payload.get("_source") == "api_polling":
+            # Only notify for recent polled replies (< 2 hours old)
+            time_replied = payload.get("time_replied")
+            if time_replied:
+                try:
+                    if isinstance(time_replied, str):
+                        replied_dt = datetime.fromisoformat(time_replied.replace("Z", "+00:00")).replace(tzinfo=None)
+                    else:
+                        replied_dt = time_replied
+                    age = datetime.utcnow() - replied_dt
+                    if age > timedelta(hours=2):
+                        should_notify = False
+                        logger.info(f"[PROCESSOR] Skipping Telegram for old polled reply ({age.days}d old): {lead_email}")
+                except Exception:
+                    pass  # If we can't parse the time, notify anyway
+
+        # DB-backed dedup: check if Telegram was already sent for this reply
+        # (survives Redis flush, prevents duplicate notifications)
+        if should_notify and processed_reply.telegram_sent_at:
+            should_notify = False
+            logger.info(f"[PROCESSOR] Skipping Telegram — already sent at {processed_reply.telegram_sent_at}")
+
+        # Also check Redis for fast dedup (avoids DB queries on re-processed replies)
+        if should_notify:
+            try:
+                from app.services.cache_service import cache_service
+                if cache_service.is_connected and cache_service._redis:
+                    redis_key = f"telegram:reply:{processed_reply.id}"
+                    already_sent = await cache_service._redis.get(redis_key)
+                    if already_sent:
+                        should_notify = False
+                        logger.info(f"[PROCESSOR] Skipping Telegram — Redis dedup hit for reply {processed_reply.id}")
+            except Exception:
+                pass  # Redis failure should not block notifications
+
+        if should_notify:
             try:
                 from app.services.notification_service import notify_reply_needs_attention
-                await notify_reply_needs_attention(processed_reply, classification["category"])
+                campaign_name = payload.get("campaign_name") or processed_reply.campaign_name
+                sent = await notify_reply_needs_attention(
+                    processed_reply, 
+                    classification["category"],
+                    campaign_name=campaign_name
+                )
+                if sent:
+                    # Mark as sent in DB (source of truth for dedup)
+                    processed_reply.telegram_sent_at = datetime.utcnow()
+                    # Also cache in Redis (fast dedup, 48h TTL)
+                    try:
+                        from app.services.cache_service import cache_service
+                        if cache_service.is_connected and cache_service._redis:
+                            await cache_service._redis.set(
+                                f"telegram:reply:{processed_reply.id}", "1", ex=48 * 3600
+                            )
+                    except Exception:
+                        pass  # Redis failure is non-fatal
             except Exception as telegram_error:
                 logger.error(f"[PROCESSOR] Telegram notification failed (non-fatal): {telegram_error}")
-                # Continue processing - Telegram failure should not break webhook handling
         else:
-            logger.info(f"[PROCESSOR] Skipping Telegram notification for event_type: {event_type}")
+            logger.info(f"[PROCESSOR] Skipping Telegram for event_type: {event_type}, source: {payload.get('_source', 'webhook')}")
         
         # Log to Google Sheets if automation has a sheet configured
         if automation and automation.google_sheet_id:
