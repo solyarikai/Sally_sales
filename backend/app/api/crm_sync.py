@@ -1044,7 +1044,7 @@ async def getsales_webhook(
     snippet = message_text[:200] if message_text else None
     is_duplicate = False
     if "replied" in activity_type:
-        from sqlalchemy import select, func
+        from sqlalchemy import func
         minute_start = activity_at.replace(second=0, microsecond=0)
         minute_end = activity_at.replace(second=59, microsecond=999999)
         existing = await session.execute(
