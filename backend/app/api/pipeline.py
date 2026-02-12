@@ -117,6 +117,10 @@ async def extract_contacts(
 
 # ============ Apollo Enrichment ============
 
+# Only allow Apollo enrichment for these projects (to limit credit usage)
+APOLLO_ALLOWED_PROJECTS = {"archistruct", "deliryo"}
+
+
 @router.post("/enrich-apollo")
 async def enrich_apollo(
     body: ApolloEnrichRequest,
@@ -124,6 +128,30 @@ async def enrich_apollo(
     company: Company = Depends(get_required_company),
 ):
     """Run Apollo enrichment on selected discovered companies."""
+    from app.models.pipeline import DiscoveredCompany
+    from app.models.contact import Project
+    from sqlalchemy import select
+
+    # Check that all selected companies belong to allowed projects
+    result = await db.execute(
+        select(DiscoveredCompany.project_id)
+        .where(DiscoveredCompany.id.in_(body.discovered_company_ids))
+        .distinct()
+    )
+    project_ids = [row[0] for row in result.fetchall()]
+
+    proj_result = await db.execute(
+        select(Project.id, Project.name).where(Project.id.in_(project_ids))
+    )
+    proj_names = {row.id: row.name for row in proj_result.fetchall()}
+
+    blocked = [name for pid, name in proj_names.items() if name.lower() not in APOLLO_ALLOWED_PROJECTS]
+    if blocked:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Apollo enrichment is restricted to archistruct and deliryo projects. Blocked: {', '.join(blocked)}",
+        )
+
     stats = await pipeline_service.enrich_apollo_batch(
         session=db,
         discovered_company_ids=body.discovered_company_ids,
