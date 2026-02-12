@@ -41,6 +41,10 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # Auto-reply prompt linked from conversation analysis
     reply_prompt_template_id = Column(Integer, ForeignKey("reply_prompt_templates.id", ondelete="SET NULL"), nullable=True)
 
+    # Auto-enrichment config for pipeline
+    # {"auto_extract": true, "auto_apollo": false, "apollo_titles": ["CEO","Founder"], "apollo_max_people": 5, "apollo_max_credits": 50}
+    auto_enrich_config = Column(JSON, nullable=True)
+
     # Generated content (for AI SDR later)
     tam_analysis = Column(Text, nullable=True)       # Total Addressable Market analysis
     gtm_plan = Column(Text, nullable=True)           # Go-to-market plan

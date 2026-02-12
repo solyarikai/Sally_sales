@@ -518,7 +518,7 @@ export function ContactDetailModal({
       // Fetch projects list
       const fetchProjects = async () => {
         try {
-          const response = await fetch('/api/contacts/projects/list');
+          const response = await fetch('/api/contacts/projects/names');
           if (response.ok) {
             const data = await response.json();
             setProjects(data);

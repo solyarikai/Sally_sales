@@ -51,11 +51,11 @@ export function Layout({ children }: LayoutProps) {
 
   // Load projects on mount
   useEffect(() => {
-    contactsApi.listProjects().then((loaded) => {
-      setProjects(loaded);
+    contactsApi.listProjectNames().then((loaded) => {
+      setProjects(loaded as any);
       // Auto-select first project if none selected
       if (!currentProject && loaded.length > 0) {
-        setCurrentProject(loaded[0]);
+        setCurrentProject(loaded[0] as any);
       }
     }).catch(console.error);
   }, []);

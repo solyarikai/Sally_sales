@@ -65,7 +65,11 @@ interface AppState {
   // UI State
   isLoading: boolean;
   setLoading: (loading: boolean) => void;
-  
+
+  // Search state persisted across navigation
+  activeSearchProjectId: number | null;
+  setActiveSearchProjectId: (id: number | null) => void;
+
   // Reset company-scoped data when switching companies
   resetCompanyData: () => void;
 }
@@ -178,7 +182,11 @@ export const useAppStore = create<AppState>()(
       // UI State
       isLoading: false,
       setLoading: (loading) => set({ isLoading: loading }),
-      
+
+      // Search state
+      activeSearchProjectId: null,
+      setActiveSearchProjectId: (id) => set({ activeSearchProjectId: id }),
+
       // Reset company-scoped data
       resetCompanyData: () => set({
         datasets: [],
@@ -195,6 +203,7 @@ export const useAppStore = create<AppState>()(
         currentEnvironment: state.currentEnvironment,
         currentCompany: state.currentCompany,
         currentProject: state.currentProject,
+        activeSearchProjectId: state.activeSearchProjectId,
       }),
     }
   )

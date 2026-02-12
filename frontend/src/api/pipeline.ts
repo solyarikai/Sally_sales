@@ -62,6 +62,15 @@ export interface DiscoveredCompanyDetail extends DiscoveredCompany {
   events: PipelineEventItem[];
 }
 
+export interface SpendingDetail {
+  yandex_cost: number;
+  openai_cost_estimate: number;
+  crona_cost: number;
+  apollo_credits_used: number;
+  apollo_cost_estimate: number;
+  total_estimate: number;
+}
+
 export interface PipelineStats {
   total_discovered: number;
   targets: number;
@@ -71,6 +80,15 @@ export interface PipelineStats {
   rejected: number;
   total_contacts: number;
   total_apollo_people: number;
+  spending?: SpendingDetail;
+}
+
+export interface AutoEnrichConfig {
+  auto_extract: boolean;
+  auto_apollo: boolean;
+  apollo_titles: string[];
+  apollo_max_people: number;
+  apollo_max_credits: number;
 }
 
 export interface PaginatedResponse<T> {
@@ -87,6 +105,8 @@ export const pipelineApi = {
     status?: string;
     is_target?: boolean;
     search?: string;
+    sort_by?: string;
+    sort_order?: string;
     page?: number;
     page_size?: number;
   } = {}): Promise<PaginatedResponse<DiscoveredCompany>> => {
@@ -171,5 +191,104 @@ export const pipelineApi = {
       responseType: 'blob',
     });
     return response.data;
+  },
+
+  // Export to Google Sheet
+  exportToGoogleSheet: async (projectId?: number, isTarget?: boolean): Promise<{ sheet_url: string }> => {
+    const response = await api.post('/pipeline/export-sheet', {
+      project_id: projectId,
+      is_target: isTarget,
+    });
+    return response.data;
+  },
+
+  // Auto-enrich config
+  getAutoEnrichConfig: async (projectId: number): Promise<AutoEnrichConfig> => {
+    const response = await api.get(`/pipeline/auto-enrich-config/${projectId}`);
+    return response.data;
+  },
+
+  updateAutoEnrichConfig: async (projectId: number, config: AutoEnrichConfig): Promise<AutoEnrichConfig> => {
+    const response = await api.put(`/pipeline/auto-enrich-config/${projectId}`, config);
+    return response.data;
+  },
+
+  // ===== Project-level convenience wrappers =====
+
+  /** Fetch all target discovered companies for a project, then extract contacts from them. */
+  extractContactsForProject: async (projectId: number, onProgress?: (done: number, total: number) => void): Promise<{
+    processed: number;
+    contacts_found: number;
+    errors: number;
+  }> => {
+    // 1. List all target companies for this project
+    const { items } = await pipelineApi.listDiscoveredCompanies({
+      project_id: projectId,
+      is_target: true,
+      page_size: 200,
+    });
+
+    if (items.length === 0) return { processed: 0, contacts_found: 0, errors: 0 };
+
+    // 2. Filter to those without contacts yet
+    const needExtraction = items.filter(c => (c.contacts_count || 0) === 0);
+    if (needExtraction.length === 0) return { processed: 0, contacts_found: 0, errors: 0 };
+
+    const ids = needExtraction.map(c => c.id);
+    const BATCH = 10;
+    let totalProcessed = 0, totalContacts = 0, totalErrors = 0;
+
+    for (let i = 0; i < ids.length; i += BATCH) {
+      const batch = ids.slice(i, i + BATCH);
+      const result = await pipelineApi.extractContacts(batch);
+      totalProcessed += result.processed;
+      totalContacts += result.contacts_found;
+      totalErrors += result.errors;
+      onProgress?.(Math.min(i + BATCH, ids.length), ids.length);
+    }
+
+    return { processed: totalProcessed, contacts_found: totalContacts, errors: totalErrors };
+  },
+
+  /** Fetch all target discovered companies for a project, then enrich via Apollo. */
+  enrichApolloForProject: async (projectId: number, config?: AutoEnrichConfig, onProgress?: (done: number, total: number) => void): Promise<{
+    processed: number;
+    people_found: number;
+    errors: number;
+    credits_used: number;
+    skipped: number;
+  }> => {
+    const { items } = await pipelineApi.listDiscoveredCompanies({
+      project_id: projectId,
+      is_target: true,
+      page_size: 200,
+    });
+
+    if (items.length === 0) return { processed: 0, people_found: 0, errors: 0, credits_used: 0, skipped: 0 };
+
+    // Filter to those not yet Apollo-enriched
+    const needEnrich = items.filter(c => !c.apollo_enriched_at);
+    if (needEnrich.length === 0) return { processed: 0, people_found: 0, errors: 0, credits_used: 0, skipped: 0 };
+
+    const ids = needEnrich.map(c => c.id);
+    const BATCH = 10;
+    let totalProcessed = 0, totalPeople = 0, totalErrors = 0, totalCredits = 0, totalSkipped = 0;
+
+    for (let i = 0; i < ids.length; i += BATCH) {
+      const batch = ids.slice(i, i + BATCH);
+      const result = await pipelineApi.enrichApollo(batch, {
+        maxPeople: config?.apollo_max_people ?? 5,
+        titles: config?.apollo_titles,
+        maxCredits: config?.apollo_max_credits,
+      });
+      totalProcessed += result.processed;
+      totalPeople += result.people_found;
+      totalErrors += result.errors;
+      totalCredits += result.credits_used;
+      totalSkipped += result.skipped;
+      onProgress?.(Math.min(i + BATCH, ids.length), ids.length);
+    }
+
+    return { processed: totalProcessed, people_found: totalPeople, errors: totalErrors, credits_used: totalCredits, skipped: totalSkipped };
   },
 };

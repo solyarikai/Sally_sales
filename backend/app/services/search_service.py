@@ -269,14 +269,22 @@ class SearchService:
         confirmed_targets: Optional[List[str]] = None,
     ) -> List[str]:
         """
-        Generate search queries via OpenAI.
+        Generate search queries via Gemini 2.5 Pro (preferred) or OpenAI fallback.
         Uses project's target_segments to build the prompt dynamically.
         """
-        api_key = settings.OPENAI_API_KEY
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not configured")
+        from app.services.gemini_client import is_gemini_available
+        use_gemini = is_gemini_available()
 
-        use_model = model or settings.DEFAULT_OPENAI_MODEL
+        if not use_gemini:
+            api_key = settings.OPENAI_API_KEY
+            if not api_key:
+                raise ValueError("Neither GEMINI_API_KEY nor OPENAI_API_KEY configured")
+
+        # Pick the right model for the chosen API (ignore OpenAI model names when using Gemini)
+        if use_gemini:
+            use_model = settings.GEMINI_MODEL
+        else:
+            use_model = model or settings.DEFAULT_OPENAI_MODEL
 
         # Load target_segments from project if not provided directly
         if not target_segments and project_id:
@@ -300,50 +308,68 @@ class SearchService:
             confirmed_targets=confirmed_targets,
         )
 
-        payload = {
-            "model": use_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an expert at generating diverse B2B search queries. "
-                        "Generate natural queries as people would type in Yandex or Google. "
-                        "Output ONLY valid JSON array of strings, nothing else."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.95,
-            "max_tokens": 4000,
-        }
+        system_msg = (
+            "You are an expert at generating diverse B2B search queries. "
+            "Generate natural queries as people would type in Yandex or Google. "
+            "Output ONLY valid JSON array of strings, nothing else."
+        )
 
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json; charset=utf-8",
-        }
-
-        timeout = httpx.Timeout(120.0, connect=30.0)
-
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    json=payload,
-                    headers=headers,
+        if use_gemini:
+            # ---- Gemini 2.5 Pro path ----
+            from app.services.gemini_client import gemini_generate, extract_json_from_gemini
+            try:
+                result = await gemini_generate(
+                    system_prompt=system_msg,
+                    user_prompt=prompt,
+                    temperature=0.95,
+                    max_tokens=4000,
+                    model=use_model,
                 )
-                resp.raise_for_status()
-                data = resp.json()
-        except Exception as e:
-            logger.error(f"OpenAI query generation failed: {e}")
-            raise
+                content = extract_json_from_gemini(result["content"])
+                self._last_query_gen_tokens = result["tokens"]
+                self._last_query_gen_model = use_model
+                logger.info(f"Gemini query generation: {result['tokens']['total']} tokens (thinking: {result['tokens'].get('thinking', 0)})")
+            except Exception as e:
+                logger.error(f"Gemini query generation failed: {e}")
+                raise
+        else:
+            # ---- OpenAI fallback path ----
+            api_key = settings.OPENAI_API_KEY
+            payload = {
+                "model": use_model,
+                "messages": [
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.95,
+                "max_tokens": 4000,
+            }
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json; charset=utf-8",
+            }
+            timeout = httpx.Timeout(120.0, connect=30.0)
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    resp = await client.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        json=payload,
+                        headers=headers,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+            except Exception as e:
+                logger.error(f"OpenAI query generation failed: {e}")
+                raise
 
-        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        usage = data.get("usage", {})
-        self._last_query_gen_tokens = {
-            "total": usage.get("total_tokens", 0),
-            "input": usage.get("prompt_tokens", 0),
-            "output": usage.get("completion_tokens", 0),
-        }
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+            self._last_query_gen_tokens = {
+                "total": usage.get("total_tokens", 0),
+                "input": usage.get("prompt_tokens", 0),
+                "output": usage.get("completion_tokens", 0),
+            }
+            self._last_query_gen_model = use_model
         raw_queries = _extract_json_array(content)
 
         # Dedup against existing
@@ -366,6 +392,11 @@ class SearchService:
     def last_query_gen_tokens(self) -> Dict[str, int]:
         """Token usage from the last generate_queries() call."""
         return getattr(self, "_last_query_gen_tokens", {"total": 0, "input": 0, "output": 0})
+
+    @property
+    def last_query_gen_model(self) -> str:
+        """Model used in the last generate_queries() call."""
+        return getattr(self, "_last_query_gen_model", "unknown")
 
     # ------------------------------------------------------------------
     # Google SERP scraping

@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 YANDEX_COST_PER_1K_REQUESTS = 0.25  # $0.25 per 1,000 requests
 OPENAI_COST_PER_1M_INPUT_TOKENS = 0.15  # GPT-4o-mini: ~$0.15 per 1M input tokens
 OPENAI_COST_PER_1M_OUTPUT_TOKENS = 0.60  # GPT-4o-mini: ~$0.60 per 1M output tokens
+# Gemini 2.5 Pro pricing (blended avg since we track total tokens, not input/output separately)
+GEMINI_COST_PER_1M_TOKENS = 2.50  # ~$1.25 input + $10 output; blended estimate ~$2.50
 
 
 class CompanySearchService:
@@ -344,11 +346,11 @@ class CompanySearchService:
                 f"({existing_targets}/{target_goal} targets, {total_queries_used}/{max_queries} queries used)"
             )
 
-            # Generate queries with feedback
+            # Generate queries with feedback (model=None → auto-detect Gemini/OpenAI)
             queries = await search_service.generate_queries(
                 session=session,
                 count=batch_size,
-                model="gpt-4o-mini",
+                model=None,
                 target_segments=target_segments,
                 project_id=project_id,
                 existing_queries=all_used_queries,
@@ -361,10 +363,11 @@ class CompanySearchService:
                 logger.warning(f"Iteration {iteration}: no queries generated, stopping")
                 break
 
-            # Track query generation tokens
+            # Track query generation tokens and model
             qg_tokens = search_service.last_query_gen_tokens
             config = dict(job.config or {})
             config["query_gen_tokens"] = config.get("query_gen_tokens", 0) + qg_tokens.get("total", 0)
+            config["query_gen_model"] = search_service.last_query_gen_model
 
             all_used_queries.extend(queries)
             total_queries_used += len(queries)
@@ -534,7 +537,7 @@ class CompanySearchService:
     ) -> Dict[str, Any]:
         """
         GPT-4o-mini analyzes scraped website against target segments using
-        a multi-criteria scoring rubric.
+        a multi-criteria scoring rubric. Kept on GPT-4o-mini (cheap, high volume).
 
         Args:
             content: Raw HTML or clean text (from Crona)
@@ -838,6 +841,7 @@ SCORING GUIDE:
         config["openai_tokens_used"] = total_tokens
         config["crona_credits_used"] = config.get("crona_credits_used", 0) + crona_credits_used
         config["scrape_method"] = "crona" if used_crona else "httpx"
+        config["analysis_model"] = "gpt-4o-mini"
         job.config = config
 
         # Auto-promote results to pipeline
@@ -861,6 +865,71 @@ SCORING GUIDE:
             logger.info(f"Auto-review for job {job.id}: {review_stats}")
         except Exception as e:
             logger.error(f"Auto-review failed for job {job.id}: {e}")
+
+        # Auto-enrichment: extract contacts & optionally Apollo-enrich target companies
+        try:
+            await self._auto_enrich_targets(session, job)
+        except Exception as e:
+            logger.error(f"Auto-enrich failed for job {job.id}: {e}")
+
+    async def _auto_enrich_targets(self, session: AsyncSession, job) -> None:
+        """Auto-extract contacts (and optionally Apollo-enrich) for target companies if project config allows."""
+        if not job.project_id:
+            return
+
+        from app.models.contact import Project
+        from app.models.pipeline import DiscoveredCompany
+        from app.services.pipeline_service import pipeline_service
+
+        proj_result = await session.execute(
+            select(Project).where(Project.id == job.project_id)
+        )
+        project = proj_result.scalar_one_or_none()
+        if not project:
+            return
+
+        # Use saved config or defaults (auto_extract=True by default for new projects)
+        cfg = project.auto_enrich_config or {
+            "auto_extract": True,
+            "auto_apollo": False,
+            "apollo_titles": ["CEO", "Founder", "Managing Director", "Owner"],
+            "apollo_max_people": 5,
+            "apollo_max_credits": 50,
+        }
+        if not cfg.get("auto_extract"):
+            return
+
+        # Get target company IDs from this job
+        target_q = await session.execute(
+            select(DiscoveredCompany.id).where(
+                DiscoveredCompany.search_job_id == job.id,
+                DiscoveredCompany.is_target == True,
+            )
+        )
+        target_ids = [row[0] for row in target_q.fetchall()]
+        if not target_ids:
+            logger.info(f"Auto-enrich: no target companies in job {job.id}")
+            return
+
+        # Auto-extract contacts
+        extract_stats = await pipeline_service.extract_contacts_batch(
+            session=session,
+            discovered_company_ids=target_ids,
+            company_id=job.company_id,
+        )
+        logger.info(f"Auto-extract for job {job.id}: {extract_stats}")
+
+        # Auto Apollo enrichment (opt-in)
+        if cfg.get("auto_apollo"):
+            apollo_stats = await pipeline_service.enrich_apollo_batch(
+                session=session,
+                discovered_company_ids=target_ids,
+                company_id=job.company_id,
+                max_people=cfg.get("apollo_max_people", 5),
+                titles=cfg.get("apollo_titles"),
+                max_credits=cfg.get("apollo_max_credits", 50),
+            )
+            logger.info(f"Auto-Apollo for job {job.id}: {apollo_stats}")
 
     async def get_project_results(
         self,
@@ -886,51 +955,79 @@ SCORING GUIDE:
         session: AsyncSession,
         project_id: int,
     ) -> Dict[str, Any]:
-        """Calculate spending for a project's search jobs (Yandex + OpenAI + Crona)."""
+        """Calculate spending for a project's search jobs (Yandex + AI + Crona)."""
         result = await session.execute(
             select(SearchJob).where(SearchJob.project_id == project_id)
         )
         jobs = result.scalars().all()
 
         total_queries = 0
-        total_openai_tokens = 0
+        total_ai_tokens = 0
         total_crona_credits = 0
         total_query_gen_tokens = 0
         total_review_tokens = 0
+        gemini_analysis_tokens = 0
+        openai_analysis_tokens = 0
 
         for job in jobs:
             total_queries += job.queries_total or 0
             config = job.config or {}
-            total_openai_tokens += config.get("openai_tokens_used", 0)
+            job_tokens = config.get("openai_tokens_used", 0)
+            total_ai_tokens += job_tokens
             total_crona_credits += config.get("crona_credits_used", 0)
             total_query_gen_tokens += config.get("query_gen_tokens", 0)
             total_review_tokens += config.get("review_tokens", 0)
 
-        # Analysis tokens = total - query_gen - review
-        analysis_tokens = max(0, total_openai_tokens - total_review_tokens)
+            # Split analysis tokens by model used
+            analysis_model = config.get("analysis_model", "gpt-4o-mini")
+            job_analysis_tokens = max(0, job_tokens - config.get("review_tokens", 0))
+            if "gemini" in analysis_model:
+                gemini_analysis_tokens += job_analysis_tokens
+            else:
+                openai_analysis_tokens += job_analysis_tokens
+
+        # Determine query gen model (check latest job)
+        query_gen_model = "gpt-4o-mini"
+        if jobs:
+            latest_config = jobs[-1].config or {}
+            query_gen_model = latest_config.get("query_gen_model", "gpt-4o-mini")
+        query_gen_is_gemini = "gemini" in query_gen_model
 
         # Yandex cost: each query = 1 request per page, default 3 pages
         yandex_requests = total_queries * settings.SEARCH_MAX_PAGES
         yandex_cost = (yandex_requests / 1000) * YANDEX_COST_PER_1K_REQUESTS
 
-        # OpenAI cost estimate (all tokens combined)
-        all_tokens = total_openai_tokens + total_query_gen_tokens
-        openai_cost = (all_tokens / 1_000_000) * OPENAI_COST_PER_1M_INPUT_TOKENS
+        # AI cost estimate — split by model
+        openai_tokens = openai_analysis_tokens + total_review_tokens
+        gemini_tokens = gemini_analysis_tokens
+        if query_gen_is_gemini:
+            gemini_tokens += total_query_gen_tokens
+        else:
+            openai_tokens += total_query_gen_tokens
+
+        openai_cost = (openai_tokens / 1_000_000) * OPENAI_COST_PER_1M_INPUT_TOKENS
+        gemini_cost = (gemini_tokens / 1_000_000) * GEMINI_COST_PER_1M_TOKENS
 
         # Crona cost: 1 credit = ~$0.001 (approximate)
         crona_cost = total_crona_credits * 0.001
 
+        ai_cost = openai_cost + gemini_cost
         return {
             "queries_count": total_queries,
             "yandex_cost": round(yandex_cost, 4),
-            "openai_tokens_used": all_tokens,
+            "openai_tokens_used": openai_tokens,
             "openai_cost_estimate": round(openai_cost, 4),
-            "openai_analysis_tokens": analysis_tokens,
-            "openai_query_gen_tokens": total_query_gen_tokens,
+            "gemini_tokens_used": gemini_tokens,
+            "gemini_cost_estimate": round(gemini_cost, 4),
+            "ai_cost_estimate": round(ai_cost, 4),
+            "openai_analysis_tokens": openai_analysis_tokens,
+            "gemini_analysis_tokens": gemini_analysis_tokens,
+            "openai_query_gen_tokens": total_query_gen_tokens if not query_gen_is_gemini else 0,
+            "gemini_query_gen_tokens": total_query_gen_tokens if query_gen_is_gemini else 0,
             "openai_review_tokens": total_review_tokens,
             "crona_credits_used": total_crona_credits,
             "crona_cost": round(crona_cost, 4),
-            "total_estimate": round(yandex_cost + openai_cost + crona_cost, 4),
+            "total_estimate": round(yandex_cost + ai_cost + crona_cost, 4),
         }
 
 

@@ -57,8 +57,8 @@ async def chat_search(
     First message (no project_id): parses intent, creates project, launches search.
     Follow-up (with job_id): classifies feedback, updates knowledge.
     """
-    if not settings.OPENAI_API_KEY:
-        raise HTTPException(status_code=400, detail="OPENAI_API_KEY not configured")
+    if not settings.OPENAI_API_KEY and not settings.GEMINI_API_KEY:
+        raise HTTPException(status_code=400, detail="No AI API key configured (need OPENAI_API_KEY or GEMINI_API_KEY)")
 
     # Follow-up message with existing job — handle as feedback
     if body.job_id:
@@ -74,48 +74,84 @@ async def _handle_new_search(
     db: AsyncSession,
     company: Company,
 ) -> ChatResponse:
-    """Parse intent, create project if needed, launch search."""
+    """Parse intent within a project scope, update target definition, launch search."""
+    from sqlalchemy import func as sqlfunc
+    from app.models.domain import SearchResult, ProjectSearchKnowledge
 
-    # Parse the message
-    intent = await chat_search_service.parse_search_intent(body.message, body.context or None)
-
-    if not intent.get("target_segments"):
-        return ChatResponse(
-            action="info",
-            reply=intent.get("reply", "Could you describe the companies you're looking for?"),
-            suggestions=[
-                "Find villa builders in Dubai",
-                "SaaS companies in Germany with 50-200 employees",
-                "Fintech startups in London",
-            ],
-        )
-
-    # Use existing project or create a new one
+    # Require project_id — chat always operates within a project
     project_id = body.project_id
-    if project_id:
-        result = await db.execute(
-            select(Project).where(
-                Project.id == project_id,
-                Project.company_id == company.id,
-            )
+    if not project_id:
+        raise HTTPException(status_code=400, detail="Select a project first. Chat requires a project scope.")
+
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.company_id == company.id,
         )
-        project = result.scalar_one_or_none()
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        # Update target segments
-        project.target_segments = intent["target_segments"]
-        await db.commit()
-    else:
-        project = Project(
-            company_id=company.id,
-            name=intent.get("project_name", "Chat Search"),
-            target_segments=intent["target_segments"],
-            target_industries=intent.get("industry"),
-        )
-        db.add(project)
-        await db.flush()
-        project_id = project.id
-        await db.commit()
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # ---- Build project context for AI ----
+    # Existing results summary
+    total_q = await db.execute(
+        select(sqlfunc.count()).select_from(SearchResult)
+        .where(SearchResult.project_id == project_id)
+    )
+    total_results = total_q.scalar() or 0
+
+    targets_q = await db.execute(
+        select(sqlfunc.count()).select_from(SearchResult)
+        .where(SearchResult.project_id == project_id, SearchResult.is_target == True)
+    )
+    total_targets = targets_q.scalar() or 0
+
+    # Existing knowledge
+    k_result = await db.execute(
+        select(ProjectSearchKnowledge).where(ProjectSearchKnowledge.project_id == project_id)
+    )
+    knowledge = k_result.scalar_one_or_none()
+
+    # Top target domains (for context)
+    top_targets_q = await db.execute(
+        select(SearchResult.domain, SearchResult.company_info)
+        .where(SearchResult.project_id == project_id, SearchResult.is_target == True)
+        .order_by(SearchResult.confidence.desc())
+        .limit(10)
+    )
+    top_targets = [
+        f"{row.domain} ({(row.company_info or {}).get('name', 'N/A')})"
+        for row in top_targets_q.fetchall()
+    ]
+
+    project_context = {
+        "project_name": project.name,
+        "existing_target_segments": project.target_segments,
+        "total_results_analyzed": total_results,
+        "total_targets_found": total_targets,
+        "top_targets": top_targets[:10],
+        "knowledge": {
+            "anti_keywords": (knowledge.anti_keywords or [])[:20] if knowledge else [],
+            "industry_keywords": (knowledge.industry_keywords or [])[:20] if knowledge else [],
+        },
+    }
+
+    # Parse the message with project context
+    intent = await chat_search_service.parse_search_intent(
+        body.message, body.context or None, project_context=project_context,
+    )
+
+    # Fallback: if AI didn't extract target_segments, use the raw message
+    if not intent.get("target_segments"):
+        logger.warning(f"AI failed to extract target_segments from: {body.message!r}, using raw message as fallback")
+        intent["target_segments"] = body.message.strip()
+        if not intent.get("reply"):
+            intent["reply"] = f"Starting search: \"{body.message.strip()}\""
+
+    # Update project's target segments with the new definition
+    project.target_segments = intent["target_segments"]
+    await db.commit()
 
     # Check search API keys
     if not settings.YANDEX_SEARCH_API_KEY or not settings.YANDEX_SEARCH_FOLDER_ID:
@@ -150,9 +186,18 @@ async def _handle_new_search(
         body.max_queries, body.target_goal,
     )
 
+    # Build action-oriented reply — never ask questions, always confirm the search is running
+    project_name = intent.get("project_name", "your target companies")
+    geography = intent.get("geography", "")
+    action_reply = intent.get("reply") or ""
+    # Override conversational replies with action confirmation
+    if not action_reply or "understand" in action_reply.lower() or "structured" in action_reply.lower() or "?" in action_reply:
+        geo_suffix = f" in {geography}" if geography else ""
+        action_reply = f"Searching for {project_name}{geo_suffix} — results will appear as websites are analyzed."
+
     return ChatResponse(
         action="search_started",
-        reply=intent.get("reply", f"Starting search for your target companies. I'll analyze websites as I find them."),
+        reply=action_reply,
         project_id=project_id,
         job_id=job.id,
         target_segments=intent["target_segments"],
