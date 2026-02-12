@@ -263,7 +263,7 @@ async def export_contacts_csv(
             ec.phone,
             ec.job_title,
             ec.linkedin_url,
-            ec.source::text as source,
+            CAST(ec.source AS text) as source,
             ec.is_verified
         FROM extracted_contacts ec
         JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
