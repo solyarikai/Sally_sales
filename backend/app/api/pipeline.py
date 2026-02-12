@@ -3,16 +3,18 @@ Pipeline API — Discovered companies, contact extraction, Apollo enrichment, CR
 
 All endpoints are company-scoped (require X-Company-ID header).
 """
-from fastapi import APIRouter, Depends, HTTPException, Query as QueryParam
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query as QueryParam
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
+import asyncio
 import csv
 import io
+import json
 import logging
 from datetime import datetime
 
-from app.db import get_session
+from app.db import get_session, async_session_maker
 from app.api.companies import get_required_company
 from app.models.user import Company
 from app.schemas.pipeline import (
@@ -24,9 +26,265 @@ from app.schemas.pipeline import (
     PipelineExportSheetRequest, PipelineExportSheetResponse,
 )
 from app.services.pipeline_service import pipeline_service
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 logger = logging.getLogger(__name__)
+
+# In-memory registry of running full-pipeline tasks
+_running_pipelines: dict[int, dict] = {}
+
+
+# ============ Full Pipeline (background task) ============
+
+class FullPipelineRequest(BaseModel):
+    max_queries: int = Field(1500, ge=1, le=5000)
+    target_goal: int = Field(2000, ge=1, le=50000)
+    apollo_search: bool = Field(False, description="Use Apollo as search engine (off by default)")
+    apollo_credits: int = Field(500, ge=0, le=10000)
+    apollo_max_people: int = Field(5, ge=1, le=20)
+    apollo_titles: List[str] = Field(
+        default=["CEO", "Founder", "Managing Director", "Partner", "Head of Business Development"]
+    )
+    skip_search: bool = False
+    skip_extraction: bool = False
+    skip_enrichment: bool = False
+
+
+@router.post("/full-pipeline/{project_id}")
+async def run_full_pipeline(
+    project_id: int,
+    body: FullPipelineRequest = FullPipelineRequest(),
+    background_tasks: BackgroundTasks = None,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Launch full pipeline: parallel search → website extraction → Apollo enrichment.
+
+    Runs as a background task inside the backend process. Progress tracked in-memory
+    and queryable via GET /pipeline/full-pipeline/{project_id}/status.
+    """
+    from app.models.contact import Project
+    from sqlalchemy import select
+
+    proj = await db.execute(select(Project).where(Project.id == project_id, Project.company_id == company.id))
+    project = proj.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not project.target_segments:
+        raise HTTPException(status_code=400, detail="Project has no target_segments configured")
+
+    if project_id in _running_pipelines and _running_pipelines[project_id].get("running"):
+        return {"status": "already_running", "progress": _running_pipelines[project_id]}
+
+    _running_pipelines[project_id] = {
+        "running": True,
+        "phase": "starting",
+        "started_at": datetime.utcnow().isoformat(),
+        "config": body.model_dump(),
+    }
+
+    background_tasks.add_task(
+        _run_full_pipeline_bg, project_id, company.id, body
+    )
+
+    return {"status": "started", "project_id": project_id}
+
+
+@router.get("/full-pipeline/{project_id}/status")
+async def get_full_pipeline_status(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get status of a running full pipeline."""
+    if project_id not in _running_pipelines:
+        return {"status": "not_running"}
+    return _running_pipelines[project_id]
+
+
+@router.post("/full-pipeline/{project_id}/stop")
+async def stop_full_pipeline(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Request stop for a running pipeline (checked between phases)."""
+    if project_id in _running_pipelines:
+        _running_pipelines[project_id]["stop_requested"] = True
+        return {"status": "stop_requested"}
+    return {"status": "not_running"}
+
+
+async def _run_full_pipeline_bg(project_id: int, company_id: int, cfg: FullPipelineRequest):
+    """Background task: full pipeline orchestration."""
+    progress = _running_pipelines[project_id]
+    try:
+        # --- Phase 1: Parallel Search ---
+        if not cfg.skip_search:
+            progress["phase"] = "search"
+            await _bg_phase_search(project_id, company_id, cfg, progress)
+            if progress.get("stop_requested"):
+                progress.update({"running": False, "phase": "stopped"})
+                return
+
+        # --- Phase 2: Website Contact Extraction ---
+        if not cfg.skip_extraction:
+            progress["phase"] = "extraction"
+            await _bg_phase_extraction(project_id, company_id, progress)
+            if progress.get("stop_requested"):
+                progress.update({"running": False, "phase": "stopped"})
+                return
+
+        # --- Phase 3: Apollo Enrichment ---
+        if not cfg.skip_enrichment:
+            progress["phase"] = "enrichment"
+            await _bg_phase_enrichment(project_id, company_id, cfg, progress)
+
+        progress.update({"running": False, "phase": "completed", "completed_at": datetime.utcnow().isoformat()})
+        logger.info(f"Full pipeline completed for project {project_id}: {progress}")
+
+    except Exception as e:
+        logger.error(f"Full pipeline crashed for project {project_id}: {e}", exc_info=True)
+        progress.update({"running": False, "phase": "error", "error": str(e)[:500]})
+
+
+async def _bg_phase_search(project_id: int, company_id: int, cfg: FullPipelineRequest, progress: dict):
+    """Run parallel Yandex + Google search."""
+    from app.models.domain import SearchEngine
+    from app.services.company_search_service import company_search_service
+
+    engines = [
+        ("yandex", SearchEngine.YANDEX_API),
+        ("google", SearchEngine.GOOGLE_SERP),
+    ]
+    if cfg.apollo_search:
+        engines.append(("apollo", SearchEngine.APOLLO))
+
+    async with async_session_maker() as session:
+        targets_before = await company_search_service._count_project_targets(session, project_id)
+    progress["targets_before_search"] = targets_before
+
+    async def run_engine(name: str, engine: SearchEngine):
+        try:
+            async with async_session_maker() as session:
+                job = await company_search_service.run_project_search(
+                    session=session,
+                    project_id=project_id,
+                    company_id=company_id,
+                    max_queries=cfg.max_queries,
+                    target_goal=cfg.target_goal,
+                    search_engine=engine,
+                )
+                return name, job
+        except Exception as e:
+            logger.error(f"[{name}] search failed: {e}", exc_info=True)
+            return name, None
+
+    results = await asyncio.gather(*[run_engine(n, e) for n, e in engines])
+
+    async with async_session_maker() as session:
+        targets_after = await company_search_service._count_project_targets(session, project_id)
+
+    progress["search_results"] = {
+        name: {"job_id": job.id, "status": str(job.status)} if job else {"error": "failed"}
+        for name, job in results
+    }
+    progress["targets_after_search"] = targets_after
+    progress["new_targets_from_search"] = targets_after - targets_before
+    logger.info(f"Search done for project {project_id}: {targets_before} → {targets_after} targets")
+
+
+async def _bg_phase_extraction(project_id: int, company_id: int, progress: dict):
+    """Extract contacts from target company websites."""
+    from sqlalchemy import select, or_
+    from app.models.pipeline import DiscoveredCompany
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(DiscoveredCompany.id).where(
+                DiscoveredCompany.project_id == project_id,
+                DiscoveredCompany.company_id == company_id,
+                DiscoveredCompany.is_target == True,
+                or_(DiscoveredCompany.contacts_count == 0, DiscoveredCompany.contacts_count.is_(None)),
+            )
+        )
+        ids = [r[0] for r in result.fetchall()]
+
+    progress["extraction_total"] = len(ids)
+    if not ids:
+        progress["extraction_stats"] = {"processed": 0, "contacts_found": 0}
+        return
+
+    BATCH = 20
+    stats = {"processed": 0, "contacts_found": 0, "errors": 0}
+    for i in range(0, len(ids), BATCH):
+        if progress.get("stop_requested"):
+            break
+        batch = ids[i:i + BATCH]
+        try:
+            async with async_session_maker() as session:
+                r = await pipeline_service.extract_contacts_batch(session, batch, company_id=company_id)
+            stats["processed"] += r.get("processed", 0)
+            stats["contacts_found"] += r.get("contacts_found", 0)
+            stats["errors"] += r.get("errors", 0)
+            progress["extraction_stats"] = stats.copy()
+        except Exception as e:
+            logger.error(f"Extraction batch failed: {e}", exc_info=True)
+            stats["errors"] += len(batch)
+
+    logger.info(f"Extraction done for project {project_id}: {stats}")
+
+
+async def _bg_phase_enrichment(project_id: int, company_id: int, cfg: FullPipelineRequest, progress: dict):
+    """Apollo people enrichment for unenriched targets."""
+    from sqlalchemy import select
+    from app.models.pipeline import DiscoveredCompany
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(DiscoveredCompany.id).where(
+                DiscoveredCompany.project_id == project_id,
+                DiscoveredCompany.company_id == company_id,
+                DiscoveredCompany.is_target == True,
+                DiscoveredCompany.apollo_enriched_at.is_(None),
+            ).order_by(DiscoveredCompany.confidence.desc())
+        )
+        ids = [r[0] for r in result.fetchall()]
+
+    progress["enrichment_total"] = len(ids)
+    if not ids:
+        progress["enrichment_stats"] = {"processed": 0, "people_found": 0, "credits_used": 0}
+        return
+
+    BATCH = 10
+    stats = {"processed": 0, "people_found": 0, "credits_used": 0, "errors": 0, "skipped": 0}
+    for i in range(0, len(ids), BATCH):
+        if progress.get("stop_requested"):
+            break
+        remaining = cfg.apollo_credits - stats["credits_used"]
+        if remaining <= 0:
+            break
+        batch = ids[i:i + BATCH]
+        try:
+            async with async_session_maker() as session:
+                r = await pipeline_service.enrich_apollo_batch(
+                    session, batch, company_id=company_id,
+                    max_people=cfg.apollo_max_people,
+                    max_credits=remaining,
+                    titles=cfg.apollo_titles or None,
+                )
+            stats["processed"] += r.get("processed", 0)
+            stats["people_found"] += r.get("people_found", 0)
+            stats["credits_used"] += r.get("credits_used", 0)
+            stats["errors"] += r.get("errors", 0)
+            stats["skipped"] += r.get("skipped", 0)
+            progress["enrichment_stats"] = stats.copy()
+        except Exception as e:
+            logger.error(f"Enrichment batch failed: {e}", exc_info=True)
+            stats["errors"] += len(batch)
+
+    logger.info(f"Enrichment done for project {project_id}: {stats}")
 
 
 # ============ Projects (for dropdown) ============
