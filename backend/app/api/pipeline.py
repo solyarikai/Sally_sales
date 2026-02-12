@@ -327,11 +327,24 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
             ec.linkedin_url,
             CAST(ec.source AS text) as source,
             ec.raw_data,
-            sq.query_text as search_query
+            COALESCE(sq.query_text, sq2.query_text) as search_query,
+            sj.search_engine as search_engine
         FROM extracted_contacts ec
         JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
         LEFT JOIN search_results sr ON sr.id = dc.search_result_id
         LEFT JOIN search_queries sq ON sq.id = sr.source_query_id
+        LEFT JOIN search_jobs sj ON sj.id = dc.search_job_id
+        LEFT JOIN LATERAL (
+            SELECT sq3.query_text FROM search_queries sq3
+            WHERE sq3.search_job_id = dc.search_job_id
+            AND sq3.id = (
+                SELECT sr2.source_query_id FROM search_results sr2
+                WHERE sr2.domain = dc.domain AND sr2.search_job_id = dc.search_job_id
+                AND sr2.source_query_id IS NOT NULL
+                LIMIT 1
+            )
+            LIMIT 1
+        ) sq2 ON sq.id IS NULL
         WHERE {' AND '.join(where_clauses)}
         ORDER BY dc.confidence DESC, dc.domain
     """)
@@ -340,12 +353,15 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
 
 
 def _build_source_details(row) -> str:
-    """Build source details string from raw_data and search query."""
+    """Build source details JSON from search query + raw_data."""
     import json
     details = {}
 
     if row.search_query:
         details["query"] = row.search_query
+
+    if getattr(row, 'search_engine', None):
+        details["engine"] = row.search_engine
 
     if row.raw_data:
         raw = row.raw_data if isinstance(row.raw_data, dict) else {}
@@ -354,16 +370,13 @@ def _build_source_details(row) -> str:
                 raw = json.loads(row.raw_data)
             except Exception:
                 raw = {}
-        # Pick useful fields depending on source
         if row.source == "APOLLO":
-            for k in ("organization", "seniority", "departments", "city", "country"):
+            for k in ("organization", "seniority", "departments", "city", "country", "email_status"):
                 if raw.get(k):
                     details[k] = raw[k]
         elif row.source == "WEBSITE_SCRAPE":
             if raw.get("is_generic"):
                 details["generic_email"] = True
-            if raw.get("confidence"):
-                details["extraction_confidence"] = raw["confidence"]
 
     if not details:
         return ""
