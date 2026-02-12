@@ -3,19 +3,16 @@
 import toast, { Toaster } from 'react-hot-toast';
 import { useEffect, useState, useCallback } from 'react';
 import {
-  MessageSquare, Search, RefreshCw, Plus, Settings2,
-  Send, Bell, X, Copy, Check, AlertCircle,
-  Zap, Hash, Calendar, Mail, Building2,
-  TestTube2, FileSpreadsheet, ExternalLink, Pencil,
-  CheckCircle, XCircle, Shield
+  Search, RefreshCw, Plus, Settings2,
+  Send, Bell, X, Check,
+  Zap, Mail,
+  TestTube2, FileSpreadsheet, Pencil,
 } from 'lucide-react';
 import {
   repliesApi,
   type ReplyAutomation,
   type SmartleadCampaign,
   type ReplyAutomationCreate,
-  type SimulateReplyPayload,
-  type SimulateReplyResponse,
   type GoogleSheetsStatus
 } from '../api/replies';
 import { cn } from '../lib/utils';
@@ -80,7 +77,7 @@ export function AutomationsPage() {
   const [testUserEmail, setTestUserEmail] = useState('');
   const [testCampaignResult, setTestCampaignResult] = useState<{ campaign_id?: string, campaign_name?: string, message?: string } | null>(null);
   const [testFlowLoading, setTestFlowLoading] = useState(false);
-  const [testCampaigns, setTestCampaigns] = useState<Array<{ id: string, name: string, status: string }>>([]);
+  const [, setTestCampaigns] = useState<Array<{ id: string, name: string, status: string }>>([]);
   const [testCampaignStatus, setTestCampaignStatus] = useState<string | null>(null);
   const [launchingCampaign, setLaunchingCampaign] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -722,8 +719,6 @@ function CreateAutomationModal({ campaigns, campaignsLoading, smartleadError, on
   const [loadingSheetsStatus, setLoadingSheetsStatus] = useState(false);
   const [slackChannel, setSlackChannel] = useState('');
   const [slackChannels, setSlackChannels] = useState<Array<{ id: string, name: string }>>([]);
-  const [slackSearch, setSlackSearch] = useState('');
-  const [showChannelDropdown, setShowChannelDropdown] = useState(false);
   const [loadingSlackChannels, setLoadingSlackChannels] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [creatingChannel, setCreatingChannel] = useState(false);
@@ -732,10 +727,10 @@ function CreateAutomationModal({ campaigns, campaignsLoading, smartleadError, on
   const [autoClassify, setAutoClassify] = useState(true);
   const [autoGenerateReply, setAutoGenerateReply] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [classificationTemplate, setClassificationTemplate] = useState<string>('default');
-  const [replyTemplate, setReplyTemplate] = useState<string>('default');
-  const [customClassificationPrompt, setCustomClassificationPrompt] = useState('');
-  const [customReplyPrompt, setCustomReplyPrompt] = useState('');
+  const classificationTemplate: string = 'default';
+  const replyTemplate: string = 'default';
+  const customClassificationPrompt = '';
+  const customReplyPrompt = '';
   const [promptTemplates, setPromptTemplates] = useState<Array<{ id: number, name: string, prompt_type?: string, is_default?: boolean }>>([]);
 
   useEffect(() => {
