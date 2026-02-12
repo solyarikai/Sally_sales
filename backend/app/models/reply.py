@@ -85,7 +85,7 @@ class ProcessedReply(Base, TimestampMixin):
     
     # Smartlead context
     campaign_id = Column(String(100), nullable=True, index=True)
-    campaign_name = Column(String(255), nullable=True)
+    campaign_name = Column(String(255), nullable=True, index=True)
     
     # Lead information
     lead_email = Column(String(255), nullable=False, index=True)
@@ -109,7 +109,7 @@ class ProcessedReply(Base, TimestampMixin):
     draft_subject = Column(String(500), nullable=True)
     
     # Processing status
-    processed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    processed_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
     # Notification status
     sent_to_slack = Column(Boolean, default=False, nullable=False)

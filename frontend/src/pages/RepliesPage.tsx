@@ -47,6 +47,8 @@ export function RepliesPage() {
 
   // UI state
   const [selectedReply, setSelectedReply] = useState<ProcessedReply | null>(null);
+  const [confirmReply, setConfirmReply] = useState<ProcessedReply | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
   // Load data
   const loadReplies = useCallback(async () => {
@@ -101,14 +103,18 @@ export function RepliesPage() {
   };
 
   const handleApproveAndSend = async (replyId: number) => {
+    setIsSending(true);
     try {
       const result = await repliesApi.approveAndSendReply(replyId);
       toast.success(result.dry_run ? 'Approved (dry run)' : 'Reply sent!');
+      setConfirmReply(null);
       loadReplies();
       loadStats();
       if (selectedReply?.id === replyId) setSelectedReply(null);
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to approve and send');
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -270,7 +276,7 @@ export function RepliesPage() {
                 key={reply.id}
                 reply={reply}
                 onClick={() => setSelectedReply(reply)}
-                onApprove={() => handleApproveAndSend(reply.id)}
+                onApprove={() => setConfirmReply(reply)}
                 onDismiss={() => handleDismissReply(reply.id)}
               />
             ))}
@@ -295,8 +301,18 @@ export function RepliesPage() {
           reply={selectedReply}
           onClose={() => setSelectedReply(null)}
           onCopyDraft={() => handleCopyDraft(selectedReply)}
-          onApprove={() => handleApproveAndSend(selectedReply.id)}
+          onApprove={() => setConfirmReply(selectedReply)}
           onDismiss={() => handleDismissReply(selectedReply.id)}
+        />
+      )}
+
+      {/* Send Confirmation Dialog */}
+      {confirmReply && (
+        <SendConfirmDialog
+          reply={confirmReply}
+          isSending={isSending}
+          onConfirm={() => handleApproveAndSend(confirmReply.id)}
+          onCancel={() => setConfirmReply(null)}
         />
       )}
     </div>
@@ -581,6 +597,99 @@ function ReplyDetailPanel({ reply, onClose, onCopyDraft, onApprove, onDismiss }:
           {reply.draft_reply && (
             <button onClick={onCopyDraft} className="btn btn-secondary flex-1"><Copy className="w-4 h-4" />Copy Draft</button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Send Confirmation Dialog ----------
+interface SendConfirmDialogProps {
+  reply: ProcessedReply;
+  isSending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function SendConfirmDialog({ reply, isSending, onConfirm, onCancel }: SendConfirmDialogProps) {
+  const leadName = [reply.lead_first_name, reply.lead_last_name].filter(Boolean).join(' ') || reply.lead_email;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 animate-slide-up">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-neutral-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+              <Send className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-neutral-900">Confirm Send Reply</h3>
+              <p className="text-xs text-neutral-500">This will send a real email via Smartlead</p>
+            </div>
+          </div>
+          <button onClick={onCancel} className="p-2 hover:bg-neutral-100 rounded-lg">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+          {/* Recipient */}
+          <div className="p-3 bg-neutral-50 rounded-xl">
+            <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Sending to</div>
+            <div className="font-medium text-neutral-900">{leadName}</div>
+            <div className="text-sm text-neutral-600">{reply.lead_email}</div>
+            {reply.campaign_name && (
+              <div className="text-xs text-neutral-400 mt-1 flex items-center gap-1">
+                <Hash className="w-3 h-3" />{reply.campaign_name}
+              </div>
+            )}
+          </div>
+
+          {/* Draft preview */}
+          <div>
+            <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Draft reply that will be sent</div>
+            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+              {reply.draft_subject && (
+                <div className="text-sm font-semibold text-emerald-800 mb-2 pb-2 border-b border-emerald-200">
+                  {reply.draft_subject}
+                </div>
+              )}
+              <div className="text-sm text-emerald-700 whitespace-pre-wrap leading-relaxed max-h-[200px] overflow-y-auto">
+                {reply.draft_reply || '(no draft)'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3 p-5 border-t border-neutral-200">
+          <button
+            onClick={onCancel}
+            disabled={isSending}
+            className="px-4 py-2.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg font-medium transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isSending}
+            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white rounded-lg font-semibold transition-colors"
+          >
+            {isSending ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                Send Reply
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

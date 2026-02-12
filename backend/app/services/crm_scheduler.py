@@ -269,6 +269,7 @@ class CRMScheduler:
                         logger.warning(f"Webhook setup after auto-assign failed: {e}")
 
             except Exception as e:
+                await session.rollback()
                 logger.error(f"Auto-assign campaigns failed: {e}")
     
     async def _check_replies(self):
@@ -600,6 +601,7 @@ class CRMScheduler:
                 logger.info(f"Weekly prompt refresh complete: {refreshed}/{len(projects)} projects refreshed")
 
             except Exception as e:
+                await session.rollback()
                 logger.error(f"Prompt refresh failed: {e}")
                 raise
     

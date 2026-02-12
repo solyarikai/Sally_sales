@@ -172,7 +172,7 @@ class SmartleadService:
                     try:
                         error_data = response.json()
                         error_msg = error_data.get("message", error_msg)
-                    except:
+                    except (ValueError, KeyError):
                         error_msg = response.text or error_msg
                     
                     logger.error(f"Smartlead add leads error: {error_msg}")

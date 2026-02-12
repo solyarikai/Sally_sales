@@ -1372,17 +1372,18 @@ class AISDRProjectResponse(BaseModel):
 async def _get_project_with_contacts(
     project_id: int,
     session: AsyncSession,
-    company: Company,
+    company_id: int | None = None,
 ) -> tuple:
     """Helper to get project and its contacts."""
+    filters = [
+        Project.id == project_id,
+        Project.deleted_at.is_(None),
+    ]
+    if company_id:
+        filters.append(Project.company_id == company_id)
+    
     result = await session.execute(
-        select(Project).where(
-            and_(
-                Project.id == project_id,
-                Project.company_id == company_id if company_id else True,
-                Project.deleted_at.is_(None)
-            )
-        )
+        select(Project).where(and_(*filters))
     )
     project = result.scalar_one_or_none()
     
@@ -1531,7 +1532,7 @@ async def get_project_ai_sdr(
     company_id: int | None = Depends(get_optional_company_id),
 ):
     """Get project with all AI SDR generated content."""
-    project, contacts = await _get_project_with_contacts(project_id, session, company)
+    project, contacts = await _get_project_with_contacts(project_id, session, company_id)
     
     return AISDRProjectResponse(
         id=project.id,
@@ -1555,7 +1556,7 @@ async def generate_tam_analysis(
     company_id: int | None = Depends(get_optional_company_id),
 ):
     """Generate TAM analysis for a project using AI."""
-    project, contacts = await _get_project_with_contacts(project_id, session, company)
+    project, contacts = await _get_project_with_contacts(project_id, session, company_id)
     
     if not contacts:
         raise HTTPException(
@@ -1591,7 +1592,7 @@ async def generate_gtm_plan(
     company_id: int | None = Depends(get_optional_company_id),
 ):
     """Generate GTM plan for a project using AI."""
-    project, contacts = await _get_project_with_contacts(project_id, session, company)
+    project, contacts = await _get_project_with_contacts(project_id, session, company_id)
     
     if not contacts:
         raise HTTPException(
@@ -1628,7 +1629,7 @@ async def generate_pitch_templates(
     company_id: int | None = Depends(get_optional_company_id),
 ):
     """Generate pitch email templates for a project using AI."""
-    project, contacts = await _get_project_with_contacts(project_id, session, company)
+    project, contacts = await _get_project_with_contacts(project_id, session, company_id)
     
     if not contacts:
         raise HTTPException(
@@ -1666,7 +1667,7 @@ async def generate_all_ai_sdr(
     company_id: int | None = Depends(get_optional_company_id),
 ):
     """Generate all AI SDR content (TAM, GTM, Pitches) for a project."""
-    project, contacts = await _get_project_with_contacts(project_id, session, company)
+    project, contacts = await _get_project_with_contacts(project_id, session, company_id)
     
     if not contacts:
         raise HTTPException(

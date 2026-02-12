@@ -223,10 +223,37 @@ describe('RepliesPage', () => {
     });
   });
 
-  // ============ Approve & Send ============
+  // ============ Approve & Send (with confirmation dialog) ============
 
   describe('Approve & Send', () => {
-    it('click OK button → dry_run=true → toast "Approved (dry run)"', async () => {
+    it('click OK button → shows confirmation dialog with draft preview', async () => {
+      const user = userEvent.setup();
+      renderRepliesPage();
+
+      await waitFor(() => {
+        expect(screen.getByText('First1 Last1')).toBeInTheDocument();
+      });
+
+      // Click the OK button on the first reply card
+      const okButtons = screen.getAllByTitle('Approve & send');
+      await user.click(okButtons[0]);
+
+      // Confirmation dialog should appear with title
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Send Reply')).toBeInTheDocument();
+      });
+
+      // Dialog shows recipient info and draft preview
+      expect(screen.getByText('lead-1@example.com')).toBeInTheDocument();
+      expect(screen.getByText('Draft reply for 1')).toBeInTheDocument();
+      // Campaign name appears in both the card footer and the dialog
+      expect(screen.getAllByText('Rizzult Outreach Q1').length).toBeGreaterThanOrEqual(1);
+
+      // API should NOT have been called yet
+      expect(mockApproveAndSendReply).not.toHaveBeenCalled();
+    });
+
+    it('confirm dialog → click Send Reply → dry_run=true → toast "Approved (dry run)"', async () => {
       const user = userEvent.setup();
       mockApproveAndSendReply.mockResolvedValue({
         status: 'approved_dry_run',
@@ -241,9 +268,16 @@ describe('RepliesPage', () => {
         expect(screen.getByText('First1 Last1')).toBeInTheDocument();
       });
 
-      // Click the OK button on the first reply card
+      // Open confirm dialog
       const okButtons = screen.getAllByTitle('Approve & send');
       await user.click(okButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Send Reply')).toBeInTheDocument();
+      });
+
+      // Click "Send Reply" in the dialog
+      await user.click(screen.getByText('Send Reply'));
 
       await waitFor(() => {
         expect(mockApproveAndSendReply).toHaveBeenCalledWith(1);
@@ -251,7 +285,7 @@ describe('RepliesPage', () => {
       });
     });
 
-    it('click OK button → dry_run=false → toast "Reply sent!"', async () => {
+    it('confirm dialog → click Send Reply → dry_run=false → toast "Reply sent!"', async () => {
       const user = userEvent.setup();
       mockApproveAndSendReply.mockResolvedValue({
         status: 'approved',
@@ -270,9 +304,42 @@ describe('RepliesPage', () => {
       await user.click(okButtons[0]);
 
       await waitFor(() => {
+        expect(screen.getByText('Confirm Send Reply')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText('Send Reply'));
+
+      await waitFor(() => {
         expect(mockApproveAndSendReply).toHaveBeenCalledWith(1);
         expect(mockToastSuccess).toHaveBeenCalledWith('Reply sent!');
       });
+    });
+
+    it('confirm dialog → click Cancel → does NOT send', async () => {
+      const user = userEvent.setup();
+      renderRepliesPage();
+
+      await waitFor(() => {
+        expect(screen.getByText('First1 Last1')).toBeInTheDocument();
+      });
+
+      const okButtons = screen.getAllByTitle('Approve & send');
+      await user.click(okButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Send Reply')).toBeInTheDocument();
+      });
+
+      // Click Cancel
+      await user.click(screen.getByText('Cancel'));
+
+      // Dialog should close
+      await waitFor(() => {
+        expect(screen.queryByText('Confirm Send Reply')).not.toBeInTheDocument();
+      });
+
+      // API should NOT have been called
+      expect(mockApproveAndSendReply).not.toHaveBeenCalled();
     });
 
     it('API error → toast.error with detail', async () => {
@@ -289,6 +356,12 @@ describe('RepliesPage', () => {
 
       const okButtons = screen.getAllByTitle('Approve & send');
       await user.click(okButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Send Reply')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText('Send Reply'));
 
       await waitFor(() => {
         expect(mockToastError).toHaveBeenCalledWith('Reply already approved');

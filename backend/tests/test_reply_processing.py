@@ -333,7 +333,7 @@ class TestProcessReplyWebhook:
     async def test_contact_not_found_still_creates_reply(
         self, mock_openai, db_session: AsyncSession
     ):
-        """Contact not found: ProcessedReply created, no ContactActivity."""
+        """Contact not found: creates contact from reply data, then ProcessedReply + ContactActivity."""
         mock_openai.is_connected.return_value = True
         mock_openai.complete = AsyncMock(side_effect=[
             json.dumps({"category": "question", "confidence": "medium", "reasoning": "has questions"}),
@@ -351,11 +351,20 @@ class TestProcessReplyWebhook:
         assert result.lead_email == "unknown@nowhere.com"
         assert result.category == "question"
 
-        # No ContactActivity should exist
+        # Contact should be auto-created from reply data
+        contacts = (await db_session.execute(
+            select(Contact).where(Contact.email == "unknown@nowhere.com")
+        )).scalars().all()
+        assert len(contacts) == 1
+        assert contacts[0].source == "smartlead"
+        assert contacts[0].status == "replied"
+
+        # ContactActivity should also be created for the auto-created contact
         activities = (await db_session.execute(
             select(ContactActivity)
         )).scalars().all()
-        assert len(activities) == 0
+        assert len(activities) == 1
+        assert activities[0].activity_type == "email_replied"
 
     @patch("app.services.reply_processor.openai_service")
     async def test_google_sheet_logging(self, mock_openai, db_session: AsyncSession):

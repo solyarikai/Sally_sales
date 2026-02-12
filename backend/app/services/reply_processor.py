@@ -485,11 +485,15 @@ async def process_reply_webhook(
             try:
                 from app.models.contact import Project
                 from app.models.reply import ReplyPromptTemplateModel
-                from sqlalchemy import String as SAString
+                from sqlalchemy.dialects.postgresql import JSONB
+                from sqlalchemy import cast as sa_cast
+                
+                # Use proper JSONB array containment for exact campaign name matching
+                # This avoids substring false positives (e.g., "Test" matching "Test Extended")
                 project_result = await session.execute(
                     select(Project).where(
                         and_(
-                            Project.campaign_filters.cast(SAString).ilike(f'%{campaign_name}%'),
+                            sa_cast(Project.campaign_filters, JSONB).contains([campaign_name]),
                             Project.reply_prompt_template_id.isnot(None),
                             Project.deleted_at.is_(None),
                         )
@@ -597,7 +601,8 @@ async def process_reply_webhook(
                         raw["webhooks"] = []
                     raw["webhooks"].append(webhook_entry)
                     contact.smartlead_raw = raw
-                except:
+                except (json.JSONDecodeError, TypeError, ValueError) as e:
+                    logger.warning(f"[PROCESSOR] Failed to parse smartlead_raw, resetting: {e}")
                     contact.smartlead_raw = {"webhooks": [webhook_entry]}
             else:
                 contact.smartlead_raw = {"webhooks": [webhook_entry]}
@@ -814,7 +819,8 @@ async def process_reply_webhook(
         
     except Exception as e:
         logger.error(f"Error processing webhook: {e}")
-        # Track error on automation if found
+        await session.rollback()
+        # Track error on automation if found (in separate transaction)
         automation = locals().get('automation')
         if automation:
             try:
@@ -822,7 +828,7 @@ async def process_reply_webhook(
                 automation.last_error = str(e)[:500]  # Truncate long errors
                 automation.last_error_at = datetime.utcnow()
                 await session.commit()
-            except:
-                pass  # Don't fail if we can't log the error
-        await session.rollback()
+            except Exception as log_err:
+                logger.warning(f"Failed to log automation error stats: {log_err}")
+                await session.rollback()
         raise

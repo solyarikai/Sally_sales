@@ -592,6 +592,7 @@ async def list_replies(
     automation_id: Optional[int] = None,
     campaign_id: Optional[str] = None,
     campaign_names: Optional[str] = Query(None, description="Comma-separated campaign names to filter by"),
+    project_id: Optional[int] = Query(None, description="Filter by project (uses project's campaign_filters)"),
     category: Optional[str] = None,
     approval_status: Optional[str] = Query(None, description="Filter by status: pending, approved, dismissed"),
     needs_reply: Optional[bool] = Query(None, description="Filter to replies with no outbound activity after received_at"),
@@ -602,6 +603,7 @@ async def list_replies(
     """List processed replies with filters.
 
     Dashboard can filter by approval_status to show pending/approved/dismissed replies.
+    Use project_id to filter by a project's campaign_filters (e.g., Rizzult campaigns).
     """
     query = select(ProcessedReply)
     count_query = select(func.count(ProcessedReply.id))
@@ -614,6 +616,22 @@ async def list_replies(
     if campaign_id:
         query = query.where(ProcessedReply.campaign_id == campaign_id)
         count_query = count_query.where(ProcessedReply.campaign_id == campaign_id)
+
+    # Filter by project's campaign_filters
+    if project_id:
+        from app.models.contact import Project
+        project_result = await session.execute(
+            select(Project).where(
+                Project.id == project_id,
+                Project.deleted_at.is_(None),
+            )
+        )
+        project = project_result.scalar_one_or_none()
+        if project and project.campaign_filters:
+            project_campaigns = [c for c in project.campaign_filters if isinstance(c, str)]
+            if project_campaigns:
+                query = query.where(ProcessedReply.campaign_name.in_(project_campaigns))
+                count_query = count_query.where(ProcessedReply.campaign_name.in_(project_campaigns))
 
     if campaign_names:
         names = [n.strip() for n in campaign_names.split(",") if n.strip()]
@@ -688,6 +706,7 @@ async def get_reply_stats(
     automation_id: Optional[int] = None,
     campaign_id: Optional[str] = None,
     campaign_names: Optional[str] = Query(None, description="Comma-separated campaign names to filter by"),
+    project_id: Optional[int] = Query(None, description="Filter by project (uses project's campaign_filters)"),
     session: AsyncSession = Depends(get_session)
 ):
     """Get statistics for processed replies."""
@@ -698,11 +717,27 @@ async def get_reply_stats(
     if campaign_id:
         base_query = base_query.where(ProcessedReply.campaign_id == campaign_id)
 
-    # Multi-campaign name filter (from global project selector)
+    # Filter by project's campaign_filters
     _campaign_name_list = None
+    if project_id:
+        from app.models.contact import Project
+        project_result = await session.execute(
+            select(Project).where(
+                Project.id == project_id,
+                Project.deleted_at.is_(None),
+            )
+        )
+        project = project_result.scalar_one_or_none()
+        if project and project.campaign_filters:
+            _campaign_name_list = [c for c in project.campaign_filters if isinstance(c, str)]
+            if _campaign_name_list:
+                base_query = base_query.where(ProcessedReply.campaign_name.in_(_campaign_name_list))
+
+    # Multi-campaign name filter (from global project selector)
     if campaign_names:
-        _campaign_name_list = [n.strip() for n in campaign_names.split(",") if n.strip()]
-        if _campaign_name_list:
+        names = [n.strip() for n in campaign_names.split(",") if n.strip()]
+        if names:
+            _campaign_name_list = names
             base_query = base_query.where(ProcessedReply.campaign_name.in_(_campaign_name_list))
     
     # Total count

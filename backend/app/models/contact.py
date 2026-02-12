@@ -116,6 +116,13 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     has_replied = Column(Boolean, default=False, index=True)
     last_reply_at = Column(DateTime, nullable=True)
     reply_channel = Column(String(50), nullable=True)  # email, linkedin
+    reply_category = Column(String(50), nullable=True)  # interested, not_interested, meeting_request, etc.
+    reply_sentiment = Column(String(20), nullable=True)  # warm, cold, neutral
+    funnel_stage = Column(String(50), nullable=True)  # lead, contacted, replied, qualified
+    
+    # Raw webhook data for debugging
+    smartlead_raw = Column(JSON, nullable=True)  # Raw Smartlead webhook payloads
+    getsales_raw = Column(JSON, nullable=True)   # Raw GetSales webhook payloads
     
     # Campaign info from source systems
     campaigns = Column(JSON, nullable=True)  # List of {name, id, source, status}

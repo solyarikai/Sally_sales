@@ -1118,10 +1118,12 @@ async def getsales_webhook(
             flow_name_for_lookup = automation_data.get("name")
             if flow_name_for_lookup:
                 from app.models.contact import Project
+                from sqlalchemy.dialects.postgresql import JSONB
+                from sqlalchemy import cast as sa_cast
                 proj_result = await session.execute(
                     select(Project).where(
                         and_(
-                            Project.campaign_filters.cast(String).ilike(f'%{flow_name_for_lookup}%'),
+                            sa_cast(Project.campaign_filters, JSONB).contains([flow_name_for_lookup]),
                             Project.reply_prompt_template_id.isnot(None),
                             Project.deleted_at.is_(None),
                         )
