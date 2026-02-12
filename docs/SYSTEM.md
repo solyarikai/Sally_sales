@@ -347,8 +347,8 @@ YANDEX_SEARCH_FOLDER_ID=b1ghcrnch8s4l0saftba
 CRONA_EMAIL=pn@getsally.io
 CRONA_PASSWORD=Qweqweqwe1
 
-# Apollo (people enrichment)
-APOLLO_API_KEY=1Wri9zD9UNY__p34jeAfVg
+# Apollo (people enrichment) — account: danila@getsally.io (paid plan)
+APOLLO_API_KEY=9yIx2mZegixXHeDf6mWVqA
 
 # Slack
 SLACK_BOT_TOKEN=xoxb-5059703821363-10410114252597-Vm4M95iovQPBhzdFBuGalj7m
@@ -376,7 +376,7 @@ docker run -d --name <SCRIPT_NAME> \
   -e YANDEX_SEARCH_FOLDER_ID=b1ghcrnch8s4l0saftba \
   -e CRONA_EMAIL=pn@getsally.io \
   -e CRONA_PASSWORD=Qweqweqwe1 \
-  -e APOLLO_API_KEY=1Wri9zD9UNY__p34jeAfVg \
+  -e APOLLO_API_KEY=9yIx2mZegixXHeDf6mWVqA \
   -e GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json \
   -e GOOGLE_IMPERSONATE_EMAIL=services@getsally.io \
   -e SHARED_DRIVE_ID=0AEvTjlJFlWnZUk9PVA \
