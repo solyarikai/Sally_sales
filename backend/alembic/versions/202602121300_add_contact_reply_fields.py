@@ -19,23 +19,50 @@ branch_labels = None
 depends_on = None
 
 
+def _column_exists(table, column):
+    """Check if a column already exists (idempotent migrations)."""
+    bind = op.get_bind()
+    result = bind.execute(sa.text(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name = :table AND column_name = :column"
+    ), {"table": table, "column": column})
+    return result.fetchone() is not None
+
+
+def _index_exists(index_name):
+    """Check if an index already exists."""
+    bind = op.get_bind()
+    result = bind.execute(sa.text(
+        "SELECT 1 FROM pg_indexes WHERE indexname = :name"
+    ), {"name": index_name})
+    return result.fetchone() is not None
+
+
 def upgrade() -> None:
-    # Add reply classification and sentiment fields
-    op.add_column('contacts', sa.Column('reply_category', sa.String(50), nullable=True))
-    op.add_column('contacts', sa.Column('reply_sentiment', sa.String(20), nullable=True))
-    op.add_column('contacts', sa.Column('funnel_stage', sa.String(50), nullable=True))
+    # Add reply classification and sentiment fields (idempotent)
+    if not _column_exists('contacts', 'reply_category'):
+        op.add_column('contacts', sa.Column('reply_category', sa.String(50), nullable=True))
+    if not _column_exists('contacts', 'reply_sentiment'):
+        op.add_column('contacts', sa.Column('reply_sentiment', sa.String(20), nullable=True))
+    if not _column_exists('contacts', 'funnel_stage'):
+        op.add_column('contacts', sa.Column('funnel_stage', sa.String(50), nullable=True))
     
     # Add raw webhook data storage
-    op.add_column('contacts', sa.Column('smartlead_raw', sa.JSON(), nullable=True))
-    op.add_column('contacts', sa.Column('getsales_raw', sa.JSON(), nullable=True))
+    if not _column_exists('contacts', 'smartlead_raw'):
+        op.add_column('contacts', sa.Column('smartlead_raw', sa.JSON(), nullable=True))
+    if not _column_exists('contacts', 'getsales_raw'):
+        op.add_column('contacts', sa.Column('getsales_raw', sa.JSON(), nullable=True))
     
     # Add indexes for common query patterns
-    op.create_index('ix_contacts_reply_category', 'contacts', ['reply_category'])
-    op.create_index('ix_contacts_reply_sentiment', 'contacts', ['reply_sentiment'])
-    op.create_index('ix_contacts_funnel_stage', 'contacts', ['funnel_stage'])
+    if not _index_exists('ix_contacts_reply_category'):
+        op.create_index('ix_contacts_reply_category', 'contacts', ['reply_category'])
+    if not _index_exists('ix_contacts_reply_sentiment'):
+        op.create_index('ix_contacts_reply_sentiment', 'contacts', ['reply_sentiment'])
+    if not _index_exists('ix_contacts_funnel_stage'):
+        op.create_index('ix_contacts_funnel_stage', 'contacts', ['funnel_stage'])
     
     # Backfill funnel_stage from existing status for replied contacts
-    op.execute("UPDATE contacts SET funnel_stage = status WHERE has_replied = true AND status = 'replied'")
+    op.execute("UPDATE contacts SET funnel_stage = status WHERE has_replied = true AND status = 'replied' AND funnel_stage IS NULL")
 
 
 def downgrade() -> None:
