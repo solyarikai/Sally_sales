@@ -371,7 +371,7 @@ def _build_source_details(row) -> str:
             except Exception:
                 raw = {}
         if row.source == "APOLLO":
-            for k in ("organization", "seniority", "departments", "city", "country", "email_status"):
+            for k in ("organization", "seniority", "departments", "city", "country"):
                 if raw.get(k):
                     details[k] = raw[k]
         elif row.source == "WEBSITE_SCRAPE":
