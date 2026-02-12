@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://leadgen:leadgen_secret@leadgen-postgres:5432/leadgen"
     
     # Database pool settings
-    DB_POOL_SIZE: int = 5
-    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
     
     # Redis - for caching and rate limiting

@@ -90,12 +90,13 @@ export interface SearchProgressEvent {
 }
 
 export interface ChatSearchResponse {
-  action: 'search_started' | 'feedback_received' | 'info' | 'error';
+  action: 'search_started' | 'info' | 'error';
   reply: string;
   project_id?: number;
   job_id?: number;
   target_segments?: string;
   suggestions?: string[];
+  preserve_results?: boolean;
 }
 
 export interface ProjectInfo {
@@ -602,7 +603,6 @@ export const projectSearchApi = {
     message: string,
     opts?: {
       projectId?: number;
-      jobId?: number;
       maxQueries?: number;
       targetGoal?: number;
       context?: { role: string; content: string }[];
@@ -611,7 +611,6 @@ export const projectSearchApi = {
     const response = await api.post('/search/chat', {
       message,
       project_id: opts?.projectId,
-      job_id: opts?.jobId,
       max_queries: opts?.maxQueries ?? 500,
       target_goal: opts?.targetGoal ?? 200,
       context: opts?.context ?? [],

@@ -30,13 +30,11 @@ import {
   ShieldCheck,
   AlertTriangle,
   Info,
-  ChevronDown,
   FileSpreadsheet,
-  StopCircle,
-  Eye,
-  EyeOff,
   CheckCircle2,
   XCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { SearchFilter, CompanyResult, ChatMessage, ExtractedPattern, VerificationCriteria, SearchProgressEvent, SearchResultItem, SpendingInfo } from '../api/dataSearch';
@@ -525,15 +523,23 @@ export function DataSearchPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId] = useState<number | null>(null);
   const [projectSearchJobId, setProjectSearchJobId] = useState<number | null>(null);
+  const [projectResultsStats, setProjectResultsStats] = useState<{ total: number; targets: number } | null>(null);
   const [projectProgress, setProjectProgress] = useState<SearchProgressEvent | null>(null);
   const [projectResults, setProjectResults] = useState<SearchResultItem[]>([]);
   const [projectSpending, setProjectSpending] = useState<SpendingInfo | null>(null);
   const [isProjectSearching, setIsProjectSearching] = useState(false);
-  const [showTargetsOnly, setShowTargetsOnly] = useState(false);
   const [maxQueries] = useState(500);
   const [targetGoal] = useState(200);
-  const [expandedResultId, setExpandedResultId] = useState<number | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  // Project data cache — avoids re-fetching when switching between projects
+  const projectCacheRef = useRef<Map<number, {
+    results: SearchResultItem[];
+    spending: SpendingInfo | null;
+    autoEnrichConfig: AutoEnrichConfig | null;
+    stats?: { total: number; targets: number };
+    pipelineStage?: PipelineStage;
+  }>>(new Map());
 
   // Chat-driven web search state
   const [webSearchMessages, setWebSearchMessages] = useState<ProjectChatMessage[]>([]);
@@ -559,6 +565,13 @@ export function DataSearchPage() {
     inputRef.current?.focus();
   }, []);
 
+  // Auto-load chat for active project on mount
+  useEffect(() => {
+    if (activeSearchProjectId) {
+      loadProjectChat(activeSearchProjectId);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load projects when switching to project mode (form-based)
   useEffect(() => {
     if (searchMode === 'project' && projects.length === 0) {
@@ -566,9 +579,97 @@ export function DataSearchPage() {
     }
   }, [searchMode, projects.length]);
 
+  // Load search history (projects that had searches)
+  useEffect(() => {
+    contactsApi.listProjectNames().then(list => {
+      setSearchHistory(list as any);
+    }).catch(console.error);
+  }, []);
+
+  // Persist chat messages whenever they change
+  useEffect(() => {
+    if (webSearchProjectId && webSearchMessages.length > 0) {
+      saveChatMessages(webSearchProjectId, webSearchMessages);
+    }
+  }, [webSearchMessages, webSearchProjectId]);
+
+  // Load saved chat messages when switching projects
+  const loadProjectChat = useCallback((projectId: number) => {
+    const saved = loadChatMessages(projectId);
+    setWebSearchMessages(saved);
+    setWebSearchProjectId(projectId);
+    setSearchMode('project');
+    // Reset pipeline running guard when switching projects
+    pipelineRunningRef.current = false;
+    // Check cache first for instant project switching
+    const cached = projectCacheRef.current.get(projectId);
+    if (cached) {
+      setProjectResults(cached.results);
+      setProjectSpending(cached.spending);
+      setAutoEnrichConfig(cached.autoEnrichConfig);
+      setProjectResultsStats(cached.stats ?? {
+        total: cached.results.length,
+        targets: cached.results.filter(r => r.is_target).length,
+      });
+      if (cached.results.length > 0 || saved.length > 0) {
+        setHasSearched(true);
+        // Don't set search_done — it triggers auto-extract pipeline.
+        // Use 'idle' to just show the dashboard without triggering actions.
+        setPipelineStage(cached.pipelineStage ?? 'idle');
+      } else {
+        setHasSearched(false);
+      }
+      return;
+    }
+
+    // Cache miss — fetch results stats from dedicated fast endpoint + results page
+    const getOrCreateEntry = () =>
+      projectCacheRef.current.get(projectId) || { results: [], spending: null, autoEnrichConfig: null };
+    projectSearchApi.getProjectResultsStats(projectId).then(stats => {
+      setProjectResultsStats({ total: stats.total, targets: stats.targets });
+      const entry = getOrCreateEntry();
+      entry.stats = { total: stats.total, targets: stats.targets };
+      projectCacheRef.current.set(projectId, entry);
+      if (stats.total > 0 || saved.length > 0) {
+        setHasSearched(true);
+        setPipelineStage('idle');
+      } else {
+        setHasSearched(false);
+      }
+    }).catch(() => {
+      setHasSearched(saved.length > 0);
+    });
+    projectSearchApi.getProjectResults(projectId).then(data => {
+      setProjectResults(data.items);
+      const entry = getOrCreateEntry();
+      entry.results = data.items;
+      projectCacheRef.current.set(projectId, entry);
+    }).catch(() => {});
+    projectSearchApi.getProjectSpending(projectId).then(spending => {
+      setProjectSpending(spending);
+      const entry = getOrCreateEntry();
+      entry.spending = spending;
+      projectCacheRef.current.set(projectId, entry);
+    }).catch(() => {});
+    pipelineApi.getAutoEnrichConfig(projectId).then(config => {
+      setAutoEnrichConfig(config);
+      const entry = getOrCreateEntry();
+      entry.autoEnrichConfig = config;
+      projectCacheRef.current.set(projectId, entry);
+    }).catch(() => {});
+  }, [setWebSearchProjectId]);
+
   // Generate system messages from SSE target data
   const handleSSEProgressWithTargets = useCallback((event: SearchProgressEvent) => {
     setProjectProgress(event);
+
+    // Live-update dashboard stats from SSE data
+    if (event.results_analyzed > 0 || (event.targets_found ?? 0) > 0) {
+      setProjectResultsStats(prev => ({
+        total: Math.max(event.results_analyzed, prev?.total ?? 0),
+        targets: Math.max(event.targets_found ?? 0, prev?.targets ?? 0),
+      }));
+    }
 
     // Post system message for new targets found
     if (event.latest_targets && event.latest_targets.length > 0) {
@@ -588,9 +689,12 @@ export function DataSearchPage() {
 
     if (event.phase === 'completed' || event.phase === 'error' || event.phase === 'cancelled') {
       setIsProjectSearching(false);
-      // Load final results
+      // Load final results and stats
       if (webSearchProjectId) {
-        projectSearchApi.getProjectResults(webSearchProjectId).then(data => setProjectResults(data.items));
+        projectSearchApi.getProjectResults(webSearchProjectId).then(data => {
+          setProjectResults(data.items);
+          setProjectResultsStats({ total: data.total, targets: data.items.filter(r => r.is_target).length });
+        });
         projectSearchApi.getProjectSpending(webSearchProjectId).then(setProjectSpending);
       }
       // Summary message
@@ -623,10 +727,94 @@ export function DataSearchPage() {
       await projectSearchApi.cancelSearchJob(projectSearchJobId);
       eventSourceRef.current?.close();
       setIsProjectSearching(false);
+      setPipelineStage('search_done');
+      const msg: ProjectChatMessage = {
+        id: `sys-cancel-${Date.now()}`,
+        role: 'system',
+        content: 'Search cancelled.',
+        timestamp: new Date(),
+      };
+      setWebSearchMessages(prev => [...prev, msg]);
     } catch (error) {
       console.error('Cancel failed:', error);
     }
   }, [projectSearchJobId]);
+
+  // Guard against duplicate pipeline auto-triggers
+  const pipelineRunningRef = useRef(false);
+
+  // Pipeline stage handlers — must be defined BEFORE the useEffects that reference them
+  const handleExtractContacts = useCallback(async () => {
+    if (!webSearchProjectId || pipelineStage !== 'search_done') return;
+    if (pipelineRunningRef.current) return;
+    pipelineRunningRef.current = true;
+    setPipelineStage('contacts');
+    setContactsProgress('Starting...');
+    try {
+      const result = await pipelineApi.extractContactsForProject(
+        webSearchProjectId,
+        (done, total) => setContactsProgress(`${done}/${total} companies`),
+      );
+      setContactsProgress(null);
+      setPipelineStage('contacts_done');
+      const msg: ProjectChatMessage = {
+        id: `sys-contacts-${Date.now()}`,
+        role: 'system',
+        content: `Contacts extracted: ${result.contacts_found} contacts from ${result.processed} companies${result.errors ? ` (${result.errors} errors)` : ''}.`,
+        timestamp: new Date(),
+      };
+      setWebSearchMessages(prev => [...prev, msg]);
+    } catch (error: any) {
+      console.error('Contact extraction failed:', error);
+      setPipelineStage('search_done');
+      setContactsProgress(null);
+    } finally {
+      pipelineRunningRef.current = false;
+    }
+  }, [webSearchProjectId, pipelineStage, autoEnrichConfig]);
+
+  const handleEnrichApollo = useCallback(async () => {
+    if (!webSearchProjectId || pipelineStage !== 'contacts_done') return;
+    if (pipelineRunningRef.current) return;
+    pipelineRunningRef.current = true;
+    setPipelineStage('enrichment');
+    setEnrichProgress('Starting...');
+    try {
+      const result = await pipelineApi.enrichApolloForProject(
+        webSearchProjectId,
+        autoEnrichConfig ?? undefined,
+        (done, total) => setEnrichProgress(`${done}/${total} companies`),
+      );
+      setEnrichProgress(null);
+      setPipelineStage('done');
+      const msg: ProjectChatMessage = {
+        id: `sys-enrich-${Date.now()}`,
+        role: 'system',
+        content: `Apollo enrichment complete: ${result.people_found} people found, ${result.credits_used} credits used${result.errors ? ` (${result.errors} errors)` : ''}.`,
+        timestamp: new Date(),
+      };
+      setWebSearchMessages(prev => [...prev, msg]);
+    } catch (error: any) {
+      console.error('Apollo enrichment failed:', error);
+      setPipelineStage('contacts_done');
+      setEnrichProgress(null);
+    } finally {
+      pipelineRunningRef.current = false;
+    }
+  }, [webSearchProjectId, pipelineStage, autoEnrichConfig]);
+
+  // Auto-trigger pipeline stages based on config
+  useEffect(() => {
+    if (pipelineStage === 'search_done' && autoEnrichConfig?.auto_extract) {
+      handleExtractContacts();
+    }
+  }, [pipelineStage, autoEnrichConfig, handleExtractContacts]);
+
+  useEffect(() => {
+    if (pipelineStage === 'contacts_done' && autoEnrichConfig?.auto_apollo) {
+      handleEnrichApollo();
+    }
+  }, [pipelineStage, autoEnrichConfig, handleEnrichApollo]);
 
   // handleExportSheet removed — using chat-driven search export instead
 
@@ -653,7 +841,6 @@ export function DataSearchPage() {
 
       const response = await projectSearchApi.chatSearch(msg, {
         projectId: webSearchProjectId || undefined,
-        jobId: projectSearchJobId || undefined,
         maxQueries,
         targetGoal,
         context,
@@ -681,15 +868,41 @@ export function DataSearchPage() {
         setProjectSearchJobId(response.job_id);
         setIsProjectSearching(true);
         setProjectProgress(null);
-        setProjectResults([]);
-        setProjectSpending(null);
         setLastSeenTargets([]);
+        setPipelineStage('searching');
+
+        const activePid = response.project_id || webSearchProjectId;
+
+        if (response.preserve_results) {
+          // Refine: keep existing results, re-fetch to pick up demotions
+          if (activePid) {
+            projectSearchApi.getProjectResults(activePid).then(data => {
+              setProjectResults(data.items);
+              setProjectResultsStats({ total: data.total, targets: data.items.filter(r => r.is_target).length });
+            }).catch(() => {});
+            projectSearchApi.getProjectSpending(activePid).then(setProjectSpending).catch(() => {});
+          }
+        } else {
+          // Fresh search: clear results
+          setProjectResults([]);
+          setProjectSpending(null);
+          setProjectResultsStats(null);
+        }
+
+        // Fetch auto-enrich config for the project
+        if (activePid) {
+          pipelineApi.getAutoEnrichConfig(activePid).then(setAutoEnrichConfig).catch(() => setAutoEnrichConfig(null));
+        }
 
         eventSourceRef.current?.close();
         const es = projectSearchApi.streamSearchJob(
           response.job_id,
           handleSSEProgressWithTargets,
-          () => setIsProjectSearching(false),
+          () => {
+            setIsProjectSearching(false);
+            // Invalidate cache so next switch re-fetches fresh data
+            if (activePid) projectCacheRef.current.delete(activePid);
+          },
         );
         eventSourceRef.current = es;
       }
@@ -704,7 +917,7 @@ export function DataSearchPage() {
     } finally {
       setIsWebSearching(false);
     }
-  }, [webSearchQuery, isWebSearching, webSearchMessages, webSearchProjectId, projectSearchJobId, maxQueries, targetGoal, handleSSEProgressWithTargets]);
+  }, [webSearchQuery, isWebSearching, webSearchMessages, webSearchProjectId, maxQueries, targetGoal, handleSSEProgressWithTargets]);
 
   const handleWebSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -836,8 +1049,8 @@ export function DataSearchPage() {
     setProjectProgress(null);
     setProjectResults([]);
     setProjectSpending(null);
+    setProjectResultsStats(null);
     setIsProjectSearching(false);
-    setExpandedResultId(null);
     // Reset web search state
     setWebSearchMessages([]);
     setWebSearchQuery('');
@@ -957,8 +1170,55 @@ export function DataSearchPage() {
   };
 
   return (
-    <div className="h-full bg-gradient-to-b from-gray-50 to-white flex flex-col relative">
-      <AnimatedBackground />
+    <div className="h-full flex relative">
+      {/* Search History Sidebar */}
+      {searchMode === 'project' && (
+        <div className={cn(
+          "h-full border-r border-gray-200 bg-gray-50 flex flex-col transition-all duration-200 flex-shrink-0",
+          sidebarOpen ? "w-[240px]" : "w-0 overflow-hidden border-r-0"
+        )}>
+          <div className="p-3 border-b border-gray-200 flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Searches</span>
+            <button
+              onClick={() => { handleNewSearch(); setSearchMode('project'); }}
+              className="p-1 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+              title="New search"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {searchHistory.map(p => (
+              <button
+                key={p.id}
+                onClick={() => loadProjectChat(p.id)}
+                className={cn(
+                  "w-full text-left px-3 py-2.5 text-sm border-b border-gray-100 hover:bg-white transition-colors group flex items-center gap-2",
+                  webSearchProjectId === p.id && "bg-white border-l-2 border-l-emerald-500"
+                )}
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                <span className="truncate flex-1 text-gray-700">{p.name}</span>
+                <span
+                  onClick={(e) => { e.stopPropagation(); navigate(`/pipeline?project_id=${p.id}`); }}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-emerald-600 rounded transition-all cursor-pointer"
+                  title="View pipeline"
+                  role="button"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                </span>
+              </button>
+            ))}
+            {searchHistory.length === 0 && (
+              <div className="p-4 text-xs text-gray-400 text-center">No searches yet</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Main content area */}
+      <div className="flex-1 h-full bg-gradient-to-b from-gray-50 to-white flex flex-col relative min-w-0">
+      {searchMode !== 'project' && <AnimatedBackground />}
 
       {/* Mode toggle + actions bar (no sub-header label to avoid double header) */}
       <div className="bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center px-6 py-2 sticky top-0 z-40">
@@ -1016,10 +1276,291 @@ export function DataSearchPage() {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col max-w-7xl mx-auto w-full relative z-10">
-        {!hasSearched ? (
-          // Initial state
-          <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+      <main className="flex-1 flex flex-col relative z-10">
+        {searchMode === 'project' ? (
+          /* ===== PROJECT MODE: ChatGPT/Claude-like chat ===== */
+          !webSearchProjectId ? (
+            /* No project selected */
+            <div className="flex-1 flex flex-col items-center justify-center px-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Select a Project</h2>
+              <p className="text-gray-500 mb-6 text-sm">Choose a project from the sidebar to start searching</p>
+              <div className="flex flex-wrap justify-center gap-3">
+                {searchHistory.slice(0, 8).map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => loadProjectChat(p.id)}
+                    className="px-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl hover:border-emerald-300 hover:shadow-lg transition-all flex items-center gap-2"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="text-gray-700">{p.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Chat — full width, with compact dashboard card */
+            <div className="flex-1 flex flex-col bg-white overflow-hidden">
+              <div className="flex-1 flex flex-col">
+                {/* Project header */}
+                <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+                  <Target className="w-4 h-4 text-emerald-500" />
+                  <span className="text-sm font-medium text-gray-700 truncate">
+                    {searchHistory.find(p => p.id === webSearchProjectId)?.name || `Project #${webSearchProjectId}`}
+                  </span>
+                  <button
+                    onClick={() => navigate(`/pipeline?project_id=${webSearchProjectId}`)}
+                    className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    Pipeline
+                  </button>
+                </div>
+
+                {/* Pipeline stage indicator */}
+                {pipelineStage !== 'idle' && (
+                  <PipelineStageIndicator
+                    stage={pipelineStage}
+                    contactsProgress={contactsProgress}
+                    enrichProgress={enrichProgress}
+                    onExtractContacts={handleExtractContacts}
+                    onEnrichApollo={handleEnrichApollo}
+                    autoConfig={autoEnrichConfig}
+                  />
+                )}
+
+                {/* Chat messages */}
+                <div className="flex-1 overflow-y-auto">
+                  <div className="py-6 space-y-4 max-w-2xl mx-auto px-6">
+                    {webSearchMessages.length === 0 && !isProjectSearching && (
+                      <div className="flex flex-col items-center pt-20 text-center">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center mb-4">
+                          <Bot className="w-7 h-7 text-emerald-600" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-700 mb-1">What are you looking for?</h3>
+                        <p className="text-sm text-gray-400 max-w-sm">Describe target companies and I'll search the web to find them</p>
+                      </div>
+                    )}
+
+                    {/* Compact dashboard card — shown when results exist */}
+                    {(projectResultsStats && projectResultsStats.total > 0) && (
+                      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-semibold text-gray-900">
+                              {projectResultsStats.total} results
+                            </span>
+                            <span className="text-sm text-emerald-600 font-medium">
+                              {projectResultsStats.targets} targets
+                            </span>
+                            {projectSpending && (
+                              <span
+                                className="text-xs text-gray-400"
+                                title={`Yandex: $${projectSpending.yandex_cost.toFixed(3)} | OpenAI: $${projectSpending.openai_cost_estimate.toFixed(3)} | Crona: ${projectSpending.crona_credits_used} credits`}
+                              >
+                                ${projectSpending.total_estimate.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => navigate(`/search-results?project_id=${webSearchProjectId}`)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"
+                            >
+                              <Search className="w-3.5 h-3.5" />
+                              View Results
+                            </button>
+                            <button
+                              onClick={() => navigate(`/pipeline?project_id=${webSearchProjectId}`)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+                            >
+                              <Layers className="w-3.5 h-3.5" />
+                              Pipeline
+                            </button>
+                            {webSearchProjectId && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const { sheet_url } = await projectSearchApi.exportToGoogleSheet(webSearchProjectId!);
+                                    window.open(sheet_url, '_blank');
+                                  } catch (e) { console.error('Export failed:', e); }
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+                              >
+                                <FileSpreadsheet className="w-3.5 h-3.5" />
+                                Export
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Progress bar during active search */}
+                        {isProjectSearching && projectProgress && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="w-3.5 h-3.5 text-emerald-500 animate-spin" />
+                                <span className="text-xs text-gray-600">
+                                  {projectProgress.current_phase_detail ||
+                                   `${projectProgress.current}/${projectProgress.total} queries`}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {projectProgress.targets_found != null && (
+                                  <span className="text-xs font-medium text-emerald-600">
+                                    {projectProgress.targets_found} targets
+                                  </span>
+                                )}
+                                <button
+                                  onClick={handleCancelProjectSearch}
+                                  className="text-xs text-red-500 hover:text-red-700 font-medium"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                            {projectProgress.total > 0 && (
+                              <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                <div
+                                  className="bg-gradient-to-r from-emerald-500 to-teal-500 h-1.5 rounded-full transition-all duration-500"
+                                  style={{ width: `${Math.min(100, (projectProgress.current / projectProgress.total) * 100)}%` }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Completed state */}
+                        {!isProjectSearching && projectProgress?.phase === 'completed' && (
+                          <div className="flex items-center gap-2 text-xs text-emerald-600">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Search complete — {projectProgress.results_analyzed} analyzed in {Math.round(projectProgress.elapsed_seconds)}s</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Searching placeholder when no results yet */}
+                    {isProjectSearching && (!projectResultsStats || projectResultsStats.total === 0) && projectProgress && (
+                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                            <span className="text-sm font-medium text-gray-900">
+                              {projectProgress.current_phase_detail || `Searching... ${projectProgress.current}/${projectProgress.total} queries`}
+                            </span>
+                          </div>
+                          <button
+                            onClick={handleCancelProjectSearch}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {projectProgress.total > 0 && (
+                          <div className="w-full bg-emerald-100 rounded-full h-1.5">
+                            <div
+                              className="bg-gradient-to-r from-emerald-500 to-teal-500 h-1.5 rounded-full transition-all duration-500"
+                              style={{ width: `${Math.min(100, (projectProgress.current / projectProgress.total) * 100)}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {webSearchMessages.map((msg) => (
+                      <div key={msg.id} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                        <div className={cn('flex items-start gap-2 max-w-[90%]')}>
+                          {msg.role !== 'user' && (
+                            <div className={cn(
+                              "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
+                              msg.role === 'system'
+                                ? "bg-emerald-100"
+                                : "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-md"
+                            )}>
+                              {msg.role === 'system' ? (
+                                <Target className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Bot className="w-3.5 h-3.5 text-white" />
+                              )}
+                            </div>
+                          )}
+                          <div className={cn(
+                            'rounded-2xl px-4 py-2.5 text-sm',
+                            msg.role === 'user'
+                              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
+                              : msg.role === 'system'
+                              ? 'bg-emerald-50 border border-emerald-100 text-emerald-800'
+                              : 'bg-white border border-gray-100 text-gray-900 shadow-sm'
+                          )}>
+                            <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                          </div>
+                          {msg.role === 'user' && (
+                            <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
+                              <span className="text-white text-xs font-bold">U</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    {isWebSearching && (
+                      <div className="flex justify-start">
+                        <div className="flex items-start gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
+                            <Bot className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          <div className="bg-white border border-gray-100 rounded-2xl px-4 py-2.5 shadow-sm">
+                            <TypingIndicator />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={webChatEndRef} />
+                  </div>
+                </div>
+
+                {/* Suggestion chips */}
+                {webSearchSuggestions.length > 0 && !isWebSearching && (
+                  <div className="px-4 py-2 border-t border-gray-100 flex flex-wrap gap-2">
+                    {webSearchSuggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setWebSearchQuery(s)}
+                        className="px-3 py-1.5 text-xs bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-100"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Chat input — always at bottom */}
+                <div className="p-4 border-t border-gray-100 bg-white pb-8">
+                  <div className="relative max-w-2xl mx-auto">
+                    <input
+                      type="text"
+                      value={webSearchQuery}
+                      onChange={(e) => setWebSearchQuery(e.target.value)}
+                      onKeyDown={handleWebSearchKeyDown}
+                      placeholder={isProjectSearching ? "Give feedback to refine results..." : webSearchMessages.length > 0 ? "Ask about results or refine search..." : "Describe companies to find..."}
+                      className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10 text-sm"
+                    />
+                    <button
+                      onClick={handleWebSearchChat}
+                      disabled={!webSearchQuery.trim() || isWebSearching}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )
+        ) : !hasSearched ? (
+          // Initial state for chat/reverse modes
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 max-w-7xl mx-auto w-full">
             {searchMode === 'chat' ? (
               // Chat mode - natural language search
               <>
@@ -1790,6 +2331,7 @@ export function DataSearchPage() {
           </div>
         )}
       </main>
+    </div>
     </div>
   );
 }

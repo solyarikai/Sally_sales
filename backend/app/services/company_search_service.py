@@ -258,6 +258,52 @@ class CompanySearchService:
         analysis["scores"] = scores
         return analysis
 
+    async def demote_by_keywords(
+        self,
+        session: AsyncSession,
+        project_id: int,
+        anti_keywords: List[str],
+    ) -> int:
+        """
+        Demote SearchResults whose company_info or domain contains any anti_keyword.
+        Sets is_target=False for matching results. Returns count of demoted results.
+        """
+        if not anti_keywords:
+            return 0
+
+        # Load targets in batches to avoid memory issues on large projects
+        result = await session.execute(
+            select(SearchResult).where(
+                SearchResult.project_id == project_id,
+                SearchResult.is_target == True,
+            ).limit(5000)  # Safety cap
+        )
+        targets = list(result.scalars().all())
+        demoted = 0
+        lower_keywords = [kw.lower() for kw in anti_keywords]
+
+        for sr in targets:
+            ci = sr.company_info or {}
+            searchable = " ".join([
+                sr.domain or "",
+                ci.get("name", ""),
+                ci.get("description", ""),
+                ci.get("industry", ""),
+                " ".join(ci.get("services", [])),
+            ]).lower()
+
+            if any(kw in searchable for kw in lower_keywords):
+                sr.is_target = False
+                sr.confidence = 0.0
+                sr.reasoning = f"[DEMOTED by keyword filter: {', '.join(anti_keywords)}] {sr.reasoning or ''}"
+                demoted += 1
+
+        if demoted > 0:
+            await session.commit()
+            logger.info(f"Demoted {demoted} results in project {project_id} by keywords: {anti_keywords}")
+
+        return demoted
+
     async def _count_project_targets(self, session: AsyncSession, project_id: int) -> int:
         """Count confirmed/unrejected targets for a project."""
         result = await session.execute(
@@ -409,6 +455,12 @@ class CompanySearchService:
         consecutive_zero_target_iterations = 0
 
         while existing_targets < target_goal and iteration < settings.SEARCH_MAX_ITERATIONS:
+            # Check for cancellation before each iteration
+            await session.refresh(job)
+            if job.status == SearchJobStatus.CANCELLED:
+                logger.info(f"Job {job.id} cancelled — stopping search at iteration {iteration}")
+                return job
+
             iteration += 1
             batch_size = min(settings.SEARCH_BATCH_QUERIES, max_queries - total_queries_used)
             if batch_size <= 0:

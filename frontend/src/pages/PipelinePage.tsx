@@ -50,6 +50,7 @@ export function PipelinePage() {
   const [page, setPage] = useState(1);
   const [stats, setStats] = useState<PipelineStats | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
 
   // Filters
   const [projectId, setProjectId] = useState<number | undefined>(undefined);
@@ -81,10 +82,12 @@ export function PipelinePage() {
 
   // Load projects for filter dropdown (fast endpoint from pipeline API)
   useEffect(() => {
+    if (!currentCompany) return;
+    setProjectsLoading(true);
     pipelineApi.listProjects().then(data => {
       setProjects(data);
-    }).catch(() => {});
-  }, []);
+    }).catch(() => {}).finally(() => setProjectsLoading(false));
+  }, [currentCompany]);
 
   const loadData = useCallback(async () => {
     if (!currentCompany) return;
