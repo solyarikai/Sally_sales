@@ -269,14 +269,30 @@ function JobHistoryView() {
       )}
 
       {/* Stats cards — real aggregated numbers from DB */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <StatCard icon={Globe} label="Discovered" value={summary?.total_discovered ?? 0} />
         <StatCard icon={Target} label="Targets" value={summary?.total_targets ?? 0} color="green" />
         <StatCard icon={Mail} label="With Email" value={summary?.contacts_with_email ?? 0} color="blue" />
-        <StatCard icon={CheckCircle2} label="New (not in campaigns)" value={summary?.new_emails_not_in_campaigns ?? 0} color="green" />
+        <StatCard icon={Send} label="In SmartLead" value={summary?.in_smartlead ?? 0} color="purple" />
+        <StatCard icon={CheckCircle2} label="New (ready to push)" value={summary?.new_emails_not_in_campaigns ?? 0} color="green" />
         <StatCard icon={BarChart3} label="Search Jobs" value={summary?.total_search_jobs ?? total} />
-        <StatCard icon={DollarSign} label="Apollo Credits" value={summary?.apollo_credits_used ?? 0} />
+        <StatCard icon={DollarSign} label="Total Spent" value={summary?.spending ? `$${summary.spending.total.toFixed(0)}` : `${summary?.apollo_credits_used ?? 0} cr`} />
       </div>
+
+      {/* Spending breakdown */}
+      {summary?.spending && (
+        <div className="bg-white rounded-xl border border-neutral-200 px-4 py-3">
+          <div className="flex items-center gap-6 text-xs">
+            <span className="text-neutral-400 font-medium">Spending:</span>
+            <span className="text-neutral-600">Yandex <span className="font-medium text-neutral-900">${summary.spending.yandex_cost.toFixed(1)}</span></span>
+            <span className="text-neutral-600">Google <span className="font-medium text-neutral-900">${summary.spending.google_cost.toFixed(1)}</span></span>
+            <span className="text-neutral-600">Crona <span className="font-medium text-neutral-900">${summary.spending.crona_cost.toFixed(1)}</span></span>
+            <span className="text-neutral-600">AI <span className="font-medium text-neutral-900">${summary.spending.ai_cost.toFixed(1)}</span></span>
+            <span className="text-neutral-600">Apollo <span className="font-medium text-neutral-900">${summary.spending.apollo_cost.toFixed(1)}</span></span>
+            <span className="text-neutral-700 font-semibold">Total: ${summary.spending.total.toFixed(1)}</span>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-neutral-200">
@@ -915,6 +931,10 @@ function JobDetailView({ jobId }: { jobId: number }) {
                       <div className="px-4 py-2.5 w-[200px] flex-shrink-0">
                         {campaign ? (
                           <CampaignBadge campaign={campaign} />
+                        ) : r.is_target ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border border-blue-200 bg-blue-50 text-blue-700">
+                            <Mail className="w-3 h-3" /> Ready to push
+                          </span>
                         ) : (
                           <span className="text-xs text-neutral-300">-</span>
                         )}
@@ -1214,8 +1234,8 @@ function PipelineStatusBanner({ status, summary }: { status: FullPipelineStatus 
 // ============ Helper Components ============
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number | string; color?: string }) {
-  const iconColor = color === 'green' ? 'text-green-600' : color === 'blue' ? 'text-blue-600' : 'text-neutral-400';
-  const valueColor = color === 'green' ? 'text-green-700' : color === 'blue' ? 'text-blue-700' : 'text-neutral-900';
+  const iconColor = color === 'green' ? 'text-green-600' : color === 'blue' ? 'text-blue-600' : color === 'purple' ? 'text-purple-600' : 'text-neutral-400';
+  const valueColor = color === 'green' ? 'text-green-700' : color === 'blue' ? 'text-blue-700' : color === 'purple' ? 'text-purple-700' : 'text-neutral-900';
   return (
     <div className="bg-white rounded-xl border border-neutral-200 p-4">
       <div className="flex items-center gap-2 mb-1">

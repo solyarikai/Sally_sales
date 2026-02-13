@@ -743,10 +743,19 @@ export interface ProjectPipelineSummary {
   target_domains: number;
   contacts_with_email: number;
   new_emails_not_in_campaigns: number;
+  in_smartlead: number;
   apollo_enriched: number;
   apollo_credits_used: number;
   total_search_jobs: number;
   total_queries: number;
+  spending?: {
+    yandex_cost: number;
+    google_cost: number;
+    crona_cost: number;
+    ai_cost: number;
+    apollo_cost: number;
+    total: number;
+  } | null;
   pipeline?: {
     running: boolean;
     phase?: string;

@@ -402,8 +402,13 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
 
                 stats["campaigns_created"] += 1 if not rule.current_campaign_id else 0
 
-                # Upload leads in batches of 100
+                # Upload leads in batches of 100, track actually pushed emails
                 LEAD_BATCH = 100
+                actually_pushed_contacts = []
+                total_uploaded = 0
+                total_duplicates = 0
+                total_invalid = 0
+
                 for i in range(0, len(bucket_contacts), LEAD_BATCH):
                     batch = bucket_contacts[i:i + LEAD_BATCH]
                     leads = []
@@ -427,15 +432,54 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                         timeout=60,
                     )
                     if resp.status_code == 200:
-                        stats["leads_pushed"] += len(leads)
-                        logger.info(f"Pushed {len(leads)} leads to campaign {campaign_id}")
+                        resp_data = resp.json() if resp.text else {}
+                        upload_count = resp_data.get("upload_count", len(leads))
+                        duplicate_count = resp_data.get("duplicate_count", 0)
+                        invalid_count = resp_data.get("invalid_email_count", 0)
+
+                        total_uploaded += upload_count
+                        total_duplicates += duplicate_count
+                        total_invalid += invalid_count
+                        stats["leads_pushed"] += upload_count
+
+                        logger.info(
+                            f"Pushed batch to campaign {campaign_id}: "
+                            f"uploaded={upload_count}, duplicates={duplicate_count}, "
+                            f"invalid={invalid_count} (sent {len(leads)})"
+                        )
+
+                        # Only record contacts as pushed if some were actually uploaded
+                        if upload_count > 0:
+                            actually_pushed_contacts.extend(batch)
                     else:
                         logger.error(f"Failed to push leads: {resp.status_code} {resp.text[:200]}")
                         stats["errors"] += len(leads)
 
                     await asyncio.sleep(1)  # Rate limit
 
-                # Record event
+                # Verification: check actual lead count in SmartLead campaign
+                verified_count = None
+                try:
+                    verify_resp = await client.get(
+                        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
+                        params={"api_key": api_key, "offset": 0, "limit": 1},
+                        timeout=30,
+                    )
+                    if verify_resp.status_code == 200:
+                        verify_data = verify_resp.json()
+                        if isinstance(verify_data, dict):
+                            verified_count = verify_data.get("totalCount", verify_data.get("total", None))
+                        elif isinstance(verify_data, list):
+                            # Some endpoints return list; check headers or len
+                            verified_count = len(verify_data)
+                        logger.info(
+                            f"Verification for campaign {campaign_id}: "
+                            f"API reported={total_uploaded}, verified_in_campaign={verified_count}"
+                        )
+                except Exception as ve:
+                    logger.warning(f"Verification check failed for campaign {campaign_id}: {ve}")
+
+                # Record event with detailed push results
                 async with async_session_maker() as session:
                     event = PipelineEvent(
                         company_id=company_id,
@@ -443,27 +487,42 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                         detail={
                             "rule_name": rule.name,
                             "campaign_id": str(campaign_id),
-                            "leads_pushed": len(bucket_contacts),
+                            "leads_sent": len(bucket_contacts),
+                            "leads_uploaded": total_uploaded,
+                            "leads_duplicate": total_duplicates,
+                            "leads_invalid": total_invalid,
+                            "verified_count": verified_count,
                         },
                     )
                     session.add(event)
                     await session.commit()
 
-                # Insert pushed contacts into contacts table to prevent re-push
+                # Insert only actually-pushed contacts into contacts table
+                if actually_pushed_contacts:
+                    async with async_session_maker() as session:
+                        for contact, cls in actually_pushed_contacts:
+                            domain = contact.email.split("@")[-1] if "@" in contact.email else None
+                            await session.execute(sql_text("""
+                                INSERT INTO contacts (company_id, email, first_name, last_name, domain,
+                                                      source, status, is_active, created_at, updated_at)
+                                VALUES (:cid, :email, :fname, :lname, :domain,
+                                        'smartlead_pipeline_push', 'contacted', true, NOW(), NOW())
+                                ON CONFLICT DO NOTHING
+                            """), {
+                                "cid": company_id, "email": contact.email,
+                                "fname": contact.first_name or "", "lname": contact.last_name or "",
+                                "domain": domain,
+                            })
+                        await session.commit()
+
+                # Update rule's lead count
                 async with async_session_maker() as session:
-                    for contact, cls in bucket_contacts:
-                        domain = contact.email.split("@")[-1] if "@" in contact.email else None
-                        await session.execute(sql_text("""
-                            INSERT INTO contacts (company_id, email, first_name, last_name, domain,
-                                                  source, status, is_active, created_at, updated_at)
-                            VALUES (:cid, :email, :fname, :lname, :domain,
-                                    'smartlead_pipeline_push', 'contacted', true, NOW(), NOW())
-                            ON CONFLICT DO NOTHING
-                        """), {
-                            "cid": company_id, "email": contact.email,
-                            "fname": contact.first_name or "", "lname": contact.last_name or "",
-                            "domain": domain,
-                        })
+                    await session.execute(sql_text("""
+                        UPDATE campaign_push_rules
+                        SET current_campaign_lead_count = COALESCE(current_campaign_lead_count, 0) + :cnt,
+                            updated_at = NOW()
+                        WHERE id = :rid
+                    """), {"cnt": total_uploaded, "rid": rule.id})
                     await session.commit()
 
             except Exception as e:
@@ -883,7 +942,8 @@ async def get_push_history(
                 "created_at": row.created_at.isoformat() if row.created_at else None,
             }
         if row.event_type == "smartlead_leads_pushed":
-            campaigns[campaign_id]["leads_pushed"] += detail.get("leads_pushed", 0)
+            # Support both old format (leads_pushed) and new format (leads_uploaded)
+            campaigns[campaign_id]["leads_pushed"] += detail.get("leads_uploaded", detail.get("leads_pushed", 0))
 
     return {
         "campaigns": list(campaigns.values()),
@@ -907,6 +967,78 @@ async def get_push_history(
         ],
         "total_pushed": sum(row.count for row in daily_rows if 'push' in (row.source or '')),
         "total_synced": sum(row.count for row in daily_rows if 'sync' in (row.source or '')),
+    }
+
+
+# ============ SmartLead Push Verification ============
+
+@router.get("/projects/{project_id}/verify-smartlead-push")
+async def verify_smartlead_push(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """
+    Verify leads actually arrived in SmartLead campaigns.
+    Compares local DB records vs actual SmartLead campaign lead counts.
+    """
+    from app.models.pipeline import CampaignPushRule
+    from app.services.smartlead_service import smartlead_service
+
+    # Get rules with active campaigns
+    result = await db.execute(
+        select(CampaignPushRule).where(
+            CampaignPushRule.project_id == project_id,
+            CampaignPushRule.company_id == company.id,
+            CampaignPushRule.current_campaign_id.isnot(None),
+        )
+    )
+    rules = result.scalars().all()
+
+    verifications = []
+    for rule in rules:
+        campaign_id = rule.current_campaign_id
+        expected = rule.current_campaign_lead_count or 0
+        actual = None
+        status = "unknown"
+        try:
+            leads_data = await smartlead_service.get_campaign_leads(
+                campaign_id, offset=0, limit=1
+            )
+            if isinstance(leads_data, dict):
+                actual = leads_data.get("totalCount", leads_data.get("total", 0))
+            elif isinstance(leads_data, list):
+                # If it returns paginated list, we need the total
+                actual = len(leads_data)  # Only first page; not reliable for total
+        except Exception as e:
+            status = f"error: {str(e)[:100]}"
+
+        if actual is not None:
+            if actual == 0 and expected > 0:
+                status = "EMPTY - leads did not arrive"
+            elif actual < expected:
+                status = f"MISMATCH - expected {expected}, got {actual}"
+            elif actual >= expected:
+                status = "OK"
+
+        verifications.append({
+            "rule_name": rule.name,
+            "campaign_id": campaign_id,
+            "expected_count": expected,
+            "actual_count": actual,
+            "status": status,
+        })
+
+    return {
+        "project_id": project_id,
+        "verifications": verifications,
+        "summary": {
+            "total_rules": len(verifications),
+            "ok": sum(1 for v in verifications if v["status"] == "OK"),
+            "empty": sum(1 for v in verifications if "EMPTY" in v["status"]),
+            "mismatch": sum(1 for v in verifications if "MISMATCH" in v["status"]),
+            "errors": sum(1 for v in verifications if "error" in v["status"]),
+        },
     }
 
 

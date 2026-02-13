@@ -625,8 +625,9 @@ async def get_project_pipeline_summary(
             (SELECT COUNT(*) FROM discovered_companies WHERE project_id = :pid AND apollo_enriched_at IS NOT NULL) as apollo_enriched,
             (SELECT COALESCE(SUM(apollo_credits_used), 0) FROM discovered_companies WHERE project_id = :pid) as apollo_credits_used,
             (SELECT COUNT(*) FROM search_jobs WHERE project_id = :pid) as total_search_jobs,
-            (SELECT COUNT(*) FROM search_queries WHERE search_job_id IN (SELECT id FROM search_jobs WHERE project_id = :pid)) as total_queries
-    """), {"pid": project_id})
+            (SELECT COUNT(*) FROM search_queries WHERE search_job_id IN (SELECT id FROM search_jobs WHERE project_id = :pid)) as total_queries,
+            (SELECT COUNT(*) FROM contacts c WHERE c.company_id = :cid AND c.source LIKE 'smartlead%%') as in_smartlead
+    """), {"pid": project_id, "cid": company.id})
     stats = row.fetchone()
 
     # Pipeline status
@@ -640,6 +641,22 @@ async def get_project_pipeline_summary(
             "target_goal": p.get("config", {}).get("target_goal"),
         }
 
+    # Spending summary
+    spending = None
+    try:
+        from app.services.company_search_service import company_search_service
+        raw = await company_search_service.get_project_spending(db, project_id)
+        spending = {
+            "yandex_cost": raw.get("yandex_cost", 0),
+            "google_cost": raw.get("google_cost", 0),
+            "crona_cost": raw.get("crona_cost", 0),
+            "ai_cost": raw.get("ai_cost_estimate", 0),
+            "apollo_cost": round(stats[6] * 0.01, 2),
+            "total": round(raw.get("total_estimate", 0) + stats[6] * 0.01, 2),
+        }
+    except Exception as e:
+        logger.warning(f"Failed to get spending for pipeline summary: {e}")
+
     return {
         "project_id": project_id,
         "total_discovered": stats[0],
@@ -647,10 +664,12 @@ async def get_project_pipeline_summary(
         "target_domains": stats[2],
         "contacts_with_email": stats[3],
         "new_emails_not_in_campaigns": stats[4],
+        "in_smartlead": stats[9],
         "apollo_enriched": stats[5],
         "apollo_credits_used": stats[6],
         "total_search_jobs": stats[7],
         "total_queries": stats[8],
+        "spending": spending,
         "pipeline": pipeline_status,
     }
 

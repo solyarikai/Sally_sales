@@ -263,6 +263,26 @@ class CompanySearchService:
                 analysis["confidence"] = 0.0
                 analysis["reasoning"] = f"[AUTO-REJECTED: architecture/design only, no build] {reasoning}"
 
+        # Rule 5: Ukraine exclusion — always reject Ukraine-based companies
+        # Check both company_info location and reasoning for Ukraine indicators
+        if analysis.get("is_target"):
+            company_info = analysis.get("company_info", {})
+            location = (company_info.get("location", "") or "").lower()
+            all_text = f"{location} {reasoning.lower()} {(company_info.get('description', '') or '').lower()}"
+            ukraine_indicators = [
+                "ukraine", "україна", "украина", "украін",
+                "kyiv", "київ", "киев",
+                "odessa", "одеса", "одесса",
+                "kharkiv", "харків", "харьков",
+                "lviv", "львів", "львов",
+                "dnipro", "дніпро", "днепр",
+                "zaporizhzhia", "запоріжжя", "запорожье",
+            ]
+            if any(ind in all_text for ind in ukraine_indicators):
+                analysis["is_target"] = False
+                analysis["confidence"] = 0.0
+                analysis["reasoning"] = f"[AUTO-REJECTED: Ukraine-based company excluded] {reasoning}"
+
         analysis["scores"] = scores
         return analysis
 
@@ -752,8 +772,10 @@ CRITICAL RULES — violations mean AUTOMATIC FAILURE:
 2. If your reasoning says the company doesn't match → confidence MUST be < 0.3, is_target MUST be false
 3. Aggregators, directories, news sites, job boards, freelancer platforms, property listing portals → ALWAYS is_target = false
 4. Mega-corporations and publicly-traded developers (e.g. DAMAC, Emaar, Nakheel, Aldar, Meraas, Dubai Properties) → is_target = false unless the target segment EXPLICITLY includes them
-5. When in doubt → score LOW. False positives are WORSE than false negatives.
-6. confidence = MINIMUM of all individual scores (never higher)
+5. Ukraine-based companies → ALWAYS is_target = false. Any company located in Ukraine or primarily serving the Ukrainian market must be excluded.
+6. Target companies should work with HNWI (high net worth individuals) — not only luxury-focused but ANY company that facilitates cross-border financial operations, real estate, migration, legal services for wealthy clients.
+7. When in doubt → score LOW. False positives are WORSE than false negatives.
+8. confidence = MINIMUM of all individual scores (never higher)
 
 Respond ONLY with valid JSON."""
 
