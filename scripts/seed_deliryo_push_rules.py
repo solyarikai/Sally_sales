@@ -43,10 +43,17 @@ async def find_campaigns_by_name(api_key: str) -> dict[str, str]:
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
             "https://server.smartlead.ai/api/v1/campaigns",
-            params={"api_key": api_key, "offset": 0, "limit": 100},
+            params={"api_key": api_key},
         )
         resp.raise_for_status()
-        campaigns = resp.json()
+        data = resp.json()
+        # Handle different response formats
+        if isinstance(data, list):
+            campaigns = data
+        elif isinstance(data, dict):
+            campaigns = data.get("campaigns", data.get("data", []))
+        else:
+            campaigns = []
 
     found = {}
     for camp in campaigns:
@@ -61,16 +68,17 @@ async def find_campaigns_by_name(api_key: str) -> dict[str, str]:
 
 
 async def main():
-    from app.core.config import settings
-
-    database_url = settings.DATABASE_URL
+    database_url = os.environ.get("DATABASE_URL", "")
+    if not database_url:
+        from app.core.config import settings
+        database_url = settings.DATABASE_URL
     if database_url.startswith("postgresql://"):
         database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
     engine = create_async_engine(database_url)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    api_key = settings.SMARTLEAD_API_KEY
+    api_key = os.environ.get("SMARTLEAD_API_KEY", "")
     if not api_key:
         print("ERROR: SMARTLEAD_API_KEY not set")
         return
