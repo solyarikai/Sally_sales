@@ -827,15 +827,16 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
             "lower(dc.domain) NOT IN (SELECT DISTINCT lower(c.domain) FROM contacts c WHERE c.domain IS NOT NULL AND c.domain != '')"
         )
     if exclude_smartlead:
-        # Exclude contacts whose email OR domain already exists in SmartLead campaigns
+        # Exclude contacts whose email OR domain already exists in ANY contacts record.
+        # Many SmartLead-synced contacts lack smartlead_id, so we check ALL contacts.
         where_clauses.append("""(
             lower(ec.email) NOT IN (
                 SELECT DISTINCT lower(c.email) FROM contacts c
-                WHERE c.smartlead_id IS NOT NULL AND c.email IS NOT NULL
+                WHERE c.email IS NOT NULL
             )
             AND lower(dc.domain) NOT IN (
                 SELECT DISTINCT lower(c.domain) FROM contacts c
-                WHERE c.smartlead_id IS NOT NULL AND c.domain IS NOT NULL AND c.domain != ''
+                WHERE c.domain IS NOT NULL AND c.domain != ''
             )
         )""")
 
