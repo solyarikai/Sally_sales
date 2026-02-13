@@ -17,6 +17,7 @@ import {
   type QueryItem,
   type DomainCampaignsMap,
   type DomainCampaignInfo,
+  type ProjectPipelineSummary,
 } from '../api/dataSearch';
 
 const statusColors: Record<string, string> = {
@@ -47,6 +48,7 @@ function JobHistoryView() {
   const [data, setData] = useState<{ items: SearchHistoryItem[]; total: number } | null>(null);
   const [page, setPage] = useState(1);
   const [exportingTargets, setExportingTargets] = useState(false);
+  const [summary, setSummary] = useState<ProjectPipelineSummary | null>(null);
 
   const handleExportTargets = async () => {
     const projectId = data?.items?.[0]?.project_id;
@@ -72,6 +74,14 @@ function JobHistoryView() {
     try {
       const result = await projectSearchApi.getSearchHistory(page, 20);
       setData(result);
+      // Load pipeline summary for the first project found
+      const projectId = result.items?.[0]?.project_id;
+      if (projectId) {
+        try {
+          const s = await projectSearchApi.getProjectPipelineSummary(projectId);
+          setSummary(s);
+        } catch { /* ignore */ }
+      }
     } catch (err: any) {
       setError(err.userMessage || 'Failed to load search history');
     } finally {
@@ -79,7 +89,13 @@ function JobHistoryView() {
     }
   }, [page, currentCompany]);
 
+  // Auto-refresh every 30s when pipeline is running
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!summary?.pipeline?.running) return;
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [summary?.pipeline?.running, load]);
 
   if (!currentCompany) {
     return (
@@ -94,11 +110,6 @@ function JobHistoryView() {
 
   const items = data?.items || [];
   const total = data?.total || 0;
-
-  // Stats
-  const totalJobs = total;
-  const totalDomains = items.reduce((s, j) => s + (j.domains_found || 0), 0);
-  const totalTargets = items.reduce((s, j) => s + (j.targets_found || 0), 0);
 
   if (loading && !data) {
     return (
@@ -134,11 +145,26 @@ function JobHistoryView() {
         </div>
       )}
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <StatCard icon={BarChart3} label="Total Jobs" value={totalJobs} />
-        <StatCard icon={Globe} label="Domains Found" value={totalDomains} />
-        <StatCard icon={Target} label="Targets Found" value={totalTargets} color="green" />
+      {/* Pipeline status banner */}
+      {summary?.pipeline?.running && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-800 text-sm flex items-center gap-3">
+          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+          <span>
+            Pipeline running — <strong>{summary.pipeline.phase}</strong> phase
+            {summary.pipeline.target_goal && ` (goal: ${summary.pipeline.target_goal} targets)`}
+            {summary.pipeline.started_at && ` — started ${new Date(summary.pipeline.started_at).toLocaleTimeString()}`}
+          </span>
+        </div>
+      )}
+
+      {/* Stats cards — real aggregated numbers from DB */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        <StatCard icon={Globe} label="Discovered" value={summary?.total_discovered ?? 0} />
+        <StatCard icon={Target} label="Targets" value={summary?.total_targets ?? 0} color="green" />
+        <StatCard icon={Mail} label="With Email" value={summary?.contacts_with_email ?? 0} color="blue" />
+        <StatCard icon={CheckCircle2} label="New (not in campaigns)" value={summary?.new_emails_not_in_campaigns ?? 0} color="green" />
+        <StatCard icon={BarChart3} label="Search Jobs" value={summary?.total_search_jobs ?? total} />
+        <StatCard icon={DollarSign} label="Apollo Credits" value={summary?.apollo_credits_used ?? 0} />
       </div>
 
       {/* Jobs table */}
@@ -978,13 +1004,15 @@ function OutreachDetail({ campaign }: { campaign: DomainCampaignInfo }) {
 // ============ Helper Components ============
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number | string; color?: string }) {
+  const iconColor = color === 'green' ? 'text-green-600' : color === 'blue' ? 'text-blue-600' : 'text-neutral-400';
+  const valueColor = color === 'green' ? 'text-green-700' : color === 'blue' ? 'text-blue-700' : 'text-neutral-900';
   return (
     <div className="bg-white rounded-xl border border-neutral-200 p-4">
       <div className="flex items-center gap-2 mb-1">
-        <Icon className={cn('w-4 h-4', color === 'green' ? 'text-green-600' : 'text-neutral-400')} />
+        <Icon className={cn('w-4 h-4', iconColor)} />
         <span className="text-xs text-neutral-500">{label}</span>
       </div>
-      <div className={cn('text-2xl font-bold', color === 'green' ? 'text-green-700' : 'text-neutral-900')}>
+      <div className={cn('text-2xl font-bold', valueColor)}>
         {typeof value === 'number' ? value.toLocaleString() : value}
       </div>
     </div>

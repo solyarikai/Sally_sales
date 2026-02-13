@@ -637,6 +637,14 @@ export const projectSearchApi = {
     });
     return response.data;
   },
+
+  // Project pipeline summary — real aggregated stats
+  getProjectPipelineSummary: async (
+    projectId: number
+  ): Promise<ProjectPipelineSummary> => {
+    const response = await api.get(`/search/projects/${projectId}/pipeline-summary`);
+    return response.data;
+  },
 };
 
 // ============ Extended types for search history ============
@@ -725,4 +733,23 @@ export interface SearchHistoryItem {
   error_message?: string;
   openai_tokens_used: number;
   crona_credits_used: number;
+}
+
+export interface ProjectPipelineSummary {
+  project_id: number;
+  total_discovered: number;
+  total_targets: number;
+  target_domains: number;
+  contacts_with_email: number;
+  new_emails_not_in_campaigns: number;
+  apollo_enriched: number;
+  apollo_credits_used: number;
+  total_search_jobs: number;
+  total_queries: number;
+  pipeline?: {
+    running: boolean;
+    phase?: string;
+    started_at?: string;
+    target_goal?: number;
+  } | null;
 }

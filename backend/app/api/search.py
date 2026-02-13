@@ -598,6 +598,63 @@ async def get_project_results_stats(
     }
 
 
+@router.get("/projects/{project_id}/pipeline-summary")
+async def get_project_pipeline_summary(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Comprehensive project pipeline summary — real numbers from discovered_companies + extracted_contacts."""
+    from sqlalchemy import text as sql_text
+    from app.api.pipeline import _running_pipelines
+
+    # Verify project
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.company_id == company.id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    row = await db.execute(sql_text("""
+        SELECT
+            (SELECT COUNT(*) FROM discovered_companies WHERE project_id = :pid) as total_discovered,
+            (SELECT COUNT(*) FROM discovered_companies WHERE project_id = :pid AND is_target = true) as total_targets,
+            (SELECT COUNT(DISTINCT dc.domain) FROM discovered_companies dc WHERE dc.project_id = :pid AND dc.is_target = true) as target_domains,
+            (SELECT COUNT(*) FROM extracted_contacts ec JOIN discovered_companies dc ON ec.discovered_company_id = dc.id WHERE dc.project_id = :pid AND dc.is_target = true AND ec.email IS NOT NULL AND ec.email != '') as contacts_with_email,
+            (SELECT COUNT(*) FROM extracted_contacts ec JOIN discovered_companies dc ON ec.discovered_company_id = dc.id WHERE dc.project_id = :pid AND dc.is_target = true AND ec.email IS NOT NULL AND ec.email != '' AND lower(ec.email) NOT IN (SELECT DISTINCT lower(c.email) FROM contacts c WHERE c.email IS NOT NULL)) as new_emails,
+            (SELECT COUNT(*) FROM discovered_companies WHERE project_id = :pid AND apollo_enriched_at IS NOT NULL) as apollo_enriched,
+            (SELECT COALESCE(SUM(apollo_credits_used), 0) FROM discovered_companies WHERE project_id = :pid) as apollo_credits_used,
+            (SELECT COUNT(*) FROM search_jobs WHERE project_id = :pid) as total_search_jobs,
+            (SELECT COUNT(*) FROM search_queries WHERE search_job_id IN (SELECT id FROM search_jobs WHERE project_id = :pid)) as total_queries
+    """), {"pid": project_id})
+    stats = row.fetchone()
+
+    # Pipeline status
+    pipeline_status = None
+    if project_id in _running_pipelines:
+        p = _running_pipelines[project_id]
+        pipeline_status = {
+            "running": p.get("running", False),
+            "phase": p.get("phase"),
+            "started_at": p.get("started_at"),
+            "target_goal": p.get("config", {}).get("target_goal"),
+        }
+
+    return {
+        "project_id": project_id,
+        "total_discovered": stats[0],
+        "total_targets": stats[1],
+        "target_domains": stats[2],
+        "contacts_with_email": stats[3],
+        "new_emails_not_in_campaigns": stats[4],
+        "apollo_enriched": stats[5],
+        "apollo_credits_used": stats[6],
+        "total_search_jobs": stats[7],
+        "total_queries": stats[8],
+        "pipeline": pipeline_status,
+    }
+
+
 @router.get("/projects/{project_id}/results")
 async def get_project_results(
     project_id: int,
