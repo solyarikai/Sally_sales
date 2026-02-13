@@ -447,6 +447,19 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
         progress["smartlead_push_stats"]["skipped"] = "no_contacts"
         return
 
+    # Filter out junk emails before classifying
+    from app.services.contact_extraction_service import is_valid_email
+    valid_contacts = [c for c in contacts if is_valid_email(c.email)]
+    junk_count = len(contacts) - len(valid_contacts)
+    if junk_count > 0:
+        logger.info(f"SmartLead push: filtered out {junk_count} junk emails")
+    contacts = valid_contacts
+
+    if not contacts:
+        logger.info(f"No valid contacts to push for project {project_id}")
+        progress["smartlead_push_stats"]["skipped"] = "no_valid_contacts"
+        return
+
     logger.info(f"SmartLead push: {len(contacts)} contacts to classify, {len(rules)} rules")
 
     # 3. Classify and bucket contacts

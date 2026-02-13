@@ -267,10 +267,12 @@ async def get_job_queries(
     page: int = QueryParam(1, ge=1),
     page_size: int = QueryParam(100, ge=1, le=500),
     status: Optional[str] = QueryParam(None, description="Filter by status"),
+    segment: Optional[str] = QueryParam(None, description="Filter by segment"),
+    geo: Optional[str] = QueryParam(None, description="Filter by geo"),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
-    """Get paginated queries for a search job."""
+    """Get paginated queries for a search job. Supports segment/geo filtering."""
     result = await db.execute(
         select(SearchJob).where(
             SearchJob.id == job_id,
@@ -283,6 +285,10 @@ async def get_job_queries(
     base_filter = [SearchQuery.search_job_id == job_id]
     if status:
         base_filter.append(SearchQuery.status == status)
+    if segment:
+        base_filter.append(SearchQuery.segment == segment)
+    if geo:
+        base_filter.append(SearchQuery.geo == geo)
 
     count_q = await db.execute(
         select(sqlfunc.count()).select_from(SearchQuery).where(*base_filter)
@@ -292,18 +298,35 @@ async def get_job_queries(
     q = (
         select(SearchQuery)
         .where(*base_filter)
-        .order_by(SearchQuery.id)
+        .order_by(SearchQuery.segment.nulls_last(), SearchQuery.geo.nulls_last(), SearchQuery.id)
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
     rows = await db.execute(q)
     queries = rows.scalars().all()
 
+    # Segment/geo breakdown for this job
+    from sqlalchemy import text as sql_text
+    seg_rows = await db.execute(sql_text("""
+        SELECT segment, geo, COUNT(*) as cnt,
+               SUM(domains_found) as domains,
+               SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done
+        FROM search_queries
+        WHERE search_job_id = :jid AND segment IS NOT NULL
+        GROUP BY segment, geo
+        ORDER BY segment, geo
+    """), {"jid": job_id})
+    segment_groups = [
+        {"segment": r[0], "geo": r[1], "queries": r[2], "domains": r[3] or 0, "done": r[4] or 0}
+        for r in seg_rows.fetchall()
+    ]
+
     return {
         "items": [SearchQueryResponse.model_validate(q) for q in queries],
         "total": total,
         "page": page,
         "page_size": page_size,
+        "segment_groups": segment_groups,
     }
 
 
@@ -761,20 +784,21 @@ async def get_project_results(
     result = await db.execute(query)
     results = result.scalars().all()
 
-    # Build source query text map
+    # Build source query text + segment map
     qids = [r.source_query_id for r in results if r.source_query_id]
-    qmap: dict[int, str] = {}
+    qmap: dict[int, tuple[str, str | None]] = {}  # id -> (query_text, segment)
     if qids:
         qrows = (await db.execute(
-            select(SearchQuery.id, SearchQuery.query_text).where(SearchQuery.id.in_(qids))
+            select(SearchQuery.id, SearchQuery.query_text, SearchQuery.segment).where(SearchQuery.id.in_(qids))
         )).fetchall()
-        qmap = {row[0]: row[1] for row in qrows}
+        qmap = {row[0]: (row[1], row[2]) for row in qrows}
 
     items = []
     for r in results:
         resp = SearchResultResponse.model_validate(r)
         if r.source_query_id and r.source_query_id in qmap:
-            resp.source_query_text = qmap[r.source_query_id]
+            resp.source_query_text = qmap[r.source_query_id][0]
+            resp.source_query_segment = qmap[r.source_query_id][1]
         items.append(resp)
 
     return {
@@ -1063,14 +1087,26 @@ async def get_search_history(
         crona_credits = config.get("crona_credits_used", 0)
         analysis_model = config.get("analysis_model", "gpt-4o-mini")
 
+        # Estimate cost per job
+        queries = job.queries_total or 0
+        engine_str = str(job.search_engine.value if hasattr(job.search_engine, 'value') else job.search_engine)
+        if engine_str == "yandex_api":
+            search_cost = round(queries * 0.25 / 1000, 3)
+        elif engine_str == "google_serp":
+            search_cost = round(queries * 3.50 / 1000, 3)
+        else:
+            search_cost = 0
+        ai_cost = round(ai_tokens * 0.15 / 1_000_000, 3) if ai_tokens else 0
+        crona_cost = round(crona_credits * 0.005, 3) if crona_credits else 0
+
         items.append({
             "id": job.id,
             "company_id": job.company_id,
             "status": str(job.status.value if hasattr(job.status, 'value') else job.status),
-            "search_engine": str(job.search_engine.value if hasattr(job.search_engine, 'value') else job.search_engine),
+            "search_engine": engine_str,
             "project_id": job.project_id,
             "project_name": project_name,
-            "queries_total": job.queries_total or 0,
+            "queries_total": queries,
             "queries_completed": job.queries_completed or 0,
             "domains_found": job.domains_found or 0,
             "domains_new": job.domains_new or 0,
@@ -1085,6 +1121,15 @@ async def get_search_history(
             "ai_tokens_used": ai_tokens,
             "analysis_model": analysis_model,
             "crona_credits_used": crona_credits,
+            # Cost estimates
+            "search_cost": search_cost,
+            "ai_cost": ai_cost,
+            "crona_cost": crona_cost,
+            "total_cost": round(search_cost + ai_cost + crona_cost, 3),
+            # Segment info (from config)
+            "segment": config.get("segment"),
+            "geo": config.get("geo"),
+            "query_source": config.get("query_source"),
         })
 
     return {

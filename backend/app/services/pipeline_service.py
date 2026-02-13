@@ -197,13 +197,20 @@ class PipelineService:
                             "source": "regex",
                         })
 
-                # Store contacts
+                # Store contacts (with email validation)
+                from app.services.contact_extraction_service import is_valid_email
                 emails = []
                 phones = []
                 for c_data in contacts:
+                    email = c_data.get("email")
+                    # Skip contacts with invalid/junk emails
+                    if email and not is_valid_email(email):
+                        logger.debug(f"Rejected junk email: {email} from {dc.domain}")
+                        continue
+
                     ec = ExtractedContact(
                         discovered_company_id=dc.id,
-                        email=c_data.get("email"),
+                        email=email,
                         phone=c_data.get("phone"),
                         first_name=c_data.get("first_name"),
                         last_name=c_data.get("last_name"),
@@ -213,8 +220,8 @@ class PipelineService:
                     )
                     session.add(ec)
 
-                    if c_data.get("email"):
-                        emails.append(c_data["email"])
+                    if email:
+                        emails.append(email)
                     if c_data.get("phone"):
                         phones.append(c_data["phone"])
 

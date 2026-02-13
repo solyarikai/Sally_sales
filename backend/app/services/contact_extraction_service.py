@@ -12,6 +12,66 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Junk email domains and patterns — reject before storing
+JUNK_EMAIL_DOMAINS = {
+    "example.com", "example.org", "example.net", "test.com", "test.org",
+    "localhost", "email.com", "mail.com", "domain.com", "site.com",
+    "yoursite.com", "yourdomain.com", "yourcompany.com", "company.com",
+    "sampleemail.com", "sample.com",
+}
+
+_CYRILLIC_RE_EMAIL = re.compile(r"[\u0400-\u04FF]")
+
+
+def is_valid_email(email: str) -> bool:
+    """
+    Validate email is real and not a placeholder/junk.
+    Returns False for obviously bad emails that should never be stored or pushed.
+    """
+    if not email or not isinstance(email, str):
+        return False
+
+    email = email.strip().lower()
+
+    # Too short or no @
+    if len(email) < 6 or "@" not in email:
+        return False
+
+    local, _, domain = email.partition("@")
+
+    # Missing local or domain
+    if not local or not domain or "." not in domain:
+        return False
+
+    # Cyrillic in email address (not valid for SMTP)
+    if _CYRILLIC_RE_EMAIL.search(email):
+        return False
+
+    # URL-encoded chars (garbled scrape)
+    if "%" in email:
+        return False
+
+    # Spaces
+    if " " in email:
+        return False
+
+    # Known junk domains
+    if domain in JUNK_EMAIL_DOMAINS:
+        return False
+
+    # Domain TLD too short (e.g., "info@delo")
+    tld = domain.rsplit(".", 1)[-1] if "." in domain else ""
+    if len(tld) < 2:
+        return False
+
+    # Local part is a common placeholder
+    placeholder_locals = {"email", "name", "your", "user", "test", "corpora", "secretary"}
+    if local in placeholder_locals:
+        return False
+
+    return True
+
+
 # Generic emails to filter out
 GENERIC_EMAIL_PATTERNS = {
     "info@", "support@", "contact@", "noreply@", "no-reply@",

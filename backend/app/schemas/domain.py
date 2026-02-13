@@ -102,6 +102,9 @@ class SearchQueryResponse(BaseModel):
     status: str
     domains_found: int = 0
     pages_scraped: int = 0
+    segment: Optional[str] = None
+    geo: Optional[str] = None
+    language: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -129,6 +132,7 @@ class SearchResultResponse(BaseModel):
     created_at: Optional[datetime] = None
     source_query_id: Optional[int] = None
     source_query_text: Optional[str] = None
+    source_query_segment: Optional[str] = None
     matched_segment: Optional[str] = None
 
     class Config:

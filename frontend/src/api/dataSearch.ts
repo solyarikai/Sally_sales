@@ -52,6 +52,7 @@ export interface SearchResultItem {
   analyzed_at?: string;
   source_query_id?: number;
   source_query_text?: string;
+  source_query_segment?: string;
   matched_segment?: string;
 }
 
@@ -465,10 +466,12 @@ export const projectSearchApi = {
     jobId: number,
     page: number = 1,
     pageSize: number = 100,
-    status?: string
-  ): Promise<{ items: QueryItem[]; total: number; page: number; page_size: number }> => {
+    status?: string,
+    segment?: string,
+    geo?: string,
+  ): Promise<{ items: QueryItem[]; total: number; page: number; page_size: number; segment_groups?: QuerySegmentGroup[] }> => {
     const response = await api.get(`/search/jobs/${jobId}/queries`, {
-      params: { page, page_size: pageSize, status },
+      params: { page, page_size: pageSize, status, segment, geo },
     });
     return response.data;
   },
@@ -712,6 +715,17 @@ export interface QueryItem {
   status: string;
   domains_found: number;
   pages_scraped?: number;
+  segment?: string;
+  geo?: string;
+  language?: string;
+}
+
+export interface QuerySegmentGroup {
+  segment: string;
+  geo: string;
+  queries: number;
+  domains: number;
+  done: number;
 }
 
 export interface SearchHistoryItem {
@@ -735,6 +749,15 @@ export interface SearchHistoryItem {
   error_message?: string;
   openai_tokens_used: number;
   crona_credits_used: number;
+  // Cost estimates
+  search_cost?: number;
+  ai_cost?: number;
+  crona_cost?: number;
+  total_cost?: number;
+  // Segment info
+  segment?: string;
+  geo?: string;
+  query_source?: string;
 }
 
 export interface ProjectPipelineSummary {

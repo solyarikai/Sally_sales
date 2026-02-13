@@ -16,6 +16,7 @@ import {
   type SearchHistoryItem,
   type SearchResultItem,
   type QueryItem,
+  type QuerySegmentGroup,
   type DomainCampaignsMap,
   type DomainCampaignInfo,
   type ProjectPipelineSummary,
@@ -360,11 +361,12 @@ function JobHistoryView() {
                 <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Project</th>
+                  <th className="px-4 py-3">Segment / Geo</th>
                   <th className="px-4 py-3">Engine</th>
                   <th className="px-4 py-3 text-right">Queries</th>
                   <th className="px-4 py-3 text-right">Domains</th>
                   <th className="px-4 py-3 text-right">Targets</th>
-                  <th className="px-4 py-3 text-right">Results</th>
+                  <th className="px-4 py-3 text-right">Cost</th>
                   <th className="px-4 py-3">Date</th>
                 </tr>
               </thead>
@@ -383,6 +385,22 @@ function JobHistoryView() {
                 <td className="px-4 py-3 text-sm text-neutral-900 font-medium">
                   {job.project_name || '-'}
                 </td>
+                <td className="px-4 py-3">
+                  {job.segment ? (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 w-fit">
+                        {job.segment.replace(/_/g, ' ')}
+                      </span>
+                      {job.geo && (
+                        <span className="text-[10px] text-neutral-400">{job.geo}</span>
+                      )}
+                    </div>
+                  ) : job.query_source === 'template' ? (
+                    <span className="text-[10px] text-neutral-400">template</span>
+                  ) : (
+                    <span className="text-[10px] text-neutral-300">-</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-sm text-neutral-600">
                   {job.search_engine === 'yandex_api' ? 'Yandex' : 'Google'}
                 </td>
@@ -398,8 +416,12 @@ function JobHistoryView() {
                     {job.targets_found}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-neutral-600 text-right">
-                  {job.results_total}
+                <td className="px-4 py-3 text-sm text-right">
+                  {job.total_cost != null && job.total_cost > 0 ? (
+                    <span className="font-medium text-neutral-700">${job.total_cost.toFixed(4)}</span>
+                  ) : (
+                    <span className="text-neutral-300">-</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-sm text-neutral-500">
                   {job.created_at ? new Date(job.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
@@ -408,7 +430,7 @@ function JobHistoryView() {
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-neutral-400">
+                <td colSpan={9} className="px-4 py-12 text-center text-neutral-400">
                   No search jobs found. Run a project search from the Data Search page.
                 </td>
               </tr>
@@ -470,6 +492,9 @@ function JobDetailView({ jobId }: { jobId: number }) {
   const [queryPages, setQueryPages] = useState<Map<number, QueryItem[]>>(new Map());
   const [totalQueries, setTotalQueries] = useState(0);
   const [loadingQueryPages, setLoadingQueryPages] = useState<Set<number>>(new Set());
+  const [segmentGroups, setSegmentGroups] = useState<QuerySegmentGroup[]>([]);
+  const [querySegmentFilter, setQuerySegmentFilter] = useState<string | null>(null);
+  const [queryGeoFilter, setQueryGeoFilter] = useState<string | null>(null);
 
   // Domain campaigns — loaded progressively
   const [domainCampaigns, setDomainCampaigns] = useState<DomainCampaignsMap>({});
@@ -524,9 +549,15 @@ function JobDetailView({ jobId }: { jobId: number }) {
     if (queryPages.has(pageNum) || loadingQueryPages.has(pageNum)) return;
     setLoadingQueryPages(prev => new Set(prev).add(pageNum));
     try {
-      const data = await projectSearchApi.getJobQueries(jobId, pageNum, QUERIES_PAGE_SIZE);
+      const data = await projectSearchApi.getJobQueries(
+        jobId, pageNum, QUERIES_PAGE_SIZE, undefined,
+        querySegmentFilter ?? undefined, queryGeoFilter ?? undefined,
+      );
       setQueryPages(prev => new Map(prev).set(pageNum, data.items));
       setTotalQueries(data.total);
+      if (data.segment_groups && pageNum === 1) {
+        setSegmentGroups(data.segment_groups);
+      }
     } catch (err) {
       console.error(`Failed to load queries page ${pageNum}:`, err);
     } finally {
@@ -536,7 +567,13 @@ function JobDetailView({ jobId }: { jobId: number }) {
         return s;
       });
     }
-  }, [queryPages, loadingQueryPages, jobId]);
+  }, [queryPages, loadingQueryPages, jobId, querySegmentFilter, queryGeoFilter]);
+
+  // Reset query page cache when segment/geo filter changes
+  useEffect(() => {
+    setQueryPages(new Map());
+    setTotalQueries(0);
+  }, [querySegmentFilter, queryGeoFilter]);
 
   // Results virtualizer
   const resultsVirtualizer = useVirtualizer({
@@ -590,6 +627,7 @@ function JobDetailView({ jobId }: { jobId: number }) {
             if (cancelled) return;
             setQueryPages(new Map([[1, data.items]]));
             setTotalQueries(data.total);
+            if (data.segment_groups) setSegmentGroups(data.segment_groups);
           })
         );
         await Promise.all(promises);
@@ -933,18 +971,27 @@ function JobDetailView({ jobId }: { jobId: number }) {
                       <div className="px-4 py-2.5 flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-neutral-900 truncate">{r.domain}</span>
-                          {r.matched_segment && (
-                            <span className={cn(
-                              "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium",
-                              r.is_target
-                                ? "bg-green-100 text-green-700"
-                                : r.matched_segment === 'not_target'
+                          {r.matched_segment && (() => {
+                            const isOther = r.source_query_segment && r.matched_segment !== 'not_target' && r.matched_segment !== r.source_query_segment;
+                            return (
+                              <span className={cn(
+                                "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium",
+                                r.matched_segment === 'not_target'
                                   ? "bg-neutral-100 text-neutral-500"
-                                  : "bg-amber-100 text-amber-700"
-                            )}>
-                              {r.matched_segment === 'not_target' ? 'N/A' : r.matched_segment.replace(/_/g, ' ')}
-                            </span>
-                          )}
+                                  : isOther
+                                    ? "bg-purple-100 text-purple-700"
+                                    : r.is_target
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-amber-100 text-amber-700"
+                              )}>
+                                {r.matched_segment === 'not_target'
+                                  ? 'N/A'
+                                  : isOther
+                                    ? `other: ${r.matched_segment.replace(/_/g, ' ')}`
+                                    : r.matched_segment.replace(/_/g, ' ')}
+                              </span>
+                            );
+                          })()}
                           {r.url && (
                             <a href={r.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
                               <ExternalLink className="w-3.5 h-3.5 text-neutral-400 hover:text-blue-500 flex-shrink-0" />
@@ -1028,26 +1075,108 @@ function JobDetailView({ jobId }: { jobId: number }) {
         </div>
       )}
 
-      {/* Queries tab — virtual scroll */}
+      {/* Queries tab — segment groups + virtual scroll */}
       {tab === 'queries' && (
-        <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-          <div className="flex items-center border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-            <div className="px-4 py-3 flex-1">Query</div>
-            <div className="px-4 py-3 w-[100px] flex-shrink-0 text-center">Status</div>
-            <div className="px-4 py-3 w-[120px] flex-shrink-0 text-right">Domains Found</div>
-          </div>
-          <div
-            ref={queriesParentRef}
-            className="overflow-auto"
-            style={{ maxHeight: 'calc(100vh - 480px)', minHeight: '300px' }}
-          >
-            <div style={{ height: `${queriesVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-              {queriesVirtualizer.getVirtualItems().map((virtualRow) => {
-                const q = getQueryByIndex(virtualRow.index);
-                if (!q) {
+        <div className="space-y-3">
+          {/* Segment groups summary */}
+          {segmentGroups.length > 0 && (
+            <div className="bg-white rounded-xl border border-neutral-200 p-4">
+              <div className="text-xs text-neutral-400 font-medium mb-2">Query Segments:</div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => { setQuerySegmentFilter(null); setQueryGeoFilter(null); }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs border transition-colors",
+                    !querySegmentFilter ? "border-blue-300 bg-blue-50 text-blue-800 font-semibold" : "border-neutral-200 bg-neutral-50 text-neutral-600 hover:bg-neutral-100"
+                  )}
+                >
+                  All ({segmentGroups.reduce((s, g) => s + g.queries, 0)})
+                </button>
+                {/* Group by segment, show geo breakdown */}
+                {Object.entries(
+                  segmentGroups.reduce<Record<string, { queries: number; domains: number; done: number; geos: QuerySegmentGroup[] }>>((acc, g) => {
+                    if (!acc[g.segment]) acc[g.segment] = { queries: 0, domains: 0, done: 0, geos: [] };
+                    acc[g.segment].queries += g.queries;
+                    acc[g.segment].domains += g.domains;
+                    acc[g.segment].done += g.done;
+                    acc[g.segment].geos.push(g);
+                    return acc;
+                  }, {})
+                ).map(([seg, data]) => (
+                  <div key={seg} className="flex items-center gap-1">
+                    <button
+                      onClick={() => { setQuerySegmentFilter(seg); setQueryGeoFilter(null); }}
+                      className={cn(
+                        "px-2.5 py-1.5 rounded-lg text-xs border transition-colors",
+                        querySegmentFilter === seg && !queryGeoFilter
+                          ? "border-blue-300 bg-blue-50 text-blue-800 font-semibold"
+                          : "border-neutral-200 bg-neutral-50 text-neutral-600 hover:bg-neutral-100"
+                      )}
+                    >
+                      {seg.replace(/_/g, ' ')}
+                      <span className="ml-1 text-[10px] opacity-70">{data.queries}q / {data.domains}d</span>
+                    </button>
+                    {data.geos.length > 1 && querySegmentFilter === seg && (
+                      <div className="flex gap-0.5">
+                        {data.geos.map(g => (
+                          <button
+                            key={g.geo}
+                            onClick={() => { setQuerySegmentFilter(seg); setQueryGeoFilter(g.geo); }}
+                            className={cn(
+                              "px-1.5 py-1 rounded text-[10px] border transition-colors",
+                              queryGeoFilter === g.geo
+                                ? "border-blue-300 bg-blue-100 text-blue-800 font-semibold"
+                                : "border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50"
+                            )}
+                          >
+                            {g.geo} <span className="opacity-60">{g.queries}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Queries table */}
+          <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+            <div className="flex items-center border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+              <div className="px-4 py-3 flex-1">Query</div>
+              <div className="px-4 py-3 w-[140px] flex-shrink-0">Segment / Geo</div>
+              <div className="px-4 py-3 w-[100px] flex-shrink-0 text-center">Status</div>
+              <div className="px-4 py-3 w-[120px] flex-shrink-0 text-right">Domains Found</div>
+            </div>
+            <div
+              ref={queriesParentRef}
+              className="overflow-auto"
+              style={{ maxHeight: 'calc(100vh - 540px)', minHeight: '300px' }}
+            >
+              <div style={{ height: `${queriesVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                {queriesVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const q = getQueryByIndex(virtualRow.index);
+                  if (!q) {
+                    return (
+                      <div
+                        key={`qskel-${virtualRow.index}`}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '40px',
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                        className="flex items-center px-4 border-b border-neutral-50"
+                      >
+                        <div className="h-3 w-64 bg-neutral-100 rounded animate-pulse" />
+                      </div>
+                    );
+                  }
                   return (
                     <div
-                      key={`qskel-${virtualRow.index}`}
+                      key={q.id}
                       style={{
                         position: 'absolute',
                         top: 0,
@@ -1056,41 +1185,46 @@ function JobDetailView({ jobId }: { jobId: number }) {
                         height: '40px',
                         transform: `translateY(${virtualRow.start}px)`,
                       }}
-                      className="flex items-center px-4 border-b border-neutral-50"
+                      className="flex items-center border-b border-neutral-50"
                     >
-                      <div className="h-3 w-64 bg-neutral-100 rounded animate-pulse" />
+                      <div className="px-4 py-2.5 flex-1 text-sm text-neutral-900 truncate">
+                        {q.language && (
+                          <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-neutral-100 text-neutral-500 mr-1.5">
+                            {q.language}
+                          </span>
+                        )}
+                        {q.query_text}
+                      </div>
+                      <div className="px-4 py-2.5 w-[140px] flex-shrink-0">
+                        {q.segment ? (
+                          <div className="flex items-center gap-1">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                              {q.segment.replace(/_/g, ' ')}
+                            </span>
+                            {q.geo && (
+                              <span className="text-[10px] text-neutral-400">{q.geo}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-neutral-300">-</span>
+                        )}
+                      </div>
+                      <div className="px-4 py-2.5 w-[100px] text-center">
+                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusColors[q.status] || 'bg-gray-100 text-gray-700')}>
+                          {q.status}
+                        </span>
+                      </div>
+                      <div className="px-4 py-2.5 w-[120px] text-sm text-neutral-600 text-right">{q.domains_found}</div>
                     </div>
                   );
-                }
-                return (
-                  <div
-                    key={q.id}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '40px',
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                    className="flex items-center border-b border-neutral-50"
-                  >
-                    <div className="px-4 py-2.5 flex-1 text-sm text-neutral-900 truncate">{q.query_text}</div>
-                    <div className="px-4 py-2.5 w-[100px] text-center">
-                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusColors[q.status] || 'bg-gray-100 text-gray-700')}>
-                        {q.status}
-                      </span>
-                    </div>
-                    <div className="px-4 py-2.5 w-[120px] text-sm text-neutral-600 text-right">{q.domains_found}</div>
-                  </div>
-                );
-              })}
-            </div>
-            {totalQueries === 0 && !loading && (
-              <div className="px-4 py-12 text-center text-neutral-400">
-                No queries
+                })}
               </div>
-            )}
+              {totalQueries === 0 && !loading && (
+                <div className="px-4 py-12 text-center text-neutral-400">
+                  No queries{querySegmentFilter ? ` for segment "${querySegmentFilter.replace(/_/g, ' ')}"` : ''}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
