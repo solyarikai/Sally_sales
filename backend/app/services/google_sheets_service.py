@@ -500,18 +500,18 @@ class GoogleSheetsService:
         try:
             drive_service = build('drive', 'v3', credentials=self.credentials)
             
-            # Get Shared Drive ID from environment
-            shared_drive_id = os.environ.get('SHARED_DRIVE_ID')
+            # MANDATORY: Always use Shared Drive. Personal drive is FORBIDDEN.
+            shared_drive_id = os.environ.get('SHARED_DRIVE_ID', '0AEvTjlJFlWnZUk9PVA')
+            if not shared_drive_id:
+                logger.error("SHARED_DRIVE_ID not configured — refusing to create sheet in personal drive")
+                return None
             
             file_metadata = {
                 'name': f"Reply Log - {name}",
-                'mimeType': 'application/vnd.google-apps.spreadsheet'
+                'mimeType': 'application/vnd.google-apps.spreadsheet',
+                'parents': [shared_drive_id],
             }
-            
-            # If shared drive is configured, create file in shared drive
-            if shared_drive_id:
-                file_metadata['parents'] = [shared_drive_id]
-                logger.info(f"Creating sheet in Shared Drive: {shared_drive_id}")
+            logger.info(f"Creating sheet in Shared Drive: {shared_drive_id}")
             
             file = drive_service.files().create(
                 body=file_metadata,

@@ -128,9 +128,9 @@ class GoogleDriveService:
         """Check if Google Drive integration is configured."""
         return self._initialize()
     
-    def get_shared_drive_id(self) -> Optional[str]:
-        """Get the Shared Drive ID from environment."""
-        return os.environ.get('SHARED_DRIVE_ID')
+    def get_shared_drive_id(self) -> str:
+        """Get the Shared Drive ID. Personal drive is FORBIDDEN."""
+        return os.environ.get('SHARED_DRIVE_ID', '0AEvTjlJFlWnZUk9PVA')
     
     def upload_file(
         self, 
@@ -185,12 +185,12 @@ class GoogleDriveService:
             if google_mime and convert_to_google_format:
                 file_metadata['mimeType'] = google_mime
             
-            # Set parent folder (Shared Drive or regular folder)
+            # MANDATORY: Always use Shared Drive. Personal drive is FORBIDDEN.
             drive_id = shared_drive_id or self.get_shared_drive_id()
-            if drive_id:
-                file_metadata['parents'] = [drive_id]
-            elif folder_id:
-                file_metadata['parents'] = [folder_id]
+            if not drive_id:
+                logger.error("SHARED_DRIVE_ID not configured — refusing to upload to personal drive")
+                return None
+            file_metadata['parents'] = [folder_id or drive_id]
             
             # Create media upload
             media = MediaFileUpload(

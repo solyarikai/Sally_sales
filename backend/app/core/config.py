@@ -61,8 +61,8 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     
     # Google Drive Integration
-    # Shared Drive ID for uploading files (optional - if not set, files go to service account's My Drive)
-    SHARED_DRIVE_ID: Optional[str] = None
+    # Shared Drive ID — REQUIRED. Personal drive usage is FORBIDDEN.
+    SHARED_DRIVE_ID: str = "0AEvTjlJFlWnZUk9PVA"
     
     # Yandex Search API
     YANDEX_SEARCH_API_KEY: Optional[str] = None
