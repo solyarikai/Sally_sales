@@ -6,7 +6,7 @@ import {
   Loader2, AlertCircle, CheckCircle2, XCircle,
   ChevronDown, ChevronRight, ExternalLink, DollarSign,
   BarChart3, Globe, Mail, MessageSquare,
-  Send, Building2, Play, Square, TrendingUp,
+  Send, Building2, Play, Square, TrendingUp, Filter, X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -495,6 +495,7 @@ function JobDetailView({ jobId }: { jobId: number }) {
   const [segmentGroups, setSegmentGroups] = useState<QuerySegmentGroup[]>([]);
   const [querySegmentFilter, setQuerySegmentFilter] = useState<string | null>(null);
   const [queryGeoFilter, setQueryGeoFilter] = useState<string | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<'segment' | 'geo' | 'status' | null>(null);
 
   // Domain campaigns — loaded progressively
   const [domainCampaigns, setDomainCampaigns] = useState<DomainCampaignsMap>({});
@@ -1075,91 +1076,217 @@ function JobDetailView({ jobId }: { jobId: number }) {
         </div>
       )}
 
-      {/* Queries tab — segment groups + virtual scroll */}
-      {tab === 'queries' && (
-        <div className="space-y-3">
-          {/* Segment groups summary */}
-          {segmentGroups.length > 0 && (
-            <div className="bg-white rounded-xl border border-neutral-200 p-4">
-              <div className="text-xs text-neutral-400 font-medium mb-2">Query Segments:</div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => { setQuerySegmentFilter(null); setQueryGeoFilter(null); }}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-xs border transition-colors",
-                    !querySegmentFilter ? "border-blue-300 bg-blue-50 text-blue-800 font-semibold" : "border-neutral-200 bg-neutral-50 text-neutral-600 hover:bg-neutral-100"
-                  )}
-                >
-                  All ({segmentGroups.reduce((s, g) => s + g.queries, 0)})
-                </button>
-                {/* Group by segment, show geo breakdown */}
-                {Object.entries(
-                  segmentGroups.reduce<Record<string, { queries: number; domains: number; done: number; geos: QuerySegmentGroup[] }>>((acc, g) => {
-                    if (!acc[g.segment]) acc[g.segment] = { queries: 0, domains: 0, done: 0, geos: [] };
-                    acc[g.segment].queries += g.queries;
-                    acc[g.segment].domains += g.domains;
-                    acc[g.segment].done += g.done;
-                    acc[g.segment].geos.push(g);
-                    return acc;
-                  }, {})
-                ).map(([seg, data]) => (
-                  <div key={seg} className="flex items-center gap-1">
-                    <button
-                      onClick={() => { setQuerySegmentFilter(seg); setQueryGeoFilter(null); }}
-                      className={cn(
-                        "px-2.5 py-1.5 rounded-lg text-xs border transition-colors",
-                        querySegmentFilter === seg && !queryGeoFilter
-                          ? "border-blue-300 bg-blue-50 text-blue-800 font-semibold"
-                          : "border-neutral-200 bg-neutral-50 text-neutral-600 hover:bg-neutral-100"
-                      )}
-                    >
-                      {seg.replace(/_/g, ' ')}
-                      <span className="ml-1 text-[10px] opacity-70">{data.queries}q / {data.domains}d</span>
-                    </button>
-                    {data.geos.length > 1 && querySegmentFilter === seg && (
-                      <div className="flex gap-0.5">
-                        {data.geos.map(g => (
-                          <button
-                            key={g.geo}
-                            onClick={() => { setQuerySegmentFilter(seg); setQueryGeoFilter(g.geo); }}
-                            className={cn(
-                              "px-1.5 py-1 rounded text-[10px] border transition-colors",
-                              queryGeoFilter === g.geo
-                                ? "border-blue-300 bg-blue-100 text-blue-800 font-semibold"
-                                : "border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50"
-                            )}
-                          >
-                            {g.geo} <span className="opacity-60">{g.queries}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+      {/* Queries tab — progress bars + filtered virtual scroll */}
+      {tab === 'queries' && (() => {
+        // Aggregate segment groups for progress bars
+        const segAgg = segmentGroups.reduce<Record<string, { queries: number; domains: number; done: number; geos: QuerySegmentGroup[] }>>((acc, g) => {
+          if (!acc[g.segment]) acc[g.segment] = { queries: 0, domains: 0, done: 0, geos: [] };
+          acc[g.segment].queries += g.queries;
+          acc[g.segment].domains += g.domains;
+          acc[g.segment].done += g.done;
+          acc[g.segment].geos.push(g);
+          return acc;
+        }, {});
+        const uniqueSegments = Object.keys(segAgg);
+        const uniqueGeos = querySegmentFilter && segAgg[querySegmentFilter]
+          ? segAgg[querySegmentFilter].geos.map(g => g.geo)
+          : [...new Set(segmentGroups.map(g => g.geo))];
+        const totalAll = segmentGroups.reduce((s, g) => s + g.queries, 0);
+        const doneAll = segmentGroups.reduce((s, g) => s + g.done, 0);
+        const domainsAll = segmentGroups.reduce((s, g) => s + g.domains, 0);
+        const hasFilters = !!querySegmentFilter || !!queryGeoFilter;
 
-          {/* Queries table */}
-          <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-            <div className="flex items-center border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-              <div className="px-4 py-3 flex-1">Query</div>
-              <div className="px-4 py-3 w-[140px] flex-shrink-0">Segment / Geo</div>
-              <div className="px-4 py-3 w-[100px] flex-shrink-0 text-center">Status</div>
-              <div className="px-4 py-3 w-[120px] flex-shrink-0 text-right">Domains Found</div>
-            </div>
-            <div
-              ref={queriesParentRef}
-              className="overflow-auto"
-              style={{ maxHeight: 'calc(100vh - 540px)', minHeight: '300px' }}
-            >
-              <div style={{ height: `${queriesVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-                {queriesVirtualizer.getVirtualItems().map((virtualRow) => {
-                  const q = getQueryByIndex(virtualRow.index);
-                  if (!q) {
+        return (
+          <div className="space-y-3">
+            {/* Segment progress bars */}
+            {segmentGroups.length > 0 && (
+              <div className="bg-white rounded-xl border border-neutral-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs text-neutral-400 font-medium">
+                    Progress by Segment
+                    <span className="ml-2 text-neutral-600">{doneAll}/{totalAll} queries, {domainsAll} domains</span>
+                  </div>
+                  {hasFilters && (
+                    <button
+                      onClick={() => { setQuerySegmentFilter(null); setQueryGeoFilter(null); }}
+                      className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-700"
+                    >
+                      <X className="w-3 h-3" /> Clear filters
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {Object.entries(segAgg).map(([seg, data]) => {
+                    const pct = data.queries > 0 ? Math.round((data.done / data.queries) * 100) : 0;
+                    const isActive = querySegmentFilter === seg;
+                    return (
+                      <button
+                        key={seg}
+                        onClick={() => {
+                          if (isActive) { setQuerySegmentFilter(null); setQueryGeoFilter(null); }
+                          else { setQuerySegmentFilter(seg); setQueryGeoFilter(null); }
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-lg border transition-colors",
+                          isActive ? "border-blue-300 bg-blue-50/50" : "border-neutral-100 hover:bg-neutral-50"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-neutral-700">{seg.replace(/_/g, ' ')}</span>
+                          <span className="text-[10px] text-neutral-500">
+                            {data.done}/{data.queries} queries &middot; {data.domains} domains &middot; {pct}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-neutral-100 rounded-full h-1.5">
+                          <div
+                            className={cn("h-1.5 rounded-full transition-all", pct === 100 ? "bg-green-500" : "bg-blue-500")}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        {/* Geo sub-bars when segment is active */}
+                        {isActive && data.geos.length > 1 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {data.geos.map(g => {
+                              const gPct = g.queries > 0 ? Math.round((g.done / g.queries) * 100) : 0;
+                              const isGeoActive = queryGeoFilter === g.geo;
+                              return (
+                                <button
+                                  key={g.geo}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isGeoActive) setQueryGeoFilter(null);
+                                    else setQueryGeoFilter(g.geo);
+                                  }}
+                                  className={cn(
+                                    "px-2 py-0.5 rounded text-[10px] border transition-colors",
+                                    isGeoActive
+                                      ? "border-blue-300 bg-blue-100 text-blue-800 font-semibold"
+                                      : "border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50"
+                                  )}
+                                >
+                                  {g.geo} {g.done}/{g.queries} ({gPct}%) &middot; {g.domains}d
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Queries table with column-embedded filters */}
+            <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+              <div className="flex items-center border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                <div className="px-4 py-3 flex-1">Query</div>
+                {/* Segment column with embedded filter */}
+                <div className="px-4 py-3 w-[140px] flex-shrink-0 relative">
+                  <button
+                    onClick={() => setOpenDropdown(openDropdown === 'segment' ? null : 'segment')}
+                    className={cn(
+                      "flex items-center gap-1 transition-colors",
+                      querySegmentFilter ? "text-blue-700 font-semibold" : "hover:text-neutral-700"
+                    )}
+                  >
+                    Segment
+                    {querySegmentFilter && (
+                      <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px]">
+                        {querySegmentFilter.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                    <Filter className="w-3 h-3" />
+                  </button>
+                  {openDropdown === 'segment' && (
+                    <div className="absolute top-full left-0 mt-1 w-52 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-50">
+                      <button
+                        onClick={() => { setQuerySegmentFilter(null); setQueryGeoFilter(null); setOpenDropdown(null); }}
+                        className={cn("w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50", !querySegmentFilter && "bg-blue-50 text-blue-700 font-semibold")}
+                      >
+                        All segments ({totalAll})
+                      </button>
+                      {uniqueSegments.map(seg => (
+                        <button
+                          key={seg}
+                          onClick={() => { setQuerySegmentFilter(seg); setQueryGeoFilter(null); setOpenDropdown(null); }}
+                          className={cn("w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50", querySegmentFilter === seg && "bg-blue-50 text-blue-700 font-semibold")}
+                        >
+                          {seg.replace(/_/g, ' ')}
+                          <span className="ml-1 text-neutral-400">{segAgg[seg].done}/{segAgg[seg].queries}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Geo column with embedded filter */}
+                <div className="px-4 py-3 w-[100px] flex-shrink-0 relative">
+                  <button
+                    onClick={() => setOpenDropdown(openDropdown === 'geo' ? null : 'geo')}
+                    className={cn(
+                      "flex items-center gap-1 transition-colors",
+                      queryGeoFilter ? "text-blue-700 font-semibold" : "hover:text-neutral-700"
+                    )}
+                  >
+                    Geo
+                    {queryGeoFilter && (
+                      <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px]">{queryGeoFilter}</span>
+                    )}
+                    <Filter className="w-3 h-3" />
+                  </button>
+                  {openDropdown === 'geo' && (
+                    <div className="absolute top-full left-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-50 max-h-60 overflow-auto">
+                      <button
+                        onClick={() => { setQueryGeoFilter(null); setOpenDropdown(null); }}
+                        className={cn("w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50", !queryGeoFilter && "bg-blue-50 text-blue-700 font-semibold")}
+                      >
+                        All geos
+                      </button>
+                      {uniqueGeos.map(geo => (
+                        <button
+                          key={geo}
+                          onClick={() => { setQueryGeoFilter(geo); setOpenDropdown(null); }}
+                          className={cn("w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50", queryGeoFilter === geo && "bg-blue-50 text-blue-700 font-semibold")}
+                        >
+                          {geo}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="px-4 py-3 w-[80px] flex-shrink-0 text-center">Status</div>
+                <div className="px-4 py-3 w-[100px] flex-shrink-0 text-right">Domains</div>
+              </div>
+              <div
+                ref={queriesParentRef}
+                className="overflow-auto"
+                style={{ maxHeight: 'calc(100vh - 540px)', minHeight: '300px' }}
+                onClick={() => openDropdown && setOpenDropdown(null)}
+              >
+                <div style={{ height: `${queriesVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                  {queriesVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const q = getQueryByIndex(virtualRow.index);
+                    if (!q) {
+                      return (
+                        <div
+                          key={`qskel-${virtualRow.index}`}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '40px',
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                          className="flex items-center px-4 border-b border-neutral-50"
+                        >
+                          <div className="h-3 w-64 bg-neutral-100 rounded animate-pulse" />
+                        </div>
+                      );
+                    }
                     return (
                       <div
-                        key={`qskel-${virtualRow.index}`}
+                        key={q.id}
                         style={{
                           position: 'absolute',
                           top: 0,
@@ -1168,66 +1295,52 @@ function JobDetailView({ jobId }: { jobId: number }) {
                           height: '40px',
                           transform: `translateY(${virtualRow.start}px)`,
                         }}
-                        className="flex items-center px-4 border-b border-neutral-50"
+                        className="flex items-center border-b border-neutral-50"
                       >
-                        <div className="h-3 w-64 bg-neutral-100 rounded animate-pulse" />
-                      </div>
-                    );
-                  }
-                  return (
-                    <div
-                      key={q.id}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '40px',
-                        transform: `translateY(${virtualRow.start}px)`,
-                      }}
-                      className="flex items-center border-b border-neutral-50"
-                    >
-                      <div className="px-4 py-2.5 flex-1 text-sm text-neutral-900 truncate">
-                        {q.language && (
-                          <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-neutral-100 text-neutral-500 mr-1.5">
-                            {q.language}
-                          </span>
-                        )}
-                        {q.query_text}
-                      </div>
-                      <div className="px-4 py-2.5 w-[140px] flex-shrink-0">
-                        {q.segment ? (
-                          <div className="flex items-center gap-1">
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                        <div className="px-4 py-2.5 flex-1 text-sm text-neutral-900 truncate">
+                          {q.language && (
+                            <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-neutral-100 text-neutral-500 mr-1.5">
+                              {q.language}
+                            </span>
+                          )}
+                          {q.query_text}
+                        </div>
+                        <div className="px-4 py-2.5 w-[140px] flex-shrink-0">
+                          {q.segment ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 truncate max-w-[130px]">
                               {q.segment.replace(/_/g, ' ')}
                             </span>
-                            {q.geo && (
-                              <span className="text-[10px] text-neutral-400">{q.geo}</span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-neutral-300">-</span>
-                        )}
+                          ) : (
+                            <span className="text-[10px] text-neutral-300">-</span>
+                          )}
+                        </div>
+                        <div className="px-4 py-2.5 w-[100px] flex-shrink-0">
+                          {q.geo ? (
+                            <span className="text-[10px] text-neutral-500">{q.geo}</span>
+                          ) : (
+                            <span className="text-[10px] text-neutral-300">-</span>
+                          )}
+                        </div>
+                        <div className="px-4 py-2.5 w-[80px] text-center">
+                          <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusColors[q.status] || 'bg-gray-100 text-gray-700')}>
+                            {q.status}
+                          </span>
+                        </div>
+                        <div className="px-4 py-2.5 w-[100px] text-sm text-neutral-600 text-right">{q.domains_found}</div>
                       </div>
-                      <div className="px-4 py-2.5 w-[100px] text-center">
-                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusColors[q.status] || 'bg-gray-100 text-gray-700')}>
-                          {q.status}
-                        </span>
-                      </div>
-                      <div className="px-4 py-2.5 w-[120px] text-sm text-neutral-600 text-right">{q.domains_found}</div>
-                    </div>
-                  );
-                })}
-              </div>
-              {totalQueries === 0 && !loading && (
-                <div className="px-4 py-12 text-center text-neutral-400">
-                  No queries{querySegmentFilter ? ` for segment "${querySegmentFilter.replace(/_/g, ' ')}"` : ''}
+                    );
+                  })}
                 </div>
-              )}
+                {totalQueries === 0 && !loading && (
+                  <div className="px-4 py-12 text-center text-neutral-400">
+                    No queries{querySegmentFilter ? ` for segment "${querySegmentFilter.replace(/_/g, ' ')}"` : ''}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

@@ -419,7 +419,7 @@ class CompanySearchService:
         Phase B: AI expansion via gpt-4o-mini (when templates exhausted).
         Returns stats dict.
         """
-        from app.services.query_templates import build_segment_queries
+        from app.services.query_templates import build_segment_queries, build_doc_keyword_queries
 
         # Load project for target_segments
         result = await session.execute(
@@ -441,17 +441,29 @@ class CompanySearchService:
             (r[0] or "").strip().lower() for r in existing_result.fetchall()
         )
 
-        # Phase A: Template queries
+        # Phase A: Template queries + raw doc keywords
         tagged_queries = build_segment_queries(
             segment_key=segment_key,
             geo_key=geo_key,
             existing_queries=existing_queries,
         )
+        # Add raw doc keyword phrases (dedup against templates + existing)
+        tmpl_seen = set(q["query"].strip().lower() for q in tagged_queries) | existing_queries
+        doc_queries = build_doc_keyword_queries(
+            segment_key=segment_key,
+            geo_key=geo_key,
+            existing_queries=tmpl_seen,
+        )
+        tagged_queries.extend(doc_queries)
+
+        template_count = len(tagged_queries) - len(doc_queries)
+        doc_count = len(doc_queries)
 
         stats = {
             "segment": segment_key,
             "geo": geo_key,
-            "template_queries": len(tagged_queries),
+            "template_queries": template_count,
+            "doc_keyword_queries": doc_count,
             "ai_queries": 0,
             "total_queries": len(tagged_queries),
             "targets_found": 0,
@@ -460,7 +472,7 @@ class CompanySearchService:
         }
 
         if not tagged_queries:
-            logger.info(f"No new template queries for {segment_key}/{geo_key}")
+            logger.info(f"No new queries for {segment_key}/{geo_key}")
             return stats
 
         # Create a SearchJob for this segment+geo
@@ -470,7 +482,7 @@ class CompanySearchService:
             "max_pages": settings.SEARCH_MAX_PAGES,
             "workers": settings.SEARCH_WORKERS,
             "target_segments": project.target_segments,
-            "query_source": "template",
+            "query_source": "template+doc_keywords",
         }
         job = SearchJob(
             company_id=company_id,
@@ -484,7 +496,7 @@ class CompanySearchService:
         await session.flush()
         stats["job_id"] = job.id
 
-        # Add template queries to DB with segment/geo tags
+        # Add all queries to DB with segment/geo tags
         for tq in tagged_queries:
             sq = SearchQuery(
                 search_job_id=job.id,
@@ -499,7 +511,7 @@ class CompanySearchService:
 
         # Execute search
         logger.info(
-            f"Running {segment_key}/{geo_key}: {len(tagged_queries)} template queries on {search_engine.value}"
+            f"Running {segment_key}/{geo_key}: {template_count} templates + {doc_count} doc keywords = {len(tagged_queries)} queries on {search_engine.value}"
         )
         await search_service.run_search_job(session, job.id)
         await session.refresh(job)

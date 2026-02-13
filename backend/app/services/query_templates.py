@@ -810,4 +810,714 @@ def count_all_queries() -> dict[str, dict[str, int]]:
             queries = build_segment_queries(seg_key, geo_key)
             counts[seg_key][geo_key] = len(queries)
         counts[seg_key]["_total"] = sum(counts[seg_key].values())
+
+
+# ============================================================
+# RAW DOC KEYWORDS (from tasks/deliryo/keywords_*.md)
+#
+# Each entry: (segment_key, geo_key, language) -> list of raw phrases
+# These are the exact keyword phrases from the docs, used as-is as queries.
+# ============================================================
+
+DOC_KEYWORDS: list[tuple[str, str, str, list[str]]] = [
+    # ── keywords_russia.md ──
+    # Segment 1: Real Estate
+    # §1 Дубай
+    ("real_estate", "dubai", "ru", [
+        "купить недвижимость в Дубае", "купить квартиру в Дубае", "купить виллу в Дубае",
+        "купить апартаменты в Дубае", "купить пентхаус Дубай", "недвижимость в ОАЭ",
+        "агентство недвижимости Дубай", "агентство недвижимости ОАЭ",
+        "инвестиции в недвижимость Дубай", "off-plan Дубай купить", "новостройки Дубай",
+        "квартира Дубай Марина", "квартира Palm Jumeirah", "квартира Downtown Dubai",
+        "вилла Dubai Hills", "вилла Arabian Ranches", "квартира Business Bay",
+        "квартира JBR Дубай", "недвижимость Дубай для россиян",
+        "купить недвижимость ОАЭ из России", "как купить квартиру в Дубае",
+        "риелтор Дубай русскоязычный", "русский агент Дубай недвижимость",
+        "недвижимость Абу-Даби", "недвижимость Рас-Аль-Хайма", "недвижимость Шарджа",
+    ]),
+    # §2 Турция
+    ("real_estate", "turkey", "ru", [
+        "купить недвижимость в Турции", "купить квартиру в Турции", "купить виллу в Турции",
+        "квартира в Анталье купить", "квартира в Аланье купить", "квартира в Стамбуле купить",
+        "вилла в Бодруме", "недвижимость Фетхие", "недвижимость Мерсин",
+        "недвижимость Калкан", "недвижимость Белек", "недвижимость Сиде",
+        "недвижимость Кемер", "недвижимость Трабзон", "недвижимость Бурса",
+        "недвижимость Измир", "агентство недвижимости Турция",
+        "ВНЖ Турция через недвижимость", "гражданство Турции за инвестиции",
+        "новостройки Анталья", "новостройки Стамбул", "недвижимость Турция для россиян",
+        "русский риелтор Турция", "жильё в Турции купить", "инвестиции недвижимость Турция",
+    ]),
+    # §3 Кипр
+    ("real_estate", "cyprus", "ru", [
+        "купить недвижимость Кипр", "купить квартиру Кипр", "купить виллу Кипр",
+        "квартира Лимассол купить", "вилла Пафос купить", "недвижимость Ларнака",
+        "недвижимость Никосия", "недвижимость Айя-Напа", "недвижимость Протарас",
+        "недвижимость Северный Кипр", "квартира Северный Кипр",
+        "агентство недвижимости Кипр", "ВНЖ Кипр через недвижимость",
+        "ПМЖ Кипр недвижимость", "новостройки Лимассол",
+        "инвестиции недвижимость Кипр", "русский риелтор Кипр",
+    ]),
+    # §4 Таиланд/Бали
+    ("real_estate", "thailand_bali", "ru", [
+        "купить недвижимость Таиланд", "купить кондо Пхукет", "купить виллу Пхукет",
+        "кондо Паттайя купить", "квартира Бангкок купить", "недвижимость Самуи",
+        "недвижимость Чиангмай", "недвижимость Хуа Хин", "недвижимость Краби",
+        "вилла Пханган", "агентство недвижимости Таиланд",
+        "агентство недвижимости Пхукет", "кондоминиум Таиланд",
+        "инвестиции Таиланд недвижимость", "русский риелтор Пхукет",
+        "русский агент Паттайя", "недвижимость Таиланд для россиян",
+        "купить виллу Бали", "недвижимость Бали", "вилла Чангу",
+        "вилла Семиньяк", "вилла Убуд", "агентство недвижимости Бали", "инвестиции Бали",
+    ]),
+    # §5 Черногория
+    ("real_estate", "montenegro", "ru", [
+        "купить недвижимость Черногория", "квартира Будва купить", "квартира Тиват купить",
+        "вилла Черногория", "недвижимость Котор", "недвижимость Херцег-Нови",
+        "недвижимость Бар", "недвижимость Подгорица", "недвижимость Бечичи",
+        "недвижимость Петровац", "недвижимость Ульцинь", "Порто Монтенегро квартира",
+        "агентство недвижимости Черногория", "ВНЖ Черногория недвижимость",
+        "инвестиции Черногория", "русский риелтор Черногория",
+    ]),
+    # §6 Испания/Португалия
+    ("real_estate", "spain_portugal", "ru", [
+        "купить недвижимость Испания", "квартира Барселона купить", "вилла Марбелья",
+        "недвижимость Коста дель Соль", "недвижимость Коста Бланка",
+        "квартира Аликанте", "квартира Малага", "недвижимость Валенсия",
+        "вилла Ибица", "вилла Майорка", "недвижимость Тенерифе", "квартира Мадрид",
+        "недвижимость Эстепона", "недвижимость Бенидорм",
+        "агентство недвижимости Испания", "Golden Visa Испания",
+        "купить недвижимость Португалия", "квартира Лиссабон купить",
+        "вилла Алгарве", "недвижимость Порту", "недвижимость Каскайш",
+        "недвижимость Мадейра", "агентство недвижимости Португалия",
+        "Golden Visa Португалия", "русский риелтор Испания",
+    ]),
+    # §7 Агрегаторы
+    ("real_estate", "global_aggregator", "ru", [
+        "купить недвижимость за рубежом", "зарубежная недвижимость",
+        "недвижимость за границей", "портал зарубежной недвижимости",
+        "каталог зарубежной недвижимости", "инвестиции в зарубежную недвижимость",
+        "международная недвижимость", "купить квартиру за рубежом",
+        "купить дом за границей", "недвижимость за рубежом для россиян",
+        "зарубежная недвижимость от застройщика", "элитная недвижимость за рубежом",
+    ]),
+
+    # Segment 2: Investment
+    # §8 Инвестиционные бутики
+    ("investment", "moscow", "ru", [
+        "инвестиционная компания Москва", "инвестиционная компания Санкт-Петербург",
+        "управляющая компания инвестиции", "инвестиционный советник",
+        "инвестиционный консалтинг", "управление активами Москва",
+        "инвестиции для состоятельных клиентов", "инвестиционный бутик",
+        "advisory фирма инвестиции", "частное управление капиталом",
+        "доверительное управление", "управление портфелем",
+        "инвестиционная advisory", "инвестиционное управление",
+        # §9 Брокеры с private-сегментом
+        "private banking Москва", "private banking Петербург", "премиальный брокер",
+        "VIP брокерское обслуживание", "управление крупным капиталом",
+        "АТОН инвестиции", "Финам Private", "БКС Ультима", "Ренессанс Капитал",
+        "Тинькофф Private", "Открытие Private", "Совкомбанк Private",
+        "Газпромбанк Private", "приватный банкинг",
+        "премиальное обслуживание инвестиции", "брокер для состоятельных клиентов",
+        # §10 Независимые финансовые советники
+        "независимый финансовый советник", "финансовый консультант",
+        "личный финансовый советник", "инвестиционный советник Москва",
+        "инвестиционный советник Петербург", "финансовое планирование",
+        "советник по инвестициям", "персональный финансовый консультант",
+        "управление личными финансами", "финансовый планировщик",
+        "IFA Россия", "независимый советник по инвестициям",
+        # §11 УК с зарубежными продуктами
+        "инвестиции за рубежом", "зарубежные инвестиции из России",
+        "управляющая компания зарубежные активы", "ETF из России",
+        "инвестировать за границей", "зарубежный брокер для россиян",
+        "международные инвестиции", "портфель зарубежных активов",
+        "зарубежные фонды", "unit-linked программы",
+        "накопительное страхование жизни инвестиционное",
+        "страховой полис инвестиционный",
+    ]),
+
+    # Segment 3: Legal
+    # §12 Международное налоговое планирование
+    ("legal", "moscow", "ru", [
+        "международное налоговое планирование", "налоговый консультант международный",
+        "оптимизация налогов за рубежом", "налоговое планирование ВЭД",
+        "международное налогообложение", "юрист по международным налогам",
+        "двойное налогообложение", "налоговый советник Москва",
+        "налоговый советник Петербург", "трансфертное ценообразование",
+        "международная налоговая оптимизация", "СИДН",
+        "соглашение об избежании двойного налогообложения",
+        "КИК контролируемые иностранные компании", "налоговый консалтинг международный",
+        # §13 Юрфирмы по ВЭД
+        "юрист ВЭД", "юридическое сопровождение ВЭД",
+        "юрист внешнеэкономическая деятельность", "таможенный юрист",
+        "сопровождение экспортных сделок", "валютный контроль юрист",
+        "ВЭД консалтинг", "импорт экспорт юридические услуги",
+        "юрист по валютному законодательству", "сопровождение импортных сделок",
+        "консалтинг ВЭД Москва", "юрист международная торговля",
+        # §14 M&A
+        "M&A юрист", "M&A юрист Москва", "сделки слияния поглощения",
+        "международные M&A", "трансграничные сделки юрист",
+        "корпоративный юрист M&A", "due diligence юрист",
+        "продажа бизнеса за рубеж", "покупка компании за границей",
+        "международная сделка юрист", "корпоративный юрист международный",
+        "M&A консалтинг", "юрист по сделкам с зарубежными активами",
+        # §15 Структурирование активов
+        "структурирование активов", "создание траста", "личный фонд",
+        "оффшорная структура", "защита активов юрист", "холдинговая структура",
+        "международное структурирование", "корпоративное структурирование",
+        "семейный фонд", "наследственное планирование", "estate planning Россия",
+        "траст для защиты активов", "международный холдинг",
+        "структурирование бизнеса за рубежом", "зарубежный траст", "зарубежный фонд",
+        # §16 Налоговые консультанты для релокантов
+        "налоги при релокации", "налоговый консультант для уехавших",
+        "налоговое резидентство при переезде", "налоги релокант",
+        "валютный резидент", "КИК для уехавших", "налоги при смене резидентства",
+        "НДФЛ нерезидент", "налоговый статус при эмиграции",
+        "налоги для уехавших из России", "уведомление о КИК",
+        "налог при продаже квартиры нерезидент", "декларация 3-НДФЛ нерезидент",
+        "валютное резидентство", "счета за рубежом уведомление",
+    ]),
+
+    # Segment 4: Migration
+    # §17 Миграционные агентства
+    ("migration", "general_migration", "ru", [
+        "ВНЖ за инвестиции", "иммиграция за рубеж", "получить ВНЖ",
+        "второе гражданство", "иммиграционный консультант",
+        "иммиграционное агентство Москва", "иммиграционное агентство Петербург",
+        "помощь в иммиграции", "ПМЖ за рубежом", "вид на жительство за границей",
+        "переезд за границу помощь", "эмиграция из России",
+        "куда уехать из России", "иммиграция в Европу",
+        "иммиграция в ОАЭ", "иммиграция в Канаду", "иммиграция в США",
+        # §18 Релокация IT
+        "релокация IT", "переезд программистов за границу",
+        "релокация разработчиков", "IT релокация Грузия", "IT релокация Сербия",
+        "IT релокация ОАЭ", "IT релокация Кипр", "IT релокация Армения",
+        "IT релокация Черногория", "IT релокация Турция",
+        "помощь с переездом IT", "релокация айтишников",
+        "digital nomad visa", "виза цифрового кочевника",
+        "удалённая работа за рубежом", "переезд в Дубай IT",
+        # §19 Визовые (Golden Visa)
+        "Golden Visa", "золотая виза", "ВНЖ за покупку недвижимости",
+        "инвесторская виза", "Golden Visa Испания", "Golden Visa Греция",
+        "Golden Visa Португалия", "Golden Visa ОАЭ", "ВНЖ через инвестиции",
+        "резидентство за инвестиции", "инвестиционная виза",
+        "визовое агентство Golden Visa", "помощь Golden Visa", "оформление Golden Visa",
+    ]),
+
+    # Segment 5: Family Offices
+    # §20 Family offices
+    ("family_office", "moscow_fo", "ru", [
+        "семейный офис", "family office Москва", "family office Петербург",
+        "управление семейным капиталом", "семейный фонд",
+        "частное управление активами", "family office услуги",
+        "семейное управление состоянием", "создание семейного офиса",
+        "семейный офис для HNWI",
+        # §21 Multi-family offices
+        "мультисемейный офис", "multi family office Россия",
+        "multi family office Москва", "управление капиталом нескольких семей",
+        "MFO услуги", "мультисемейное управление активами",
+        # §22 Private banking дески
+        "private banking Москва", "Сбер Private Banking",
+        "Альфа Private Banking", "Газпромбанк Private Banking",
+        "ВТБ Private Banking", "Тинькофф Private", "Открытие Private",
+        "Совкомбанк Private", "Росбанк Private", "Райффайзен Private",
+        "премиальное банковское обслуживание", "приватный банкинг",
+        "private banking Петербург", "private banking Россия",
+        # §23 Wealth-советники
+        "wealth management Россия", "wealth management Москва",
+        "управление состоянием", "wealth advisor Россия",
+        "консультант по управлению капиталом", "независимый управляющий активами",
+        "wealth planning", "управление благосостоянием", "финансовый советник HNWI",
+    ]),
+
+    # Segment 6: Crypto
+    # §24 OTC-дески
+    ("crypto", "moscow_crypto", "ru", [
+        "OTC крипто", "OTC крипто Москва", "OTC крипто Петербург",
+        "купить криптовалюту крупная сумма", "OTC биткоин",
+        "внебиржевая покупка крипто", "OTC USDT", "купить крипту оптом",
+        "крупные крипто сделки", "OTC desk Россия", "OTC сделка биткоин",
+        "купить биткоин крупная сумма", "обмен крупных сумм крипто",
+        # §25 Крипто-фонды
+        "криптовалютный фонд", "крипто инвестиционный фонд",
+        "инвестиции в криптовалюту фонд", "фонд цифровых активов",
+        "управление криптоактивами", "крипто фонд Россия",
+        "криптовалютный инвестиционный фонд Москва", "инвестиции биткоин фонд",
+        # §26 Майнинг
+        "майнинг биткоин Россия", "майнинг ферма", "майнинг ферма Россия",
+        "крипто майнинг", "промышленный майнинг", "майнинг оборудование",
+        "майнинг Иркутск", "майнинг Красноярск", "майнинг Братск",
+        "майнинг Новосибирск", "майнинг Казахстан", "дата центр майнинг",
+        "легализация дохода майнинг", "налоги с майнинга", "майнинг отель",
+        "облачный майнинг", "mining farm Russia",
+        # §27 Обменники
+        "обменник криптовалют", "обмен крипты на рубли", "купить биткоин за рубли",
+        "обменник USDT", "легальный обмен криптовалюты", "лицензированный обменник",
+        "купить USDT за рубли", "купить биткоин Москва",
+        "обмен криптовалюты на наличные", "крипто обмен Петербург",
+        "надёжный обменник крипты", "обменник с документами",
+    ]),
+
+    # Segment 7: Importers
+    # §28-31
+    ("importers", "moscow_import", "ru", [
+        # §28 Импортёры авто
+        "импорт авто из ОАЭ", "импорт авто из Дубая", "купить машину в Дубае",
+        "привезти авто из Кореи", "импорт автомобилей из Китая",
+        "авто из Эмиратов", "купить машину за рубежом", "автоимпорт",
+        "параллельный импорт авто", "авто из Японии", "авто из Германии",
+        "авто из США", "авто под заказ из-за рубежа",
+        "пригнать авто из Дубая", "пригнать авто из Кореи", "автоброкер импорт",
+        # §29 Импортёры оборудования
+        "импорт оборудования", "импорт оборудования из Китая",
+        "импорт оборудования из Европы", "импорт станков",
+        "закупка оборудования за рубежом", "промышленный импорт",
+        "поставка оборудования из-за рубежа", "ВЭД оборудование",
+        "импорт медицинского оборудования", "импорт строительного оборудования",
+        "импорт промышленного оборудования",
+        # §30 Байеры luxury
+        "байер люкс", "личный шоппер за рубежом", "персональный байер",
+        "закупка luxury товаров", "шопинг за рубежом",
+        "байер Милан", "байер Париж", "байер Дубай", "байер Лондон",
+        "байер Италия", "личный закупщик люкс", "luxury шоппинг сервис",
+        "персональный шопер Европа",
+        # §31 ВЭД-компании
+        "ВЭД компания", "ВЭД компания Москва", "ВЭД компания Петербург",
+        "внешнеэкономическая деятельность", "импорт товаров",
+        "экспорт из России", "международная торговля",
+        "оплата зарубежному поставщику", "международные расчёты",
+        "платежи за рубеж", "как оплатить поставщику за границей",
+        "ВЭД агент", "ВЭД посредник", "таможенный брокер",
+        "логистика ВЭД", "международные платежи для бизнеса",
+    ]),
+
+    # ── keywords_international.md ──
+    # Segment 1: Real Estate (international)
+    # §1 Дубай EN
+    ("real_estate", "dubai", "en", [
+        "buy property Dubai", "buy apartment Dubai", "buy villa Dubai",
+        "buy penthouse Dubai", "property for sale Dubai", "apartment for sale Dubai",
+        "villa for sale Dubai", "real estate agency Dubai", "real estate agent Dubai",
+        "real estate broker Dubai", "property broker Dubai", "Dubai property investment",
+        "investment property Dubai", "off-plan Dubai", "off-plan property Dubai",
+        "new development Dubai", "Dubai Marina property", "Dubai Marina apartment",
+        "Palm Jumeirah property", "Palm Jumeirah villa", "Downtown Dubai apartment",
+        "Business Bay property", "JBR apartment", "Dubai Hills villa",
+        "Arabian Ranches villa", "Jumeirah Village Circle property",
+        "Dubai Creek Harbour", "Emaar Beachfront", "MBR City property",
+        "DIFC apartment", "Dubai South property", "Damac properties Dubai",
+        "Emaar properties Dubai", "Sobha Dubai", "Ellington properties",
+        "RERA registered broker", "RERA agent Dubai",
+        "Russian speaking realtor Dubai", "luxury real estate Dubai",
+        "premium property Dubai", "Dubai property consultant",
+        "Dubai real estate consultancy",
+    ]),
+    # §2 Турция EN
+    ("real_estate", "turkey", "en", [
+        "buy property Turkey", "buy apartment Turkey", "buy villa Turkey",
+        "property for sale Turkey", "real estate agency Turkey",
+        "real estate agent Turkey", "property broker Turkey",
+        "Istanbul property", "Istanbul apartment buy", "Istanbul real estate",
+        "Antalya property", "Antalya apartment", "Antalya real estate agent",
+        "Alanya property", "Alanya apartment for sale", "Bodrum property",
+        "Bodrum villa", "Fethiye property", "Fethiye villa for sale",
+        "Mersin property", "Kalkan villa", "Belek property", "Side apartment",
+        "Kemer property", "Trabzon apartment", "Bursa property", "Izmir real estate",
+        "Kusadasi property", "Didim apartment",
+        "Turkish citizenship by investment", "Turkey citizenship property",
+        "Turkey residence permit property", "off-plan Turkey",
+        "new development Istanbul", "new development Antalya",
+        "luxury property Turkey",
+    ]),
+    # §3 Кипр EN
+    ("real_estate", "cyprus", "en", [
+        "buy property Cyprus", "buy apartment Cyprus", "buy villa Cyprus",
+        "property for sale Cyprus", "real estate agency Cyprus",
+        "real estate agent Cyprus", "property broker Cyprus",
+        "Limassol property", "Limassol apartment", "Limassol real estate",
+        "Paphos property", "Paphos villa", "Paphos real estate",
+        "Larnaca property", "Larnaca apartment", "Nicosia property",
+        "Ayia Napa property", "Protaras villa", "Famagusta property",
+        "North Cyprus property", "North Cyprus apartment",
+        "Cyprus property investment", "Cyprus residence permit property",
+        "Cyprus permanent residency", "off-plan Cyprus",
+        "new development Limassol", "luxury property Cyprus",
+        "seaside property Cyprus",
+    ]),
+    # §4 Черногория EN
+    ("real_estate", "montenegro", "en", [
+        "buy property Montenegro", "buy apartment Montenegro", "buy villa Montenegro",
+        "property for sale Montenegro", "real estate agency Montenegro",
+        "real estate agent Montenegro", "Budva property", "Budva apartment",
+        "Budva real estate", "Tivat property", "Tivat apartment", "Tivat real estate",
+        "Porto Montenegro property", "Kotor property", "Kotor apartment",
+        "Herceg Novi property", "Herceg Novi apartment", "Bar property",
+        "Ulcinj property", "Podgorica property", "Podgorica apartment",
+        "Becici property", "Petrovac apartment", "Montenegro property investment",
+        "Montenegro residence permit property", "Montenegro citizenship",
+        "off-plan Montenegro", "luxury property Montenegro",
+        "seaside property Montenegro",
+    ]),
+    # §5 Португалия EN
+    ("real_estate", "spain_portugal", "en", [
+        "buy property Portugal", "buy apartment Portugal", "buy villa Portugal",
+        "property for sale Portugal", "real estate agency Portugal",
+        "real estate agent Portugal", "property broker Portugal",
+        "Lisbon property", "Lisbon apartment", "Lisbon real estate",
+        "Porto property", "Porto apartment", "Porto real estate",
+        "Algarve property", "Algarve villa", "Faro property", "Lagos property",
+        "Cascais property", "Cascais apartment", "Estoril property",
+        "Sintra villa", "Madeira property", "Funchal apartment",
+        "Silver Coast property", "Comporta property", "Vilamoura property",
+        "Golden Visa Portugal property", "Portugal residence permit",
+        "off-plan Portugal", "new development Lisbon", "luxury property Portugal",
+        # §6 Испания EN
+        "buy property Spain", "buy apartment Spain", "buy villa Spain",
+        "property for sale Spain", "real estate agency Spain",
+        "real estate agent Spain", "property broker Spain",
+        "Barcelona property", "Barcelona apartment", "Barcelona real estate",
+        "Madrid property", "Madrid apartment", "Marbella property",
+        "Marbella villa", "Marbella real estate", "Costa del Sol property",
+        "Costa del Sol apartment", "Costa Blanca property", "Alicante property",
+        "Alicante apartment", "Malaga property", "Malaga apartment",
+        "Valencia property", "Valencia apartment", "Ibiza property",
+        "Ibiza villa", "Mallorca property", "Mallorca villa",
+        "Tenerife property", "Tenerife apartment", "Gran Canaria property",
+        "Sotogrande villa", "Estepona property", "Fuengirola apartment",
+        "Torrevieja property", "Benidorm apartment",
+        "Golden Visa Spain", "Spain residence permit investment",
+        "off-plan Spain", "new development Costa del Sol", "luxury property Spain",
+    ]),
+    # §7 Греция EN
+    ("real_estate", "greece", "en", [
+        "buy property Greece", "buy apartment Greece", "buy villa Greece",
+        "property for sale Greece", "real estate agency Greece",
+        "real estate agent Greece", "Athens property", "Athens apartment",
+        "Athens real estate", "Thessaloniki property", "Thessaloniki apartment",
+        "Crete property", "Crete villa", "Chania property", "Heraklion property",
+        "Rhodes property", "Rhodes villa", "Corfu property", "Corfu villa",
+        "Mykonos property", "Mykonos villa", "Santorini property",
+        "Halkidiki property", "Halkidiki villa", "Voula property",
+        "Glyfada apartment", "Piraeus property", "Peloponnese property",
+        "Golden Visa Greece property", "Greece residence permit investment",
+        "off-plan Greece", "luxury property Greece",
+        "island property Greece", "seaside villa Greece",
+    ]),
+    # §8 Таиланд EN
+    ("real_estate", "thailand_bali", "en", [
+        "buy property Thailand", "buy condo Thailand", "buy villa Thailand",
+        "property for sale Thailand", "real estate agency Thailand",
+        "real estate agent Thailand", "Phuket property", "Phuket condo",
+        "Phuket villa", "Phuket real estate", "Bangkok property", "Bangkok condo",
+        "Bangkok apartment", "Pattaya property", "Pattaya condo",
+        "Pattaya apartment", "Koh Samui property", "Koh Samui villa",
+        "Chiang Mai property", "Chiang Mai condo", "Hua Hin property",
+        "Hua Hin condo", "Krabi property", "Koh Phangan villa",
+        "Rawai villa", "Kata beach property", "Kamala property",
+        "Bang Tao property", "Sukhumvit condo", "Silom apartment",
+        "Thailand property investment", "Thailand condominium foreign",
+        "off-plan Thailand", "new development Phuket",
+        "luxury villa Thailand", "beachfront property Thailand",
+        # §9 Бали EN
+        "buy property Bali", "buy villa Bali", "villa for sale Bali",
+        "property for sale Bali", "real estate agency Bali",
+        "real estate agent Bali", "Bali investment property",
+        "Bali villa investment", "Seminyak villa", "Canggu property",
+        "Canggu villa", "Ubud property", "Ubud villa", "Uluwatu villa",
+        "Jimbaran property", "Sanur property", "Nusa Dua villa",
+        "Kuta property", "Tabanan villa", "Pererenan villa",
+        "Bali leasehold", "Bali freehold", "PT PMA property Bali",
+        "off-plan villa Bali", "luxury villa Bali",
+        "beachfront property Bali", "Bali real estate for foreigners",
+    ]),
+    # §10 Девелоперы Дубай EN
+    ("real_estate", "dubai", "en", [
+        "Dubai developer", "Dubai property developer", "off-plan projects Dubai",
+        "new launch Dubai", "Dubai new development", "Emaar projects",
+        "Emaar new launch", "Damac projects", "Damac new development",
+        "Sobha Realty projects", "Ellington properties new", "Meraas projects",
+        "Nakheel new projects", "Azizi developments", "Omniyat Dubai",
+        "Select Group Dubai", "MAG properties", "Binghatti developers",
+        "Samana developers", "Danube properties", "Dubai master developer",
+        "Dubai mega project", "Dubai residential project launch",
+    ]),
+    # §11 Девелоперы CEE
+    ("real_estate", "spain_portugal", "en", [
+        "real estate developer Czech Republic", "property developer Prague",
+        "Prague new development", "Prague residential project",
+        "Budapest real estate developer", "Budapest new apartments",
+        "Hungary property developer", "Serbia property development",
+        "Belgrade new development", "Belgrade residential project",
+        "Poland real estate developer", "Warsaw new development",
+        "Warsaw apartments new", "Krakow property developer",
+        "CEE property investment", "Central Europe real estate developer",
+        "Bratislava property", "Ljubljana real estate",
+        "Zagreb property developer",
+    ]),
+
+    # Segment 2: Investment Migration (international)
+    # §12 Golden Visa Испания
+    ("migration", "spain_gv", "en", [
+        "Golden Visa Spain", "Spain Golden Visa agent",
+        "Spain Golden Visa consultant", "Spain investor visa",
+        "Spain residence permit investment", "residency by investment Spain",
+        "Spain Golden Visa property", "Spain Golden Visa requirements",
+        "Barcelona Golden Visa", "Madrid Golden Visa", "Marbella Golden Visa",
+    ]),
+    # §13 Golden Visa Португалия
+    ("migration", "portugal_gv", "en", [
+        "Golden Visa Portugal", "Portugal Golden Visa agent",
+        "Portugal Golden Visa consultant", "Portugal investor visa",
+        "Portugal residence permit investment", "residency by investment Portugal",
+        "Portugal Golden Visa fund", "Portugal Golden Visa requirements",
+        "Lisbon Golden Visa", "Porto Golden Visa", "Algarve Golden Visa",
+    ]),
+    # §14 Golden Visa Греция
+    ("migration", "greece_gv", "en", [
+        "Golden Visa Greece", "Greece Golden Visa agent",
+        "Greece Golden Visa consultant", "Greece investor visa",
+        "Greece residence permit investment", "residency by investment Greece",
+        "Greece Golden Visa property", "Greece Golden Visa requirements",
+        "Athens Golden Visa", "Crete Golden Visa", "Thessaloniki Golden Visa",
+    ]),
+    # §15 CBI Карибы
+    ("migration", "caribbean_cbi", "en", [
+        "citizenship by investment", "CBI program", "second passport",
+        "Caribbean citizenship", "St Kitts citizenship by investment",
+        "St Kitts passport", "Dominica citizenship by investment",
+        "Dominica passport", "Grenada citizenship by investment",
+        "Grenada passport", "Antigua citizenship", "Vanuatu citizenship",
+        "Malta citizenship", "Turkey citizenship by investment",
+        "second citizenship", "CBI agent", "CBI consultant",
+        "citizenship by investment consultant",
+    ]),
+    # §16 ВНЖ ОАЭ
+    ("migration", "uae_visa", "en", [
+        "UAE Golden Visa", "Dubai Golden Visa", "UAE investor visa",
+        "UAE residency visa", "UAE residence permit", "Emirates ID",
+        "Dubai residency by investment", "UAE 10 year visa",
+        "UAE property visa", "Dubai freelance visa",
+        "Abu Dhabi Golden Visa", "UAE entrepreneur visa",
+        "UAE retirement visa", "Dubai startup visa",
+    ]),
+    # §17 ВНЖ Черногория
+    ("migration", "montenegro_rp", "en", [
+        "Montenegro residency", "Montenegro residence permit",
+        "Montenegro residency by investment", "Montenegro residency property",
+        "Montenegro citizenship by investment", "Montenegro permanent residency",
+        "Podgorica residence permit", "Montenegro visa",
+        "Montenegro digital nomad",
+    ]),
+    # §18 EB-5 США
+    ("migration", "general_migration", "en", [
+        "EB-5 visa", "EB-5 program", "EB-5 investment",
+        "EB-5 investor visa", "EB-5 regional center",
+        "EB-5 direct investment", "EB-5 consultant", "EB-5 agent",
+        "EB-5 attorney", "green card by investment",
+        "US investor visa", "US immigration investment",
+        "EB-5 minimum investment", "EB-5 requirements", "E-2 visa",
+    ]),
+    # §19 Миграционные консультанты интернациональные
+    ("migration", "general_migration", "en", [
+        "immigration consultant", "investment migration consultant",
+        "RCBI advisory", "residency by investment consultant",
+        "citizenship by investment firm", "global mobility consultant",
+        "immigration advisory firm", "immigration law firm",
+        "relocation consultant", "international immigration",
+        "investment migration agency", "immigration services",
+    ]),
+
+    # Segment 3: Wealth Management (international)
+    # §20 Wealth Швейцария
+    ("investment", "switzerland", "en", [
+        "wealth management Switzerland", "Swiss wealth manager",
+        "private wealth advisory Zurich", "asset management Switzerland",
+        "Swiss private bank", "independent asset manager Switzerland",
+        "Geneva wealth management", "Zurich wealth management",
+        "Lugano wealth manager", "Swiss asset management",
+        "EAM Switzerland", "external asset manager Switzerland",
+        "Swiss portfolio manager", "wealth planning Switzerland",
+    ]),
+    # §21 Wealth Сингапур
+    ("investment", "singapore", "en", [
+        "wealth management Singapore", "Singapore asset manager",
+        "private wealth Singapore", "family office Singapore",
+        "licensed fund management Singapore", "MAS regulated wealth manager",
+        "Singapore private bank", "Raffles Place wealth management",
+        "Singapore wealth advisory", "multi family office Singapore",
+        "Singapore capital management",
+    ]),
+    # §22 Wealth Дубай
+    ("investment", "dubai_difc", "en", [
+        "wealth management Dubai", "DIFC wealth manager",
+        "Dubai asset management", "private wealth advisory Dubai",
+        "DFSA regulated", "financial advisor Dubai",
+        "wealth management UAE", "Abu Dhabi wealth management",
+        "ADGM financial advisor", "Dubai private bank",
+        "Dubai investment advisor", "wealth planning Dubai",
+        "portfolio management Dubai", "UAE asset management",
+    ]),
+    # §23 Family offices международные
+    ("family_office", "dubai_fo", "en", [
+        "multi family office", "family office services",
+        "international family office", "family office wealth management",
+        "global family office", "family office advisory",
+        "single family office setup", "family office platform",
+        "family office solutions", "family office investment",
+        "virtual family office", "digital family office", "family governance",
+    ]),
+    # §24 PPLI
+    ("family_office", "switzerland_fo", "en", [
+        "PPLI insurance", "private placement life insurance",
+        "UHNWI insurance", "wealth protection insurance",
+        "VUL insurance", "variable universal life",
+        "international life insurance broker", "estate planning insurance",
+        "Lombard International", "Investors Trust",
+        "offshore life insurance", "unit-linked insurance",
+        "insurance wrapper", "wealth structuring insurance",
+        "high net worth insurance",
+    ]),
+    # §25 Private банки (русскоязычные дески)
+    ("family_office", "switzerland_fo", "en", [
+        "private banking Russian clients", "Russian speaking private bank",
+        "private bank CIS clients", "Julius Baer Russian", "UBS Russian desk",
+        "Pictet Russian clients", "Credit Suisse Russian",
+        "Lombard Odier Russian", "EFG International",
+        "private banking for Russians", "Swiss private bank Russian",
+        "Singapore private bank Russian", "Dubai private bank Russian",
+        "Liechtenstein private bank",
+    ]),
+
+    # Segment 4: Legal (international)
+    # §26 Юрфирмы Кипр
+    ("legal", "cyprus_legal", "en", [
+        "law firm Cyprus", "corporate services Cyprus",
+        "Cyprus company registration", "tax advisory Cyprus",
+        "Limassol law firm", "Paphos law firm", "Nicosia law firm",
+        "Larnaca law firm", "Cyprus trust formation",
+        "Cyprus holding company", "Cyprus IP box",
+        "Cyprus tax planning", "Cyprus audit firm",
+        "Cyprus corporate structuring", "Cyprus substance",
+        "Cyprus iGaming license",
+    ]),
+    # §27 Юрфирмы ОАЭ
+    ("legal", "uae_legal", "en", [
+        "law firm Dubai", "law firm Abu Dhabi", "company formation UAE",
+        "company formation Dubai", "Dubai business setup",
+        "freezone company UAE", "freezone company Dubai",
+        "DMCC company", "JAFZA company", "DIFC company", "ADGM company",
+        "corporate services Dubai", "corporate services Abu Dhabi",
+        "tax advisory UAE", "Dubai mainland company",
+        "RAK company formation", "Sharjah freezone", "Ajman freezone",
+        "Fujairah company", "PRO services Dubai",
+    ]),
+    # §28 Юрфирмы Эстония
+    ("legal", "estonia", "en", [
+        "law firm Estonia", "Estonia e-Residency",
+        "company registration Estonia", "crypto license Estonia",
+        "Estonian company formation", "e-Residency services",
+        "Tallinn law firm", "Estonia tax advisory",
+        "Estonian holding company", "Estonia fintech license",
+        "Estonia EMI license", "Estonia virtual office",
+    ]),
+    # §29 Юрфирмы Грузия
+    ("legal", "georgia_legal", "en", [
+        "law firm Georgia", "company registration Georgia",
+        "Tbilisi business setup", "Georgia tax benefits",
+        "Georgia company formation", "Tbilisi law firm", "Batumi law firm",
+        "Georgia IT company", "Georgia virtual zone",
+        "Georgia small business status", "Georgia free industrial zone",
+        "Georgia tax free", "Georgia residence permit business",
+    ]),
+    # §30 Юрфирмы Сербия
+    ("legal", "serbia_legal", "en", [
+        "law firm Serbia", "company registration Serbia",
+        "Belgrade business setup", "Serbia corporate services",
+        "Serbia residence permit business", "Belgrade law firm",
+        "Novi Sad law firm", "Serbia tax advisory",
+        "Serbia company formation", "Serbia DOO registration",
+        "Serbia freelance visa", "Serbia digital nomad",
+        "Serbia business immigration",
+    ]),
+    # §31 Offshore-провайдеры
+    ("legal", "offshore", "en", [
+        "offshore company formation", "BVI company", "BVI company formation",
+        "Cayman Islands company", "Cayman Islands formation",
+        "offshore corporate services", "offshore trust",
+        "offshore trust formation", "international holding structure",
+        "offshore bank account", "Panama company", "Seychelles company",
+        "Mauritius company", "Marshall Islands company", "Belize company",
+        "Nevis LLC", "offshore foundation", "Liechtenstein foundation",
+        "Jersey trust", "Guernsey trust", "Isle of Man company",
+        "Hong Kong company", "Singapore holding", "Luxembourg holding",
+        "Malta holding company",
+    ]),
+    # §32 Консалтинг Бали/ЮВА
+    ("legal", "georgia_legal", "en", [
+        "business setup Bali", "company registration Indonesia",
+        "PT PMA Indonesia", "Bali business consultant",
+        "Bali corporate services", "Denpasar law firm",
+        "Indonesia tax advisor", "Indonesia business visa",
+        "KITAS Indonesia", "Vietnam company formation",
+        "Vietnam business setup", "Ho Chi Minh law firm",
+        "Hanoi corporate services", "Thailand BOI",
+        "Thailand company formation", "Bangkok law firm",
+        "Thailand business setup", "Cambodia company formation",
+        "Philippines company registration", "Malaysia company formation",
+        "Kuala Lumpur law firm", "Myanmar company setup",
+    ]),
+
+    # Segment 5: PropTech
+    # §33 PropTech ОАЭ
+    ("real_estate", "dubai", "en", [
+        "proptech UAE", "proptech Dubai", "real estate platform Dubai",
+        "property marketplace UAE", "Dubai property portal",
+        "real estate tech Dubai", "online property Dubai",
+        "property listing Dubai", "Dubai real estate marketplace",
+        "PropTech Abu Dhabi", "real estate SaaS Dubai",
+        "property management platform UAE",
+    ]),
+    # §34 Агрегаторы зарубежной
+    ("real_estate", "global_aggregator", "en", [
+        "international property portal", "overseas property marketplace",
+        "global real estate platform", "buy property abroad",
+        "property listings international", "overseas property listings",
+        "global property search", "international real estate marketplace",
+    ]),
+    # §35 Crypto-friendly платформы
+    ("crypto", "dubai_crypto", "en", [
+        "buy property with crypto", "buy property with bitcoin",
+        "real estate tokenization", "blockchain real estate",
+        "crypto real estate platform", "NFT real estate",
+        "tokenized real estate", "buy apartment with USDT",
+        "buy villa with crypto", "crypto property marketplace",
+    ]),
+]
+
+
+def build_doc_keyword_queries(
+    segment_key: str | None = None,
+    geo_key: str | None = None,
+    language: str | None = None,
+    existing_queries: set[str] | None = None,
+) -> list[dict]:
+    """
+    Return raw doc keyword phrases as query dicts, optionally filtered by segment/geo/language.
+    These are exact keyword phrases from tasks/deliryo/keywords_*.md, used as-is.
+    """
+    existing = existing_queries or set()
+    results: list[dict] = []
+    seen: set[str] = set(existing)
+
+    for seg, geo, lang, phrases in DOC_KEYWORDS:
+        if segment_key and seg != segment_key:
+            continue
+        if geo_key and geo != geo_key:
+            continue
+        if language and lang != language:
+            continue
+
+        for phrase in phrases:
+            _add_query(phrase, seg, geo, lang, results, seen)
+
+    return results
     return counts
