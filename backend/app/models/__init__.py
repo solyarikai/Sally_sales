@@ -20,6 +20,7 @@ from .pipeline import (
     DiscoveredCompany, DiscoveredCompanyStatus,
     ExtractedContact, ContactSource,
     PipelineEvent, PipelineEventType,
+    CampaignPushRule,
 )
 from .task import OperatorTask
 
@@ -49,6 +50,7 @@ __all__ = [
     "DiscoveredCompany", "DiscoveredCompanyStatus",
     "ExtractedContact", "ContactSource",
     "PipelineEvent", "PipelineEventType",
+    "CampaignPushRule",
     # Tasks
     "OperatorTask",
 ]

@@ -14,9 +14,11 @@ import json
 import logging
 from datetime import datetime
 
+from sqlalchemy import select
 from app.db import get_session, async_session_maker
 from app.api.companies import get_required_company
 from app.models.user import Company
+from app.core.config import settings
 from app.schemas.pipeline import (
     DiscoveredCompanyResponse, DiscoveredCompanyDetail,
     ExtractedContactResponse, PipelineEventResponse,
@@ -49,6 +51,7 @@ class FullPipelineRequest(BaseModel):
     skip_search: bool = False
     skip_extraction: bool = False
     skip_enrichment: bool = False
+    skip_smartlead_push: bool = True  # Off by default, enable explicitly
 
 
 @router.post("/full-pipeline/{project_id}")
@@ -140,6 +143,14 @@ async def _run_full_pipeline_bg(project_id: int, company_id: int, cfg: FullPipel
         if not cfg.skip_enrichment:
             progress["phase"] = "enrichment"
             await _bg_phase_enrichment(project_id, company_id, cfg, progress)
+            if progress.get("stop_requested"):
+                progress.update({"running": False, "phase": "stopped"})
+                return
+
+        # --- Phase 4: SmartLead Push ---
+        if not cfg.skip_smartlead_push:
+            progress["phase"] = "smartlead_push"
+            await _bg_phase_smartlead_push(project_id, company_id, progress)
 
         progress.update({"running": False, "phase": "completed", "completed_at": datetime.utcnow().isoformat()})
         logger.info(f"Full pipeline completed for project {project_id}: {progress}")
@@ -287,6 +298,295 @@ async def _bg_phase_enrichment(project_id: int, company_id: int, cfg: FullPipeli
     logger.info(f"Enrichment done for project {project_id}: {stats}")
 
 
+async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: dict):
+    """Phase 4: Push contacts to SmartLead campaigns based on push rules."""
+    from sqlalchemy import select, text as sql_text
+    from app.models.pipeline import CampaignPushRule, PipelineEvent, PipelineEventType
+    from app.services.name_classifier import classify_contact, match_rule
+    from app.services.smartlead_service import smartlead_service
+    import httpx
+
+    stats = {"campaigns_created": 0, "leads_pushed": 0, "errors": 0, "rules_matched": {}}
+    progress["smartlead_push_stats"] = stats
+
+    # 1. Load active push rules for project
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(CampaignPushRule).where(
+                CampaignPushRule.project_id == project_id,
+                CampaignPushRule.company_id == company_id,
+                CampaignPushRule.is_active == True,
+            ).order_by(CampaignPushRule.priority.desc())
+        )
+        rules = result.scalars().all()
+
+    if not rules:
+        logger.info(f"No push rules for project {project_id}, skipping SmartLead push")
+        progress["smartlead_push_stats"] = {"skipped": "no_rules"}
+        return
+
+    # 2. Query new target contacts (email-only exclusion)
+    async with async_session_maker() as session:
+        rows = await session.execute(sql_text("""
+            SELECT ec.id, ec.email, ec.first_name, ec.last_name, ec.job_title,
+                   dc.domain, dc.name as company_name, dc.url
+            FROM extracted_contacts ec
+            JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+            WHERE dc.project_id = :pid AND dc.company_id = :cid
+            AND dc.is_target = true
+            AND ec.email IS NOT NULL AND ec.email != ''
+            AND lower(ec.email) NOT IN (
+                SELECT DISTINCT lower(c.email) FROM contacts c WHERE c.email IS NOT NULL
+            )
+            ORDER BY ec.id
+        """), {"pid": project_id, "cid": company_id})
+        contacts = rows.fetchall()
+
+    if not contacts:
+        logger.info(f"No new contacts to push for project {project_id}")
+        progress["smartlead_push_stats"]["skipped"] = "no_contacts"
+        return
+
+    logger.info(f"SmartLead push: {len(contacts)} contacts to classify, {len(rules)} rules")
+
+    # 3. Classify and bucket contacts
+    buckets: dict[int, list] = {rule.id: [] for rule in rules}
+    unmatched = []
+
+    for contact in contacts:
+        classification = classify_contact(
+            email=contact.email,
+            first_name=contact.first_name,
+            last_name=contact.last_name,
+        )
+        matched = False
+        for rule in rules:
+            if match_rule(classification, rule):
+                buckets[rule.id].append((contact, classification))
+                matched = True
+                break
+        if not matched:
+            unmatched.append(contact)
+
+    for rule in rules:
+        count = len(buckets[rule.id])
+        stats["rules_matched"][rule.name] = count
+        logger.info(f"  Rule '{rule.name}': {count} contacts")
+    if unmatched:
+        logger.info(f"  Unmatched: {len(unmatched)} contacts")
+
+    # 4. Push each bucket to SmartLead
+    api_key = settings.SMARTLEAD_API_KEY
+    if not api_key:
+        logger.error("SMARTLEAD_API_KEY not configured, cannot push")
+        stats["errors"] += 1
+        return
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        for rule in rules:
+            bucket_contacts = buckets.get(rule.id, [])
+            if not bucket_contacts:
+                continue
+
+            if progress.get("stop_requested"):
+                break
+
+            try:
+                campaign_id = await _ensure_campaign_for_rule(
+                    client, api_key, rule, len(bucket_contacts), session=None
+                )
+                if not campaign_id:
+                    logger.error(f"Failed to create/get campaign for rule '{rule.name}'")
+                    stats["errors"] += len(bucket_contacts)
+                    continue
+
+                stats["campaigns_created"] += 1 if not rule.current_campaign_id else 0
+
+                # Upload leads in batches of 100
+                LEAD_BATCH = 100
+                for i in range(0, len(bucket_contacts), LEAD_BATCH):
+                    batch = bucket_contacts[i:i + LEAD_BATCH]
+                    leads = []
+                    for contact, cls in batch:
+                        lead = {
+                            "email": contact.email,
+                            "first_name": contact.first_name or "",
+                            "last_name": contact.last_name or "",
+                            "company_name": contact.company_name or "",
+                            "website": contact.url or f"https://{contact.domain}" if contact.domain else "",
+                        }
+                        if contact.job_title:
+                            lead["custom_fields"] = {"job_title": contact.job_title}
+                        leads.append(lead)
+
+                    # Push to SmartLead
+                    resp = await client.post(
+                        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
+                        params={"api_key": api_key},
+                        json=leads,
+                        timeout=60,
+                    )
+                    if resp.status_code == 200:
+                        stats["leads_pushed"] += len(leads)
+                        logger.info(f"Pushed {len(leads)} leads to campaign {campaign_id}")
+                    else:
+                        logger.error(f"Failed to push leads: {resp.status_code} {resp.text[:200]}")
+                        stats["errors"] += len(leads)
+
+                    await asyncio.sleep(1)  # Rate limit
+
+                # Record event
+                async with async_session_maker() as session:
+                    event = PipelineEvent(
+                        company_id=company_id,
+                        event_type=PipelineEventType.SMARTLEAD_LEADS_PUSHED,
+                        detail={
+                            "rule_name": rule.name,
+                            "campaign_id": str(campaign_id),
+                            "leads_pushed": len(bucket_contacts),
+                        },
+                    )
+                    session.add(event)
+                    await session.commit()
+
+                # Insert pushed contacts into contacts table to prevent re-push
+                async with async_session_maker() as session:
+                    for contact, cls in bucket_contacts:
+                        domain = contact.email.split("@")[-1] if "@" in contact.email else None
+                        await session.execute(sql_text("""
+                            INSERT INTO contacts (company_id, email, first_name, last_name, domain,
+                                                  source, status, is_active, created_at, updated_at)
+                            VALUES (:cid, :email, :fname, :lname, :domain,
+                                    'smartlead_pipeline_push', 'contacted', true, NOW(), NOW())
+                            ON CONFLICT DO NOTHING
+                        """), {
+                            "cid": company_id, "email": contact.email,
+                            "fname": contact.first_name or "", "lname": contact.last_name or "",
+                            "domain": domain,
+                        })
+                    await session.commit()
+
+            except Exception as e:
+                logger.error(f"SmartLead push error for rule '{rule.name}': {e}", exc_info=True)
+                stats["errors"] += len(bucket_contacts)
+
+    progress["smartlead_push_stats"] = stats
+    logger.info(f"SmartLead push done for project {project_id}: {stats}")
+
+
+async def _ensure_campaign_for_rule(
+    client: "httpx.AsyncClient",
+    api_key: str,
+    rule: "CampaignPushRule",
+    contacts_count: int,
+    session=None,
+) -> Optional[str]:
+    """Create or reuse a SmartLead campaign based on a push rule."""
+    from datetime import datetime as dt
+
+    # Check if current campaign still has room
+    if rule.current_campaign_id:
+        remaining = rule.max_leads_per_campaign - (rule.current_campaign_lead_count or 0)
+        if remaining >= contacts_count:
+            return rule.current_campaign_id
+
+    # Create new campaign
+    campaign_name = rule.campaign_name_template.replace(
+        "{date}", dt.utcnow().strftime("%d.%m")
+    )
+
+    resp = await client.post(
+        "https://server.smartlead.ai/api/v1/campaigns/create",
+        params={"api_key": api_key},
+        json={"name": campaign_name},
+    )
+    if resp.status_code != 200:
+        logger.error(f"Failed to create campaign: {resp.status_code} {resp.text[:200]}")
+        return None
+
+    data = resp.json()
+    campaign_id = str(data.get("id", ""))
+    if not campaign_id:
+        return None
+
+    logger.info(f"Created SmartLead campaign '{campaign_name}' (ID: {campaign_id})")
+
+    # Set sequences
+    if rule.sequence_template:
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/sequences",
+            params={"api_key": api_key},
+            json={"sequences": rule.sequence_template},
+        )
+
+    # Set schedule
+    schedule = rule.schedule_config or {
+        "timezone": "Europe/Moscow",
+        "days_of_the_week": [1, 2, 3, 4, 5],
+        "start_hour": "09:00",
+        "end_hour": "18:00",
+        "min_time_btw_emails": 5,
+        "max_new_leads_per_day": 50,
+    }
+    await client.post(
+        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
+        params={"api_key": api_key},
+        json=schedule,
+    )
+
+    # Set campaign settings
+    camp_settings = rule.campaign_settings or {
+        "track_settings": ["DONT_TRACK_EMAIL_OPEN", "DONT_TRACK_LINK_CLICK"],
+        "stop_lead_settings": "REPLY_TO_AN_EMAIL",
+        "send_as_plain_text": False,
+        "follow_up_percentage": 100,
+    }
+    await client.post(
+        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/settings",
+        params={"api_key": api_key},
+        json=camp_settings,
+    )
+
+    # Assign email accounts
+    if rule.email_account_ids:
+        for acc_id in rule.email_account_ids:
+            await client.post(
+                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/email-accounts",
+                params={"api_key": api_key},
+                json={"id": acc_id},
+            )
+
+    # Record campaign creation event
+    async with async_session_maker() as event_session:
+        from app.models.pipeline import PipelineEvent, PipelineEventType
+        event = PipelineEvent(
+            company_id=rule.company_id,
+            event_type=PipelineEventType.SMARTLEAD_CAMPAIGN_CREATED,
+            detail={
+                "campaign_id": campaign_id,
+                "campaign_name": campaign_name,
+                "rule_name": rule.name,
+                "rule_id": rule.id,
+            },
+        )
+        event_session.add(event)
+
+        # Update rule with current campaign
+        from sqlalchemy import update
+        await event_session.execute(
+            update(CampaignPushRule).where(CampaignPushRule.id == rule.id).values(
+                current_campaign_id=campaign_id,
+                current_campaign_lead_count=0,
+            )
+        )
+        await event_session.commit()
+
+    rule.current_campaign_id = campaign_id
+    rule.current_campaign_lead_count = 0
+
+    return campaign_id
+
+
 # ============ Projects (for dropdown) ============
 
 @router.get("/projects")
@@ -304,6 +604,219 @@ async def list_pipeline_projects(
         ORDER BY p.name
     """), {"company_id": company.id})
     return [{"id": row.id, "name": row.name} for row in result.fetchall()]
+
+
+# ============ Campaign Push Rules CRUD ============
+
+class PushRuleCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    language: str = "any"  # "ru", "en", "any"
+    has_first_name: Optional[bool] = None
+    name_pattern: Optional[str] = None
+    campaign_name_template: str
+    sequence_language: str = "ru"
+    sequence_template: Optional[list] = None
+    use_first_name_var: bool = True
+    email_account_ids: Optional[list] = None
+    schedule_config: Optional[dict] = None
+    campaign_settings: Optional[dict] = None
+    max_leads_per_campaign: int = 500
+    priority: int = 0
+    is_active: bool = True
+
+
+class PushRuleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    language: Optional[str] = None
+    has_first_name: Optional[bool] = None
+    name_pattern: Optional[str] = None
+    campaign_name_template: Optional[str] = None
+    sequence_language: Optional[str] = None
+    sequence_template: Optional[list] = None
+    use_first_name_var: Optional[bool] = None
+    email_account_ids: Optional[list] = None
+    schedule_config: Optional[dict] = None
+    campaign_settings: Optional[dict] = None
+    max_leads_per_campaign: Optional[int] = None
+    priority: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+@router.get("/projects/{project_id}/push-rules")
+async def list_push_rules(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """List campaign push rules for a project."""
+    from app.models.pipeline import CampaignPushRule
+    result = await db.execute(
+        select(CampaignPushRule).where(
+            CampaignPushRule.project_id == project_id,
+            CampaignPushRule.company_id == company.id,
+        ).order_by(CampaignPushRule.priority.desc(), CampaignPushRule.id)
+    )
+    rules = result.scalars().all()
+    return [_rule_to_dict(r) for r in rules]
+
+
+@router.post("/projects/{project_id}/push-rules")
+async def create_push_rule(
+    project_id: int,
+    body: PushRuleCreate,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Create a new campaign push rule."""
+    from app.models.pipeline import CampaignPushRule
+    rule = CampaignPushRule(
+        company_id=company.id,
+        project_id=project_id,
+        **body.model_dump(),
+    )
+    db.add(rule)
+    await db.commit()
+    await db.refresh(rule)
+    return _rule_to_dict(rule)
+
+
+@router.put("/push-rules/{rule_id}")
+async def update_push_rule(
+    rule_id: int,
+    body: PushRuleUpdate,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Update a campaign push rule."""
+    from app.models.pipeline import CampaignPushRule
+    result = await db.execute(
+        select(CampaignPushRule).where(
+            CampaignPushRule.id == rule_id,
+            CampaignPushRule.company_id == company.id,
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+
+    update_data = body.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(rule, key, value)
+
+    await db.commit()
+    await db.refresh(rule)
+    return _rule_to_dict(rule)
+
+
+@router.delete("/push-rules/{rule_id}")
+async def delete_push_rule(
+    rule_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Delete a campaign push rule."""
+    from app.models.pipeline import CampaignPushRule
+    result = await db.execute(
+        select(CampaignPushRule).where(
+            CampaignPushRule.id == rule_id,
+            CampaignPushRule.company_id == company.id,
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+
+    await db.delete(rule)
+    await db.commit()
+    return {"status": "deleted", "id": rule_id}
+
+
+@router.post("/projects/{project_id}/push-to-smartlead")
+async def push_to_smartlead(
+    project_id: int,
+    background_tasks: BackgroundTasks = None,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Run SmartLead push phase only (Phase 4) as a standalone action."""
+    if project_id in _running_pipelines and _running_pipelines[project_id].get("running"):
+        return {"status": "already_running", "progress": _running_pipelines[project_id]}
+
+    _running_pipelines[project_id] = {
+        "running": True,
+        "phase": "smartlead_push",
+        "started_at": datetime.utcnow().isoformat(),
+        "config": {"standalone_push": True},
+    }
+
+    async def run_push():
+        progress = _running_pipelines[project_id]
+        try:
+            await _bg_phase_smartlead_push(project_id, company.id, progress)
+            progress.update({"running": False, "phase": "completed", "completed_at": datetime.utcnow().isoformat()})
+        except Exception as e:
+            logger.error(f"SmartLead push crashed: {e}", exc_info=True)
+            progress.update({"running": False, "phase": "error", "error": str(e)[:500]})
+
+    background_tasks.add_task(run_push)
+    return {"status": "started", "project_id": project_id}
+
+
+@router.get("/smartlead/email-accounts")
+async def list_smartlead_email_accounts(
+    company: Company = Depends(get_required_company),
+):
+    """List available SmartLead email accounts for rule configuration."""
+    import httpx
+    api_key = settings.SMARTLEAD_API_KEY
+    if not api_key:
+        raise HTTPException(status_code=400, detail="SmartLead API key not configured")
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(
+            "https://server.smartlead.ai/api/v1/email-accounts",
+            params={"api_key": api_key},
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail="Failed to fetch email accounts")
+        accounts = resp.json()
+
+    return [
+        {
+            "id": acc.get("id"),
+            "email": acc.get("from_email", acc.get("email", "")),
+            "name": acc.get("from_name", ""),
+        }
+        for acc in (accounts if isinstance(accounts, list) else [])
+    ]
+
+
+def _rule_to_dict(rule) -> dict:
+    return {
+        "id": rule.id,
+        "project_id": rule.project_id,
+        "name": rule.name,
+        "description": rule.description,
+        "language": rule.language,
+        "has_first_name": rule.has_first_name,
+        "name_pattern": rule.name_pattern,
+        "campaign_name_template": rule.campaign_name_template,
+        "sequence_language": rule.sequence_language,
+        "sequence_template": rule.sequence_template,
+        "use_first_name_var": rule.use_first_name_var,
+        "email_account_ids": rule.email_account_ids,
+        "schedule_config": rule.schedule_config,
+        "campaign_settings": rule.campaign_settings,
+        "max_leads_per_campaign": rule.max_leads_per_campaign,
+        "priority": rule.priority,
+        "is_active": rule.is_active,
+        "current_campaign_id": rule.current_campaign_id,
+        "current_campaign_lead_count": rule.current_campaign_lead_count,
+        "created_at": rule.created_at.isoformat() if rule.created_at else None,
+        "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
+    }
 
 
 # ============ Discovered Companies ============
