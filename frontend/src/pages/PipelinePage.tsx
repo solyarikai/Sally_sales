@@ -635,10 +635,14 @@ export function PipelinePage() {
               <DollarSign className="w-4 h-4 text-neutral-400" />
               <span className="text-sm font-medium text-neutral-700">Project Spending</span>
             </div>
-            <div className="grid grid-cols-6 gap-4 text-sm">
+            <div className="grid grid-cols-7 gap-4 text-sm">
               <div>
                 <span className="text-neutral-500 text-xs">Yandex</span>
                 <div className="font-medium">${stats.spending.yandex_cost.toFixed(2)}</div>
+              </div>
+              <div>
+                <span className="text-neutral-500 text-xs">Google</span>
+                <div className="font-medium">${(stats.spending.google_cost ?? 0).toFixed(2)}</div>
               </div>
               <div>
                 <span className="text-neutral-500 text-xs">Gemini</span>

@@ -64,6 +64,7 @@ export interface DiscoveredCompanyDetail extends DiscoveredCompany {
 
 export interface SpendingDetail {
   yandex_cost: number;
+  google_cost: number;
   openai_cost_estimate: number;
   gemini_cost_estimate?: number;
   ai_cost_estimate?: number;

@@ -158,6 +158,7 @@ class SearchJobFullDetail(BaseModel):
 
 class SpendingDetail(BaseModel):
     yandex_cost: float = 0.0
+    google_cost: float = 0.0
     openai_cost_estimate: float = 0.0
     gemini_cost_estimate: float = 0.0
     ai_cost_estimate: float = 0.0

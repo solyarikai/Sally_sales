@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 # Cost constants
 YANDEX_COST_PER_1K_REQUESTS = 0.25  # $0.25 per 1,000 requests
+GOOGLE_SERP_COST_PER_1K_REQUESTS = 3.50  # ~$3.50 per 1,000 requests via Apify SERP proxy
 OPENAI_COST_PER_1M_INPUT_TOKENS = 0.15  # GPT-4o-mini: ~$0.15 per 1M input tokens
 OPENAI_COST_PER_1M_OUTPUT_TOKENS = 0.60  # GPT-4o-mini: ~$0.60 per 1M output tokens
 # Gemini 2.5 Pro pricing (blended avg since we track total tokens, not input/output separately)
@@ -1126,12 +1127,16 @@ CRITICAL FALSE POSITIVE RULES:
         session: AsyncSession,
         project_id: int,
     ) -> Dict[str, Any]:
-        """Calculate spending for a project's search jobs (Yandex + AI + Crona)."""
+        """Calculate spending for a project's search jobs (Yandex + Google + AI + Crona)."""
+        from app.models.domain import SearchEngine
+
         result = await session.execute(
             select(SearchJob).where(SearchJob.project_id == project_id)
         )
         jobs = result.scalars().all()
 
+        yandex_queries = 0
+        google_queries = 0
         total_queries = 0
         total_ai_tokens = 0
         total_crona_credits = 0
@@ -1141,7 +1146,17 @@ CRITICAL FALSE POSITIVE RULES:
         openai_analysis_tokens = 0
 
         for job in jobs:
-            total_queries += job.queries_total or 0
+            job_queries = job.queries_total or 0
+            total_queries += job_queries
+            # Split queries by search engine
+            if job.search_engine == SearchEngine.GOOGLE_SERP:
+                google_queries += job_queries
+            elif job.search_engine == SearchEngine.YANDEX_API:
+                yandex_queries += job_queries
+            else:
+                # Apollo/Clay searches don't have query costs per se
+                pass
+
             config = job.config or {}
             job_tokens = config.get("openai_tokens_used", 0)
             total_ai_tokens += job_tokens
@@ -1164,9 +1179,12 @@ CRITICAL FALSE POSITIVE RULES:
             query_gen_model = latest_config.get("query_gen_model", "gpt-4o-mini")
         query_gen_is_gemini = "gemini" in query_gen_model
 
-        # Yandex cost: each query = 1 request per page, default 3 pages
-        yandex_requests = total_queries * settings.SEARCH_MAX_PAGES
+        # Search costs: split by engine
+        yandex_requests = yandex_queries * settings.SEARCH_MAX_PAGES
         yandex_cost = (yandex_requests / 1000) * YANDEX_COST_PER_1K_REQUESTS
+
+        google_requests = google_queries * settings.SEARCH_MAX_PAGES
+        google_cost = (google_requests / 1000) * GOOGLE_SERP_COST_PER_1K_REQUESTS
 
         # AI cost estimate — split by model
         openai_tokens = openai_analysis_tokens + total_review_tokens
@@ -1183,9 +1201,13 @@ CRITICAL FALSE POSITIVE RULES:
         crona_cost = total_crona_credits * 0.001
 
         ai_cost = openai_cost + gemini_cost
+        search_cost = yandex_cost + google_cost
         return {
             "queries_count": total_queries,
+            "yandex_queries": yandex_queries,
+            "google_queries": google_queries,
             "yandex_cost": round(yandex_cost, 4),
+            "google_cost": round(google_cost, 4),
             "openai_tokens_used": openai_tokens,
             "openai_cost_estimate": round(openai_cost, 4),
             "gemini_tokens_used": gemini_tokens,
@@ -1198,7 +1220,7 @@ CRITICAL FALSE POSITIVE RULES:
             "openai_review_tokens": total_review_tokens,
             "crona_credits_used": total_crona_credits,
             "crona_cost": round(crona_cost, 4),
-            "total_estimate": round(yandex_cost + ai_cost + crona_cost, 4),
+            "total_estimate": round(search_cost + ai_cost + crona_cost, 4),
         }
 
 

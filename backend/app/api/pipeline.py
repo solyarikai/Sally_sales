@@ -1269,15 +1269,14 @@ async def get_pipeline_stats(
             from app.services.company_search_service import company_search_service
             raw = await company_search_service.get_project_spending(db, project_id)
 
-            # Count Apollo enriched contacts for this project
+            # Count actual Apollo credits used (not people count)
             from sqlalchemy import select, func
             from app.models.pipeline import DiscoveredCompany
             apollo_q = await db.execute(
-                select(func.sum(DiscoveredCompany.apollo_people_count))
+                select(func.coalesce(func.sum(DiscoveredCompany.apollo_credits_used), 0))
                 .where(
                     DiscoveredCompany.company_id == company.id,
                     DiscoveredCompany.project_id == project_id,
-                    DiscoveredCompany.apollo_enriched_at.isnot(None),
                 )
             )
             apollo_credits = apollo_q.scalar() or 0
@@ -1285,6 +1284,7 @@ async def get_pipeline_stats(
 
             spending = SpendingDetail(
                 yandex_cost=raw.get("yandex_cost", 0),
+                google_cost=raw.get("google_cost", 0),
                 openai_cost_estimate=raw.get("openai_cost_estimate", 0),
                 gemini_cost_estimate=raw.get("gemini_cost_estimate", 0),
                 ai_cost_estimate=raw.get("ai_cost_estimate", 0),

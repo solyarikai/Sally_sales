@@ -764,7 +764,7 @@ function JobDetailView({ jobId }: { jobId: number }) {
         </h3>
         <div className="grid grid-cols-4 gap-6">
           <div>
-            <div className="text-xs text-neutral-500">Yandex API</div>
+            <div className="text-xs text-neutral-500">{job.search_engine === 'google_serp' ? 'Google SERP' : 'Yandex API'}</div>
             <div className="text-lg font-semibold text-neutral-900">${job.yandex_cost.toFixed(4)}</div>
             <div className="text-xs text-neutral-400">{(job.queries_total || 0) * 3} requests</div>
           </div>
