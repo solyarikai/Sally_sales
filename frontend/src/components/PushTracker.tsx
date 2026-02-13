@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Loader2, Send, Calendar, TrendingUp,
-  CheckCircle2, Clock, BarChart3,
+  Loader2, Send, TrendingUp,
+  CheckCircle2, BarChart3,
 } from 'lucide-react';
 import {
   pipelineApi,
   type PushHistory,
   type PushCampaign,
-  type DailyPush,
 } from '../api/pipeline';
 import { cn } from '../lib/utils';
 
