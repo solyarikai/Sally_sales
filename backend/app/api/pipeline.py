@@ -220,14 +220,14 @@ async def _bg_phase_segment_search(
     project_id: int, company_id: int, cfg: FullPipelineRequest,
     progress: dict, targets_before: int,
 ):
-    """Segment-by-segment template search with Phase A (templates) + Phase B (AI expand)."""
+    """Parallel segment search — all segments run concurrently, geos sequential within each."""
     from app.models.domain import SearchEngine
     from app.services.company_search_service import company_search_service
     from app.services.query_templates import SEGMENTS, SEGMENT_KEYS
 
     engine = SearchEngine.YANDEX_API
     if not cfg.skip_google:
-        engine = SearchEngine.GOOGLE_SERP  # Can switch to Google after Yandex validation
+        engine = SearchEngine.GOOGLE_SERP
 
     # Determine which segments to run
     if cfg.segments:
@@ -236,33 +236,33 @@ async def _bg_phase_segment_search(
         segment_order = SEGMENT_KEYS  # All by priority
 
     progress["segment_search"] = {
-        "mode": "template",
+        "mode": "parallel",
         "engine": engine.value,
         "segments_planned": segment_order,
         "segments_completed": [],
         "segment_stats": {},
+        "active_segments": [],
     }
 
-    total_targets = targets_before
+    # Initialize stats for all segments upfront
     for seg_key in segment_order:
-        if progress.get("stop_requested"):
-            break
-
-        seg_def = SEGMENTS[seg_key]
-        geo_keys = list(seg_def["geos"].keys())
-
-        progress["segment_search"]["current_segment"] = seg_key
         progress["segment_search"]["segment_stats"][seg_key] = {
             "geos": {},
             "total_queries": 0,
             "total_targets": 0,
         }
 
+    async def _run_one_segment(seg_key: str):
+        """Run all geos for one segment sequentially."""
+        seg_def = SEGMENTS[seg_key]
+        geo_keys = list(seg_def["geos"].keys())
+
+        progress["segment_search"]["active_segments"].append(seg_key)
+        logger.info(f"Starting parallel segment: {seg_key} ({len(geo_keys)} geos)")
+
         for geo_key in geo_keys:
             if progress.get("stop_requested"):
                 break
-
-            progress["segment_search"]["current_geo"] = geo_key
 
             try:
                 async with async_session_maker() as session:
@@ -278,7 +278,7 @@ async def _bg_phase_segment_search(
                 logger.error(f"Segment search {seg_key}/{geo_key} failed: {e}", exc_info=True)
                 stats = {"segment": seg_key, "geo": geo_key, "error": str(e)}
 
-            # Update progress
+            # Update progress (each segment writes to its own key — no race)
             seg_stats = progress["segment_search"]["segment_stats"][seg_key]
             seg_stats["geos"][geo_key] = stats
             seg_stats["total_queries"] += stats.get("total_queries", 0)
@@ -286,21 +286,18 @@ async def _bg_phase_segment_search(
 
             logger.info(
                 f"Segment {seg_key}/{geo_key}: "
-                f"{stats.get('template_queries', 0)} tmpl + {stats.get('ai_queries', 0)} AI = "
+                f"{stats.get('doc_keyword_queries', 0)} doc + {stats.get('ai_queries', 0)} AI = "
                 f"{stats.get('total_queries', 0)} queries, {stats.get('targets_found', 0)} targets"
             )
 
-            # Check if we've hit the overall target goal
-            async with async_session_maker() as session:
-                total_targets = await company_search_service._count_project_targets(session, project_id)
-            if total_targets >= cfg.target_goal:
-                logger.info(f"Target goal reached: {total_targets}/{cfg.target_goal}")
-                break
-
         progress["segment_search"]["segments_completed"].append(seg_key)
+        if seg_key in progress["segment_search"]["active_segments"]:
+            progress["segment_search"]["active_segments"].remove(seg_key)
+        logger.info(f"Segment {seg_key} completed")
 
-        if total_targets >= cfg.target_goal:
-            break
+    # Launch ALL segments in parallel
+    logger.info(f"Launching {len(segment_order)} segments in parallel: {segment_order}")
+    await asyncio.gather(*[_run_one_segment(seg) for seg in segment_order])
 
     progress["segment_search"]["finished"] = True
     progress["search_results"] = progress["segment_search"]["segment_stats"]

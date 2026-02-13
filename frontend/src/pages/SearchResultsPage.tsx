@@ -176,8 +176,44 @@ function JobHistoryView() {
     );
   }
 
-  const items = data?.items || [];
+  const allItems = data?.items || [];
   const total = data?.total || 0;
+
+  // Jobs list filters
+  const [jobSegmentFilter, setJobSegmentFilter] = useState<string | null>(null);
+  const [jobGeoFilter, setJobGeoFilter] = useState<string | null>(null);
+  const [jobStatusFilter, setJobStatusFilter] = useState<string | null>(null);
+  const [jobOpenDropdown, setJobOpenDropdown] = useState<'segment' | 'geo' | 'status' | null>(null);
+  const jobFilterRef = useRef<HTMLTableSectionElement>(null);
+
+  // Click-outside to close job filter dropdowns
+  useEffect(() => {
+    if (!jobOpenDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (jobFilterRef.current && !jobFilterRef.current.contains(e.target as Node)) {
+        setJobOpenDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [jobOpenDropdown]);
+
+  // Client-side filtering
+  const items = allItems.filter(j => {
+    if (jobSegmentFilter && j.segment !== jobSegmentFilter) return false;
+    if (jobGeoFilter && j.geo !== jobGeoFilter) return false;
+    if (jobStatusFilter && j.status !== jobStatusFilter) return false;
+    return true;
+  });
+
+  // Unique filter values from all items (not filtered)
+  const jobSegments = [...new Set(allItems.map(j => j.segment).filter(Boolean))] as string[];
+  const jobGeos = [...new Set(
+    (jobSegmentFilter ? allItems.filter(j => j.segment === jobSegmentFilter) : allItems)
+      .map(j => j.geo).filter(Boolean)
+  )] as string[];
+  const jobStatuses = [...new Set(allItems.map(j => j.status).filter(Boolean))] as string[];
+  const hasJobFilters = !!jobSegmentFilter || !!jobGeoFilter || !!jobStatusFilter;
 
   if (loading && !data) {
     return (
@@ -357,11 +393,88 @@ function JobHistoryView() {
           {/* Jobs table */}
           <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
             <table className="w-full">
-              <thead>
+              <thead ref={jobFilterRef}>
                 <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  <th className="px-4 py-3">Status</th>
+                  {/* Status filter */}
+                  <th className="px-4 py-3 relative">
+                    <button
+                      onClick={() => setJobOpenDropdown(jobOpenDropdown === 'status' ? null : 'status')}
+                      className={cn(
+                        'flex items-center gap-1 hover:text-neutral-800 transition-colors',
+                        jobStatusFilter ? 'text-indigo-600 font-semibold' : ''
+                      )}
+                    >
+                      Status
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {jobOpenDropdown === 'status' && (
+                      <div className="absolute top-full left-2 z-50 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                        <button
+                          onClick={() => { setJobStatusFilter(null); setJobOpenDropdown(null); }}
+                          className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', !jobStatusFilter && 'bg-neutral-100 font-medium')}
+                        >All statuses</button>
+                        {jobStatuses.map(s => (
+                          <button
+                            key={s}
+                            onClick={() => { setJobStatusFilter(s); setJobOpenDropdown(null); }}
+                            className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', jobStatusFilter === s && 'bg-indigo-50 text-indigo-700 font-medium')}
+                          >{s}</button>
+                        ))}
+                      </div>
+                    )}
+                  </th>
                   <th className="px-4 py-3">Project</th>
-                  <th className="px-4 py-3">Segment / Geo</th>
+                  {/* Segment filter */}
+                  <th className="px-4 py-3 relative">
+                    <button
+                      onClick={() => setJobOpenDropdown(jobOpenDropdown === 'segment' ? null : 'segment')}
+                      className={cn(
+                        'flex items-center gap-1 hover:text-neutral-800 transition-colors',
+                        (jobSegmentFilter || jobGeoFilter) ? 'text-indigo-600 font-semibold' : ''
+                      )}
+                    >
+                      Segment / Geo
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {jobOpenDropdown === 'segment' && (
+                      <div className="absolute top-full left-2 z-50 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 min-w-[200px] max-h-60 overflow-y-auto">
+                        <div className="px-3 py-1 text-[10px] font-semibold text-neutral-400 uppercase">Segment</div>
+                        <button
+                          onClick={() => { setJobSegmentFilter(null); setJobGeoFilter(null); }}
+                          className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', !jobSegmentFilter && 'bg-neutral-100 font-medium')}
+                        >All segments</button>
+                        {jobSegments.map(s => (
+                          <button
+                            key={s}
+                            onClick={() => { setJobSegmentFilter(s); setJobGeoFilter(null); }}
+                            className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', jobSegmentFilter === s && 'bg-indigo-50 text-indigo-700 font-medium')}
+                          >{s.replace(/_/g, ' ')}</button>
+                        ))}
+                        {jobGeos.length > 0 && (
+                          <>
+                            <div className="border-t border-neutral-100 mt-1 pt-1 px-3 py-1 text-[10px] font-semibold text-neutral-400 uppercase">Geo</div>
+                            <button
+                              onClick={() => { setJobGeoFilter(null); }}
+                              className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', !jobGeoFilter && 'bg-neutral-100 font-medium')}
+                            >All geos</button>
+                            {jobGeos.map(g => (
+                              <button
+                                key={g}
+                                onClick={() => { setJobGeoFilter(g); }}
+                                className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', jobGeoFilter === g && 'bg-indigo-50 text-indigo-700 font-medium')}
+                              >{g}</button>
+                            ))}
+                          </>
+                        )}
+                        <div className="border-t border-neutral-100 mt-1 pt-1">
+                          <button
+                            onClick={() => { setJobSegmentFilter(null); setJobGeoFilter(null); setJobOpenDropdown(null); }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                          >Clear all</button>
+                        </div>
+                      </div>
+                    )}
+                  </th>
                   <th className="px-4 py-3">Engine</th>
                   <th className="px-4 py-3 text-right">Queries</th>
                   <th className="px-4 py-3 text-right">Domains</th>
@@ -369,6 +482,19 @@ function JobHistoryView() {
                   <th className="px-4 py-3 text-right">Cost</th>
                   <th className="px-4 py-3">Date</th>
                 </tr>
+                {/* Active filters indicator */}
+                {hasJobFilters && (
+                  <tr className="bg-indigo-50/60 border-b border-indigo-100">
+                    <td colSpan={9} className="px-4 py-1.5 text-xs text-indigo-600 flex items-center gap-2">
+                      <Filter className="w-3 h-3" />
+                      Showing {items.length} of {allItems.length} jobs
+                      {jobSegmentFilter && <span className="bg-indigo-100 px-1.5 py-0.5 rounded">{jobSegmentFilter.replace(/_/g, ' ')}</span>}
+                      {jobGeoFilter && <span className="bg-indigo-100 px-1.5 py-0.5 rounded">{jobGeoFilter}</span>}
+                      {jobStatusFilter && <span className="bg-indigo-100 px-1.5 py-0.5 rounded">{jobStatusFilter}</span>}
+                      <button onClick={() => { setJobSegmentFilter(null); setJobGeoFilter(null); setJobStatusFilter(null); }} className="ml-1 hover:text-indigo-800"><X className="w-3 h-3" /></button>
+                    </td>
+                  </tr>
+                )}
               </thead>
               <tbody>
                 {items.map((job) => (
@@ -496,6 +622,19 @@ function JobDetailView({ jobId }: { jobId: number }) {
   const [querySegmentFilter, setQuerySegmentFilter] = useState<string | null>(null);
   const [queryGeoFilter, setQueryGeoFilter] = useState<string | null>(null);
   const [openDropdown, setOpenDropdown] = useState<'segment' | 'geo' | 'status' | null>(null);
+  const queryFilterRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside to close query filter dropdowns
+  useEffect(() => {
+    if (!openDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (queryFilterRef.current && !queryFilterRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openDropdown]);
 
   // Domain campaigns — loaded progressively
   const [domainCampaigns, setDomainCampaigns] = useState<DomainCampaignsMap>({});
@@ -1179,7 +1318,7 @@ function JobDetailView({ jobId }: { jobId: number }) {
 
             {/* Queries table with column-embedded filters */}
             <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-              <div className="flex items-center border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+              <div ref={queryFilterRef} className="flex items-center border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                 <div className="px-4 py-3 flex-1">Query</div>
                 {/* Segment column with embedded filter */}
                 <div className="px-4 py-3 w-[140px] flex-shrink-0 relative">
@@ -1261,7 +1400,6 @@ function JobDetailView({ jobId }: { jobId: number }) {
                 ref={queriesParentRef}
                 className="overflow-auto"
                 style={{ maxHeight: 'calc(100vh - 540px)', minHeight: '300px' }}
-                onClick={() => openDropdown && setOpenDropdown(null)}
               >
                 <div style={{ height: `${queriesVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
                   {queriesVirtualizer.getVirtualItems().map((virtualRow) => {
