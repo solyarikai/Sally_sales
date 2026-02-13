@@ -808,7 +808,8 @@ CONTACTS_HEADERS = [
 
 async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optional[int],
                           email_only: bool, phone_only: bool, new_only: bool = False,
-                          exclude_smartlead: bool = False):
+                          exclude_smartlead: bool = False,
+                          exclude_emails_only: bool = False):
     """Shared query for contacts export (CSV + Google Sheets)."""
     from sqlalchemy import text
 
@@ -826,9 +827,15 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
         where_clauses.append(
             "lower(dc.domain) NOT IN (SELECT DISTINCT lower(c.domain) FROM contacts c WHERE c.domain IS NOT NULL AND c.domain != '')"
         )
-    if exclude_smartlead:
+    if exclude_emails_only:
+        # Exclude only exact email matches. Different person at same company is OK.
+        where_clauses.append(
+            "lower(ec.email) NOT IN ("
+            "  SELECT DISTINCT lower(c.email) FROM contacts c WHERE c.email IS NOT NULL"
+            ")"
+        )
+    elif exclude_smartlead:
         # Exclude contacts whose email OR domain already exists in ANY contacts record.
-        # Many SmartLead-synced contacts lack smartlead_id, so we check ALL contacts.
         where_clauses.append("""(
             lower(ec.email) NOT IN (
                 SELECT DISTINCT lower(c.email) FROM contacts c
@@ -990,11 +997,12 @@ async def export_contacts_csv(
     phone_only: bool = QueryParam(False),
     new_only: bool = QueryParam(False),
     exclude_smartlead: bool = QueryParam(False),
+    exclude_emails_only: bool = QueryParam(False),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
     """Export contacts as CSV (one row per contact)."""
-    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only, new_only, exclude_smartlead)
+    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only, new_only, exclude_smartlead, exclude_emails_only)
     data = _contacts_to_rows(rows)
 
     output = io.StringIO()
@@ -1017,13 +1025,14 @@ async def export_contacts_sheet(
     phone_only: bool = QueryParam(False),
     new_only: bool = QueryParam(False),
     exclude_smartlead: bool = QueryParam(False),
+    exclude_emails_only: bool = QueryParam(False),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
     """Export contacts to Google Sheets. Returns sheet URL."""
     from app.services.google_sheets_service import google_sheets_service
 
-    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only, new_only, exclude_smartlead)
+    rows = await _query_contacts(db, company.id, project_id, email_only, phone_only, new_only, exclude_smartlead, exclude_emails_only)
     if not rows:
         raise HTTPException(status_code=400, detail="No contacts to export")
 
@@ -1044,7 +1053,9 @@ async def export_contacts_sheet(
         filters.append("email")
     if phone_only:
         filters.append("phone")
-    if exclude_smartlead:
+    if exclude_emails_only:
+        filters.append("excl-emails")
+    elif exclude_smartlead:
         filters.append("excl-smartlead")
     filter_str = f" ({'+'.join(filters)})" if filters else ""
     ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
@@ -1053,7 +1064,7 @@ async def export_contacts_sheet(
     url = google_sheets_service.create_and_populate(
         title=title,
         data=data,
-        share_with=["pn@getsally.io", "pavel.l@getsally.io"],
+        share_with=["pn@getsally.io", "pavel.l@getsally.io", "danuta@getsally.io"],
     )
     if not url:
         raise HTTPException(status_code=500, detail="Google Sheets export failed")
