@@ -419,11 +419,11 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                             lead["custom_fields"] = {"job_title": contact.job_title}
                         leads.append(lead)
 
-                    # Push to SmartLead
+                    # Push to SmartLead (API expects {lead_list: [...]})
                     resp = await client.post(
                         f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
                         params={"api_key": api_key},
-                        json=leads,
+                        json={"lead_list": leads},
                         timeout=60,
                     )
                     if resp.status_code == 200:
@@ -547,14 +547,13 @@ async def _ensure_campaign_for_rule(
         json=camp_settings,
     )
 
-    # Assign email accounts
+    # Assign email accounts (batch — API expects {email_account_ids: [...]})
     if rule.email_account_ids:
-        for acc_id in rule.email_account_ids:
-            await client.post(
-                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/email-accounts",
-                params={"api_key": api_key},
-                json={"id": acc_id},
-            )
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/email-accounts",
+            params={"api_key": api_key},
+            json={"email_account_ids": rule.email_account_ids},
+        )
 
     # Record campaign creation event
     async with async_session_maker() as event_session:
