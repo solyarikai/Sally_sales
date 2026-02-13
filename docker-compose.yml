@@ -51,6 +51,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json
       - GOOGLE_IMPERSONATE_EMAIL=services@getsally.io
+      - SHARED_DRIVE_ID=0AEvTjlJFlWnZUk9PVA
     volumes:
       - ./backend:/app
       - ./scripts:/scripts

@@ -662,14 +662,17 @@ class GoogleSheetsService:
 
         try:
             drive_service = build('drive', 'v3', credentials=self.credentials)
-            shared_drive_id = os.environ.get('SHARED_DRIVE_ID')
+            shared_drive_id = os.environ.get('SHARED_DRIVE_ID', '0AEvTjlJFlWnZUk9PVA')
+
+            if not shared_drive_id:
+                logger.error("SHARED_DRIVE_ID not configured — refusing to create sheet in personal drive")
+                return None
 
             file_metadata = {
                 'name': title,
                 'mimeType': 'application/vnd.google-apps.spreadsheet',
+                'parents': [shared_drive_id],
             }
-            if shared_drive_id:
-                file_metadata['parents'] = [shared_drive_id]
 
             file = drive_service.files().create(
                 body=file_metadata,
