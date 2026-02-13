@@ -211,11 +211,10 @@ RULES:
             r.review_note = note
             r.reviewed_at = now
 
-        # Auto-blacklist rejected domains
-        try:
-            for r in results:
-                if r.review_status == "rejected" and r.project_id and r.domain:
-                    # Upsert into ProjectBlacklist
+        # Auto-blacklist rejected domains (race-safe: catch duplicate key)
+        for r in results:
+            if r.review_status == "rejected" and r.project_id and r.domain:
+                try:
                     existing = await session.execute(
                         select(ProjectBlacklist).where(
                             ProjectBlacklist.project_id == r.project_id,
@@ -229,8 +228,10 @@ RULES:
                             reason=r.review_note or "Auto-rejected by review",
                             source="auto_review",
                         ))
-        except Exception as e:
-            logger.warning(f"Failed to auto-blacklist rejected domains: {e}")
+                        await session.flush()
+                except Exception:
+                    await session.rollback()
+                    logger.debug(f"Blacklist entry already exists for {r.domain}")
 
         # Also update corresponding DiscoveredCompany records for rejections
         try:
