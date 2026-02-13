@@ -44,6 +44,10 @@ USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 ]
 
+# Global rate limiter for Yandex API — shared across ALL concurrent segments
+# Caps total concurrent Yandex requests to prevent 429 storms
+_yandex_semaphore = asyncio.Semaphore(10)
+
 
 # =============================================================================
 # PROJECT-AWARE QUERY GENERATION
@@ -621,17 +625,33 @@ Return ONLY a JSON array: ["query1", "query2", ...]"""
                     "userAgent": random.choice(USER_AGENTS),
                 }
 
-                async with httpx.AsyncClient(timeout=30) as client:
-                    resp = await client.post(
-                        settings.YANDEX_SEARCH_API_URL,
-                        json=body,
-                        headers=headers,
-                    )
+                # Global rate limiter — prevents 429 storms with parallel segments
+                async with _yandex_semaphore:
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        resp = await client.post(
+                            settings.YANDEX_SEARCH_API_URL,
+                            json=body,
+                            headers=headers,
+                        )
 
                 if resp.status_code == 429:
-                    logger.warning(f"Yandex 429 for '{query}' page {page + 1}, sleeping...")
-                    await asyncio.sleep(5.0)
-                    continue
+                    # Exponential backoff with retry cap
+                    for attempt in range(5):
+                        wait = min(2.0 * (2 ** attempt), 30.0) + random.uniform(0, 1)
+                        logger.warning(f"Yandex 429 for '{query}' page {page + 1}, backoff {wait:.1f}s (attempt {attempt + 1}/5)")
+                        await asyncio.sleep(wait)
+                        async with _yandex_semaphore:
+                            async with httpx.AsyncClient(timeout=30) as client:
+                                resp = await client.post(
+                                    settings.YANDEX_SEARCH_API_URL,
+                                    json=body,
+                                    headers=headers,
+                                )
+                        if resp.status_code != 429:
+                            break
+                    if resp.status_code == 429:
+                        logger.error(f"Yandex 429 persistent for '{query}' page {page + 1}, giving up")
+                        break
 
                 if resp.status_code != 200:
                     logger.error(f"Yandex API error {resp.status_code} for '{query}': {resp.text[:300]}")
@@ -672,13 +692,23 @@ Return ONLY a JSON array: ["query1", "query2", ...]"""
     ) -> Optional[str]:
         """Poll Yandex operation until done, return decoded HTML."""
         url = f"{settings.YANDEX_OPERATIONS_URL}/{operation_id}"
+        consecutive_429 = 0
 
         for _ in range(int(max_wait / poll_interval)):
             await asyncio.sleep(poll_interval)
 
             try:
-                async with httpx.AsyncClient(timeout=15) as client:
-                    resp = await client.get(url, headers=headers)
+                async with _yandex_semaphore:
+                    async with httpx.AsyncClient(timeout=15) as client:
+                        resp = await client.get(url, headers=headers)
+
+                if resp.status_code == 429:
+                    consecutive_429 += 1
+                    if consecutive_429 >= 5:
+                        logger.warning(f"Poll 429 persistent for {operation_id}, extending wait")
+                    await asyncio.sleep(min(2.0 * consecutive_429, 10.0))
+                    continue
+                consecutive_429 = 0
 
                 if resp.status_code != 200:
                     continue

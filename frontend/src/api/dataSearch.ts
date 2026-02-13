@@ -793,3 +793,42 @@ export interface ProjectPipelineSummary {
     queries?: number;
   }> | null;
 }
+
+// ============ Project Knowledge ============
+
+export interface ProjectKnowledgeSegment {
+  total_analyzed: number;
+  targets: number;
+  domains: number;
+  target_domains: number;
+  contacts_with_email: number;
+  contacts_total: number;
+  queries?: number;
+  top_domains: Array<{
+    domain: string;
+    name: string | null;
+    confidence: number | null;
+    emails: number;
+  }>;
+}
+
+export interface ProjectKnowledge {
+  project_id: number;
+  project_name: string;
+  target_segments: string[];
+  totals: {
+    discovered: number;
+    targets: number;
+    target_domains: number;
+    contacts_total: number;
+    contacts_with_email: number;
+  };
+  segments: Record<string, ProjectKnowledgeSegment>;
+}
+
+export const projectKnowledgeApi = {
+  getProjectKnowledge: async (projectId: number): Promise<ProjectKnowledge> => {
+    const response = await api.get(`/search/projects/${projectId}/knowledge`);
+    return response.data;
+  },
+};

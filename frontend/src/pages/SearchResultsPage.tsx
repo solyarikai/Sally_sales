@@ -6,7 +6,7 @@ import {
   Loader2, AlertCircle, CheckCircle2, XCircle,
   ChevronDown, ChevronRight, ExternalLink, DollarSign,
   BarChart3, Globe, Mail, MessageSquare,
-  Send, Building2, Play, Square, TrendingUp, Filter, X,
+  Send, Building2, Play, Square, TrendingUp, Filter, X, BookOpen,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -257,6 +257,15 @@ function JobHistoryView() {
               ))}
             </select>
           )}
+          {effectiveProjectId && (
+            <Link
+              to={`/projects/${effectiveProjectId}/knowledge`}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition-colors"
+            >
+              <BookOpen className="w-4 h-4" />
+              Knowledge
+            </Link>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {/* Pipeline control buttons */}
@@ -430,48 +439,53 @@ function JobHistoryView() {
                       onClick={() => setJobOpenDropdown(jobOpenDropdown === 'segment' ? null : 'segment')}
                       className={cn(
                         'flex items-center gap-1 hover:text-neutral-800 transition-colors',
-                        (jobSegmentFilter || jobGeoFilter) ? 'text-indigo-600 font-semibold' : ''
+                        jobSegmentFilter ? 'text-indigo-600 font-semibold' : ''
                       )}
                     >
-                      Segment / Geo
+                      Segment
                       <ChevronDown className="w-3 h-3" />
                     </button>
                     {jobOpenDropdown === 'segment' && (
-                      <div className="absolute top-full left-2 z-50 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 min-w-[200px] max-h-60 overflow-y-auto">
-                        <div className="px-3 py-1 text-[10px] font-semibold text-neutral-400 uppercase">Segment</div>
+                      <div className="absolute top-full left-2 z-50 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 min-w-[180px] max-h-60 overflow-y-auto">
                         <button
-                          onClick={() => { setJobSegmentFilter(null); setJobGeoFilter(null); }}
+                          onClick={() => { setJobSegmentFilter(null); setJobGeoFilter(null); setJobOpenDropdown(null); }}
                           className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', !jobSegmentFilter && 'bg-neutral-100 font-medium')}
                         >All segments</button>
                         {jobSegments.map(s => (
                           <button
                             key={s}
-                            onClick={() => { setJobSegmentFilter(s); setJobGeoFilter(null); }}
+                            onClick={() => { setJobSegmentFilter(s); setJobGeoFilter(null); setJobOpenDropdown(null); }}
                             className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', jobSegmentFilter === s && 'bg-indigo-50 text-indigo-700 font-medium')}
                           >{s.replace(/_/g, ' ')}</button>
                         ))}
-                        {jobGeos.length > 0 && (
-                          <>
-                            <div className="border-t border-neutral-100 mt-1 pt-1 px-3 py-1 text-[10px] font-semibold text-neutral-400 uppercase">Geo</div>
-                            <button
-                              onClick={() => { setJobGeoFilter(null); }}
-                              className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', !jobGeoFilter && 'bg-neutral-100 font-medium')}
-                            >All geos</button>
-                            {jobGeos.map(g => (
-                              <button
-                                key={g}
-                                onClick={() => { setJobGeoFilter(g); }}
-                                className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', jobGeoFilter === g && 'bg-indigo-50 text-indigo-700 font-medium')}
-                              >{g}</button>
-                            ))}
-                          </>
-                        )}
-                        <div className="border-t border-neutral-100 mt-1 pt-1">
+                      </div>
+                    )}
+                  </th>
+                  {/* Geo filter */}
+                  <th className="px-4 py-3 relative">
+                    <button
+                      onClick={() => setJobOpenDropdown(jobOpenDropdown === 'geo' ? null : 'geo')}
+                      className={cn(
+                        'flex items-center gap-1 hover:text-neutral-800 transition-colors',
+                        jobGeoFilter ? 'text-indigo-600 font-semibold' : ''
+                      )}
+                    >
+                      Geo
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {jobOpenDropdown === 'geo' && (
+                      <div className="absolute top-full left-2 z-50 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 min-w-[160px] max-h-60 overflow-y-auto">
+                        <button
+                          onClick={() => { setJobGeoFilter(null); setJobOpenDropdown(null); }}
+                          className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', !jobGeoFilter && 'bg-neutral-100 font-medium')}
+                        >All geos</button>
+                        {jobGeos.map(g => (
                           <button
-                            onClick={() => { setJobSegmentFilter(null); setJobGeoFilter(null); setJobOpenDropdown(null); }}
-                            className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
-                          >Clear all</button>
-                        </div>
+                            key={g}
+                            onClick={() => { setJobGeoFilter(g); setJobOpenDropdown(null); }}
+                            className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', jobGeoFilter === g && 'bg-indigo-50 text-indigo-700 font-medium')}
+                          >{g}</button>
+                        ))}
                       </div>
                     )}
                   </th>
@@ -485,7 +499,7 @@ function JobHistoryView() {
                 {/* Active filters indicator */}
                 {hasJobFilters && (
                   <tr className="bg-indigo-50/60 border-b border-indigo-100">
-                    <td colSpan={9} className="px-4 py-1.5 text-xs text-indigo-600 flex items-center gap-2">
+                    <td colSpan={10} className="px-4 py-1.5 text-xs text-indigo-600 flex items-center gap-2">
                       <Filter className="w-3 h-3" />
                       Showing {items.length} of {allItems.length} jobs
                       {jobSegmentFilter && <span className="bg-indigo-100 px-1.5 py-0.5 rounded">{jobSegmentFilter.replace(/_/g, ' ')}</span>}
@@ -513,16 +527,16 @@ function JobHistoryView() {
                 </td>
                 <td className="px-4 py-3">
                   {job.segment ? (
-                    <div className="flex flex-col gap-0.5">
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 w-fit">
-                        {job.segment.replace(/_/g, ' ')}
-                      </span>
-                      {job.geo && (
-                        <span className="text-[10px] text-neutral-400">{job.geo}</span>
-                      )}
-                    </div>
-                  ) : job.query_source === 'template' ? (
-                    <span className="text-[10px] text-neutral-400">template</span>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 w-fit">
+                      {job.segment.replace(/_/g, ' ')}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-neutral-300">-</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {job.geo ? (
+                    <span className="text-xs text-neutral-600">{job.geo.replace(/_/g, ' ')}</span>
                   ) : (
                     <span className="text-[10px] text-neutral-300">-</span>
                   )}
@@ -556,7 +570,7 @@ function JobHistoryView() {
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-neutral-400">
+                <td colSpan={10} className="px-4 py-12 text-center text-neutral-400">
                   No search jobs found. Run a project search from the Data Search page.
                 </td>
               </tr>

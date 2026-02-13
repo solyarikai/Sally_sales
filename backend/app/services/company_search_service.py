@@ -36,6 +36,9 @@ from app.services.domain_service import domain_service
 
 logger = logging.getLogger(__name__)
 
+# Global GPT analysis semaphore — shared across ALL concurrent segments
+# Caps total concurrent GPT-4o-mini analysis calls to prevent OpenAI 429s
+_gpt_analysis_semaphore = asyncio.Semaphore(25)
 
 # Cost constants
 YANDEX_COST_PER_1K_REQUESTS = 0.25  # $0.25 per 1,000 requests
@@ -1067,14 +1070,28 @@ CRITICAL FALSE POSITIVE RULES:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    json=payload,
-                    headers=headers,
-                )
+            # Retry with backoff on 429
+            resp = None
+            for attempt in range(4):
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        json=payload,
+                        headers=headers,
+                    )
+                if resp.status_code == 429:
+                    import random as _rng
+                    wait = min(2.0 * (2 ** attempt), 20.0) + _rng.uniform(0, 1)
+                    logger.warning(f"OpenAI 429 for {domain}, backoff {wait:.1f}s (attempt {attempt + 1}/4)")
+                    await asyncio.sleep(wait)
+                    continue
                 resp.raise_for_status()
-                data = resp.json()
+                break
+            if resp is None or resp.status_code == 429:
+                return {"is_target": False, "confidence": 0, "reasoning": "OpenAI rate limited",
+                        "company_info": {}, "scores": {}, "tokens_used": 0}
+
+            data = resp.json()
 
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             tokens_used = data.get("usage", {}).get("total_tokens", 0)
@@ -1204,12 +1221,11 @@ CRITICAL FALSE POSITIVE RULES:
         else:
             domain_to_query = (job.config or {}).get("domain_to_query", {})
 
-        # --- Analyze phase: GPT scoring ---
-        semaphore = asyncio.Semaphore(20)  # Max 20 concurrent GPT calls
+        # --- Analyze phase: GPT scoring (uses global semaphore) ---
 
         async def analyze_domain(domain: str):
             nonlocal total_tokens
-            async with semaphore:
+            async with _gpt_analysis_semaphore:
                 content = scraped_texts.get(domain)
                 source_qid = domain_to_query.get(domain)
 

@@ -19,6 +19,7 @@ import { SearchResultsPage } from './pages/SearchResultsPage';
 import { PipelinePage } from './pages/PipelinePage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectPage } from './pages/ProjectPage';
+import { ProjectKnowledgePage } from './pages/ProjectKnowledgePage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -126,6 +127,11 @@ function App() {
         <Route path="/projects/:id" element={
           <Layout>
             <ProjectPage />
+          </Layout>
+        } />
+        <Route path="/projects/:projectId/knowledge" element={
+          <Layout>
+            <ProjectKnowledgePage />
           </Layout>
         } />
 

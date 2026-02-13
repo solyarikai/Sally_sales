@@ -737,6 +737,151 @@ async def get_project_pipeline_summary(
     }
 
 
+@router.get("/projects/{project_id}/knowledge")
+async def get_project_knowledge(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Project knowledge base — target segments, per-segment stats, top domains, contacts breakdown."""
+    from sqlalchemy import text as sql_text
+
+    # Verify project
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.company_id == company.id)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Parse target_segments
+    target_segments = []
+    if project.target_segments:
+        try:
+            target_segments = json.loads(project.target_segments) if isinstance(project.target_segments, str) else project.target_segments
+        except Exception:
+            target_segments = [s.strip() for s in project.target_segments.split(",") if s.strip()]
+
+    # Overall totals
+    totals_row = await db.execute(sql_text("""
+        SELECT
+            COUNT(*) as total_discovered,
+            COUNT(*) FILTER (WHERE is_target = true) as total_targets,
+            COUNT(DISTINCT domain) FILTER (WHERE is_target = true) as target_domains
+        FROM discovered_companies
+        WHERE project_id = :pid
+    """), {"pid": project_id})
+    totals = totals_row.fetchone()
+
+    # Per-segment breakdown from search_results
+    seg_rows = await db.execute(sql_text("""
+        SELECT
+            COALESCE(sr.matched_segment, 'unclassified') as segment,
+            COUNT(*) as total_analyzed,
+            COUNT(*) FILTER (WHERE sr.is_target = true) as targets,
+            COUNT(DISTINCT sr.domain) as domains,
+            COUNT(DISTINCT sr.domain) FILTER (WHERE sr.is_target = true) as target_domains
+        FROM search_results sr
+        WHERE sr.project_id = :pid
+        GROUP BY COALESCE(sr.matched_segment, 'unclassified')
+        ORDER BY targets DESC
+    """), {"pid": project_id})
+    segments = {}
+    for r in seg_rows.fetchall():
+        segments[r[0]] = {
+            "total_analyzed": r[1],
+            "targets": r[2],
+            "domains": r[3],
+            "target_domains": r[4],
+            "contacts_with_email": 0,
+            "contacts_total": 0,
+            "top_domains": [],
+        }
+
+    # Contacts per segment (via discovered_companies -> search_result -> matched_segment)
+    contact_rows = await db.execute(sql_text("""
+        SELECT
+            COALESCE(sr.matched_segment, 'unclassified') as segment,
+            COUNT(ec.id) as contacts_total,
+            COUNT(ec.id) FILTER (WHERE ec.email IS NOT NULL AND ec.email != '') as contacts_with_email
+        FROM extracted_contacts ec
+        JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+        JOIN search_results sr ON dc.search_result_id = sr.id
+        WHERE dc.project_id = :pid AND dc.is_target = true
+        GROUP BY COALESCE(sr.matched_segment, 'unclassified')
+    """), {"pid": project_id})
+    for r in contact_rows.fetchall():
+        seg_key = r[0]
+        if seg_key in segments:
+            segments[seg_key]["contacts_total"] = r[1]
+            segments[seg_key]["contacts_with_email"] = r[2]
+
+    # Top target domains per segment (limit 10 per segment)
+    top_rows = await db.execute(sql_text("""
+        SELECT
+            COALESCE(sr.matched_segment, 'unclassified') as segment,
+            sr.domain,
+            sr.company_info->>'name' as company_name,
+            sr.confidence,
+            (SELECT COUNT(*) FROM extracted_contacts ec2 JOIN discovered_companies dc2 ON ec2.discovered_company_id = dc2.id WHERE dc2.domain = sr.domain AND dc2.project_id = :pid AND ec2.email IS NOT NULL AND ec2.email != '') as emails
+        FROM search_results sr
+        WHERE sr.project_id = :pid AND sr.is_target = true
+        ORDER BY sr.confidence DESC NULLS LAST
+    """), {"pid": project_id})
+    for r in top_rows.fetchall():
+        seg_key = r[0]
+        if seg_key in segments and len(segments[seg_key]["top_domains"]) < 10:
+            segments[seg_key]["top_domains"].append({
+                "domain": r[1],
+                "name": r[2],
+                "confidence": round(r[3], 2) if r[3] else None,
+                "emails": r[4],
+            })
+
+    # Query counts per segment
+    q_rows = await db.execute(sql_text("""
+        SELECT sq.segment, COUNT(*) as cnt
+        FROM search_queries sq
+        JOIN search_jobs sj ON sq.search_job_id = sj.id
+        WHERE sj.project_id = :pid AND sq.segment IS NOT NULL
+        GROUP BY sq.segment
+    """), {"pid": project_id})
+    for r in q_rows.fetchall():
+        seg_key = r[0]
+        if seg_key in segments:
+            segments[seg_key]["queries"] = r[1]
+        else:
+            segments[seg_key] = {
+                "total_analyzed": 0, "targets": 0, "domains": 0, "target_domains": 0,
+                "contacts_with_email": 0, "contacts_total": 0, "top_domains": [], "queries": r[1],
+            }
+
+    # Overall contacts total
+    ec_totals = await db.execute(sql_text("""
+        SELECT
+            COUNT(ec.id) as total,
+            COUNT(ec.id) FILTER (WHERE ec.email IS NOT NULL AND ec.email != '') as with_email
+        FROM extracted_contacts ec
+        JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+        WHERE dc.project_id = :pid AND dc.is_target = true
+    """), {"pid": project_id})
+    ec_row = ec_totals.fetchone()
+
+    return {
+        "project_id": project_id,
+        "project_name": project.name,
+        "target_segments": target_segments,
+        "totals": {
+            "discovered": totals[0],
+            "targets": totals[1],
+            "target_domains": totals[2],
+            "contacts_total": ec_row[0] if ec_row else 0,
+            "contacts_with_email": ec_row[1] if ec_row else 0,
+        },
+        "segments": segments,
+    }
+
+
 @router.get("/projects/{project_id}/results")
 async def get_project_results(
     project_id: int,
