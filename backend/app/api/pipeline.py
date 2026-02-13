@@ -732,7 +732,7 @@ async def export_google_sheet(
         sheet_url = sheets_service.create_and_populate(
             title=title,
             data=rows,
-            share_with=["pn@getsally.io"],
+            share_with=["pn@getsally.io", "pavel.l@getsally.io"],
         )
     except Exception as e:
         logger.error(f"Google Sheet export failed: {e}", exc_info=True)
@@ -1035,7 +1035,7 @@ async def export_contacts_sheet(
     url = google_sheets_service.create_and_populate(
         title=title,
         data=data,
-        share_with=["pn@getsally.io"],
+        share_with=["pn@getsally.io", "pavel.l@getsally.io"],
     )
     if not url:
         raise HTTPException(status_code=500, detail="Google Sheets export failed")

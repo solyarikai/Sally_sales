@@ -862,7 +862,7 @@ async def export_to_google_sheet(
         sheet_url = sheets_service.create_and_populate(
             title=sheet_title,
             data=rows,
-            share_with=["pn@getsally.io"],
+            share_with=["pn@getsally.io", "pavel.l@getsally.io"],
         )
 
         if not sheet_url:
