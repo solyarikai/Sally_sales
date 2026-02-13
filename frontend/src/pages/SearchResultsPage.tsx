@@ -19,6 +19,7 @@ import {
   type DomainCampaignInfo,
   type ProjectPipelineSummary,
 } from '../api/dataSearch';
+import { contactsApi } from '../api/contacts';
 
 const statusColors: Record<string, string> = {
   completed: 'bg-green-100 text-green-800',
@@ -49,9 +50,11 @@ function JobHistoryView() {
   const [page, setPage] = useState(1);
   const [exportingTargets, setExportingTargets] = useState(false);
   const [summary, setSummary] = useState<ProjectPipelineSummary | null>(null);
+  const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
+  const [selectedProject, setSelectedProject] = useState<number | undefined>(undefined);
 
   const handleExportTargets = async () => {
-    const projectId = data?.items?.[0]?.project_id;
+    const projectId = selectedProject || data?.items?.[0]?.project_id;
     if (!projectId) return;
     setExportingTargets(true);
     try {
@@ -67,27 +70,35 @@ function JobHistoryView() {
     }
   };
 
+  // Load project list on mount
+  useEffect(() => {
+    if (!currentCompany) return;
+    contactsApi.listProjectNames().then(p => setProjects(p)).catch(() => {});
+  }, [currentCompany]);
+
   const load = useCallback(async () => {
     if (!currentCompany) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await projectSearchApi.getSearchHistory(page, 20);
+      const result = await projectSearchApi.getSearchHistory(page, 20, selectedProject);
       setData(result);
-      // Load pipeline summary for the first project found
-      const projectId = result.items?.[0]?.project_id;
+      // Load pipeline summary for the selected or first project
+      const projectId = selectedProject || result.items?.[0]?.project_id;
       if (projectId) {
         try {
           const s = await projectSearchApi.getProjectPipelineSummary(projectId);
           setSummary(s);
         } catch { /* ignore */ }
+      } else {
+        setSummary(null);
       }
     } catch (err: any) {
       setError(err.userMessage || 'Failed to load search history');
     } finally {
       setLoading(false);
     }
-  }, [page, currentCompany]);
+  }, [page, currentCompany, selectedProject]);
 
   // Auto-refresh every 30s when pipeline is running
   useEffect(() => { load(); }, [load]);
@@ -123,11 +134,29 @@ function JobHistoryView() {
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Query Investigation</h1>
-          <p className="text-neutral-500 text-sm mt-1">Analyze search queries, results, and effectiveness by engine</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-neutral-900">Query Investigation</h1>
+            <p className="text-neutral-500 text-sm mt-1">Analyze search queries, results, and effectiveness by engine</p>
+          </div>
+          {/* Project filter */}
+          {projects.length > 0 && (
+            <select
+              value={selectedProject ?? ''}
+              onChange={e => {
+                setSelectedProject(e.target.value ? Number(e.target.value) : undefined);
+                setPage(1);
+              }}
+              className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 bg-white text-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Projects</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
         </div>
-        {data?.items?.[0]?.project_id && (
+        {(selectedProject || data?.items?.[0]?.project_id) && (
           <button
             onClick={handleExportTargets}
             disabled={exportingTargets}

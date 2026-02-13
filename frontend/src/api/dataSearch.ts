@@ -625,7 +625,8 @@ export const projectSearchApi = {
   // Search history — paginated job list with summary stats
   getSearchHistory: async (
     page: number = 1,
-    pageSize: number = 20
+    pageSize: number = 20,
+    projectId?: number
   ): Promise<{
     items: SearchHistoryItem[];
     total: number;
@@ -633,7 +634,7 @@ export const projectSearchApi = {
     page_size: number;
   }> => {
     const response = await api.get('/search/history', {
-      params: { page, page_size: pageSize },
+      params: { page, page_size: pageSize, project_id: projectId },
     });
     return response.data;
   },

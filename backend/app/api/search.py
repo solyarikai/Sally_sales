@@ -940,24 +940,27 @@ async def export_to_google_sheet(
 async def get_search_history(
     page: int = QueryParam(1, ge=1),
     page_size: int = QueryParam(20, ge=1, le=100),
+    project_id: Optional[int] = QueryParam(None, description="Filter by project"),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
     """List all past search jobs with summary stats (paginated)."""
     from sqlalchemy import func as sqlfunc
 
+    filters = [SearchJob.company_id == company.id]
+    if project_id is not None:
+        filters.append(SearchJob.project_id == project_id)
+
     # Count total
     count_result = await db.execute(
-        select(sqlfunc.count()).select_from(SearchJob).where(
-            SearchJob.company_id == company.id,
-        )
+        select(sqlfunc.count()).select_from(SearchJob).where(*filters)
     )
     total = count_result.scalar() or 0
 
     # Fetch jobs
     result = await db.execute(
         select(SearchJob)
-        .where(SearchJob.company_id == company.id)
+        .where(*filters)
         .order_by(desc(SearchJob.created_at))
         .offset((page - 1) * page_size)
         .limit(page_size)
