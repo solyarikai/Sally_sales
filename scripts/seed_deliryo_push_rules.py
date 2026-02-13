@@ -26,7 +26,7 @@ from sqlalchemy import select, text
 
 # --- Config ---
 # Set these to your actual values, or pull from env/DB
-DELIRYO_PROJECT_ID = int(os.environ.get("DELIRYO_PROJECT_ID", "1"))
+DELIRYO_PROJECT_ID = int(os.environ.get("DELIRYO_PROJECT_ID", "18"))
 DELIRYO_COMPANY_ID = int(os.environ.get("DELIRYO_COMPANY_ID", "1"))
 
 # Campaign name → SmartLead campaign ID mapping
