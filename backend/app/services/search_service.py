@@ -380,6 +380,124 @@ class SearchService:
 
         return result_queries
 
+    async def generate_segment_queries(
+        self,
+        session: AsyncSession,
+        segment: str,
+        geo: str,
+        language: str,
+        keywords: List[str],
+        count: int = 30,
+        existing_queries: Optional[List[str]] = None,
+        target_segments: Optional[str] = None,
+        good_queries: Optional[List[str]] = None,
+        confirmed_targets: Optional[List[str]] = None,
+    ) -> List[Dict[str, str]]:
+        """
+        Generate search queries for a SPECIFIC segment + geography combination.
+        Uses provided keywords as seed material.
+        Returns list of dicts: [{"query": "...", "segment": "...", "geo": "...", "language": "..."}]
+        """
+        existing_norm = set(_normalize_query(q) for q in (existing_queries or []) if _normalize_query(q))
+
+        # Step 1: Direct keyword queries (no AI needed) — just use keywords as-is
+        direct_queries = []
+        for kw in keywords:
+            kw = kw.strip()
+            if not kw or len(kw) < 6:
+                continue
+            nq = _normalize_query(kw)
+            if nq in existing_norm:
+                continue
+            existing_norm.add(nq)
+            direct_queries.append({
+                "query": kw,
+                "segment": segment,
+                "geo": geo,
+                "language": language,
+            })
+
+        # Step 2: AI-generated variations via Gemini (cheap + good at multilingual)
+        remaining = count - len(direct_queries)
+        ai_queries = []
+        if remaining > 0:
+            from app.services.gemini_client import is_gemini_available
+
+            if not is_gemini_available():
+                logger.warning("Gemini not available for AI query expansion, skipping")
+            else:
+                from app.services.gemini_client import gemini_generate, extract_json_from_gemini
+
+                seed_sample = "\n".join(f"  - {q['query']}" for q in direct_queries[:20])
+                confirmed_str = ""
+                if confirmed_targets:
+                    confirmed_str = "\nCONFIRMED TARGET DOMAINS:\n" + "\n".join(f"  - {d}" for d in confirmed_targets[:15])
+
+                prompt = f"""Generate exactly {remaining} additional search queries for B2B lead generation.
+
+SEGMENT: {segment}
+GEOGRAPHY: {geo}
+LANGUAGE: {language}
+
+TARGET CONTEXT:
+{target_segments or 'Find B2B companies in this segment and geography.'}
+
+SEED QUERIES (use these as inspiration, generate VARIATIONS and RELATED queries):
+{seed_sample}
+{confirmed_str}
+
+RULES:
+- Each query 3-10 words, natural search-engine phrasing
+- Language: {'Russian' if language == 'ru' else 'English'}
+- Geography focus: {geo} — queries MUST relate to this geography
+- Segment focus: {segment} — queries MUST relate to this segment
+- Do NOT generate informational queries ("what is...", "how to...")
+- Do NOT repeat seed queries
+- Include city names, company types, service types
+- Mix: direct company searches, registry/list queries, service-specific queries
+
+Return ONLY a JSON array: ["query1", "query2", ...]"""
+
+                system_msg = (
+                    "You are an expert at generating diverse B2B search queries. "
+                    "Output ONLY valid JSON array of strings."
+                )
+
+                try:
+                    result = await gemini_generate(
+                        system_prompt=system_msg,
+                        user_prompt=prompt,
+                        temperature=0.9,
+                        max_tokens=3000,
+                    )
+                    content = extract_json_from_gemini(result["content"])
+                    self._last_query_gen_tokens = result["tokens"]
+                    self._last_query_gen_model = settings.GEMINI_MODEL
+
+                    for q in _extract_json_array(content):
+                        q2 = (q or "").strip()
+                        if not q2:
+                            continue
+                        nq = _normalize_query(q2)
+                        if nq in existing_norm or len(nq) < 8:
+                            continue
+                        existing_norm.add(nq)
+                        ai_queries.append({
+                            "query": q2,
+                            "segment": segment,
+                            "geo": geo,
+                            "language": language,
+                        })
+                except Exception as e:
+                    logger.warning(f"AI query generation for {segment}/{geo} failed: {e}")
+
+        all_queries = direct_queries + ai_queries
+        logger.info(
+            f"Segment queries for {segment}/{geo}/{language}: "
+            f"{len(direct_queries)} direct + {len(ai_queries)} AI = {len(all_queries)} total"
+        )
+        return all_queries[:count]
+
     @property
     def last_query_gen_tokens(self) -> Dict[str, int]:
         """Token usage from the last generate_queries() call."""

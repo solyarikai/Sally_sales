@@ -123,6 +123,11 @@ class SearchQuery(Base):
     domains_found = Column(Integer, default=0)
     pages_scraped = Column(Integer, default=0)
 
+    # Segment/geo tagging for systematic query approach
+    segment = Column(String(100), nullable=True, index=True)   # e.g. "real_estate", "investment", "legal"
+    geo = Column(String(100), nullable=True, index=True)        # e.g. "dubai", "turkey", "cyprus"
+    language = Column(String(10), nullable=True)                 # "ru" or "en"
+
     # Query effectiveness tracking (Phase 3)
     targets_found = Column(Integer, default=0)
     effectiveness_score = Column(Float, nullable=True)  # targets_found / max(domains_found, 1)
@@ -161,6 +166,9 @@ class SearchResult(Base):
 
     # Query tracking (Phase 3: which query found this domain)
     source_query_id = Column(Integer, ForeignKey("search_queries.id", ondelete="SET NULL"), nullable=True)
+
+    # Segment classification — what segment this company actually belongs to
+    matched_segment = Column(String(100), nullable=True, index=True)  # e.g. "real_estate", "investment"
 
     # Debug info
     html_snippet = Column(Text, nullable=True)  # first 2000 chars of scraped text

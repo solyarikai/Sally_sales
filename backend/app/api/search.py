@@ -657,6 +657,45 @@ async def get_project_pipeline_summary(
     except Exception as e:
         logger.warning(f"Failed to get spending for pipeline summary: {e}")
 
+    # Per-segment stats breakdown
+    segment_stats = {}
+    try:
+        seg_rows = await db.execute(sql_text("""
+            SELECT
+                sr.matched_segment,
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE sr.is_target = true) as targets,
+                COUNT(DISTINCT sr.domain) as domains
+            FROM search_results sr
+            WHERE sr.project_id = :pid AND sr.matched_segment IS NOT NULL
+            GROUP BY sr.matched_segment
+            ORDER BY targets DESC
+        """), {"pid": project_id})
+        for seg_row in seg_rows.fetchall():
+            segment_stats[seg_row[0]] = {
+                "total_analyzed": seg_row[1],
+                "targets": seg_row[2],
+                "domains": seg_row[3],
+            }
+
+        # Also get query counts per segment
+        q_seg_rows = await db.execute(sql_text("""
+            SELECT
+                sq.segment,
+                COUNT(*) as query_count
+            FROM search_queries sq
+            JOIN search_jobs sj ON sq.search_job_id = sj.id
+            WHERE sj.project_id = :pid AND sq.segment IS NOT NULL
+            GROUP BY sq.segment
+        """), {"pid": project_id})
+        for q_row in q_seg_rows.fetchall():
+            seg_name = q_row[0]
+            if seg_name not in segment_stats:
+                segment_stats[seg_name] = {"total_analyzed": 0, "targets": 0, "domains": 0}
+            segment_stats[seg_name]["queries"] = q_row[1]
+    except Exception as e:
+        logger.warning(f"Failed to get segment stats: {e}")
+
     return {
         "project_id": project_id,
         "total_discovered": stats[0],
@@ -671,6 +710,7 @@ async def get_project_pipeline_summary(
         "total_queries": stats[8],
         "spending": spending,
         "pipeline": pipeline_status,
+        "segment_stats": segment_stats,
     }
 
 
@@ -679,12 +719,13 @@ async def get_project_results(
     project_id: int,
     targets_only: bool = QueryParam(False, description="Show only targets"),
     job_id: Optional[int] = QueryParam(None, description="Filter by job ID"),
+    segment: Optional[str] = QueryParam(None, description="Filter by matched_segment"),
     page: int = QueryParam(1, ge=1, description="Page number"),
     page_size: int = QueryParam(100, ge=1, le=500, description="Results per page"),
     db: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
-    """Get analyzed search results for a project (paginated)."""
+    """Get analyzed search results for a project (paginated). Supports segment filter."""
     # Verify project belongs to company
     result = await db.execute(
         select(Project).where(
@@ -700,6 +741,8 @@ async def get_project_results(
         base_filter.append(SearchResult.search_job_id == job_id)
     if targets_only:
         base_filter.append(SearchResult.is_target == True)
+    if segment:
+        base_filter.append(SearchResult.matched_segment == segment)
 
     # Total count
     count_q = await db.execute(

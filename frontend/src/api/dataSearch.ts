@@ -52,6 +52,7 @@ export interface SearchResultItem {
   analyzed_at?: string;
   source_query_id?: number;
   source_query_text?: string;
+  matched_segment?: string;
 }
 
 export interface SpendingInfo {
@@ -762,4 +763,10 @@ export interface ProjectPipelineSummary {
     started_at?: string;
     target_goal?: number;
   } | null;
+  segment_stats?: Record<string, {
+    total_analyzed: number;
+    targets: number;
+    domains: number;
+    queries?: number;
+  }> | null;
 }

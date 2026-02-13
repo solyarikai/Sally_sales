@@ -402,6 +402,233 @@ class CompanySearchService:
 
         return skip
 
+    async def run_segment_search(
+        self,
+        session: AsyncSession,
+        project_id: int,
+        company_id: int,
+        segment_key: str,
+        geo_key: str,
+        search_engine: SearchEngine = SearchEngine.YANDEX_API,
+        ai_expand_rounds: int = 2,
+        ai_expand_count: int = 30,
+    ) -> dict:
+        """
+        Run search for a specific segment + geo combination.
+        Phase A: Template queries (deterministic, zero AI cost).
+        Phase B: AI expansion via gpt-4o-mini (when templates exhausted).
+        Returns stats dict.
+        """
+        from app.services.query_templates import build_segment_queries
+
+        # Load project for target_segments
+        result = await session.execute(
+            select(Project).where(Project.id == project_id)
+        )
+        project = result.scalar_one_or_none()
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+
+        knowledge_data = await self._load_project_knowledge(session, project_id)
+
+        # Collect all used queries for this project (dedup across jobs)
+        existing_result = await session.execute(
+            select(SearchQuery.query_text).join(SearchJob).where(
+                SearchJob.project_id == project_id
+            )
+        )
+        existing_queries = set(
+            (r[0] or "").strip().lower() for r in existing_result.fetchall()
+        )
+
+        # Phase A: Template queries
+        tagged_queries = build_segment_queries(
+            segment_key=segment_key,
+            geo_key=geo_key,
+            existing_queries=existing_queries,
+        )
+
+        stats = {
+            "segment": segment_key,
+            "geo": geo_key,
+            "template_queries": len(tagged_queries),
+            "ai_queries": 0,
+            "total_queries": len(tagged_queries),
+            "targets_found": 0,
+            "domains_found": 0,
+            "job_id": None,
+        }
+
+        if not tagged_queries:
+            logger.info(f"No new template queries for {segment_key}/{geo_key}")
+            return stats
+
+        # Create a SearchJob for this segment+geo
+        job_config = {
+            "segment": segment_key,
+            "geo": geo_key,
+            "max_pages": settings.SEARCH_MAX_PAGES,
+            "workers": settings.SEARCH_WORKERS,
+            "target_segments": project.target_segments,
+            "query_source": "template",
+        }
+        job = SearchJob(
+            company_id=company_id,
+            status=SearchJobStatus.PENDING,
+            search_engine=search_engine,
+            queries_total=0,
+            project_id=project_id,
+            config=job_config,
+        )
+        session.add(job)
+        await session.flush()
+        stats["job_id"] = job.id
+
+        # Add template queries to DB with segment/geo tags
+        for tq in tagged_queries:
+            sq = SearchQuery(
+                search_job_id=job.id,
+                query_text=tq["query"],
+                segment=tq["segment"],
+                geo=tq["geo"],
+                language=tq["language"],
+            )
+            session.add(sq)
+        job.queries_total = len(tagged_queries)
+        await session.commit()
+
+        # Execute search
+        logger.info(
+            f"Running {segment_key}/{geo_key}: {len(tagged_queries)} template queries on {search_engine.value}"
+        )
+        await search_service.run_search_job(session, job.id)
+        await session.refresh(job)
+
+        # Scrape and analyze new domains
+        skip_set = await self._build_skip_set(session, project_id)
+        new_domains = await self._get_new_domains_from_job(session, job, skip_set)
+
+        if new_domains:
+            await self._scrape_and_analyze_domains(
+                session=session,
+                job=job,
+                domains=new_domains,
+                target_segments=project.target_segments,
+            )
+
+        await session.commit()
+
+        # Count targets found
+        target_count_result = await session.execute(
+            select(func.count()).select_from(SearchResult).where(
+                SearchResult.search_job_id == job.id,
+                SearchResult.is_target == True,
+            )
+        )
+        targets_this_job = target_count_result.scalar() or 0
+        stats["targets_found"] = targets_this_job
+        stats["domains_found"] = job.domains_found or 0
+
+        # Phase B: AI Expansion (if not enough targets)
+        for ai_round in range(ai_expand_rounds):
+            if targets_this_job > 0 and ai_round > 0:
+                # Some targets found — stop expanding
+                break
+
+            logger.info(
+                f"AI expansion round {ai_round + 1} for {segment_key}/{geo_key} "
+                f"(targets so far: {targets_this_job})"
+            )
+
+            # Get seed queries for AI
+            seed_queries = [tq["query"] for tq in tagged_queries[:20]]
+            # Get confirmed targets for this segment
+            confirmed_result = await session.execute(
+                select(SearchResult.domain).where(
+                    SearchResult.search_job_id == job.id,
+                    SearchResult.is_target == True,
+                ).limit(15)
+            )
+            confirmed_domains = [r[0] for r in confirmed_result.fetchall()]
+
+            # Use gpt-4o-mini for expansion
+            ai_queries = await search_service.generate_segment_queries(
+                session=session,
+                segment=segment_key,
+                geo=geo_key,
+                language="ru",  # Start with Russian
+                keywords=seed_queries,
+                count=ai_expand_count,
+                existing_queries=list(existing_queries),
+                target_segments=project.target_segments,
+                good_queries=(knowledge_data or {}).get("good_query_patterns", []),
+                confirmed_targets=confirmed_domains,
+            )
+
+            if not ai_queries:
+                break
+
+            # Add AI queries to DB
+            for aq in ai_queries:
+                sq = SearchQuery(
+                    search_job_id=job.id,
+                    query_text=aq["query"],
+                    segment=aq["segment"],
+                    geo=aq["geo"],
+                    language=aq["language"],
+                )
+                session.add(sq)
+                existing_queries.add(aq["query"].strip().lower())
+
+            job.queries_total = (job.queries_total or 0) + len(ai_queries)
+            config = dict(job.config or {})
+            config["query_source"] = "template+ai"
+            config["ai_rounds"] = ai_round + 1
+            job.config = config
+            await session.commit()
+
+            stats["ai_queries"] += len(ai_queries)
+            stats["total_queries"] += len(ai_queries)
+
+            # Execute AI queries
+            await search_service.run_search_job(session, job.id)
+            await session.refresh(job)
+
+            # Scrape new domains
+            skip_set = await self._build_skip_set(session, project_id)
+            new_ai_domains = await self._get_new_domains_from_job(session, job, skip_set)
+            if new_ai_domains:
+                await self._scrape_and_analyze_domains(
+                    session=session,
+                    job=job,
+                    domains=new_ai_domains,
+                    target_segments=project.target_segments,
+                )
+            await session.commit()
+
+            # Recount targets
+            target_count_result = await session.execute(
+                select(func.count()).select_from(SearchResult).where(
+                    SearchResult.search_job_id == job.id,
+                    SearchResult.is_target == True,
+                )
+            )
+            targets_this_job = target_count_result.scalar() or 0
+            stats["targets_found"] = targets_this_job
+            stats["domains_found"] = job.domains_found or 0
+
+        # Mark job complete
+        job.status = SearchJobStatus.COMPLETED
+        job.completed_at = datetime.utcnow()
+        await session.commit()
+
+        logger.info(
+            f"Segment search done: {segment_key}/{geo_key} — "
+            f"{stats['template_queries']} template + {stats['ai_queries']} AI queries, "
+            f"{stats['targets_found']} targets, {stats['domains_found']} domains"
+        )
+        return stats
+
     async def run_project_search(
         self,
         session: AsyncSession,
@@ -795,6 +1022,7 @@ Respond with JSON:
     "geography_match": 0.0-1.0
   }},
   "is_target": true/false,
+  "matched_segment": "one of: real_estate, investment, legal, migration, family_office, crypto, importers, other_hnwi, not_target",
   "confidence": 0.0-1.0,
   "reasoning": "1-2 sentence explanation",
   "company_info": {{
@@ -1015,6 +1243,7 @@ CRITICAL FALSE POSITIVE RULES:
                     reasoning=analysis.get("reasoning", ""),
                     company_info=analysis.get("company_info", {}),
                     scores=analysis.get("scores", {}),
+                    matched_segment=analysis.get("matched_segment"),
                     html_snippet=content[:2000],
                     scraped_at=scraped_at,
                     analyzed_at=analyzed_at,

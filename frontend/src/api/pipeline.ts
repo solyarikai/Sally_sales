@@ -456,6 +456,10 @@ export interface FullPipelineConfig {
   skip_extraction?: boolean;
   skip_enrichment?: boolean;
   skip_smartlead_push?: boolean;
+  // Segment-based search (new template system)
+  use_segment_search?: boolean;
+  skip_google?: boolean;
+  segments?: string[];
 }
 
 export interface GenerateSequencesRequest {
@@ -491,4 +495,15 @@ export interface FullPipelineStatus {
   completed_at?: string;
   error?: string;
   stop_requested?: boolean;
+  // Segment search progress
+  segment_search?: {
+    mode: string;
+    engine: string;
+    segments_planned: string[];
+    segments_completed: string[];
+    current_segment?: string;
+    current_geo?: string;
+    segment_stats: Record<string, any>;
+    finished?: boolean;
+  };
 }

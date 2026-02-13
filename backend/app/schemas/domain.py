@@ -129,6 +129,7 @@ class SearchResultResponse(BaseModel):
     created_at: Optional[datetime] = None
     source_query_id: Optional[int] = None
     source_query_text: Optional[str] = None
+    matched_segment: Optional[str] = None
 
     class Config:
         from_attributes = True

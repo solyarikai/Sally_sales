@@ -52,6 +52,10 @@ class FullPipelineRequest(BaseModel):
     skip_extraction: bool = False
     skip_enrichment: bool = False
     skip_smartlead_push: bool = True  # Off by default, enable explicitly
+    # Segment-based search (new template system)
+    use_segment_search: bool = Field(False, description="Use template-based segment search instead of AI-random")
+    skip_google: bool = Field(True, description="Skip Google search (Yandex only for testing)")
+    segments: Optional[List[str]] = Field(None, description="Specific segments to run (None = all by priority)")
 
 
 @router.post("/full-pipeline/{project_id}")
@@ -161,49 +165,145 @@ async def _run_full_pipeline_bg(project_id: int, company_id: int, cfg: FullPipel
 
 
 async def _bg_phase_search(project_id: int, company_id: int, cfg: FullPipelineRequest, progress: dict):
-    """Run parallel Yandex + Google search."""
+    """Run search — either segment-based (templates) or legacy AI-random."""
     from app.models.domain import SearchEngine
     from app.services.company_search_service import company_search_service
-
-    engines = [
-        ("yandex", SearchEngine.YANDEX_API),
-        ("google", SearchEngine.GOOGLE_SERP),
-    ]
-    if cfg.apollo_search:
-        engines.append(("apollo", SearchEngine.APOLLO))
 
     async with async_session_maker() as session:
         targets_before = await company_search_service._count_project_targets(session, project_id)
     progress["targets_before_search"] = targets_before
 
-    async def run_engine(name: str, engine: SearchEngine):
-        try:
-            async with async_session_maker() as session:
-                job = await company_search_service.run_project_search(
-                    session=session,
-                    project_id=project_id,
-                    company_id=company_id,
-                    max_queries=cfg.max_queries,
-                    target_goal=cfg.target_goal,
-                    search_engine=engine,
-                )
-                return name, job
-        except Exception as e:
-            logger.error(f"[{name}] search failed: {e}", exc_info=True)
-            return name, None
+    if cfg.use_segment_search:
+        # ── NEW: Segment-based template search ──
+        await _bg_phase_segment_search(project_id, company_id, cfg, progress, targets_before)
+    else:
+        # ── Legacy: AI-random parallel search ──
+        engines = [
+            ("yandex", SearchEngine.YANDEX_API),
+        ]
+        if not cfg.skip_google:
+            engines.append(("google", SearchEngine.GOOGLE_SERP))
+        if cfg.apollo_search:
+            engines.append(("apollo", SearchEngine.APOLLO_ORG))
 
-    results = await asyncio.gather(*[run_engine(n, e) for n, e in engines])
+        async def run_engine(name: str, engine: SearchEngine):
+            try:
+                async with async_session_maker() as session:
+                    job = await company_search_service.run_project_search(
+                        session=session,
+                        project_id=project_id,
+                        company_id=company_id,
+                        max_queries=cfg.max_queries,
+                        target_goal=cfg.target_goal,
+                        search_engine=engine,
+                    )
+                    return name, job
+            except Exception as e:
+                logger.error(f"[{name}] search failed: {e}", exc_info=True)
+                return name, None
+
+        results = await asyncio.gather(*[run_engine(n, e) for n, e in engines])
+
+        progress["search_results"] = {
+            name: {"job_id": job.id, "status": str(job.status)} if job else {"error": "failed"}
+            for name, job in results
+        }
 
     async with async_session_maker() as session:
         targets_after = await company_search_service._count_project_targets(session, project_id)
-
-    progress["search_results"] = {
-        name: {"job_id": job.id, "status": str(job.status)} if job else {"error": "failed"}
-        for name, job in results
-    }
     progress["targets_after_search"] = targets_after
     progress["new_targets_from_search"] = targets_after - targets_before
     logger.info(f"Search done for project {project_id}: {targets_before} → {targets_after} targets")
+
+
+async def _bg_phase_segment_search(
+    project_id: int, company_id: int, cfg: FullPipelineRequest,
+    progress: dict, targets_before: int,
+):
+    """Segment-by-segment template search with Phase A (templates) + Phase B (AI expand)."""
+    from app.models.domain import SearchEngine
+    from app.services.company_search_service import company_search_service
+    from app.services.query_templates import SEGMENTS, SEGMENT_KEYS
+
+    engine = SearchEngine.YANDEX_API
+    if not cfg.skip_google:
+        engine = SearchEngine.GOOGLE_SERP  # Can switch to Google after Yandex validation
+
+    # Determine which segments to run
+    if cfg.segments:
+        segment_order = [s for s in cfg.segments if s in SEGMENTS]
+    else:
+        segment_order = SEGMENT_KEYS  # All by priority
+
+    progress["segment_search"] = {
+        "mode": "template",
+        "engine": engine.value,
+        "segments_planned": segment_order,
+        "segments_completed": [],
+        "segment_stats": {},
+    }
+
+    total_targets = targets_before
+    for seg_key in segment_order:
+        if progress.get("stop_requested"):
+            break
+
+        seg_def = SEGMENTS[seg_key]
+        geo_keys = list(seg_def["geos"].keys())
+
+        progress["segment_search"]["current_segment"] = seg_key
+        progress["segment_search"]["segment_stats"][seg_key] = {
+            "geos": {},
+            "total_queries": 0,
+            "total_targets": 0,
+        }
+
+        for geo_key in geo_keys:
+            if progress.get("stop_requested"):
+                break
+
+            progress["segment_search"]["current_geo"] = geo_key
+
+            try:
+                async with async_session_maker() as session:
+                    stats = await company_search_service.run_segment_search(
+                        session=session,
+                        project_id=project_id,
+                        company_id=company_id,
+                        segment_key=seg_key,
+                        geo_key=geo_key,
+                        search_engine=engine,
+                    )
+            except Exception as e:
+                logger.error(f"Segment search {seg_key}/{geo_key} failed: {e}", exc_info=True)
+                stats = {"segment": seg_key, "geo": geo_key, "error": str(e)}
+
+            # Update progress
+            seg_stats = progress["segment_search"]["segment_stats"][seg_key]
+            seg_stats["geos"][geo_key] = stats
+            seg_stats["total_queries"] += stats.get("total_queries", 0)
+            seg_stats["total_targets"] += stats.get("targets_found", 0)
+
+            logger.info(
+                f"Segment {seg_key}/{geo_key}: "
+                f"{stats.get('template_queries', 0)} tmpl + {stats.get('ai_queries', 0)} AI = "
+                f"{stats.get('total_queries', 0)} queries, {stats.get('targets_found', 0)} targets"
+            )
+
+            # Check if we've hit the overall target goal
+            async with async_session_maker() as session:
+                total_targets = await company_search_service._count_project_targets(session, project_id)
+            if total_targets >= cfg.target_goal:
+                logger.info(f"Target goal reached: {total_targets}/{cfg.target_goal}")
+                break
+
+        progress["segment_search"]["segments_completed"].append(seg_key)
+
+        if total_targets >= cfg.target_goal:
+            break
+
+    progress["segment_search"]["finished"] = True
+    progress["search_results"] = progress["segment_search"]["segment_stats"]
 
 
 async def _bg_phase_extraction(project_id: int, company_id: int, progress: dict):
@@ -540,109 +640,43 @@ async def _ensure_campaign_for_rule(
     contacts_count: int,
     session=None,
 ) -> Optional[str]:
-    """Create or reuse a SmartLead campaign based on a push rule."""
-    from datetime import datetime as dt
-
-    # Check if current campaign still has room
-    if rule.current_campaign_id:
-        remaining = rule.max_leads_per_campaign - (rule.current_campaign_lead_count or 0)
-        if remaining >= contacts_count:
-            return rule.current_campaign_id
-
-    # Create new campaign
-    campaign_name = rule.campaign_name_template.replace(
-        "{date}", dt.utcnow().strftime("%d.%m")
-    )
-
-    resp = await client.post(
-        "https://server.smartlead.ai/api/v1/campaigns/create",
-        params={"api_key": api_key},
-        json={"name": campaign_name},
-    )
-    if resp.status_code != 200:
-        logger.error(f"Failed to create campaign: {resp.status_code} {resp.text[:200]}")
+    """
+    Get existing SmartLead campaign for a push rule.
+    No campaign creation — campaigns are set up manually in SmartLead,
+    and the rule just points to them via current_campaign_id.
+    """
+    if not rule.current_campaign_id:
+        logger.warning(
+            f"Rule '{rule.name}' has no current_campaign_id set. "
+            f"Set campaign_id in the push rule to use an existing SmartLead campaign."
+        )
         return None
 
-    data = resp.json()
-    campaign_id = str(data.get("id", ""))
-    if not campaign_id:
-        return None
-
-    logger.info(f"Created SmartLead campaign '{campaign_name}' (ID: {campaign_id})")
-
-    # Set sequences
-    if rule.sequence_template:
-        await client.post(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/sequences",
+    # Verify the campaign exists
+    try:
+        resp = await client.get(
+            f"https://server.smartlead.ai/api/v1/campaigns/{rule.current_campaign_id}",
             params={"api_key": api_key},
-            json={"sequences": rule.sequence_template},
+            timeout=15,
         )
-
-    # Set schedule
-    schedule = rule.schedule_config or {
-        "timezone": "Europe/Moscow",
-        "days_of_the_week": [1, 2, 3, 4, 5],
-        "start_hour": "09:00",
-        "end_hour": "18:00",
-        "min_time_btw_emails": 5,
-        "max_new_leads_per_day": 50,
-    }
-    await client.post(
-        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
-        params={"api_key": api_key},
-        json=schedule,
-    )
-
-    # Set campaign settings
-    camp_settings = rule.campaign_settings or {
-        "track_settings": ["DONT_TRACK_EMAIL_OPEN", "DONT_TRACK_LINK_CLICK"],
-        "stop_lead_settings": "REPLY_TO_AN_EMAIL",
-        "send_as_plain_text": False,
-        "follow_up_percentage": 100,
-    }
-    await client.post(
-        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/settings",
-        params={"api_key": api_key},
-        json=camp_settings,
-    )
-
-    # Assign email accounts (batch — API expects {email_account_ids: [...]})
-    if rule.email_account_ids:
-        await client.post(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/email-accounts",
-            params={"api_key": api_key},
-            json={"email_account_ids": rule.email_account_ids},
-        )
-
-    # Record campaign creation event
-    async with async_session_maker() as event_session:
-        from app.models.pipeline import PipelineEvent, PipelineEventType
-        event = PipelineEvent(
-            company_id=rule.company_id,
-            event_type=PipelineEventType.SMARTLEAD_CAMPAIGN_CREATED,
-            detail={
-                "campaign_id": campaign_id,
-                "campaign_name": campaign_name,
-                "rule_name": rule.name,
-                "rule_id": rule.id,
-            },
-        )
-        event_session.add(event)
-
-        # Update rule with current campaign
-        from sqlalchemy import update
-        await event_session.execute(
-            update(CampaignPushRule).where(CampaignPushRule.id == rule.id).values(
-                current_campaign_id=campaign_id,
-                current_campaign_lead_count=0,
+        if resp.status_code == 200:
+            data = resp.json()
+            campaign_name = data.get("name", "unknown")
+            logger.info(
+                f"Using existing campaign '{campaign_name}' (ID: {rule.current_campaign_id}) "
+                f"for rule '{rule.name}'"
             )
-        )
-        await event_session.commit()
-
-    rule.current_campaign_id = campaign_id
-    rule.current_campaign_lead_count = 0
-
-    return campaign_id
+            return rule.current_campaign_id
+        else:
+            logger.error(
+                f"Campaign {rule.current_campaign_id} not found in SmartLead "
+                f"(status {resp.status_code}). Fix the push rule."
+            )
+            return None
+    except Exception as e:
+        logger.error(f"Failed to verify campaign {rule.current_campaign_id}: {e}")
+        # Still return the campaign_id — we trust the user set it correctly
+        return rule.current_campaign_id
 
 
 # ============ Projects (for dropdown) ============
