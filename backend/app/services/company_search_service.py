@@ -441,23 +441,15 @@ class CompanySearchService:
             (r[0] or "").strip().lower() for r in existing_result.fetchall()
         )
 
-        # Phase A: Template queries + raw doc keywords
-        tagged_queries = build_segment_queries(
+        # Phase A: Doc keywords only (curated phrases from keyword docs)
+        tagged_queries = build_doc_keyword_queries(
             segment_key=segment_key,
             geo_key=geo_key,
             existing_queries=existing_queries,
         )
-        # Add raw doc keyword phrases (dedup against templates + existing)
-        tmpl_seen = set(q["query"].strip().lower() for q in tagged_queries) | existing_queries
-        doc_queries = build_doc_keyword_queries(
-            segment_key=segment_key,
-            geo_key=geo_key,
-            existing_queries=tmpl_seen,
-        )
-        tagged_queries.extend(doc_queries)
 
-        template_count = len(tagged_queries) - len(doc_queries)
-        doc_count = len(doc_queries)
+        template_count = 0
+        doc_count = len(tagged_queries)
 
         stats = {
             "segment": segment_key,
