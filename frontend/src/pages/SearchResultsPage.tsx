@@ -6,7 +6,7 @@ import {
   Loader2, AlertCircle, CheckCircle2, XCircle,
   ChevronDown, ChevronRight, ExternalLink, DollarSign,
   BarChart3, Globe, Mail, MessageSquare,
-  Send, Building2, Play, Square,
+  Send, Building2, Play, Square, TrendingUp,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -24,6 +24,7 @@ import { contactsApi } from '../api/contacts';
 import { pipelineApi, type FullPipelineStatus } from '../api/pipeline';
 import { CampaignPushRules } from '../components/CampaignPushRules';
 import { TargetCompaniesViewer } from '../components/TargetCompaniesViewer';
+import { PushTracker } from '../components/PushTracker';
 
 const statusColors: Record<string, string> = {
   completed: 'bg-green-100 text-green-800',
@@ -45,7 +46,7 @@ export function SearchResultsPage() {
 
 // ============ Job History List View ============
 
-type TabId = 'jobs' | 'targets' | 'push-rules';
+type TabId = 'jobs' | 'targets' | 'push-rules' | 'push-tracker';
 
 function JobHistoryView() {
   const navigate = useNavigate();
@@ -187,6 +188,7 @@ function JobHistoryView() {
     { id: 'jobs' as TabId, label: 'Search Jobs', icon: BarChart3 },
     { id: 'targets' as TabId, label: 'Target Companies', icon: Building2 },
     { id: 'push-rules' as TabId, label: 'SmartLead Push', icon: Send },
+    { id: 'push-tracker' as TabId, label: 'Push Tracker', icon: TrendingUp },
   ];
 
   const effectiveProjectId = selectedProject || projects[0]?.id;
@@ -302,6 +304,8 @@ function JobHistoryView() {
         <TargetCompaniesViewer projectId={effectiveProjectId} />
       ) : activeTab === 'push-rules' && effectiveProjectId ? (
         <CampaignPushRules projectId={effectiveProjectId} />
+      ) : activeTab === 'push-tracker' && effectiveProjectId ? (
+        <PushTracker projectId={effectiveProjectId} />
       ) : (
         <>
           {/* Jobs table */}

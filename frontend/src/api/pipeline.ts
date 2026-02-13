@@ -355,7 +355,44 @@ export const pipelineApi = {
     const response = await api.post('/pipeline/generate-sequences', req);
     return response.data;
   },
+
+  getPushHistory: async (projectId: number): Promise<PushHistory> => {
+    const response = await api.get(`/pipeline/projects/${projectId}/push-history`);
+    return response.data;
+  },
 };
+
+// ============ Push History Types ============
+
+export interface PushCampaign {
+  campaign_id: string;
+  campaign_name: string;
+  rule_name: string;
+  leads_pushed: number;
+  created_at?: string;
+}
+
+export interface DailyPush {
+  date: string;
+  count: number;
+  source: string;
+}
+
+export interface PushRuleSummary {
+  id: number;
+  name: string;
+  current_campaign_id?: string;
+  current_campaign_lead_count: number;
+  is_active: boolean;
+}
+
+export interface PushHistory {
+  campaigns: PushCampaign[];
+  daily_pushes: DailyPush[];
+  rules: PushRuleSummary[];
+  total_pushed: number;
+  total_synced: number;
+}
 
 // ============ Push Rules Types ============
 

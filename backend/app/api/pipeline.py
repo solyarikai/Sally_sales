@@ -818,6 +818,98 @@ def _rule_to_dict(rule) -> dict:
     }
 
 
+# ============ Push History / Tracker ============
+
+@router.get("/projects/{project_id}/push-history")
+async def get_push_history(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """
+    Get SmartLead push history for a project — campaigns created,
+    leads pushed, dates, and rule used. Used by the tracker UI.
+    """
+    from sqlalchemy import text as sql_text
+
+    # Get push events from pipeline_events
+    events = await db.execute(sql_text("""
+        SELECT pe.id, pe.event_type, pe.detail, pe.created_at
+        FROM pipeline_events pe
+        WHERE pe.company_id = :cid
+        AND pe.event_type IN ('smartlead_campaign_created', 'smartlead_leads_pushed')
+        ORDER BY pe.created_at DESC
+        LIMIT 200
+    """), {"cid": company.id})
+    event_rows = events.fetchall()
+
+    # Get contacts pushed per day from contacts table
+    daily = await db.execute(sql_text("""
+        SELECT DATE(created_at) as push_date,
+               COUNT(*) as count,
+               source
+        FROM contacts
+        WHERE company_id = :cid
+        AND source LIKE 'smartlead%%'
+        GROUP BY DATE(created_at), source
+        ORDER BY push_date DESC
+        LIMIT 90
+    """), {"cid": company.id})
+    daily_rows = daily.fetchall()
+
+    # Get push rules with current campaign stats
+    from app.models.pipeline import CampaignPushRule
+    rules = await db.execute(
+        select(CampaignPushRule).where(
+            CampaignPushRule.project_id == project_id,
+            CampaignPushRule.company_id == company.id,
+        )
+    )
+    rule_list = rules.scalars().all()
+
+    # Aggregate campaigns from SmartLead events
+    campaigns = {}
+    for row in event_rows:
+        detail = row.detail or {}
+        campaign_id = detail.get("campaign_id", "")
+        if not campaign_id:
+            continue
+        if campaign_id not in campaigns:
+            campaigns[campaign_id] = {
+                "campaign_id": campaign_id,
+                "campaign_name": detail.get("campaign_name", ""),
+                "rule_name": detail.get("rule_name", ""),
+                "leads_pushed": 0,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+        if row.event_type == "smartlead_leads_pushed":
+            campaigns[campaign_id]["leads_pushed"] += detail.get("leads_pushed", 0)
+
+    return {
+        "campaigns": list(campaigns.values()),
+        "daily_pushes": [
+            {
+                "date": str(row.push_date),
+                "count": row.count,
+                "source": row.source,
+            }
+            for row in daily_rows
+        ],
+        "rules": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "current_campaign_id": r.current_campaign_id,
+                "current_campaign_lead_count": r.current_campaign_lead_count or 0,
+                "is_active": r.is_active,
+            }
+            for r in rule_list
+        ],
+        "total_pushed": sum(row.count for row in daily_rows if 'push' in (row.source or '')),
+        "total_synced": sum(row.count for row in daily_rows if 'sync' in (row.source or '')),
+    }
+
+
 # ============ Gemini Sequence Generation ============
 
 class GenerateSequencesRequest(BaseModel):
