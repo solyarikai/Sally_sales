@@ -626,7 +626,7 @@ async def get_project_pipeline_summary(
             (SELECT COALESCE(SUM(apollo_credits_used), 0) FROM discovered_companies WHERE project_id = :pid) as apollo_credits_used,
             (SELECT COUNT(*) FROM search_jobs WHERE project_id = :pid) as total_search_jobs,
             (SELECT COUNT(*) FROM search_queries WHERE search_job_id IN (SELECT id FROM search_jobs WHERE project_id = :pid)) as total_queries,
-            (SELECT COUNT(*) FROM contacts c WHERE c.company_id = :cid AND c.source LIKE 'smartlead%%') as in_smartlead
+            (SELECT COUNT(*) FROM extracted_contacts ec JOIN discovered_companies dc ON ec.discovered_company_id = dc.id WHERE dc.project_id = :pid AND dc.is_target = true AND ec.email IS NOT NULL AND ec.email != '' AND lower(ec.email) IN (SELECT DISTINCT lower(c.email) FROM contacts c WHERE c.email IS NOT NULL)) as in_smartlead
     """), {"pid": project_id, "cid": company.id})
     stats = row.fetchone()
 
