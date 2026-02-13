@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Loader2, Globe, Mail, Phone, ChevronDown, ChevronUp,
+  Loader2, Globe, Mail, ChevronDown, ChevronUp,
   Target, AlertCircle, ExternalLink, User,
 } from 'lucide-react';
 import { pipelineApi, type DiscoveredCompany, type DiscoveredCompanyDetail } from '../api/pipeline';

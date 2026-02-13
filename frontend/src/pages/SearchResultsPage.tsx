@@ -6,7 +6,7 @@ import {
   Loader2, AlertCircle, CheckCircle2, XCircle,
   ChevronDown, ChevronRight, ExternalLink, DollarSign,
   BarChart3, Globe, Mail, MessageSquare,
-  Send, Building2, Play, Square, Settings2,
+  Send, Building2, Play, Square,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';

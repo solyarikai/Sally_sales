@@ -8,7 +8,6 @@ import {
   type CampaignPushRule,
   type CampaignPushRuleCreate,
   type SmartleadEmailAccount,
-  type GenerateSequencesRequest,
 } from '../api/pipeline';
 import { cn } from '../lib/utils';
 
@@ -212,7 +211,7 @@ export function CampaignPushRules({ projectId }: Props) {
                     <div className="mt-1">{rule.sequence_language === 'ru' ? 'Russian' : 'English'}</div>
                   </div>
                   <div>
-                    <span className="text-neutral-500">Use {{first_name}}:</span>
+                    <span className="text-neutral-500">Use {'{{first_name}}'}:</span>
                     <div className="mt-1">{rule.use_first_name_var ? 'Yes' : 'No'}</div>
                   </div>
                   <div>
