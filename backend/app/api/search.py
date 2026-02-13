@@ -310,7 +310,7 @@ async def get_job_queries(
     seg_rows = await db.execute(sql_text("""
         SELECT segment, geo, COUNT(*) as cnt,
                SUM(domains_found) as domains,
-               SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done
+               SUM(CASE WHEN status::text = 'done' THEN 1 ELSE 0 END) as done
         FROM search_queries
         WHERE search_job_id = :jid AND segment IS NOT NULL
         GROUP BY segment, geo
