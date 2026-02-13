@@ -303,4 +303,154 @@ export const pipelineApi = {
     });
     return response.data;
   },
+
+  // ===== Campaign Push Rules =====
+
+  listPushRules: async (projectId: number): Promise<CampaignPushRule[]> => {
+    const response = await api.get(`/pipeline/projects/${projectId}/push-rules`);
+    return response.data;
+  },
+
+  createPushRule: async (projectId: number, rule: CampaignPushRuleCreate): Promise<CampaignPushRule> => {
+    const response = await api.post(`/pipeline/projects/${projectId}/push-rules`, rule);
+    return response.data;
+  },
+
+  updatePushRule: async (ruleId: number, updates: Partial<CampaignPushRuleCreate>): Promise<CampaignPushRule> => {
+    const response = await api.put(`/pipeline/push-rules/${ruleId}`, updates);
+    return response.data;
+  },
+
+  deletePushRule: async (ruleId: number): Promise<void> => {
+    await api.delete(`/pipeline/push-rules/${ruleId}`);
+  },
+
+  pushToSmartlead: async (projectId: number): Promise<{ status: string; project_id: number }> => {
+    const response = await api.post(`/pipeline/projects/${projectId}/push-to-smartlead`);
+    return response.data;
+  },
+
+  listSmartleadEmailAccounts: async (): Promise<SmartleadEmailAccount[]> => {
+    const response = await api.get('/pipeline/smartlead/email-accounts');
+    return response.data;
+  },
+
+  // Full pipeline control
+  startFullPipeline: async (projectId: number, config: FullPipelineConfig): Promise<{ status: string; project_id: number }> => {
+    const response = await api.post(`/pipeline/full-pipeline/${projectId}`, config);
+    return response.data;
+  },
+
+  getFullPipelineStatus: async (projectId: number): Promise<FullPipelineStatus> => {
+    const response = await api.get(`/pipeline/full-pipeline/${projectId}/status`);
+    return response.data;
+  },
+
+  stopFullPipeline: async (projectId: number): Promise<{ status: string }> => {
+    const response = await api.post(`/pipeline/full-pipeline/${projectId}/stop`);
+    return response.data;
+  },
+
+  generateSequences: async (req: GenerateSequencesRequest): Promise<GenerateSequencesResponse> => {
+    const response = await api.post('/pipeline/generate-sequences', req);
+    return response.data;
+  },
 };
+
+// ============ Push Rules Types ============
+
+export interface CampaignPushRule {
+  id: number;
+  project_id: number;
+  name: string;
+  description?: string;
+  language: string;
+  has_first_name?: boolean | null;
+  name_pattern?: string;
+  campaign_name_template: string;
+  sequence_language: string;
+  sequence_template?: any[];
+  use_first_name_var: boolean;
+  email_account_ids?: number[];
+  schedule_config?: Record<string, any>;
+  campaign_settings?: Record<string, any>;
+  max_leads_per_campaign: number;
+  priority: number;
+  is_active: boolean;
+  current_campaign_id?: string;
+  current_campaign_lead_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CampaignPushRuleCreate {
+  name: string;
+  description?: string;
+  language: string;
+  has_first_name?: boolean | null;
+  name_pattern?: string;
+  campaign_name_template: string;
+  sequence_language: string;
+  sequence_template?: any[];
+  use_first_name_var: boolean;
+  email_account_ids?: number[];
+  schedule_config?: Record<string, any>;
+  campaign_settings?: Record<string, any>;
+  max_leads_per_campaign?: number;
+  priority?: number;
+  is_active?: boolean;
+}
+
+export interface SmartleadEmailAccount {
+  id: number;
+  email: string;
+  name: string;
+}
+
+export interface FullPipelineConfig {
+  max_queries?: number;
+  target_goal?: number;
+  apollo_search?: boolean;
+  apollo_credits?: number;
+  apollo_max_people?: number;
+  apollo_titles?: string[];
+  skip_search?: boolean;
+  skip_extraction?: boolean;
+  skip_enrichment?: boolean;
+  skip_smartlead_push?: boolean;
+}
+
+export interface GenerateSequencesRequest {
+  project_id: number;
+  language: string;
+  use_first_name: boolean;
+  tone?: string;
+  num_steps?: number;
+  custom_instructions?: string;
+}
+
+export interface GenerateSequencesResponse {
+  sequences: any[];
+  language: string;
+  use_first_name: boolean;
+  tokens?: Record<string, number>;
+}
+
+export interface FullPipelineStatus {
+  running: boolean;
+  phase: string;
+  started_at?: string;
+  config?: FullPipelineConfig;
+  targets_before_search?: number;
+  search_results?: Record<string, any>;
+  targets_after_search?: number;
+  new_targets_from_search?: number;
+  extraction_total?: number;
+  extraction_stats?: Record<string, number>;
+  enrichment_total?: number;
+  enrichment_stats?: Record<string, number>;
+  smartlead_push_stats?: Record<string, any>;
+  completed_at?: string;
+  error?: string;
+  stop_requested?: boolean;
+}

@@ -819,6 +819,125 @@ def _rule_to_dict(rule) -> dict:
     }
 
 
+# ============ Gemini Sequence Generation ============
+
+class GenerateSequencesRequest(BaseModel):
+    project_id: int
+    language: str = "ru"  # "ru" or "en"
+    use_first_name: bool = True
+    tone: str = "professional"  # "professional", "friendly", "casual"
+    num_steps: int = 3
+    custom_instructions: Optional[str] = None
+
+
+@router.post("/generate-sequences")
+async def generate_sequences(
+    body: GenerateSequencesRequest,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Generate email sequences using Gemini 2.5 Pro, with project context from knowledge base."""
+    from app.models.contact import Project
+    from app.models.knowledge_base import Product, Segment, CompanyProfile
+    from app.services.gemini_client import gemini_generate, extract_json_from_gemini, is_gemini_available
+    import json as json_module
+
+    if not is_gemini_available():
+        raise HTTPException(status_code=400, detail="Gemini API key not configured")
+
+    # Load project
+    result = await db.execute(
+        select(Project).where(Project.id == body.project_id, Project.company_id == company.id)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Load KB context
+    products = await db.execute(select(Product).where(Product.company_id == company.id).limit(5))
+    products_list = products.scalars().all()
+    segments = await db.execute(select(Segment).where(Segment.company_id == company.id).limit(5))
+    segments_list = segments.scalars().all()
+    profile = await db.execute(select(CompanyProfile).where(CompanyProfile.company_id == company.id))
+    company_profile = profile.scalar_one_or_none()
+
+    # Build context
+    context_parts = []
+    if company_profile:
+        context_parts.append(f"Company: {company_profile.name or ''}\nDescription: {company_profile.description or ''}\nValue proposition: {company_profile.value_proposition or ''}")
+    if products_list:
+        context_parts.append("Products/Services:\n" + "\n".join(f"- {p.name}: {p.description or ''}" for p in products_list))
+    if segments_list:
+        context_parts.append("Target Segments:\n" + "\n".join(f"- {s.name}: {s.description or ''}" for s in segments_list))
+    context_parts.append(f"Project: {project.name}\nTarget segments: {project.target_segments or ''}")
+
+    context = "\n\n".join(context_parts)
+
+    lang_name = "Russian" if body.language == "ru" else "English"
+    first_name_note = "Use {{first_name}} placeholder for personalization." if body.use_first_name else "Do NOT use {{first_name}} — these emails go to generic addresses (info@, contact@). Use formal greetings without names."
+
+    system_prompt = f"""You are an expert cold email copywriter. Generate a {body.num_steps}-step email sequence for B2B outreach.
+
+Requirements:
+- Language: {lang_name}
+- Tone: {body.tone}
+- {first_name_note}
+- Each step should be concise (2-4 sentences for the body)
+- First email introduces the value proposition
+- Follow-ups are shorter and reference the previous email
+- Use HTML formatting (wrap paragraphs in <p> tags)
+- Return ONLY a JSON array
+
+Output format (strict JSON array):
+[
+  {{
+    "seq_number": 1,
+    "seq_delay_details": {{"delay_in_days": 0}},
+    "subject": "...",
+    "email_body": "<p>...</p><p>...</p>"
+  }},
+  {{
+    "seq_number": 2,
+    "seq_delay_details": {{"delay_in_days": 3}},
+    "subject": "Re: ...",
+    "email_body": "<p>...</p>"
+  }}
+]"""
+
+    user_prompt = f"""Company and product context:
+{context}
+
+{f'Additional instructions: {body.custom_instructions}' if body.custom_instructions else ''}
+
+Generate the {body.num_steps}-step email sequence now."""
+
+    try:
+        result = await gemini_generate(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.7,
+            max_tokens=4000,
+            model="gemini-2.5-pro",
+        )
+
+        raw = extract_json_from_gemini(result["content"])
+        sequences = json_module.loads(raw)
+
+        return {
+            "sequences": sequences,
+            "language": body.language,
+            "use_first_name": body.use_first_name,
+            "tokens": result.get("tokens"),
+        }
+
+    except json_module.JSONDecodeError as e:
+        logger.error(f"Failed to parse Gemini sequence output: {e}")
+        raise HTTPException(status_code=502, detail="AI generated invalid JSON. Try again.")
+    except Exception as e:
+        logger.error(f"Gemini sequence generation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"AI generation failed: {str(e)[:200]}")
+
+
 # ============ Discovered Companies ============
 
 @router.get("/discovered-companies")

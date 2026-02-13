@@ -6,6 +6,7 @@ import {
   Loader2, AlertCircle, CheckCircle2, XCircle,
   ChevronDown, ChevronRight, ExternalLink, DollarSign,
   BarChart3, Globe, Mail, MessageSquare,
+  Send, Building2, Play, Square, Settings2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -20,6 +21,9 @@ import {
   type ProjectPipelineSummary,
 } from '../api/dataSearch';
 import { contactsApi } from '../api/contacts';
+import { pipelineApi, type FullPipelineStatus } from '../api/pipeline';
+import { CampaignPushRules } from '../components/CampaignPushRules';
+import { TargetCompaniesViewer } from '../components/TargetCompaniesViewer';
 
 const statusColors: Record<string, string> = {
   completed: 'bg-green-100 text-green-800',
@@ -41,6 +45,8 @@ export function SearchResultsPage() {
 
 // ============ Job History List View ============
 
+type TabId = 'jobs' | 'targets' | 'push-rules';
+
 function JobHistoryView() {
   const navigate = useNavigate();
   const { currentCompany } = useAppStore();
@@ -52,6 +58,10 @@ function JobHistoryView() {
   const [summary, setSummary] = useState<ProjectPipelineSummary | null>(null);
   const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
   const [selectedProject, setSelectedProject] = useState<number | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<TabId>('jobs');
+  const [pipelineStatus, setPipelineStatus] = useState<FullPipelineStatus | null>(null);
+  const [startingPipeline, setStartingPipeline] = useState(false);
+  const [stoppingPipeline, setStoppingPipeline] = useState(false);
 
   const handleExportTargets = async () => {
     const projectId = selectedProject || data?.items?.[0]?.project_id;
@@ -100,13 +110,56 @@ function JobHistoryView() {
     }
   }, [page, currentCompany, selectedProject]);
 
+  // Load full pipeline status
+  const loadPipelineStatus = useCallback(async () => {
+    const pid = selectedProject || projects[0]?.id;
+    if (!pid) return;
+    try {
+      const status = await pipelineApi.getFullPipelineStatus(pid);
+      setPipelineStatus(status);
+    } catch {
+      setPipelineStatus(null);
+    }
+  }, [selectedProject, projects]);
+
   // Auto-refresh every 30s when pipeline is running
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadPipelineStatus(); }, [loadPipelineStatus]);
   useEffect(() => {
-    if (!summary?.pipeline?.running) return;
-    const interval = setInterval(load, 30000);
+    if (!summary?.pipeline?.running && !pipelineStatus?.running) return;
+    const interval = setInterval(() => { load(); loadPipelineStatus(); }, 15000);
     return () => clearInterval(interval);
-  }, [summary?.pipeline?.running, load]);
+  }, [summary?.pipeline?.running, pipelineStatus?.running, load, loadPipelineStatus]);
+
+  const handleStartPipeline = async () => {
+    const pid = selectedProject || projects[0]?.id;
+    if (!pid) return;
+    setStartingPipeline(true);
+    try {
+      await pipelineApi.startFullPipeline(pid, {
+        skip_smartlead_push: true,
+      });
+      await loadPipelineStatus();
+    } catch (err: any) {
+      alert(err.userMessage || 'Failed to start pipeline');
+    } finally {
+      setStartingPipeline(false);
+    }
+  };
+
+  const handleStopPipeline = async () => {
+    const pid = selectedProject || projects[0]?.id;
+    if (!pid) return;
+    setStoppingPipeline(true);
+    try {
+      await pipelineApi.stopFullPipeline(pid);
+      await loadPipelineStatus();
+    } catch (err: any) {
+      alert(err.userMessage || 'Failed to stop pipeline');
+    } finally {
+      setStoppingPipeline(false);
+    }
+  };
 
   if (!currentCompany) {
     return (
@@ -130,14 +183,22 @@ function JobHistoryView() {
     );
   }
 
+  const tabs = [
+    { id: 'jobs' as TabId, label: 'Search Jobs', icon: BarChart3 },
+    { id: 'targets' as TabId, label: 'Target Companies', icon: Building2 },
+    { id: 'push-rules' as TabId, label: 'SmartLead Push', icon: Send },
+  ];
+
+  const effectiveProjectId = selectedProject || projects[0]?.id;
+
   return (
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-neutral-900">Query Investigation</h1>
-            <p className="text-neutral-500 text-sm mt-1">Analyze search queries, results, and effectiveness by engine</p>
+            <h1 className="text-2xl font-bold text-neutral-900">Pipeline Dashboard</h1>
+            <p className="text-neutral-500 text-sm mt-1">Search, targets, contacts, and SmartLead campaigns</p>
           </div>
           {/* Project filter */}
           {projects.length > 0 && (
@@ -156,16 +217,42 @@ function JobHistoryView() {
             </select>
           )}
         </div>
-        {(selectedProject || data?.items?.[0]?.project_id) && (
-          <button
-            onClick={handleExportTargets}
-            disabled={exportingTargets}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-          >
-            {exportingTargets ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-            Export Targets
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Pipeline control buttons */}
+          {effectiveProjectId && (
+            <>
+              {pipelineStatus?.running ? (
+                <button
+                  onClick={handleStopPipeline}
+                  disabled={stoppingPipeline}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {stoppingPipeline ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
+                  Stop Pipeline
+                </button>
+              ) : (
+                <button
+                  onClick={handleStartPipeline}
+                  disabled={startingPipeline}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {startingPipeline ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  Start Pipeline
+                </button>
+              )}
+            </>
+          )}
+          {(selectedProject || data?.items?.[0]?.project_id) && (
+            <button
+              onClick={handleExportTargets}
+              disabled={exportingTargets}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              {exportingTargets ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+              Export
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -174,16 +261,9 @@ function JobHistoryView() {
         </div>
       )}
 
-      {/* Pipeline status banner */}
-      {summary?.pipeline?.running && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-800 text-sm flex items-center gap-3">
-          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-          <span>
-            Pipeline running — <strong>{summary.pipeline.phase}</strong> phase
-            {summary.pipeline.target_goal && ` (goal: ${summary.pipeline.target_goal} targets)`}
-            {summary.pipeline.started_at && ` — started ${new Date(summary.pipeline.started_at).toLocaleTimeString()}`}
-          </span>
-        </div>
+      {/* Pipeline status banner — multi-phase */}
+      {(pipelineStatus?.running || summary?.pipeline?.running) && (
+        <PipelineStatusBanner status={pipelineStatus} summary={summary} />
       )}
 
       {/* Stats cards — real aggregated numbers from DB */}
@@ -196,27 +276,55 @@ function JobHistoryView() {
         <StatCard icon={DollarSign} label="Apollo Credits" value={summary?.apollo_credits_used ?? 0} />
       </div>
 
-      {/* Jobs table */}
-      <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Project</th>
-              <th className="px-4 py-3">Engine</th>
-              <th className="px-4 py-3 text-right">Queries</th>
-              <th className="px-4 py-3 text-right">Domains</th>
-              <th className="px-4 py-3 text-right">Targets</th>
-              <th className="px-4 py-3 text-right">Results</th>
-              <th className="px-4 py-3">Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((job) => (
-              <tr
-                key={job.id}
-                onClick={() => navigate(`/search-results/${job.id}`)}
-                className="border-b border-neutral-50 hover:bg-neutral-50 cursor-pointer transition-colors"
+      {/* Tabs */}
+      <div className="border-b border-neutral-200">
+        <nav className="flex gap-6" aria-label="Tabs">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-2 py-3 px-1 text-sm font-medium border-b-2 transition-colors",
+                activeTab === tab.id
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300"
+              )}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'targets' && effectiveProjectId ? (
+        <TargetCompaniesViewer projectId={effectiveProjectId} />
+      ) : activeTab === 'push-rules' && effectiveProjectId ? (
+        <CampaignPushRules projectId={effectiveProjectId} />
+      ) : (
+        <>
+          {/* Jobs table */}
+          <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Project</th>
+                  <th className="px-4 py-3">Engine</th>
+                  <th className="px-4 py-3 text-right">Queries</th>
+                  <th className="px-4 py-3 text-right">Domains</th>
+                  <th className="px-4 py-3 text-right">Targets</th>
+                  <th className="px-4 py-3 text-right">Results</th>
+                  <th className="px-4 py-3">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((job) => (
+                  <tr
+                    key={job.id}
+                    onClick={() => navigate(`/search-results/${job.id}`)}
+                    className="border-b border-neutral-50 hover:bg-neutral-50 cursor-pointer transition-colors"
               >
                 <td className="px-4 py-3">
                   <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusColors[job.status] || 'bg-gray-100 text-gray-700')}>
@@ -281,6 +389,8 @@ function JobHistoryView() {
             Next
           </button>
         </div>
+      )}
+        </>
       )}
     </div>
   );
@@ -1025,6 +1135,73 @@ function OutreachDetail({ campaign }: { campaign: DomainCampaignInfo }) {
             </span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ============ Pipeline Status Banner ============
+
+function PipelineStatusBanner({ status, summary }: { status: FullPipelineStatus | null; summary: ProjectPipelineSummary | null }) {
+  const phases = [
+    { key: 'search', label: 'Search', statKey: 'search_results' },
+    { key: 'extraction', label: 'Extraction', statKey: 'extraction_stats' },
+    { key: 'enrichment', label: 'Apollo Enrichment', statKey: 'enrichment_stats' },
+    { key: 'smartlead_push', label: 'SmartLead Push', statKey: 'smartlead_push_stats' },
+  ];
+
+  const currentPhase = status?.phase || summary?.pipeline?.phase || '';
+  const isRunning = status?.running || summary?.pipeline?.running;
+
+  return (
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium text-blue-800">
+          {isRunning && <Loader2 className="w-4 h-4 animate-spin" />}
+          Pipeline {isRunning ? 'Running' : currentPhase === 'completed' ? 'Completed' : currentPhase === 'error' ? 'Error' : 'Idle'}
+          {status?.started_at && (
+            <span className="text-blue-500 font-normal ml-2">
+              started {new Date(status.started_at).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+        {status?.config?.target_goal && (
+          <span className="text-xs text-blue-600">Goal: {status.config.target_goal} targets</span>
+        )}
+      </div>
+
+      {/* Phase progress */}
+      <div className="grid grid-cols-4 gap-2">
+        {phases.map(phase => {
+          const isActive = currentPhase === phase.key;
+          const isDone = phases.findIndex(p => p.key === currentPhase) > phases.findIndex(p => p.key === phase.key);
+          const stats = status?.[phase.statKey as keyof FullPipelineStatus] as Record<string, any> | undefined;
+
+          return (
+            <div
+              key={phase.key}
+              className={cn(
+                "rounded-lg px-3 py-2 text-xs",
+                isActive ? "bg-blue-100 border border-blue-300 text-blue-800" :
+                isDone ? "bg-green-50 border border-green-200 text-green-700" :
+                "bg-white/60 border border-neutral-200 text-neutral-400"
+              )}
+            >
+              <div className="flex items-center gap-1.5 font-medium">
+                {isActive && <Loader2 className="w-3 h-3 animate-spin" />}
+                {isDone && <CheckCircle2 className="w-3 h-3" />}
+                {phase.label}
+              </div>
+              {stats && typeof stats === 'object' && (
+                <div className="mt-1 text-[10px] opacity-80">
+                  {Object.entries(stats).slice(0, 3).map(([k, v]) => (
+                    <span key={k} className="mr-2">{k}: {typeof v === 'number' ? v : String(v)}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
