@@ -329,8 +329,12 @@ class CompanySearchService:
         1. Already-processed: SearchResult entries within SEARCH_DOMAIN_RECHECK_DAYS
         2. Blacklisted: ProjectBlacklist entries
         3. Already target: confirmed targets (don't re-scrape)
+        4. Already in CRM campaigns: domains from contacts table (already outreached)
         """
         from datetime import timedelta
+        from app.models.contact import Contact
+        from sqlalchemy import func as sqlfunc
+
         cutoff = datetime.utcnow() - timedelta(days=settings.SEARCH_DOMAIN_RECHECK_DAYS)
 
         skip = set()
@@ -363,6 +367,17 @@ class CompanySearchService:
         )
         for row in result.fetchall():
             skip.add(row[0])
+
+        # 4. Domains already in CRM contacts (already outreached via SmartLead/campaigns)
+        result = await session.execute(
+            select(sqlfunc.distinct(sqlfunc.lower(Contact.domain))).where(
+                Contact.domain.isnot(None),
+                Contact.domain != '',
+            )
+        )
+        for row in result.fetchall():
+            if row[0]:
+                skip.add(row[0])
 
         return skip
 
