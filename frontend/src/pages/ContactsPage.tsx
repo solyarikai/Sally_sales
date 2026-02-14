@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type {
@@ -45,6 +46,8 @@ export function ContactsPage() {
   const gridRef = useRef<AgGridReact>(null);
   const [, setGridApi] = useState<GridApi | null>(null);
   const toast = useToast();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Data
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -58,6 +61,7 @@ export function ContactsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  const [segmentFilter, setSegmentFilter] = useState<string | null>(searchParams.get('segment'));
   const [campaignFilters, setCampaignFilters] = useState<string[]>([]);
   const [campaignSearch, setCampaignSearch] = useState('');
   const [campaignDropdownOpen, setCampaignDropdownOpen] = useState(false);
@@ -210,6 +214,7 @@ export function ContactsPage() {
         search: debouncedSearch || undefined,
         status: statusFilters.length > 0 ? statusFilters.join(',') : undefined,
         source: sourceFilter || undefined,
+        segment: segmentFilter || undefined,
         campaign: (!activeProject && campaignFilters.length > 0) ? campaignFilters.join(',') : undefined,
         has_replied: replyMode ? true : (repliedFilter ?? undefined),
         needs_followup: followupFilter ?? undefined,
@@ -226,7 +231,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, campaignFilters, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilter, campaignFilters, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -273,6 +278,14 @@ export function ContactsPage() {
     try {
       const data = await contactsApi.listProjects();
       setProjects(data);
+      // Auto-select project from URL param
+      const urlProjectId = searchParams.get('project_id');
+      if (urlProjectId && !activeProject) {
+        const proj = data.find((p: Project) => p.id === parseInt(urlProjectId));
+        if (proj) {
+          selectProject(proj);
+        }
+      }
     } catch (err) {
       console.error('Failed to load projects:', err);
       toast.error('Failed to load projects', getErrorMessage(err));
@@ -388,10 +401,18 @@ export function ContactsPage() {
       headerName: 'Source',
       filter: 'agTextColumnFilter',
       sortable: true,
-      width: 90,
+      width: 100,
       cellRenderer: (params: { value: string }) => {
-        const label = params.value === 'smartlead' ? 'Email' : params.value === 'getsales' ? 'LinkedIn' : (params.value || '-');
-        return <span className="text-xs">{label}</span>;
+        const v = params.value || '';
+        let label = v;
+        let color = 'text-neutral-500';
+        if (v === 'smartlead') { label = 'Email'; color = 'text-blue-600'; }
+        else if (v === 'getsales') { label = 'LinkedIn'; color = 'text-amber-600'; }
+        else if (v === 'smartlead_pipeline_push') { label = 'Pipeline→SL'; color = 'text-emerald-600'; }
+        else if (v === 'pipeline') { label = 'Pipeline'; color = 'text-emerald-600'; }
+        else if (v === 'smartlead_deliryo_sync') { label = 'SL Sync'; color = 'text-blue-500'; }
+        else if (v.includes('smartlead') && v.includes('getsales')) { label = 'Email+LI'; color = 'text-purple-600'; }
+        return <span className={`text-xs font-medium ${color}`}>{label || '-'}</span>;
       },
     },
     {
@@ -511,6 +532,7 @@ export function ContactsPage() {
   const clearFilters = () => {
     setStatusFilters([]);
     setSourceFilter(null);
+    setSegmentFilter(null);
     setCampaignFilters([]);
     setFollowupFilter(null);
     setRepliedFilter(null);
@@ -574,7 +596,7 @@ export function ContactsPage() {
     return contacts.filter(c => c.has_replied && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
-  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || campaignFilters.length > 0 || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode;
+  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilter || campaignFilters.length > 0 || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode;
   const totalPages = Math.ceil(total / pageSize);
 
   const setDateRange = useCallback((after: string | null, before: string | null) => {
@@ -630,6 +652,14 @@ export function ContactsPage() {
                   <Edit3 className="w-3 h-3 text-indigo-400" />
                 </button>
               )}
+              <button
+                onClick={() => navigate(`/projects/${activeProject.id}/knowledge`)}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all"
+                title="View knowledge base"
+              >
+                <Target className="w-3 h-3" />
+                Knowledge
+              </button>
             </>
           ) : (
             <h1 className="text-base font-semibold text-neutral-900 shrink-0">CRM Contacts</h1>
@@ -869,6 +899,27 @@ export function ContactsPage() {
               <button onClick={handleSaveAsProject} className="p-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600"><Check className="w-3 h-3" /></button>
               <button onClick={() => setShowSaveProjectForm(false)} className="p-1.5 rounded-lg hover:bg-neutral-100"><X className="w-3 h-3 text-neutral-500" /></button>
             </div>
+          )}
+
+          {/* Active segment filter badge */}
+          {segmentFilter && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+              <Target className="w-3 h-3" />
+              {segmentFilter.replace(/_/g, ' ')}
+              <button onClick={() => { setSegmentFilter(null); setPage(1); }} className="ml-0.5 hover:bg-blue-100 rounded p-0.5">
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          )}
+
+          {/* Active source filter badge */}
+          {sourceFilter && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+              src: {sourceFilter}
+              <button onClick={() => { setSourceFilter(null); setPage(1); }} className="ml-0.5 hover:bg-emerald-100 rounded p-0.5">
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
           )}
 
           {/* Reset filters */}

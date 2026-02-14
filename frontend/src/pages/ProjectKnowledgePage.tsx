@@ -40,11 +40,12 @@ function StatCard({ label, value, sub, icon: Icon, color = 'neutral' }: {
   );
 }
 
-function SegmentPanel({ name, data, isExpanded, onToggle }: {
+function SegmentPanel({ name, data, isExpanded, onToggle, projectId }: {
   name: string;
   data: ProjectKnowledgeSegment;
   isExpanded: boolean;
   onToggle: () => void;
+  projectId: string;
 }) {
   const pct = data.total_analyzed > 0
     ? Math.round((data.targets / data.total_analyzed) * 100)
@@ -112,10 +113,15 @@ function SegmentPanel({ name, data, isExpanded, onToggle }: {
               <div className="text-lg font-bold text-indigo-700">{data.contacts_with_email}</div>
               <div className="text-indigo-600">Emails Found</div>
             </div>
-            <div className="bg-neutral-50 rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-neutral-700">{data.contacts_total}</div>
-              <div className="text-neutral-500">Total Contacts</div>
-            </div>
+            <Link
+              to={`/contacts?project_id=${projectId}&segment=${name}`}
+              className="bg-emerald-50 rounded-lg p-3 text-center hover:bg-emerald-100 transition-colors"
+            >
+              <div className="text-lg font-bold text-emerald-700">{data.contacts_with_email}</div>
+              <div className="text-emerald-600 flex items-center justify-center gap-1">
+                View in CRM <ExternalLink className="w-3 h-3" />
+              </div>
+            </Link>
           </div>
 
           {data.top_domains.length > 0 && (
@@ -347,6 +353,7 @@ export function ProjectKnowledgePage() {
               data={segData}
               isExpanded={expandedSegments.has(name)}
               onToggle={() => toggleSegment(name)}
+              projectId={projectId!}
             />
           ))}
         </div>
