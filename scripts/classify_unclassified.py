@@ -136,19 +136,19 @@ async def main():
 
     pool = await asyncpg.create_pool(PG_DSN, min_size=5, max_size=20)
 
-    # Count unclassified
+    # Count unclassified (last 7 days only)
     async with pool.acquire() as conn:
         total = await conn.fetchval(
-            "SELECT COUNT(*) FROM search_results WHERE project_id = $1 AND matched_segment IS NULL",
+            "SELECT COUNT(*) FROM search_results WHERE project_id = $1 AND matched_segment IS NULL AND created_at >= NOW() - INTERVAL '7 days'",
             PROJECT_ID,
         )
-    logger.info(f"Found {total} unclassified results to process")
+    logger.info(f"Found {total} unclassified results from last 7 days to process")
 
     if total == 0:
         logger.info("Nothing to classify!")
         return
 
-    # Fetch all unclassified in pages
+    # Fetch unclassified from last 7 days in pages
     PAGE = 500
     offset = 0
     all_rows = []
@@ -158,6 +158,7 @@ async def main():
                 """SELECT id, domain, company_info, reasoning, is_target
                    FROM search_results
                    WHERE project_id = $1 AND matched_segment IS NULL
+                     AND created_at >= NOW() - INTERVAL '7 days'
                    ORDER BY id
                    LIMIT $2 OFFSET $3""",
                 PROJECT_ID, PAGE, offset,
