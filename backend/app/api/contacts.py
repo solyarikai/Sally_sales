@@ -5,7 +5,7 @@ Simple flat table with filters - project, segment, status, source
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, String
+from sqlalchemy import select, func, and_, or_, String, text as sql_text
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
@@ -261,19 +261,27 @@ async def list_contacts(
     # Apply filters
     if project_id:
         # Include contacts linked via FK OR via campaign_filters
-        project_conditions = [Contact.project_id == project_id]
         proj_result = await session.execute(
             select(Project.campaign_filters).where(Project.id == project_id)
         )
         proj_campaign_filters = proj_result.scalar()
         if proj_campaign_filters and len(proj_campaign_filters) > 0:
-            # Dynamic membership: contacts whose campaigns JSON contains any of the filter names
-            campaign_conditions = [
-                Contact.campaigns.cast(String).ilike(f'%{cf}%')
-                for cf in proj_campaign_filters
-            ]
-            project_conditions.extend(campaign_conditions)
-        query = query.where(or_(*project_conditions))
+            # Build a single raw SQL condition for campaign matching
+            # campaigns::text is checked against each filter name with ILIKE
+            campaign_like_parts = " OR ".join(
+                f"contacts.campaigns::text ILIKE :cf_{i}"
+                for i in range(len(proj_campaign_filters))
+            )
+            campaign_params = {
+                f"cf_{i}": f"%{cf}%"
+                for i, cf in enumerate(proj_campaign_filters)
+            }
+            campaign_clause = sql_text(
+                f"(contacts.project_id = :fk_pid OR ({campaign_like_parts}))"
+            ).bindparams(**{"fk_pid": project_id}, **campaign_params)
+            query = query.where(campaign_clause)
+        else:
+            query = query.where(Contact.project_id == project_id)
     if segment:
         query = query.where(Contact.segment == segment)
     if status:
@@ -302,14 +310,13 @@ async def list_contacts(
         names = [n.strip() for n in campaign.split(',') if n.strip()]
         if len(names) == 1:
             query = query.where(
-                Contact.campaigns.cast(String).ilike(f'%{names[0]}%')
+                sql_text("contacts.campaigns::text ILIKE :camp_0")
+                .bindparams(camp_0=f"%{names[0]}%")
             )
         elif len(names) > 1:
-            campaign_conditions = [
-                Contact.campaigns.cast(String).ilike(f'%{n}%')
-                for n in names
-            ]
-            query = query.where(or_(*campaign_conditions))
+            camp_parts = " OR ".join(f"contacts.campaigns::text ILIKE :camp_{i}" for i in range(len(names)))
+            camp_params = {f"camp_{i}": f"%{n}%" for i, n in enumerate(names)}
+            query = query.where(sql_text(f"({camp_parts})").bindparams(**camp_params))
     if needs_followup is True:
         # Contacts that haven't replied and were synced more than 3 days ago
         from datetime import timedelta
@@ -1131,18 +1138,17 @@ async def list_projects(
     project_responses = []
     for project in projects:
         if project.campaign_filters and len(project.campaign_filters) > 0:
-            # Dynamic count based on campaign_filters — use distinct to avoid inflated counts
-            campaign_conditions = [
-                Contact.campaigns.cast(String).ilike(f'%{cf}%')
-                for cf in project.campaign_filters
-            ]
+            # Dynamic count based on FK OR campaign_filters
+            cf_parts = " OR ".join(
+                f"contacts.campaigns::text ILIKE :pcf_{i}" for i in range(len(project.campaign_filters))
+            )
+            cf_params = {f"pcf_{i}": f"%{cf}%" for i, cf in enumerate(project.campaign_filters)}
             count_result = await session.execute(
-                select(func.count(Contact.id.distinct())).where(
-                    and_(
-                        or_(*campaign_conditions),
-                        Contact.deleted_at.is_(None)
-                    )
-                )
+                sql_text(f"""
+                    SELECT COUNT(DISTINCT id) FROM contacts
+                    WHERE deleted_at IS NULL
+                    AND (project_id = :pid OR ({cf_parts}))
+                """).bindparams(pid=project.id, **cf_params)
             )
         else:
             count_result = await session.execute(
@@ -1231,14 +1237,16 @@ async def get_project(
 
     # Contact count
     if project.campaign_filters and len(project.campaign_filters) > 0:
-        campaign_conditions = [
-            Contact.campaigns.cast(String).ilike(f'%{cf}%')
-            for cf in project.campaign_filters
-        ]
+        cf_parts = " OR ".join(
+            f"contacts.campaigns::text ILIKE :pcf_{i}" for i in range(len(project.campaign_filters))
+        )
+        cf_params = {f"pcf_{i}": f"%{cf}%" for i, cf in enumerate(project.campaign_filters)}
         count_result = await session.execute(
-            select(func.count(Contact.id.distinct())).where(
-                and_(or_(*campaign_conditions), Contact.deleted_at.is_(None))
-            )
+            sql_text(f"""
+                SELECT COUNT(DISTINCT id) FROM contacts
+                WHERE deleted_at IS NULL
+                AND (project_id = :pid OR ({cf_parts}))
+            """).bindparams(pid=project.id, **cf_params)
         )
     else:
         count_result = await session.execute(
