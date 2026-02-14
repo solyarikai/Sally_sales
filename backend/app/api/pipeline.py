@@ -426,7 +426,9 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
         progress["smartlead_push_stats"] = {"skipped": "no_rules"}
         return
 
-    # 2. Query new target contacts (email-only exclusion)
+    # 2. Query target contacts not yet pushed to SmartLead.
+    #    Include contacts already in CRM if they have no campaigns assigned
+    #    (i.e. CRM-promoted but never pushed to SmartLead).
     async with async_session_maker() as session:
         rows = await session.execute(sql_text("""
             SELECT ec.id, ec.email, ec.first_name, ec.last_name, ec.job_title,
@@ -439,7 +441,10 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
             AND dc.is_target = true
             AND ec.email IS NOT NULL AND ec.email != ''
             AND lower(ec.email) NOT IN (
-                SELECT DISTINCT lower(c.email) FROM contacts c WHERE c.email IS NOT NULL
+                SELECT DISTINCT lower(c.email) FROM contacts c
+                WHERE c.email IS NOT NULL
+                AND c.campaigns IS NOT NULL
+                AND c.campaigns::text NOT IN ('null', '[]', '')
             )
             ORDER BY ec.id
         """), {"pid": project_id, "cid": company_id})
@@ -492,7 +497,9 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
         logger.info(f"  Unmatched: {len(unmatched)} contacts")
 
     # 4. Push each bucket to SmartLead
-    api_key = settings.SMARTLEAD_API_KEY
+    import os
+    from app.services.smartlead_service import smartlead_service as _sl_svc
+    api_key = os.environ.get("SMARTLEAD_API_KEY") or getattr(_sl_svc, "_api_key", None)
     if not api_key:
         logger.error("SMARTLEAD_API_KEY not configured, cannot push")
         stats["errors"] += 1
@@ -571,7 +578,7 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                         logger.error(f"Failed to push leads: {resp.status_code} {resp.text[:200]}")
                         stats["errors"] += len(leads)
 
-                    await asyncio.sleep(1)  # Rate limit
+                    await asyncio.sleep(3)  # Rate limit — SmartLead allows 200 req/min
 
                 # Verification: check actual lead count in SmartLead campaign
                 verified_count = None
@@ -595,12 +602,14 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                 except Exception as ve:
                     logger.warning(f"Verification check failed for campaign {campaign_id}: {ve}")
 
-                # Record event with detailed push results
+                # Record event with detailed push results (use raw SQL to avoid enum mismatch)
                 async with async_session_maker() as session:
-                    event = PipelineEvent(
-                        company_id=company_id,
-                        event_type=PipelineEventType.SMARTLEAD_LEADS_PUSHED,
-                        detail={
+                    await session.execute(sql_text("""
+                        INSERT INTO pipeline_events (company_id, event_type, detail, created_at)
+                        VALUES (:cid, 'smartlead_leads_pushed', CAST(:detail AS jsonb), NOW())
+                    """), {
+                        "cid": company_id,
+                        "detail": json.dumps({
                             "rule_name": rule.name,
                             "campaign_id": str(campaign_id),
                             "leads_sent": len(bucket_contacts),
@@ -608,9 +617,8 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                             "leads_duplicate": total_duplicates,
                             "leads_invalid": total_invalid,
                             "verified_count": verified_count,
-                        },
-                    )
-                    session.add(event)
+                        }),
+                    })
                     await session.commit()
 
                 # Upsert actually-pushed contacts into contacts table
@@ -647,7 +655,7 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                                         segment = COALESCE(segment, :segment),
                                         company_name = COALESCE(company_name, :company_name),
                                         job_title = COALESCE(job_title, :job_title),
-                                        campaigns = :campaigns::jsonb,
+                                        campaigns = CAST(:campaigns AS jsonb),
                                         updated_at = NOW()
                                     WHERE id = :id
                                 """), {
@@ -667,7 +675,7 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                                                           created_at, updated_at)
                                     VALUES (:cid, :email, :fname, :lname, :domain,
                                             :company_name, :job_title, :project_id, :segment,
-                                            'smartlead_pipeline_push', 'contacted', :campaigns::jsonb, true,
+                                            'smartlead_pipeline_push', 'contacted', CAST(:campaigns AS jsonb), true,
                                             NOW(), NOW())
                                 """), {
                                     "cid": company_id, "email": contact.email,
@@ -703,9 +711,10 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
     """Phase 5: Auto-promote ALL target extracted contacts to CRM contacts table.
 
     Ensures every extracted contact from a target company appears in the CRM,
-    with project_id, segment, company_name, job_title populated.
+    with project_id, segment, company_name, job_title, gathering_details populated.
     Contacts already in CRM are updated (fill NULLs), new ones are inserted.
     """
+    import json as _json
     from sqlalchemy import text as sql_text
     from app.services.contact_extraction_service import is_valid_email
 
@@ -714,14 +723,20 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
 
     try:
         async with async_session_maker() as session:
-            # Get all extracted contacts from target companies with segment info
+            # Get all extracted contacts with gathering context
             rows = await session.execute(sql_text("""
                 SELECT ec.id, ec.email, ec.first_name, ec.last_name, ec.job_title,
+                       ec.source as extraction_source, ec.created_at as extracted_at,
                        dc.domain, dc.name as company_name,
-                       sr.matched_segment
+                       dc.apollo_enriched_at, dc.url as company_url,
+                       sr.matched_segment,
+                       sj.id as search_job_id, sj.config as job_config,
+                       sq.query_text, sq.geo
                 FROM extracted_contacts ec
                 JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
                 LEFT JOIN search_results sr ON dc.search_result_id = sr.id
+                LEFT JOIN search_queries sq ON sr.source_query_id = sq.id
+                LEFT JOIN search_jobs sj ON sq.search_job_id = sj.id
                 WHERE dc.project_id = :pid AND dc.company_id = :cid
                 AND dc.is_target = true
                 AND ec.email IS NOT NULL AND ec.email != ''
@@ -735,16 +750,40 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
 
         logger.info(f"CRM promote: processing {len(contacts)} extracted contacts for project {project_id}")
 
-        async with async_session_maker() as session:
-            for contact in contacts:
-                if not is_valid_email(contact.email):
-                    stats["skipped_invalid"] += 1
-                    continue
+        for contact in contacts:
+            if not is_valid_email(contact.email):
+                stats["skipped_invalid"] += 1
+                continue
 
-                try:
+            try:
+                # Build gathering_details JSON
+                gathering = {}
+                if getattr(contact, "extracted_at", None):
+                    gathering["gathered_at"] = contact.extracted_at.isoformat() if hasattr(contact.extracted_at, 'isoformat') else str(contact.extracted_at)
+                if getattr(contact, "extraction_source", None):
+                    gathering["source"] = str(contact.extraction_source)
+                if getattr(contact, "search_job_id", None):
+                    gathering["search_job_id"] = contact.search_job_id
+                if getattr(contact, "query_text", None):
+                    gathering["query"] = contact.query_text
+                if getattr(contact, "geo", None):
+                    gathering["geo"] = contact.geo
+                if getattr(contact, "domain", None):
+                    gathering["domain"] = contact.domain
+                if getattr(contact, "apollo_enriched_at", None):
+                    gathering["apollo_enriched"] = True
+
+                seg = getattr(contact, "matched_segment", None) or None
+                if seg:
+                    gathering["segment"] = seg
+
+                gathering_json = _json.dumps(gathering) if gathering else None
+
+                # Use a fresh session per contact to avoid cascading transaction errors
+                async with async_session_maker() as session:
                     # Check if contact already exists in CRM
                     existing = await session.execute(sql_text("""
-                        SELECT id, project_id, segment, company_name, job_title
+                        SELECT id, project_id, segment, company_name, job_title, gathering_details
                         FROM contacts
                         WHERE company_id = :cid AND lower(email) = lower(:email)
                         AND deleted_at IS NULL
@@ -752,13 +791,12 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                     """), {"cid": company_id, "email": contact.email})
                     row = existing.fetchone()
 
-                    seg = getattr(contact, "matched_segment", None) or None
-
                     if row:
                         # Update existing — fill NULL fields only
                         needs_update = (
                             row.project_id is None or row.segment is None
                             or row.company_name is None or row.job_title is None
+                            or row.gathering_details is None
                         )
                         if needs_update:
                             await session.execute(sql_text("""
@@ -767,6 +805,7 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                                     segment = COALESCE(segment, :segment),
                                     company_name = COALESCE(company_name, :company_name),
                                     job_title = COALESCE(job_title, :job_title),
+                                    gathering_details = COALESCE(gathering_details, CAST(:gathering AS jsonb)),
                                     updated_at = NOW()
                                 WHERE id = :id
                             """), {
@@ -775,6 +814,7 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                                 "segment": seg,
                                 "company_name": contact.company_name or None,
                                 "job_title": contact.job_title or None,
+                                "gathering": gathering_json,
                             })
                             stats["updated"] += 1
                     else:
@@ -783,11 +823,11 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                         await session.execute(sql_text("""
                             INSERT INTO contacts (company_id, email, first_name, last_name, domain,
                                                   company_name, job_title, project_id, segment,
-                                                  source, status, is_active,
+                                                  source, status, is_active, gathering_details,
                                                   created_at, updated_at)
                             VALUES (:cid, :email, :fname, :lname, :domain,
                                     :company_name, :job_title, :project_id, :segment,
-                                    'pipeline', 'lead', true, NOW(), NOW())
+                                    'pipeline', 'lead', true, CAST(:gathering AS jsonb), NOW(), NOW())
                         """), {
                             "cid": company_id, "email": contact.email,
                             "fname": contact.first_name or "", "lname": contact.last_name or "",
@@ -796,13 +836,13 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                             "job_title": contact.job_title or "",
                             "project_id": project_id,
                             "segment": seg,
+                            "gathering": gathering_json,
                         })
                         stats["inserted"] += 1
-                except Exception as e:
-                    logger.warning(f"CRM promote error for {contact.email}: {e}")
-                    stats["errors"] += 1
-
-            await session.commit()
+                    await session.commit()
+            except Exception as e:
+                logger.warning(f"CRM promote error for {contact.email}: {e}")
+                stats["errors"] += 1
 
         progress["crm_promote_stats"] = stats
         logger.info(f"CRM promote done for project {project_id}: {stats}")
@@ -832,31 +872,43 @@ async def _ensure_campaign_for_rule(
         )
         return None
 
-    # Verify the campaign exists
-    try:
-        resp = await client.get(
-            f"https://server.smartlead.ai/api/v1/campaigns/{rule.current_campaign_id}",
-            params={"api_key": api_key},
-            timeout=15,
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            campaign_name = data.get("name", "unknown")
-            logger.info(
-                f"Using existing campaign '{campaign_name}' (ID: {rule.current_campaign_id}) "
-                f"for rule '{rule.name}'"
+    # Verify the campaign exists (with retry on rate-limit)
+    for attempt in range(3):
+        try:
+            resp = await client.get(
+                f"https://server.smartlead.ai/api/v1/campaigns/{rule.current_campaign_id}",
+                params={"api_key": api_key},
+                timeout=15,
             )
+            if resp.status_code == 200:
+                data = resp.json()
+                campaign_name = data.get("name", "unknown")
+                logger.info(
+                    f"Using existing campaign '{campaign_name}' (ID: {rule.current_campaign_id}) "
+                    f"for rule '{rule.name}'"
+                )
+                return rule.current_campaign_id
+            elif resp.status_code == 429:
+                logger.warning(
+                    f"SmartLead rate-limited verifying campaign {rule.current_campaign_id}, "
+                    f"attempt {attempt + 1}/3, waiting 10s..."
+                )
+                await asyncio.sleep(10)
+                continue
+            else:
+                logger.error(
+                    f"Campaign {rule.current_campaign_id} not found in SmartLead "
+                    f"(status {resp.status_code}). Fix the push rule."
+                )
+                return None
+        except Exception as e:
+            logger.error(f"Failed to verify campaign {rule.current_campaign_id}: {e}")
+            # Still return the campaign_id — we trust the user set it correctly
             return rule.current_campaign_id
-        else:
-            logger.error(
-                f"Campaign {rule.current_campaign_id} not found in SmartLead "
-                f"(status {resp.status_code}). Fix the push rule."
-            )
-            return None
-    except Exception as e:
-        logger.error(f"Failed to verify campaign {rule.current_campaign_id}: {e}")
-        # Still return the campaign_id — we trust the user set it correctly
-        return rule.current_campaign_id
+
+    # Exhausted retries — trust user config
+    logger.warning(f"Rate-limited 3 times, trusting campaign_id {rule.current_campaign_id}")
+    return rule.current_campaign_id
 
 
 # ============ Projects (for dropdown) ============
@@ -1187,6 +1239,119 @@ async def get_push_history(
     }
 
 
+@router.get("/projects/{project_id}/push-history-detail")
+async def get_push_history_detail(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """
+    Detailed push history — every push event with segment/geo/query breakdown.
+    Returns a flat list of push batches suitable for a table view.
+    """
+    from sqlalchemy import text as sql_text
+
+    # 1. Get all push events for this project
+    events = await db.execute(sql_text("""
+        SELECT pe.id, pe.detail, pe.created_at
+        FROM pipeline_events pe
+        WHERE pe.company_id = :cid
+        AND pe.event_type::text = 'smartlead_leads_pushed'
+        ORDER BY pe.created_at DESC
+        LIMIT 500
+    """), {"cid": company.id})
+    event_rows = events.fetchall()
+
+    # 2. For each push event, get segment/geo breakdown from contacts
+    pushes = []
+    for row in event_rows:
+        detail = row.detail or {}
+        campaign_id = detail.get("campaign_id", "")
+        if not campaign_id:
+            continue
+
+        # Get segment/geo breakdown for contacts pushed to this campaign
+        # that were created around the same time as the push event
+        breakdown = await db.execute(sql_text("""
+            SELECT
+                c.gathering_details->>'segment' as segment,
+                c.gathering_details->>'geo' as geo,
+                c.gathering_details->>'query' as sample_query,
+                c.gathering_details->>'source' as extraction_source,
+                COUNT(*) as contact_count
+            FROM contacts c
+            WHERE c.company_id = :cid
+            AND c.project_id = :pid
+            AND c.campaigns::text ILIKE :camp_pattern
+            AND c.gathering_details IS NOT NULL
+            GROUP BY 1, 2, 3, 4
+            ORDER BY COUNT(*) DESC
+            LIMIT 20
+        """), {
+            "cid": company.id,
+            "pid": project_id,
+            "camp_pattern": f"%{campaign_id}%",
+        })
+        segments = []
+        for seg_row in breakdown.fetchall():
+            segments.append({
+                "segment": seg_row.segment,
+                "geo": seg_row.geo,
+                "sample_query": (seg_row.sample_query or "")[:80],
+                "extraction_source": seg_row.extraction_source,
+                "count": seg_row.contact_count,
+            })
+
+        # Get campaign name from contacts
+        camp_name_row = await db.execute(sql_text("""
+            SELECT c.campaigns::text
+            FROM contacts c
+            WHERE c.company_id = :cid
+            AND c.campaigns::text ILIKE :camp_pattern
+            LIMIT 1
+        """), {"cid": company.id, "camp_pattern": f"%{campaign_id}%"})
+        camp_name_raw = camp_name_row.scalar()
+        campaign_name = ""
+        if camp_name_raw:
+            import json as _json
+            try:
+                camps = _json.loads(camp_name_raw)
+                for cp in (camps if isinstance(camps, list) else []):
+                    if str(cp.get("id", "")) == str(campaign_id):
+                        campaign_name = cp.get("name", "")
+                        break
+            except Exception:
+                pass
+
+        pushes.append({
+            "id": row.id,
+            "date": row.created_at.isoformat() if row.created_at else None,
+            "rule_name": detail.get("rule_name", ""),
+            "campaign_id": campaign_id,
+            "campaign_name": campaign_name,
+            "leads_sent": detail.get("leads_sent", 0),
+            "leads_uploaded": detail.get("leads_uploaded", 0),
+            "leads_duplicate": detail.get("leads_duplicate", 0),
+            "leads_invalid": detail.get("leads_invalid", 0),
+            "segments": segments,
+        })
+
+    # 3. Summary
+    total_sent = sum(p.get("leads_sent", 0) or 0 for p in pushes)
+    total_uploaded = sum(p.get("leads_uploaded", 0) or 0 for p in pushes)
+    total_dupes = sum(p.get("leads_duplicate", 0) or 0 for p in pushes)
+
+    return {
+        "pushes": pushes,
+        "summary": {
+            "total_pushes": len(pushes),
+            "total_sent": total_sent,
+            "total_uploaded": total_uploaded,
+            "total_duplicates": total_dupes,
+        },
+    }
+
+
 # ============ SmartLead Push Verification ============
 
 @router.get("/projects/{project_id}/verify-smartlead-push")
@@ -1197,17 +1362,21 @@ async def verify_smartlead_push(
 ):
     """
     Verify leads actually arrived in SmartLead campaigns.
-    Compares local DB records vs actual SmartLead campaign lead counts.
+    Uses campaign analytics for total counts + per-email spot-checks.
+    Also reports how many DB contacts match each rule.
     """
+    import random
+    from sqlalchemy import text as sql_text
     from app.models.pipeline import CampaignPushRule
     from app.services.smartlead_service import smartlead_service
 
-    # Get rules with active campaigns
+    # Get active rules with campaign IDs
     result = await db.execute(
         select(CampaignPushRule).where(
             CampaignPushRule.project_id == project_id,
             CampaignPushRule.company_id == company.id,
             CampaignPushRule.current_campaign_id.isnot(None),
+            CampaignPushRule.is_active == True,
         )
     )
     rules = result.scalars().all()
@@ -1215,34 +1384,96 @@ async def verify_smartlead_push(
     verifications = []
     for rule in rules:
         campaign_id = rule.current_campaign_id
-        expected = rule.current_campaign_lead_count or 0
-        actual = None
+        db_pushed_count = rule.current_campaign_lead_count or 0
+        sl_total = None
+        spot_check = {"checked": 0, "found": 0, "missing_emails": []}
         status = "unknown"
-        try:
-            leads_data = await smartlead_service.get_campaign_leads(
-                campaign_id, offset=0, limit=1
-            )
-            if isinstance(leads_data, dict):
-                actual = leads_data.get("totalCount", leads_data.get("total", 0))
-            elif isinstance(leads_data, list):
-                # If it returns paginated list, we need the total
-                actual = len(leads_data)  # Only first page; not reliable for total
-        except Exception as e:
-            status = f"error: {str(e)[:100]}"
 
-        if actual is not None:
-            if actual == 0 and expected > 0:
-                status = "EMPTY - leads did not arrive"
-            elif actual < expected:
-                status = f"MISMATCH - expected {expected}, got {actual}"
-            elif actual >= expected:
-                status = "OK"
+        # --- Step 1: Get total lead count from SmartLead campaign analytics ---
+        try:
+            stats_data = await smartlead_service.get_campaign_statistics(campaign_id)
+            # Analytics returns various stats; look for total leads
+            if isinstance(stats_data, dict):
+                # Try common keys returned by SmartLead analytics
+                sl_total = (
+                    stats_data.get("total_leads")
+                    or stats_data.get("total_lead_count")
+                    or stats_data.get("totalCount")
+                )
+            # Fallback: use get_campaign to check lead count
+            if sl_total is None:
+                campaign_data = await smartlead_service.get_campaign(campaign_id)
+                if isinstance(campaign_data, dict):
+                    sl_total = campaign_data.get("lead_count", campaign_data.get("total_leads"))
+        except Exception as e:
+            status = f"error_count: {str(e)[:100]}"
+
+        # --- Step 2: Per-email spot-check (up to 5 random contacts) ---
+        try:
+            # Get emails that were pushed to this campaign from our DB
+            email_rows = await db.execute(sql_text("""
+                SELECT email FROM contacts
+                WHERE project_id = :pid AND company_id = :cid
+                AND campaigns::text ILIKE :campaign_pattern
+                AND email IS NOT NULL
+                LIMIT 50
+            """), {
+                "pid": project_id,
+                "cid": company.id,
+                "campaign_pattern": f"%{campaign_id}%",
+            })
+            pushed_emails = [r[0] for r in email_rows.fetchall()]
+
+            if pushed_emails:
+                sample = random.sample(pushed_emails, min(5, len(pushed_emails)))
+                for email in sample:
+                    spot_check["checked"] += 1
+                    try:
+                        lead = await smartlead_service.get_lead_by_email(campaign_id, email)
+                        if lead:
+                            spot_check["found"] += 1
+                        else:
+                            spot_check["missing_emails"].append(email)
+                    except Exception:
+                        spot_check["missing_emails"].append(email)
+        except Exception as e:
+            spot_check["error"] = str(e)[:100]
+
+        # --- Step 3: Count DB contacts matching this campaign ---
+        try:
+            db_count_row = await db.execute(sql_text("""
+                SELECT COUNT(*) FROM contacts
+                WHERE project_id = :pid AND company_id = :cid
+                AND campaigns::text ILIKE :campaign_pattern
+            """), {
+                "pid": project_id,
+                "cid": company.id,
+                "campaign_pattern": f"%{campaign_id}%",
+            })
+            db_campaign_count = db_count_row.scalar() or 0
+        except Exception:
+            db_campaign_count = None
+
+        # --- Determine status ---
+        if "error" not in status:
+            if sl_total is not None:
+                if sl_total == 0 and db_pushed_count > 0:
+                    status = "EMPTY - leads did not arrive"
+                elif spot_check["checked"] > 0 and spot_check["found"] < spot_check["checked"]:
+                    status = f"PARTIAL - {spot_check['found']}/{spot_check['checked']} spot-check passed"
+                else:
+                    status = "OK"
+            else:
+                status = "UNKNOWN - could not get SmartLead count"
 
         verifications.append({
             "rule_name": rule.name,
+            "rule_id": rule.id,
             "campaign_id": campaign_id,
-            "expected_count": expected,
-            "actual_count": actual,
+            "db_pushed_count": db_pushed_count,
+            "db_campaign_contacts": db_campaign_count,
+            "smartlead_total": sl_total,
+            "spot_check": spot_check,
             "status": status,
         })
 
@@ -1252,9 +1483,7 @@ async def verify_smartlead_push(
         "summary": {
             "total_rules": len(verifications),
             "ok": sum(1 for v in verifications if v["status"] == "OK"),
-            "empty": sum(1 for v in verifications if "EMPTY" in v["status"]),
-            "mismatch": sum(1 for v in verifications if "MISMATCH" in v["status"]),
-            "errors": sum(1 for v in verifications if "error" in v["status"]),
+            "issues": sum(1 for v in verifications if v["status"] != "OK"),
         },
     }
 

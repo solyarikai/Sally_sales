@@ -25,6 +25,7 @@ export interface Contact {
   has_getsales?: boolean;
   campaign?: string;
   campaigns?: Array<{ id: string; name: string; source: string; status?: string }>;
+  gathering_details?: Record<string, any>;
   needs_followup?: boolean;
   smartlead_id?: string;
   getsales_id?: string;

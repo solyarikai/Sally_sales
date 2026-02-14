@@ -450,14 +450,36 @@ export function ContactsPage() {
       width: 130,
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
+    {
+      field: 'gathering_details',
+      headerName: 'Gathered',
+      sortable: false,
+      width: 140,
+      filter: false,
+      cellRenderer: (params: { value: Record<string, any> | null }) => {
+        const g = params.value;
+        if (!g || Object.keys(g).length === 0) return <span className="text-xs text-gray-300">--</span>;
+        const src = g.source === 'APOLLO' ? 'Apollo' : g.source === 'WEBSITE_SCRAPE' ? 'Web' : (g.source || '');
+        const geo = g.geo || '';
+        const label = [src, geo].filter(Boolean).join(' / ') || 'Pipeline';
+        return (
+          <span
+            className="text-xs text-emerald-600 cursor-help truncate"
+            title={JSON.stringify(g, null, 2)}
+          >
+            {label}
+          </span>
+        );
+      },
+    },
   ], []);
 
-  // Default column settings
+  // Default column settings — floating filters enabled for inline column filtering
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
     suppressMovable: false,
     filter: 'agTextColumnFilter',
-    floatingFilter: false,
+    floatingFilter: true,
     filterParams: { debounceMs: 300 },
   }), []);
 

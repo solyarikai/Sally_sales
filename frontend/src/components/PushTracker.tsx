@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Loader2, Send, TrendingUp,
-  CheckCircle2, BarChart3,
+  Loader2, Send, ChevronDown, ChevronRight,
+  CheckCircle2, BarChart3, AlertTriangle,
 } from 'lucide-react';
 import {
   pipelineApi,
-  type PushHistory,
-  type PushCampaign,
+  type PushHistoryDetail,
+  type PushEvent,
 } from '../api/pipeline';
 import { cn } from '../lib/utils';
 
@@ -15,14 +15,15 @@ interface Props {
 }
 
 export function PushTracker({ projectId }: Props) {
-  const [history, setHistory] = useState<PushHistory | null>(null);
+  const [data, setData] = useState<PushHistoryDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await pipelineApi.getPushHistory(projectId);
-      setHistory(data);
+      const result = await pipelineApi.getPushHistoryDetail(projectId);
+      setData(result);
     } catch {
       // ignore
     } finally {
@@ -32,7 +33,16 @@ export function PushTracker({ projectId }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading && !history) {
+  const toggleRow = (id: number) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  if (loading && !data) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
@@ -40,201 +50,160 @@ export function PushTracker({ projectId }: Props) {
     );
   }
 
-  if (!history) return null;
-
-  // Group daily pushes by date
-  const dailyMap = new Map<string, number>();
-  for (const d of history.daily_pushes) {
-    dailyMap.set(d.date, (dailyMap.get(d.date) || 0) + d.count);
+  if (!data || data.pushes.length === 0) {
+    return (
+      <div className="text-center py-12 text-neutral-400 text-sm">
+        No push events recorded yet. Push contacts to SmartLead to start tracking.
+      </div>
+    );
   }
-  const dailySorted = Array.from(dailyMap.entries())
-    .sort((a, b) => b[0].localeCompare(a[0]));
 
-  // Running total for the chart
-  let runningTotal = 0;
-  const runningData = dailySorted.slice().reverse().map(([date, count]) => {
-    runningTotal += count;
-    return { date, count, cumulative: runningTotal };
-  });
+  const { pushes, summary } = data;
 
-  const maxDaily = Math.max(...dailySorted.map(([, c]) => c), 1);
+  // Group pushes by date (pipeline run)
+  const grouped = new Map<string, PushEvent[]>();
+  for (const p of pushes) {
+    const dateKey = p.date ? p.date.split('T')[0] : 'unknown';
+    if (!grouped.has(dateKey)) grouped.set(dateKey, []);
+    grouped.get(dateKey)!.push(p);
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SummaryCard
-          icon={Send}
-          label="Total Pushed"
-          value={history.total_pushed}
-          color="blue"
-        />
-        <SummaryCard
-          icon={BarChart3}
-          label="Total Synced"
-          value={history.total_synced}
-          color="green"
-        />
-        <SummaryCard
-          icon={TrendingUp}
-          label="Campaigns"
-          value={history.campaigns.length}
-          color="purple"
-        />
-        <SummaryCard
-          icon={CheckCircle2}
-          label="Active Rules"
-          value={history.rules.filter(r => r.is_active).length}
-          color="green"
-        />
+        <Card icon={Send} label="Total Sent" value={summary.total_sent} color="blue" />
+        <Card icon={CheckCircle2} label="Uploaded" value={summary.total_uploaded} color="green" />
+        <Card icon={AlertTriangle} label="Duplicates" value={summary.total_duplicates} color="amber" />
+        <Card icon={BarChart3} label="Push Batches" value={summary.total_pushes} color="purple" />
       </div>
 
-      {/* Campaigns table */}
-      <div>
-        <h3 className="text-lg font-semibold text-neutral-900 mb-3">
-          SmartLead Campaigns
-        </h3>
-        {history.campaigns.length > 0 ? (
-          <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                  <th className="px-4 py-3">Campaign</th>
-                  <th className="px-4 py-3">Rule</th>
-                  <th className="px-4 py-3 text-right">Leads Pushed</th>
-                  <th className="px-4 py-3">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.campaigns.map(c => (
-                  <CampaignRow key={c.campaign_id} campaign={c} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-8 text-neutral-400 text-sm bg-white rounded-xl border border-neutral-200">
-            No campaigns created yet. Push contacts to SmartLead to start tracking.
-          </div>
-        )}
-      </div>
-
-      {/* Daily push timeline */}
-      <div>
-        <h3 className="text-lg font-semibold text-neutral-900 mb-3">
-          Daily Push Activity
-        </h3>
-        {dailySorted.length > 0 ? (
-          <div className="bg-white rounded-xl border border-neutral-200 p-4 space-y-2">
-            {/* Simple bar chart */}
-            <div className="space-y-1.5">
-              {dailySorted.slice(0, 30).map(([date, count]) => {
-                const pct = (count / maxDaily) * 100;
-                const runItem = runningData.find(r => r.date === date);
-                return (
-                  <div key={date} className="flex items-center gap-3">
-                    <span className="text-xs text-neutral-500 font-mono w-24 flex-shrink-0">
-                      {formatDate(date)}
-                    </span>
-                    <div className="flex-1 relative h-6">
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-md bg-blue-500/20"
-                        style={{ width: `${Math.max(pct, 2)}%` }}
-                      />
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-md bg-blue-500"
-                        style={{ width: `${Math.max(pct, 1)}%`, maxWidth: '100%' }}
-                      />
-                      <span className="absolute inset-y-0 left-2 flex items-center text-xs font-medium text-white mix-blend-difference">
-                        +{count}
+      {/* Push events table */}
+      <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider bg-neutral-50">
+              <th className="px-3 py-2.5 w-8"></th>
+              <th className="px-3 py-2.5">Date</th>
+              <th className="px-3 py-2.5">Rule</th>
+              <th className="px-3 py-2.5">Campaign</th>
+              <th className="px-3 py-2.5 text-right">Sent</th>
+              <th className="px-3 py-2.5 text-right">Uploaded</th>
+              <th className="px-3 py-2.5 text-right">Dupes</th>
+              <th className="px-3 py-2.5 text-right">Invalid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pushes.map(push => {
+              const isExpanded = expandedRows.has(push.id);
+              const hasSegments = push.segments && push.segments.length > 0;
+              return (
+                <>
+                  <tr
+                    key={push.id}
+                    className={cn(
+                      "border-b border-neutral-50 hover:bg-neutral-50 transition-colors",
+                      hasSegments && "cursor-pointer",
+                    )}
+                    onClick={() => hasSegments && toggleRow(push.id)}
+                  >
+                    <td className="px-3 py-2.5 text-neutral-400">
+                      {hasSegments ? (
+                        isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2.5 text-neutral-600 font-mono text-xs">
+                      {push.date ? formatDateTime(push.date) : '-'}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                        {push.rule_name || '-'}
                       </span>
-                    </div>
-                    <span className="text-xs text-neutral-400 w-16 text-right flex-shrink-0">
-                      total: {runItem?.cumulative ?? '?'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-8 text-neutral-400 text-sm bg-white rounded-xl border border-neutral-200">
-            No push activity yet.
-          </div>
-        )}
-      </div>
-
-      {/* Active rules status */}
-      <div>
-        <h3 className="text-lg font-semibold text-neutral-900 mb-3">
-          Push Rules Status
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {history.rules.map(rule => (
-            <div
-              key={rule.id}
-              className={cn(
-                "bg-white rounded-lg border p-4",
-                rule.is_active ? "border-neutral-200" : "border-neutral-100 opacity-50",
-              )}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-neutral-900 text-sm">{rule.name}</span>
-                <span className={cn(
-                  "text-[10px] font-medium uppercase px-1.5 py-0.5 rounded",
-                  rule.is_active ? "bg-green-100 text-green-700" : "bg-neutral-100 text-neutral-500",
-                )}>
-                  {rule.is_active ? 'active' : 'inactive'}
-                </span>
-              </div>
-              {rule.current_campaign_id && (
-                <div className="text-xs text-neutral-500">
-                  <span>Current campaign: </span>
-                  <span className="font-mono text-blue-600">{rule.current_campaign_id}</span>
-                  <span className="ml-2">({rule.current_campaign_lead_count} leads)</span>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div>
+                        <span className="font-medium text-neutral-900 text-xs">{push.campaign_name || push.campaign_id}</span>
+                        {push.campaign_name && (
+                          <div className="text-[10px] text-neutral-400 font-mono">ID: {push.campaign_id}</div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-neutral-900">{push.leads_sent}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-green-700">{push.leads_uploaded}</td>
+                    <td className="px-3 py-2.5 text-right text-amber-600">{push.leads_duplicate || 0}</td>
+                    <td className="px-3 py-2.5 text-right text-red-500">{push.leads_invalid || 0}</td>
+                  </tr>
+                  {isExpanded && hasSegments && (
+                    <tr key={`${push.id}-detail`}>
+                      <td colSpan={8} className="px-0 py-0">
+                        <div className="bg-neutral-50 border-y border-neutral-100 px-8 py-3">
+                          <div className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2">
+                            Segment / Geo Breakdown
+                          </div>
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-neutral-400 text-left">
+                                <th className="pb-1 pr-4">Segment</th>
+                                <th className="pb-1 pr-4">Geo</th>
+                                <th className="pb-1 pr-4">Source</th>
+                                <th className="pb-1 pr-4">Sample Query</th>
+                                <th className="pb-1 text-right">Contacts</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {push.segments.map((seg, idx) => (
+                                <tr key={idx} className="text-neutral-700">
+                                  <td className="py-0.5 pr-4">
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium">
+                                      {seg.segment || '--'}
+                                    </span>
+                                  </td>
+                                  <td className="py-0.5 pr-4">{seg.geo || '--'}</td>
+                                  <td className="py-0.5 pr-4 text-neutral-500">{seg.extraction_source || '--'}</td>
+                                  <td className="py-0.5 pr-4 text-neutral-500 truncate max-w-[300px]" title={seg.sample_query}>
+                                    {seg.sample_query || '--'}
+                                  </td>
+                                  <td className="py-0.5 text-right font-medium">{seg.count}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+          </tbody>
+          {/* Summary footer */}
+          <tfoot>
+            <tr className="border-t-2 border-neutral-200 bg-neutral-50 font-semibold text-sm">
+              <td className="px-3 py-2.5" colSpan={4}>
+                <span className="text-neutral-600">Total ({summary.total_pushes} pushes)</span>
+              </td>
+              <td className="px-3 py-2.5 text-right text-neutral-900">{summary.total_sent}</td>
+              <td className="px-3 py-2.5 text-right text-green-700">{summary.total_uploaded}</td>
+              <td className="px-3 py-2.5 text-right text-amber-600">{summary.total_duplicates}</td>
+              <td className="px-3 py-2.5 text-right text-red-500">-</td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </div>
   );
 }
 
-function CampaignRow({ campaign }: { campaign: PushCampaign }) {
-  return (
-    <tr className="border-b border-neutral-50 hover:bg-neutral-50 transition-colors">
-      <td className="px-4 py-3">
-        <div>
-          <span className="font-medium text-neutral-900 text-sm">{campaign.campaign_name || campaign.campaign_id}</span>
-          <div className="text-xs text-neutral-400 font-mono mt-0.5">ID: {campaign.campaign_id}</div>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
-          {campaign.rule_name || '-'}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-right">
-        <span className="font-semibold text-neutral-900">{campaign.leads_pushed}</span>
-      </td>
-      <td className="px-4 py-3 text-sm text-neutral-500">
-        {campaign.created_at ? formatDate(campaign.created_at.split('T')[0]) : '-'}
-      </td>
-    </tr>
-  );
-}
-
-function SummaryCard({ icon: Icon, label, value, color }: {
+function Card({ icon: Icon, label, value, color }: {
   icon: any; label: string; value: number; color: string;
 }) {
-  const colors = {
+  const colors: Record<string, string> = {
     blue: 'text-blue-600 bg-blue-50',
     green: 'text-green-600 bg-green-50',
     purple: 'text-purple-600 bg-purple-50',
+    amber: 'text-amber-600 bg-amber-50',
   };
-  const c = colors[color as keyof typeof colors] || colors.blue;
+  const c = colors[color] || colors.blue;
 
   return (
     <div className="bg-white rounded-lg border border-neutral-200 p-4">
@@ -249,11 +218,12 @@ function SummaryCard({ icon: Icon, label, value, color }: {
   );
 }
 
-function formatDate(dateStr: string): string {
+function formatDateTime(iso: string): string {
   try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: undefined });
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+      + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   } catch {
-    return dateStr;
+    return iso;
   }
 }

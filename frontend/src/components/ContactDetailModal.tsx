@@ -460,7 +460,9 @@ export function ContactDetailModal({
   replyMode = false, contactList = [], currentIndex = 0,
   onNavigate, onMarkProcessed,
 }: ContactDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'details' | 'conversation'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'conversation' | 'sequence'>('details');
+  const [sequencePlan, setSequencePlan] = useState<any>(null);
+  const [sequenceLoading, setSequenceLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [draftReply, setDraftReply] = useState('');
   const [replyChannel, setReplyChannel] = useState<'email' | 'linkedin' | null>(null);
@@ -563,6 +565,23 @@ export function ContactDetailModal({
         }
       };
       fetchHistory();
+
+      // Fetch sequence plan
+      const fetchSequence = async () => {
+        try {
+          setSequenceLoading(true);
+          const resp = await fetch(`/api/contacts/${contact.id}/sequence-plan`);
+          if (resp.ok) {
+            const data = await resp.json();
+            setSequencePlan(data);
+          }
+        } catch (err) {
+          console.error('Failed to fetch sequence plan:', err);
+        } finally {
+          setSequenceLoading(false);
+        }
+      };
+      fetchSequence();
 
       // In reply mode, fetch AI draft
       if (replyMode && contact.has_replied) {
@@ -858,6 +877,18 @@ export function ContactDetailModal({
             <MessageSquare className="w-4 h-4 inline mr-1.5" />
             Conversation
           </button>
+          <button
+            onClick={() => setActiveTab('sequence')}
+            className={cn(
+              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+              activeTab === 'sequence'
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-400 hover:text-gray-600"
+            )}
+          >
+            <SkipForward className="w-4 h-4 inline mr-1.5" />
+            Sequence
+          </button>
         </div>
 
         {/* Content */}
@@ -1006,6 +1037,97 @@ export function ContactDetailModal({
                   handleSaveDraft={handleSaveDraft}
                 />
               </div>
+            </div>
+          )}
+
+          {activeTab === 'sequence' && (
+            <div className="flex-1 overflow-auto p-6">
+              {sequenceLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                </div>
+              ) : !sequencePlan || sequencePlan.campaigns?.length === 0 ? (
+                <div className="text-center py-12 text-gray-400 text-sm">
+                  No sequence data available for this contact.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {sequencePlan.campaigns.map((camp: any) => (
+                    <div key={camp.campaign_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-gray-900 text-sm">{camp.campaign_name || camp.campaign_id}</h4>
+                            <span className="text-xs text-gray-500">
+                              {camp.steps_sent}/{camp.total_steps} steps sent
+                            </span>
+                          </div>
+                          <span className={cn(
+                            "text-xs font-medium px-2 py-0.5 rounded",
+                            camp.steps_sent === camp.total_steps
+                              ? "bg-green-100 text-green-700"
+                              : camp.steps_sent > 0
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-gray-100 text-gray-500"
+                          )}>
+                            {camp.steps_sent === camp.total_steps ? 'Complete' : camp.steps_sent > 0 ? 'In Progress' : 'Queued'}
+                          </span>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 rounded-full transition-all"
+                            style={{ width: camp.total_steps > 0 ? `${(camp.steps_sent / camp.total_steps) * 100}%` : '0%' }}
+                          />
+                        </div>
+                      </div>
+                      <div className="divide-y divide-gray-100">
+                        {camp.steps.map((step: any) => (
+                          <div key={step.seq_number} className="px-4 py-3 flex items-start gap-3">
+                            <div className={cn(
+                              "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold",
+                              step.status === 'sent' ? "bg-green-100 text-green-700" :
+                              step.status === 'scheduled' ? "bg-blue-100 text-blue-700" :
+                              "bg-gray-100 text-gray-400"
+                            )}>
+                              {step.status === 'sent' ? (
+                                <CheckIcon className="w-3.5 h-3.5" />
+                              ) : (
+                                step.seq_number
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm text-gray-900 truncate">
+                                  {step.subject || `Step ${step.seq_number}`}
+                                </span>
+                                <span className={cn(
+                                  "text-[10px] font-medium uppercase px-1.5 py-0.5 rounded flex-shrink-0",
+                                  step.status === 'sent' ? "bg-green-100 text-green-700" :
+                                  step.status === 'scheduled' ? "bg-blue-100 text-blue-700" :
+                                  "bg-gray-100 text-gray-500"
+                                )}>
+                                  {step.status}
+                                </span>
+                              </div>
+                              {step.body_preview && (
+                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                  {step.body_preview}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        {camp.steps.length === 0 && (
+                          <div className="px-4 py-6 text-center text-gray-400 text-sm">
+                            No sequence steps found for this campaign.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

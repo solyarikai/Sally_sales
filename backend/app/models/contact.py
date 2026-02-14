@@ -138,7 +138,10 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     
     # Campaign info from source systems
     campaigns = Column(JSON, nullable=True)  # List of {name, id, source, status}
-    
+
+    # Pipeline gathering details (populated during CRM promote)
+    gathering_details = Column(JSON, nullable=True)  # {gathered_at, source, search_job_id, query, geo, domain, ...}
+
     # Relationships
     company = relationship("Company", back_populates="contacts")
     project = relationship("Project", back_populates="contacts")

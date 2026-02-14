@@ -3,7 +3,9 @@
 Uses Smartlead API: https://api.smartlead.ai/
 Base URL: https://server.smartlead.ai/api/v1
 """
+import asyncio
 import httpx
+import time
 from typing import Optional, List, Dict, Any
 import logging
 import os
@@ -565,6 +567,50 @@ class SmartleadService:
         except Exception as e:
             logger.error(f"Error fetching campaign statistics: {e}")
             return {}
+
+    # In-memory cache for campaign sequences (rarely change)
+    _sequence_cache: Dict[str, tuple] = {}  # campaign_id -> (timestamp, data)
+    _SEQUENCE_CACHE_TTL = 3600  # 1 hour
+
+    # Global rate-limit semaphore for SmartLead API calls
+    _api_semaphore = asyncio.Semaphore(5)
+
+    async def get_campaign_sequences(self, campaign_id: str) -> List[Dict[str, Any]]:
+        """Get email sequence steps for a campaign, with 1-hour in-memory cache.
+
+        Returns list of sequence steps: [{seq_number, subject, email_body, ...}]
+        """
+        if not self._api_key:
+            raise ValueError("API key not set")
+
+        # Check cache
+        cached = self._sequence_cache.get(campaign_id)
+        if cached and (time.time() - cached[0]) < self._SEQUENCE_CACHE_TTL:
+            return cached[1]
+
+        async with self._api_semaphore:
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.get(
+                        f"{self.base_url}/campaigns/{campaign_id}/sequences",
+                        params={"api_key": self._api_key},
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        sequences = data if isinstance(data, list) else data.get("sequences", [])
+                        # Cache it
+                        self._sequence_cache[campaign_id] = (time.time(), sequences)
+                        return sequences
+                    elif response.status_code == 429:
+                        logger.warning(f"Rate-limited fetching sequences for campaign {campaign_id}")
+                        await asyncio.sleep(5)
+                        return cached[1] if cached else []
+                    else:
+                        logger.error(f"Failed to fetch sequences: {response.status_code}")
+                        return []
+            except Exception as e:
+                logger.error(f"Error fetching campaign sequences: {e}")
+                return cached[1] if cached else []
 
     async def configure_campaign_webhook(
         self,

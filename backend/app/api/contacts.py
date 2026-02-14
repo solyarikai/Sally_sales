@@ -116,6 +116,7 @@ class ContactResponse(BaseModel):
     has_replied: Optional[bool] = None
     needs_followup: Optional[bool] = None
     campaigns: Optional[List[Dict[str, Any]]] = None
+    gathering_details: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
 
@@ -260,25 +261,44 @@ async def list_contacts(
     
     # Apply filters
     if project_id:
-        # Include contacts linked via FK OR via campaign_filters
+        # Include contacts linked via FK OR via campaign_filters.
+        # Optimized: extract a common prefix from campaign_filters to use a
+        # single ILIKE instead of N separate ILIKE clauses (was 104 for Deliryo).
         proj_result = await session.execute(
-            select(Project.campaign_filters).where(Project.id == project_id)
+            select(Project.campaign_filters, Project.name).where(Project.id == project_id)
         )
-        proj_campaign_filters = proj_result.scalar()
+        proj_row = proj_result.first()
+        proj_campaign_filters = proj_row[0] if proj_row else None
+        proj_name = (proj_row[1] if proj_row else "") or ""
+
         if proj_campaign_filters and len(proj_campaign_filters) > 0:
-            # Build a single raw SQL condition for campaign matching
-            # campaigns::text is checked against each filter name with ILIKE
-            campaign_like_parts = " OR ".join(
-                f"contacts.campaigns::text ILIKE :cf_{i}"
-                for i in range(len(proj_campaign_filters))
-            )
-            campaign_params = {
-                f"cf_{i}": f"%{cf}%"
-                for i, cf in enumerate(proj_campaign_filters)
-            }
-            campaign_clause = sql_text(
-                f"(contacts.project_id = :fk_pid OR ({campaign_like_parts}))"
-            ).bindparams(**{"fk_pid": project_id}, **campaign_params)
+            # Find the shortest common prefix across all campaign filter names.
+            # E.g. for Deliryo all filters contain "Deliryo" -> single ILIKE '%Deliryo%'
+            # Fallback: use project name if all filters contain it.
+            import os
+            common = os.path.commonprefix(proj_campaign_filters).strip()
+            if len(common) < 3 and proj_name and all(
+                proj_name.lower() in cf.lower() for cf in proj_campaign_filters
+            ):
+                common = proj_name
+
+            if len(common) >= 3:
+                # Fast path: single ILIKE with the common prefix
+                campaign_clause = sql_text(
+                    "(contacts.project_id = :fk_pid OR contacts.campaigns::text ILIKE :cf_prefix)"
+                ).bindparams(fk_pid=project_id, cf_prefix=f"%{common}%")
+            else:
+                # Fallback: use up to 10 unique short prefixes (first 15 chars of each filter)
+                prefixes = list(set(cf[:15] for cf in proj_campaign_filters))[:10]
+                parts = " OR ".join(
+                    f"contacts.campaigns::text ILIKE :cfp_{i}"
+                    for i in range(len(prefixes))
+                )
+                params = {f"cfp_{i}": f"%{p}%" for i, p in enumerate(prefixes)}
+                campaign_clause = sql_text(
+                    f"(contacts.project_id = :fk_pid OR ({parts}))"
+                ).bindparams(fk_pid=project_id, **params)
+
             query = query.where(campaign_clause)
         else:
             query = query.where(Contact.project_id == project_id)
@@ -353,12 +373,11 @@ async def list_contacts(
             )
         )
     
-    # Count total (use COUNT DISTINCT id to avoid JSON equality issues with DISTINCT *)
-    needs_distinct = bool(project_id or campaign)
-    if needs_distinct:
-        count_query = select(func.count(Contact.id.distinct())).where(query.whereclause)
-    else:
-        count_query = select(func.count()).select_from(query.subquery())
+    # Count total — optimized: the OR-based campaign filter doesn't produce
+    # duplicates since we match against a text column, so COUNT(*) is fine.
+    count_query = select(func.count()).select_from(
+        select(Contact.id).where(query.whereclause).subquery()
+    )
     total_result = await session.execute(count_query)
     total = total_result.scalar() or 0
     
@@ -369,30 +388,11 @@ async def list_contacts(
     else:
         query = query.order_by(sort_column.asc())
     
-    # Deduplicate when campaign-based OR filtering might produce duplicates
-    if needs_distinct:
-        # Use subquery to get distinct IDs with sort, then fetch full rows
-        id_query = select(Contact.id).where(query.whereclause).group_by(Contact.id)
-        id_query = id_query.order_by(sort_column.desc() if sort_order == "desc" else sort_column.asc())
-        id_query = id_query.offset((page - 1) * page_size).limit(page_size)
-        id_result = await session.execute(id_query)
-        contact_ids = [r[0] for r in id_result.fetchall()]
-        if contact_ids:
-            final_query = select(Contact).where(Contact.id.in_(contact_ids))
-            if sort_order == "desc":
-                final_query = final_query.order_by(sort_column.desc())
-            else:
-                final_query = final_query.order_by(sort_column.asc())
-            result = await session.execute(final_query)
-            contacts = result.scalars().all()
-        else:
-            contacts = []
-    else:
-        # Pagination
-        offset = (page - 1) * page_size
-        query = query.offset(offset).limit(page_size)
-        result = await session.execute(query)
-        contacts = result.scalars().all()
+    # Pagination
+    offset = (page - 1) * page_size
+    query = query.offset(offset).limit(page_size)
+    result = await session.execute(query)
+    contacts = result.scalars().all()
     
     # Enrich with project names
     project_ids = list(set(c.project_id for c in contacts if c.project_id))
@@ -2009,6 +2009,116 @@ async def _fetch_smartlead_live_history(email: str) -> list:
                     all_messages.extend(r)
 
         return all_messages
+
+
+@router.get("/{contact_id}/sequence-plan")
+async def get_contact_sequence_plan(
+    contact_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Get the email sequence plan for a contact — for each campaign the contact
+    is enrolled in, return the sequence steps with sent/scheduled/pending status.
+    Uses cached SmartLead API calls to avoid 429s.
+    """
+    from app.services.smartlead_service import smartlead_service
+    import json as _json
+
+    contact_result = await session.execute(
+        select(Contact).where(Contact.id == contact_id)
+    )
+    contact = contact_result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    # Parse campaigns from contact
+    campaigns_raw = contact.campaigns
+    if isinstance(campaigns_raw, str):
+        try:
+            campaigns_raw = _json.loads(campaigns_raw)
+        except Exception:
+            campaigns_raw = []
+    if not campaigns_raw or not isinstance(campaigns_raw, list):
+        return {"contact_id": contact_id, "campaigns": [], "message": "No campaigns found"}
+
+    # Dedupe campaign IDs
+    seen_ids = set()
+    unique_campaigns = []
+    for camp in campaigns_raw:
+        cid = str(camp.get("id", ""))
+        if cid and cid not in seen_ids:
+            seen_ids.add(cid)
+            unique_campaigns.append(camp)
+
+    # Fetch live Smartlead history to figure out which steps were sent
+    sent_steps: dict[str, set] = {}  # campaign_id -> set of seq_numbers
+    email_history = []
+    if contact.email:
+        try:
+            email_history = await _fetch_smartlead_live_history(contact.email)
+        except Exception:
+            pass
+
+    # Map sent emails to sequence steps by campaign
+    for msg in email_history:
+        camp_id = str(msg.get("campaign_id", ""))
+        seq_num = msg.get("sequence_number") or msg.get("seq_number")
+        if camp_id and seq_num is not None:
+            sent_steps.setdefault(camp_id, set()).add(int(seq_num))
+
+    # For each campaign, fetch sequences and mark status
+    result_campaigns = []
+    for camp in unique_campaigns:
+        campaign_id = str(camp.get("id", ""))
+        campaign_name = camp.get("name", "")
+
+        steps = []
+        try:
+            sequences = await smartlead_service.get_campaign_sequences(campaign_id)
+            sent_set = sent_steps.get(campaign_id, set())
+
+            for seq in sequences:
+                seq_num = seq.get("seq_number", 0)
+                # Determine status
+                if seq_num in sent_set:
+                    status = "sent"
+                elif any(n < seq_num for n in sent_set):
+                    status = "scheduled"  # earlier steps sent, this one is next
+                else:
+                    status = "pending"
+
+                # Extract subject and body (handle variants)
+                subject = seq.get("subject", "")
+                body = seq.get("email_body", "")
+                variants = seq.get("sequence_variants") or []
+                if variants and isinstance(variants, list):
+                    v = variants[0]
+                    subject = subject or v.get("subject", "")
+                    body = body or v.get("email_body", "")
+
+                steps.append({
+                    "seq_number": seq_num,
+                    "subject": subject,
+                    "body_preview": (body or "")[:200],
+                    "status": status,
+                })
+        except Exception as e:
+            logger.warning(f"Failed to fetch sequences for campaign {campaign_id}: {e}")
+
+        result_campaigns.append({
+            "campaign_id": campaign_id,
+            "campaign_name": campaign_name,
+            "source": camp.get("source", "smartlead"),
+            "steps": steps,
+            "total_steps": len(steps),
+            "steps_sent": sum(1 for s in steps if s["status"] == "sent"),
+        })
+
+    return {
+        "contact_id": contact_id,
+        "email": contact.email,
+        "campaigns": result_campaigns,
+    }
 
 
 @router.get("/{contact_id}/history")

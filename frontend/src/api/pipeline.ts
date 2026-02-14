@@ -361,6 +361,11 @@ export const pipelineApi = {
     const response = await api.get(`/pipeline/projects/${projectId}/push-history`);
     return response.data;
   },
+
+  getPushHistoryDetail: async (projectId: number): Promise<PushHistoryDetail> => {
+    const response = await api.get(`/pipeline/projects/${projectId}/push-history-detail`);
+    return response.data;
+  },
 };
 
 // ============ Push History Types ============
@@ -393,6 +398,39 @@ export interface PushHistory {
   rules: PushRuleSummary[];
   total_pushed: number;
   total_synced: number;
+}
+
+// ============ Detailed Push History Types ============
+
+export interface PushSegmentBreakdown {
+  segment: string | null;
+  geo: string | null;
+  sample_query: string;
+  extraction_source: string | null;
+  count: number;
+}
+
+export interface PushEvent {
+  id: number;
+  date: string;
+  rule_name: string;
+  campaign_id: string;
+  campaign_name: string;
+  leads_sent: number;
+  leads_uploaded: number;
+  leads_duplicate: number;
+  leads_invalid: number;
+  segments: PushSegmentBreakdown[];
+}
+
+export interface PushHistoryDetail {
+  pushes: PushEvent[];
+  summary: {
+    total_pushes: number;
+    total_sent: number;
+    total_uploaded: number;
+    total_duplicates: number;
+  };
 }
 
 // ============ Push Rules Types ============
