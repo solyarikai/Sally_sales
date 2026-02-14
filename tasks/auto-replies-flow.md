@@ -132,11 +132,25 @@ one-click setup flow directly in the project settings.
 **Acceptance:**
 - Background loop runs every 10 minutes
 - Checks pending replies without outbound `ContactActivity`
-- Fetches Smartlead message-history API per lead
+- Uses **bulk statistics endpoint** (GET /campaigns/{id}/statistics, 500/page) to
+  resolve email→lead_id — NOT individual per-lead API calls
+- Fetches message-history only for matched pending leads (~20 calls, not thousands)
 - If last message is outbound (not a REPLY), marks `replied_externally`
 - Creates missing outbound `ContactActivity` records for permanent tracking
-- Rate-limited to ~1.5 req/s to avoid Smartlead 429s
-- Manual trigger via `POST /sync-outbound-status?project_id=X`
+- Adaptive delay: starts at 1.5s, doubles on 429, eases down on success
+- Manual trigger via `POST /sync-outbound-status?project_id=X&auto_dismiss=true`
+- Optional GPT-4o-mini auto-dismiss: classifies inbound replies as
+  needs_reply / ooo / unsubscribe / bounce / not_interested / already_handled
+
+### US15: Smartlead Stats Match
+> As an operator, I see campaign reply statistics that match Smartlead's
+> analytics page (unique replied, replied w/OOO, positive replies).
+
+**Acceptance:**
+- `GET /replies/campaign/{id}/analytics-summary` returns same stats as Smartlead
+- Shows: unique_replied, unique_replied_with_ooo, unique_positive, by_category
+- Data comes from bulk statistics endpoint (same as US10)
+- Frontend stat badges reflect these numbers per selected project/campaign
 
 ### US11: Search Projects
 > As an operator, I search for a project by name on the projects list page
@@ -209,22 +223,30 @@ AND pr.category NOT IN ('out_of_office', 'unsubscribe')
 
 ---
 
-## Current Numbers (Rizzult, Feb 12 2026)
+## Smartlead Reference Numbers (Rizzult Fintech 22.11.25 Aleks, campaign 2703961)
 
-| Metric | Count |
-|---|---|
-| Total replies | 942 |
-| Pending (needs action) | 941 |
-| Replied externally (detected by sync) | 1 |
-| Needs reply (excl OOO/unsub/replied) | 742 |
-| meeting_request | 63 |
-| interested | 9 |
-| question | 9 |
-| not_interested | 20 |
-| wrong_person | 160 |
-| out_of_office | 189 |
-| other | 487 |
-| unsubscribe | 5 |
+| Metric | Smartlead Analytics | Our Target |
+|---|---|---|
+| Total Leads Contacted | 2,380 | — |
+| Unique Replied | 46 (1.93%) | Match via statistics API |
+| Unique Replied w/OOO | 114 (4.79%) | Match via statistics API |
+| Unique Positive Replies | 14 (30.43%) | Match via GPT classification |
+
+### Architecture Decision: Bulk Statistics (Feb 12 2026)
+
+**Problem:** Previous sync fetched ALL 2,380 leads via `/campaigns/{id}/leads`
+(24+ API calls at 100/page) just to build email→lead_id map. Then individual
+message-history calls per pending lead. Hit 429 rate limits constantly, skipped
+leads, reported wrong counts.
+
+**Solution:** Use `GET /campaigns/{id}/statistics?limit=500` (the same endpoint
+the reply poller already uses). Returns ALL leads with `reply_time`, `lead_id`,
+`lead_category` in ~5 pages. Build email→lead_id map from this. Then fetch
+message-history only for the ~20 leads that are pending in our DB.
+
+**GPT auto-dismiss:** Don't trust Smartlead's `lead_category` auto-labeling.
+Use GPT-4o-mini to classify the actual reply text into needs_reply / ooo /
+unsubscribe / bounce / not_interested / already_handled. Cost: ~$0.01 per sync.
 
 ---
 
@@ -244,7 +266,8 @@ E2E tests in `frontend/e2e/projects-replies.spec.ts`:
 ## Future Enhancements
 - [ ] Editable draft before sending
 - [ ] Bulk approve/dismiss by category
-- [ ] Auto-dismiss out_of_office & unsubscribe
+- [x] Auto-dismiss out_of_office & unsubscribe (via GPT-4o-mini, `auto_dismiss=true`)
+- [x] Campaign analytics matching Smartlead (`/campaign/{id}/analytics-summary`)
 - [ ] Reply quality scoring
 - [ ] Operator assignment (multi-user)
 - [ ] Reply templates per category

@@ -50,6 +50,12 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     telegram_username = Column(String(100), nullable=True)  # @username (lowercase, no @)
     telegram_first_name = Column(String(100), nullable=True)  # Display name from Telegram
 
+    # Sender identity for AI-drafted replies
+    sender_name = Column(String(255), nullable=True)       # e.g. "Pablo Medvedev"
+    sender_position = Column(String(255), nullable=True)   # e.g. "Business Development"
+    sender_company = Column(String(255), nullable=True)    # e.g. "Rizzult"
+    sender_signature = Column(Text, nullable=True)         # Full signature block (optional override)
+
     # Generated content (for AI SDR later)
     tam_analysis = Column(Text, nullable=True)       # Total Addressable Market analysis
     gtm_plan = Column(Text, nullable=True)           # Go-to-market plan

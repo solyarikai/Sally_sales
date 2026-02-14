@@ -87,16 +87,37 @@ The 429s are caused by the `crm_scheduler` also hitting SmartLead API concurrent
 
 ## Architecture overview
 
+### Reply Poller (sync_smartlead_replies) — already optimized
 ```
-BEFORE (per replied lead = 2 API calls):
-  statistics → email → GET /leads/?email= → lead_id → GET /message-history
-
-AFTER (per replied lead = 0-1 API calls):
-  statistics → email → DB lookup (contacts.smartlead_id) → lead_id → GET /message-history
-                        ↓ (miss)
-                        statistics.lead_id
-                        ↓ (miss)
-                        GET /leads/?email= (last resort)
+statistics → email → DB lookup (contacts.smartlead_id) → lead_id → GET /message-history
+                      ↓ (miss)
+                      statistics.lead_id
+                      ↓ (miss)
+                      GET /leads/?email= (last resort)
 ```
 
-API call reduction: ~50% overall (eliminated all per-lead enrichment calls, kept only message-history).
+### Conversation Sync (sync_conversation_histories) — NEWLY optimized (Feb 12 2026)
+```
+BEFORE (per pending lead = 1-2 API calls for lead_id resolution):
+  pending replies → webhook_data.lead_id or Contact.smartlead_id → GET /message-history
+  Problem: many leads had no lead_id, skipped with "no_lead_id" error
+
+AFTER (bulk statistics = 0 per-lead API calls for lead_id):
+  pending replies → bulk GET /campaigns/{id}/statistics (500/page)
+                    → build email→lead_id map for ALL replied leads
+                    → fallback to webhook_data / Contact table
+                    → GET /message-history with adaptive delay (1.5s base)
+```
+
+### Manual Trigger (sync_outbound_status) — NEWLY optimized (Feb 12 2026)
+Same bulk statistics approach as conversation sync, plus:
+- `auto_dismiss=true` option for GPT-4o-mini classification of inbound replies
+- `GET /campaign/{id}/analytics-summary` endpoint for Smartlead-matching stats
+
+### GPT Auto-Dismiss (NEW)
+For inbound replies (last message from lead), GPT-4o-mini classifies as:
+  needs_reply / ooo / unsubscribe / bounce / not_interested / already_handled
+Cost: ~$0.001 per classification, ~$0.01 per sync run.
+Only used when `auto_dismiss=true` flag is set.
+
+API call reduction: ~70% overall (eliminated per-lead enrichment AND per-lead lead_id resolution).

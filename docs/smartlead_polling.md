@@ -323,12 +323,42 @@ Resolution priority: `automation_name` from webhook -> `flow_name` -> UUID looku
 | Task | Interval | Method |
 |------|----------|--------|
 | Full Contact Sync | 30 min | `_sync_contacts()` |
-| **Reply Check (Smartlead + GetSales)** | **30 min** | `_check_replies()` |
-| Webhook Setup | 6 hours | `_setup_webhooks()` |
+| **Reply Check (Smartlead + GetSales)** | **3-10 min (adaptive)** | `_check_replies()` |
+| **Conversation History Sync** | **10 min** | `_run_conversation_sync_loop()` |
+| Webhook Setup | 5 min (1 min on failure) | `_setup_webhooks()` |
+| Event Recovery | 5 min | `_run_event_recovery_loop()` |
+| Telegram Polling | 30s long-poll | `_run_telegram_poll_loop()` |
 | Reports | 4 hours | `_send_reports()` |
 | Prompt Refresh | Weekly (168h) | `_refresh_prompts()` |
+| Task Watchdog | 30s | `_run_watchdog()` |
+
+**Adaptive reply polling:** First 3 polls at 3 min (startup catch-up), then 3 min when webhooks unhealthy (>15 min since last webhook), 10 min steady state.
 
 The `_check_replies()` method calls both `sync_smartlead_replies()` and `sync_getsales_replies()` in sequence.
+
+### Conversation History Sync (every 10 min)
+
+Detects operator replies made from Smartlead UI (which don't trigger webhooks).
+
+**Architecture (as of Feb 12 2026):**
+1. Find pending `ProcessedReply` without outbound `ContactActivity`
+2. Bulk-fetch statistics per campaign → build email→lead_id map (~5 API calls per campaign)
+3. Fetch message-history only for matched leads with adaptive delay (~20 calls)
+4. If last message is outbound → mark `replied_externally` + create `ContactActivity`
+
+**Key decision:** Uses BULK statistics endpoint (same as reply poller) instead of
+per-lead API calls. This avoids the 429 rate limit problems that plagued the
+previous approach.
+
+### Manual Trigger: sync-outbound-status
+
+`POST /api/replies/sync-outbound-status?project_id=22&auto_dismiss=true`
+
+Same logic as the 10-min loop but:
+- Supports `project_id` filter (only check specific project's campaigns)
+- Supports `auto_dismiss=true` to use GPT-4o-mini for classifying inbound replies
+- Supports `dry_run=true` for preview
+- Returns detailed breakdown: already_replied, still_pending, auto_dismissed, etc.
 
 ---
 
@@ -375,17 +405,63 @@ Reads the n8n reference Google Sheet and compares with local `ProcessedReply` re
 
 ---
 
+## GPT-4o-mini Auto-Dismiss (Optional)
+
+When `auto_dismiss=true` is passed to `sync-outbound-status`, inbound replies
+(where the last message is from the lead) are classified by GPT-4o-mini:
+
+| Category | Action | Description |
+|----------|--------|-------------|
+| `needs_reply` | Keep pending | Real human response needing operator attention |
+| `ooo` | Auto-dismiss | Out-of-office / vacation auto-reply |
+| `unsubscribe` | Auto-dismiss | Wants to be removed from mailing list |
+| `bounce` | Auto-dismiss | Delivery failure / mailbox full |
+| `not_interested` | Auto-dismiss | Clear rejection |
+| `already_handled` | Auto-dismiss | Generic "thanks" / "ok" acknowledgment |
+
+**Why not trust Smartlead's `lead_category`:** It's auto-labeling that can be wrong.
+GPT reads the actual reply text and makes a more reliable classification. Cost:
+~$0.001 per reply (~$0.01 per sync run for 10 inbound replies).
+
+**Implementation:** `_classify_reply_needs_action()` in `backend/app/api/replies.py`
+uses `openai_service.complete()` with temperature=0.0 for deterministic output.
+
+## Campaign Analytics Summary
+
+`GET /api/replies/campaign/{campaign_id}/analytics-summary`
+
+Returns the same stats as Smartlead's analytics page:
+
+```json
+{
+  "campaign_id": "2703961",
+  "unique_replied": 46,
+  "unique_replied_with_ooo": 114,
+  "unique_positive": 14,
+  "by_category": {
+    "Interested": 14,
+    "Out Of Office": 68,
+    "Not Interested": 10,
+    "uncategorized": 22
+  }
+}
+```
+
+Uses `get_all_campaign_replied_leads()` (bulk statistics endpoint).
+
+---
+
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `backend/app/services/smartlead_service.py` | Smartlead API client (statistics, global lead search, message history) |
-| `backend/app/services/crm_sync_service.py` | Reply sync logic (polling) + GetSalesClient class |
-| `backend/app/services/crm_scheduler.py` | Scheduler (30-min polling, 6h webhook setup) |
+| `backend/app/services/crm_sync_service.py` | Reply sync logic (polling) + conversation sync + GetSalesClient class |
+| `backend/app/services/crm_scheduler.py` | Scheduler (adaptive polling, 10-min conversation sync, watchdog) |
 | `backend/app/services/reply_processor.py` | Reply classification + processing pipeline |
-| `backend/app/api/replies.py` | API endpoints including `/rizzult-comparison` |
+| `backend/app/api/replies.py` | API endpoints: sync-outbound-status, analytics-summary, GPT classify |
 | `backend/app/api/crm_sync.py` | Webhook endpoints for Smartlead + GetSales |
-| `backend/app/services/notification_service.py` | Slack + Telegram notifications |
+| `backend/app/services/notification_service.py` | Slack + Telegram notifications (per-project routing) |
 | `backend/app/services/google_sheets_service.py` | Google Sheets read/write |
 
 ---

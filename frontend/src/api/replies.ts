@@ -325,6 +325,21 @@ export async function resendNotification(replyId: number): Promise<{ success: bo
   return response.data;
 }
 
+// ============= Campaign Analytics =============
+
+export interface CampaignAnalyticsSummary {
+  campaign_id: string;
+  unique_replied: number;
+  unique_replied_with_ooo: number;
+  unique_positive: number;
+  by_category: Record<string, number>;
+}
+
+export async function getCampaignAnalyticsSummary(campaignId: string): Promise<CampaignAnalyticsSummary> {
+  const response = await api.get(`/replies/campaign/${campaignId}/analytics-summary`);
+  return response.data;
+}
+
 // ============= Testing =============
 
 export interface SimulateReplyPayload {
@@ -408,7 +423,10 @@ export async function testSlackChannel(channelId: string): Promise<{ success: bo
 
 // ============= Approval / Moderation =============
 
-export async function approveAndSendReply(replyId: number): Promise<{
+export async function approveAndSendReply(
+  replyId: number,
+  editedDraft?: { draft_reply?: string; draft_subject?: string }
+): Promise<{
   status: string;
   dry_run: boolean;
   reply_id: number;
@@ -421,7 +439,8 @@ export async function approveAndSendReply(replyId: number): Promise<{
   // On localhost, always send in test_mode so emails go to pn@getsally.io instead of real leads
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const params = isLocal ? { test_mode: true } : {};
-  const response = await api.post(`/replies/${replyId}/approve-and-send`, null, { params });
+  const body = editedDraft && (editedDraft.draft_reply || editedDraft.draft_subject) ? editedDraft : null;
+  const response = await api.post(`/replies/${replyId}/approve-and-send`, body, { params });
   return response.data;
 }
 
@@ -460,6 +479,7 @@ export const repliesApi = {
   getReplyStats,
   getConversation,
   resendNotification,
+  getCampaignAnalyticsSummary,
   // Approval / Moderation
   approveAndSendReply,
   dismissReply,

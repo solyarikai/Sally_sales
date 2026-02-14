@@ -43,17 +43,21 @@ Body: {body}
 
 Category: {category}
 Lead Name: {first_name} {last_name}
-Company: {company}
+Lead Company: {company}
+
+You are replying as: {sender_name}{sender_position_line}{sender_company_line}
 
 Guidelines:
 - Be professional and friendly
 - Keep it concise (2-3 paragraphs max)
-- If interested/meeting_request: suggest next steps
+- If interested/meeting_request: suggest next steps or propose a call
 - If question: answer helpfully
 - If not_interested: thank them politely
 - If wrong_person: ask for referral
 - If unsubscribe: confirm removal
 - If out_of_office: no reply needed
+- Sign off with the sender name above — NEVER use placeholder brackets like [Your Name], [Tu Nombre], [Your Position], [Your Company], [Your Contact Information] etc.
+- If sender name is unknown, omit the sign-off entirely
 
 Respond with ONLY a JSON object:
 {{"subject": "Re: <subject>", "body": "<reply text>", "tone": "<professional|friendly|formal>"}}
@@ -203,7 +207,10 @@ def render_draft_prompt(
     first_name: str = "",
     last_name: str = "",
     company: str = "",
-    custom_prompt: Optional[str] = None
+    custom_prompt: Optional[str] = None,
+    sender_name: Optional[str] = None,
+    sender_position: Optional[str] = None,
+    sender_company: Optional[str] = None,
 ) -> str:
     """Render the draft reply prompt with actual values.
     
@@ -215,25 +222,44 @@ def render_draft_prompt(
         last_name: Lead's last name
         company: Lead's company
         custom_prompt: Optional custom instructions (appended to base prompt)
+        sender_name: Name of the person sending the reply (from Project)
+        sender_position: Position/title of the sender (from Project)
+        sender_company: Company of the sender (from Project)
         
     Returns:
         The fully rendered prompt string
     """
-    # Always use base prompt for structure and JSON format
-    prompt = DRAFT_REPLY_PROMPT.format(
+    # Build optional sender context lines
+    sender_position_line = f", {sender_position}" if sender_position else ""
+    sender_company_line = f" at {sender_company}" if sender_company else ""
+
+    format_vars = dict(
         subject=subject or "(no subject)",
         body=body or "(empty)",
         category=category,
         first_name=first_name or "",
         last_name=last_name or "",
-        company=company or "their company"
+        company=company or "their company",
+        sender_name=sender_name or "the operator",
+        sender_position_line=sender_position_line,
+        sender_company_line=sender_company_line,
     )
-    
-    # Append custom instructions if provided
-    if custom_prompt:
-        prompt += "\n\nAdditional instructions: " + custom_prompt
 
-    
+    # If custom_prompt is a full template (contains {subject} placeholder),
+    # use it as the main prompt with all format vars injected.
+    # Otherwise, append it as additional instructions to the base prompt.
+    if custom_prompt and "{subject}" in custom_prompt:
+        try:
+            prompt = custom_prompt.format(**format_vars)
+        except (KeyError, IndexError):
+            # Fallback: if template has unknown placeholders, use base + append
+            prompt = DRAFT_REPLY_PROMPT.format(**format_vars)
+            prompt += "\n\nAdditional instructions: " + custom_prompt
+    else:
+        prompt = DRAFT_REPLY_PROMPT.format(**format_vars)
+        if custom_prompt:
+            prompt += "\n\nAdditional instructions: " + custom_prompt
+
     return prompt
 
 
@@ -245,7 +271,10 @@ async def generate_draft_reply(
     last_name: str = "",
     company: str = "",
     custom_prompt: Optional[str] = None,
-    max_retries: int = 3
+    max_retries: int = 3,
+    sender_name: Optional[str] = None,
+    sender_position: Optional[str] = None,
+    sender_company: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate a draft reply using OpenAI with retry logic.
     
@@ -258,6 +287,9 @@ async def generate_draft_reply(
         company: Lead's company
         custom_prompt: Optional custom reply prompt
         max_retries: Maximum number of retry attempts (default: 3)
+        sender_name: Name of the person sending the reply (from Project)
+        sender_position: Position/title of the sender (from Project)
+        sender_company: Company of the sender (from Project)
         
     Returns:
         Draft reply with subject and body
@@ -288,7 +320,10 @@ async def generate_draft_reply(
         first_name=first_name,
         last_name=last_name,
         company=company,
-        custom_prompt=custom_prompt
+        custom_prompt=custom_prompt,
+        sender_name=sender_name,
+        sender_position=sender_position,
+        sender_company=sender_company,
     )
     last_error = None
     
@@ -479,8 +514,11 @@ async def process_reply_webhook(
         classification = await classify_reply(subject, body, custom_prompt=custom_classification_prompt)
         logger.info(f"[PROCESSOR] Classification: category={classification['category']}, confidence={classification['confidence']}")
 
-        # Look up project-based prompt (priority: project prompt > automation prompt > default)
+        # Look up project for sender identity + prompt template
         custom_reply_prompt = automation.reply_prompt if automation else None
+        proj_sender_name = None
+        proj_sender_position = None
+        proj_sender_company = None
         if campaign_name:
             try:
                 from app.models.contact import Project
@@ -488,28 +526,34 @@ async def process_reply_webhook(
                 from sqlalchemy.dialects.postgresql import JSONB
                 from sqlalchemy import cast as sa_cast
                 
-                # Use proper JSONB array containment for exact campaign name matching
-                # This avoids substring false positives (e.g., "Test" matching "Test Extended")
+                # Find the project matching this campaign name
                 project_result = await session.execute(
                     select(Project).where(
                         and_(
                             sa_cast(Project.campaign_filters, JSONB).contains([campaign_name]),
-                            Project.reply_prompt_template_id.isnot(None),
                             Project.deleted_at.is_(None),
                         )
                     ).limit(1)
                 )
                 project = project_result.scalar()
-                if project and project.reply_prompt_template_id:
-                    template_result = await session.execute(
-                        select(ReplyPromptTemplateModel).where(
-                            ReplyPromptTemplateModel.id == project.reply_prompt_template_id
+                if project:
+                    # Extract sender identity fields
+                    proj_sender_name = project.sender_name
+                    proj_sender_position = project.sender_position
+                    proj_sender_company = project.sender_company
+                    logger.info(f"[PROCESSOR] Project '{project.name}' sender: {proj_sender_name}, {proj_sender_position}, {proj_sender_company}")
+
+                    # If project has a custom prompt template, use it
+                    if project.reply_prompt_template_id:
+                        template_result = await session.execute(
+                            select(ReplyPromptTemplateModel).where(
+                                ReplyPromptTemplateModel.id == project.reply_prompt_template_id
+                            )
                         )
-                    )
-                    template = template_result.scalar()
-                    if template:
-                        custom_reply_prompt = template.prompt_text
-                        logger.info(f"[PROCESSOR] Using project prompt from '{project.name}' (template: {template.name})")
+                        template = template_result.scalar()
+                        if template:
+                            custom_reply_prompt = template.prompt_text
+                            logger.info(f"[PROCESSOR] Using project prompt from '{project.name}' (template: {template.name})")
             except Exception as proj_err:
                 logger.warning(f"[PROCESSOR] Project prompt lookup failed (non-fatal): {proj_err}")
 
@@ -521,33 +565,82 @@ async def process_reply_webhook(
             first_name=first_name,
             last_name=last_name,
             company=payload.get("company_name", ""),
-            custom_prompt=custom_reply_prompt
+            custom_prompt=custom_reply_prompt,
+            sender_name=proj_sender_name,
+            sender_position=proj_sender_position,
+            sender_company=proj_sender_company,
         )
         
-        # Create processed reply record
-        processed_reply = ProcessedReply(
-            automation_id=automation_id,
-            campaign_id=campaign_id,
-            campaign_name=campaign_name,
-            lead_email=lead_email,
-            lead_first_name=first_name,
-            lead_last_name=last_name,
-            lead_company=payload.get("company_name", ""),
-            email_subject=subject,
-            email_body=body,
-            reply_text=body,  # Store reply text same as body
-            received_at=datetime.utcnow(),
-            category=classification["category"],
-            category_confidence=classification["confidence"],
-            classification_reasoning=classification["reasoning"],
-            draft_reply=draft["body"],
-            draft_subject=draft["subject"],
-            inbox_link=inbox_link,  # Smartlead master inbox link
-            raw_webhook_data=payload
+        # Determine received_at: use actual reply timestamp from Smartlead if available
+        received_at = datetime.utcnow()
+        time_replied = payload.get("time_replied") or payload.get("event_timestamp")
+        if time_replied and isinstance(time_replied, str):
+            try:
+                from dateutil.parser import parse as parse_dt
+                received_at = parse_dt(time_replied).replace(tzinfo=None)
+            except Exception:
+                pass  # Fall back to utcnow
+
+        # Check for existing ProcessedReply (same email + campaign).
+        # If the lead replied again after operator responded, UPDATE the record
+        # instead of creating a duplicate — keeps one row per (email, campaign)
+        # with the latest reply data, and re-surfaces it for operator attention.
+        from sqlalchemy import func as sa_func
+        existing_pr_result = await session.execute(
+            select(ProcessedReply).where(
+                and_(
+                    sa_func.lower(ProcessedReply.lead_email) == lead_email.lower(),
+                    ProcessedReply.campaign_id == campaign_id,
+                )
+            ).limit(1)
         )
-        
-        session.add(processed_reply)
-        await session.flush()
+        existing_pr = existing_pr_result.scalar_one_or_none()
+
+        if existing_pr:
+            # Update existing record with new reply data
+            if received_at > (existing_pr.received_at or datetime.min):
+                existing_pr.received_at = received_at
+            existing_pr.email_body = body
+            existing_pr.reply_text = body
+            existing_pr.email_subject = subject
+            existing_pr.category = classification["category"]
+            existing_pr.category_confidence = classification["confidence"]
+            existing_pr.classification_reasoning = classification["reasoning"]
+            existing_pr.draft_reply = draft["body"]
+            existing_pr.draft_subject = draft["subject"]
+            existing_pr.approval_status = None  # Re-surface for operator
+            existing_pr.raw_webhook_data = payload
+            existing_pr.updated_at = datetime.utcnow()
+            if inbox_link:
+                existing_pr.inbox_link = inbox_link
+            processed_reply = existing_pr
+            await session.flush()
+            logger.info(f"[PROCESSOR] Updated existing ProcessedReply {existing_pr.id} for {lead_email} with new reply")
+        else:
+            # Create new processed reply record
+            processed_reply = ProcessedReply(
+                automation_id=automation_id,
+                campaign_id=campaign_id,
+                campaign_name=campaign_name,
+                lead_email=lead_email,
+                lead_first_name=first_name,
+                lead_last_name=last_name,
+                lead_company=payload.get("company_name", ""),
+                email_subject=subject,
+                email_body=body,
+                reply_text=body,  # Store reply text same as body
+                received_at=received_at,
+                category=classification["category"],
+                category_confidence=classification["confidence"],
+                classification_reasoning=classification["reasoning"],
+                draft_reply=draft["body"],
+                draft_subject=draft["subject"],
+                inbox_link=inbox_link,  # Smartlead master inbox link
+                raw_webhook_data=payload
+            )
+            session.add(processed_reply)
+            await session.flush()
+            logger.info(f"[PROCESSOR] Created new ProcessedReply {processed_reply.id} for {lead_email}")
         
         # Create ContactActivity for conversation history
         try:

@@ -363,7 +363,11 @@ async def receive_webhook(
             company_id=contact.company_id,
             activity_type=activity_type,
             channel="email",
-            direction="inbound" if is_reply else "outbound",
+            direction=(
+                "inbound" if is_reply
+                else "outbound" if actual_event_type in ("EMAIL_SENT", "sent")
+                else None  # category_updated, bounced, opened, clicked — not a message direction
+            ),
             source="smartlead",
             source_id=str(lead_id) if lead_id else None,
             subject=subject,
@@ -498,17 +502,34 @@ def _extract_campaign_name(data: dict) -> Optional[str]:
 
 
 def _extract_reply_text(data: dict) -> Optional[str]:
-    """Extract reply text content from webhook data."""
-    return (
+    """Extract reply/email text content from webhook data.
+
+    Works for both inbound (EMAIL_REPLY) and outbound (EMAIL_SENT) events.
+    """
+    text = (
         data.get("reply_body") or
+        data.get("email_body") or              # top-level — common in EMAIL_SENT
+        data.get("email_text") or              # alternate field
         data.get("preview_text") or
         data.get("description") or
         (data.get("reply_message") or {}).get("text") or
         (data.get("reply_message") or {}).get("html") or
         (data.get("body") or {}).get("preview_text") or
         (data.get("body") or {}).get("email_text") or
+        (data.get("body") or {}).get("email_body") or
         (data.get("last_reply") or {}).get("email_body")
     )
+    if text:
+        return text
+
+    # Fallback: try history entries (Smartlead sometimes sends the body here)
+    history = data.get("history") or []
+    for entry in reversed(history):  # newest first
+        body = entry.get("email_body") or entry.get("email_text")
+        if body:
+            return body
+
+    return None
 
 
 def _extract_subject(data: dict) -> Optional[str]:

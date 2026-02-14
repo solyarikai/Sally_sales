@@ -1,60 +1,286 @@
 import toast, { Toaster } from 'react-hot-toast';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
-  MessageSquare, Search, RefreshCw,
-  X, Copy, Check,
-  Calendar, Mail, Building2,
-  ExternalLink,
-  CheckCircle, XCircle, Shield, Hash, Send, MessageCircle
+  Search, RefreshCw, X,
+  Building2, ExternalLink, ChevronDown,
+  XCircle, Edit3,
+  FolderOpen, Clock, MessageCircle, ArrowRight, Brain,
 } from 'lucide-react';
 import {
   repliesApi,
   type ProcessedReply,
-  type ProcessedReplyStats,
-  type ReplyCategory,
   type ConversationMessage,
 } from '../api/replies';
-import { contactsApi, type ProjectLite } from '../api/contacts';
-import { cn, formatNumber } from '../lib/utils';
+import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
+import { useTheme } from '../hooks/useTheme';
 
-const CATEGORY_CONFIG: Record<ReplyCategory, { label: string; color: string; emoji: string }> = {
-  interested: { label: 'Interested', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', emoji: '🟢' },
-  meeting_request: { label: 'Meeting Request', color: 'bg-blue-100 text-blue-700 border-blue-200', emoji: '📅' },
-  not_interested: { label: 'Not Interested', color: 'bg-red-100 text-red-700 border-red-200', emoji: '🔴' },
-  out_of_office: { label: 'Out of Office', color: 'bg-amber-100 text-amber-700 border-amber-200', emoji: '🏖️' },
-  wrong_person: { label: 'Wrong Person', color: 'bg-purple-100 text-purple-700 border-purple-200', emoji: '🔄' },
-  unsubscribe: { label: 'Unsubscribe', color: 'bg-gray-100 text-gray-700 border-gray-200', emoji: '🚫' },
-  question: { label: 'Question', color: 'bg-cyan-100 text-cyan-700 border-cyan-200', emoji: '❓' },
-  other: { label: 'Other', color: 'bg-neutral-100 text-neutral-700 border-neutral-200', emoji: '📧' },
+/* ---------- Category labels ---------- */
+const CATEGORY_LABEL: Record<string, string> = {
+  interested: 'Interested',
+  meeting_request: 'Meeting',
+  not_interested: 'Not interested',
+  out_of_office: 'OOO',
+  wrong_person: 'Wrong person',
+  unsubscribe: 'Unsubscribe',
+  question: 'Question',
+  other: 'Other',
 };
 
-export function RepliesPage() {
-  const { currentProject, setCurrentProject } = useAppStore();
+/* ---------- Time helper ---------- */
+function timeAgo(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now.getTime() - date.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return date.toLocaleDateString();
+}
 
-  // Data state
+/* ---------- Convert HTML email to clean readable text ---------- */
+function stripHtml(raw: string): string {
+  if (!raw) return '';
+  // If no tags at all, just clean up the plain text
+  if (!raw.includes('<')) return cleanPlainText(raw);
+
+  try {
+    const doc = new DOMParser().parseFromString(raw, 'text/html');
+
+    // Remove <style>, <script>, <head> entirely
+    doc.querySelectorAll('style, script, head').forEach(el => el.remove());
+
+    // Remove common signature / disclaimer containers
+    doc.querySelectorAll(
+      '[class*="gmail_signature"], [class*="signature"], [data-smartmail]'
+    ).forEach(el => el.remove());
+
+    // Remove quoted email chains (gmail_quote, blockquote, mso-reply)
+    doc.querySelectorAll(
+      '[class*="gmail_quote"], [class*="gmail_extra"], blockquote[type="cite"], ' +
+      '[class*="yahoo_quoted"], [class*="moz-cite-prefix"], [id*="replySplit"]'
+    ).forEach(el => el.remove());
+
+    // Walk the DOM, converting block elements to \n
+    const text = domToText(doc.body);
+    return cleanPlainText(text);
+  } catch {
+    // Fallback: regex approach
+    let text = raw;
+    // Block elements → newline
+    text = text.replace(/<\s*(br|\/div|\/p|\/tr|\/li|\/h[1-6])\s*\/?>/gi, '\n');
+    // All remaining tags → nothing
+    text = text.replace(/<[^>]*>/g, '');
+    // Decode common entities
+    text = decodeEntities(text);
+    return cleanPlainText(text);
+  }
+}
+
+/** Recursively extract text from DOM, inserting newlines for block elements */
+const BLOCK_TAGS = new Set([
+  'DIV', 'P', 'BR', 'TR', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+  'BLOCKQUOTE', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'HR', 'UL', 'OL',
+  'TABLE', 'THEAD', 'TBODY',
+]);
+
+function domToText(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent || '';
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+  const el = node as HTMLElement;
+  const tag = el.tagName;
+
+  // Skip hidden elements
+  if (el.style.display === 'none' || el.getAttribute('aria-hidden') === 'true') return '';
+  // Skip images (often tracking pixels)
+  if (tag === 'IMG') return '';
+
+  let result = '';
+  const isBlock = BLOCK_TAGS.has(tag);
+
+  if (tag === 'BR') return '\n';
+  if (tag === 'HR') return '\n---\n';
+
+  if (isBlock) result += '\n';
+
+  for (const child of Array.from(node.childNodes)) {
+    result += domToText(child);
+  }
+
+  if (isBlock) result += '\n';
+  return result;
+}
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#x27;/gi, "'");
+}
+
+/** Clean up plain text: trim signatures, disclaimers, quoted chains, collapse whitespace */
+function cleanPlainText(text: string): string {
+  // Decode HTML entities that might remain (including &lt; &gt; common in plain-text emails)
+  text = decodeEntities(text);
+
+  // Normalize line endings
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Trim each line
+  text = text.split('\n').map(l => l.trimEnd()).join('\n');
+
+  // Collapse 3+ blank lines into 2
+  text = text.replace(/\n{3,}/g, '\n\n');
+
+  // Cut at first matching marker (works on both multi-line and single-line text)
+  // NOTE: No ^ or $ anchors — these patterns search anywhere in the text
+  const cutMarkers = [
+    // Quoted reply chains (most common patterns)
+    /On [A-Z][a-z]{2,8},?\s.{5,80}\s+wrote:\s*/i,        // "On Thu, Feb 12, 2026 ... wrote:"
+    /El [a-z]{2,10},?\s.{5,80}\s+escribi[oó]:\s*/i,       // Spanish: "El lun, 26 ene ... escribió:"
+    /Le [a-z]{2,10},?\s.{5,80}\s+[aà] [eé]crit\s*:\s*/i,  // French
+    /Am [A-Z0-9].{5,80}\s+schrieb\s*.*:\s*/i,              // German
+    /\d{1,2}\/\d{1,2}\/\d{2,4}.{0,60}wrote/i,            // "2/12/2026 ... wrote"
+    /-{2,}\s*Original Message\s*-{2,}/i,                    // "-- Original Message --"
+    // Forwarded messages
+    /-{5,}\s*Forwarded message\s*-{5,}/i,
+    // Disclaimers / confidentiality
+    /AVISO DE CONFIDENCIALIDAD/i,
+    /CONFIDENTIALITY NOTICE/i,
+    /This email and any attachments? (?:are|is) confidential/i,
+    /CONSULTE NUESTRO AVISO/i,
+    /_{10,}/,
+    // Eco-friendly disclaimers (common in LATAM emails)
+    /Cuidemos nuestro planeta/i,
+    /Este correo electr[oó]nico y cualquier archivo/i,
+  ];
+
+  let earliest = text.length;
+  for (const marker of cutMarkers) {
+    const match = text.match(marker);
+    if (match && match.index !== undefined && match.index > 20 && match.index < earliest) {
+      earliest = match.index;
+    }
+  }
+  if (earliest < text.length) {
+    text = text.substring(0, earliest).trimEnd();
+  }
+
+  return text.trim();
+}
+
+/* ---------- Theme color tokens ---------- */
+function themeColors(isDark: boolean) {
+  return isDark
+    ? {
+        pageBg: '#1e1e1e',
+        headerBg: '#252526',
+        cardBg: '#252526',
+        cardBorder: '#333',
+        cardHoverBorder: '#3c3c3c',
+        divider: '#2d2d2d',
+        inputBg: '#3c3c3c',
+        inputBorder: 'transparent',
+        inputFocusBorder: '#505050',
+        draftBg: '#1e1e1e',
+        draftBorder: '#3c3c3c',
+        text1: '#d4d4d4',   // primary
+        text2: '#b0b0b0',   // secondary
+        text3: '#969696',   // tertiary
+        text4: '#858585',   // muted
+        text5: '#6e6e6e',   // dim
+        text6: '#4e4e4e',   // subtle
+        badgeBg: '#2d2d2d',
+        badgeText: '#858585',
+        btnPrimaryBg: '#d4d4d4',
+        btnPrimaryHover: '#e0e0e0',
+        btnPrimaryText: '#1e1e1e',
+        btnGhostHover: '#2d2d2d',
+        threadInbound: '#2d2d2d',
+        threadOutbound: '#37373d',
+        reasoningBg: '#1e1e1e',
+        reasoningBorder: '#2d2d2d',
+        toastBg: '#252526',
+        toastText: '#d4d4d4',
+        toastBorder: '#3c3c3c',
+        toastErrText: '#d4a4a4',
+        scrollThumb: 'rgba(255,255,255,0.1)',
+      }
+    : {
+        pageBg: '#f5f5f5',
+        headerBg: '#ffffff',
+        cardBg: '#ffffff',
+        cardBorder: '#e0e0e0',
+        cardHoverBorder: '#ccc',
+        divider: '#eee',
+        inputBg: '#f0f0f0',
+        inputBorder: '#ddd',
+        inputFocusBorder: '#bbb',
+        draftBg: '#f8f8f8',
+        draftBorder: '#ddd',
+        text1: '#1a1a1a',
+        text2: '#333',
+        text3: '#555',
+        text4: '#777',
+        text5: '#999',
+        text6: '#bbb',
+        badgeBg: '#eee',
+        badgeText: '#666',
+        btnPrimaryBg: '#333',
+        btnPrimaryHover: '#222',
+        btnPrimaryText: '#fff',
+        btnGhostHover: '#eee',
+        threadInbound: '#f0f4ff',
+        threadOutbound: '#f0f0f0',
+        reasoningBg: '#f8f8f8',
+        reasoningBorder: '#e8e8e8',
+        toastBg: '#fff',
+        toastText: '#333',
+        toastBorder: '#ddd',
+        toastErrText: '#c44',
+        scrollThumb: 'rgba(0,0,0,0.12)',
+      };
+}
+
+/* ====================================================================== */
+
+export function RepliesPage() {
+  const { currentProject, setCurrentProject, projects } = useAppStore();
+  const { isDark } = useTheme();
+  const t = themeColors(isDark);
+
   const [replies, setReplies] = useState<ProcessedReply[]>([]);
-  const [stats, setStats] = useState<ProcessedReplyStats | null>(null);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Projects for selector bar
-  const [projectsList, setProjectsList] = useState<ProjectLite[]>([]);
-
-  // Filters
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<ReplyCategory | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [needsReplyFilter, setNeedsReplyFilter] = useState(true);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(50);
+  const [pageSize] = useState(20);
 
-  // UI state
-  const [selectedReply, setSelectedReply] = useState<ProcessedReply | null>(null);
-  const [confirmReply, setConfirmReply] = useState<ProcessedReply | null>(null);
-  const [isSending, setIsSending] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
+  const [search, setSearch] = useState('');
 
-  // Load data
+  const [editingDrafts, setEditingDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
+  const [sendingIds, setSendingIds] = useState<Set<number>>(new Set());
+  const [expandedThreads, setExpandedThreads] = useState<Set<number>>(new Set());
+  const [threadMessages, setThreadMessages] = useState<Record<number, ConversationMessage[]>>({});
+  const [loadingThreads, setLoadingThreads] = useState<Set<number>>(new Set());
+
+  const toastOk = { background: t.toastBg, color: t.toastText, border: `1px solid ${t.toastBorder}` };
+  const toastErr = { background: t.toastBg, color: t.toastErrText, border: `1px solid ${t.toastBorder}` };
+
+  /* ---- Data loading ---- */
   const loadReplies = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -63,9 +289,7 @@ export function RepliesPage() {
         : undefined;
       const response = await repliesApi.getReplies({
         campaign_names: campaignNames,
-        category: categoryFilter || undefined,
-        approval_status: statusFilter || undefined,
-        needs_reply: needsReplyFilter || undefined,
+        needs_reply: true,
         page,
         page_size: pageSize,
       });
@@ -76,77 +300,83 @@ export function RepliesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [categoryFilter, statusFilter, needsReplyFilter, page, pageSize, currentProject]);
-
-  const loadStats = useCallback(async () => {
-    try {
-      const campaignNames = currentProject?.campaign_filters?.length
-        ? currentProject.campaign_filters.join(',')
-        : undefined;
-      const data = await repliesApi.getReplyStats({ campaign_names: campaignNames });
-      setStats(data);
-    } catch (err) {
-      console.error('Failed to load stats:', err);
-    }
-  }, [currentProject]);
+  }, [page, pageSize, currentProject]);
 
   useEffect(() => { setPage(1); }, [currentProject]);
-
   useEffect(() => {
-    contactsApi.listProjectsLite().then(setProjectsList).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    loadReplies();
-    loadStats();
-  }, [loadReplies, loadStats]);
-
-  const handleRefresh = () => { loadReplies(); loadStats(); };
-
-  const handleCopyDraft = async (reply: ProcessedReply) => {
-    if (reply.draft_reply) {
-      await navigator.clipboard.writeText(reply.draft_reply);
-      toast.success('Draft copied!');
-    }
-  };
-
-  const handleApproveAndSend = async (replyId: number) => {
-    setIsSending(true);
-    try {
-      const result = await repliesApi.approveAndSendReply(replyId);
-      if (result.test_mode) {
-        toast.success(`Test sent to ${result.sent_to || 'pn@getsally.io'}`);
-      } else if (result.dry_run) {
-        toast.success('Approved (dry run)');
-      } else {
-        toast.success('Reply sent!');
+    function handleClickOutside(e: MouseEvent) {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
+        setShowProjectDropdown(false);
       }
-      setConfirmReply(null);
-      loadReplies();
-      loadStats();
-      if (selectedReply?.id === replyId) setSelectedReply(null);
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to approve and send');
-    } finally {
-      setIsSending(false);
     }
-  };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  useEffect(() => { loadReplies(); }, [loadReplies]);
 
-  const handleDismissReply = async (replyId: number) => {
+  /* ---- Actions ---- */
+  const handleApproveAndSend = async (reply: ProcessedReply) => {
+    setSendingIds(prev => new Set(prev).add(reply.id));
     try {
-      await repliesApi.dismissReply(replyId);
-      toast.success('Reply skipped');
-      loadReplies();
-      loadStats();
-      if (selectedReply?.id === replyId) setSelectedReply(null);
+      const edited = editingDrafts[reply.id];
+      const editedDraft = edited ? { draft_reply: edited.reply, draft_subject: edited.subject } : undefined;
+      const result = await repliesApi.approveAndSendReply(reply.id, editedDraft);
+      if (result.test_mode) {
+        toast.success(`Test sent to ${result.sent_to || 'pn@getsally.io'}`, { style: toastOk });
+      } else if (result.dry_run) {
+        toast.success('Approved (dry run)', { style: toastOk });
+      } else {
+        toast.success('Reply sent', { style: toastOk });
+      }
+      setReplies(prev => prev.filter(r => r.id !== reply.id));
+      setTotal(prev => Math.max(0, prev - 1));
+      setEditingDrafts(prev => { const d = { ...prev }; delete d[reply.id]; return d; });
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to dismiss');
+      toast.error(err.response?.data?.detail || 'Failed to send', { style: toastErr });
+    } finally {
+      setSendingIds(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
     }
   };
 
-  const totalPages = Math.ceil(total / pageSize);
+  const handleDismiss = async (reply: ProcessedReply) => {
+    try {
+      await repliesApi.dismissReply(reply.id);
+      toast.success('Skipped', { style: toastOk });
+      setReplies(prev => prev.filter(r => r.id !== reply.id));
+      setTotal(prev => Math.max(0, prev - 1));
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed', { style: toastErr });
+    }
+  };
 
-  // Client-side search filter
+  const startEditing = (reply: ProcessedReply) => {
+    setEditingDrafts(prev => ({
+      ...prev,
+      [reply.id]: { reply: reply.draft_reply || '', subject: reply.draft_subject || '' },
+    }));
+  };
+  const cancelEditing = (id: number) => {
+    setEditingDrafts(prev => { const d = { ...prev }; delete d[id]; return d; });
+  };
+
+  const loadThread = async (reply: ProcessedReply) => {
+    if (expandedThreads.has(reply.id)) {
+      setExpandedThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+      return;
+    }
+    setExpandedThreads(prev => new Set(prev).add(reply.id));
+    if (threadMessages[reply.id]) return;
+    setLoadingThreads(prev => new Set(prev).add(reply.id));
+    try {
+      const data = await repliesApi.getConversation(reply.id);
+      setThreadMessages(prev => ({ ...prev, [reply.id]: data.messages || [] }));
+    } catch {
+      setThreadMessages(prev => ({ ...prev, [reply.id]: [] }));
+    } finally {
+      setLoadingThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+    }
+  };
+
   const filteredReplies = (replies || []).filter(reply => {
     if (!search) return true;
     const s = search.toLowerCase();
@@ -160,605 +390,425 @@ export function RepliesPage() {
     );
   });
 
-  // Top categories for stats bar
-  const topCategories = stats?.by_category
-    ? Object.entries(stats.by_category).sort(([, a], [, b]) => b - a).slice(0, 4)
-    : [];
+  const totalPages = Math.ceil(total / pageSize);
 
+  /* ==================================================================== */
   return (
-    <div className="h-full flex flex-col bg-neutral-50">
+    <div className="h-full flex flex-col" style={{ background: t.pageBg }}>
       <Toaster position="top-center" />
 
-      {/* Header */}
-      <div className="bg-white border-b border-neutral-200 px-6 py-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
-              <MessageSquare className="w-5 h-5 text-violet-600" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-neutral-900">Replies</h1>
-              <p className="text-sm text-neutral-500">{formatNumber(total)} total</p>
-            </div>
+      {/* Header bar */}
+      <div
+        className="border-b px-5 py-2.5 flex items-center justify-between"
+        style={{ background: t.headerBg, borderColor: t.cardBorder }}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[14px] font-medium" style={{ color: t.text1 }}>{total}</span>
+            <span className="text-[13px]" style={{ color: t.text4 }}>need reply</span>
           </div>
-          <button onClick={handleRefresh} className="btn btn-secondary btn-sm">
-            <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-          </button>
+
+          <div className="w-px h-4" style={{ background: t.cardBorder }} />
+
+          {/* Project selector */}
+          <div className="relative" ref={projectDropdownRef}>
+            <button
+              onClick={() => { setShowProjectDropdown(!showProjectDropdown); setProjectSearch(''); }}
+              className="flex items-center gap-1.5 px-2 py-1 rounded text-[13px] transition-colors"
+              style={{ color: currentProject ? t.text1 : t.text3 }}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span className="truncate max-w-[160px]">{currentProject ? currentProject.name : 'All Projects'}</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {showProjectDropdown && (
+              <div
+                className="absolute top-full left-0 mt-1 w-64 rounded-md shadow-xl z-50 overflow-hidden border"
+                style={{ background: t.cardBg, borderColor: t.cardHoverBorder }}
+              >
+                <div className="p-1.5 border-b" style={{ borderColor: t.divider }}>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={projectSearch}
+                    onChange={e => setProjectSearch(e.target.value)}
+                    placeholder="Search..."
+                    className="w-full px-2 py-1 text-[13px] border-none rounded focus:outline-none"
+                    style={{ background: t.inputBg, color: t.text1 }}
+                  />
+                </div>
+                <div className="max-h-60 overflow-y-auto py-0.5">
+                  {!projectSearch && (
+                    <button
+                      onClick={() => { setCurrentProject(null); setShowProjectDropdown(false); }}
+                      className="w-full px-3 py-1.5 text-left text-[13px] transition-colors"
+                      style={{
+                        background: !currentProject ? t.badgeBg : undefined,
+                        color: !currentProject ? t.text1 : t.text3,
+                      }}
+                    >
+                      All Projects
+                    </button>
+                  )}
+                  {projects.length === 0 ? (
+                    <div className="px-3 py-1.5 text-[13px]" style={{ color: t.text5 }}>Loading...</div>
+                  ) : (
+                    projects
+                      .filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase()))
+                      .map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => { setCurrentProject(p); setShowProjectDropdown(false); setProjectSearch(''); }}
+                          className="w-full px-3 py-1.5 text-left text-[13px] truncate transition-colors"
+                          style={{
+                            background: currentProject?.id === p.id ? t.badgeBg : undefined,
+                            color: currentProject?.id === p.id ? t.text1 : t.text3,
+                          }}
+                        >
+                          {p.name}
+                        </button>
+                      ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Project selector bar */}
-        {projectsList.length > 0 && (
-          <div className="flex items-center gap-1.5 mb-3 overflow-x-auto pb-0.5">
-            <button
-              onClick={() => setCurrentProject(null)}
-              className={cn(
-                "px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border",
-                !currentProject
-                  ? "bg-violet-100 text-violet-700 border-violet-200"
-                  : "bg-white text-neutral-600 border-neutral-200 hover:border-violet-200 hover:text-violet-700"
-              )}
-            >
-              All Projects
-            </button>
-            {projectsList.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setCurrentProject(p as any)}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border",
-                  currentProject?.id === p.id
-                    ? "bg-violet-100 text-violet-700 border-violet-200"
-                    : "bg-white text-neutral-600 border-neutral-200 hover:border-violet-200 hover:text-violet-700"
-                )}
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Stats row */}
-        {stats && (
-          <div className="flex items-center gap-2 flex-wrap mb-3">
-            <StatBadge label="Total" value={formatNumber(stats.total)} />
-            <StatBadge label="Pending" value={formatNumber(stats.pending)} color="amber" />
-            <StatBadge label="Today" value={formatNumber(stats.today)} color="blue" />
-            {topCategories.map(([cat, count]) => {
-              const config = CATEGORY_CONFIG[cat as ReplyCategory];
-              return <StatBadge key={cat} label={config?.label || cat} value={formatNumber(count)} emoji={config?.emoji} />;
-            })}
-          </div>
-        )}
-
-        {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+        <div className="flex items-center gap-1.5">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2" style={{ color: t.text5 }} />
             <input
               type="text"
-              placeholder="Search by email, name, company..."
+              placeholder="Filter..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="input pl-9 w-full text-sm"
+              className="pl-7 pr-2 py-1 text-[13px] border-none rounded w-36 focus:outline-none"
+              style={{ background: t.inputBg, color: t.text1 }}
             />
           </div>
-
-          <select
-            value={categoryFilter || ''}
-            onChange={(e) => { setCategoryFilter(e.target.value as ReplyCategory || null); setPage(1); }}
-            className="input text-sm"
-          >
-            <option value="">All Categories</option>
-            {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
-              <option key={key} value={key}>{config.emoji} {config.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={statusFilter || ''}
-            onChange={(e) => { setStatusFilter(e.target.value || null); setPage(1); }}
-            className="input text-sm"
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="dismissed">Dismissed</option>
-          </select>
-
           <button
-            onClick={() => { setNeedsReplyFilter(!needsReplyFilter); setPage(1); }}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors",
-              needsReplyFilter
-                ? "bg-orange-100 text-orange-700 border-orange-300"
-                : "bg-white text-neutral-600 border-neutral-200 hover:border-orange-300 hover:text-orange-700"
-            )}
+            onClick={() => loadReplies()}
+            className="p-1.5 rounded transition-colors"
+            title="Refresh"
           >
-            <MessageCircle className="w-4 h-4" />
-            {needsReplyFilter ? `Awaiting Reply (${total})` : 'Show All'}
-          </button>
-
-          <button
-            onClick={() => { setStatusFilter(prev => prev === 'pending' ? null : 'pending'); setPage(1); }}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors",
-              statusFilter === 'pending'
-                ? "bg-amber-100 text-amber-700 border-amber-300"
-                : "bg-white text-neutral-600 border-neutral-200 hover:border-amber-300 hover:text-amber-700"
-            )}
-          >
-            <Shield className="w-4 h-4" />
-            Moderation
-            {stats?.pending ? (
-              <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-amber-500 text-white font-semibold">
-                {stats.pending}
-              </span>
-            ) : null}
+            <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} style={{ color: t.text4 }} />
           </button>
         </div>
       </div>
 
-      {/* Reply list - full width */}
-      <div className="flex-1 overflow-auto p-4">
+      {/* Reply queue */}
+      <div className="flex-1 overflow-auto">
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <RefreshCw className="w-6 h-6 animate-spin text-neutral-400" />
+          <div className="flex items-center justify-center py-20">
+            <RefreshCw className="w-5 h-5 animate-spin" style={{ color: t.text5 }} />
           </div>
         ) : filteredReplies.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-16 h-16 rounded-xl bg-neutral-100 flex items-center justify-center mb-4">
-              <Mail className="w-8 h-8 text-neutral-400" />
-            </div>
-            <p className="text-neutral-500">No replies found</p>
-            <p className="text-sm text-neutral-400 mt-1">
-              {needsReplyFilter ? 'No leads currently need a response' : 'Replies will appear here when your campaigns receive responses'}
-            </p>
+          <div className="flex flex-col items-center justify-center py-20">
+            <p className="text-[13px]" style={{ color: t.text4 }}>All caught up</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {filteredReplies.map(reply => (
-              <ReplyCard
-                key={reply.id}
-                reply={reply}
-                onClick={() => setSelectedReply(reply)}
-                onApprove={() => setConfirmReply(reply)}
-                onDismiss={() => handleDismissReply(reply.id)}
-              />
-            ))}
+          <div className="max-w-5xl mx-auto py-3 px-4 space-y-2.5">
+            {filteredReplies.map(reply => {
+              const leadName = [reply.lead_first_name, reply.lead_last_name].filter(Boolean).join(' ') || reply.lead_email;
+              const isEditing = reply.id in editingDrafts;
+              const isSending = sendingIds.has(reply.id);
+              const isThreadOpen = expandedThreads.has(reply.id);
+              const isThreadLoading = loadingThreads.has(reply.id);
+              const thread = threadMessages[reply.id];
+              const draftText = isEditing ? editingDrafts[reply.id].reply : (reply.draft_reply || '');
+              const catLabel = CATEGORY_LABEL[reply.category || ''] || reply.category || '';
+              const hasReasoning = reply.classification_reasoning || reply.category_confidence;
+
+              return (
+                <div
+                  key={reply.id}
+                  className="rounded-md border transition-colors"
+                  style={{
+                    background: t.cardBg,
+                    borderColor: t.cardBorder,
+                  }}
+                >
+                  {/* Two-column layout: conversation | reasoning */}
+                  <div className="flex">
+                    {/* Left: conversation & draft */}
+                    <div className="flex-1 min-w-0">
+                      {/* Lead row */}
+                      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                        <div className="flex items-center gap-2 min-w-0 text-[13px]">
+                          <span className="font-medium truncate" style={{ color: t.text1 }}>{leadName}</span>
+                          {reply.lead_company && (
+                            <span className="flex items-center gap-1 truncate" style={{ color: t.text5 }}>
+                              <Building2 className="w-3 h-3" />{reply.lead_company}
+                            </span>
+                          )}
+                          {catLabel && (
+                            <span
+                              className="text-[11px] px-1.5 py-0.5 rounded"
+                              style={{ background: t.badgeBg, color: t.badgeText }}
+                            >
+                              {catLabel}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 text-[11px]" style={{ color: t.text5 }}>
+                          <span className="flex items-center gap-0.5">
+                            <Clock className="w-3 h-3" />
+                            {reply.received_at ? timeAgo(reply.received_at) : '?'}
+                          </span>
+                          {reply.inbox_link && (
+                            <a
+                              href={reply.inbox_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="transition-colors"
+                              title="Smartlead"
+                              onClick={e => e.stopPropagation()}
+                              style={{ color: t.text5 }}
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      {reply.campaign_name && (
+                        <div className="px-4 text-[11px] pb-1" style={{ color: t.text6 }}>{reply.campaign_name}</div>
+                      )}
+
+                      {/* Their message -- NO max-height, full content visible */}
+                      <div className="px-4 py-2">
+                        {reply.email_subject && (
+                          <div className="text-[13px] mb-1" style={{ color: t.text2 }}>{reply.email_subject}</div>
+                        )}
+                        <div
+                          className="text-[13px] leading-relaxed whitespace-pre-wrap"
+                          style={{ color: t.text3 }}
+                        >
+                          {stripHtml(reply.email_body || reply.reply_text || '') || '(empty)'}
+                        </div>
+                      </div>
+
+                      {/* Thread */}
+                      <div className="px-4">
+                        <button
+                          onClick={() => loadThread(reply)}
+                          className="text-[11px] flex items-center gap-1 py-0.5 transition-colors"
+                          style={{ color: t.text5 }}
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          {isThreadOpen ? 'Hide thread' : 'Thread'}
+                        </button>
+                        {isThreadOpen && (
+                          <div className="mt-1.5 mb-2 space-y-1.5">
+                            {isThreadLoading ? (
+                              <div className="flex items-center gap-1.5 py-1.5 text-[11px]" style={{ color: t.text5 }}>
+                                <RefreshCw className="w-3 h-3 animate-spin" /> Loading...
+                              </div>
+                            ) : thread && thread.length > 0 ? (
+                              <>
+                                {thread.map((msg, i) => {
+                                  const isInbound = msg.direction === 'inbound';
+                                  return (
+                                    <div key={i} className={cn("flex flex-col", isInbound ? "items-start" : "items-end")}>
+                                      <div
+                                        className="text-[10px] font-medium mb-0.5 px-1"
+                                        style={{ color: t.text5 }}
+                                      >
+                                        {isInbound ? 'Lead' : 'Operator'}
+                                      </div>
+                                      <div
+                                        className="max-w-[85%] rounded px-3 py-2 text-[13px]"
+                                        style={{
+                                          background: isInbound ? t.threadInbound : t.threadOutbound,
+                                          color: isInbound ? t.text2 : t.text3,
+                                        }}
+                                      >
+                                        <div className="whitespace-pre-wrap leading-relaxed">{stripHtml(msg.body || '') || '(no content)'}</div>
+                                        <div className="text-[10px] mt-1" style={{ color: t.text6 }}>
+                                          {msg.activity_at ? new Date(msg.activity_at).toLocaleString() : ''}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            ) : (
+                              <div className="text-[11px] py-1" style={{ color: t.text6 }}>No history</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mx-4" style={{ borderTop: `1px solid ${t.divider}` }} />
+
+                      {/* Draft -- always visible, NO max-height */}
+                      <div className="px-4 py-2.5">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[11px] uppercase tracking-wider" style={{ color: t.text5 }}>Draft</span>
+                          {!isEditing && reply.draft_reply ? (
+                            <button
+                              onClick={() => startEditing(reply)}
+                              className="text-[11px] flex items-center gap-1 transition-colors"
+                              style={{ color: t.text5 }}
+                            >
+                              <Edit3 className="w-3 h-3" /> Edit
+                            </button>
+                          ) : isEditing ? (
+                            <button
+                              onClick={() => cancelEditing(reply.id)}
+                              className="text-[11px] flex items-center gap-1 transition-colors"
+                              style={{ color: t.text5 }}
+                            >
+                              <X className="w-3 h-3" /> Cancel
+                            </button>
+                          ) : null}
+                        </div>
+
+                        {isEditing ? (
+                          <textarea
+                            value={editingDrafts[reply.id].reply}
+                            onChange={e => setEditingDrafts(prev => ({
+                              ...prev,
+                              [reply.id]: { ...prev[reply.id], reply: e.target.value },
+                            }))}
+                            className="w-full text-[13px] rounded p-2.5 focus:outline-none min-h-[80px] resize-y border"
+                            style={{
+                              background: t.draftBg,
+                              borderColor: t.draftBorder,
+                              color: t.text1,
+                            }}
+                            placeholder="Edit your reply..."
+                          />
+                        ) : (
+                          <div
+                            className="text-[13px] whitespace-pre-wrap leading-relaxed rounded p-2.5"
+                            style={{ background: t.draftBg, color: t.text2 }}
+                          >
+                            {draftText || '(no draft)'}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="px-4 pb-3 flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleApproveAndSend(reply)}
+                          disabled={isSending || !reply.draft_reply}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3.5 py-1.5 rounded text-[13px] font-medium transition-colors",
+                            isSending ? "cursor-wait" : ""
+                          )}
+                          style={{
+                            background: isSending ? t.divider : t.btnPrimaryBg,
+                            color: isSending ? t.text5 : t.btnPrimaryText,
+                          }}
+                        >
+                          {isSending ? (
+                            <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Sending...</>
+                          ) : (
+                            <><ArrowRight className="w-3.5 h-3.5" /> {isEditing ? 'Send edited' : 'Send'}</>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleDismiss(reply)}
+                          disabled={isSending}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-colors"
+                          style={{ color: t.text4 }}
+                        >
+                          <XCircle className="w-3.5 h-3.5" /> Skip
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Right: AI reasoning sidebar */}
+                    {hasReasoning && (
+                      <div
+                        className="w-64 flex-shrink-0 border-l px-3 py-3"
+                        style={{
+                          borderColor: t.divider,
+                          background: t.reasoningBg,
+                        }}
+                      >
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Brain className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+                          <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: t.text4 }}>
+                            AI Analysis
+                          </span>
+                        </div>
+
+                        {reply.category && (
+                          <div className="mb-2">
+                            <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
+                              Category
+                            </div>
+                            <div className="text-[13px] font-medium" style={{ color: t.text1 }}>
+                              {CATEGORY_LABEL[reply.category] || reply.category}
+                            </div>
+                          </div>
+                        )}
+
+                        {reply.category_confidence && (
+                          <div className="mb-2">
+                            <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
+                              Confidence
+                            </div>
+                            <div className="text-[12px]" style={{ color: t.text3 }}>
+                              {reply.category_confidence}
+                            </div>
+                          </div>
+                        )}
+
+                        {reply.classification_reasoning && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
+                              Reasoning
+                            </div>
+                            <div
+                              className="text-[12px] leading-relaxed whitespace-pre-wrap"
+                              style={{ color: t.text3 }}
+                            >
+                              {reply.classification_reasoning}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="bg-white border-t border-neutral-200 px-6 py-3 flex items-center justify-between">
-          <div className="text-sm text-neutral-500">Page {page} of {totalPages}</div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn btn-secondary btn-sm">Prev</button>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn btn-secondary btn-sm">Next</button>
+        <div
+          className="border-t px-5 py-2 flex items-center justify-between"
+          style={{ background: t.headerBg, borderColor: t.cardBorder }}
+        >
+          <span className="text-[11px]" style={{ color: t.text5 }}>Page {page} of {totalPages}</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-2 py-1 text-[11px] rounded disabled:opacity-30 transition-colors"
+              style={{ color: t.text4 }}
+            >
+              Prev
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-2 py-1 text-[11px] rounded disabled:opacity-30 transition-colors"
+              style={{ color: t.text4 }}
+            >
+              Next
+            </button>
           </div>
         </div>
       )}
-
-      {/* Reply Detail Slide-out */}
-      {selectedReply && (
-        <ReplyDetailPanel
-          reply={selectedReply}
-          onClose={() => setSelectedReply(null)}
-          onCopyDraft={() => handleCopyDraft(selectedReply)}
-          onApprove={() => setConfirmReply(selectedReply)}
-          onDismiss={() => handleDismissReply(selectedReply.id)}
-        />
-      )}
-
-      {/* Send Confirmation Dialog */}
-      {confirmReply && (
-        <SendConfirmDialog
-          reply={confirmReply}
-          isSending={isSending}
-          onConfirm={() => handleApproveAndSend(confirmReply.id)}
-          onCancel={() => setConfirmReply(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-// ---------- Stat Badge ----------
-function StatBadge({ label, value, color, emoji }: { label: string; value: string; color?: string; emoji?: string }) {
-  const colors: Record<string, string> = {
-    blue: 'bg-blue-50 border-blue-200 text-blue-700',
-    amber: 'bg-amber-50 border-amber-200 text-amber-700',
-    purple: 'bg-purple-50 border-purple-200 text-purple-700',
-    green: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-  };
-  return (
-    <div className={cn("rounded-lg px-3 py-1.5 border text-sm", color ? colors[color] : 'bg-neutral-50 border-neutral-100')}>
-      {emoji && <span className="mr-1">{emoji}</span>}
-      <span className="font-semibold">{value}</span>
-      <span className="text-xs ml-1 opacity-70">{label}</span>
-    </div>
-  );
-}
-
-// ---------- Reply Card ----------
-interface ReplyCardProps {
-  reply: ProcessedReply;
-  onClick: () => void;
-  onApprove: () => void;
-  onDismiss: () => void;
-}
-
-function ReplyCard({ reply, onClick, onApprove, onDismiss }: ReplyCardProps) {
-  const category = reply.category as ReplyCategory;
-  const categoryConfig = category ? CATEGORY_CONFIG[category] : CATEGORY_CONFIG.other;
-  const leadName = [reply.lead_first_name, reply.lead_last_name].filter(Boolean).join(' ') || reply.lead_email;
-
-  return (
-    <div
-      onClick={onClick}
-      className="bg-white rounded-xl border border-neutral-200 p-4 hover:border-violet-300 hover:shadow-sm cursor-pointer transition-all"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          {/* Header */}
-          <div className="flex items-center gap-2 mb-2">
-            <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium border", categoryConfig.color)}>
-              {categoryConfig.emoji} {categoryConfig.label}
-            </span>
-            {reply.category_confidence && (
-              <span className="text-xs text-neutral-400">{reply.category_confidence}</span>
-            )}
-            {reply.sent_to_slack && (
-              <span className="text-xs text-emerald-600 flex items-center gap-1"><Check className="w-3 h-3" />Slack</span>
-            )}
-          </div>
-
-          {/* Lead info */}
-          <div className="flex items-center gap-3 mb-1">
-            <span className="font-medium text-neutral-900">{leadName}</span>
-            {reply.lead_company && (
-              <span className="text-sm text-neutral-500 flex items-center gap-1">
-                <Building2 className="w-3 h-3" />{reply.lead_company}
-              </span>
-            )}
-          </div>
-
-          {/* Subject + snippet */}
-          <div className="text-sm text-neutral-600 mb-1">
-            <strong>Subject:</strong> {reply.email_subject || '(no subject)'}
-          </div>
-          <div className="text-sm text-neutral-500 line-clamp-2">
-            {reply.email_body || reply.reply_text || '(empty)'}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-col gap-1 flex-shrink-0">
-          {reply.approval_status === 'approved' && (
-            <span className="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-lg flex items-center gap-1"><CheckCircle className="w-3 h-3" />Sent</span>
-          )}
-          {reply.approval_status === 'approved_dry_run' && (
-            <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-lg flex items-center gap-1"><CheckCircle className="w-3 h-3" />Dry Run</span>
-          )}
-          {reply.approval_status === 'approved_test' && (
-            <span className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-lg flex items-center gap-1"><CheckCircle className="w-3 h-3" />Test Sent</span>
-          )}
-          {reply.approval_status === 'replied_externally' && (
-            <span className="px-2 py-1 text-xs font-medium bg-sky-100 text-sky-700 rounded-lg flex items-center gap-1"><CheckCircle className="w-3 h-3" />Replied (Smartlead)</span>
-          )}
-          {reply.approval_status === 'dismissed' && (
-            <span className="px-2 py-1 text-xs font-medium bg-neutral-100 text-neutral-500 rounded-lg flex items-center gap-1"><XCircle className="w-3 h-3" />Skipped</span>
-          )}
-          {(!reply.approval_status || reply.approval_status === 'pending') && reply.draft_reply && (
-            <button onClick={(e) => { e.stopPropagation(); onApprove(); }} className="px-3 py-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg flex items-center gap-1" title="Approve & send">
-              <CheckCircle className="w-3.5 h-3.5" />OK
-            </button>
-          )}
-          {(!reply.approval_status || reply.approval_status === 'pending') && (
-            <button onClick={(e) => { e.stopPropagation(); onDismiss(); }} className="px-2 py-1.5 text-xs text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="Skip">
-              <XCircle className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-neutral-100 text-xs text-neutral-400">
-        <span className="flex items-center gap-1">
-          <Calendar className="w-3 h-3" />
-          {reply.received_at ? new Date(reply.received_at).toLocaleDateString() : 'Unknown'}
-        </span>
-        {reply.campaign_name && (
-          <span className="flex items-center gap-1"><Hash className="w-3 h-3" />{reply.campaign_name}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---------- Reply Detail Panel ----------
-interface ReplyDetailPanelProps {
-  reply: ProcessedReply;
-  onClose: () => void;
-  onCopyDraft: () => void;
-  onApprove: () => void;
-  onDismiss: () => void;
-}
-
-function ReplyDetailPanel({ reply, onClose, onCopyDraft, onApprove, onDismiss }: ReplyDetailPanelProps) {
-  const category = reply.category as ReplyCategory;
-  const categoryConfig = category ? CATEGORY_CONFIG[category] : CATEGORY_CONFIG.other;
-  const leadName = [reply.lead_first_name, reply.lead_last_name].filter(Boolean).join(' ') || reply.lead_email;
-
-  // Conversation thread
-  const [messages, setMessages] = useState<ConversationMessage[]>([]);
-  const [loadingConversation, setLoadingConversation] = useState(false);
-
-  useEffect(() => {
-    setLoadingConversation(true);
-    repliesApi.getConversation(reply.id)
-      .then(data => setMessages(data.messages || []))
-      .catch(() => setMessages([]))
-      .finally(() => setLoadingConversation(false));
-  }, [reply.id]);
-
-  return (
-    <div className="fixed inset-y-0 right-0 w-[520px] bg-white shadow-2xl border-l border-neutral-200 z-50 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
-        <h2 className="text-lg font-semibold">Reply Details</h2>
-        <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg"><X className="w-4 h-4" /></button>
-      </div>
-
-      <div className="flex-1 overflow-auto p-6 space-y-5">
-        {/* Category */}
-        <div className="flex items-center gap-2">
-          <span className={cn("px-3 py-1 rounded-full text-sm font-medium border", categoryConfig.color)}>
-            {categoryConfig.emoji} {categoryConfig.label}
-          </span>
-          {reply.category_confidence && <span className="text-sm text-neutral-500">{reply.category_confidence}</span>}
-        </div>
-
-        {/* Lead info */}
-        <div className="p-4 bg-neutral-50 rounded-xl">
-          <div className="font-medium text-neutral-900">{leadName}</div>
-          <div className="text-sm text-neutral-600 mt-1">{reply.lead_email}</div>
-          {reply.lead_company && (
-            <div className="text-sm text-neutral-500 flex items-center gap-1 mt-1"><Building2 className="w-3 h-3" />{reply.lead_company}</div>
-          )}
-          {reply.inbox_link && (
-            <a href={reply.inbox_link} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-sm text-violet-600 hover:underline">
-              <ExternalLink className="w-3 h-3" />Open in Smartlead
-            </a>
-          )}
-        </div>
-
-        {/* Conversation Thread */}
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide flex items-center gap-1.5">
-            <MessageCircle className="w-3.5 h-3.5" />Conversation
-          </h4>
-          {loadingConversation ? (
-            <div className="flex items-center justify-center py-4">
-              <RefreshCw className="w-4 h-4 animate-spin text-neutral-400" />
-              <span className="ml-2 text-sm text-neutral-400">Loading...</span>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="p-3 bg-neutral-50 rounded-lg text-sm text-neutral-400">No conversation history found</div>
-          ) : (
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {messages.map((msg, i) => {
-                const isInbound = msg.direction === 'inbound';
-                return (
-                  <div key={i} className={cn("flex", isInbound ? "justify-start" : "justify-end")}>
-                    <div className={cn(
-                      "max-w-[85%] rounded-xl px-3 py-2 text-sm",
-                      isInbound
-                        ? "bg-blue-50 border border-blue-100 text-blue-900"
-                        : "bg-neutral-100 border border-neutral-200 text-neutral-800"
-                    )}>
-                      {msg.subject && <div className="font-medium text-xs mb-1 opacity-70">{msg.subject}</div>}
-                      <div className="whitespace-pre-wrap text-sm leading-relaxed">{msg.body || '(no content)'}</div>
-                      <div className="text-xs mt-1 opacity-50">
-                        {msg.activity_at ? new Date(msg.activity_at).toLocaleString() : ''}
-                        {msg.channel && ` · ${msg.channel}`}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Original reply */}
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Original Reply</h4>
-          <div className="p-4 bg-neutral-50 rounded-xl">
-            <div className="text-sm font-medium text-neutral-700 mb-2">{reply.email_subject || '(no subject)'}</div>
-            <div className="text-sm text-neutral-600 whitespace-pre-wrap">{reply.email_body || reply.reply_text || '(empty)'}</div>
-          </div>
-        </div>
-
-        {/* AI Analysis */}
-        {reply.classification_reasoning && (
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">AI Analysis</h4>
-            <div className="p-4 bg-violet-50 rounded-xl border border-violet-100">
-              <div className="text-sm text-violet-800">{reply.classification_reasoning}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Draft reply */}
-        {reply.draft_reply && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Suggested Draft</h4>
-              <button onClick={onCopyDraft} className="btn btn-secondary btn-sm"><Copy className="w-3 h-3" />Copy</button>
-            </div>
-            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-              {reply.draft_subject && <div className="text-sm font-medium text-emerald-800 mb-2">{reply.draft_subject}</div>}
-              <div className="text-sm text-emerald-700 whitespace-pre-wrap">{reply.draft_reply}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Metadata */}
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Info</h4>
-          <div className="text-sm space-y-1.5 text-neutral-600">
-            <div className="flex justify-between"><span>Campaign:</span><span className="font-medium">{reply.campaign_name || reply.campaign_id || 'Unknown'}</span></div>
-            <div className="flex justify-between"><span>Received:</span><span className="font-medium">{reply.received_at ? new Date(reply.received_at).toLocaleString() : 'Unknown'}</span></div>
-            <div className="flex justify-between"><span>Processed:</span><span className="font-medium">{new Date(reply.processed_at).toLocaleString()}</span></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Actions footer */}
-      <div className="p-4 border-t border-neutral-200 space-y-2">
-        {reply.approval_status === 'approved' && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700 font-medium">
-            <CheckCircle className="w-4 h-4" />Reply sent
-            {reply.approved_at && <span className="text-xs text-emerald-500 ml-auto">{new Date(reply.approved_at).toLocaleString()}</span>}
-          </div>
-        )}
-        {reply.approval_status === 'approved_dry_run' && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 font-medium">
-            <CheckCircle className="w-4 h-4" />Approved (dry run)
-          </div>
-        )}
-        {reply.approval_status === 'approved_test' && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 font-medium">
-            <CheckCircle className="w-4 h-4" />Test sent to pn@getsally.io
-            {reply.approved_at && <span className="text-xs text-amber-500 ml-auto">{new Date(reply.approved_at).toLocaleString()}</span>}
-          </div>
-        )}
-        {reply.approval_status === 'replied_externally' && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-sky-50 border border-sky-200 rounded-lg text-sm text-sky-700 font-medium">
-            <CheckCircle className="w-4 h-4" />Already replied via Smartlead
-          </div>
-        )}
-        {reply.approval_status === 'dismissed' && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-500 font-medium">
-            <XCircle className="w-4 h-4" />Skipped
-          </div>
-        )}
-        <div className="flex gap-2">
-          {(!reply.approval_status || reply.approval_status === 'pending') && reply.draft_reply && (
-            <button onClick={onApprove} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold transition-colors">
-              <CheckCircle className="w-4 h-4" />Approve & Send
-            </button>
-          )}
-          {(!reply.approval_status || reply.approval_status === 'pending') && (
-            <button onClick={onDismiss} className="flex items-center justify-center gap-2 px-4 py-2.5 border border-neutral-200 hover:border-red-300 hover:text-red-600 text-neutral-500 rounded-lg font-medium transition-colors">
-              <XCircle className="w-4 h-4" />Skip
-            </button>
-          )}
-          {reply.draft_reply && (
-            <button onClick={onCopyDraft} className="btn btn-secondary flex-1"><Copy className="w-4 h-4" />Copy Draft</button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Send Confirmation Dialog ----------
-interface SendConfirmDialogProps {
-  reply: ProcessedReply;
-  isSending: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-function SendConfirmDialog({ reply, isSending, onConfirm, onCancel }: SendConfirmDialogProps) {
-  const leadName = [reply.lead_first_name, reply.lead_last_name].filter(Boolean).join(' ') || reply.lead_email;
-  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 animate-slide-up">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-neutral-200">
-          <div className="flex items-center gap-3">
-            <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", isLocal ? "bg-amber-100" : "bg-emerald-100")}>
-              <Send className={cn("w-5 h-5", isLocal ? "text-amber-600" : "text-emerald-600")} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-neutral-900">Confirm Send Reply</h3>
-              {isLocal ? (
-                <p className="text-xs text-amber-600 font-medium">TEST MODE — will send to pn@getsally.io, not the real lead</p>
-              ) : (
-                <p className="text-xs text-neutral-500">This will send a real email via Smartlead</p>
-              )}
-            </div>
-          </div>
-          <button onClick={onCancel} className="p-2 hover:bg-neutral-100 rounded-lg">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-          {/* Recipient */}
-          <div className="p-3 bg-neutral-50 rounded-xl">
-            <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Sending to</div>
-            <div className="font-medium text-neutral-900">{leadName}</div>
-            <div className="text-sm text-neutral-600">{reply.lead_email}</div>
-            {reply.campaign_name && (
-              <div className="text-xs text-neutral-400 mt-1 flex items-center gap-1">
-                <Hash className="w-3 h-3" />{reply.campaign_name}
-              </div>
-            )}
-          </div>
-
-          {/* Draft preview */}
-          <div>
-            <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Draft reply that will be sent</div>
-            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-              {reply.draft_subject && (
-                <div className="text-sm font-semibold text-emerald-800 mb-2 pb-2 border-b border-emerald-200">
-                  {reply.draft_subject}
-                </div>
-              )}
-              <div className="text-sm text-emerald-700 whitespace-pre-wrap leading-relaxed max-h-[200px] overflow-y-auto">
-                {reply.draft_reply || '(no draft)'}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex justify-end gap-3 p-5 border-t border-neutral-200">
-          <button
-            onClick={onCancel}
-            disabled={isSending}
-            className="px-4 py-2.5 border border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-lg font-medium transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={isSending}
-            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white rounded-lg font-semibold transition-colors"
-          >
-            {isSending ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                Sending...
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                Send Reply
-              </>
-            )}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -1215,7 +1215,23 @@ class CRMSyncService:
                                     )
                                 ).limit(1)
                             )
-                            if existing_pr.scalar_one_or_none():
+                            existing_record = existing_pr.scalar_one_or_none()
+                            if existing_record:
+                                # Update received_at if Smartlead shows a newer reply_time
+                                raw_reply_time = reply_data.get("reply_time")
+                                if raw_reply_time:
+                                    try:
+                                        from dateutil.parser import parse as parse_dt
+                                        parsed_time = parse_dt(raw_reply_time).replace(tzinfo=None)
+                                        if not existing_record.received_at or parsed_time > existing_record.received_at:
+                                            existing_record.received_at = parsed_time
+                                            existing_record.approval_status = None  # Re-surface for operator
+                                            await session.flush()
+                                            stats.setdefault("updated", 0)
+                                            stats["updated"] += 1
+                                            logger.info(f"Updated received_at for {email} to {parsed_time}")
+                                    except Exception as dt_err:
+                                        logger.debug(f"Could not parse reply_time '{raw_reply_time}': {dt_err}")
                                 stats["existing"] += 1
                                 new_cache_keys.append(cache_key)
                                 continue
@@ -1602,21 +1618,19 @@ class CRMSyncService:
 async def sync_conversation_histories(
     session: AsyncSession,
     limit: int = 100,
+    days_back: int = 3,
 ) -> Dict[str, Any]:
-    """Sync Smartlead message histories for pending replies to detect operator replies.
+    """Sync Smartlead message histories for recent pending replies.
 
-    Finds pending ProcessedReply records that have no outbound ContactActivity after
-    their received_at timestamp, fetches the Smartlead message-history for each,
-    and marks replies as 'replied_externally' when the last message is outbound.
-
-    Also creates missing outbound ContactActivity records so future checks are instant.
+    Resolves lead_id from DB only (zero API calls for resolution).
+    Fetches message-history only for recent pending leads (~5-10 API calls).
+    Marks replies as 'replied_externally' when the last message is outbound.
+    Creates missing outbound ContactActivity records so future checks are instant.
 
     Args:
         session: Async DB session
-        limit: Max unique leads to check per run (rate-limited at ~3 req/s)
-
-    Returns:
-        Dict with checked, replied_externally, still_pending, no_lead_id, errors counts.
+        limit: Max unique leads to check per run
+        days_back: Only check replies from last N days
     """
     from app.models.reply import ProcessedReply
     from app.services.smartlead_service import SmartleadService
@@ -1635,21 +1649,31 @@ async def sync_conversation_histories(
         logger.warning("sync_conversation_histories: SMARTLEAD_API_KEY not set, skipping")
         return stats
 
-    # Step 1: Find pending replies that might need outbound check.
-    # Use a subquery to exclude replies where we already have an outbound activity
-    # after the reply's received_at.
-    outbound_exists = (
-        select(ContactActivity.id)
-        .join(Contact, ContactActivity.contact_id == Contact.id)
+    # Only check recent replies
+    cutoff = datetime.utcnow() - timedelta(days=days_back)
+
+    # Find pending replies needing outbound check (recent only).
+    # Use same "latest activity direction" logic as the needs_reply filter:
+    # two-step correlated subquery — contact_id from email index, then latest direction.
+    contact_id_subq = (
+        select(Contact.id)
         .where(
-            and_(
-                func.lower(Contact.email) == func.lower(ProcessedReply.lead_email),
-                ContactActivity.direction == "outbound",
-                ContactActivity.activity_at > ProcessedReply.received_at,
-            )
+            func.lower(Contact.email) == func.lower(ProcessedReply.lead_email),
+            Contact.deleted_at.is_(None),
+            Contact.email.isnot(None),
+            Contact.email != "",
         )
         .correlate(ProcessedReply)
-        .exists()
+        .limit(1)
+        .scalar_subquery()
+    )
+    latest_direction = (
+        select(ContactActivity.direction)
+        .where(ContactActivity.contact_id == contact_id_subq)
+        .order_by(ContactActivity.activity_at.desc())
+        .limit(1)
+        .correlate(ProcessedReply)
+        .scalar_subquery()
     )
 
     pending_q = (
@@ -1662,92 +1686,119 @@ async def sync_conversation_histories(
                 ),
                 ProcessedReply.campaign_id.isnot(None),
                 ProcessedReply.lead_email.isnot(None),
-                ~outbound_exists,
+                ProcessedReply.received_at >= cutoff,
+                # Latest activity is NOT outbound (lead sent last msg, or no activities)
+                or_(latest_direction.is_(None), latest_direction != "outbound"),
             )
         )
         .order_by(ProcessedReply.received_at.desc())
-        .limit(limit * 3)  # Fetch extra to account for dedup
+        .limit(limit)
     )
 
     result = await session.execute(pending_q)
     pending_replies = result.scalars().all()
 
     if not pending_replies:
-        logger.info("sync_conversation_histories: no pending replies to check")
+        logger.info("sync_conversation_histories: no recent pending replies to check")
         return stats
 
-    # Step 2: Deduplicate by (campaign_id, lead_email) — check each lead once
+    # Deduplicate by (campaign_id, lead_email)
     seen = set()
-    leads_to_check = []  # List of (reply, lead_id)
-    reply_groups = {}  # (campaign_id, email_lower) -> [reply, ...]
+    to_check = []
+    reply_groups = {}
 
     for r in pending_replies:
-        key = (r.campaign_id, (r.lead_email or "").lower())
-        if key in seen:
-            # Still track in the group for bulk-marking later
-            reply_groups.setdefault(key, []).append(r)
-            continue
-        seen.add(key)
-        reply_groups.setdefault(key, []).append(r)
+        email_lower = (r.lead_email or "").lower()
+        group_key = (r.campaign_id, email_lower)
+        reply_groups.setdefault(group_key, []).append(r)
+        if group_key not in seen and r.campaign_id and r.lead_email:
+            seen.add(group_key)
+            to_check.append(r)
 
-        # Resolve lead_id from webhook data or Contact
-        lead_id = None
-        if r.raw_webhook_data and isinstance(r.raw_webhook_data, dict):
-            lead_id = str(
-                r.raw_webhook_data.get("sl_lead_id")
-                or r.raw_webhook_data.get("lead_id")
-                or ""
-            ).strip() or None
+    logger.info(
+        f"sync_conversation_histories: {len(pending_replies)} recent pending, "
+        f"{len(to_check)} unique leads to check"
+    )
 
-        if not lead_id:
+    # Fetch message histories — resolve lead_id from DB only
+    import httpx as _httpx
+    delay = 1.5
+
+    async with _httpx.AsyncClient(timeout=30.0) as client:
+        for reply in to_check:
+            email_lower = (reply.lead_email or "").lower()
+            group_key = (reply.campaign_id, email_lower)
+
+            # Resolve lead_id from local data only
+            lead_id = None
+            contact_id_for_backfill = None
+
+            # 1. Contact.smartlead_id from DB
             contact_result = await session.execute(
-                select(Contact.smartlead_id).where(
-                    func.lower(Contact.email) == r.lead_email.lower(),
+                select(Contact.id, Contact.smartlead_id).where(
+                    func.lower(Contact.email) == email_lower,
                     Contact.deleted_at.is_(None),
                 )
             )
             row = contact_result.first()
-            lead_id = row[0] if row and row[0] else None
+            if row and row[1]:
+                lead_id = str(row[1])
+            if row:
+                contact_id_for_backfill = row[0]
 
-        if not lead_id:
-            stats["no_lead_id"] += 1
-            continue
+            # 2. Webhook raw data (sl_email_lead_id is the primary field Smartlead sends)
+            if not lead_id and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+                lead_id = str(
+                    reply.raw_webhook_data.get("sl_email_lead_id")
+                    or reply.raw_webhook_data.get("sl_lead_id")
+                    or reply.raw_webhook_data.get("lead_id")
+                    or ""
+                ).strip() or None
 
-        leads_to_check.append((r, lead_id, key))
-        if len(leads_to_check) >= limit:
-            break
+            if not lead_id:
+                stats["no_lead_id"] += 1
+                continue
 
-    logger.info(
-        f"sync_conversation_histories: {len(pending_replies)} pending, "
-        f"{len(leads_to_check)} unique leads to check, "
-        f"{stats['no_lead_id']} without lead_id"
-    )
+            # Backfill Contact.smartlead_id if it was null
+            if contact_id_for_backfill and row and not row[1]:
+                from sqlalchemy import update as sa_update
+                await session.execute(
+                    sa_update(Contact)
+                    .where(Contact.id == contact_id_for_backfill)
+                    .values(smartlead_id=lead_id)
+                )
+                logger.info(f"Backfilled smartlead_id={lead_id} for contact {contact_id_for_backfill} ({email_lower})")
 
-    # Step 3: Fetch message histories and detect outbound replies
-    import httpx as _httpx
-
-    async with _httpx.AsyncClient(timeout=30.0) as client:
-        for reply, lead_id, group_key in leads_to_check:
             stats["checked"] += 1
+
             try:
+                await asyncio.sleep(delay)
                 resp = await client.get(
                     f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
                     params={"api_key": sl._api_key},
                 )
 
+                # Adaptive delay: back off on 429, ease down on success
+                if resp.status_code == 429:
+                    delay = min(delay * 2, 10.0)
+                    logger.info(f"sync_conversation_histories: 429 for {reply.lead_email}, delay now {delay:.1f}s")
+                    await asyncio.sleep(delay)
+                    resp = await client.get(
+                        f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
+                        params={"api_key": sl._api_key},
+                    )
+
                 if resp.status_code != 200:
                     stats["errors"] += 1
                     continue
+
+                delay = max(delay * 0.9, 1.0)  # Ease down on success
 
                 history = resp.json().get("history", [])
                 if not history:
                     stats["still_pending"] += 1
                     continue
 
-                # Find the lead's reply timestamp for comparison
-                reply_received = reply.received_at
-
-                # Check: is the last message outbound (not a REPLY)?
                 last_msg = history[-1]
                 last_type = last_msg.get("type", "")
 
@@ -1762,10 +1813,10 @@ async def sync_conversation_histories(
                             session.add(r)
 
                     # Create missing outbound ContactActivity so we don't re-check
-                    # Find the outbound messages after the reply
+                    reply_received = reply.received_at
                     contact_result = await session.execute(
                         select(Contact).where(
-                            func.lower(Contact.email) == reply.lead_email.lower(),
+                            func.lower(Contact.email) == email_lower,
                             Contact.deleted_at.is_(None),
                         )
                     )
@@ -1782,7 +1833,6 @@ async def sync_conversation_histories(
                                     continue
 
                                 if reply_received and msg_time > reply_received:
-                                    # Check if this activity already exists
                                     existing = await session.execute(
                                         select(ContactActivity.id).where(
                                             and_(
@@ -1809,9 +1859,6 @@ async def sync_conversation_histories(
                                         stats["activities_created"] += 1
                 else:
                     stats["still_pending"] += 1
-
-                # Rate limit: Smartlead allows ~2 req/s
-                await asyncio.sleep(0.6)
 
             except Exception as e:
                 logger.error(f"sync_conversation_histories: error checking lead {reply.lead_email}: {e}")

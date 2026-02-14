@@ -2165,6 +2165,23 @@ async def generate_reply_for_contact(
     subject = latest_inbound.subject or ""
     body = latest_inbound.body or latest_inbound.snippet or ""
 
+    # Resolve sender identity from project
+    _sender_name = None
+    _sender_position = None
+    _sender_company = None
+    if contact.project_id:
+        try:
+            proj_result = await session.execute(
+                select(Project).where(Project.id == contact.project_id)
+            )
+            proj = proj_result.scalar_one_or_none()
+            if proj:
+                _sender_name = proj.sender_name
+                _sender_position = proj.sender_position
+                _sender_company = proj.sender_company
+        except Exception:
+            pass  # Non-fatal
+
     try:
         classification = await classify_reply(subject=subject, body=body)
         draft = await generate_draft_reply(
@@ -2174,6 +2191,9 @@ async def generate_reply_for_contact(
             first_name=contact.first_name or "",
             last_name=contact.last_name or "",
             company=contact.company_name or "",
+            sender_name=_sender_name,
+            sender_position=_sender_position,
+            sender_company=_sender_company,
         )
     except Exception as e:
         logger.error(f"Failed to generate reply for contact {contact_id}: {e}")

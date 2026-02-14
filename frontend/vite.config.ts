@@ -10,8 +10,16 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:8000',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            const loc = proxyRes.headers['location'];
+            if (loc && typeof loc === 'string') {
+              proxyRes.headers['location'] = loc.replace(/^https?:\/\/[^/]+/, '');
+            }
+          });
+        },
       },
     },
   },

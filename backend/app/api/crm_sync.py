@@ -1105,8 +1105,11 @@ async def getsales_webhook(
             from app.services.reply_processor import generate_draft_reply
             from app.models.reply import ProcessedReply, ReplyPromptTemplateModel
 
-            # Look up project-based prompt
+            # Look up project-based prompt and sender identity
             custom_reply_prompt = None
+            gs_sender_name = None
+            gs_sender_position = None
+            gs_sender_company = None
             flow_name_for_lookup = automation_data.get("name")
             if flow_name_for_lookup:
                 from app.models.contact import Project
@@ -1116,22 +1119,25 @@ async def getsales_webhook(
                     select(Project).where(
                         and_(
                             sa_cast(Project.campaign_filters, JSONB).contains([flow_name_for_lookup]),
-                            Project.reply_prompt_template_id.isnot(None),
                             Project.deleted_at.is_(None),
                         )
                     ).limit(1)
                 )
                 proj = proj_result.scalar()
-                if proj and proj.reply_prompt_template_id:
-                    tmpl_result = await session.execute(
-                        select(ReplyPromptTemplateModel).where(
-                            ReplyPromptTemplateModel.id == proj.reply_prompt_template_id
+                if proj:
+                    gs_sender_name = proj.sender_name
+                    gs_sender_position = proj.sender_position
+                    gs_sender_company = proj.sender_company
+                    if proj.reply_prompt_template_id:
+                        tmpl_result = await session.execute(
+                            select(ReplyPromptTemplateModel).where(
+                                ReplyPromptTemplateModel.id == proj.reply_prompt_template_id
+                            )
                         )
-                    )
-                    tmpl = tmpl_result.scalar()
-                    if tmpl:
-                        custom_reply_prompt = tmpl.prompt_text
-                        logger.info(f"[GETSALES] Using project prompt from '{proj.name}'")
+                        tmpl = tmpl_result.scalar()
+                        if tmpl:
+                            custom_reply_prompt = tmpl.prompt_text
+                            logger.info(f"[GETSALES] Using project prompt from '{proj.name}'")
 
             draft = await generate_draft_reply(
                 subject="LinkedIn conversation",
@@ -1141,6 +1147,9 @@ async def getsales_webhook(
                 last_name=contact_data.get("last_name", ""),
                 company=account_data.get("name", ""),
                 custom_prompt=custom_reply_prompt,
+                sender_name=gs_sender_name,
+                sender_position=gs_sender_position,
+                sender_company=gs_sender_company,
             )
 
             processed_reply = ProcessedReply(
