@@ -353,12 +353,12 @@ async def list_contacts(
             )
         )
     
-    # Deduplicate when campaign-based filtering is used (ILIKE on JSON can match multiple campaigns per contact)
-    if project_id or campaign:
-        query = query.distinct()
-
-    # Count total
-    count_query = select(func.count()).select_from(query.subquery())
+    # Count total (use COUNT DISTINCT id to avoid JSON equality issues with DISTINCT *)
+    needs_distinct = bool(project_id or campaign)
+    if needs_distinct:
+        count_query = select(func.count(Contact.id.distinct())).where(query.whereclause)
+    else:
+        count_query = select(func.count()).select_from(query.subquery())
     total_result = await session.execute(count_query)
     total = total_result.scalar() or 0
     
@@ -369,12 +369,30 @@ async def list_contacts(
     else:
         query = query.order_by(sort_column.asc())
     
-    # Pagination
-    offset = (page - 1) * page_size
-    query = query.offset(offset).limit(page_size)
-    
-    result = await session.execute(query)
-    contacts = result.scalars().all()
+    # Deduplicate when campaign-based OR filtering might produce duplicates
+    if needs_distinct:
+        # Use subquery to get distinct IDs with sort, then fetch full rows
+        id_query = select(Contact.id).where(query.whereclause).group_by(Contact.id)
+        id_query = id_query.order_by(sort_column.desc() if sort_order == "desc" else sort_column.asc())
+        id_query = id_query.offset((page - 1) * page_size).limit(page_size)
+        id_result = await session.execute(id_query)
+        contact_ids = [r[0] for r in id_result.fetchall()]
+        if contact_ids:
+            final_query = select(Contact).where(Contact.id.in_(contact_ids))
+            if sort_order == "desc":
+                final_query = final_query.order_by(sort_column.desc())
+            else:
+                final_query = final_query.order_by(sort_column.asc())
+            result = await session.execute(final_query)
+            contacts = result.scalars().all()
+        else:
+            contacts = []
+    else:
+        # Pagination
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+        result = await session.execute(query)
+        contacts = result.scalars().all()
     
     # Enrich with project names
     project_ids = list(set(c.project_id for c in contacts if c.project_id))
