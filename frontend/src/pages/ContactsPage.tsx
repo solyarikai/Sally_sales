@@ -47,7 +47,7 @@ export function ContactsPage() {
   const [, setGridApi] = useState<GridApi | null>(null);
   const toast = useToast();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   // Data
   const [contacts, setContacts] = useState<Contact[]>([]);
