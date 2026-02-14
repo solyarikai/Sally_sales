@@ -444,15 +444,45 @@ class CompanySearchService:
             (r[0] or "").strip().lower() for r in existing_result.fetchall()
         )
 
-        # Phase A: Doc keywords only (curated phrases from keyword docs)
+        # Phase A: Doc keywords first (curated phrases from keyword docs)
         tagged_queries = build_doc_keyword_queries(
             segment_key=segment_key,
             geo_key=geo_key,
             existing_queries=existing_queries,
         )
-
-        template_count = 0
         doc_count = len(tagged_queries)
+
+        # Phase A2: Template queries (deterministic, variable-expanded)
+        # Use templates to fill up when doc keywords are exhausted
+        template_queries_ru = build_segment_queries(
+            segment_key=segment_key,
+            geo_key=geo_key,
+            language="ru",
+            existing_queries=existing_queries,
+        )
+        template_queries_en = build_segment_queries(
+            segment_key=segment_key,
+            geo_key=geo_key,
+            language="en",
+            existing_queries=existing_queries,
+        )
+        # Dedup templates against doc keywords already added
+        doc_query_texts = set(q["query"].strip().lower() for q in tagged_queries)
+        for tq in template_queries_ru + template_queries_en:
+            if tq["query"].strip().lower() not in doc_query_texts:
+                tagged_queries.append(tq)
+                doc_query_texts.add(tq["query"].strip().lower())
+
+        template_count = len(tagged_queries) - doc_count
+
+        # Cap queries per geo to keep runs efficient (process in batches across runs)
+        MAX_QUERIES_PER_GEO = 100
+        if len(tagged_queries) > MAX_QUERIES_PER_GEO:
+            logger.info(
+                f"Capping {segment_key}/{geo_key} from {len(tagged_queries)} to {MAX_QUERIES_PER_GEO} queries"
+            )
+            tagged_queries = tagged_queries[:MAX_QUERIES_PER_GEO]
+            template_count = len(tagged_queries) - doc_count
 
         stats = {
             "segment": segment_key,
