@@ -2637,6 +2637,689 @@ DOC_KEYWORDS: list[tuple[str, str, str, list[str]]] = [
         "Singapore capital management firm",
         "Raffles Place investment advisory",
     ]),
+
+    # ══════════════════════════════════════════════════════════════════
+    # ROUND 3: Hyper-granular geo queries — cities, districts, areas
+    # City/district-specific queries are the top converters
+    # ══════════════════════════════════════════════════════════════════
+
+    # ────────────────────────────────────────────
+    # REAL ESTATE / TURKEY — districts & areas
+    # ────────────────────────────────────────────
+    ("real_estate", "turkey", "ru", [
+        # Istanbul districts
+        "недвижимость Бешикташ Стамбул", "квартира Кадыкёй Стамбул",
+        "квартира Шишли Стамбул", "квартира Бакыркёй Стамбул",
+        "квартира Бейоглу Стамбул", "недвижимость Сарыер Стамбул",
+        "квартира Ускюдар Стамбул", "недвижимость Башакшехир Стамбул",
+        "квартира Эсенюрт Стамбул", "пентхаус Бейликдюзю Стамбул",
+        "квартира Маслак Стамбул", "недвижимость Левент Стамбул",
+        "квартира Нишанташи Стамбул", "квартира Тарабья Стамбул",
+        "вилла Бююкчекмедже Стамбул",
+        # Antalya districts
+        "квартира Коньяалты Анталья", "квартира Лара Анталья",
+        "квартира Кепез Анталья", "вилла Дёшемеалты Анталья",
+        "недвижимость Муратпаша Анталья", "квартира Хурма Анталья",
+        "вилла Куздере Анталья",
+        # Alanya districts
+        "квартира Махмутлар Аланья", "квартира Оба Аланья",
+        "квартира Тосмур Аланья", "квартира Авсаллар Аланья",
+        "квартира Кестель Аланья", "квартира Конаклы Аланья",
+        "пентхаус Клеопатра Аланья", "вилла Каргыджак Аланья",
+        # Bodrum areas
+        "вилла Ялыкавак Бодрум", "вилла Гюмюшлюк Бодрум",
+        "вилла Тюркбюкю Бодрум", "квартира Битез Бодрум",
+        "квартира Гюндоган Бодрум", "недвижимость Ортакент Бодрум",
+        # Other Turkish cities - specifics
+        "квартира Газипаша", "недвижимость Дидим", "квартира Кушадасы",
+        "недвижимость Чешме", "вилла Дальян", "вилла Каш",
+        "недвижимость Антакья", "квартира Конья",
+    ]),
+    ("real_estate", "turkey", "en", [
+        # Istanbul districts
+        "property Besiktas Istanbul", "apartment Kadikoy Istanbul",
+        "apartment Sisli Istanbul", "property Sariyer Istanbul",
+        "apartment Basaksehir Istanbul", "property Maslak Istanbul",
+        "apartment Levent Istanbul", "property Nisantasi Istanbul",
+        "apartment Beyoglu Istanbul", "property Uskudar Istanbul",
+        "penthouse Beylikduzu Istanbul", "villa Buyukcekmece Istanbul",
+        # Antalya districts
+        "apartment Konyaalti Antalya", "apartment Lara Antalya",
+        "property Kepez Antalya", "villa Dosemealti Antalya",
+        "property Muratpasa Antalya", "apartment Hurma Antalya",
+        # Alanya districts
+        "apartment Mahmutlar Alanya", "apartment Oba Alanya",
+        "apartment Tosmur Alanya", "apartment Avsallar Alanya",
+        "apartment Kestel Alanya", "apartment Konakli Alanya",
+        "penthouse Cleopatra Alanya", "villa Kargicak Alanya",
+        # Bodrum areas
+        "villa Yalikavak Bodrum", "villa Gumusluk Bodrum",
+        "villa Turkbuku Bodrum", "property Bitez Bodrum",
+        "property Gundogan Bodrum", "property Ortakent Bodrum",
+        # Other cities
+        "property Gazipasa", "property Didim", "property Kusadasi",
+        "property Cesme", "villa Dalyan", "villa Kas Turkey",
+        "property Demre", "apartment Finike",
+    ]),
+
+    # ────────────────────────────────────────────
+    # REAL ESTATE / THAILAND_BALI — areas & beaches
+    # ────────────────────────────────────────────
+    ("real_estate", "thailand_bali", "ru", [
+        # Phuket beaches/areas
+        "недвижимость Най Харн Пхукет", "вилла Лаян Пхукет",
+        "вилла Банг Тао Пхукет", "кондо Сурин Пхукет",
+        "вилла Чернг Талай Пхукет", "недвижимость Най Янг Пхукет",
+        "вилла Лагуна Пхукет", "квартира Патонг Пхукет",
+        "недвижимость Таланг Пхукет", "вилла Май Кхао Пхукет",
+        "кондо Карон Пхукет",
+        # Pattaya areas
+        "кондо Джомтьен Паттайя", "кондо Пратамнак Паттайя",
+        "кондо Вонгамат Паттайя", "кондо На Джомтьен Паттайя",
+        "кондо Центральная Паттайя", "недвижимость Банг Саре",
+        # Samui areas
+        "вилла Бопхут Самуи", "вилла Чавенг Самуи",
+        "вилла Маенам Самуи", "вилла Ламай Самуи",
+        "недвижимость Банг По Самуи",
+        # Bangkok areas
+        "кондо Сукхумвит Бангкок", "кондо Силом Бангкок",
+        "кондо Саторн Бангкок", "кондо Он Нут Бангкок",
+        "квартира Тонг Ло Бангкок", "кондо Асок Бангкок",
+        # Bali areas
+        "вилла Берава Бали", "вилла Умалас Бали",
+        "вилла Кечак Бали", "вилла Менджанган Бали",
+        "вилла Амед Бали", "вилла Ловина Бали",
+        "вилла Букит Бали", "вилла Кута Утара Бали",
+    ]),
+    ("real_estate", "thailand_bali", "en", [
+        # Phuket beaches/areas
+        "villa Nai Harn Phuket", "villa Layan Phuket",
+        "condo Surin Beach Phuket", "villa Cherng Talay Phuket",
+        "property Nai Yang Phuket", "villa Laguna Phuket",
+        "apartment Patong Phuket", "property Thalang Phuket",
+        "villa Mai Khao Phuket", "condo Karon Phuket",
+        "villa Cape Yamu Phuket", "property Ao Po Phuket",
+        # Pattaya areas
+        "condo Jomtien Pattaya", "condo Pratumnak Pattaya",
+        "condo Wongamat Pattaya", "condo Na Jomtien Pattaya",
+        "property Bang Saray", "condo Central Pattaya",
+        # Samui areas
+        "villa Bophut Koh Samui", "villa Chaweng Koh Samui",
+        "villa Maenam Koh Samui", "villa Lamai Koh Samui",
+        "property Bang Po Samui",
+        # Bangkok
+        "condo Sukhumvit Bangkok", "condo Silom Bangkok",
+        "condo Sathorn Bangkok", "condo Thonglor Bangkok",
+        "condo Asoke Bangkok", "condo On Nut Bangkok",
+        # Bali areas
+        "villa Berawa Bali", "villa Umalas Bali",
+        "villa Amed Bali", "villa Lovina Bali",
+        "villa Bukit Bali", "villa Kerobokan Bali",
+        "villa Sanur Bali", "villa Candidasa Bali",
+        "villa Tegallalang Bali", "villa Munduk Bali",
+    ]),
+
+    # ────────────────────────────────────────────
+    # REAL ESTATE / SPAIN_PORTUGAL — cities & coasts
+    # ────────────────────────────────────────────
+    ("real_estate", "spain_portugal", "ru", [
+        # Costa del Sol cities
+        "недвижимость Фуэнхирола", "недвижимость Михас",
+        "недвижимость Бенальмадена", "недвижимость Нерха",
+        "недвижимость Эстепона", "квартира Торремолинос",
+        "вилла Сотогранде", "недвижимость Манильва",
+        # Costa Blanca cities
+        "квартира Торревьеха", "квартира Бенидорм",
+        "недвижимость Хавеа", "недвижимость Дения",
+        "квартира Кальпе", "недвижимость Морайра",
+        "недвижимость Альтеа", "квартира Ориуэла Коста",
+        # Barcelona areas
+        "квартира Эшампле Барселона", "квартира Сарриа Барселона",
+        "квартира Грасиа Барселона", "недвижимость Ситжес",
+        "недвижимость Кастельдефельс", "недвижимость Гава",
+        # Mallorca
+        "вилла Пальма де Майорка", "вилла Сольер Майорка",
+        "недвижимость Андрач Майорка", "квартира Пуэрто Поленса",
+        "недвижимость Санта Понса", "вилла Дейя Майорка",
+        # Ibiza
+        "вилла Сан Хосе Ибица", "квартира Ибица город",
+        "вилла Санта Эулалия Ибица", "недвижимость Сан Антонио Ибица",
+        # Canary Islands
+        "квартира Коста Адехе Тенерифе", "недвижимость Лас Америкас",
+        "квартира Санта Крус Тенерифе", "недвижимость Маспаломас",
+        # Portugal cities
+        "квартира Шиаду Лиссабон", "квартира Алфама Лиссабон",
+        "квартира Принсипе Реал Лиссабон", "недвижимость Белен Лиссабон",
+        "недвижимость Эшторил", "квартира Синтра",
+        "квартира Рибейра Порту", "недвижимость Фару",
+        "недвижимость Лагуш", "вилла Виламоура",
+        "недвижимость Тавира", "квартира Фуншал Мадейра",
+        "недвижимость Назаре", "недвижимость Компорта",
+        "квартира Авейру",
+    ]),
+    ("real_estate", "spain_portugal", "en", [
+        # Costa del Sol
+        "property Fuengirola", "property Mijas Costa",
+        "property Benalmadena", "property Nerja",
+        "villa Sotogrande", "property Manilva",
+        # Costa Blanca
+        "apartment Torrevieja", "property Javea",
+        "property Denia", "property Calpe",
+        "property Moraira", "property Altea",
+        "apartment Orihuela Costa",
+        # Barcelona area
+        "apartment Eixample Barcelona", "property Sarria Barcelona",
+        "property Sitges", "property Castelldefels",
+        # Mallorca
+        "villa Palma de Mallorca", "villa Soller Mallorca",
+        "property Andratx Mallorca", "property Puerto Pollensa",
+        "villa Deya Mallorca", "property Santa Ponsa",
+        # Ibiza
+        "villa San Jose Ibiza", "property Santa Eulalia Ibiza",
+        "property San Antonio Ibiza",
+        # Canaries
+        "property Costa Adeje Tenerife", "property Las Americas Tenerife",
+        "apartment Maspalomas Gran Canaria",
+        # Portugal cities/areas
+        "apartment Chiado Lisbon", "apartment Alfama Lisbon",
+        "apartment Principe Real Lisbon", "property Belem Lisbon",
+        "property Estoril", "property Sintra",
+        "apartment Ribeira Porto", "property Faro",
+        "property Lagos Portugal", "villa Vilamoura",
+        "property Tavira", "apartment Funchal Madeira",
+        "property Nazare Portugal", "property Comporta",
+        "property Aveiro",
+    ]),
+
+    # ────────────────────────────────────────────
+    # REAL ESTATE / GREECE — islands & areas
+    # ────────────────────────────────────────────
+    ("real_estate", "greece", "ru", [
+        # Athens areas
+        "квартира Глифада Афины", "квартира Вула Афины",
+        "квартира Кифисия Афины", "квартира Колонаки Афины",
+        "недвижимость Пирей", "квартира Маруси Афины",
+        "недвижимость Палео Фалиро", "квартира Неа Смирни",
+        # Crete cities
+        "вилла Ханья Крит", "вилла Ретимно Крит",
+        "квартира Ираклион Крит", "вилла Элунда Крит",
+        "недвижимость Агиос Николаос Крит", "вилла Киссамос Крит",
+        # Islands
+        "вилла Парос", "вилла Наксос", "квартира Закинф",
+        "вилла Кефалония", "вилла Скиатос", "вилла Лефкада",
+        "вилла Тасос", "недвижимость Эгина",
+        "квартира Спецес", "вилла Идра",
+        # Halkidiki
+        "вилла Кассандра Халкидики", "вилла Ситония Халкидики",
+        "недвижимость Пефкохори Халкидики",
+        # Peloponnese
+        "недвижимость Нафплион", "вилла Толо",
+        "недвижимость Каламата", "вилла Порто Хели",
+    ]),
+    ("real_estate", "greece", "en", [
+        # Athens areas
+        "apartment Glyfada Athens", "apartment Voula Athens",
+        "apartment Kifisia Athens", "apartment Kolonaki Athens",
+        "property Piraeus", "property Paleo Faliro",
+        # Crete cities
+        "villa Chania Crete", "villa Rethymno Crete",
+        "apartment Heraklion Crete", "villa Elounda Crete",
+        "property Agios Nikolaos Crete", "villa Kissamos Crete",
+        # Islands
+        "villa Paros", "villa Naxos", "property Zakynthos",
+        "villa Kefalonia", "villa Skiathos", "villa Lefkada",
+        "villa Thassos", "property Aegina",
+        "property Spetses", "villa Hydra",
+        # Halkidiki
+        "villa Kassandra Halkidiki", "villa Sithonia Halkidiki",
+        "property Pefkohori Halkidiki",
+        # Peloponnese
+        "property Nafplio", "villa Porto Heli",
+        "property Kalamata",
+    ]),
+
+    # ────────────────────────────────────────────
+    # REAL ESTATE / CYPRUS — cities & areas
+    # ────────────────────────────────────────────
+    ("real_estate", "cyprus", "ru", [
+        # Limassol areas
+        "квартира Гермасойя Лимассол", "квартира Меса Гейтония Лимассол",
+        "квартира Неаполис Лимассол", "квартира Агиос Тихонас Лимассол",
+        "квартира Потамос Гермасойяс", "вилла Мони Лимассол",
+        "вилла Писсури", "недвижимость Амафунта Лимассол",
+        "квартира набережная Лимассол Марина",
+        # Paphos areas
+        "вилла Корал Бэй Пафос", "квартира Като Пафос",
+        "вилла Пейя Пафос", "недвижимость Тала Пафос",
+        "квартира Кисонерга Пафос", "вилла Полис Хрисоху",
+        # Larnaca areas
+        "квартира Маккензи Ларнака", "недвижимость Дромолаксия",
+        "недвижимость Ливадия Ларнака", "квартира Фоиникудес Ларнака",
+        # Famagusta
+        "квартира Паралимни", "квартира Дериния",
+        "квартира Каппарис", "недвижимость Айя Напа",
+    ]),
+    ("real_estate", "cyprus", "en", [
+        # Limassol areas
+        "apartment Germasogeia Limassol", "apartment Neapolis Limassol",
+        "apartment Agios Tychonas Limassol", "villa Monagroulli Limassol",
+        "villa Pissouri Cyprus", "property Amathus Limassol",
+        "apartment Limassol Marina",
+        # Paphos areas
+        "villa Coral Bay Paphos", "apartment Kato Paphos",
+        "villa Peyia Paphos", "property Tala Paphos",
+        "apartment Kissonerga Paphos", "villa Polis Chrysochous",
+        # Larnaca
+        "apartment Mackenzie Larnaca", "property Dhromolaxia",
+        "property Livadia Larnaca",
+        # Famagusta
+        "apartment Paralimni", "apartment Deryneia",
+        "property Kapparis Cyprus", "property Protaras",
+    ]),
+
+    # ────────────────────────────────────────────
+    # REAL ESTATE / MONTENEGRO — towns & areas
+    # ────────────────────────────────────────────
+    ("real_estate", "montenegro", "ru", [
+        # Budva specifics
+        "квартира Бечичи Будва", "квартира Рафаиловичи Будва",
+        "квартира Пржно Будва", "квартира Свети Стефан",
+        "квартира старый город Будва",
+        # Tivat
+        "квартира Донья Ластва Тиват", "квартира Селяново Тиват",
+        "квартира Лепетане", "вилла Крашичи Тиват",
+        # Kotor
+        "квартира Доброта Котор", "квартира Столив Котор",
+        "квартира Муо Котор", "квартира Пераст",
+        "квартира Рисан",
+        # Herceg Novi
+        "квартира Мелине Херцег Нови", "квартира Игало",
+        "квартира Биела", "квартира Дженовичи",
+        # South
+        "квартира Сутоморе", "квартира Добра Вода",
+        "недвижимость Святой Стефан",
+    ]),
+    ("real_estate", "montenegro", "en", [
+        "apartment Becici Budva", "apartment Rafailovici",
+        "apartment Przno Budva", "property Sveti Stefan",
+        "apartment Donja Lastva Tivat", "property Lepetane",
+        "apartment Dobrota Kotor", "property Perast",
+        "property Risan Montenegro", "apartment Igalo",
+        "apartment Bijela Montenegro", "property Djenovici",
+        "property Sutomore Montenegro",
+    ]),
+
+    # ────────────────────────────────────────────
+    # REAL ESTATE / DUBAI — areas & communities
+    # ────────────────────────────────────────────
+    ("real_estate", "dubai", "ru", [
+        "квартира Дубай Крик Харбор", "квартира Мейдан Дубай",
+        "вилла Дамак Хиллс", "квартира Дубай Саут",
+        "квартира Аль Фурджан Дубай", "вилла Тилал Аль Гаф",
+        "квартира Дубай Хиллс Эстейт", "квартира Дубай Марина Гейт",
+        "квартира МБР Сити", "вилла Эмаар Бичфронт",
+        "квартира Джумейра Вилладж Сёркл", "вилла Аравийские Ранчи 3",
+        "квартира Дубай Саут Гольф", "квартира Аль Джаддаф",
+        "квартира Дубай Силикон Оазис", "квартира Таун Сквер Дубай",
+    ]),
+    ("real_estate", "dubai", "en", [
+        "apartment Dubai Creek Harbour", "apartment Meydan Dubai",
+        "villa Damac Hills 2", "property Dubai South",
+        "apartment Al Furjan Dubai", "villa Tilal Al Ghaf",
+        "apartment Dubai Hills Estate Mall", "apartment Marina Gate Dubai",
+        "apartment MBR City", "villa Emaar Beachfront",
+        "apartment JVC Dubai", "villa Arabian Ranches 3",
+        "apartment Al Jaddaf Dubai", "property Dubai Silicon Oasis",
+        "apartment Town Square Dubai", "villa The Valley Dubai",
+        "apartment Sobha Hartland", "apartment Creek Rise Dubai",
+        "property Jumeirah Golf Estates", "apartment Port de La Mer",
+    ]),
+
+    # ────────────────────────────────────────────
+    # LEGAL / MOSCOW — specific service niches
+    # ────────────────────────────────────────────
+    ("legal", "moscow", "ru", [
+        "юрист по трастам Москва", "юрист по зарубежным фондам Москва",
+        "юрист по валютному контролю Москва",
+        "юрист по КИК Петербург", "налоговый советник НДФЛ нерезидент",
+        "юрист по международному структурированию Петербург",
+        "юридическая фирма ВЭД Москва",
+        "юрист по международным транзакциям",
+        "юрист по оффшорам Петербург",
+        "юрист по зарубежным счетам Москва",
+        "юрист по двойному налогообложению",
+        "юрист по международному наследству",
+        "юрист по семейному фонду Петербург",
+        "юрист по зарубежной недвижимости Москва",
+        "юрист по зарубежным инвестициям Москва",
+        "юридическое сопровождение релокации",
+    ]),
+
+    # ────────────────────────────────────────────
+    # LEGAL / UAE — freezones & specific areas
+    # ────────────────────────────────────────────
+    ("legal", "uae_legal", "en", [
+        "company formation DMCC Dubai", "company formation JAFZA",
+        "company formation RAKEZ", "company formation IFZA Dubai",
+        "company formation AFZA Ajman", "company formation SPC ADGM",
+        "company formation Meydan freezone", "company formation DWTC",
+        "company formation Hamriyah freezone",
+        "business setup Abu Dhabi mainland",
+        "business setup Sharjah freezone",
+        "business setup Fujairah freezone",
+        "PRO services Abu Dhabi", "PRO services Sharjah",
+        "corporate bank account Dubai",
+        "business license renewal Dubai",
+    ]),
+    ("legal", "uae_legal", "ru", [
+        "регистрация компании DMCC Дубай", "регистрация JAFZA Дубай",
+        "открыть компанию РАКЕЗ", "открыть компанию IFZA Дубай",
+        "открыть компанию Абу-Даби", "фризона Шарджа регистрация",
+        "фризона Фуджейра", "фризона Аджман",
+        "бизнес лицензия Дубай", "банковский счет ОАЭ",
+        "продление лицензии Дубай",
+    ]),
+
+    # ────────────────────────────────────────────
+    # LEGAL / CYPRUS — service niches
+    # ────────────────────────────────────────────
+    ("legal", "cyprus_legal", "en", [
+        "Limassol corporate services", "Paphos law firm English",
+        "Larnaca company registration", "Nicosia tax advisory",
+        "Cyprus investment fund RAIF", "Cyprus AIF license",
+        "Cyprus forex license CySEC", "Cyprus EMI license",
+        "Cyprus ship management company",
+        "Cyprus nominee director service",
+    ]),
+    ("legal", "cyprus_legal", "ru", [
+        "юрист Лимассол для бизнеса",
+        "регистрация фонда Кипр", "CySEC лицензия Кипр",
+        "аудитор Никосия", "бухгалтер Ларнака",
+        "юрист Пафос для россиян",
+    ]),
+
+    # ────────────────────────────────────────────
+    # LEGAL / GEORGIA — cities
+    # ────────────────────────────────────────────
+    ("legal", "georgia_legal", "ru", [
+        "юрист Батуми для бизнеса из России",
+        "бухгалтер Тбилиси для иностранцев",
+        "регистрация компании Батуми",
+        "IT компания Батуми регистрация",
+        "юрист Кутаиси",
+    ]),
+    ("legal", "georgia_legal", "en", [
+        "company registration Batumi", "law firm Batumi",
+        "accountant Tbilisi for foreigners",
+        "IT company Batumi setup", "tax advisor Kutaisi",
+        "business visa Georgia Batumi",
+    ]),
+
+    # ────────────────────────────────────────────
+    # LEGAL / SERBIA — cities
+    # ────────────────────────────────────────────
+    ("legal", "serbia_legal", "en", [
+        "company registration Novi Sad", "law firm Novi Sad",
+        "company registration Nis Serbia", "business setup Subotica",
+        "tax advisor Novi Sad", "co-working visa Serbia Novi Sad",
+    ]),
+    ("legal", "serbia_legal", "ru", [
+        "юрист Нови Сад для россиян", "регистрация компании Нови Сад",
+        "бизнес Ниш Сербия", "юрист Белград для бизнеса",
+        "бухгалтер Сербия для россиян",
+    ]),
+
+    # ────────────────────────────────────────────
+    # MIGRATION / SPAIN — cities & regions
+    # ────────────────────────────────────────────
+    ("migration", "spain_gv", "en", [
+        "Golden Visa Alicante", "Golden Visa Malaga",
+        "Golden Visa Valencia", "Golden Visa Costa del Sol",
+        "Golden Visa Costa Blanca", "Golden Visa Tenerife",
+        "Golden Visa Mallorca", "Golden Visa Ibiza",
+        "residency by investment Barcelona",
+        "residency by investment Marbella",
+        "immigration lawyer Barcelona", "immigration lawyer Madrid",
+        "immigration lawyer Malaga", "immigration lawyer Marbella",
+        "non-lucrative visa Spain Barcelona",
+        "digital nomad visa Spain Barcelona",
+        "digital nomad visa Spain Malaga",
+    ]),
+    ("migration", "spain_gv", "ru", [
+        "Golden Visa Аликанте", "Golden Visa Малага",
+        "Golden Visa Валенсия", "Golden Visa Тенерифе",
+        "Golden Visa Майорка", "Golden Visa Ибица",
+        "иммиграционный юрист Барселона",
+        "иммиграционный юрист Мадрид",
+        "иммиграционный юрист Малага",
+        "виза цифрового кочевника Испания Барселона",
+        "нелюкративная виза Испания Малага",
+        "ВНЖ Коста дель Соль", "ВНЖ Коста Бланка",
+    ]),
+
+    # ────────────────────────────────────────────
+    # MIGRATION / PORTUGAL — cities & regions
+    # ────────────────────────────────────────────
+    ("migration", "portugal_gv", "en", [
+        "Golden Visa Porto agent", "Golden Visa Algarve agent",
+        "Golden Visa Faro agent", "Golden Visa Silver Coast",
+        "Golden Visa Madeira", "Golden Visa Azores",
+        "immigration lawyer Lisbon", "immigration lawyer Porto",
+        "D7 visa Lisbon consultant", "D7 visa Porto consultant",
+        "D7 visa Algarve", "NHR regime consultant Lisbon",
+        "digital nomad visa Portugal Lisbon",
+        "digital nomad visa Portugal Porto",
+        "startup visa Lisbon",
+    ]),
+    ("migration", "portugal_gv", "ru", [
+        "Golden Visa Порту агент", "Golden Visa Фару агент",
+        "Golden Visa Мадейра", "Golden Visa Азорские острова",
+        "иммиграционный юрист Лиссабон",
+        "иммиграционный юрист Порту",
+        "D7 виза Лиссабон", "D7 виза Порту",
+        "NHR режим консультант Лиссабон",
+        "виза цифрового кочевника Португалия",
+    ]),
+
+    # ────────────────────────────────────────────
+    # MIGRATION / GREECE — cities & islands
+    # ────────────────────────────────────────────
+    ("migration", "greece_gv", "en", [
+        "Golden Visa Crete agent", "Golden Visa Thessaloniki agent",
+        "Golden Visa Corfu", "Golden Visa Rhodes",
+        "Golden Visa Mykonos", "Golden Visa Halkidiki",
+        "immigration lawyer Athens", "immigration lawyer Thessaloniki",
+        "residency by investment Crete",
+        "digital nomad visa Greece Athens",
+    ]),
+    ("migration", "greece_gv", "ru", [
+        "Golden Visa Крит агент", "Golden Visa Салоники агент",
+        "Golden Visa Корфу", "Golden Visa Родос",
+        "Golden Visa Миконос", "Golden Visa Халкидики",
+        "иммиграционный юрист Афины",
+        "иммиграционный юрист Салоники",
+        "ВНЖ через недвижимость Крит",
+    ]),
+
+    # ────────────────────────────────────────────
+    # MIGRATION / UAE — emirates & areas
+    # ────────────────────────────────────────────
+    ("migration", "uae_visa", "en", [
+        "Golden Visa Dubai Marina consultant",
+        "Golden Visa Abu Dhabi consultant",
+        "Golden Visa Sharjah", "Golden Visa RAK",
+        "freelance visa Dubai Marina", "freelance visa Abu Dhabi",
+        "entrepreneur visa Abu Dhabi", "investor visa Abu Dhabi",
+        "retirement visa Abu Dhabi",
+    ]),
+    ("migration", "uae_visa", "ru", [
+        "Golden Visa Абу-Даби", "Golden Visa Шарджа",
+        "фрилансер виза Абу-Даби", "предпринимательская виза Абу-Даби",
+        "резидентская виза Шарджа", "резидентская виза РАК",
+    ]),
+
+    # ────────────────────────────────────────────
+    # MIGRATION / GENERAL — Russian cities
+    # ────────────────────────────────────────────
+    ("migration", "general_migration", "ru", [
+        "агент по переезду Москва", "агент по переезду Петербург",
+        "консультант по эмиграции Москва",
+        "консультант по эмиграции Петербург",
+        "релокационное агентство Москва",
+        "релокационное агентство Петербург",
+        "релокация Казань", "релокация Новосибирск",
+        "релокация Екатеринбург", "релокация Краснодар",
+        "релокация из России Москва", "релокация из России Петербург",
+        "помощь переезд Москва", "помощь переезд Петербург",
+    ]),
+
+    # ────────────────────────────────────────────
+    # INVESTMENT / SWITZERLAND — cities
+    # ────────────────────────────────────────────
+    ("investment", "switzerland", "ru", [
+        "управление активами Цюрих", "управление активами Женева",
+        "управление активами Лугано", "управление активами Лозанна",
+        "управление активами Базель", "инвестиционный бутик Цюрих",
+        "инвестиционный бутик Женева", "инвестиционный бутик Лугано",
+        "финансовый советник Цюрих", "финансовый советник Женева",
+        "портфельный управляющий Цюрих", "портфельный управляющий Женева",
+    ]),
+    ("investment", "switzerland", "en", [
+        "asset manager Zurich", "asset manager Geneva",
+        "asset manager Lugano", "asset manager Lausanne",
+        "asset manager Basel", "investment boutique Zurich",
+        "investment boutique Geneva", "wealth advisor Zurich",
+        "wealth advisor Geneva", "wealth advisor Lugano",
+        "portfolio manager Zurich", "portfolio manager Geneva",
+        "EAM Zurich", "EAM Geneva", "EAM Lugano",
+    ]),
+
+    # ────────────────────────────────────────────
+    # INVESTMENT / MOSCOW — Russian cities
+    # ────────────────────────────────────────────
+    ("investment", "moscow", "ru", [
+        "инвестиционный советник Петербург",
+        "инвестиционная компания Петербург",
+        "управляющая компания Петербург",
+        "инвестиционный советник Казань",
+        "инвестиционный советник Екатеринбург",
+        "инвестиционный советник Новосибирск",
+        "инвестиционный советник Краснодар",
+        "инвестиционный советник Нижний Новгород",
+        "финансовый консультант Петербург",
+        "финансовый консультант Екатеринбург",
+        "финансовый консультант Казань",
+        "управление активами Петербург",
+    ]),
+
+    # ────────────────────────────────────────────
+    # INVESTMENT / DUBAI — areas
+    # ────────────────────────────────────────────
+    ("investment", "dubai_difc", "en", [
+        "wealth manager DIFC", "wealth manager ADGM",
+        "financial advisor Abu Dhabi ADGM",
+        "asset management Abu Dhabi",
+        "portfolio management Abu Dhabi",
+        "investment advisory Abu Dhabi",
+        "wealth advisory Abu Dhabi",
+        "family office Abu Dhabi ADGM",
+    ]),
+    ("investment", "dubai_difc", "ru", [
+        "инвестиционный советник DIFC",
+        "управление активами Абу-Даби",
+        "финансовый советник Абу-Даби",
+        "управление портфелем Абу-Даби",
+    ]),
+
+    # ────────────────────────────────────────────
+    # CRYPTO / DUBAI — specific areas
+    # ────────────────────────────────────────────
+    ("crypto", "dubai_crypto", "en", [
+        "crypto OTC desk DIFC", "crypto license VARA Dubai",
+        "crypto fund DIFC", "crypto custody ADGM",
+        "digital asset license Abu Dhabi",
+        "crypto exchange Abu Dhabi",
+        "Bitcoin OTC Abu Dhabi",
+    ]),
+    ("crypto", "dubai_crypto", "ru", [
+        "крипто обменник DIFC Дубай", "VARA лицензия крипто Дубай",
+        "OTC биткоин Абу-Даби", "крипто фонд DIFC",
+        "крипто компания Абу-Даби",
+    ]),
+
+    # ────────────────────────────────────────────
+    # CRYPTO / MOSCOW — Russian cities
+    # ────────────────────────────────────────────
+    ("crypto", "moscow_crypto", "ru", [
+        "OTC крипто Петербург", "обменник USDT Петербург",
+        "купить биткоин Петербург", "OTC крипто Казань",
+        "OTC крипто Екатеринбург", "OTC крипто Новосибирск",
+        "обменник крипто Краснодар", "купить USDT Казань",
+        "крипто обмен Нижний Новгород",
+    ]),
+
+    # ────────────────────────────────────────────
+    # IMPORTERS / MOSCOW — Russian cities & specifics
+    # ────────────────────────────────────────────
+    ("importers", "moscow_import", "ru", [
+        "импорт из Китая Петербург", "импорт из Турции Петербург",
+        "ВЭД компания Петербург", "импорт оборудования Петербург",
+        "таможенный брокер Петербург", "логистика импорт Петербург",
+        "импорт из Дубай Петербург", "ВЭД компания Екатеринбург",
+        "импорт из Китая Новосибирск", "импорт оборудования Казань",
+        "ВЭД компания Краснодар", "импорт Нижний Новгород",
+        "параллельный импорт Петербург",
+        "параллельный импорт Екатеринбург",
+        "байер Стамбул", "байер Гуанчжоу",
+        "закупщик Стамбул", "закупщик Иу Китай",
+    ]),
+
+    # ────────────────────────────────────────────
+    # FAMILY OFFICE / SWITZERLAND — cities
+    # ────────────────────────────────────────────
+    ("family_office", "switzerland_fo", "en", [
+        "family office Zurich", "family office Geneva",
+        "family office Lugano", "family office Lausanne",
+        "family office Basel", "multi family office Lugano",
+        "wealth governance Zurich", "wealth governance Geneva",
+        "succession planning Zurich", "succession planning Geneva",
+        "private trust Zurich", "private trust Geneva",
+    ]),
+    ("family_office", "switzerland_fo", "ru", [
+        "семейный офис Цюрих", "семейный офис Женева",
+        "семейный офис Лугано", "семейный офис Лозанна",
+        "наследственное планирование Цюрих",
+        "наследственное планирование Женева",
+    ]),
+
+    # ────────────────────────────────────────────
+    # FAMILY OFFICE / MOSCOW — Russian cities
+    # ────────────────────────────────────────────
+    ("family_office", "moscow_fo", "ru", [
+        "семейный офис Петербург",
+        "family office Петербург",
+        "управление семейным капиталом Петербург",
+        "создание семейного офиса Петербург",
+        "мультисемейный офис Петербург",
+        "wealth management Петербург",
+        "управление состоянием Петербург",
+    ]),
+
+    # ────────────────────────────────────────────
+    # FAMILY OFFICE / DUBAI — areas
+    # ────────────────────────────────────────────
+    ("family_office", "dubai_fo", "en", [
+        "family office DIFC Dubai", "family office ADGM Abu Dhabi",
+        "multi family office Dubai DIFC",
+        "wealth advisory DIFC", "wealth advisory ADGM",
+        "family office setup Abu Dhabi",
+        "private trust Dubai DIFC",
+    ]),
+    ("family_office", "dubai_fo", "ru", [
+        "семейный офис Дубай DIFC", "семейный офис Абу-Даби",
+        "управление капиталом Абу-Даби",
+        "wealth management Абу-Даби",
+    ]),
 ]
 
 
