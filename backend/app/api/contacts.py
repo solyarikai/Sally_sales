@@ -260,7 +260,8 @@ async def list_contacts(
     
     # Apply filters
     if project_id:
-        # Check if project has campaign_filters — if so, filter by campaign overlap
+        # Include contacts linked via FK OR via campaign_filters
+        project_conditions = [Contact.project_id == project_id]
         proj_result = await session.execute(
             select(Project.campaign_filters).where(Project.id == project_id)
         )
@@ -271,10 +272,8 @@ async def list_contacts(
                 Contact.campaigns.cast(String).ilike(f'%{cf}%')
                 for cf in proj_campaign_filters
             ]
-            query = query.where(or_(*campaign_conditions))
-        else:
-            # Fallback to FK-based membership
-            query = query.where(Contact.project_id == project_id)
+            project_conditions.extend(campaign_conditions)
+        query = query.where(or_(*project_conditions))
     if segment:
         query = query.where(Contact.segment == segment)
     if status:

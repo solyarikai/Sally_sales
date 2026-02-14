@@ -65,8 +65,39 @@ def is_valid_email(email: str) -> bool:
         return False
 
     # Local part is a common placeholder
-    placeholder_locals = {"email", "name", "your", "user", "test", "corpora", "secretary"}
+    placeholder_locals = {
+        "email", "name", "your", "user", "test", "corpora", "secretary",
+        "example", "sample", "demo", "mail", "admin", "root", "null",
+        "undefined", "nobody", "noreply", "no-reply",
+    }
     if local in placeholder_locals:
+        return False
+
+    # Local part too short (e.g. "a@domain.com" — likely fake)
+    if len(local) < 2:
+        return False
+
+    # Local part looks like Cyrillic word in transliteration or raw Cyrillic
+    # (already caught above, but double-check for mixed)
+    _cyrillic_word = re.compile(r"^[\u0400-\u04FF]+$")
+    if _cyrillic_word.match(local):
+        return False
+
+    # Local part contains spaces encoded as words (e.g. "ваш email" becomes "ваш")
+    # Already caught by cyrillic check, but catch transliterated versions
+    ru_placeholder_locals = {
+        "vash", "vashe", "pochta", "svyaz", "primer", "kontakt", "zapros",
+    }
+    if local in ru_placeholder_locals:
+        return False
+
+    # Local part is a single generic word with no dots, digits, or separators
+    # (real emails usually have dots, underscores, or digits)
+    if re.match(r"^[a-z]{2,}$", local) and local in {
+        "email", "mail", "contact", "info", "office", "hello",
+        "support", "sales", "help", "team", "feedback", "service",
+        "marketing", "billing", "accounts", "webmaster", "postmaster",
+    }:
         return False
 
     return True

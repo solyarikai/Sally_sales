@@ -156,6 +156,10 @@ async def _run_full_pipeline_bg(project_id: int, company_id: int, cfg: FullPipel
             progress["phase"] = "smartlead_push"
             await _bg_phase_smartlead_push(project_id, company_id, progress)
 
+        # --- Phase 5: Auto-promote all target contacts to CRM ---
+        progress["phase"] = "crm_promote"
+        await _bg_phase_crm_promote(project_id, company_id, progress)
+
         progress.update({"running": False, "phase": "completed", "completed_at": datetime.utcnow().isoformat()})
         logger.info(f"Full pipeline completed for project {project_id}: {progress}")
 
@@ -426,9 +430,11 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
     async with async_session_maker() as session:
         rows = await session.execute(sql_text("""
             SELECT ec.id, ec.email, ec.first_name, ec.last_name, ec.job_title,
-                   dc.domain, dc.name as company_name, dc.url
+                   dc.domain, dc.name as company_name, dc.url,
+                   sr.matched_segment
             FROM extracted_contacts ec
             JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+            LEFT JOIN search_results sr ON dc.search_result_id = sr.id
             WHERE dc.project_id = :pid AND dc.company_id = :cid
             AND dc.is_target = true
             AND ec.email IS NOT NULL AND ec.email != ''
@@ -607,22 +613,72 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                     session.add(event)
                     await session.commit()
 
-                # Insert only actually-pushed contacts into contacts table
+                # Upsert actually-pushed contacts into contacts table
                 if actually_pushed_contacts:
+                    campaign_entry = [{
+                        "name": rule.campaign_name_template,
+                        "id": str(campaign_id),
+                        "source": "smartlead",
+                    }]
                     async with async_session_maker() as session:
                         for contact, cls in actually_pushed_contacts:
                             domain = contact.email.split("@")[-1] if "@" in contact.email else None
-                            await session.execute(sql_text("""
-                                INSERT INTO contacts (company_id, email, first_name, last_name, domain,
-                                                      source, status, is_active, created_at, updated_at)
-                                VALUES (:cid, :email, :fname, :lname, :domain,
-                                        'smartlead_pipeline_push', 'contacted', true, NOW(), NOW())
-                                ON CONFLICT DO NOTHING
-                            """), {
-                                "cid": company_id, "email": contact.email,
-                                "fname": contact.first_name or "", "lname": contact.last_name or "",
-                                "domain": domain,
-                            })
+                            seg = getattr(contact, "matched_segment", None) or None
+                            # Check if contact already exists
+                            existing = await session.execute(sql_text("""
+                                SELECT id, campaigns FROM contacts
+                                WHERE company_id = :cid AND lower(email) = lower(:email)
+                                AND deleted_at IS NULL
+                                LIMIT 1
+                            """), {"cid": company_id, "email": contact.email})
+                            row = existing.fetchone()
+                            if row:
+                                # Update existing contact with pipeline data
+                                old_campaigns = row.campaigns or []
+                                if isinstance(old_campaigns, str):
+                                    try:
+                                        old_campaigns = json.loads(old_campaigns)
+                                    except Exception:
+                                        old_campaigns = []
+                                merged_campaigns = old_campaigns + campaign_entry
+                                await session.execute(sql_text("""
+                                    UPDATE contacts SET
+                                        project_id = COALESCE(project_id, :project_id),
+                                        segment = COALESCE(segment, :segment),
+                                        company_name = COALESCE(company_name, :company_name),
+                                        job_title = COALESCE(job_title, :job_title),
+                                        campaigns = :campaigns::jsonb,
+                                        updated_at = NOW()
+                                    WHERE id = :id
+                                """), {
+                                    "id": row.id,
+                                    "project_id": project_id,
+                                    "segment": seg,
+                                    "company_name": contact.company_name or None,
+                                    "job_title": contact.job_title or None,
+                                    "campaigns": json.dumps(merged_campaigns),
+                                })
+                            else:
+                                # Insert new contact
+                                await session.execute(sql_text("""
+                                    INSERT INTO contacts (company_id, email, first_name, last_name, domain,
+                                                          company_name, job_title, project_id, segment,
+                                                          source, status, campaigns, is_active,
+                                                          created_at, updated_at)
+                                    VALUES (:cid, :email, :fname, :lname, :domain,
+                                            :company_name, :job_title, :project_id, :segment,
+                                            'smartlead_pipeline_push', 'contacted', :campaigns::jsonb, true,
+                                            NOW(), NOW())
+                                """), {
+                                    "cid": company_id, "email": contact.email,
+                                    "fname": contact.first_name or "", "lname": contact.last_name or "",
+                                    "domain": domain,
+                                    "company_name": contact.company_name or "",
+                                    "job_title": contact.job_title or "",
+                                    "project_id": project_id,
+                                    "segment": seg,
+                                    "campaigns": json.dumps(campaign_entry),
+                                })
                         await session.commit()
 
                 # Update rule's lead count
@@ -641,6 +697,120 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
 
     progress["smartlead_push_stats"] = stats
     logger.info(f"SmartLead push done for project {project_id}: {stats}")
+
+
+async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict):
+    """Phase 5: Auto-promote ALL target extracted contacts to CRM contacts table.
+
+    Ensures every extracted contact from a target company appears in the CRM,
+    with project_id, segment, company_name, job_title populated.
+    Contacts already in CRM are updated (fill NULLs), new ones are inserted.
+    """
+    from sqlalchemy import text as sql_text
+    from app.services.contact_extraction_service import is_valid_email
+
+    stats = {"inserted": 0, "updated": 0, "skipped_invalid": 0, "errors": 0}
+    progress["crm_promote_stats"] = stats
+
+    try:
+        async with async_session_maker() as session:
+            # Get all extracted contacts from target companies with segment info
+            rows = await session.execute(sql_text("""
+                SELECT ec.id, ec.email, ec.first_name, ec.last_name, ec.job_title,
+                       dc.domain, dc.name as company_name,
+                       sr.matched_segment
+                FROM extracted_contacts ec
+                JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+                LEFT JOIN search_results sr ON dc.search_result_id = sr.id
+                WHERE dc.project_id = :pid AND dc.company_id = :cid
+                AND dc.is_target = true
+                AND ec.email IS NOT NULL AND ec.email != ''
+                ORDER BY ec.id
+            """), {"pid": project_id, "cid": company_id})
+            contacts = rows.fetchall()
+
+        if not contacts:
+            logger.info(f"CRM promote: no extracted contacts for project {project_id}")
+            return
+
+        logger.info(f"CRM promote: processing {len(contacts)} extracted contacts for project {project_id}")
+
+        async with async_session_maker() as session:
+            for contact in contacts:
+                if not is_valid_email(contact.email):
+                    stats["skipped_invalid"] += 1
+                    continue
+
+                try:
+                    # Check if contact already exists in CRM
+                    existing = await session.execute(sql_text("""
+                        SELECT id, project_id, segment, company_name, job_title
+                        FROM contacts
+                        WHERE company_id = :cid AND lower(email) = lower(:email)
+                        AND deleted_at IS NULL
+                        LIMIT 1
+                    """), {"cid": company_id, "email": contact.email})
+                    row = existing.fetchone()
+
+                    seg = getattr(contact, "matched_segment", None) or None
+
+                    if row:
+                        # Update existing — fill NULL fields only
+                        needs_update = (
+                            row.project_id is None or row.segment is None
+                            or row.company_name is None or row.job_title is None
+                        )
+                        if needs_update:
+                            await session.execute(sql_text("""
+                                UPDATE contacts SET
+                                    project_id = COALESCE(project_id, :project_id),
+                                    segment = COALESCE(segment, :segment),
+                                    company_name = COALESCE(company_name, :company_name),
+                                    job_title = COALESCE(job_title, :job_title),
+                                    updated_at = NOW()
+                                WHERE id = :id
+                            """), {
+                                "id": row.id,
+                                "project_id": project_id,
+                                "segment": seg,
+                                "company_name": contact.company_name or None,
+                                "job_title": contact.job_title or None,
+                            })
+                            stats["updated"] += 1
+                    else:
+                        # Insert new contact
+                        domain = contact.email.split("@")[-1] if "@" in contact.email else None
+                        await session.execute(sql_text("""
+                            INSERT INTO contacts (company_id, email, first_name, last_name, domain,
+                                                  company_name, job_title, project_id, segment,
+                                                  source, status, is_active,
+                                                  created_at, updated_at)
+                            VALUES (:cid, :email, :fname, :lname, :domain,
+                                    :company_name, :job_title, :project_id, :segment,
+                                    'pipeline', 'lead', true, NOW(), NOW())
+                        """), {
+                            "cid": company_id, "email": contact.email,
+                            "fname": contact.first_name or "", "lname": contact.last_name or "",
+                            "domain": domain,
+                            "company_name": contact.company_name or "",
+                            "job_title": contact.job_title or "",
+                            "project_id": project_id,
+                            "segment": seg,
+                        })
+                        stats["inserted"] += 1
+                except Exception as e:
+                    logger.warning(f"CRM promote error for {contact.email}: {e}")
+                    stats["errors"] += 1
+
+            await session.commit()
+
+        progress["crm_promote_stats"] = stats
+        logger.info(f"CRM promote done for project {project_id}: {stats}")
+
+    except Exception as e:
+        logger.error(f"CRM promote phase failed for project {project_id}: {e}", exc_info=True)
+        stats["errors"] += 1
+        progress["crm_promote_stats"] = stats
 
 
 async def _ensure_campaign_for_rule(
@@ -857,6 +1027,9 @@ async def push_to_smartlead(
         progress = _running_pipelines[project_id]
         try:
             await _bg_phase_smartlead_push(project_id, company.id, progress)
+            # Also auto-promote all target contacts to CRM
+            progress["phase"] = "crm_promote"
+            await _bg_phase_crm_promote(project_id, company.id, progress)
             progress.update({"running": False, "phase": "completed", "completed_at": datetime.utcnow().isoformat()})
         except Exception as e:
             logger.error(f"SmartLead push crashed: {e}", exc_info=True)
