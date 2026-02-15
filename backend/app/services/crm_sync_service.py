@@ -398,17 +398,28 @@ class SmartleadClient:
 
         try:
             campaigns = await self.get_campaigns()
+            # TODO: remove this hardcoded skip once webhook conflict on Smartlead side is resolved
+            _SKIP_WEBHOOK_CAMPAIGNS = {
+                "Rizzult Partner Agencies Latam",
+            }
+
             active = []
             for c in campaigns:
                 cid = c.get("id")
+                cname = c.get("name", "Unknown")
                 status = (c.get("status") or "").upper()
                 # Skip inactive campaigns
                 if status != "ACTIVE":
-                    results["skipped"].append({"id": cid, "name": c.get("name", "Unknown"), "status": c.get("status")})
+                    results["skipped"].append({"id": cid, "name": cname, "status": c.get("status")})
                     continue
                 # Skip non-numeric IDs (test entries like "test-123")
                 if not str(cid).isdigit():
-                    results["skipped"].append({"id": cid, "name": c.get("name", "Unknown"), "reason": "non-numeric ID"})
+                    results["skipped"].append({"id": cid, "name": cname, "reason": "non-numeric ID"})
+                    continue
+                # Skip campaigns with external webhook conflicts (hardcoded, will be removed)
+                if cname in _SKIP_WEBHOOK_CAMPAIGNS:
+                    results["skipped"].append({"id": cid, "name": cname, "reason": "webhook conflict — skipped"})
+                    logger.info(f"Skipping CRM webhook for '{cname}' (hardcoded skip)")
                     continue
                 active.append(c)
 
