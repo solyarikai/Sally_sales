@@ -106,6 +106,8 @@ async def chat_search(
         return await _handle_show_targets(parsed, body, db, company, project)
     elif action == "show_stats":
         return await _handle_stats(parsed, body, db, company, project)
+    elif action == "lookup_domain":
+        return await _handle_lookup_domain(parsed, body, db, company, project)
     elif action == "search":
         # Legacy ICP-based search — forward to existing handler
         return await _handle_new_search(body, background_tasks, db, company)
@@ -214,6 +216,34 @@ def _build_suggestions(project_context: Optional[Dict[str, Any]]) -> List[str]:
             suggestions.append("show funnel")
 
     return suggestions[:4]
+
+
+async def _handle_lookup_domain(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Look up everything known about specific domain(s)."""
+    from app.services.domain_lookup_service import domain_lookup_service
+
+    domains = parsed.get("domains") or []
+    if not domains:
+        return ChatResponse(
+            action="info",
+            reply="Please specify a domain to look up, e.g. 'what do we know about company.com'",
+            project_id=body.project_id,
+            suggestions=["show targets", "show funnel"],
+        )
+
+    project_id = project.id if project else None
+    profiles = await domain_lookup_service.lookup(db, domains, company.id, project_id)
+    markdown = domain_lookup_service.format_as_markdown(profiles)
+
+    return ChatResponse(
+        action="domain_lookup",
+        reply=markdown,
+        project_id=body.project_id,
+        data=profiles,
+        suggestions=["show targets", "push to smartlead", "show funnel"],
+    )
 
 
 async def _handle_new_search(

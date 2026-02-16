@@ -22,6 +22,7 @@ CHAT_ACTIONS = [
     "show_targets",   # List top target companies
     "show_stats",     # Performance analytics
     "search",         # New ICP-based search (legacy AI-random)
+    "lookup_domain",  # Look up everything known about specific domains
     "info",           # General question / unknown
 ]
 
@@ -115,7 +116,11 @@ AVAILABLE ACTIONS:
 
 7. "search" — Launch new ICP-based AI search (not template-based). Use only when user describes a NEW type of company to find.
 
-8. "info" — General question that doesn't map to any action. Reply conversationally.
+8. "lookup_domain" — Look up all known data about specific domain(s).
+   Use when user mentions a domain name (contains a dot, like company.com) and asks to find/show/lookup/check history/info about it.
+   Extract ALL domain names from the message into the "domains" field.
+
+9. "info" — General question that doesn't map to any action. Reply conversationally.
 
 AVAILABLE SEGMENTS: {', '.join(AVAILABLE_SEGMENTS)}
 
@@ -136,7 +141,7 @@ RULES:
 
 Respond ONLY with JSON:
 {{
-    "action": "start_search|stop|status|push|show_targets|show_stats|search|info",
+    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|info",
     "engine": "yandex|google|both|null",
     "segments": ["segment_key", ...] or null,
     "geos": ["geo_key", ...] or null,
@@ -144,6 +149,7 @@ Respond ONLY with JSON:
     "target_goal": 500,
     "skip_smartlead_push": false,
     "stats_scope": "segment|geo|engine|cost|funnel|top_queries|null",
+    "domains": ["domain1.com", "domain2.com"] or null,
     "reply": "..."
 }}"""
 
@@ -197,7 +203,7 @@ Respond ONLY with JSON:
                 "reply": f"I couldn't process your request. Please try rephrasing. (Error: {str(e)[:100]})",
                 "engine": None, "segments": None, "geos": None,
                 "max_queries": None, "target_goal": None,
-                "skip_smartlead_push": True, "stats_scope": None,
+                "skip_smartlead_push": True, "stats_scope": None, "domains": None,
             }
 
     async def parse_search_intent(
