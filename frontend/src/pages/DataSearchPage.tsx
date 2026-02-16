@@ -754,14 +754,6 @@ export function DataSearchPage() {
     }
   }, [chatVirtualItemCount, chatVirtualizer]);
 
-  // Trigger send after edit (waits for webSearchQuery state to update)
-  useEffect(() => {
-    if (pendingEditSendRef.current && webSearchQuery) {
-      pendingEditSendRef.current = false;
-      handleWebSearchChat();
-    }
-  }, [webSearchQuery, handleWebSearchChat]);
-
   // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
@@ -1049,6 +1041,14 @@ export function DataSearchPage() {
       setIsWebSearching(false);
     }
   }, [webSearchQuery, isWebSearching, webSearchMessages, webSearchProjectId, projectSearchJobId, maxQueries, targetGoal, handleSSEProgressWithTargets]);
+
+  // Trigger send after edit (waits for webSearchQuery state to update)
+  useEffect(() => {
+    if (pendingEditSendRef.current && webSearchQuery) {
+      pendingEditSendRef.current = false;
+      handleWebSearchChat();
+    }
+  }, [webSearchQuery, handleWebSearchChat]);
 
   const handleWebSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
