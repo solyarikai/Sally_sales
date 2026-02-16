@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Search,
   Send,
@@ -39,6 +40,7 @@ import {
   XCircle,
   PanelLeftClose,
   PanelLeftOpen,
+  Edit2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
@@ -57,6 +59,7 @@ interface ProjectChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
+  edited?: boolean;
 }
 
 // Example queries for inspiration
@@ -646,18 +649,9 @@ function PipelineStageIndicator({
   );
 }
 
-// Persist chat messages in localStorage keyed by project ID
-function saveChatMessages(projectId: number, messages: ProjectChatMessage[]) {
-  try {
-    localStorage.setItem(`chat-${projectId}`, JSON.stringify(messages));
-  } catch { /* quota exceeded - silently ignore */ }
-}
-function loadChatMessages(projectId: number): ProjectChatMessage[] {
-  try {
-    const raw = localStorage.getItem(`chat-${projectId}`);
-    if (!raw) return [];
-    return JSON.parse(raw).map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
-  } catch { return []; }
+// Fire-and-forget: save a system/assistant message to the server
+function saveSystemMessage(projectId: number, msg: { role: string; content: string; client_id: string }) {
+  projectSearchApi.saveChatMessages(projectId, [msg]).catch(() => {});
 }
 
 export function DataSearchPage() {
@@ -716,7 +710,11 @@ export function DataSearchPage() {
   }, [setActiveSearchProjectId]);
   const [webSearchSuggestions, setWebSearchSuggestions] = useState<string[]>([]);
   const [lastSeenTargets, setLastSeenTargets] = useState<string[]>([]);
-  const webChatEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const pendingEditSendRef = useRef(false);
 
   // Pipeline stage state
   const [pipelineStage, setPipelineStage] = useState<PipelineStage>('idle');
@@ -729,10 +727,40 @@ export function DataSearchPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Scroll web chat messages
+  // Virtualizer for chat messages
+  const chatVirtualItemCount = webSearchMessages.length + (isWebSearching ? 1 : 0);
+  const chatVirtualizer = useVirtualizer({
+    count: chatVirtualItemCount,
+    getScrollElement: () => chatScrollRef.current,
+    estimateSize: () => 80,
+    overscan: 10,
+  });
+
+  // Track whether user is at bottom of chat scroll
   useEffect(() => {
-    webChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [webSearchMessages]);
+    const el = chatScrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Auto-scroll to bottom when new messages arrive (only if user is at bottom)
+  useEffect(() => {
+    if (isAtBottomRef.current && chatVirtualItemCount > 0) {
+      chatVirtualizer.scrollToIndex(chatVirtualItemCount - 1, { align: 'end' });
+    }
+  }, [chatVirtualItemCount, chatVirtualizer]);
+
+  // Trigger send after edit (waits for webSearchQuery state to update)
+  useEffect(() => {
+    if (pendingEditSendRef.current && webSearchQuery) {
+      pendingEditSendRef.current = false;
+      handleWebSearchChat();
+    }
+  }, [webSearchQuery, handleWebSearchChat]);
 
   // Focus input on mount
   useEffect(() => {
@@ -753,31 +781,40 @@ export function DataSearchPage() {
     }).catch(console.error);
   }, []);
 
-  // Persist chat messages whenever they change
-  useEffect(() => {
-    if (webSearchProjectId && webSearchMessages.length > 0) {
-      saveChatMessages(webSearchProjectId, webSearchMessages);
-    }
-  }, [webSearchMessages, webSearchProjectId]);
+  // (Chat messages are now persisted server-side via API)
 
-  // Load saved chat messages when switching projects
+  // Load chat messages from server when switching projects
   const loadProjectChat = useCallback((projectId: number) => {
-    const saved = loadChatMessages(projectId);
-    setWebSearchMessages(saved);
     setWebSearchProjectId(projectId);
     setSearchMode('project');
-    // Load results — if the project has results, always show the active view
-    projectSearchApi.getProjectResults(projectId).then(data => {
-      setProjectResults(data.items);
-      if (data.items.length > 0 || saved.length > 0) {
-        setHasSearched(true);
-        setPipelineStage('search_done');
-      } else {
-        setHasSearched(false);
-      }
+
+    // Load chat history from API
+    projectSearchApi.getChatMessages(projectId).then(rows => {
+      const saved: ProjectChatMessage[] = rows.map(r => ({
+        id: r.client_id || `db-${r.id}`,
+        role: r.role as 'user' | 'assistant' | 'system',
+        content: r.content,
+        timestamp: new Date(r.timestamp),
+      }));
+      setWebSearchMessages(saved);
+
+      // Load results — if the project has results, always show the active view
+      projectSearchApi.getProjectResults(projectId).then(data => {
+        setProjectResults(data.items);
+        if (data.items.length > 0 || saved.length > 0) {
+          setHasSearched(true);
+          setPipelineStage('search_done');
+        } else {
+          setHasSearched(false);
+        }
+      }).catch(() => {
+        setHasSearched(saved.length > 0);
+      });
     }).catch(() => {
-      setHasSearched(saved.length > 0);
+      setWebSearchMessages([]);
+      setHasSearched(false);
     });
+
     projectSearchApi.getProjectSpending(projectId).then(setProjectSpending).catch(() => {});
     pipelineApi.getAutoEnrichConfig(projectId).then(setAutoEnrichConfig).catch(() => {});
   }, [setWebSearchProjectId]);
@@ -792,13 +829,16 @@ export function DataSearchPage() {
       const newNames = targetNames.filter(n => !lastSeenTargets.includes(n));
       if (newNames.length > 0) {
         setLastSeenTargets(prev => [...prev, ...newNames]);
+        const clientId = `sys-${Date.now()}`;
+        const content = `Found ${event.targets_found || 0} targets so far. Latest: ${newNames.join(', ')}`;
         const msg: ProjectChatMessage = {
-          id: `sys-${Date.now()}`,
+          id: clientId,
           role: 'system',
-          content: `Found ${event.targets_found || 0} targets so far. Latest: ${newNames.join(', ')}`,
+          content,
           timestamp: new Date(),
         };
         setWebSearchMessages(prev => [...prev, msg]);
+        if (webSearchProjectId) saveSystemMessage(webSearchProjectId, { role: 'system', content, client_id: clientId });
       }
     }
 
@@ -813,16 +853,19 @@ export function DataSearchPage() {
       setWebSearchMessages(prev => {
         const alreadyDone = prev.some(m => m.id.startsWith('sys-done-'));
         if (alreadyDone) return prev;
+        const clientId = `sys-done-${Date.now()}`;
+        const content = event.phase === 'completed'
+          ? `Search complete! Analyzed ${event.results_analyzed} companies, found ${event.targets_found || 0} targets in ${Math.round(event.elapsed_seconds)}s.`
+          : event.phase === 'error'
+          ? `Search failed: ${event.error_message || 'Unknown error'}`
+          : 'Search was cancelled.';
         const summaryMsg: ProjectChatMessage = {
-          id: `sys-done-${Date.now()}`,
+          id: clientId,
           role: 'assistant',
-          content: event.phase === 'completed'
-            ? `Search complete! Analyzed ${event.results_analyzed} companies, found ${event.targets_found || 0} targets in ${Math.round(event.elapsed_seconds)}s.`
-            : event.phase === 'error'
-            ? `Search failed: ${event.error_message || 'Unknown error'}`
-            : 'Search was cancelled.',
+          content,
           timestamp: new Date(),
         };
+        if (webSearchProjectId) saveSystemMessage(webSearchProjectId, { role: 'assistant', content, client_id: clientId });
         return [...prev, summaryMsg];
       });
 
@@ -865,13 +908,16 @@ export function DataSearchPage() {
       );
       setContactsProgress(null);
       setPipelineStage('contacts_done');
+      const clientId = `sys-contacts-${Date.now()}`;
+      const sysContent = `Contacts extracted: ${result.contacts_found} contacts from ${result.processed} companies${result.errors ? ` (${result.errors} errors)` : ''}.`;
       const msg: ProjectChatMessage = {
-        id: `sys-contacts-${Date.now()}`,
+        id: clientId,
         role: 'system',
-        content: `Contacts extracted: ${result.contacts_found} contacts from ${result.processed} companies${result.errors ? ` (${result.errors} errors)` : ''}.`,
+        content: sysContent,
         timestamp: new Date(),
       };
       setWebSearchMessages(prev => [...prev, msg]);
+      if (webSearchProjectId) saveSystemMessage(webSearchProjectId, { role: 'system', content: sysContent, client_id: clientId });
     } catch (error: any) {
       console.error('Contact extraction failed:', error);
       setPipelineStage('search_done');
@@ -890,13 +936,16 @@ export function DataSearchPage() {
       );
       setEnrichProgress(null);
       setPipelineStage('done');
+      const enrichClientId = `sys-enrich-${Date.now()}`;
+      const enrichContent = `Apollo enrichment complete: ${result.people_found} people found, ${result.credits_used} credits used${result.errors ? ` (${result.errors} errors)` : ''}.`;
       const msg: ProjectChatMessage = {
-        id: `sys-enrich-${Date.now()}`,
+        id: enrichClientId,
         role: 'system',
-        content: `Apollo enrichment complete: ${result.people_found} people found, ${result.credits_used} credits used${result.errors ? ` (${result.errors} errors)` : ''}.`,
+        content: enrichContent,
         timestamp: new Date(),
       };
       setWebSearchMessages(prev => [...prev, msg]);
+      if (webSearchProjectId) saveSystemMessage(webSearchProjectId, { role: 'system', content: enrichContent, client_id: enrichClientId });
     } catch (error: any) {
       console.error('Apollo enrichment failed:', error);
       setPipelineStage('contacts_done');
@@ -936,16 +985,13 @@ export function DataSearchPage() {
     setHasSearched(true);
 
     try {
-      const context = webSearchMessages
-        .filter(m => m.role !== 'system')
-        .map(m => ({ role: m.role, content: m.content }));
-
+      // Context is now loaded from DB server-side — send empty
       const response = await projectSearchApi.chatSearch(msg, {
         projectId: webSearchProjectId || undefined,
         jobId: projectSearchJobId || undefined,
         maxQueries,
         targetGoal,
-        context,
+        context: [],
       });
 
       // AI reply
@@ -1010,6 +1056,30 @@ export function DataSearchPage() {
       handleWebSearchChat();
     }
   };
+
+  const handleEditMessage = useCallback((messageId: string) => {
+    const msg = webSearchMessages.find(m => m.id === messageId);
+    if (msg && msg.role === 'user') {
+      setEditingMessageId(messageId);
+      setEditingContent(msg.content);
+    }
+  }, [webSearchMessages]);
+
+  const handleSaveEdit = useCallback(() => {
+    if (!editingMessageId || !editingContent.trim()) return;
+    const content = editingContent.trim();
+    setWebSearchMessages(prev => prev.map(m =>
+      m.id === editingMessageId ? { ...m, content, edited: true } : m
+    ));
+    setEditingMessageId(null);
+    pendingEditSendRef.current = true;
+    setWebSearchQuery(content);
+  }, [editingMessageId, editingContent]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditingContent('');
+  }, []);
 
   const handleSearch = async () => {
     if (!query.trim() || isSearching) return;
@@ -1494,13 +1564,13 @@ export function DataSearchPage() {
                   </div>
                 )}
 
-                {/* Chat messages */}
-                <div className="flex-1 overflow-y-auto">
-                  <div className={cn(
-                    "py-6 space-y-4",
-                    projectResults.length > 0 || isProjectSearching ? "px-4" : "max-w-2xl mx-auto px-6"
-                  )}>
-                    {webSearchMessages.length === 0 && !isProjectSearching && (
+                {/* Chat messages — virtualized */}
+                <div className="flex-1 overflow-y-auto" ref={chatScrollRef}>
+                  {webSearchMessages.length === 0 && !isProjectSearching && (
+                    <div className={cn(
+                      "py-6",
+                      projectResults.length > 0 || isProjectSearching ? "px-4" : "max-w-2xl mx-auto px-6"
+                    )}>
                       <div className="flex flex-col items-center pt-20 text-center">
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center mb-4">
                           <Bot className="w-7 h-7 text-emerald-600" />
@@ -1508,58 +1578,130 @@ export function DataSearchPage() {
                         <h3 className="text-lg font-semibold text-gray-700 mb-1">What are you looking for?</h3>
                         <p className="text-sm text-gray-400 max-w-sm">Describe target companies and I'll search the web to find them</p>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {webSearchMessages.map((msg) => (
-                      <div key={msg.id} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-                        <div className={cn('flex items-start gap-2 max-w-[90%]')}>
-                          {msg.role !== 'user' && (
-                            <div className={cn(
-                              "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
-                              msg.role === 'system'
-                                ? "bg-emerald-100"
-                                : "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-md"
-                            )}>
-                              {msg.role === 'system' ? (
-                                <Target className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Bot className="w-3.5 h-3.5 text-white" />
-                              )}
+                  {chatVirtualItemCount > 0 && (
+                    <div
+                      className={cn(
+                        "py-6",
+                        projectResults.length > 0 || isProjectSearching ? "px-4" : "max-w-2xl mx-auto px-6"
+                      )}
+                      style={{ height: chatVirtualizer.getTotalSize() + 24, position: 'relative' }}
+                    >
+                      {chatVirtualizer.getVirtualItems().map((virtualItem) => {
+                        const isTypingRow = virtualItem.index === webSearchMessages.length;
+                        if (isTypingRow) {
+                          return (
+                            <div
+                              key="typing"
+                              data-index={virtualItem.index}
+                              ref={chatVirtualizer.measureElement}
+                              style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualItem.start}px)` }}
+                              className="pb-4"
+                            >
+                              <div className="flex justify-start">
+                                <div className="flex items-start gap-2">
+                                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
+                                    <Bot className="w-3.5 h-3.5 text-white" />
+                                  </div>
+                                  <div className="bg-white border border-gray-100 rounded-2xl px-4 py-2.5 shadow-sm">
+                                    <TypingIndicator />
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                          )}
-                          <div className={cn(
-                            'rounded-2xl px-4 py-2.5 text-sm',
-                            msg.role === 'user'
-                              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
-                              : msg.role === 'system'
-                              ? 'bg-emerald-50 border border-emerald-100 text-emerald-800'
-                              : 'bg-white border border-gray-100 text-gray-900 shadow-sm'
-                          )}>
-                            <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                          </div>
-                          {msg.role === 'user' && (
-                            <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
-                              <span className="text-white text-xs font-bold">U</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                          );
+                        }
 
-                    {isWebSearching && (
-                      <div className="flex justify-start">
-                        <div className="flex items-start gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
-                            <Bot className="w-3.5 h-3.5 text-white" />
+                        const msg = webSearchMessages[virtualItem.index];
+                        if (!msg) return null;
+                        const isEditing = editingMessageId === msg.id;
+
+                        return (
+                          <div
+                            key={msg.id}
+                            data-index={virtualItem.index}
+                            ref={chatVirtualizer.measureElement}
+                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualItem.start}px)` }}
+                            className="pb-4"
+                          >
+                            <div className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                              <div className={cn('flex items-start gap-2 max-w-[90%] group')}>
+                                {msg.role !== 'user' && (
+                                  <div className={cn(
+                                    "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
+                                    msg.role === 'system'
+                                      ? "bg-emerald-100"
+                                      : "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-md"
+                                  )}>
+                                    {msg.role === 'system' ? (
+                                      <Target className="w-3.5 h-3.5 text-emerald-600" />
+                                    ) : (
+                                      <Bot className="w-3.5 h-3.5 text-white" />
+                                    )}
+                                  </div>
+                                )}
+
+                                {isEditing ? (
+                                  <div className="flex flex-col gap-1.5 flex-1">
+                                    <textarea
+                                      autoFocus
+                                      value={editingContent}
+                                      onChange={(e) => setEditingContent(e.target.value)}
+                                      onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); }
+                                        if (e.key === 'Escape') handleCancelEdit();
+                                      }}
+                                      className="rounded-2xl px-4 py-2.5 text-sm bg-emerald-50 border-2 border-emerald-400 text-gray-900 focus:outline-none resize-none"
+                                      rows={Math.max(2, editingContent.split('\n').length)}
+                                    />
+                                    <div className="flex gap-1.5 justify-end">
+                                      <button onClick={handleCancelEdit} className="px-2.5 py-1 text-xs text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100">
+                                        Cancel
+                                      </button>
+                                      <button onClick={handleSaveEdit} className="px-2.5 py-1 text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg">
+                                        Save & Send
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className={cn(
+                                    'rounded-2xl px-4 py-2.5 text-sm',
+                                    msg.role === 'user'
+                                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
+                                      : msg.role === 'system'
+                                      ? 'bg-emerald-50 border border-emerald-100 text-emerald-800'
+                                      : 'bg-white border border-gray-100 text-gray-900 shadow-sm'
+                                  )}>
+                                    <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                                    {msg.edited && (
+                                      <span className="text-[10px] opacity-60 mt-0.5 block">(edited)</span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {msg.role === 'user' && !isEditing && (
+                                  <button
+                                    onClick={() => handleEditMessage(msg.id)}
+                                    className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200"
+                                    title="Edit message"
+                                  >
+                                    <Edit2 className="w-3 h-3 text-gray-500" />
+                                  </button>
+                                )}
+                                {msg.role === 'user' && !isEditing && (
+                                  <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-white text-xs font-bold">U</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <div className="bg-white border border-gray-100 rounded-2xl px-4 py-2.5 shadow-sm">
-                            <TypingIndicator />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <div ref={webChatEndRef} />
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Suggestion chips */}

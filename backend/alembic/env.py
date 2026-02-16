@@ -20,6 +20,7 @@ from app.models import (
     Prospect, ProspectActivity,
     Domain, SearchJob, SearchQuery, SearchResult, ProjectSearchKnowledge,
     DiscoveredCompany, ExtractedContact, PipelineEvent,
+    ProjectChatMessage,
 )
 
 config = context.config

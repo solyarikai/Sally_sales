@@ -7,9 +7,10 @@ and receives a structured action response. Gemini 2.5 Pro parses intent.
 Endpoints:
 - POST /search/chat — Send a message to start or manage a search
 """
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 import logging
@@ -22,6 +23,7 @@ from app.models.domain import (
     SearchJob, SearchJobStatus, SearchEngine,
     ProjectSearchKnowledge,
 )
+from app.models.chat import ProjectChatMessage
 from app.services.chat_search_service import chat_search_service
 from app.core.config import settings
 
@@ -46,6 +48,101 @@ class ChatResponse(BaseModel):
     target_segments: Optional[str] = None
     suggestions: List[str] = Field(default_factory=list)
     data: Optional[Dict[str, Any]] = None
+
+
+# ---- Chat persistence helpers ----
+
+async def _load_chat_context(db: AsyncSession, project_id: int, limit: int = 20) -> List[Dict[str, str]]:
+    """Load recent non-system messages from DB as [{role, content}]."""
+    result = await db.execute(
+        select(ProjectChatMessage.role, ProjectChatMessage.content)
+        .where(
+            ProjectChatMessage.project_id == project_id,
+            ProjectChatMessage.role.in_(["user", "assistant"]),
+        )
+        .order_by(ProjectChatMessage.created_at.desc())
+        .limit(limit)
+    )
+    rows = result.fetchall()
+    return [{"role": r.role, "content": r.content} for r in reversed(rows)]
+
+
+async def _save_chat_message(
+    db: AsyncSession, project_id: int, role: str, content: str, client_id: Optional[str] = None,
+):
+    """Insert a chat message. ON CONFLICT DO NOTHING for dedup via client_id."""
+    if client_id:
+        stmt = pg_insert(ProjectChatMessage).values(
+            project_id=project_id, role=role, content=content, client_id=client_id,
+        ).on_conflict_do_nothing(index_elements=["project_id", "client_id"])
+        await db.execute(stmt)
+    else:
+        db.add(ProjectChatMessage(project_id=project_id, role=role, content=content))
+
+
+# ---- Chat message endpoints ----
+
+class SaveChatMessagesRequest(BaseModel):
+    messages: List[Dict[str, str]] = Field(..., description="[{role, content, client_id}]")
+
+
+@router.get("/chat/messages/{project_id}")
+async def get_chat_messages(
+    project_id: int,
+    limit: int = Query(200, ge=1, le=1000),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Load chat history for a project."""
+    # Verify project belongs to company
+    proj = await db.execute(
+        select(Project).where(Project.id == project_id, Project.company_id == company.id)
+    )
+    if not proj.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    result = await db.execute(
+        select(ProjectChatMessage)
+        .where(ProjectChatMessage.project_id == project_id)
+        .order_by(ProjectChatMessage.created_at.asc())
+        .limit(limit)
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "role": r.role,
+            "content": r.content,
+            "client_id": r.client_id,
+            "timestamp": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/chat/messages/{project_id}")
+async def save_chat_messages(
+    project_id: int,
+    body: SaveChatMessagesRequest,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Bulk-save chat messages (system messages, SSE events, etc.)."""
+    proj = await db.execute(
+        select(Project).where(Project.id == project_id, Project.company_id == company.id)
+    )
+    if not proj.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    for msg in body.messages:
+        await _save_chat_message(
+            db, project_id,
+            role=msg.get("role", "system"),
+            content=msg.get("content", ""),
+            client_id=msg.get("client_id"),
+        )
+    await db.commit()
+    return {"saved": len(body.messages)}
 
 
 @router.post("/chat")
@@ -83,11 +180,18 @@ async def chat_search(
         if project:
             project_context = await _build_project_context(db, project, company)
 
+    # --- Load chat context from DB (replaces body.context) ---
+    db_context = None
+    if project_id:
+        db_context = await _load_chat_context(db, project_id)
+        # Save user message
+        await _save_chat_message(db, project_id, "user", body.message, f"user-{project_id}-{body.message[:40]}")
+
     # --- Parse intent with Gemini 2.5 Pro ---
     parsed = await chat_search_service.parse_chat_action(
         message=body.message,
         project_context=project_context,
-        context=body.context or None,
+        context=db_context or body.context or None,
     )
     action = parsed.get("action", "info")
     logger.info(f"Chat action parsed: action={action}, engine={parsed.get('engine')}, "
@@ -95,30 +199,36 @@ async def chat_search(
 
     # --- Route to handler ---
     if action == "start_search":
-        return await _handle_start_search(parsed, body, background_tasks, db, company, project)
+        response = await _handle_start_search(parsed, body, background_tasks, db, company, project)
     elif action == "stop":
-        return await _handle_stop(parsed, body, db, company, project)
+        response = await _handle_stop(parsed, body, db, company, project)
     elif action == "status":
-        return await _handle_status(parsed, body, db, company, project)
+        response = await _handle_status(parsed, body, db, company, project)
     elif action == "push":
-        return await _handle_push(parsed, body, background_tasks, db, company, project)
+        response = await _handle_push(parsed, body, background_tasks, db, company, project)
     elif action == "show_targets":
-        return await _handle_show_targets(parsed, body, db, company, project)
+        response = await _handle_show_targets(parsed, body, db, company, project)
     elif action == "show_stats":
-        return await _handle_stats(parsed, body, db, company, project)
+        response = await _handle_stats(parsed, body, db, company, project)
     elif action == "lookup_domain":
-        return await _handle_lookup_domain(parsed, body, db, company, project)
+        response = await _handle_lookup_domain(parsed, body, db, company, project)
     elif action == "search":
-        # Legacy ICP-based search — forward to existing handler
-        return await _handle_new_search(body, background_tasks, db, company)
+        response = await _handle_new_search(body, background_tasks, db, company)
     else:
-        # "info" or unknown — return the AI reply as-is
-        return ChatResponse(
+        response = ChatResponse(
             action="info",
             reply=parsed.get("reply", "I'm not sure what you need. Try: 'show stats', 'run yandex search', or 'push to smartlead'."),
             project_id=project_id,
             suggestions=_build_suggestions(project_context),
         )
+
+    # --- Save assistant reply to DB ---
+    resp_project_id = response.project_id or project_id
+    if resp_project_id and response.reply:
+        await _save_chat_message(db, resp_project_id, "assistant", response.reply)
+        await db.commit()
+
+    return response
 
 
 async def _build_project_context(db: AsyncSession, project: Project, company: Company) -> Dict[str, Any]:
@@ -315,9 +425,12 @@ async def _handle_new_search(
         },
     }
 
+    # Load context from DB instead of body.context
+    db_context = await _load_chat_context(db, project_id)
+
     # Parse the message with project context
     intent = await chat_search_service.parse_search_intent(
-        body.message, body.context or None, project_context=project_context,
+        body.message, db_context or None, project_context=project_context,
     )
 
     # Fallback: if AI didn't extract target_segments, use the raw message

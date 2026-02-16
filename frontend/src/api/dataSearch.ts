@@ -626,6 +626,25 @@ export const projectSearchApi = {
     return response.data;
   },
 
+  // Chat messages — persistent server-side storage
+  getChatMessages: async (
+    projectId: number,
+    limit: number = 200
+  ): Promise<{ id: number; role: string; content: string; client_id?: string; timestamp: string }[]> => {
+    const response = await api.get(`/search/chat/messages/${projectId}`, {
+      params: { limit },
+    });
+    return response.data;
+  },
+
+  saveChatMessages: async (
+    projectId: number,
+    messages: { role: string; content: string; client_id?: string }[]
+  ): Promise<{ saved: number }> => {
+    const response = await api.post(`/search/chat/messages/${projectId}`, { messages });
+    return response.data;
+  },
+
   // Search history — paginated job list with summary stats
   getSearchHistory: async (
     page: number = 1,

@@ -23,6 +23,7 @@ from .pipeline import (
     CampaignPushRule,
 )
 from .task import OperatorTask
+from .chat import ProjectChatMessage
 
 __all__ = [
     # User & Multi-tenancy
@@ -53,4 +54,6 @@ __all__ = [
     "CampaignPushRule",
     # Tasks
     "OperatorTask",
+    # Chat
+    "ProjectChatMessage",
 ]
