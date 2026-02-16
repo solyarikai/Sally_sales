@@ -256,12 +256,37 @@ export const contactsApi = {
     return response.data;
   },
 
-  // Export contacts as CSV
-  async exportCsv(contactIds?: number[]): Promise<Blob> {
+  // Export contacts as CSV (with filters or specific IDs)
+  async exportCsv(filters?: ContactFilters & { contact_ids?: number[] }): Promise<Blob> {
     const response = await api.post('/contacts/export/csv', 
-      contactIds ? { contact_ids: contactIds } : {},
+      filters || {},
       { responseType: 'blob' }
     );
+    return response.data;
+  },
+
+  // Export contacts to Google Sheet (with filters)
+  async exportGoogleSheet(filters: ContactFilters & { contact_ids?: number[] }): Promise<{ url: string; rows: number }> {
+    const response = await api.post('/contacts/export/google-sheet', filters);
+    return response.data;
+  },
+
+  // Verify campaign counts (DB vs SmartLead)
+  async verifyCampaigns(projectId: number): Promise<{
+    campaigns: Array<{
+      name: string;
+      campaign_id: string | null;
+      db_count: number;
+      db_rule_count: number;
+      smartlead_count: number | null;
+      match: boolean;
+      error: string | null;
+    }>;
+    total_db: number;
+    total_smartlead: number;
+    all_match: boolean;
+  }> {
+    const response = await api.get(`/contacts/verify-campaigns?project_id=${projectId}`);
     return response.data;
   },
 

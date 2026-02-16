@@ -56,6 +56,7 @@ class FullPipelineRequest(BaseModel):
     use_segment_search: bool = Field(False, description="Use template-based segment search instead of AI-random")
     skip_google: bool = Field(True, description="Skip Google search (Yandex only for testing)")
     segments: Optional[List[str]] = Field(None, description="Specific segments to run (None = all by priority)")
+    geos: Optional[List[str]] = Field(None, description="Specific geos to run (None = all for each segment)")
 
 
 @router.post("/full-pipeline/{project_id}")
@@ -260,6 +261,13 @@ async def _bg_phase_segment_search(
         """Run all geos for one segment sequentially."""
         seg_def = SEGMENTS[seg_key]
         geo_keys = list(seg_def["geos"].keys())
+
+        # Filter geos if specified in config
+        if cfg.geos:
+            geo_keys = [g for g in geo_keys if g in cfg.geos]
+            if not geo_keys:
+                logger.info(f"Skipping segment {seg_key}: no matching geos from {cfg.geos}")
+                return
 
         progress["segment_search"]["active_segments"].append(seg_key)
         logger.info(f"Starting parallel segment: {seg_key} ({len(geo_keys)} geos)")

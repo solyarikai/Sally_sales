@@ -19,7 +19,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   Users, Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Sparkles, FileText, Target, Mail, Loader2, ChevronRight, ChevronDown, Upload, AlertCircle, Check,
-  MessageSquare, ListTodo, Save, Edit3, ChevronLeft
+  MessageSquare, ListTodo, Save, Edit3, ChevronLeft, FileSpreadsheet, ShieldCheck
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type OperatorTask } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -215,7 +215,7 @@ export function ContactsPage() {
         status: statusFilters.length > 0 ? statusFilters.join(',') : undefined,
         source: sourceFilter || undefined,
         segment: segmentFilter || undefined,
-        campaign: (!activeProject && campaignFilters.length > 0) ? campaignFilters.join(',') : undefined,
+        campaign: campaignFilters.length > 0 ? campaignFilters.join(',') : undefined,
         has_replied: replyMode ? true : (repliedFilter ?? undefined),
         needs_followup: followupFilter ?? undefined,
         project_id: activeProject?.id,
@@ -501,11 +501,34 @@ export function ContactsPage() {
     }
   }, []);
 
+  // Build current filter object for exports
+  const buildExportFilters = useCallback(() => {
+    const filters: Record<string, any> = {};
+    if (selectedContacts.length > 0) {
+      filters.contact_ids = selectedContacts.map(c => c.id);
+    } else {
+      if (activeProject?.id) filters.project_id = activeProject.id;
+      if (campaignFilters.length > 0) filters.campaign = campaignFilters.join(',');
+      if (statusFilters.length > 0) filters.status = statusFilters.join(',');
+      if (sourceFilter) filters.source = sourceFilter;
+      if (segmentFilter) filters.segment = segmentFilter;
+      if (debouncedSearch) filters.search = debouncedSearch;
+      if (repliedFilter !== null) filters.has_replied = repliedFilter;
+      if (createdAfter) filters.created_after = createdAfter;
+      if (createdBefore) filters.created_before = createdBefore;
+    }
+    return filters;
+  }, [selectedContacts, activeProject, campaignFilters, statusFilters, sourceFilter, segmentFilter, debouncedSearch, repliedFilter, createdAfter, createdBefore]);
+
+  // Export states
+  const [isExportingSheet, setIsExportingSheet] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+
   // Actions
   const handleExportCsv = async () => {
     try {
-      const ids = selectedContacts.length > 0 ? selectedContacts.map(c => c.id) : undefined;
-      const blob = await contactsApi.exportCsv(ids);
+      const filters = buildExportFilters();
+      const blob = await contactsApi.exportCsv(filters);
 
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -519,6 +542,54 @@ export function ContactsPage() {
     } catch (err) {
       console.error('Failed to export:', err);
       toast.error('Export failed', getErrorMessage(err));
+    }
+  };
+
+  const handleExportGoogleSheet = async () => {
+    setIsExportingSheet(true);
+    try {
+      const filters = buildExportFilters();
+      const result = await contactsApi.exportGoogleSheet(filters);
+      toast.success(
+        `Exported ${result.rows} contacts`,
+        'Google Sheet created — opening in new tab'
+      );
+      window.open(result.url, '_blank');
+    } catch (err) {
+      console.error('Failed to export to Google Sheet:', err);
+      toast.error('Google Sheet export failed', getErrorMessage(err));
+    } finally {
+      setIsExportingSheet(false);
+    }
+  };
+
+  const handleVerifyCampaigns = async () => {
+    if (!activeProject?.id) {
+      toast.error('Select a project', 'Campaign verification requires an active project');
+      return;
+    }
+    setIsVerifying(true);
+    try {
+      const result = await contactsApi.verifyCampaigns(activeProject.id);
+      const lines = result.campaigns.map(c =>
+        `${c.name}: DB=${c.db_count}, SmartLead=${c.smartlead_count ?? '?'} ${c.match ? '✓' : '✗'}${c.error ? ` (${c.error})` : ''}`
+      );
+      if (result.all_match) {
+        toast.success(
+          `All campaigns match (${result.total_db} contacts)`,
+          lines.join('\n')
+        );
+      } else {
+        toast.error(
+          `Mismatch: DB=${result.total_db}, SmartLead=${result.total_smartlead}`,
+          lines.join('\n')
+        );
+      }
+    } catch (err) {
+      console.error('Verify failed:', err);
+      toast.error('Verification failed', getErrorMessage(err));
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -975,6 +1046,28 @@ export function ContactsPage() {
           <button onClick={handleExportCsv} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors" title="Export CSV">
             <Download className="w-4 h-4 text-neutral-500" />
           </button>
+          <button
+            onClick={handleExportGoogleSheet}
+            disabled={isExportingSheet}
+            className="p-1.5 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50"
+            title="Export to Google Sheet"
+          >
+            {isExportingSheet
+              ? <Loader2 className="w-4 h-4 text-green-600 animate-spin" />
+              : <FileSpreadsheet className="w-4 h-4 text-green-600" />}
+          </button>
+          {activeProject && (
+            <button
+              onClick={handleVerifyCampaigns}
+              disabled={isVerifying}
+              className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
+              title="Verify SmartLead campaigns"
+            >
+              {isVerifying
+                ? <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                : <ShieldCheck className="w-4 h-4 text-blue-600" />}
+            </button>
+          )}
           {selectedContacts.length > 0 && (
             <button onClick={handleDeleteSelected} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-red-500" title="Delete Selected">
               <Trash2 className="w-4 h-4" />

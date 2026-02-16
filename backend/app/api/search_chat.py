@@ -1,5 +1,8 @@
 """
-Chat-based search API — conversational interface for launching and managing searches.
+Chat-based search API — universal conversational interface for the lead generation platform.
+
+API-first design: any client (web UI, Slack, Telegram) sends a text message
+and receives a structured action response. Gemini 2.5 Pro parses intent.
 
 Endpoints:
 - POST /search/chat — Send a message to start or manage a search
@@ -45,28 +48,6 @@ class ChatResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
 
 
-# Pipeline command keywords
-_PIPELINE_COMMANDS = {
-    "launch pipeline": "start",
-    "start pipeline": "start",
-    "run pipeline": "start",
-    "запусти пайплайн": "start",
-    "запустить пайплайн": "start",
-    "stop pipeline": "stop",
-    "остановить пайплайн": "stop",
-    "остановить": "stop",
-    "pipeline status": "status",
-    "статус пайплайна": "status",
-    "show status": "status",
-    "push to smartlead": "push",
-    "push contacts": "push",
-    "отправить в smartlead": "push",
-    "show targets": "targets",
-    "покажи таргеты": "targets",
-    "show target companies": "targets",
-}
-
-
 @router.post("/chat")
 async def chat_search(
     body: ChatRequest,
@@ -75,33 +56,164 @@ async def chat_search(
     company: Company = Depends(get_required_company),
 ):
     """
-    Conversational search interface.
+    Universal conversational interface. Gemini 2.5 Pro parses any message
+    into a structured action: start_search, stop, status, push, show_targets,
+    show_stats, search (new ICP), or info.
 
-    Supports pipeline commands:
-    - "launch pipeline" / "start pipeline" / "run pipeline"
-    - "stop pipeline"
-    - "pipeline status" / "show status"
-    - "push to smartlead" / "push contacts"
-    - "show targets"
-
-    Also: First message (no project_id): parses intent, creates project, launches search.
-    Follow-up (with job_id): classifies feedback, updates knowledge.
+    Accepts natural language in English and Russian. Examples:
+    - "run yandex on real_estate turkey, 2000 queries, push after"
+    - "show stats by segment"
+    - "how many targets do we have?"
+    - "push all contacts to smartlead"
+    - "stop"
     """
-    # --- Check for pipeline commands first ---
-    msg_lower = body.message.strip().lower()
-    for pattern, cmd in _PIPELINE_COMMANDS.items():
-        if pattern in msg_lower:
-            return await _handle_pipeline_command(cmd, body, background_tasks, db, company)
-
     if not settings.OPENAI_API_KEY and not settings.GEMINI_API_KEY:
         raise HTTPException(status_code=400, detail="No AI API key configured (need OPENAI_API_KEY or GEMINI_API_KEY)")
 
-    # Follow-up message with existing job — handle as feedback
-    if body.job_id:
-        return await _handle_feedback(body, db, company)
+    project_id = body.project_id
 
-    # First message or message with existing project — parse intent and launch
-    return await _handle_new_search(body, background_tasks, db, company)
+    # Build project context for the AI parser
+    project_context = None
+    project = None
+    if project_id:
+        result = await db.execute(
+            select(Project).where(Project.id == project_id, Project.company_id == company.id)
+        )
+        project = result.scalar_one_or_none()
+        if project:
+            project_context = await _build_project_context(db, project, company)
+
+    # --- Parse intent with Gemini 2.5 Pro ---
+    parsed = await chat_search_service.parse_chat_action(
+        message=body.message,
+        project_context=project_context,
+        context=body.context or None,
+    )
+    action = parsed.get("action", "info")
+    logger.info(f"Chat action parsed: action={action}, engine={parsed.get('engine')}, "
+                f"segments={parsed.get('segments')}, geos={parsed.get('geos')}")
+
+    # --- Route to handler ---
+    if action == "start_search":
+        return await _handle_start_search(parsed, body, background_tasks, db, company, project)
+    elif action == "stop":
+        return await _handle_stop(parsed, body, db, company, project)
+    elif action == "status":
+        return await _handle_status(parsed, body, db, company, project)
+    elif action == "push":
+        return await _handle_push(parsed, body, background_tasks, db, company, project)
+    elif action == "show_targets":
+        return await _handle_show_targets(parsed, body, db, company, project)
+    elif action == "show_stats":
+        return await _handle_stats(parsed, body, db, company, project)
+    elif action == "search":
+        # Legacy ICP-based search — forward to existing handler
+        return await _handle_new_search(body, background_tasks, db, company)
+    else:
+        # "info" or unknown — return the AI reply as-is
+        return ChatResponse(
+            action="info",
+            reply=parsed.get("reply", "I'm not sure what you need. Try: 'show stats', 'run yandex search', or 'push to smartlead'."),
+            project_id=project_id,
+            suggestions=_build_suggestions(project_context),
+        )
+
+
+async def _build_project_context(db: AsyncSession, project: Project, company: Company) -> Dict[str, Any]:
+    """Build rich project context for the AI intent parser."""
+    from sqlalchemy import text as sql_text
+    from app.api.pipeline import _running_pipelines
+
+    pid = project.id
+    cid = company.id
+
+    stats = await db.execute(sql_text("""
+        SELECT
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE is_target) as targets,
+            COUNT(*) FILTER (WHERE apollo_enriched_at IS NOT NULL) as enriched
+        FROM discovered_companies
+        WHERE project_id = :pid AND company_id = :cid
+    """), {"pid": pid, "cid": cid})
+    row = stats.fetchone()
+
+    contacts_stats = await db.execute(sql_text("""
+        SELECT
+            COUNT(*) FILTER (WHERE campaigns IS NOT NULL AND campaigns::text NOT IN ('null', '[]', '{}', '')) as in_campaigns,
+            COUNT(*) FILTER (WHERE (campaigns IS NULL OR campaigns::text IN ('null', '[]', '{}', '')) AND source IN ('pipeline', 'smartlead_pipeline_push')) as unpushed
+        FROM contacts
+        WHERE project_id = :pid AND deleted_at IS NULL
+    """), {"pid": pid})
+    c_row = contacts_stats.fetchone()
+
+    # Top segments summary
+    seg_stats = await db.execute(sql_text("""
+        SELECT sq.segment, SUM(sq.targets_found) as targets, COUNT(sq.id) as queries
+        FROM search_queries sq
+        JOIN search_jobs sj ON sq.search_job_id = sj.id
+        WHERE sj.project_id = :pid AND sq.segment IS NOT NULL
+        GROUP BY sq.segment HAVING SUM(sq.targets_found) > 0
+        ORDER BY SUM(sq.targets_found) DESC LIMIT 5
+    """), {"pid": pid})
+    seg_rows = seg_stats.fetchall()
+    top_segments = ", ".join(f"{r.segment}({r.targets} targets/{r.queries}q)" for r in seg_rows) if seg_rows else "none yet"
+
+    # Cost summary
+    cost_stats = await db.execute(sql_text("""
+        SELECT sj.search_engine, COUNT(sq.id) as queries
+        FROM search_queries sq
+        JOIN search_jobs sj ON sq.search_job_id = sj.id
+        WHERE sj.project_id = :pid
+        GROUP BY sj.search_engine
+    """), {"pid": pid})
+    cost_parts = []
+    for cr in cost_stats.fetchall():
+        eng = cr.search_engine
+        q = cr.queries
+        if eng == "YANDEX_API":
+            cost_parts.append(f"Yandex: {q} queries (${round(q * 0.25 / 1000, 2)})")
+        elif eng == "GOOGLE_SERP":
+            cost_parts.append(f"Google: {q} queries (${round(q * 3.50 / 1000, 2)})")
+    cost_summary = ", ".join(cost_parts) if cost_parts else "$0"
+
+    # Pipeline status
+    progress = _running_pipelines.get(pid, {})
+    pipeline_running = progress.get("running", False)
+    pipeline_phase = progress.get("phase", "")
+
+    return {
+        "project_id": pid,
+        "project_name": project.name,
+        "total_discovered": row.total if row else 0,
+        "total_targets": row.targets if row else 0,
+        "total_enriched": row.enriched if row else 0,
+        "contacts_in_campaigns": c_row.in_campaigns if c_row else 0,
+        "unpushed_contacts": c_row.unpushed if c_row else 0,
+        "top_segments": top_segments,
+        "cost_summary": cost_summary,
+        "pipeline_running": pipeline_running,
+        "pipeline_phase": pipeline_phase,
+    }
+
+
+def _build_suggestions(project_context: Optional[Dict[str, Any]]) -> List[str]:
+    """Generate contextual suggestions based on project state."""
+    if not project_context:
+        return ["show stats by segment", "run yandex search", "show funnel"]
+
+    suggestions = []
+    if project_context.get("pipeline_running"):
+        suggestions.extend(["pipeline status", "stop"])
+    else:
+        if project_context.get("total_targets", 0) > 0:
+            suggestions.append("show stats by segment")
+        if project_context.get("unpushed_contacts", 0) > 0:
+            suggestions.append(f"push {project_context['unpushed_contacts']} contacts to smartlead")
+        suggestions.append("run yandex on best segments")
+        if project_context.get("total_targets", 0) > 0:
+            suggestions.append("show funnel")
+
+    return suggestions[:4]
 
 
 async def _handle_new_search(
@@ -366,184 +478,399 @@ async def _run_chat_search_background(
         logger.error(f"Background chat search crashed: {e}")
 
 
-async def _handle_pipeline_command(
-    command: str,
-    body: ChatRequest,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession,
-    company: Company,
+async def _require_project(body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project] = None):
+    """Ensure project is selected and valid."""
+    if not body.project_id:
+        return None, ChatResponse(action="error", reply="Please select a project first.")
+    if not project:
+        result = await db.execute(
+            select(Project).where(Project.id == body.project_id, Project.company_id == company.id)
+        )
+        project = result.scalar_one_or_none()
+    if not project:
+        return None, ChatResponse(action="error", reply="Project not found.", project_id=body.project_id)
+    return project, None
+
+
+async def _handle_start_search(
+    parsed: Dict, body: ChatRequest, background_tasks: BackgroundTasks,
+    db: AsyncSession, company: Company, project: Optional[Project],
 ) -> ChatResponse:
-    """Handle pipeline control commands from chat."""
-    from app.api.pipeline import _running_pipelines, _bg_phase_smartlead_push, FullPipelineRequest, _run_full_pipeline_bg
+    """Launch segment-based search pipeline with Gemini-parsed parameters."""
+    from app.api.pipeline import _running_pipelines, FullPipelineRequest, _run_full_pipeline_bg
+    from datetime import datetime
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+    project_id = proj.id
+
+    if project_id in _running_pipelines and _running_pipelines[project_id].get("running"):
+        phase = _running_pipelines[project_id].get("phase", "unknown")
+        return ChatResponse(
+            action="info",
+            reply=f"Pipeline is already running (phase: {phase}). Wait for it to complete or stop it first.",
+            project_id=project_id,
+            suggestions=["pipeline status", "stop"],
+        )
+
+    # Build pipeline config from parsed parameters
+    engine = parsed.get("engine", "yandex")
+    skip_google = engine != "google" and engine != "both"
+    use_both = engine == "both"
+
+    cfg = FullPipelineRequest(
+        use_segment_search=True,
+        skip_google=skip_google,
+        segments=parsed.get("segments"),
+        geos=parsed.get("geos"),
+        max_queries=parsed.get("max_queries") or body.max_queries or 1500,
+        target_goal=parsed.get("target_goal") or body.target_goal or 500,
+        skip_smartlead_push=parsed.get("skip_smartlead_push", False),
+    )
+
+    _running_pipelines[project_id] = {
+        "running": True,
+        "phase": "starting",
+        "started_at": datetime.utcnow().isoformat(),
+        "config": cfg.model_dump(),
+    }
+    background_tasks.add_task(_run_full_pipeline_bg, project_id, company.id, cfg)
+
+    return ChatResponse(
+        action="pipeline_started",
+        reply=parsed.get("reply", f"Pipeline started for **{proj.name}** using {engine}. Phases: Search → Extraction → Enrichment → Push."),
+        project_id=project_id,
+        suggestions=["pipeline status", "stop"],
+    )
+
+
+async def _handle_stop(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Stop a running pipeline."""
+    from app.api.pipeline import _running_pipelines
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+
+    if proj.id in _running_pipelines and _running_pipelines[proj.id].get("running"):
+        _running_pipelines[proj.id]["stop_requested"] = True
+        return ChatResponse(
+            action="pipeline_stopped",
+            reply=parsed.get("reply", f"Stop requested for **{proj.name}** pipeline. It will finish the current batch and stop."),
+            project_id=proj.id,
+        )
+    return ChatResponse(
+        action="info",
+        reply="No pipeline is currently running for this project.",
+        project_id=proj.id,
+        suggestions=["run yandex search", "show stats"],
+    )
+
+
+async def _handle_status(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Show pipeline status."""
+    from app.api.pipeline import _running_pipelines
     from sqlalchemy import text as sql_text
 
-    project_id = body.project_id
-    if not project_id:
-        return ChatResponse(
-            action="error",
-            reply="Please select a project first. Pipeline commands require a project scope.",
-        )
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+    project_id = proj.id
 
-    # Verify project
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.company_id == company.id)
-    )
-    project = result.scalar_one_or_none()
-    if not project:
-        return ChatResponse(action="error", reply="Project not found.", project_id=project_id)
-
-    if command == "start":
-        if project_id in _running_pipelines and _running_pipelines[project_id].get("running"):
-            phase = _running_pipelines[project_id].get("phase", "unknown")
-            return ChatResponse(
-                action="info",
-                reply=f"Pipeline is already running (phase: {phase}). Wait for it to complete or stop it first.",
-                project_id=project_id,
-            )
-
-        cfg = FullPipelineRequest()
-        _running_pipelines[project_id] = {
-            "running": True,
-            "phase": "starting",
-            "started_at": __import__("datetime").datetime.utcnow().isoformat(),
-            "config": cfg.model_dump(),
-        }
-        background_tasks.add_task(_run_full_pipeline_bg, project_id, company.id, cfg)
-
-        return ChatResponse(
-            action="pipeline_started",
-            reply=f"Full pipeline started for **{project.name}**. Phases: Search → Extraction → Apollo Enrichment. Use 'pipeline status' to check progress.",
-            project_id=project_id,
-            suggestions=["pipeline status", "stop pipeline", "show targets"],
-        )
-
-    elif command == "stop":
-        if project_id in _running_pipelines and _running_pipelines[project_id].get("running"):
-            _running_pipelines[project_id]["stop_requested"] = True
-            return ChatResponse(
-                action="pipeline_stopped",
-                reply=f"Stop requested for **{project.name}** pipeline. It will finish the current batch and stop.",
-                project_id=project_id,
-            )
-        return ChatResponse(
-            action="info",
-            reply="No pipeline is currently running for this project.",
-            project_id=project_id,
-        )
-
-    elif command == "status":
-        progress = _running_pipelines.get(project_id, {})
-        if not progress:
-            # Get quick stats from DB
-            stats = await db.execute(sql_text("""
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE is_target) as targets,
-                    COUNT(*) FILTER (WHERE apollo_enriched_at IS NOT NULL) as enriched
-                FROM discovered_companies
-                WHERE project_id = :pid AND company_id = :cid
-            """), {"pid": project_id, "cid": company.id})
-            row = stats.fetchone()
-            return ChatResponse(
-                action="info",
-                reply=f"No pipeline currently running for **{project.name}**.\n\nCurrent data: {row.total} discovered, {row.targets} targets, {row.enriched} enriched.",
-                project_id=project_id,
-                data={"total": row.total, "targets": row.targets, "enriched": row.enriched},
-                suggestions=["launch pipeline", "push to smartlead", "show targets"],
-            )
-
-        phase = progress.get("phase", "unknown")
-        is_running = progress.get("running", False)
-        status_parts = [f"**Phase:** {phase}", f"**Running:** {'Yes' if is_running else 'No'}"]
-
-        if progress.get("targets_after_search"):
-            status_parts.append(f"**Targets found:** {progress['targets_after_search']}")
-        if progress.get("enrichment_stats"):
-            es = progress["enrichment_stats"]
-            status_parts.append(f"**Enriched:** {es.get('processed', 0)}, credits: {es.get('credits_used', 0)}")
-        if progress.get("smartlead_push_stats"):
-            ps = progress["smartlead_push_stats"]
-            status_parts.append(f"**SmartLead:** {ps.get('leads_pushed', 0)} pushed")
-
-        return ChatResponse(
-            action="info",
-            reply=f"Pipeline status for **{project.name}**:\n\n" + "\n".join(status_parts),
-            project_id=project_id,
-            data=progress,
-            suggestions=["stop pipeline"] if is_running else ["launch pipeline", "push to smartlead"],
-        )
-
-    elif command == "push":
-        if project_id in _running_pipelines and _running_pipelines[project_id].get("running"):
-            return ChatResponse(
-                action="info",
-                reply="Pipeline is already running. Wait for it to complete before pushing.",
-                project_id=project_id,
-            )
-
-        _running_pipelines[project_id] = {
-            "running": True,
-            "phase": "smartlead_push",
-            "started_at": __import__("datetime").datetime.utcnow().isoformat(),
-            "config": {"standalone_push": True},
-        }
-
-        async def run_push():
-            progress = _running_pipelines[project_id]
-            try:
-                await _bg_phase_smartlead_push(project_id, company.id, progress)
-                progress.update({"running": False, "phase": "completed"})
-            except Exception as e:
-                logger.error(f"SmartLead push from chat failed: {e}", exc_info=True)
-                progress.update({"running": False, "phase": "error", "error": str(e)[:500]})
-
-        background_tasks.add_task(run_push)
-
-        return ChatResponse(
-            action="push_started",
-            reply=f"SmartLead push started for **{project.name}**. Contacts will be classified and uploaded to campaigns based on push rules.",
-            project_id=project_id,
-            suggestions=["pipeline status", "show targets"],
-        )
-
-    elif command == "targets":
-        targets = await db.execute(sql_text("""
-            SELECT dc.domain, dc.name, dc.confidence, dc.reasoning,
-                   dc.contacts_count, dc.apollo_people_count, dc.status
-            FROM discovered_companies dc
-            WHERE dc.project_id = :pid AND dc.company_id = :cid AND dc.is_target = true
-            ORDER BY dc.confidence DESC NULLS LAST
-            LIMIT 20
+    progress = _running_pipelines.get(project_id, {})
+    if not progress or not progress.get("running"):
+        stats = await db.execute(sql_text("""
+            SELECT
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE is_target) as targets,
+                COUNT(*) FILTER (WHERE apollo_enriched_at IS NOT NULL) as enriched
+            FROM discovered_companies
+            WHERE project_id = :pid AND company_id = :cid
         """), {"pid": project_id, "cid": company.id})
-        rows = targets.fetchall()
-
-        if not rows:
-            return ChatResponse(
-                action="info",
-                reply=f"No target companies found yet for **{project.name}**. Run a search first.",
-                project_id=project_id,
-                suggestions=["launch pipeline"],
-            )
-
-        lines = []
-        for r in rows:
-            conf = f"{round(r.confidence * 100)}%" if r.confidence else "N/A"
-            contacts = f"📧{r.contacts_count}" if r.contacts_count else ""
-            apollo = f"🔍{r.apollo_people_count}" if r.apollo_people_count else ""
-            name = r.name or r.domain
-            reason = (r.reasoning or "")[:100]
-            lines.append(f"• **{name}** ({r.domain}) — {conf} {contacts} {apollo}\n  _{reason}_")
-
+        row = stats.fetchone()
         return ChatResponse(
             action="info",
-            reply=f"Top {len(rows)} targets for **{project.name}**:\n\n" + "\n\n".join(lines),
+            reply=f"No pipeline running for **{proj.name}**.\n\nCurrent data: {row.total} discovered, {row.targets} targets, {row.enriched} enriched.",
             project_id=project_id,
-            data={"targets_count": len(rows)},
-            suggestions=["push to smartlead", "pipeline status"],
+            data={"total": row.total, "targets": row.targets, "enriched": row.enriched},
+            suggestions=["run yandex search", "show stats by segment", "push to smartlead"],
+        )
+
+    phase = progress.get("phase", "unknown")
+    is_running = progress.get("running", False)
+    parts = [f"**Phase:** {phase}", f"**Running:** {'Yes' if is_running else 'No'}"]
+
+    if progress.get("targets_after_search"):
+        parts.append(f"**Targets found:** {progress['targets_after_search']}")
+    if progress.get("segment_search"):
+        ss = progress["segment_search"]
+        completed = ss.get("segments_completed", [])
+        active = ss.get("active_segments", [])
+        if active:
+            parts.append(f"**Active segments:** {', '.join(active)}")
+        if completed:
+            parts.append(f"**Completed:** {', '.join(completed)}")
+    if progress.get("enrichment_stats"):
+        es = progress["enrichment_stats"]
+        parts.append(f"**Enriched:** {es.get('processed', 0)}, credits: {es.get('credits_used', 0)}")
+    if progress.get("smartlead_push_stats"):
+        ps = progress["smartlead_push_stats"]
+        parts.append(f"**SmartLead:** {ps.get('leads_pushed', 0)} pushed")
+
+    return ChatResponse(
+        action="info",
+        reply=f"Pipeline status for **{proj.name}**:\n\n" + "\n".join(parts),
+        project_id=project_id,
+        data=progress,
+        suggestions=["stop"] if is_running else ["run yandex search", "push to smartlead"],
+    )
+
+
+async def _handle_push(
+    parsed: Dict, body: ChatRequest, background_tasks: BackgroundTasks,
+    db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Push contacts to SmartLead campaigns."""
+    from app.api.pipeline import _running_pipelines, _bg_phase_smartlead_push, _bg_phase_crm_promote
+    from datetime import datetime
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+    project_id = proj.id
+
+    if project_id in _running_pipelines and _running_pipelines[project_id].get("running"):
+        return ChatResponse(
+            action="info",
+            reply="Pipeline is already running. Wait for it to complete before pushing.",
+            project_id=project_id,
+        )
+
+    _running_pipelines[project_id] = {
+        "running": True,
+        "phase": "crm_promote",
+        "started_at": datetime.utcnow().isoformat(),
+        "config": {"standalone_push": True},
+    }
+
+    async def run_push():
+        progress = _running_pipelines[project_id]
+        try:
+            # First promote to CRM, then push to SmartLead
+            await _bg_phase_crm_promote(project_id, company.id, progress)
+            progress["phase"] = "smartlead_push"
+            await _bg_phase_smartlead_push(project_id, company.id, progress)
+            progress.update({"running": False, "phase": "completed"})
+        except Exception as e:
+            logger.error(f"SmartLead push from chat failed: {e}", exc_info=True)
+            progress.update({"running": False, "phase": "error", "error": str(e)[:500]})
+
+    background_tasks.add_task(run_push)
+
+    return ChatResponse(
+        action="push_started",
+        reply=parsed.get("reply", f"Push started for **{proj.name}**. Promoting to CRM → pushing to SmartLead campaigns."),
+        project_id=project_id,
+        suggestions=["pipeline status"],
+    )
+
+
+async def _handle_show_targets(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Show top target companies."""
+    from sqlalchemy import text as sql_text
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+    project_id = proj.id
+
+    targets = await db.execute(sql_text("""
+        SELECT dc.domain, dc.name, dc.confidence, dc.reasoning,
+               dc.contacts_count, dc.apollo_people_count, dc.status
+        FROM discovered_companies dc
+        WHERE dc.project_id = :pid AND dc.company_id = :cid AND dc.is_target = true
+        ORDER BY dc.confidence DESC NULLS LAST
+        LIMIT 20
+    """), {"pid": project_id, "cid": company.id})
+    rows = targets.fetchall()
+
+    if not rows:
+        return ChatResponse(
+            action="info",
+            reply=f"No target companies found yet for **{proj.name}**. Run a search first.",
+            project_id=project_id,
+            suggestions=["run yandex search"],
+        )
+
+    lines = []
+    for r in rows:
+        conf = f"{round(r.confidence * 100)}%" if r.confidence else "N/A"
+        contacts = f" | {r.contacts_count} contacts" if r.contacts_count else ""
+        name = r.name or r.domain
+        lines.append(f"- **{name}** ({r.domain}) — {conf}{contacts}")
+
+    return ChatResponse(
+        action="info",
+        reply=f"Top {len(rows)} targets for **{proj.name}**:\n\n" + "\n".join(lines),
+        project_id=project_id,
+        data={"targets_count": len(rows)},
+        suggestions=["push to smartlead", "show stats by segment"],
+    )
+
+
+async def _handle_stats(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Show performance analytics based on scope."""
+    from sqlalchemy import text as sql_text
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+    project_id = proj.id
+    scope = parsed.get("stats_scope", "funnel") or "funnel"
+
+    if scope == "segment":
+        rows = await db.execute(sql_text("""
+            SELECT sq.segment,
+                COUNT(sq.id) as queries,
+                SUM(sq.domains_found) as domains,
+                SUM(sq.targets_found) as targets,
+                ROUND(100.0 * SUM(sq.targets_found) / NULLIF(SUM(sq.domains_found), 0), 2) as target_pct
+            FROM search_queries sq
+            JOIN search_jobs sj ON sq.search_job_id = sj.id
+            WHERE sj.project_id = :pid AND sq.segment IS NOT NULL
+            GROUP BY sq.segment ORDER BY SUM(sq.targets_found) DESC
+        """), {"pid": project_id})
+        data = rows.fetchall()
+        lines = ["| Segment | Queries | Domains | Targets | Target % |",
+                 "|---------|---------|---------|---------|----------|"]
+        for r in data:
+            lines.append(f"| {r.segment or 'unknown'} | {r.queries} | {r.domains} | {r.targets} | {r.target_pct or 0}% |")
+        reply = f"**Stats by segment for {proj.name}:**\n\n" + "\n".join(lines)
+
+    elif scope == "geo":
+        rows = await db.execute(sql_text("""
+            SELECT sq.geo,
+                COUNT(sq.id) as queries,
+                SUM(sq.targets_found) as targets,
+                ROUND(100.0 * SUM(sq.targets_found) / NULLIF(SUM(sq.domains_found), 0), 2) as target_pct
+            FROM search_queries sq
+            JOIN search_jobs sj ON sq.search_job_id = sj.id
+            WHERE sj.project_id = :pid AND sq.geo IS NOT NULL
+            GROUP BY sq.geo ORDER BY SUM(sq.targets_found) DESC LIMIT 20
+        """), {"pid": project_id})
+        data = rows.fetchall()
+        lines = ["| Geo | Queries | Targets | Target % |",
+                 "|-----|---------|---------|----------|"]
+        for r in data:
+            lines.append(f"| {r.geo} | {r.queries} | {r.targets} | {r.target_pct or 0}% |")
+        reply = f"**Stats by geo for {proj.name}:**\n\n" + "\n".join(lines)
+
+    elif scope == "engine":
+        rows = await db.execute(sql_text("""
+            SELECT sj.search_engine,
+                COUNT(sq.id) as queries,
+                SUM(sq.targets_found) as targets,
+                CASE
+                    WHEN sj.search_engine = 'YANDEX_API' THEN ROUND(COUNT(sq.id) * 0.25 / 1000, 2)
+                    WHEN sj.search_engine = 'GOOGLE_SERP' THEN ROUND(COUNT(sq.id) * 3.50 / 1000, 2)
+                    ELSE 0
+                END as cost_usd,
+                CASE WHEN SUM(sq.targets_found) > 0 THEN
+                    ROUND(
+                        CASE
+                            WHEN sj.search_engine = 'YANDEX_API' THEN COUNT(sq.id) * 0.25 / 1000
+                            WHEN sj.search_engine = 'GOOGLE_SERP' THEN COUNT(sq.id) * 3.50 / 1000
+                            ELSE 0
+                        END / SUM(sq.targets_found), 2
+                    )
+                ELSE 0 END as cost_per_target
+            FROM search_queries sq
+            JOIN search_jobs sj ON sq.search_job_id = sj.id
+            WHERE sj.project_id = :pid
+            GROUP BY sj.search_engine
+        """), {"pid": project_id})
+        data = rows.fetchall()
+        lines = ["| Engine | Queries | Targets | Cost ($) | $/target |",
+                 "|--------|---------|---------|----------|----------|"]
+        for r in data:
+            lines.append(f"| {r.search_engine} | {r.queries} | {r.targets} | ${r.cost_usd} | ${r.cost_per_target} |")
+        reply = f"**Engine comparison for {proj.name}:**\n\n" + "\n".join(lines)
+
+    elif scope == "cost":
+        rows = await db.execute(sql_text("""
+            SELECT sj.search_engine, COUNT(sq.id) as queries,
+                CASE
+                    WHEN sj.search_engine = 'YANDEX_API' THEN ROUND(COUNT(sq.id) * 0.25 / 1000, 2)
+                    WHEN sj.search_engine = 'GOOGLE_SERP' THEN ROUND(COUNT(sq.id) * 3.50 / 1000, 2)
+                    ELSE 0
+                END as cost_usd
+            FROM search_queries sq
+            JOIN search_jobs sj ON sq.search_job_id = sj.id
+            WHERE sj.project_id = :pid
+            GROUP BY sj.search_engine
+        """), {"pid": project_id})
+        data = rows.fetchall()
+        total_cost = sum(float(r.cost_usd) for r in data)
+        lines = [f"**Total search cost: ${total_cost:.2f}**\n"]
+        for r in data:
+            lines.append(f"- {r.search_engine}: {r.queries} queries = ${r.cost_usd}")
+        reply = f"**Cost breakdown for {proj.name}:**\n\n" + "\n".join(lines)
+
+    elif scope == "top_queries":
+        rows = await db.execute(sql_text("""
+            SELECT sq.query_text, sq.segment, sq.geo,
+                sq.domains_found, sq.targets_found,
+                ROUND(100.0 * sq.targets_found / NULLIF(sq.domains_found, 0), 1) as target_pct,
+                sj.search_engine
+            FROM search_queries sq
+            JOIN search_jobs sj ON sq.search_job_id = sj.id
+            WHERE sj.project_id = :pid AND sq.targets_found > 0
+            ORDER BY sq.targets_found DESC LIMIT 15
+        """), {"pid": project_id})
+        data = rows.fetchall()
+        lines = []
+        for r in data:
+            lines.append(f"- **{r.query_text}** ({r.segment}/{r.geo}) — {r.targets_found} targets ({r.target_pct}%) [{r.search_engine}]")
+        reply = f"**Top queries for {proj.name}:**\n\n" + "\n".join(lines)
+
+    else:  # funnel
+        funnel = await db.execute(sql_text("""
+            SELECT
+                (SELECT COUNT(*) FROM discovered_companies WHERE project_id = :pid) as discovered,
+                (SELECT COUNT(*) FROM discovered_companies WHERE project_id = :pid AND is_target = true) as targets,
+                (SELECT COUNT(DISTINCT ec.discovered_company_id) FROM extracted_contacts ec
+                 JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+                 WHERE dc.project_id = :pid AND dc.is_target = true AND ec.email IS NOT NULL) as targets_with_email,
+                (SELECT COUNT(*) FROM extracted_contacts ec
+                 JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+                 WHERE dc.project_id = :pid AND dc.is_target = true AND ec.email IS NOT NULL) as total_email_contacts,
+                (SELECT COUNT(*) FROM contacts WHERE project_id = :pid AND deleted_at IS NULL) as crm_contacts,
+                (SELECT COUNT(*) FROM contacts WHERE project_id = :pid AND deleted_at IS NULL
+                 AND campaigns IS NOT NULL AND campaigns::text NOT IN ('null', '[]', '{}', '')) as in_campaigns
+        """), {"pid": project_id})
+        f = funnel.fetchone()
+        reply = (
+            f"**Funnel for {proj.name}:**\n\n"
+            f"- Discovered companies: **{f.discovered}**\n"
+            f"- Target companies: **{f.targets}** ({round(100 * f.targets / max(f.discovered, 1), 1)}%)\n"
+            f"- Targets with email: **{f.targets_with_email}** ({round(100 * f.targets_with_email / max(f.targets, 1), 1)}%)\n"
+            f"- Total email contacts: **{f.total_email_contacts}**\n"
+            f"- CRM contacts: **{f.crm_contacts}**\n"
+            f"- In SmartLead campaigns: **{f.in_campaigns}**"
         )
 
     return ChatResponse(
-        action="error",
-        reply=f"Unknown pipeline command: {command}",
+        action="stats",
+        reply=reply,
         project_id=project_id,
+        suggestions=_build_suggestions(None),
     )

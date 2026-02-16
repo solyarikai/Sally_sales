@@ -1,6 +1,9 @@
 """
 Chat-based search service — parses natural language into search parameters
 and classifies feedback for knowledge updates.
+
+The chat API is designed as a universal interface: any client (web UI, Slack,
+Telegram) sends a text message and receives a structured action response.
 """
 import json
 import logging
@@ -10,9 +13,192 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# All actions the chat can route to
+CHAT_ACTIONS = [
+    "start_search",   # Launch segment-based search pipeline
+    "stop",           # Stop running pipeline
+    "status",         # Show pipeline status
+    "push",           # Push contacts to SmartLead
+    "show_targets",   # List top target companies
+    "show_stats",     # Performance analytics
+    "search",         # New ICP-based search (legacy AI-random)
+    "info",           # General question / unknown
+]
+
+# Available segment keys for the system prompt
+AVAILABLE_SEGMENTS = [
+    "real_estate", "investment", "legal", "migration",
+    "crypto", "family_office", "importers",
+]
+
 
 class ChatSearchService:
-    """Parses chat messages into search intents and feedback."""
+    """Parses chat messages into search intents and feedback.
+
+    Core method: parse_chat_action() — the universal intent parser.
+    Any input source (UI, Slack, Telegram) calls this to get a structured action.
+    """
+
+    async def parse_chat_action(
+        self,
+        message: str,
+        project_context: Optional[Dict[str, Any]] = None,
+        context: Optional[List[Dict[str, str]]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Parse any user message into a structured action using Gemini 2.5 Pro.
+
+        This is the universal entry point — works for pipeline commands,
+        analytics queries, search instructions, and general questions.
+
+        Returns:
+            {
+                "action": str,           # one of CHAT_ACTIONS
+                "engine": str|None,      # "yandex" | "google" | "both"
+                "segments": list|None,   # segment keys to search
+                "geos": list|None,       # geo keys to filter
+                "max_queries": int|None,
+                "target_goal": int|None,
+                "skip_smartlead_push": bool,
+                "stats_scope": str|None, # "segment"|"geo"|"engine"|"cost"|"funnel"|"top_queries"
+                "reply": str,            # Human-readable response
+            }
+        """
+        project_block = ""
+        if project_context:
+            parts = []
+            parts.append(f"PROJECT: {project_context.get('project_name', 'Unknown')} (id={project_context.get('project_id', '?')})")
+            parts.append(f"TARGETS: {project_context.get('total_targets', 0)} targets from {project_context.get('total_discovered', 0)} discovered companies")
+            parts.append(f"CONTACTS IN CAMPAIGNS: {project_context.get('contacts_in_campaigns', 0)}")
+            parts.append(f"UNPUSHED CONTACTS: {project_context.get('unpushed_contacts', 0)}")
+            if project_context.get("pipeline_running"):
+                parts.append(f"PIPELINE STATUS: running (phase: {project_context.get('pipeline_phase', 'unknown')})")
+            else:
+                parts.append("PIPELINE STATUS: not running")
+            if project_context.get("top_segments"):
+                parts.append(f"TOP SEGMENTS BY TARGETS: {project_context['top_segments']}")
+            if project_context.get("cost_summary"):
+                parts.append(f"COST SPENT: {project_context['cost_summary']}")
+            project_block = "\n".join(parts)
+
+        # Available geos are dynamic per segment, list all known ones
+        available_geos_str = (
+            "real_estate: dubai, turkey, cyprus, thailand_bali, montenegro, spain_portugal, greece, london, israel, italy, global_aggregator\n"
+            "investment: moscow, switzerland, singapore, dubai_difc\n"
+            "legal: moscow, cyprus_legal, uae_legal, estonia, georgia_legal, serbia_legal, offshore, london, malta, israel\n"
+            "migration: portugal_gv, spain_gv, greece_gv, montenegro_rp, caribbean_cbi, eb5_usa, uae_visa, general_migration, malta_rp, uk_visa, italy_gv\n"
+            "crypto: dubai_crypto, moscow_crypto\n"
+            "family_office: moscow_fo, dubai_fo, switzerland_fo, singapore_fo, ppli_insurance, private_banks_ru\n"
+            "importers: moscow_import"
+        )
+
+        system_prompt = f"""You are an AI assistant for a lead generation platform. You parse user messages into structured actions.
+
+{f"CURRENT PROJECT STATE:{chr(10)}{project_block}" if project_block else "No project selected."}
+
+AVAILABLE ACTIONS:
+1. "start_search" — Launch data gathering pipeline with template-based search.
+   Parameters: engine (yandex|google|both), segments (list), geos (list), max_queries (int), target_goal (int), skip_smartlead_push (bool)
+   Use when user wants to search/gather/find/run/launch searching for companies/contacts.
+
+2. "stop" — Stop a running pipeline. Use when user says stop/cancel/halt.
+
+3. "status" — Show pipeline status. Use when user asks about progress/status/what's running.
+
+4. "push" — Push contacts to SmartLead campaigns. Use when user says push/send to smartlead/campaigns.
+
+5. "show_targets" — Show top target companies. Use when user asks to see/show/list targets/companies.
+
+6. "show_stats" — Show performance analytics.
+   Parameter: stats_scope (segment|geo|engine|cost|funnel|top_queries)
+   Use when user asks about stats/numbers/performance/how many/cost/conversion/funnel.
+
+7. "search" — Launch new ICP-based AI search (not template-based). Use only when user describes a NEW type of company to find.
+
+8. "info" — General question that doesn't map to any action. Reply conversationally.
+
+AVAILABLE SEGMENTS: {', '.join(AVAILABLE_SEGMENTS)}
+
+AVAILABLE GEOS BY SEGMENT:
+{available_geos_str}
+
+RULES:
+- ALWAYS return valid JSON, no markdown fences.
+- For "start_search": default engine is "yandex" (cheap at $0.25/1K queries). Only use "google" ($3.50/1K) when user explicitly asks for it or mentions English/international queries.
+- For "start_search": default skip_smartlead_push is false (push after search).
+- If user says "all segments" or doesn't specify, set segments to null (means all).
+- If user says "all geos" or doesn't specify geos, set geos to null (means all for selected segments).
+- max_queries defaults to 1500 unless user specifies.
+- target_goal defaults to 500 unless user specifies.
+- The "reply" should be 1-2 sentences confirming the action, with specifics (engine, segments, budget).
+- NEVER ask clarifying questions. Always pick the best action from context.
+- Understand Russian and English equally well.
+
+Respond ONLY with JSON:
+{{
+    "action": "start_search|stop|status|push|show_targets|show_stats|search|info",
+    "engine": "yandex|google|both|null",
+    "segments": ["segment_key", ...] or null,
+    "geos": ["geo_key", ...] or null,
+    "max_queries": 1500,
+    "target_goal": 500,
+    "skip_smartlead_push": false,
+    "stats_scope": "segment|geo|engine|cost|funnel|top_queries|null",
+    "reply": "..."
+}}"""
+
+        user_parts = []
+        if context:
+            for msg in context[-6:]:  # Last 6 messages for context
+                role = msg.get("role", "user")
+                user_parts.append(f"[{role}]: {msg.get('content', '')}")
+        user_parts.append(f"[user]: {message}")
+        user_prompt = "\n".join(user_parts)
+
+        try:
+            from app.services.gemini_client import is_gemini_available, gemini_generate, extract_json_from_gemini
+
+            if is_gemini_available():
+                gen_result = await gemini_generate(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=0.2,
+                    max_tokens=1000,
+                )
+                raw = extract_json_from_gemini(gen_result["content"])
+                logger.info(f"Chat action parsing: {gen_result['tokens']['total']} tokens, model={gen_result['model']}")
+                result = json.loads(raw)
+            else:
+                # OpenAI fallback
+                import openai
+                client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+                response = await client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.2,
+                    response_format={"type": "json_object"},
+                    max_tokens=1000,
+                )
+                result = json.loads(response.choices[0].message.content)
+
+            # Validate action
+            if result.get("action") not in CHAT_ACTIONS:
+                result["action"] = "info"
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to parse chat action: {e}", exc_info=True)
+            return {
+                "action": "info",
+                "reply": f"I couldn't process your request. Please try rephrasing. (Error: {str(e)[:100]})",
+                "engine": None, "segments": None, "geos": None,
+                "max_queries": None, "target_goal": None,
+                "skip_smartlead_push": True, "stats_scope": None,
+            }
 
     async def parse_search_intent(
         self,

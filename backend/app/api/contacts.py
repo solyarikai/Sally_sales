@@ -227,6 +227,132 @@ DEFAULT_SEGMENTS = ["iGaming", "B2B SaaS", "FinTech", "E-commerce", "Healthcare"
 
 # ============= Contacts Endpoints =============
 
+async def _build_filtered_query(
+    session: AsyncSession,
+    company_id: Optional[int],
+    project_id: Optional[int] = None,
+    segment: Optional[str] = None,
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+    has_replied: Optional[bool] = None,
+    has_smartlead: Optional[bool] = None,
+    has_getsales: Optional[bool] = None,
+    campaign: Optional[str] = None,
+    needs_followup: Optional[bool] = None,
+    created_after: Optional[str] = None,
+    created_before: Optional[str] = None,
+    search: Optional[str] = None,
+):
+    """Build a filtered Contact query. Shared by list, CSV export, and Google Sheet export."""
+    query = select(Contact).where(
+        and_(
+            Contact.company_id == company_id if company_id else True,
+            Contact.deleted_at.is_(None)
+        )
+    )
+
+    if project_id:
+        proj_result = await session.execute(
+            select(Project.campaign_filters, Project.name).where(Project.id == project_id)
+        )
+        proj_row = proj_result.first()
+        proj_campaign_filters = proj_row[0] if proj_row else None
+        proj_name = (proj_row[1] if proj_row else "") or ""
+
+        if proj_campaign_filters and len(proj_campaign_filters) > 0:
+            import os
+            common = os.path.commonprefix(proj_campaign_filters).strip()
+            if len(common) < 3 and proj_name and all(
+                proj_name.lower() in cf.lower() for cf in proj_campaign_filters
+            ):
+                common = proj_name
+
+            if len(common) >= 3:
+                campaign_clause = sql_text(
+                    "(contacts.project_id = :fk_pid OR contacts.campaigns::text ILIKE :cf_prefix)"
+                ).bindparams(fk_pid=project_id, cf_prefix=f"%{common}%")
+            else:
+                prefixes = list(set(cf[:15] for cf in proj_campaign_filters))[:10]
+                parts = " OR ".join(
+                    f"contacts.campaigns::text ILIKE :cfp_{i}"
+                    for i in range(len(prefixes))
+                )
+                params = {f"cfp_{i}": f"%{p}%" for i, p in enumerate(prefixes)}
+                campaign_clause = sql_text(
+                    f"(contacts.project_id = :fk_pid OR ({parts}))"
+                ).bindparams(fk_pid=project_id, **params)
+
+            query = query.where(campaign_clause)
+        else:
+            query = query.where(Contact.project_id == project_id)
+
+    if segment:
+        query = query.where(Contact.segment == segment)
+    if status:
+        statuses = [s.strip() for s in status.split(',') if s.strip()]
+        if len(statuses) == 1:
+            query = query.where(Contact.status == statuses[0])
+        elif len(statuses) > 1:
+            query = query.where(Contact.status.in_(statuses))
+    if source:
+        query = query.where(Contact.source == source)
+    if has_replied is not None:
+        query = query.where(Contact.has_replied == has_replied)
+    if has_smartlead is True:
+        query = query.where(Contact.smartlead_id.isnot(None))
+    elif has_smartlead is False:
+        query = query.where(Contact.smartlead_id.is_(None))
+    if has_getsales is True:
+        query = query.where(Contact.getsales_id.isnot(None))
+    elif has_getsales is False:
+        query = query.where(Contact.getsales_id.is_(None))
+    if campaign:
+        names = [n.strip() for n in campaign.split(',') if n.strip()]
+        if len(names) == 1:
+            query = query.where(
+                sql_text("contacts.campaigns::text ILIKE :camp_0")
+                .bindparams(camp_0=f"%{names[0]}%")
+            )
+        elif len(names) > 1:
+            camp_parts = " OR ".join(f"contacts.campaigns::text ILIKE :camp_{i}" for i in range(len(names)))
+            camp_params = {f"camp_{i}": f"%{n}%" for i, n in enumerate(names)}
+            query = query.where(sql_text(f"({camp_parts})").bindparams(**camp_params))
+    if needs_followup is True:
+        from datetime import timedelta
+        three_days_ago = datetime.utcnow() - timedelta(days=3)
+        query = query.where(
+            and_(
+                Contact.has_replied == False,
+                Contact.last_synced_at < three_days_ago
+            )
+        )
+    if created_after:
+        try:
+            dt = datetime.fromisoformat(created_after)
+            query = query.where(Contact.created_at >= dt)
+        except ValueError:
+            pass
+    if created_before:
+        try:
+            dt = datetime.fromisoformat(created_before)
+            query = query.where(Contact.created_at <= dt)
+        except ValueError:
+            pass
+    if search:
+        search_term = f"%{search}%"
+        query = query.where(
+            or_(
+                Contact.email.ilike(search_term),
+                Contact.first_name.ilike(search_term),
+                Contact.last_name.ilike(search_term),
+                Contact.company_name.ilike(search_term),
+                Contact.domain.ilike(search_term),
+            )
+        )
+
+    return query
+
+
 @router.get("", response_model=ContactListResponse)
 async def list_contacts(
     page: int = Query(1, ge=1),
@@ -250,131 +376,15 @@ async def list_contacts(
     company_id: int | None = Depends(get_optional_company_id),
 ):
     """Get paginated list of contacts with filters"""
-    
-    # Base query
-    query = select(Contact).where(
-        and_(
-            Contact.company_id == company_id if company_id else True,
-            Contact.deleted_at.is_(None)
-        )
+    query = await _build_filtered_query(
+        session, company_id,
+        project_id=project_id, segment=segment, status=status, source=source,
+        has_replied=has_replied, has_smartlead=has_smartlead, has_getsales=has_getsales,
+        campaign=campaign, needs_followup=needs_followup,
+        created_after=created_after, created_before=created_before, search=search,
     )
     
-    # Apply filters
-    if project_id:
-        # Include contacts linked via FK OR via campaign_filters.
-        # Optimized: extract a common prefix from campaign_filters to use a
-        # single ILIKE instead of N separate ILIKE clauses (was 104 for Deliryo).
-        proj_result = await session.execute(
-            select(Project.campaign_filters, Project.name).where(Project.id == project_id)
-        )
-        proj_row = proj_result.first()
-        proj_campaign_filters = proj_row[0] if proj_row else None
-        proj_name = (proj_row[1] if proj_row else "") or ""
-
-        if proj_campaign_filters and len(proj_campaign_filters) > 0:
-            # Find the shortest common prefix across all campaign filter names.
-            # E.g. for Deliryo all filters contain "Deliryo" -> single ILIKE '%Deliryo%'
-            # Fallback: use project name if all filters contain it.
-            import os
-            common = os.path.commonprefix(proj_campaign_filters).strip()
-            if len(common) < 3 and proj_name and all(
-                proj_name.lower() in cf.lower() for cf in proj_campaign_filters
-            ):
-                common = proj_name
-
-            if len(common) >= 3:
-                # Fast path: single ILIKE with the common prefix
-                campaign_clause = sql_text(
-                    "(contacts.project_id = :fk_pid OR contacts.campaigns::text ILIKE :cf_prefix)"
-                ).bindparams(fk_pid=project_id, cf_prefix=f"%{common}%")
-            else:
-                # Fallback: use up to 10 unique short prefixes (first 15 chars of each filter)
-                prefixes = list(set(cf[:15] for cf in proj_campaign_filters))[:10]
-                parts = " OR ".join(
-                    f"contacts.campaigns::text ILIKE :cfp_{i}"
-                    for i in range(len(prefixes))
-                )
-                params = {f"cfp_{i}": f"%{p}%" for i, p in enumerate(prefixes)}
-                campaign_clause = sql_text(
-                    f"(contacts.project_id = :fk_pid OR ({parts}))"
-                ).bindparams(fk_pid=project_id, **params)
-
-            query = query.where(campaign_clause)
-        else:
-            query = query.where(Contact.project_id == project_id)
-    if segment:
-        query = query.where(Contact.segment == segment)
-    if status:
-        # Support comma-separated statuses (multi-select)
-        statuses = [s.strip() for s in status.split(',') if s.strip()]
-        if len(statuses) == 1:
-            query = query.where(Contact.status == statuses[0])
-        elif len(statuses) > 1:
-            query = query.where(Contact.status.in_(statuses))
-    if source:
-        query = query.where(Contact.source == source)
-    if has_replied is not None:
-        query = query.where(Contact.has_replied == has_replied)
-    if has_smartlead is True:
-        # Contacts with Smartlead ID (uploaded to Smartlead)
-        query = query.where(Contact.smartlead_id.isnot(None))
-    elif has_smartlead is False:
-        query = query.where(Contact.smartlead_id.is_(None))
-    if has_getsales is True:
-        # Contacts with GetSales ID (uploaded to GetSales)
-        query = query.where(Contact.getsales_id.isnot(None))
-    elif has_getsales is False:
-        query = query.where(Contact.getsales_id.is_(None))
-    if campaign:
-        # Support comma-separated campaign names (multi-select)
-        names = [n.strip() for n in campaign.split(',') if n.strip()]
-        if len(names) == 1:
-            query = query.where(
-                sql_text("contacts.campaigns::text ILIKE :camp_0")
-                .bindparams(camp_0=f"%{names[0]}%")
-            )
-        elif len(names) > 1:
-            camp_parts = " OR ".join(f"contacts.campaigns::text ILIKE :camp_{i}" for i in range(len(names)))
-            camp_params = {f"camp_{i}": f"%{n}%" for i, n in enumerate(names)}
-            query = query.where(sql_text(f"({camp_parts})").bindparams(**camp_params))
-    if needs_followup is True:
-        # Contacts that haven't replied and were synced more than 3 days ago
-        from datetime import timedelta
-        three_days_ago = datetime.utcnow() - timedelta(days=3)
-        query = query.where(
-            and_(
-                Contact.has_replied == False,
-                Contact.last_synced_at < three_days_ago
-            )
-        )
-    if created_after:
-        try:
-            dt = datetime.fromisoformat(created_after)
-            query = query.where(Contact.created_at >= dt)
-        except ValueError:
-            pass
-    if created_before:
-        try:
-            dt = datetime.fromisoformat(created_before)
-            query = query.where(Contact.created_at <= dt)
-        except ValueError:
-            pass
-
-    # Search
-    if search:
-        search_term = f"%{search}%"
-        query = query.where(
-            or_(
-                Contact.email.ilike(search_term),
-                Contact.first_name.ilike(search_term),
-                Contact.last_name.ilike(search_term),
-                Contact.company_name.ilike(search_term),
-                Contact.domain.ilike(search_term),
-            )
-        )
-    
-    # Count total — optimized: the OR-based campaign filter doesn't produce
-    # duplicates since we match against a text column, so COUNT(*) is fine.
+    # Count total
     count_query = select(func.count()).select_from(
         select(Contact.id).where(query.whereclause).subquery()
     )
@@ -588,6 +598,104 @@ async def create_contact(
     await session.refresh(db_contact)
 
     return ContactResponse.model_validate(db_contact)
+
+
+@router.get("/verify-campaigns")
+async def verify_campaigns(
+    project_id: int = Query(..., description="Project ID to verify"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Compare DB contact counts per campaign with SmartLead lead counts."""
+    from app.models.pipeline import CampaignPushRule
+
+    rules_result = await session.execute(
+        select(CampaignPushRule).where(
+            and_(CampaignPushRule.project_id == project_id, CampaignPushRule.is_active == True)
+        )
+    )
+    rules = rules_result.scalars().all()
+    if not rules:
+        raise HTTPException(status_code=404, detail="No active campaign push rules for this project")
+
+    api_key = (
+        smartlead_service.api_key
+        or getattr(settings, 'SMARTLEAD_API_KEY', None)
+        or settings.model_extra.get('smartlead_api_key')
+    )
+    if not api_key:
+        raise HTTPException(status_code=500, detail="SmartLead API key not configured")
+
+    base_url = smartlead_service.base_url or "https://server.smartlead.ai/api/v1"
+    results = []
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for rule in rules:
+            cid = rule.current_campaign_id
+            if not cid:
+                results.append({
+                    "name": rule.name,
+                    "campaign_id": None,
+                    "db_count": 0,
+                    "smartlead_count": None,
+                    "db_rule_count": rule.current_campaign_lead_count or 0,
+                    "match": False,
+                    "error": "No campaign ID set",
+                })
+                continue
+
+            db_result = await session.execute(
+                select(func.count()).select_from(Contact).where(
+                    and_(
+                        Contact.deleted_at.is_(None),
+                        sql_text("contacts.campaigns::text ILIKE :cid").bindparams(cid=f"%{cid}%"),
+                    )
+                )
+            )
+            db_count = db_result.scalar() or 0
+
+            sl_count = None
+            error = None
+            try:
+                resp = await client.get(
+                    f"{base_url}/campaigns/{cid}/analytics",
+                    params={"api_key": api_key},
+                )
+                if resp.status_code == 200:
+                    analytics = resp.json()
+                    # SmartLead puts the count in campaign_lead_stats.total
+                    lead_stats = analytics.get("campaign_lead_stats") or {}
+                    sl_count = lead_stats.get("total") if isinstance(lead_stats, dict) else None
+                    if sl_count is None:
+                        # Fallback: try total_count (string in analytics)
+                        tc = analytics.get("total_count")
+                        if tc is not None:
+                            try:
+                                sl_count = int(tc)
+                            except (ValueError, TypeError):
+                                pass
+                else:
+                    error = f"SmartLead API {resp.status_code}"
+            except Exception as e:
+                error = str(e)[:200]
+
+            results.append({
+                "name": rule.name,
+                "campaign_id": cid,
+                "db_count": db_count,
+                "db_rule_count": rule.current_campaign_lead_count or 0,
+                "smartlead_count": sl_count,
+                "match": sl_count is not None and db_count == sl_count,
+                "error": error,
+            })
+
+    total_db = sum(r["db_count"] for r in results)
+    total_sl = sum(r["smartlead_count"] or 0 for r in results)
+    return {
+        "campaigns": results,
+        "total_db": total_db,
+        "total_smartlead": total_sl,
+        "all_match": all(r["match"] for r in results),
+    }
 
 
 @router.get("/{contact_id}", response_model=ContactResponse)
@@ -1056,53 +1164,189 @@ jane@company.com,Jane,Smith,Tech Inc,techinc.com,CTO,FinTech,,,San Francisco,Fol
     )
 
 
+def _format_campaigns(campaigns_raw) -> str:
+    """Format campaigns JSON into a readable comma-separated string."""
+    camps = parse_campaigns(campaigns_raw) if campaigns_raw else []
+    if not camps:
+        return ""
+    names = []
+    for c in camps:
+        if isinstance(c, dict):
+            names.append(c.get("name", ""))
+        elif isinstance(c, str):
+            names.append(c)
+    return ", ".join(n for n in names if n)
+
+
+EXPORT_COLUMNS = [
+    "email", "first_name", "last_name", "company_name", "domain",
+    "job_title", "segment", "source", "status", "campaigns",
+    "phone", "linkedin_url", "location", "project_name", "created_at",
+]
+
+
+async def _get_filtered_contacts_for_export(
+    session: AsyncSession,
+    company_id: Optional[int],
+    contact_ids: Optional[List[int]] = None,
+    project_id: Optional[int] = None,
+    campaign: Optional[str] = None,
+    segment: Optional[str] = None,
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+    search: Optional[str] = None,
+    has_replied: Optional[bool] = None,
+    created_after: Optional[str] = None,
+    created_before: Optional[str] = None,
+):
+    """Query contacts using either contact_ids or CRM filters. Returns (contacts, project_names)."""
+    if contact_ids:
+        query = select(Contact).where(
+            and_(
+                Contact.company_id == company_id if company_id else True,
+                Contact.deleted_at.is_(None),
+                Contact.id.in_(contact_ids),
+            )
+        )
+    else:
+        query = await _build_filtered_query(
+            session, company_id,
+            project_id=project_id, campaign=campaign, segment=segment,
+            status=status, source=source, search=search,
+            has_replied=has_replied, created_after=created_after,
+            created_before=created_before,
+        )
+
+    query = query.order_by(Contact.created_at.desc())
+    result = await session.execute(query)
+    contacts = result.scalars().all()
+
+    # Resolve project names
+    pids = list(set(c.project_id for c in contacts if c.project_id))
+    project_names: Dict[int, str] = {}
+    if pids:
+        pr = await session.execute(select(Project.id, Project.name).where(Project.id.in_(pids)))
+        for row in pr.all():
+            project_names[row[0]] = row[1]
+
+    return contacts, project_names
+
+
+class ExportFiltersBody(BaseModel):
+    contact_ids: Optional[List[int]] = None
+    project_id: Optional[int] = None
+    campaign: Optional[str] = None
+    segment: Optional[str] = None
+    status: Optional[str] = None
+    source: Optional[str] = None
+    search: Optional[str] = None
+    has_replied: Optional[bool] = None
+    created_after: Optional[str] = None
+    created_before: Optional[str] = None
+
+
 @router.post("/export/csv")
 async def export_contacts_csv(
-    contact_ids: Optional[List[int]] = Body(None),
+    body: ExportFiltersBody = Body(ExportFiltersBody()),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
-    """Export contacts as CSV"""
-    
-    query = select(Contact).where(
-        and_(
-            Contact.company_id == company_id if company_id else True,
-            Contact.deleted_at.is_(None)
-        )
+    """Export contacts as CSV. Accepts CRM filters or explicit contact_ids."""
+    contacts, project_names = await _get_filtered_contacts_for_export(
+        session, company_id,
+        contact_ids=body.contact_ids, project_id=body.project_id,
+        campaign=body.campaign, segment=body.segment, status=body.status,
+        source=body.source, search=body.search, has_replied=body.has_replied,
+        created_after=body.created_after, created_before=body.created_before,
     )
-    
-    if contact_ids:
-        query = query.where(Contact.id.in_(contact_ids))
-    
-    result = await session.execute(query)
-    contacts = result.scalars().all()
-    
+
     if not contacts:
         raise HTTPException(status_code=404, detail="No contacts to export")
-    
-    # Create CSV
+
     output = io.StringIO()
-    columns = [
-        "email", "first_name", "last_name", "company_name", "domain",
-        "job_title", "segment", "source", "status", "phone",
-        "linkedin_url", "location", "notes"
-    ]
-    
-    writer = csv.DictWriter(output, fieldnames=columns)
+    writer = csv.DictWriter(output, fieldnames=EXPORT_COLUMNS)
     writer.writeheader()
-    
-    for contact in contacts:
-        row = {col: getattr(contact, col, "") or "" for col in columns}
+
+    for c in contacts:
+        row = {}
+        for col in EXPORT_COLUMNS:
+            if col == "campaigns":
+                row[col] = _format_campaigns(c.campaigns)
+            elif col == "project_name":
+                row[col] = project_names.get(c.project_id, "") if c.project_id else ""
+            elif col == "created_at":
+                row[col] = c.created_at.strftime("%Y-%m-%d %H:%M") if c.created_at else ""
+            else:
+                row[col] = getattr(c, col, "") or ""
         writer.writerow(row)
-    
+
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={
-            "Content-Disposition": "attachment; filename=contacts.csv"
-        }
+        headers={"Content-Disposition": "attachment; filename=contacts.csv"},
     )
+
+
+@router.post("/export/google-sheet")
+async def export_contacts_google_sheet(
+    body: ExportFiltersBody = Body(...),
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Export filtered contacts to a new Google Sheet. Returns {url, rows}."""
+    from app.services.google_sheets_service import GoogleSheetsService
+
+    contacts, project_names = await _get_filtered_contacts_for_export(
+        session, company_id,
+        contact_ids=body.contact_ids, project_id=body.project_id,
+        campaign=body.campaign, segment=body.segment, status=body.status,
+        source=body.source, search=body.search, has_replied=body.has_replied,
+        created_after=body.created_after, created_before=body.created_before,
+    )
+
+    if not contacts:
+        raise HTTPException(status_code=400, detail="No contacts matching filters")
+
+    # Build sheet data: header + rows
+    header = [col.replace("_", " ").title() for col in EXPORT_COLUMNS]
+    data = [header]
+    for c in contacts:
+        row = []
+        for col in EXPORT_COLUMNS:
+            if col == "campaigns":
+                row.append(_format_campaigns(c.campaigns))
+            elif col == "project_name":
+                row.append(project_names.get(c.project_id, "") if c.project_id else "")
+            elif col == "created_at":
+                row.append(c.created_at.strftime("%Y-%m-%d %H:%M") if c.created_at else "")
+            else:
+                row.append(str(getattr(c, col, "") or ""))
+        data.append(row)
+
+    # Build title
+    parts = []
+    if body.project_id:
+        pname = project_names.get(body.project_id, f"Project {body.project_id}")
+        parts.append(pname)
+    if body.campaign:
+        parts.append(f"campaigns: {body.campaign[:60]}")
+    if body.segment:
+        parts.append(body.segment)
+    filter_desc = " | ".join(parts) if parts else "All"
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    title = f"CRM Export — {filter_desc} — {ts}"
+
+    gs = GoogleSheetsService()
+    url = gs.create_and_populate(
+        title=title,
+        data=data,
+        share_with=["pn@getsally.io", "pavel.l@getsally.io", "danuta@getsally.io"],
+    )
+    if not url:
+        raise HTTPException(status_code=500, detail="Google Sheets export failed — check service account credentials")
+
+    return {"url": url, "rows": len(data) - 1}
 
 
 # ============= Projects Endpoints =============
