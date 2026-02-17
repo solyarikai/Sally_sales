@@ -229,16 +229,27 @@ async def _bg_phase_segment_search(
     from app.models.domain import SearchEngine
     from app.services.company_search_service import company_search_service
     from app.services.query_templates import SEGMENTS, SEGMENT_KEYS
+    from app.services.search_config_service import search_config_service
 
     engine = SearchEngine.YANDEX_API
     if not cfg.skip_google:
         engine = SearchEngine.GOOGLE_SERP
 
+    # Load per-project search config from DB (falls back to hardcoded SEGMENTS)
+    async with async_session_maker() as session:
+        db_config = await search_config_service.get_or_create_config(session, project_id)
+    db_segments = db_config.get("segments") if db_config else None
+    segments_source = db_segments or SEGMENTS
+
     # Determine which segments to run
     if cfg.segments:
-        segment_order = [s for s in cfg.segments if s in SEGMENTS]
+        segment_order = [s for s in cfg.segments if s in segments_source]
     else:
-        segment_order = SEGMENT_KEYS  # All by priority
+        if db_segments:
+            # Sort by priority (lower = higher priority)
+            segment_order = sorted(db_segments.keys(), key=lambda k: db_segments[k].get("priority", 99))
+        else:
+            segment_order = SEGMENT_KEYS  # All by priority
 
     progress["segment_search"] = {
         "mode": "parallel",
@@ -259,8 +270,8 @@ async def _bg_phase_segment_search(
 
     async def _run_one_segment(seg_key: str):
         """Run all geos for one segment sequentially."""
-        seg_def = SEGMENTS[seg_key]
-        geo_keys = list(seg_def["geos"].keys())
+        seg_def = segments_source.get(seg_key, {})
+        geo_keys = list(seg_def.get("geos", {}).keys())
 
         # Filter geos if specified in config
         if cfg.geos:
