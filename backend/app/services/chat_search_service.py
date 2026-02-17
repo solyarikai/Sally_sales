@@ -23,14 +23,26 @@ CHAT_ACTIONS = [
     "show_stats",     # Performance analytics
     "search",         # New ICP-based search (legacy AI-random)
     "lookup_domain",  # Look up everything known about specific domains
+    "show_config",    # Show current search config (segments/geos/templates)
+    "edit_config",    # Edit search config via AI
     "info",           # General question / unknown
 ]
 
-# Available segment keys for the system prompt
-AVAILABLE_SEGMENTS = [
+# Fallback segment keys when no DB config exists (Deliryo defaults)
+FALLBACK_SEGMENTS = [
     "real_estate", "investment", "legal", "migration",
     "crypto", "family_office", "importers",
 ]
+
+FALLBACK_GEOS_STR = (
+    "real_estate: dubai, turkey, cyprus, thailand_bali, montenegro, spain_portugal, greece, london, israel, italy, global_aggregator\n"
+    "investment: moscow, switzerland, singapore, dubai_difc\n"
+    "legal: moscow, cyprus_legal, uae_legal, estonia, georgia_legal, serbia_legal, offshore, london, malta, israel\n"
+    "migration: portugal_gv, spain_gv, greece_gv, montenegro_rp, caribbean_cbi, eb5_usa, uae_visa, general_migration, malta_rp, uk_visa, italy_gv\n"
+    "crypto: dubai_crypto, moscow_crypto\n"
+    "family_office: moscow_fo, dubai_fo, switzerland_fo, singapore_fo, ppli_insurance, private_banks_ru\n"
+    "importers: moscow_import"
+)
 
 
 class ChatSearchService:
@@ -82,16 +94,21 @@ class ChatSearchService:
                 parts.append(f"COST SPENT: {project_context['cost_summary']}")
             project_block = "\n".join(parts)
 
-        # Available geos are dynamic per segment, list all known ones
-        available_geos_str = (
-            "real_estate: dubai, turkey, cyprus, thailand_bali, montenegro, spain_portugal, greece, london, israel, italy, global_aggregator\n"
-            "investment: moscow, switzerland, singapore, dubai_difc\n"
-            "legal: moscow, cyprus_legal, uae_legal, estonia, georgia_legal, serbia_legal, offshore, london, malta, israel\n"
-            "migration: portugal_gv, spain_gv, greece_gv, montenegro_rp, caribbean_cbi, eb5_usa, uae_visa, general_migration, malta_rp, uk_visa, italy_gv\n"
-            "crypto: dubai_crypto, moscow_crypto\n"
-            "family_office: moscow_fo, dubai_fo, switzerland_fo, singapore_fo, ppli_insurance, private_banks_ru\n"
-            "importers: moscow_import"
-        )
+        # Build dynamic segments/geos from project's search_config (if available)
+        search_config = project_context.get("search_config", {}) if project_context else {}
+        config_segments = search_config.get("segments", {})
+
+        if config_segments:
+            available_segments = list(config_segments.keys())
+            geos_lines = []
+            for seg_key, seg_data in config_segments.items():
+                geos = list(seg_data.get("geos", {}).keys())
+                if geos:
+                    geos_lines.append(f"{seg_key}: {', '.join(geos)}")
+            available_geos_str = "\n".join(geos_lines) if geos_lines else "No geos configured"
+        else:
+            available_segments = FALLBACK_SEGMENTS
+            available_geos_str = FALLBACK_GEOS_STR
 
         system_prompt = f"""You are an AI assistant for a lead generation platform. You parse user messages into structured actions.
 
@@ -120,9 +137,16 @@ AVAILABLE ACTIONS:
    Use when user mentions a domain name (contains a dot, like company.com) and asks to find/show/lookup/check history/info about it.
    Extract ALL domain names from the message into the "domains" field.
 
-9. "info" — General question that doesn't map to any action. Reply conversationally.
+9. "show_config" — Show current search configuration (segments, geos, templates).
+   Use when user asks to see/show/display config/configuration/segments/search setup.
 
-AVAILABLE SEGMENTS: {', '.join(AVAILABLE_SEGMENTS)}
+10. "edit_config" — Edit search configuration.
+    Use when user wants to add/remove/change segments, geos, templates, or keywords.
+    The "edit_instruction" field should contain the user's edit request as-is.
+
+11. "info" — General question that doesn't map to any action. Reply conversationally.
+
+AVAILABLE SEGMENTS: {', '.join(available_segments)}
 
 AVAILABLE GEOS BY SEGMENT:
 {available_geos_str}
@@ -141,7 +165,7 @@ RULES:
 
 Respond ONLY with JSON:
 {{
-    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|info",
+    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|info",
     "engine": "yandex|google|both|null",
     "segments": ["segment_key", ...] or null,
     "geos": ["geo_key", ...] or null,
@@ -150,6 +174,7 @@ Respond ONLY with JSON:
     "skip_smartlead_push": false,
     "stats_scope": "segment|geo|engine|cost|funnel|top_queries|null",
     "domains": ["domain1.com", "domain2.com"] or null,
+    "edit_instruction": "user's config edit request as-is, or null",
     "reply": "..."
 }}"""
 

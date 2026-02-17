@@ -781,6 +781,7 @@ def build_segment_queries(
     geo_key: str | None = None,
     language: str | None = None,
     existing_queries: set[str] | None = None,
+    segments_data: dict | None = None,
 ) -> list[dict]:
     """
     Generate queries via cartesian product of templates x variables x geos.
@@ -789,8 +790,9 @@ def build_segment_queries(
         [{"query": "...", "segment": "real_estate", "geo": "dubai", "language": "ru", "source": "template"}, ...]
 
     Deterministic, zero AI cost. Deduplicates against existing_queries.
+    If segments_data is provided, uses it instead of the hardcoded SEGMENTS dict.
     """
-    seg = SEGMENTS.get(segment_key)
+    seg = (segments_data or SEGMENTS).get(segment_key)
     if not seg:
         return []
 
@@ -3400,16 +3402,19 @@ def build_doc_keyword_queries(
     geo_key: str | None = None,
     language: str | None = None,
     existing_queries: set[str] | None = None,
+    doc_keywords_data: list | None = None,
 ) -> list[dict]:
     """
     Return raw doc keyword phrases as query dicts, optionally filtered by segment/geo/language.
     These are exact keyword phrases from tasks/deliryo/keywords_*.md, used as-is.
+    If doc_keywords_data is provided, uses it instead of the hardcoded DOC_KEYWORDS list.
     """
     existing = existing_queries or set()
     results: list[dict] = []
     seen: set[str] = set(existing)
 
-    for seg, geo, lang, phrases in DOC_KEYWORDS:
+    source = doc_keywords_data if doc_keywords_data is not None else DOC_KEYWORDS
+    for seg, geo, lang, phrases in source:
         if segment_key and seg != segment_key:
             continue
         if geo_key and geo != geo_key:

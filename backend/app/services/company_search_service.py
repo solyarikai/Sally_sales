@@ -423,6 +423,7 @@ class CompanySearchService:
         Returns stats dict.
         """
         from app.services.query_templates import build_segment_queries, build_doc_keyword_queries
+        from app.services.search_config_service import search_config_service
 
         # Load project for target_segments
         result = await session.execute(
@@ -433,6 +434,11 @@ class CompanySearchService:
             raise ValueError(f"Project {project_id} not found")
 
         knowledge_data = await self._load_project_knowledge(session, project_id)
+
+        # Load per-project search config (segments/geos/templates from DB)
+        config = await search_config_service.get_or_create_config(session, project_id)
+        segments_data = config.get("segments") if config else None
+        doc_keywords_data = config.get("doc_keywords") if config else None
 
         # Collect all used queries for this project (dedup across jobs)
         existing_result = await session.execute(
@@ -449,6 +455,7 @@ class CompanySearchService:
             segment_key=segment_key,
             geo_key=geo_key,
             existing_queries=existing_queries,
+            doc_keywords_data=doc_keywords_data,
         )
         doc_count = len(tagged_queries)
 
@@ -459,12 +466,14 @@ class CompanySearchService:
             geo_key=geo_key,
             language="ru",
             existing_queries=existing_queries,
+            segments_data=segments_data,
         )
         template_queries_en = build_segment_queries(
             segment_key=segment_key,
             geo_key=geo_key,
             language="en",
             existing_queries=existing_queries,
+            segments_data=segments_data,
         )
         # Dedup templates against doc keywords already added
         doc_query_texts = set(q["query"].strip().lower() for q in tagged_queries)

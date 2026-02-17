@@ -197,6 +197,11 @@ class PipelineService:
                             "source": "regex",
                         })
 
+                # Subpage scraping fallback: if homepage yielded no contacts,
+                # try /contacts and /about subpages via Crona
+                if not contacts:
+                    contacts = await self._scrape_subpages_for_contacts(dc.domain)
+
                 # Store contacts (with email validation)
                 from app.services.contact_extraction_service import is_valid_email
                 emails = []
@@ -247,6 +252,56 @@ class PipelineService:
 
         await session.commit()
         return stats
+
+    # ========== Subpage Scraping Fallback ==========
+
+    CONTACT_SUBPAGES = ["/contacts", "/contact", "/kontakty", "/about"]
+
+    async def _scrape_subpages_for_contacts(self, domain: str) -> list[dict]:
+        """
+        Scrape /contacts, /about subpages when homepage yielded zero contacts.
+        Returns list of contact dicts from the first subpage that has contacts.
+        """
+        from app.services.crona_service import crona_service
+
+        if not crona_service.is_configured:
+            return []
+
+        for subpath in self.CONTACT_SUBPAGES:
+            url = f"https://{domain}{subpath}"
+            try:
+                results = await crona_service.scrape_domains([url])
+                text = None
+                for v in results.values():
+                    if v and len(v.strip()) > 50:
+                        text = v
+                        break
+
+                if not text:
+                    continue
+
+                contacts = await contact_extraction_service.extract_contacts_from_html(domain, text)
+                # Also try regex
+                regex_emails = contact_extraction_service.extract_emails_regex(text)
+                existing = {(c.get("email") or "").lower() for c in contacts}
+                for em in regex_emails:
+                    if em.lower() not in existing:
+                        contacts.append({
+                            "email": em.lower(), "phone": None,
+                            "first_name": None, "last_name": None,
+                            "job_title": None, "confidence": 0.4,
+                            "source": "subpage_regex",
+                        })
+
+                if contacts:
+                    logger.info(f"Subpage {subpath} found {len(contacts)} contacts for {domain}")
+                    return contacts
+
+            except Exception as e:
+                logger.debug(f"Subpage scrape {domain}{subpath} failed: {e}")
+                continue
+
+        return []
 
     # ========== Apollo Enrichment ==========
 

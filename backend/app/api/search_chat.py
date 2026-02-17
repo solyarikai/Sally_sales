@@ -212,6 +212,10 @@ async def chat_search(
         response = await _handle_stats(parsed, body, db, company, project)
     elif action == "lookup_domain":
         response = await _handle_lookup_domain(parsed, body, db, company, project)
+    elif action == "show_config":
+        response = await _handle_show_config(parsed, body, db, company, project)
+    elif action == "edit_config":
+        response = await _handle_edit_config(parsed, body, db, company, project)
     elif action == "search":
         response = await _handle_new_search(body, background_tasks, db, company)
     else:
@@ -235,6 +239,7 @@ async def _build_project_context(db: AsyncSession, project: Project, company: Co
     """Build rich project context for the AI intent parser."""
     from sqlalchemy import text as sql_text
     from app.api.pipeline import _running_pipelines
+    from app.services.search_config_service import search_config_service
 
     pid = project.id
     cid = company.id
@@ -293,6 +298,9 @@ async def _build_project_context(db: AsyncSession, project: Project, company: Co
     pipeline_running = progress.get("running", False)
     pipeline_phase = progress.get("phase", "")
 
+    # Load search config for dynamic segments/geos in chat
+    config = await search_config_service.get_config(db, pid)
+
     return {
         "project_id": pid,
         "project_name": project.name,
@@ -305,6 +313,7 @@ async def _build_project_context(db: AsyncSession, project: Project, company: Co
         "cost_summary": cost_summary,
         "pipeline_running": pipeline_running,
         "pipeline_phase": pipeline_phase,
+        "search_config": config or {},
     }
 
 
@@ -1017,3 +1026,129 @@ async def _handle_stats(
         project_id=project_id,
         suggestions=_build_suggestions(None),
     )
+
+
+# ---- Search Config handlers ----
+
+async def _handle_show_config(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Show current search configuration for the project."""
+    from app.services.search_config_service import search_config_service
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+
+    config = await search_config_service.get_or_create_config(db, proj.id)
+    summary = search_config_service.format_config_summary(config)
+
+    return ChatResponse(
+        action="show_config",
+        reply=summary,
+        project_id=proj.id,
+        data={"search_config": config},
+        suggestions=["edit config", "bootstrap config", "run search"],
+    )
+
+
+async def _handle_edit_config(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Edit search configuration via AI interpretation."""
+    from app.services.search_config_service import search_config_service
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+
+    # Get current config (or bootstrap if none)
+    current_config = await search_config_service.get_or_create_config(db, proj.id)
+
+    # Use the edit instruction from parsed action, fall back to original message
+    edit_instruction = parsed.get("edit_instruction") or body.message
+
+    result = await search_config_service.edit_config_via_ai(
+        session=db,
+        project_id=proj.id,
+        user_message=edit_instruction,
+        current_config=current_config,
+    )
+
+    return ChatResponse(
+        action="config_updated",
+        reply=f"Config updated: {result['summary']}",
+        project_id=proj.id,
+        data={"search_config": result["config"]},
+        suggestions=["show config", "run search"],
+    )
+
+
+# ---- Search Config REST endpoints ----
+
+@router.get("/config/{project_id}")
+async def get_search_config(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get full search config for a project."""
+    from app.services.search_config_service import search_config_service
+
+    proj = await db.execute(
+        select(Project).where(Project.id == project_id, Project.company_id == company.id)
+    )
+    if not proj.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    config = await search_config_service.get_or_create_config(db, project_id)
+    return {"project_id": project_id, "search_config": config}
+
+
+@router.put("/config/{project_id}")
+async def update_search_config(
+    project_id: int,
+    body: Dict[str, Any],
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Replace entire search config for a project."""
+    from app.services.search_config_service import search_config_service
+
+    proj = await db.execute(
+        select(Project).where(Project.id == project_id, Project.company_id == company.id)
+    )
+    if not proj.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    config = await search_config_service.update_config(db, project_id, body)
+    return {"project_id": project_id, "search_config": config}
+
+
+@router.post("/config/{project_id}/bootstrap")
+async def bootstrap_search_config(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Force AI re-bootstrap of search config from project's target_segments."""
+    from app.services.search_config_service import search_config_service
+
+    proj_result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.company_id == company.id)
+    )
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not project.target_segments:
+        raise HTTPException(status_code=400, detail="Project has no target_segments defined")
+
+    config = await search_config_service.bootstrap_config(project.target_segments, project.name)
+    await search_config_service.update_config(db, project_id, config)
+
+    return {
+        "project_id": project_id,
+        "search_config": config,
+        "segments_count": len(config.get("segments", {})),
+        "doc_keywords_groups": len(config.get("doc_keywords", [])),
+    }
