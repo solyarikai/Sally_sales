@@ -26,7 +26,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
-import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter } from '../components/filters';
+import { ContactsFilterContext } from '../components/filters';
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
 
 // Status configuration — proper lead statuses (no "replied" — that's a flag, not a status)
@@ -47,7 +47,7 @@ export function ContactsPage() {
   const [, setGridApi] = useState<GridApi | null>(null);
   const toast = useToast();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Data
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -56,21 +56,29 @@ export function ContactsPage() {
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Filters — compact command-bar style
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilters, setStatusFilters] = useState<string[]>([]);
-  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  // Filters — compact command-bar style (initialized from URL params)
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get('search') || '');
+  const [statusFilters, setStatusFilters] = useState<string[]>(
+    searchParams.get('status')?.split(',').filter(Boolean) || []
+  );
+  const [sourceFilter, setSourceFilter] = useState<string | null>(searchParams.get('source'));
   const [segmentFilter, setSegmentFilter] = useState<string | null>(searchParams.get('segment'));
-  const [campaignFilters, setCampaignFilters] = useState<string[]>([]);
+  const [campaignFilters, setCampaignFilters] = useState<string[]>(
+    searchParams.get('campaign')?.split(',').filter(Boolean) || []
+  );
   const [campaignSearch, setCampaignSearch] = useState('');
   const [campaignDropdownOpen, setCampaignDropdownOpen] = useState(false);
   const campaignRef = useRef<HTMLDivElement>(null);
   const [campaigns, setCampaigns] = useState<Array<{name: string, source: string}>>([]);
-  const [followupFilter, setFollowupFilter] = useState<boolean | null>(null);
-  const [repliedFilter, setRepliedFilter] = useState<boolean | null>(null);
-  const [createdAfter, setCreatedAfter] = useState<string | null>(null);
-  const [createdBefore, setCreatedBefore] = useState<string | null>(null);
+  const [followupFilter, setFollowupFilter] = useState<boolean | null>(
+    searchParams.get('followup') === 'true' ? true : null
+  );
+  const [repliedFilter, setRepliedFilter] = useState<boolean | null>(
+    searchParams.get('replied') === 'true' ? true : null
+  );
+  const [createdAfter, setCreatedAfter] = useState<string | null>(searchParams.get('after'));
+  const [createdBefore, setCreatedBefore] = useState<string | null>(searchParams.get('before'));
 
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -127,6 +135,25 @@ export function ContactsPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Sync filters → URL (debounced via debouncedSearch)
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (activeProject) params.set('project_id', String(activeProject.id));
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    if (statusFilters.length) params.set('status', statusFilters.join(','));
+    if (sourceFilter) params.set('source', sourceFilter);
+    if (segmentFilter) params.set('segment', segmentFilter);
+    if (campaignFilters.length) params.set('campaign', campaignFilters.join(','));
+    if (repliedFilter) params.set('replied', 'true');
+    if (followupFilter) params.set('followup', 'true');
+    if (createdAfter) params.set('after', createdAfter);
+    if (createdBefore) params.set('before', createdBefore);
+    // Preserve contact_id for deep-link (modal may not be open yet on initial navigation)
+    const existingContactId = searchParams.get('contact_id');
+    if (existingContactId) params.set('contact_id', existingContactId);
+    setSearchParams(params, { replace: true });
+  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilter, campaignFilters, repliedFilter, followupFilter, createdAfter, createdBefore]);
 
   // Close dropdowns on click outside
   useEffect(() => {
@@ -237,6 +264,32 @@ export function ContactsPage() {
     loadContacts();
   }, [loadContacts]);
 
+  // Contact deep-link: ?contact_id=123 opens modal automatically
+  const deepLinkHandled = useRef(false);
+  const deepLinkRetries = useRef(0);
+  useEffect(() => {
+    const contactIdParam = searchParams.get('contact_id');
+    if (!contactIdParam || deepLinkHandled.current) return;
+    const id = parseInt(contactIdParam);
+    if (isNaN(id)) return;
+    deepLinkHandled.current = true;
+    // Fetch directly — don't wait for table contacts to load
+    contactsApi.getContactWithActivities(id).then(full => {
+      setSelectedContact(full as unknown as Contact);
+      setShowContactModal(true);
+    }).catch(() => {
+      deepLinkRetries.current += 1;
+      if (deepLinkRetries.current < 2) {
+        deepLinkHandled.current = false; // one more retry
+      } else {
+        // Give up — remove contact_id from URL
+        const p = new URLSearchParams(searchParams);
+        p.delete('contact_id');
+        setSearchParams(p, { replace: true });
+      }
+    });
+  }, [searchParams]);
+
   useEffect(() => {
     loadStats();
     loadFilterOptions();
@@ -292,18 +345,18 @@ export function ContactsPage() {
     }
   };
 
-  // AG Grid Column Definitions
+  // AG Grid Column Definitions — minimalist: no floating filters, no duplicate column-level filters
   const columnDefs = useMemo<ColDef[]>(() => [
     {
-      width: 50,
+      width: 40,
       pinned: 'left',
       lockPosition: true,
       suppressHeaderMenuButton: true,
       filter: false,
     },
     ...(replyMode ? [{
-      headerName: 'Done',
-      width: 60,
+      headerName: '',
+      width: 40,
       pinned: 'left' as const,
       filter: false,
       sortable: false,
@@ -319,9 +372,9 @@ export function ContactsPage() {
     {
       field: 'status',
       headerName: 'Status',
-      width: 120,
+      width: 110,
       sortable: true,
-      filter: StatusColumnFilter,
+      filter: false,
       cellRenderer: (params: { value: string }) => {
         const cfg = STATUS_CONFIG[params.value];
         return cfg ? (
@@ -333,17 +386,9 @@ export function ContactsPage() {
       },
     },
     {
-      field: 'email',
-      headerName: 'Email',
-      filter: 'agTextColumnFilter',
-      sortable: true,
-      flex: 2,
-      minWidth: 180,
-    },
-    {
       headerName: 'Name',
-      filter: 'agTextColumnFilter',
       sortable: true,
+      filter: false,
       flex: 1.5,
       minWidth: 140,
       valueGetter: (params) => {
@@ -352,25 +397,26 @@ export function ContactsPage() {
       },
     },
     {
-      field: 'company_name',
-      headerName: 'Company',
-      filter: 'agTextColumnFilter',
+      field: 'email',
+      headerName: 'Email',
+      filter: false,
       sortable: true,
-      flex: 1.5,
-      minWidth: 130,
+      flex: 2,
+      minWidth: 180,
     },
     {
-      field: 'job_title',
-      headerName: 'Title',
-      filter: 'agTextColumnFilter',
+      field: 'company_name',
+      headerName: 'Company',
+      filter: false,
       sortable: true,
-      flex: 1,
+      flex: 1.5,
       minWidth: 120,
+      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
     {
       headerName: 'Campaign',
-      filter: CampaignColumnFilter,
-      sortable: true,
+      filter: false,
+      sortable: false,
       flex: 1.5,
       minWidth: 140,
       valueGetter: (params) => {
@@ -397,90 +443,22 @@ export function ContactsPage() {
       },
     },
     {
-      field: 'source',
-      headerName: 'Source',
-      filter: 'agTextColumnFilter',
-      sortable: true,
-      width: 100,
-      cellRenderer: (params: { value: string }) => {
-        const v = params.value || '';
-        let label = v;
-        let color = 'text-neutral-500';
-        if (v === 'smartlead') { label = 'Email'; color = 'text-blue-600'; }
-        else if (v === 'getsales') { label = 'LinkedIn'; color = 'text-amber-600'; }
-        else if (v === 'smartlead_pipeline_push') { label = 'Pipeline→SL'; color = 'text-emerald-600'; }
-        else if (v === 'pipeline') { label = 'Pipeline'; color = 'text-emerald-600'; }
-        else if (v === 'smartlead_deliryo_sync') { label = 'SL Sync'; color = 'text-blue-500'; }
-        else if (v.includes('smartlead') && v.includes('getsales')) { label = 'Email+LI'; color = 'text-purple-600'; }
-        return <span className={`text-xs font-medium ${color}`}>{label || '-'}</span>;
-      },
-    },
-    {
-      field: 'segment',
-      headerName: 'Segment',
-      filter: 'agTextColumnFilter',
-      sortable: true,
-      width: 120,
-      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
-    },
-    {
-      field: 'location',
-      headerName: 'Location',
-      filter: 'agTextColumnFilter',
-      sortable: true,
-      width: 130,
-      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
-    },
-    {
       field: 'created_at',
       headerName: 'Added',
       sortable: true,
-      width: 95,
-      filter: DateColumnFilter,
+      width: 90,
+      filter: false,
       valueFormatter: (params: ValueFormatterParams) => {
         if (!params.value) return '-';
         return new Date(params.value).toLocaleDateString();
       },
     },
-    {
-      field: 'project_name',
-      headerName: 'Project',
-      filter: 'agTextColumnFilter',
-      sortable: true,
-      width: 130,
-      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
-    },
-    {
-      field: 'gathering_details',
-      headerName: 'Gathered',
-      sortable: false,
-      width: 140,
-      filter: false,
-      cellRenderer: (params: { value: Record<string, any> | null }) => {
-        const g = params.value;
-        if (!g || Object.keys(g).length === 0) return <span className="text-xs text-gray-300">--</span>;
-        const src = g.source === 'APOLLO' ? 'Apollo' : g.source === 'WEBSITE_SCRAPE' ? 'Web' : (g.source || '');
-        const geo = g.geo || '';
-        const label = [src, geo].filter(Boolean).join(' / ') || 'Pipeline';
-        return (
-          <span
-            className="text-xs text-emerald-600 cursor-help truncate"
-            title={JSON.stringify(g, null, 2)}
-          >
-            {label}
-          </span>
-        );
-      },
-    },
   ], []);
 
-  // Default column settings — floating filters enabled for inline column filtering
+  // Default column settings — clean, no floating filters
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
     suppressMovable: false,
-    filter: 'agTextColumnFilter',
-    floatingFilter: true,
-    filterParams: { debounceMs: 300 },
   }), []);
 
   // Grid events
@@ -1157,6 +1135,10 @@ export function ContactsPage() {
           onClose={() => {
             setShowContactModal(false);
             setSelectedContact(null);
+            // Remove contact_id from URL when modal closes
+            const p = new URLSearchParams(searchParams);
+            p.delete('contact_id');
+            setSearchParams(p, { replace: true });
           }}
           replyMode={replyMode}
           contactList={replyMode ? replyContacts : contacts}

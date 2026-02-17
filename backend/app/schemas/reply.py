@@ -131,6 +131,8 @@ class ProcessedReplyBase(BaseModel):
     """Base schema for processed reply."""
     campaign_id: Optional[str] = None
     campaign_name: Optional[str] = None
+    source: Optional[str] = None
+    channel: Optional[str] = None
     lead_email: str
     lead_first_name: Optional[str] = None
     lead_last_name: Optional[str] = None
@@ -145,39 +147,72 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     id: int
     automation_id: Optional[int] = None
     received_at: Optional[datetime] = None
-    
+
     # Classification
     category: Optional[str] = None
     category_confidence: Optional[str] = None
     classification_reasoning: Optional[str] = None
-    
+
     # Draft
     draft_reply: Optional[str] = None
     draft_subject: Optional[str] = None
-    
+
     # Status
     processed_at: datetime
     sent_to_slack: bool = False
     slack_sent_at: Optional[datetime] = None
-    
+
     # Approval workflow
     approval_status: Optional[str] = None  # pending, approved, dismissed, edited
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
-    
+
     # Smartlead inbox link
     inbox_link: Optional[str] = None
-    
+
+    # Cohort tracking
+    last_touched_at: Optional[datetime] = None
+
+    # Contact dedup: how many campaigns this contact has (only set with group_by_contact)
+    contact_campaign_count: Optional[int] = None
+
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
+
+
+class ContactCampaignEntry(BaseModel):
+    """A single campaign entry for a contact's multi-campaign view."""
+    reply_id: int
+    campaign_id: Optional[str] = None
+    campaign_name: Optional[str] = None
+    category: Optional[str] = None
+    classification_reasoning: Optional[str] = None
+    received_at: Optional[datetime] = None
+    email_subject: Optional[str] = None
+    email_body: Optional[str] = None
+    reply_text: Optional[str] = None
+    draft_reply: Optional[str] = None
+    draft_subject: Optional[str] = None
+    approval_status: Optional[str] = None
+    inbox_link: Optional[str] = None
+    channel: Optional[str] = None
+
+
+class ContactCampaignsResponse(BaseModel):
+    """All campaigns for a single contact."""
+    lead_email: str
+    campaigns: List[ContactCampaignEntry]
+    total: int
 
 
 class ProcessedReplyListResponse(BaseModel):
     """Schema for list of processed replies."""
     replies: List[ProcessedReplyResponse]
     total: int
+    meeting_count: int = 0
+    category_counts: dict = Field(default_factory=dict)
     page: int = 1
     page_size: int = 50
 

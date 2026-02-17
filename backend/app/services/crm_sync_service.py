@@ -255,9 +255,10 @@ class SmartleadClient:
     
     async def _get(self, endpoint: str, params: dict = None) -> dict:
         """Make GET request to Smartlead API."""
+        from app.services.smartlead_service import smartlead_request
         params = params or {}
         params["api_key"] = self.api_key
-        resp = await self.client.get(f"{self.BASE_URL}{endpoint}", params=params)
+        resp = await smartlead_request("GET", f"{self.BASE_URL}{endpoint}", params=params, client=self.client)
         resp.raise_for_status()
         return resp.json()
     
@@ -332,8 +333,9 @@ class SmartleadClient:
     
     async def _post(self, endpoint: str, data: dict) -> dict:
         """Make POST request to Smartlead API."""
+        from app.services.smartlead_service import smartlead_request
         params = {"api_key": self.api_key}
-        resp = await self.client.post(f"{self.BASE_URL}{endpoint}", params=params, json=data)
+        resp = await smartlead_request("POST", f"{self.BASE_URL}{endpoint}", params=params, json=data, client=self.client)
         resp.raise_for_status()
         return resp.json()
     
@@ -1535,13 +1537,39 @@ class CRMSyncService:
                         activity_at=msg_time if created_at_str else datetime.utcnow()
                     )
                     session.add(activity)
-                    
+
                     # Update contact
                     contact.has_replied = True
                     contact.reply_channel = "linkedin"
                     contact.last_reply_at = activity.activity_at
                     contact.status = "replied"
-                    
+
+                    # Create ProcessedReply with classification + draft (non-fatal)
+                    try:
+                        from app.services.reply_processor import process_getsales_reply
+                        automation_info = msg.get("automation") or {}
+                        flow_uuid = (
+                            (automation_info.get("uuid") if isinstance(automation_info, dict) else None)
+                            or msg.get("sender_profile_uuid")
+                            or ""
+                        )
+                        flow_name = (
+                            (automation_info.get("name") if isinstance(automation_info, dict) else None)
+                            or GETSALES_FLOW_NAMES.get(flow_uuid, "")
+                        )
+                        await process_getsales_reply(
+                            message_text=message_text,
+                            contact=contact,
+                            flow_name=flow_name,
+                            flow_uuid=flow_uuid,
+                            message_id=str(message_id),
+                            activity_at=msg_time if created_at_str else datetime.utcnow(),
+                            raw_data=msg,
+                            session=session,
+                        )
+                    except Exception as pr_err:
+                        logger.warning(f"[GETSALES] ProcessedReply creation failed (non-fatal): {pr_err}")
+
                     stats["new_replies"] += 1
                     new_reply_ids.append(message_id)
                 
@@ -1629,7 +1657,7 @@ class CRMSyncService:
 async def sync_conversation_histories(
     session: AsyncSession,
     limit: int = 100,
-    days_back: int = 3,
+    days_back: int = 7,
 ) -> Dict[str, Any]:
     """Sync Smartlead message histories for recent pending replies.
 
@@ -1641,7 +1669,7 @@ async def sync_conversation_histories(
     Args:
         session: Async DB session
         limit: Max unique leads to check per run
-        days_back: Only check replies from last N days
+        days_back: Only check replies from last N days (default: 7 = 1 week)
     """
     from app.models.reply import ProcessedReply
     from app.services.smartlead_service import SmartleadService
@@ -1732,148 +1760,134 @@ async def sync_conversation_histories(
     )
 
     # Fetch message histories — resolve lead_id from DB only
-    import httpx as _httpx
-    delay = 1.5
+    from app.services.smartlead_service import smartlead_request as _sl_request
 
-    async with _httpx.AsyncClient(timeout=30.0) as client:
-        for reply in to_check:
-            email_lower = (reply.lead_email or "").lower()
-            group_key = (reply.campaign_id, email_lower)
+    for reply in to_check:
+        email_lower = (reply.lead_email or "").lower()
+        group_key = (reply.campaign_id, email_lower)
 
-            # Resolve lead_id from local data only
-            lead_id = None
-            contact_id_for_backfill = None
+        # Resolve lead_id from local data only
+        lead_id = None
+        contact_id_for_backfill = None
 
-            # 1. Contact.smartlead_id from DB
-            contact_result = await session.execute(
-                select(Contact.id, Contact.smartlead_id).where(
-                    func.lower(Contact.email) == email_lower,
-                    Contact.deleted_at.is_(None),
-                )
+        # 1. Contact.smartlead_id from DB
+        contact_result = await session.execute(
+            select(Contact.id, Contact.smartlead_id).where(
+                func.lower(Contact.email) == email_lower,
+                Contact.deleted_at.is_(None),
             )
-            row = contact_result.first()
-            if row and row[1]:
-                lead_id = str(row[1])
-            if row:
-                contact_id_for_backfill = row[0]
+        )
+        row = contact_result.first()
+        if row and row[1]:
+            lead_id = str(row[1])
+        if row:
+            contact_id_for_backfill = row[0]
 
-            # 2. Webhook raw data (sl_email_lead_id is the primary field Smartlead sends)
-            if not lead_id and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
-                lead_id = str(
-                    reply.raw_webhook_data.get("sl_email_lead_id")
-                    or reply.raw_webhook_data.get("sl_lead_id")
-                    or reply.raw_webhook_data.get("lead_id")
-                    or ""
-                ).strip() or None
+        # 2. Webhook raw data (sl_email_lead_id is the primary field Smartlead sends)
+        if not lead_id and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+            lead_id = str(
+                reply.raw_webhook_data.get("sl_email_lead_id")
+                or reply.raw_webhook_data.get("sl_lead_id")
+                or reply.raw_webhook_data.get("lead_id")
+                or ""
+            ).strip() or None
 
-            if not lead_id:
-                stats["no_lead_id"] += 1
+        if not lead_id:
+            stats["no_lead_id"] += 1
+            continue
+
+        # Backfill Contact.smartlead_id if it was null
+        if contact_id_for_backfill and row and not row[1]:
+            from sqlalchemy import update as sa_update
+            await session.execute(
+                sa_update(Contact)
+                .where(Contact.id == contact_id_for_backfill)
+                .values(smartlead_id=lead_id)
+            )
+            logger.info(f"Backfilled smartlead_id={lead_id} for contact {contact_id_for_backfill} ({email_lower})")
+
+        stats["checked"] += 1
+
+        try:
+            resp = await _sl_request(
+                "GET",
+                f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
+                params={"api_key": sl._api_key},
+            )
+
+            if resp.status_code != 200:
+                stats["errors"] += 1
                 continue
 
-            # Backfill Contact.smartlead_id if it was null
-            if contact_id_for_backfill and row and not row[1]:
-                from sqlalchemy import update as sa_update
-                await session.execute(
-                    sa_update(Contact)
-                    .where(Contact.id == contact_id_for_backfill)
-                    .values(smartlead_id=lead_id)
-                )
-                logger.info(f"Backfilled smartlead_id={lead_id} for contact {contact_id_for_backfill} ({email_lower})")
+            history = resp.json().get("history", [])
+            if not history:
+                stats["still_pending"] += 1
+                continue
 
-            stats["checked"] += 1
+            last_msg = history[-1]
+            last_type = last_msg.get("type", "")
 
-            try:
-                await asyncio.sleep(delay)
-                resp = await client.get(
-                    f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
-                    params={"api_key": sl._api_key},
-                )
+            if last_type != "REPLY":
+                # Operator already replied — mark all pending replies for this lead
+                stats["replied_externally"] += 1
 
-                # Adaptive delay: back off on 429, ease down on success
-                if resp.status_code == 429:
-                    delay = min(delay * 2, 10.0)
-                    logger.info(f"sync_conversation_histories: 429 for {reply.lead_email}, delay now {delay:.1f}s")
-                    await asyncio.sleep(delay)
-                    resp = await client.get(
-                        f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
-                        params={"api_key": sl._api_key},
+                for r in reply_groups.get(group_key, []):
+                    if r.approval_status in (None, "pending"):
+                        r.approval_status = "replied_externally"
+                        r.approved_at = datetime.utcnow()
+                        session.add(r)
+
+                # Create missing outbound ContactActivity so we don't re-check
+                reply_received = reply.received_at
+                contact_result = await session.execute(
+                    select(Contact).where(
+                        func.lower(Contact.email) == email_lower,
+                        Contact.deleted_at.is_(None),
                     )
+                )
+                contact = contact_result.scalar_one_or_none()
 
-                if resp.status_code != 200:
-                    stats["errors"] += 1
-                    continue
+                if contact:
+                    for msg in history:
+                        if msg.get("type") != "REPLY" and msg.get("time"):
+                            try:
+                                msg_time = datetime.fromisoformat(
+                                    msg["time"].replace("Z", "+00:00").replace("+00:00", "")
+                                )
+                            except (ValueError, TypeError):
+                                continue
 
-                delay = max(delay * 0.9, 1.0)  # Ease down on success
-
-                history = resp.json().get("history", [])
-                if not history:
-                    stats["still_pending"] += 1
-                    continue
-
-                last_msg = history[-1]
-                last_type = last_msg.get("type", "")
-
-                if last_type != "REPLY":
-                    # Operator already replied — mark all pending replies for this lead
-                    stats["replied_externally"] += 1
-
-                    for r in reply_groups.get(group_key, []):
-                        if r.approval_status in (None, "pending"):
-                            r.approval_status = "replied_externally"
-                            r.approved_at = datetime.utcnow()
-                            session.add(r)
-
-                    # Create missing outbound ContactActivity so we don't re-check
-                    reply_received = reply.received_at
-                    contact_result = await session.execute(
-                        select(Contact).where(
-                            func.lower(Contact.email) == email_lower,
-                            Contact.deleted_at.is_(None),
-                        )
-                    )
-                    contact = contact_result.scalar_one_or_none()
-
-                    if contact:
-                        for msg in history:
-                            if msg.get("type") != "REPLY" and msg.get("time"):
-                                try:
-                                    msg_time = datetime.fromisoformat(
-                                        msg["time"].replace("Z", "+00:00").replace("+00:00", "")
-                                    )
-                                except (ValueError, TypeError):
-                                    continue
-
-                                if reply_received and msg_time > reply_received:
-                                    existing = await session.execute(
-                                        select(ContactActivity.id).where(
-                                            and_(
-                                                ContactActivity.contact_id == contact.id,
-                                                ContactActivity.direction == "outbound",
-                                                ContactActivity.source_id == msg.get("message_id", ""),
-                                            )
+                            if reply_received and msg_time > reply_received:
+                                existing = await session.execute(
+                                    select(ContactActivity.id).where(
+                                        and_(
+                                            ContactActivity.contact_id == contact.id,
+                                            ContactActivity.direction == "outbound",
+                                            ContactActivity.source_id == msg.get("message_id", ""),
                                         )
                                     )
-                                    if not existing.first():
-                                        activity = ContactActivity(
-                                            contact_id=contact.id,
-                                            company_id=contact.company_id,
-                                            activity_type="email_sent",
-                                            channel="email",
-                                            direction="outbound",
-                                            source="smartlead_sync",
-                                            source_id=msg.get("message_id", ""),
-                                            subject=msg.get("email_subject"),
-                                            body=(msg.get("email_body", "") or "")[:500],
-                                            activity_at=msg_time,
-                                        )
-                                        session.add(activity)
-                                        stats["activities_created"] += 1
-                else:
-                    stats["still_pending"] += 1
+                                )
+                                if not existing.first():
+                                    activity = ContactActivity(
+                                        contact_id=contact.id,
+                                        company_id=contact.company_id,
+                                        activity_type="email_sent",
+                                        channel="email",
+                                        direction="outbound",
+                                        source="smartlead_sync",
+                                        source_id=msg.get("message_id", ""),
+                                        subject=msg.get("email_subject"),
+                                        body=(msg.get("email_body", "") or "")[:500],
+                                        activity_at=msg_time,
+                                    )
+                                    session.add(activity)
+                                    stats["activities_created"] += 1
+            else:
+                stats["still_pending"] += 1
 
-            except Exception as e:
-                logger.error(f"sync_conversation_histories: error checking lead {reply.lead_email}: {e}")
-                stats["errors"] += 1
+        except Exception as e:
+            logger.error(f"sync_conversation_histories: error checking lead {reply.lead_email}: {e}")
+            stats["errors"] += 1
 
     # Commit all changes
     try:

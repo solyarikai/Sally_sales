@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
 import type { Contact } from '../api/contacts';
 import { contactsApi } from '../api/contacts';
+import { ConversationThread, adaptContactHistory } from './ConversationThread';
 
 interface Activity {
   id: number;
@@ -150,7 +152,7 @@ function CampaignSidebar({
   );
 }
 
-// ── Messenger-style conversation view ──────────────────────────────
+// ── Messenger-style conversation view (delegates to shared ConversationThread) ──
 function ConversationView({
   activities,
   contactName,
@@ -160,195 +162,18 @@ function ConversationView({
   activities: Activity[];
   contactName: string;
   compact?: boolean;
-  filterCampaign?: string | null; // "email::CampaignName" or "linkedin::CampaignName" or null (all)
+  filterCampaign?: string | null;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Filter activities by selected campaign
-  const filtered = useMemo(() => {
-    if (!filterCampaign) return activities;
-    const [channel, ...nameParts] = filterCampaign.split('::');
-    const name = nameParts.join('::');
-    return activities.filter((a) => {
-      const aChannel = a.channel || 'email';
-      const aName = a.campaign || a.automation || 'Unknown';
-      return aChannel === channel && aName === name;
-    });
-  }, [activities, filterCampaign]);
-
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [filtered]);
-
-  // Sort chronologically (oldest first, like a real chat)
-  const sorted = [...filtered].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
-
-  if (sorted.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-gray-400">
-        <div className="text-center">
-          <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-20" />
-          <p className="text-sm">No messages yet</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Group messages: insert date separators and campaign change markers
-  type RenderItem =
-    | { kind: 'date'; label: string; key: string }
-    | { kind: 'campaign'; label: string; channel?: string; key: string }
-    | { kind: 'message'; activity: Activity; showTail: boolean; key: string };
-
-  const items: RenderItem[] = [];
-  let prevDate = '';
-  let prevCampaign = '';
-  let prevDirection = '';
-
-  for (let i = 0; i < sorted.length; i++) {
-    const act = sorted[i];
-    const dateStr = new Date(act.timestamp).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-
-    // Date divider
-    if (dateStr !== prevDate) {
-      items.push({ kind: 'date', label: dateStr, key: `date-${i}` });
-      prevDate = dateStr;
-      prevCampaign = ''; // reset campaign on new date
-    }
-
-    // Campaign change divider
-    const campaignLabel = act.campaign || act.automation || '';
-    if (campaignLabel && campaignLabel !== prevCampaign) {
-      items.push({
-        kind: 'campaign',
-        label: campaignLabel,
-        channel: act.channel,
-        key: `campaign-${i}`,
-      });
-      prevCampaign = campaignLabel;
-    }
-
-    // Show tail on first message of a direction group
-    const showTail = act.direction !== prevDirection;
-    prevDirection = act.direction;
-
-    items.push({ kind: 'message', activity: act, showTail, key: `msg-${act.id}` });
-  }
-
-  const bubbleSize = compact ? 'text-[13px]' : 'text-sm';
-  const timeSize = compact ? 'text-[10px]' : 'text-[11px]';
-
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
-      <div className="flex flex-col gap-0.5">
-        {items.map((item) => {
-          if (item.kind === 'date') {
-            return (
-              <div key={item.key} className="flex justify-center my-3">
-                <span className="px-3 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-500">
-                  {item.label}
-                </span>
-              </div>
-            );
-          }
-
-          if (item.kind === 'campaign') {
-            return (
-              <div key={item.key} className="flex justify-center my-2">
-                <span className={cn(
-                  "px-2.5 py-0.5 rounded-full text-[10px] font-medium inline-flex items-center gap-1",
-                  item.channel === 'linkedin'
-                    ? "bg-blue-50 text-blue-500"
-                    : "bg-purple-50 text-purple-500"
-                )}>
-                  {item.channel === 'linkedin' ? (
-                    <Linkedin className="w-2.5 h-2.5" />
-                  ) : (
-                    <Mail className="w-2.5 h-2.5" />
-                  )}
-                  {item.label}
-                </span>
-              </div>
-            );
-          }
-
-          // Message bubble
-          const { activity, showTail } = item;
-          const isOut = activity.direction === 'outbound';
-          const time = new Date(activity.timestamp).toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-          });
-
-          return (
-            <div
-              key={item.key}
-              className={cn(
-                "flex",
-                isOut ? "justify-end" : "justify-start",
-                showTail ? "mt-2" : "mt-px"
-              )}
-            >
-              {/* Inbound avatar (only on tail) */}
-              {!isOut && (
-                <div className="w-7 flex-shrink-0 mt-auto mb-0.5 mr-1.5">
-                  {showTail ? (
-                    <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-semibold text-gray-600">
-                      {contactName.charAt(0).toUpperCase()}
-                    </div>
-                  ) : null}
-                </div>
-              )}
-
-              <div
-                className={cn(
-                  "max-w-[75%] px-3 py-2 relative",
-                  bubbleSize,
-                  isOut
-                    ? cn(
-                        "bg-[#3B82F6] text-white",
-                        showTail
-                          ? "rounded-2xl rounded-br-md"
-                          : "rounded-2xl rounded-br-md"
-                      )
-                    : cn(
-                        "bg-[#F1F1F1] text-gray-900",
-                        showTail
-                          ? "rounded-2xl rounded-bl-md"
-                          : "rounded-2xl rounded-bl-md"
-                      )
-                )}
-              >
-                <p className="whitespace-pre-wrap break-words leading-relaxed">{activity.content}</p>
-                <div className={cn(
-                  "flex items-center gap-1.5 mt-1",
-                  isOut ? "justify-end" : "justify-start"
-                )}>
-                  <span className={cn(
-                    timeSize,
-                    isOut ? "text-white/60" : "text-gray-400"
-                  )}>
-                    {time}
-                  </span>
-                </div>
-              </div>
-
-              {/* Spacer for outbound alignment */}
-              {isOut && <div className="w-1 flex-shrink-0" />}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <ConversationThread
+      messages={adaptContactHistory(activities)}
+      contactName={contactName}
+      showAvatars
+      showDateSeparators
+      showCampaignMarkers
+      compact={compact}
+      filterCampaign={filterCampaign}
+    />
   );
 }
 
@@ -464,6 +289,7 @@ export function ContactDetailModal({
   const [sequencePlan, setSequencePlan] = useState<any>(null);
   const [sequenceLoading, setSequenceLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [draftReply, setDraftReply] = useState('');
   const [replyChannel, setReplyChannel] = useState<'email' | 'linkedin' | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -506,6 +332,9 @@ export function ContactDetailModal({
 
   useEffect(() => {
     if (contact && isOpen) {
+      const controller = new AbortController();
+      const { signal } = controller;
+
       // Reset state when contact changes
       setDraftReply('');
       setReplyChannel(null);
@@ -520,21 +349,24 @@ export function ContactDetailModal({
       // Fetch projects list
       const fetchProjects = async () => {
         try {
-          const response = await fetch('/api/contacts/projects/names');
+          const response = await fetch('/api/contacts/projects/names', { signal });
           if (response.ok) {
             const data = await response.json();
             setProjects(data);
           }
-        } catch (err) {
-          console.error('Failed to fetch projects:', err);
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            toast.error('Failed to load projects');
+          }
         }
       };
       fetchProjects();
 
       // Fetch activities/history from API
       const fetchHistory = async () => {
+        setIsLoadingHistory(true);
         try {
-          const response = await fetch(`/api/contacts/${contact.id}/history`);
+          const response = await fetch(`/api/contacts/${contact.id}/history`, { signal });
           if (response.ok) {
             const data = await response.json();
             const allActivities: Activity[] = [
@@ -560,8 +392,12 @@ export function ContactDetailModal({
 
             setActivities(allActivities);
           }
-        } catch (err) {
-          console.error('Failed to fetch history:', err);
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            toast.error('Failed to load conversation history');
+          }
+        } finally {
+          setIsLoadingHistory(false);
         }
       };
       fetchHistory();
@@ -570,13 +406,15 @@ export function ContactDetailModal({
       const fetchSequence = async () => {
         try {
           setSequenceLoading(true);
-          const resp = await fetch(`/api/contacts/${contact.id}/sequence-plan`);
+          const resp = await fetch(`/api/contacts/${contact.id}/sequence-plan`, { signal });
           if (resp.ok) {
             const data = await resp.json();
             setSequencePlan(data);
           }
-        } catch (err) {
-          console.error('Failed to fetch sequence plan:', err);
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            toast.error('Failed to load sequence plan');
+          }
         } finally {
           setSequenceLoading(false);
         }
@@ -587,6 +425,8 @@ export function ContactDetailModal({
       if (replyMode && contact.has_replied) {
         fetchAiDraft(contact.id);
       }
+
+      return () => controller.abort();
     }
   }, [contact, isOpen, replyMode, fetchAiDraft]);
 
@@ -720,12 +560,20 @@ export function ContactDetailModal({
 
             {/* Center: Conversation (messenger view) */}
             <div className="flex-1 flex flex-col bg-white min-w-0">
-              <ConversationView
-                activities={activities}
-                contactName={contactFirstName}
-                compact
-                filterCampaign={selectedCampaign}
-              />
+              {isLoadingHistory ? (
+                <div className="flex-1 p-4 space-y-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="animate-pulse bg-gray-200/20 rounded h-4" style={{ width: `${60 + (i % 3) * 15}%` }} />
+                  ))}
+                </div>
+              ) : (
+                <ConversationView
+                  activities={activities}
+                  contactName={contactFirstName}
+                  compact
+                  filterCampaign={selectedCampaign}
+                />
+              )}
             </div>
 
             {/* Right: AI Draft + Reply */}
@@ -1018,11 +866,19 @@ export function ContactDetailModal({
 
               {/* Conversation + compose */}
               <div className="flex-1 flex flex-col min-w-0">
-                <ConversationView
-                  activities={activities}
-                  contactName={contactFirstName}
-                  filterCampaign={selectedCampaign}
-                />
+                {isLoadingHistory ? (
+                  <div className="flex-1 p-4 space-y-3">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="animate-pulse bg-gray-200/20 rounded h-4" style={{ width: `${60 + (i % 3) * 15}%` }} />
+                    ))}
+                  </div>
+                ) : (
+                  <ConversationView
+                    activities={activities}
+                    contactName={contactFirstName}
+                    filterCampaign={selectedCampaign}
+                  />
+                )}
 
                 {/* Compose area with auto-selected channel */}
                 <ComposeArea

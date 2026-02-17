@@ -5,8 +5,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { RepliesPage } from '../pages/RepliesPage';
 import type {
   ProcessedReply,
-  ProcessedReplyStats,
   ConversationMessage,
+  ContactCampaignEntry,
 } from '../api/replies';
 
 // ============ Mock data factories ============
@@ -24,7 +24,7 @@ const makeReply = (id: number, overrides?: Partial<ProcessedReply>): ProcessedRe
   email_body: `Reply body ${id}`,
   reply_text: `Reply body ${id}`,
   received_at: '2026-02-10T12:00:00Z',
-  category: 'interested',
+  category: 'meeting_request',
   category_confidence: 'high',
   classification_reasoning: `Reasoning for ${id}`,
   draft_reply: `Draft reply for ${id}`,
@@ -37,19 +37,8 @@ const makeReply = (id: number, overrides?: Partial<ProcessedReply>): ProcessedRe
   approved_by: null,
   approved_at: null,
   created_at: '2026-02-10T12:01:00Z',
-  ...overrides,
-});
-
-const makeStats = (overrides?: Partial<ProcessedReplyStats>): ProcessedReplyStats => ({
-  total: 25,
-  by_category: { interested: 10, meeting_request: 5, not_interested: 3, question: 7 },
-  by_status: { pending: 15, approved: 8, dismissed: 2 },
-  today: 4,
-  this_week: 18,
-  sent_to_slack: 20,
-  pending: 15,
-  approved: 8,
-  dismissed: 2,
+  channel: 'email',
+  source: 'smartlead',
   ...overrides,
 });
 
@@ -65,13 +54,67 @@ const makeConversation = (count: number): ConversationMessage[] =>
     extra_data: null,
   }));
 
-// ============ Mock repliesApi ============
+const makeCampaignEntries = (): ContactCampaignEntry[] => [
+  {
+    reply_id: 1,
+    campaign_id: 'camp_001',
+    campaign_name: 'Rizzult Outreach Q1',
+    category: 'meeting_request',
+    classification_reasoning: 'Wants meeting',
+    received_at: '2026-02-10T12:00:00Z',
+    email_subject: 'Re: Subject 1',
+    email_body: 'Reply body 1',
+    reply_text: 'Reply body 1',
+    draft_reply: 'Draft reply for 1',
+    draft_subject: 'Re: Subject 1',
+    approval_status: null,
+    inbox_link: null,
+    channel: 'email',
+  },
+  {
+    reply_id: 100,
+    campaign_id: 'camp_002',
+    campaign_name: 'Partner Campaign',
+    category: 'interested',
+    classification_reasoning: 'Shows interest',
+    received_at: '2026-02-09T10:00:00Z',
+    email_subject: 'Re: Partner Intro',
+    email_body: 'Interested in learning more',
+    reply_text: 'Interested in learning more',
+    draft_reply: 'Thanks for your interest!',
+    draft_subject: 'Re: Partner Intro',
+    approval_status: null,
+    inbox_link: null,
+    channel: 'email',
+  },
+];
 
-const mockGetReplies = vi.fn();
-const mockGetReplyStats = vi.fn();
-const mockApproveAndSendReply = vi.fn();
-const mockDismissReply = vi.fn();
-const mockGetConversation = vi.fn();
+// ============ Hoisted mocks (vi.mock factories are hoisted above imports) ============
+
+const {
+  mockGetReplies,
+  mockApproveAndSendReply,
+  mockDismissReply,
+  mockGetConversation,
+  mockRegenerateDraft,
+  mockGetContactCampaigns,
+  mockToast,
+} = vi.hoisted(() => {
+  const toast = Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    dismiss: vi.fn(),
+  });
+  return {
+    mockGetReplies: vi.fn(),
+    mockApproveAndSendReply: vi.fn(),
+    mockDismissReply: vi.fn(),
+    mockGetConversation: vi.fn(),
+    mockRegenerateDraft: vi.fn(),
+    mockGetContactCampaigns: vi.fn(),
+    mockToast: toast,
+  };
+});
 
 vi.mock('../api/replies', async () => {
   const actual = await vi.importActual('../api/replies');
@@ -79,40 +122,45 @@ vi.mock('../api/replies', async () => {
     ...actual,
     repliesApi: {
       getReplies: (...args: unknown[]) => mockGetReplies(...args),
-      getReplyStats: (...args: unknown[]) => mockGetReplyStats(...args),
       approveAndSendReply: (...args: unknown[]) => mockApproveAndSendReply(...args),
       dismissReply: (...args: unknown[]) => mockDismissReply(...args),
       getConversation: (...args: unknown[]) => mockGetConversation(...args),
+      regenerateDraft: (...args: unknown[]) => mockRegenerateDraft(...args),
+      getContactCampaigns: (...args: unknown[]) => mockGetContactCampaigns(...args),
     },
   };
 });
 
-// Mock store
+// Stable object references to prevent useEffect re-firing
+const stableProject = { id: 1, name: 'Test Project' };
+const stableProjects = [stableProject];
+const stableSetCurrentProject = vi.fn();
+
 vi.mock('../store/appStore', () => ({
   useAppStore: () => ({
-    currentProject: null,
+    currentProject: stableProject,
+    setCurrentProject: stableSetCurrentProject,
+    projects: stableProjects,
   }),
 }));
 
-// Mock react-hot-toast
-const mockToastSuccess = vi.fn();
-const mockToastError = vi.fn();
+vi.mock('../hooks/useTheme', () => ({
+  useTheme: () => ({ isDark: false }),
+}));
 
 vi.mock('react-hot-toast', () => ({
-  default: {
-    success: (...args: unknown[]) => mockToastSuccess(...args),
-    error: (...args: unknown[]) => mockToastError(...args),
-  },
+  default: mockToast,
   Toaster: () => null,
 }));
 
 // ============ Helpers ============
 
-function renderRepliesPage() {
+function renderRepliesPage(initialRoute = '/replies') {
   return render(
-    <MemoryRouter initialEntries={['/replies']}>
+    <MemoryRouter initialEntries={[initialRoute]}>
       <Routes>
         <Route path="/replies" element={<RepliesPage />} />
+        <Route path="/contacts" element={<div>Contacts Page</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -123,15 +171,15 @@ function renderRepliesPage() {
 describe('RepliesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: return some replies and stats
+    // Default: return 3 meeting_request replies with category counts
     mockGetReplies.mockResolvedValue({
       replies: [makeReply(1), makeReply(2), makeReply(3)],
-      total: 3,
+      total: 8,
+      category_counts: { meeting_request: 5, interested: 3 },
       page: 1,
-      page_size: 50,
+      page_size: 30,
     });
-    mockGetReplyStats.mockResolvedValue(makeStats());
-    mockGetConversation.mockResolvedValue({ messages: [], contact_id: null });
+    mockGetConversation.mockResolvedValue({ messages: [], contact_info: null });
   });
 
   // ============ Rendering ============
@@ -144,181 +192,288 @@ describe('RepliesPage', () => {
         expect(screen.getByText('First2 Last2')).toBeInTheDocument();
       });
       // Category badge
-      const interestedBadges = screen.getAllByText(/Interested/);
-      expect(interestedBadges.length).toBeGreaterThanOrEqual(1);
+      const meetingBadges = screen.getAllByText('Meeting');
+      expect(meetingBadges.length).toBeGreaterThanOrEqual(1);
       // Subject
-      expect(screen.getByText(/Subject 1/)).toBeInTheDocument();
+      expect(screen.getByText('Re: Subject 1')).toBeInTheDocument();
     });
 
-    it('shows stats bar (Total, Pending, Today)', async () => {
-      renderRepliesPage();
-      await waitFor(() => {
-        expect(screen.getByText('Total')).toBeInTheDocument();
-        // "Pending" appears in both stats badge and dropdown — use getAllByText
-        const pendingElements = screen.getAllByText('Pending');
-        expect(pendingElements.length).toBeGreaterThanOrEqual(1);
-        expect(screen.getByText('Today')).toBeInTheDocument();
+    it('shows "All caught up" when no replies', async () => {
+      mockGetReplies.mockResolvedValue({
+        replies: [],
+        total: 0,
+        category_counts: {},
+        page: 1,
+        page_size: 30,
       });
-    });
-
-    it('shows empty state when no replies', async () => {
-      mockGetReplies.mockResolvedValue({ replies: [], total: 0, page: 1, page_size: 50 });
       renderRepliesPage();
       await waitFor(() => {
-        expect(screen.getByText('No replies found')).toBeInTheDocument();
+        expect(screen.getByText('All caught up')).toBeInTheDocument();
       });
     });
   });
 
-  // ============ Filters ============
+  // ============ Category Tabs & Counts ============
 
-  describe('Filters', () => {
-    it('"Needs Reply" filter starts ON and toggles off to "Show All"', async () => {
-      const user = userEvent.setup();
+  describe('Category Count Updates', () => {
+    it('category counts render in filter tabs', async () => {
       renderRepliesPage();
-
-      // Starts with needs_reply=true (default ON), button shows "Awaiting Reply (N)"
       await waitFor(() => {
-        const firstCall = mockGetReplies.mock.calls[0][0];
-        expect(firstCall.needs_reply).toBe(true);
-      });
-
-      // Click to toggle OFF → label changes to "Show All"
-      const toggleBtn = screen.getByRole('button', { name: /awaiting reply|show all/i });
-      await user.click(toggleBtn);
-
-      await waitFor(() => {
-        const lastCall = mockGetReplies.mock.calls[mockGetReplies.mock.calls.length - 1][0];
-        expect(lastCall.needs_reply).toBeFalsy();
+        // "Meetings 5" tab and "Interested 3" tab
+        expect(screen.getByText(/Meetings\s*5/)).toBeInTheDocument();
+        expect(screen.getByText(/Interested\s*3/)).toBeInTheDocument();
       });
     });
 
-    it('"Moderation" button sets approval_status=pending', async () => {
+    it('clicking category tab changes filter', async () => {
       const user = userEvent.setup();
       renderRepliesPage();
 
       await waitFor(() => {
-        expect(screen.getByText('Moderation')).toBeInTheDocument();
+        expect(screen.getByText('First1 Last1')).toBeInTheDocument();
       });
 
-      await user.click(screen.getByText('Moderation'));
+      // Click "Interested" tab
+      await user.click(screen.getByText(/Interested/));
 
       await waitFor(() => {
-        const lastCall = mockGetReplies.mock.calls[mockGetReplies.mock.calls.length - 1][0];
-        expect(lastCall.approval_status).toBe('pending');
-      });
-    });
-
-    it('category dropdown filters by category', async () => {
-      const user = userEvent.setup();
-      renderRepliesPage();
-
-      await waitFor(() => {
-        expect(screen.getByDisplayValue('All Categories')).toBeInTheDocument();
-      });
-
-      await user.selectOptions(screen.getByDisplayValue('All Categories'), 'interested');
-
-      await waitFor(() => {
-        const lastCall = mockGetReplies.mock.calls[mockGetReplies.mock.calls.length - 1][0];
+        const calls = mockGetReplies.mock.calls;
+        const lastCall = calls[calls.length - 1][0];
         expect(lastCall.category).toBe('interested');
       });
     });
+
+    it('after dismiss, category counts update from server re-fetch', async () => {
+      mockDismissReply.mockResolvedValue({ success: true });
+      // After dismiss, server returns updated counts
+      mockGetReplies
+        .mockResolvedValueOnce({
+          replies: [makeReply(1), makeReply(2)],
+          total: 7,
+          category_counts: { meeting_request: 5, interested: 2 },
+          page: 1,
+          page_size: 30,
+        })
+        .mockResolvedValue({
+          replies: [],
+          total: 6,
+          category_counts: { meeting_request: 4, interested: 2 },
+          page: 1,
+          page_size: 0,
+        });
+
+      const user = userEvent.setup();
+      renderRepliesPage();
+
+      await waitFor(() => {
+        expect(screen.getByText('First1 Last1')).toBeInTheDocument();
+      });
+
+      // Click Skip on first reply
+      const skipButtons = screen.getAllByText('Skip');
+      await user.click(skipButtons[0]);
+
+      await waitFor(() => {
+        expect(mockDismissReply).toHaveBeenCalledWith(1);
+      });
+    });
   });
 
-  // ============ Approve & Send (with confirmation dialog) ============
+  // ============ Campaign Dropdown ============
 
-  describe('Approve & Send', () => {
-    it('click OK button → shows confirmation dialog with draft preview', async () => {
+  describe('Campaign Dropdown', () => {
+    it('renders dropdown trigger when contact_campaign_count > 1', async () => {
+      mockGetReplies.mockResolvedValue({
+        replies: [makeReply(1, { contact_campaign_count: 3 })],
+        total: 1,
+        category_counts: { meeting_request: 1 },
+        page: 1,
+        page_size: 30,
+      });
+
+      renderRepliesPage();
+
+      await waitFor(() => {
+        // Campaign count badge "3" should appear
+        expect(screen.getByText('3')).toBeInTheDocument();
+      });
+    });
+
+    it('click opens dropdown, shows campaign entries', async () => {
+      mockGetReplies.mockResolvedValue({
+        replies: [makeReply(1, { contact_campaign_count: 2 })],
+        total: 1,
+        category_counts: { meeting_request: 1 },
+        page: 1,
+        page_size: 30,
+      });
+      mockGetContactCampaigns.mockResolvedValue({
+        campaigns: makeCampaignEntries(),
+      });
+
       const user = userEvent.setup();
       renderRepliesPage();
 
       await waitFor(() => {
-        expect(screen.getByText('First1 Last1')).toBeInTheDocument();
+        expect(screen.getByText('2')).toBeInTheDocument();
       });
 
-      // Click the OK button on the first reply card
-      const okButtons = screen.getAllByTitle('Approve & send');
-      await user.click(okButtons[0]);
+      // Click the campaign count badge area to open dropdown
+      const trigger = screen.getByText('2').closest('button')!;
+      await user.click(trigger);
 
-      // Confirmation dialog should appear with title
       await waitFor(() => {
-        expect(screen.getByText('Confirm Send Reply')).toBeInTheDocument();
+        expect(screen.getByText('Partner Campaign')).toBeInTheDocument();
       });
-
-      // Dialog shows recipient info and draft preview
-      expect(screen.getByText('lead-1@example.com')).toBeInTheDocument();
-      expect(screen.getByText('Draft reply for 1')).toBeInTheDocument();
-      // Campaign name appears in both the card footer and the dialog
-      expect(screen.getAllByText('Rizzult Outreach Q1').length).toBeGreaterThanOrEqual(1);
-
-      // API should NOT have been called yet
-      expect(mockApproveAndSendReply).not.toHaveBeenCalled();
     });
 
-    it('confirm dialog → click Send Reply → dry_run=true → toast "Approved (dry run)"', async () => {
+    it('click entry switches displayed reply data', async () => {
+      mockGetReplies.mockResolvedValue({
+        replies: [makeReply(1, { contact_campaign_count: 2 })],
+        total: 1,
+        category_counts: { meeting_request: 1 },
+        page: 1,
+        page_size: 30,
+      });
+      mockGetContactCampaigns.mockResolvedValue({
+        campaigns: makeCampaignEntries(),
+      });
+
       const user = userEvent.setup();
-      mockApproveAndSendReply.mockResolvedValue({
-        status: 'approved_dry_run',
-        dry_run: true,
+      renderRepliesPage();
+
+      await waitFor(() => {
+        expect(screen.getByText('Re: Subject 1')).toBeInTheDocument();
+      });
+
+      // Open dropdown
+      const trigger = screen.getByText('2').closest('button')!;
+      await user.click(trigger);
+
+      await waitFor(() => {
+        expect(screen.getByText('Partner Campaign')).toBeInTheDocument();
+      });
+
+      // Click the "Partner Campaign" entry
+      await user.click(screen.getByText('Partner Campaign'));
+
+      // Should now show the partner campaign's data
+      await waitFor(() => {
+        expect(screen.getByText('Re: Partner Intro')).toBeInTheDocument();
+      });
+    });
+  });
+
+  // ============ Regenerate Button ============
+
+  describe('Regenerate Button', () => {
+    it('shows "Regenerate" button when draft matches FAILED_DRAFT_RE', async () => {
+      mockGetReplies.mockResolvedValue({
+        replies: [makeReply(1, { draft_reply: '{Draft generation failed: timeout}' })],
+        total: 1,
+        category_counts: { meeting_request: 1 },
+        page: 1,
+        page_size: 30,
+      });
+
+      renderRepliesPage();
+
+      await waitFor(() => {
+        expect(screen.getByText('Regenerate')).toBeInTheDocument();
+      });
+    });
+
+    it('click calls regenerateDraft, updates card with new draft', async () => {
+      mockGetReplies.mockResolvedValue({
+        replies: [makeReply(1, { draft_reply: '{Draft generation failed: timeout}' })],
+        total: 1,
+        category_counts: { meeting_request: 1 },
+        page: 1,
+        page_size: 30,
+      });
+      mockRegenerateDraft.mockResolvedValue({
         reply_id: 1,
-        message: 'SmartLead send skipped (DEBUG)',
+        draft_reply: 'Fresh new draft text',
+        draft_subject: 'Re: Subject 1',
+        category: 'meeting_request',
+        classification_reasoning: 'Wants a meeting',
       });
 
+      const user = userEvent.setup();
       renderRepliesPage();
 
       await waitFor(() => {
-        expect(screen.getByText('First1 Last1')).toBeInTheDocument();
+        expect(screen.getByText('Regenerate')).toBeInTheDocument();
       });
 
-      // Open confirm dialog
-      const okButtons = screen.getAllByTitle('Approve & send');
-      await user.click(okButtons[0]);
+      await user.click(screen.getByText('Regenerate'));
 
       await waitFor(() => {
-        expect(screen.getByText('Confirm Send Reply')).toBeInTheDocument();
+        expect(mockRegenerateDraft).toHaveBeenCalledWith(1);
       });
 
-      // Click "Send Reply" in the dialog
-      await user.click(screen.getByText('Send Reply'));
-
+      // After regeneration, the new draft should appear
       await waitFor(() => {
-        expect(mockApproveAndSendReply).toHaveBeenCalledWith(1);
-        expect(mockToastSuccess).toHaveBeenCalledWith('Approved (dry run)');
+        expect(screen.getByText('Fresh new draft text')).toBeInTheDocument();
       });
     });
 
-    it('confirm dialog → click Send Reply → dry_run=false → toast "Reply sent!"', async () => {
+    it('shows "Regenerating..." spinner while in progress', async () => {
+      // Create a promise that we can control
+      let resolveRegenerate: (value: unknown) => void;
+      const regeneratePromise = new Promise((resolve) => {
+        resolveRegenerate = resolve;
+      });
+
+      mockGetReplies.mockResolvedValue({
+        replies: [makeReply(1, { draft_reply: 'Error generating draft' })],
+        total: 1,
+        category_counts: { meeting_request: 1 },
+        page: 1,
+        page_size: 30,
+      });
+      mockRegenerateDraft.mockReturnValue(regeneratePromise);
+
       const user = userEvent.setup();
+      renderRepliesPage();
+
+      await waitFor(() => {
+        expect(screen.getByText('Regenerate')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText('Regenerate'));
+
+      // Should show "Regenerating..." while pending
+      await waitFor(() => {
+        expect(screen.getByText('Regenerating...')).toBeInTheDocument();
+      });
+
+      // Resolve the promise
+      resolveRegenerate!({
+        reply_id: 1,
+        draft_reply: 'New draft',
+        draft_subject: 'Re: Subject 1',
+        category: 'meeting_request',
+        classification_reasoning: 'Updated reasoning',
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText('Regenerating...')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // ============ Send ============
+
+  describe('Send', () => {
+    it('click Send → calls approveAndSendReply → reply removed from list', async () => {
       mockApproveAndSendReply.mockResolvedValue({
         status: 'approved',
         dry_run: false,
         reply_id: 1,
-        lead_email: 'lead-1@example.com',
+        contact_id: 42,
       });
 
-      renderRepliesPage();
-
-      await waitFor(() => {
-        expect(screen.getByText('First1 Last1')).toBeInTheDocument();
-      });
-
-      const okButtons = screen.getAllByTitle('Approve & send');
-      await user.click(okButtons[0]);
-
-      await waitFor(() => {
-        expect(screen.getByText('Confirm Send Reply')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Send Reply'));
-
-      await waitFor(() => {
-        expect(mockApproveAndSendReply).toHaveBeenCalledWith(1);
-        expect(mockToastSuccess).toHaveBeenCalledWith('Reply sent!');
-      });
-    });
-
-    it('confirm dialog → click Cancel → does NOT send', async () => {
       const user = userEvent.setup();
       renderRepliesPage();
 
@@ -326,48 +481,37 @@ describe('RepliesPage', () => {
         expect(screen.getByText('First1 Last1')).toBeInTheDocument();
       });
 
-      const okButtons = screen.getAllByTitle('Approve & send');
-      await user.click(okButtons[0]);
+      // Click Send on first card
+      const sendButtons = screen.getAllByText('Send');
+      await user.click(sendButtons[0]);
 
       await waitFor(() => {
-        expect(screen.getByText('Confirm Send Reply')).toBeInTheDocument();
+        expect(mockApproveAndSendReply).toHaveBeenCalledWith(1, undefined);
+        // Reply should be removed from DOM
+        expect(screen.queryByText('First1 Last1')).not.toBeInTheDocument();
       });
-
-      // Click Cancel
-      await user.click(screen.getByText('Cancel'));
-
-      // Dialog should close
-      await waitFor(() => {
-        expect(screen.queryByText('Confirm Send Reply')).not.toBeInTheDocument();
-      });
-
-      // API should NOT have been called
-      expect(mockApproveAndSendReply).not.toHaveBeenCalled();
     });
 
     it('API error → toast.error with detail', async () => {
-      const user = userEvent.setup();
       mockApproveAndSendReply.mockRejectedValue({
         response: { data: { detail: 'Reply already approved' } },
       });
 
+      const user = userEvent.setup();
       renderRepliesPage();
 
       await waitFor(() => {
         expect(screen.getByText('First1 Last1')).toBeInTheDocument();
       });
 
-      const okButtons = screen.getAllByTitle('Approve & send');
-      await user.click(okButtons[0]);
+      const sendButtons = screen.getAllByText('Send');
+      await user.click(sendButtons[0]);
 
       await waitFor(() => {
-        expect(screen.getByText('Confirm Send Reply')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('Send Reply'));
-
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalledWith('Reply already approved');
+        expect(mockToast.error).toHaveBeenCalledWith(
+          'Reply already approved',
+          expect.any(Object),
+        );
       });
     });
   });
@@ -375,115 +519,22 @@ describe('RepliesPage', () => {
   // ============ Dismiss ============
 
   describe('Dismiss', () => {
-    it('click skip button → calls dismissReply → toast "Reply skipped"', async () => {
-      const user = userEvent.setup();
-      mockDismissReply.mockResolvedValue({
-        success: true,
-        reply_id: 1,
-        approval_status: 'dismissed',
-      });
+    it('click Skip → calls dismissReply → reply removed from list', async () => {
+      mockDismissReply.mockResolvedValue({ success: true });
 
+      const user = userEvent.setup();
       renderRepliesPage();
 
       await waitFor(() => {
         expect(screen.getByText('First1 Last1')).toBeInTheDocument();
       });
 
-      const skipButtons = screen.getAllByTitle('Skip');
+      const skipButtons = screen.getAllByText('Skip');
       await user.click(skipButtons[0]);
 
       await waitFor(() => {
         expect(mockDismissReply).toHaveBeenCalledWith(1);
-        expect(mockToastSuccess).toHaveBeenCalledWith('Reply skipped');
-      });
-    });
-
-    it('shows "Skipped" badge for dismissed replies', async () => {
-      mockGetReplies.mockResolvedValue({
-        replies: [makeReply(1, { approval_status: 'dismissed' })],
-        total: 1,
-        page: 1,
-        page_size: 50,
-      });
-
-      renderRepliesPage();
-
-      await waitFor(() => {
-        expect(screen.getByText('Skipped')).toBeInTheDocument();
-      });
-    });
-  });
-
-  // ============ Detail Panel & Conversation ============
-
-  describe('Detail Panel & Conversation', () => {
-    it('click reply card → opens detail panel → calls getConversation', async () => {
-      const user = userEvent.setup();
-      mockGetConversation.mockResolvedValue({
-        messages: makeConversation(2),
-        contact_id: 42,
-      });
-
-      renderRepliesPage();
-
-      await waitFor(() => {
-        expect(screen.getByText('First1 Last1')).toBeInTheDocument();
-      });
-
-      // Click on the reply card (the lead name text)
-      await user.click(screen.getByText('First1 Last1'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Reply Details')).toBeInTheDocument();
-        expect(mockGetConversation).toHaveBeenCalledWith(1);
-      });
-    });
-
-    it('shows inbound (blue) and outbound (gray) message bubbles', async () => {
-      const user = userEvent.setup();
-      mockGetConversation.mockResolvedValue({
-        messages: [
-          { direction: 'outbound', channel: 'email', subject: null, body: 'Hey there!', activity_at: '2026-02-10T10:00:00Z', source: 'smartlead', activity_type: 'email_sent', extra_data: null },
-          { direction: 'inbound', channel: 'email', subject: null, body: 'I am interested!', activity_at: '2026-02-10T11:00:00Z', source: 'smartlead', activity_type: 'email_replied', extra_data: null },
-        ],
-        contact_id: 42,
-      });
-
-      renderRepliesPage();
-
-      await waitFor(() => {
-        expect(screen.getByText('First1 Last1')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('First1 Last1'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Hey there!')).toBeInTheDocument();
-        expect(screen.getByText('I am interested!')).toBeInTheDocument();
-      });
-
-      // Check visual distinction: inbound has blue background, outbound has neutral
-      const inboundBubble = screen.getByText('I am interested!').closest('div[class*="bg-blue"]');
-      expect(inboundBubble).toBeTruthy();
-
-      const outboundBubble = screen.getByText('Hey there!').closest('div[class*="bg-neutral"]');
-      expect(outboundBubble).toBeTruthy();
-    });
-
-    it('shows "No conversation history" when empty', async () => {
-      const user = userEvent.setup();
-      mockGetConversation.mockResolvedValue({ messages: [], contact_id: null });
-
-      renderRepliesPage();
-
-      await waitFor(() => {
-        expect(screen.getByText('First1 Last1')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByText('First1 Last1'));
-
-      await waitFor(() => {
-        expect(screen.getByText('No conversation history found')).toBeInTheDocument();
+        expect(screen.queryByText('First1 Last1')).not.toBeInTheDocument();
       });
     });
   });

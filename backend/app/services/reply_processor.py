@@ -154,13 +154,16 @@ async def classify_reply(
                 prompt=prompt,
                 model="gpt-4o-mini",  # Fast and cheap for classification
                 temperature=0.1,
-                max_tokens=200
+                max_tokens=200,
+                response_format={"type": "json_object"},
             )
-            
+
             logger.debug(f"[PROMPT DEBUG] Classification response: {response}")
-            
+
             # Parse JSON response - strip markdown if present
             clean_response = response.strip()
+            if not clean_response:
+                raise ValueError("OpenAI returned empty response for classification")
             if clean_response.startswith("```"):
                 clean_response = clean_response.split("\n", 1)[-1]
                 if "```" in clean_response:
@@ -193,10 +196,10 @@ async def classify_reply(
             error_lower = last_error.lower()
             logger.warning(f"[PROCESSOR] Classification attempt {attempt + 1} failed: {e}")
             
-            # Check if error is retryable (rate limit, timeout, temporary failures)
-            retryable_errors = ["rate_limit", "timeout", "connection", "temporary", "overloaded", "503", "429"]
+            # Check if error is retryable (rate limit, timeout, temporary failures, empty response)
+            retryable_errors = ["rate_limit", "timeout", "connection", "temporary", "overloaded", "503", "429", "empty response"]
             is_retryable = any(err in error_lower for err in retryable_errors)
-            
+
             if not is_retryable and attempt == 0:
                 # Non-retryable errors on first attempt - still try once more
                 # Sometimes transient issues look like permanent ones
@@ -205,13 +208,13 @@ async def classify_reply(
                 # Non-retryable error after initial retry - give up
                 logger.error(f"[PROCESSOR] Non-retryable error, giving up: {e}")
                 break
-        
+
         # Exponential backoff before retry
         if attempt < max_retries - 1:
             wait_time = (attempt + 1) * 2  # 2s, 4s, 6s
             logger.info(f"[PROCESSOR] Waiting {wait_time}s before retry...")
             await asyncio.sleep(wait_time)
-    
+
     # All retries exhausted
     logger.error(f"[PROCESSOR] Classification failed after {max_retries} attempts: {last_error}")
     return {
@@ -357,13 +360,16 @@ async def generate_draft_reply(
                 prompt=prompt,
                 model="gpt-4o-mini",
                 temperature=0.7,
-                max_tokens=500
+                max_tokens=500,
+                response_format={"type": "json_object"},
             )
-            
+
             logger.debug(f"[PROMPT DEBUG] Draft response: {response}")
-            
+
             # Parse JSON response - strip markdown if present
             clean_response = response.strip()
+            if not clean_response:
+                raise ValueError("OpenAI returned empty response for draft generation")
             if clean_response.startswith("```"):
                 clean_response = clean_response.split("\n", 1)[-1]
                 if "```" in clean_response:
@@ -393,22 +399,22 @@ async def generate_draft_reply(
             error_lower = last_error.lower()
             logger.warning(f"[PROCESSOR] Draft generation attempt {attempt + 1} failed: {e}")
             
-            # Check if error is retryable
-            retryable_errors = ["rate_limit", "timeout", "connection", "temporary", "overloaded", "503", "429"]
+            # Check if error is retryable (rate limit, timeout, temporary failures, empty response)
+            retryable_errors = ["rate_limit", "timeout", "connection", "temporary", "overloaded", "503", "429", "empty response"]
             is_retryable = any(err in error_lower for err in retryable_errors)
-            
+
             if not is_retryable and attempt == 0:
                 logger.info(f"[PROCESSOR] Will retry once despite non-retryable error")
             elif not is_retryable:
                 logger.error(f"[PROCESSOR] Non-retryable error, giving up: {e}")
                 break
-        
+
         # Exponential backoff before retry
         if attempt < max_retries - 1:
             wait_time = (attempt + 1) * 2  # 2s, 4s, 6s
             logger.info(f"[PROCESSOR] Waiting {wait_time}s before retry...")
             await asyncio.sleep(wait_time)
-    
+
     # All retries exhausted
     logger.error(f"[PROCESSOR] Draft generation failed after {max_retries} attempts: {last_error}")
     return {
@@ -782,6 +788,8 @@ async def process_reply_webhook(
             existing_pr.updated_at = datetime.utcnow()
             existing_pr.source = existing_pr.source or "smartlead"
             existing_pr.channel = existing_pr.channel or "email"
+            if campaign_name:
+                existing_pr.campaign_name = campaign_name
             # Backfill / update smartlead_lead_id + invalidate thread cache
             existing_pr.smartlead_lead_id = (
                 existing_pr.smartlead_lead_id
@@ -837,8 +845,14 @@ async def process_reply_webhook(
                 contact = result.scalar()
             
             # If contact doesn't exist, create one from the webhook data
-            # This fixes a critical bug where 97%+ of reply senders were never 
+            # This fixes a critical bug where 97%+ of reply senders were never
             # imported into the contacts table
+            new_campaign_entry = {
+                "name": campaign_name,
+                "id": str(campaign_id) if campaign_id else None,
+                "source": "smartlead"
+            } if campaign_name or campaign_id else None
+
             if not contact:
                 logger.info(f"[PROCESSOR] Contact not found for {lead_email}, creating from reply data")
                 contact = Contact(
@@ -849,16 +863,34 @@ async def process_reply_webhook(
                     company_name=payload.get("company_name") or None,
                     source="smartlead",
                     status="replied",
+                    has_replied=True,
+                    last_reply_at=datetime.utcnow(),
+                    reply_channel="email",
                     last_synced_at=datetime.utcnow(),
-                    campaigns=[{
-                        "name": campaign_name,
-                        "id": str(campaign_id) if campaign_id else None,
-                        "source": "smartlead"
-                    }] if campaign_name or campaign_id else None
+                    campaigns=[new_campaign_entry] if new_campaign_entry else None,
                 )
                 session.add(contact)
                 await session.flush()  # Get contact.id
                 logger.info(f"[PROCESSOR] Created contact id={contact.id} for {lead_email}")
+            else:
+                # Update reply tracking on existing contact
+                contact.has_replied = True
+                contact.last_reply_at = datetime.utcnow()
+                contact.reply_channel = contact.reply_channel or "email"
+                contact.last_synced_at = datetime.utcnow()
+
+                # Merge new campaign into campaigns list (dedup by name+id)
+                if new_campaign_entry:
+                    existing_campaigns = contact.campaigns or []
+                    if not isinstance(existing_campaigns, list):
+                        existing_campaigns = []
+                    already_listed = any(
+                        isinstance(c, dict) and c.get("id") == new_campaign_entry["id"] and c.get("name") == new_campaign_entry["name"]
+                        for c in existing_campaigns
+                    )
+                    if not already_listed:
+                        contact.campaigns = existing_campaigns + [new_campaign_entry]
+                        logger.info(f"[PROCESSOR] Added campaign '{campaign_name}' to contact {contact.id} (now {len(contact.campaigns)} campaigns)")
 
             # Append webhook payload to smartlead_raw for debugging
             import json

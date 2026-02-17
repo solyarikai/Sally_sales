@@ -60,11 +60,22 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("Redis cache not available - running without cache")
     
-    # Create default user and templates
+    # Create default user and templates, load integration keys
     async with async_session_maker() as session:
         await ensure_default_user(session)
         await ensure_default_templates(session)
         await session.commit()
+
+    # Load integration API keys (SmartLead, Instantly, etc.) from DB into services
+    async with async_session_maker() as session:
+        from app.api.integrations import load_integration_keys
+        await load_integration_keys(session)
+        logger.info("Integration keys loaded from database")
+
+    # Note: last_touched_at column on processed_replies is created by init_db's create_all.
+    # For existing databases, run manually:
+    #   ALTER TABLE processed_replies ADD COLUMN IF NOT EXISTS last_touched_at TIMESTAMP;
+    #   UPDATE processed_replies SET last_touched_at = received_at WHERE last_touched_at IS NULL;
     
     # Setup automatic file synchronization
     from app.services.sync_service import setup_default_syncs

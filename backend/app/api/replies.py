@@ -20,6 +20,8 @@ from app.schemas.reply import (
     ProcessedReplyStats,
     AutomationMonitoringStats,
     AutomationMonitoringListResponse,
+    ContactCampaignEntry,
+    ContactCampaignsResponse,
 )
 from app.services.notification_service import (
     send_test_notification, 
@@ -35,6 +37,20 @@ from app.services.crm_sync_service import parse_campaigns
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/replies", tags=["replies"])
+
+
+def _text_to_html(text: str) -> str:
+    """Convert plain text with newlines to HTML paragraphs."""
+    import html as html_mod
+    text = html_mod.escape(text)
+    paragraphs = text.split('\n\n')
+    parts = []
+    for p in paragraphs:
+        p = p.strip()
+        if p:
+            p = p.replace('\n', '<br>')
+            parts.append(f'<p>{p}</p>')
+    return ''.join(parts) or '<p></p>'
 
 
 # ============= Test Endpoints =============
@@ -629,6 +645,7 @@ async def list_replies(
     needs_reply: Optional[bool] = Query(None, description="Filter to replies with no outbound activity after received_at"),
     channel: Optional[str] = Query(None, description="Filter by channel: email, linkedin"),
     source: Optional[str] = Query(None, description="Filter by source: smartlead, getsales"),
+    group_by_contact: bool = Query(False, description="Dedup by lead_email, one card per unique contact"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     session: AsyncSession = Depends(get_session)
@@ -637,18 +654,18 @@ async def list_replies(
 
     Dashboard can filter by approval_status to show pending/approved/dismissed replies.
     Use project_id to filter by a project's campaign_filters (e.g., Rizzult campaigns).
+    Use group_by_contact=true to dedup by lead_email (one card per unique contact).
     """
-    query = select(ProcessedReply)
-    count_query = select(func.count(ProcessedReply.id))
-    
-    # Apply filters
+    from sqlalchemy import case, or_, and_
+
+    # --- Build reusable filter conditions ---
+    conditions = []
+
     if automation_id:
-        query = query.where(ProcessedReply.automation_id == automation_id)
-        count_query = count_query.where(ProcessedReply.automation_id == automation_id)
-    
+        conditions.append(ProcessedReply.automation_id == automation_id)
+
     if campaign_id:
-        query = query.where(ProcessedReply.campaign_id == campaign_id)
-        count_query = count_query.where(ProcessedReply.campaign_id == campaign_id)
+        conditions.append(ProcessedReply.campaign_id == campaign_id)
 
     # Filter by project's campaign_filters (case-insensitive)
     if project_id:
@@ -663,81 +680,154 @@ async def list_replies(
         if project and project.campaign_filters:
             project_campaigns = [c.lower() for c in project.campaign_filters if isinstance(c, str)]
             if project_campaigns:
-                campaign_filter = func.lower(ProcessedReply.campaign_name).in_(project_campaigns)
-                query = query.where(campaign_filter)
-                count_query = count_query.where(campaign_filter)
+                conditions.append(func.lower(ProcessedReply.campaign_name).in_(project_campaigns))
 
     if campaign_names:
         names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
         if names:
-            campaign_filter = func.lower(ProcessedReply.campaign_name).in_(names)
-            query = query.where(campaign_filter)
-            count_query = count_query.where(campaign_filter)
+            conditions.append(func.lower(ProcessedReply.campaign_name).in_(names))
 
     if channel:
-        query = query.where(ProcessedReply.channel == channel)
-        count_query = count_query.where(ProcessedReply.channel == channel)
+        conditions.append(ProcessedReply.channel == channel)
 
     if source:
-        query = query.where(ProcessedReply.source == source)
-        count_query = count_query.where(ProcessedReply.source == source)
+        conditions.append(ProcessedReply.source == source)
 
-    if category:
-        query = query.where(ProcessedReply.category == category)
-        count_query = count_query.where(ProcessedReply.category == category)
-
-    # Filter by approval status (pending, approved, dismissed)
+    # Filter by approval status
     if approval_status:
         if approval_status == "pending":
-            # Pending = null or explicitly set to pending
-            query = query.where(
-                (ProcessedReply.approval_status == None) | 
-                (ProcessedReply.approval_status == "pending")
-            )
-            count_query = count_query.where(
-                (ProcessedReply.approval_status == None) | 
-                (ProcessedReply.approval_status == "pending")
-            )
+            conditions.append(or_(
+                ProcessedReply.approval_status == None,
+                ProcessedReply.approval_status == "pending",
+            ))
         else:
-            query = query.where(ProcessedReply.approval_status == approval_status)
-            count_query = count_query.where(ProcessedReply.approval_status == approval_status)
-    
-    # Filter: needs_reply — show only replies that still need operator attention.
-    # Uses approval_status (fast indexed column) instead of expensive correlated subqueries.
-    # Background sync (every 10 min) + on-demand conversation endpoint mark replied ones
-    # as 'replied_externally'. Approved/dismissed are also excluded.
-    if needs_reply:
-        from sqlalchemy import and_, or_
+            conditions.append(ProcessedReply.approval_status == approval_status)
 
-        pending_cond = or_(
+    # needs_reply filter
+    if needs_reply:
+        conditions.append(or_(
             ProcessedReply.approval_status == None,
             ProcessedReply.approval_status == "pending",
-        )
-        # Exclude categories that don't need a human reply
+        ))
         no_reply_categories = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
-        category_cond = or_(
+        conditions.append(or_(
             ProcessedReply.category == None,
             ~ProcessedReply.category.in_(no_reply_categories),
+        ))
+
+    # Snapshot conditions BEFORE adding category filter — used for global tab counts
+    base_conditions = list(conditions)
+
+    if category:
+        conditions.append(ProcessedReply.category == category)
+
+    # Category priority expression
+    category_priority = case(
+        (ProcessedReply.category == "meeting_request", 0),
+        (ProcessedReply.category == "interested", 1),
+        (ProcessedReply.category == "question", 2),
+        (ProcessedReply.category == "other", 3),
+        else_=4,
+    )
+
+    if group_by_contact:
+        # --- DEDUP MODE: one row per unique lead_email ---
+        # PostgreSQL DISTINCT ON (lead_email): picks one row per email based on ORDER BY.
+        # SQLAlchemy: select(...).distinct(col) => SELECT DISTINCT ON (col) ...
+
+        # Subquery: pick one reply ID per lead_email (best category, then newest)
+        dedup_sub = (
+            select(ProcessedReply.lead_email.label("_dedup_email"), ProcessedReply.id.label("id"))
+            .distinct(ProcessedReply.lead_email)
+            .where(*conditions)
+            .order_by(ProcessedReply.lead_email, category_priority, desc(ProcessedReply.received_at))
+        ).subquery()
+
+        # Total unique contacts
+        total_result = await session.execute(
+            select(func.count()).select_from(dedup_sub)
+        )
+        total = total_result.scalar() or 0
+
+        # Hydrate full rows, paginate
+        query = (
+            select(ProcessedReply)
+            .where(ProcessedReply.id.in_(select(dedup_sub.c.id)))
+            .order_by(category_priority, desc(ProcessedReply.received_at))
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        result = await session.execute(query)
+        replies = result.scalars().all()
+
+        # Compute contact_campaign_count: distinct campaigns per email (ALL replies, not just filtered)
+        page_emails = list({r.lead_email for r in replies})
+        campaign_count_map: dict = {}
+        if page_emails:
+            count_q = (
+                select(
+                    ProcessedReply.lead_email,
+                    func.count(func.distinct(ProcessedReply.campaign_name)),
+                )
+                .where(ProcessedReply.lead_email.in_(page_emails))
+                .group_by(ProcessedReply.lead_email)
+            )
+            count_result = await session.execute(count_q)
+            campaign_count_map = {row[0]: row[1] for row in count_result.all()}
+
+        reply_responses = []
+        for r in replies:
+            resp = ProcessedReplyResponse.model_validate(r)
+            resp.contact_campaign_count = campaign_count_map.get(r.lead_email, 1)
+            reply_responses.append(resp)
+
+        # Category counts — deduped, using base_conditions (without category filter) for global tab counts
+        category_counts: dict = {}
+        try:
+            cat_sub = (
+                select(ProcessedReply.lead_email.label("_dedup_email"), ProcessedReply.category.label("category"))
+                .distinct(ProcessedReply.lead_email)
+                .where(*base_conditions)
+                .order_by(ProcessedReply.lead_email, category_priority, desc(ProcessedReply.received_at))
+            ).subquery()
+            cat_q = (
+                select(cat_sub.c.category, func.count())
+                .group_by(cat_sub.c.category)
+            )
+            cat_result = await session.execute(cat_q)
+            category_counts = {row[0] or "other": row[1] for row in cat_result.all()}
+        except Exception as e:
+            logger.warning(f"Failed to compute grouped category counts: {e}")
+
+        meeting_count = category_counts.get("meeting_request", 0)
+
+        return ProcessedReplyListResponse(
+            replies=reply_responses,
+            total=total,
+            meeting_count=meeting_count,
+            category_counts=category_counts,
+            page=page,
+            page_size=page_size,
         )
 
-        query = query.where(and_(pending_cond, category_cond))
-        count_query = count_query.where(and_(pending_cond, category_cond))
+    # --- NORMAL MODE (no dedup) ---
+    query = select(ProcessedReply).where(*conditions) if conditions else select(ProcessedReply)
+    count_query = select(func.count(ProcessedReply.id))
+    if conditions:
+        count_query = count_query.where(*conditions)
 
     # Get total count
     total_result = await session.execute(count_query)
     total = total_result.scalar()
 
-    # Fast category counts: simple GROUP BY without expensive correlated subqueries.
-    # Uses same project/campaign filters + approval_status + category exclusion, but
-    # skips the latest_not_outbound check (so counts may be slightly higher than actual).
+    # Category counts
     category_counts: dict = {}
     try:
-        cat_q = select(ProcessedReply.category, func.count(ProcessedReply.id)).group_by(ProcessedReply.category)
-        # Apply same basic filters
-        from sqlalchemy import or_
-        cat_q = cat_q.where(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
+        # Build conditions for category counts (needs_reply filters always apply)
+        cat_conditions = []
+        cat_conditions.append(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
         no_reply_cats = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
-        cat_q = cat_q.where(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))
+        cat_conditions.append(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))
         # Apply project/campaign filter if present
         if project_id:
             from app.models.contact import Project
@@ -746,11 +836,16 @@ async def list_replies(
             if proj and proj.campaign_filters:
                 pc = [c.lower() for c in proj.campaign_filters if isinstance(c, str)]
                 if pc:
-                    cat_q = cat_q.where(func.lower(ProcessedReply.campaign_name).in_(pc))
+                    cat_conditions.append(func.lower(ProcessedReply.campaign_name).in_(pc))
         elif campaign_names:
             names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
             if names:
-                cat_q = cat_q.where(func.lower(ProcessedReply.campaign_name).in_(names))
+                cat_conditions.append(func.lower(ProcessedReply.campaign_name).in_(names))
+        cat_q = (
+            select(ProcessedReply.category, func.count(ProcessedReply.id))
+            .where(*cat_conditions)
+            .group_by(ProcessedReply.category)
+        )
         cat_result = await session.execute(cat_q)
         category_counts = {row[0] or "other": row[1] for row in cat_result.all()}
     except Exception as e:
@@ -758,14 +853,6 @@ async def list_replies(
     meeting_count = category_counts.get("meeting_request", 0)
 
     # Order by category priority (meetings/interested first), then newest
-    from sqlalchemy import case
-    category_priority = case(
-        (ProcessedReply.category == "meeting_request", 0),
-        (ProcessedReply.category == "interested", 1),
-        (ProcessedReply.category == "question", 2),
-        (ProcessedReply.category == "other", 3),
-        else_=4,
-    )
     query = query.order_by(category_priority, desc(ProcessedReply.received_at))
     query = query.offset((page - 1) * page_size).limit(page_size)
 
@@ -779,6 +866,82 @@ async def list_replies(
         category_counts=category_counts,
         page=page,
         page_size=page_size
+    )
+
+
+@router.get("/contact-campaigns/{lead_email}", response_model=ContactCampaignsResponse)
+async def get_contact_campaigns(
+    lead_email: str,
+    project_id: Optional[int] = Query(None, description="Filter by project's campaign_filters"),
+    session: AsyncSession = Depends(get_session)
+):
+    """Get all campaign replies for a specific contact email.
+
+    Returns all ProcessedReply records for this email within the project filter,
+    sorted by received_at DESC (most recent first). Used by the frontend campaign
+    selector to switch between campaigns for a deduped contact.
+    """
+    from sqlalchemy import or_
+
+    conditions = [ProcessedReply.lead_email == lead_email]
+
+    # needs_reply conditions (only show actionable replies)
+    conditions.append(or_(
+        ProcessedReply.approval_status == None,
+        ProcessedReply.approval_status == "pending",
+    ))
+    no_reply_categories = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
+    conditions.append(or_(
+        ProcessedReply.category == None,
+        ~ProcessedReply.category.in_(no_reply_categories),
+    ))
+
+    if project_id:
+        from app.models.contact import Project
+        project_result = await session.execute(
+            select(Project).where(
+                Project.id == project_id,
+                Project.deleted_at.is_(None),
+            )
+        )
+        project = project_result.scalar_one_or_none()
+        if project and project.campaign_filters:
+            project_campaigns = [c.lower() for c in project.campaign_filters if isinstance(c, str)]
+            if project_campaigns:
+                conditions.append(func.lower(ProcessedReply.campaign_name).in_(project_campaigns))
+
+    query = (
+        select(ProcessedReply)
+        .where(*conditions)
+        .order_by(desc(ProcessedReply.received_at))
+    )
+    result = await session.execute(query)
+    replies = result.scalars().all()
+
+    campaigns = [
+        ContactCampaignEntry(
+            reply_id=r.id,
+            campaign_id=r.campaign_id,
+            campaign_name=r.campaign_name,
+            category=r.category,
+            classification_reasoning=r.classification_reasoning,
+            received_at=r.received_at,
+            email_subject=r.email_subject,
+            email_body=r.email_body,
+            reply_text=r.reply_text,
+            draft_reply=r.draft_reply,
+            draft_subject=r.draft_subject,
+            approval_status=r.approval_status,
+            inbox_link=r.inbox_link,
+            channel=r.channel,
+        )
+        for r in replies
+    ]
+
+    return ContactCampaignsResponse(
+        lead_email=lead_email,
+        campaigns=campaigns,
+        total=len(campaigns),
     )
 
 
@@ -1570,6 +1733,118 @@ async def send_reply(
     }
 
 
+@router.post("/{reply_id}/regenerate-draft")
+async def regenerate_draft(
+    reply_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    """Re-classify and regenerate draft for a failed reply.
+
+    If classification also failed, re-runs classification first.
+    Looks up the project by campaign_name to get sender identity and prompt template.
+    """
+    from app.services.reply_processor import classify_reply, generate_draft_reply
+    from app.models.contact import Project
+    from sqlalchemy.dialects.postgresql import JSONB
+    from sqlalchemy import cast as sa_cast
+
+    result = await db.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    subject = reply.email_subject or ""
+    body = reply.email_body or reply.reply_text or ""
+
+    # Re-classify if classification failed
+    classification_failed = bool(
+        reply.classification_reasoning
+        and ("Classification failed" in reply.classification_reasoning
+             or "failed after" in reply.classification_reasoning)
+    )
+    category = reply.category or "other"
+    classification_reasoning = reply.classification_reasoning
+
+    if classification_failed:
+        try:
+            cls_result = await classify_reply(subject=subject, body=body)
+            category = cls_result.get("category", "other")
+            classification_reasoning = cls_result.get("reasoning", "")
+            reply.category = category
+            reply.category_confidence = cls_result.get("confidence")
+            reply.classification_reasoning = classification_reasoning
+        except Exception as e:
+            logger.error(f"Re-classification failed for reply {reply_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"Re-classification failed: {e}")
+
+    # Look up project for sender identity + prompt template
+    custom_reply_prompt = None
+    sender_name = None
+    sender_position = None
+    sender_company = None
+
+    if reply.campaign_name:
+        try:
+            project_result = await db.execute(
+                select(Project).where(
+                    and_(
+                        sa_cast(Project.campaign_filters, JSONB).contains([reply.campaign_name]),
+                        Project.deleted_at.is_(None),
+                    )
+                ).limit(1)
+            )
+            project = project_result.scalar()
+            if project:
+                sender_name = project.sender_name
+                sender_position = project.sender_position
+                sender_company = project.sender_company
+                if project.reply_prompt_template_id:
+                    template_result = await db.execute(
+                        select(ReplyPromptTemplateModel).where(
+                            ReplyPromptTemplateModel.id == project.reply_prompt_template_id
+                        )
+                    )
+                    template = template_result.scalar()
+                    if template:
+                        custom_reply_prompt = template.prompt_text
+        except Exception as e:
+            logger.warning(f"Project lookup failed for regenerate (non-fatal): {e}")
+
+    # Generate draft
+    try:
+        draft = await generate_draft_reply(
+            subject=subject,
+            body=body,
+            category=category,
+            first_name=reply.lead_first_name or "",
+            last_name=reply.lead_last_name or "",
+            company=reply.lead_company or "",
+            custom_prompt=custom_reply_prompt,
+            sender_name=sender_name,
+            sender_position=sender_position,
+            sender_company=sender_company,
+        )
+    except Exception as e:
+        logger.error(f"Draft regeneration failed for reply {reply_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Draft generation failed: {e}")
+
+    reply.draft_reply = draft.get("body", "")
+    reply.draft_subject = draft.get("subject", reply.draft_subject)
+    db.add(reply)
+    await db.commit()
+    await db.refresh(reply)
+
+    return {
+        "reply_id": reply.id,
+        "draft_reply": reply.draft_reply,
+        "draft_subject": reply.draft_subject,
+        "category": reply.category,
+        "classification_reasoning": reply.classification_reasoning,
+    }
+
+
 class ApproveAndSendBody(BaseModel):
     """Optional body for approve-and-send to allow editing the draft before sending."""
     draft_reply: Optional[str] = None
@@ -1623,16 +1898,17 @@ async def approve_and_send_reply(
         reply.approval_status = "approved"
         reply.approved_at = datetime.utcnow()
 
-        # Create outbound ContactActivity for conversation tracking
+        # Look up Contact for outbound activity tracking
+        contact = None
         try:
-            from app.models.contact import Contact, ContactActivity
-            contact_result = await db.execute(
-                select(Contact).where(
-                    func.lower(Contact.email) == reply.lead_email.lower(),
-                    Contact.deleted_at.is_(None),
+            from app.models.contact import Contact as _C, ContactActivity
+            _cr = await db.execute(
+                select(_C).where(
+                    func.lower(_C.email) == reply.lead_email.lower(),
+                    _C.deleted_at.is_(None),
                 )
             )
-            contact = contact_result.scalar_one_or_none()
+            contact = _cr.scalar_one_or_none()
             if contact:
                 outbound = ContactActivity(
                     contact_id=contact.id,
@@ -1659,6 +1935,7 @@ async def approve_and_send_reply(
             "reply_id": reply_id,
             "lead_email": reply.lead_email,
             "message": "Approved. Copy draft to LinkedIn conversation.",
+            "contact_id": contact.id if contact else None,
         }
 
     # --- Find contact and campaign ---
@@ -1690,12 +1967,11 @@ async def approve_and_send_reply(
     lead_id = contact.smartlead_id if contact else None
 
     if test_mode:
-        # Build a test-safe email body
+        # Build a test-safe email body (clean prefix, no campaign IDs)
         body_prefix = (
-            f"<p><strong>[TEST — original recipient: {reply.lead_email}]</strong></p>"
-            f"<p><em>Campaign: {reply.campaign_name or campaign_id}</em></p><hr/>"
+            f"<p><strong>[TEST — original recipient: {reply.lead_email}]</strong></p><hr/>"
         )
-        email_body = body_prefix + f"<p>{reply.draft_reply}</p>"
+        email_body = body_prefix + _text_to_html(reply.draft_reply)
 
         # If the lead has no SmartLead ID, we can't send via the thread API.
         # But we still mark it approved so the flow is testable.
@@ -1711,9 +1987,10 @@ async def approve_and_send_reply(
                 "reply_id": reply_id,
                 "test_mode": True,
                 "message": f"No SmartLead lead_id — marked approved (dry run). Would send to {TEST_RECIPIENT_EMAIL}.",
+                "contact_id": contact.id if contact else None,
             }
     else:
-        email_body = f"<p>{reply.draft_reply}</p>"
+        email_body = _text_to_html(reply.draft_reply)
         if not contact or not lead_id:
             raise HTTPException(status_code=400, detail="Contact not found or no SmartLead ID")
 
@@ -1732,6 +2009,33 @@ async def approve_and_send_reply(
     reply.approval_status = status
     reply.approved_at = datetime.utcnow()
     db.add(reply)
+
+    # Create outbound ContactActivity so sent message appears immediately in conversation
+    try:
+        from app.models.contact import ContactActivity
+        if contact:
+            outbound = ContactActivity(
+                contact_id=contact.id,
+                company_id=contact.company_id,
+                activity_type='email_sent',
+                channel='email',
+                direction='outbound',
+                source='app_send',
+                subject=reply.draft_subject or reply.email_subject,
+                body=reply.draft_reply,
+                snippet=(reply.draft_reply or '')[:200],
+                extra_data={
+                    'processed_reply_id': reply.id,
+                    'campaign_id': str(campaign_id),
+                    'campaign_name': reply.campaign_name,
+                    'approved_via': 'approve-and-send',
+                },
+                activity_at=datetime.utcnow(),
+            )
+            db.add(outbound)
+    except Exception as act_err:
+        logger.warning(f"Failed to create outbound activity for email reply: {act_err}")
+
     await db.commit()
     await db.refresh(reply)
 
@@ -1747,6 +2051,7 @@ async def approve_and_send_reply(
         "sent_to": TEST_RECIPIENT_EMAIL if test_mode else reply.lead_email,
         "campaign_id": campaign_id,
         "smartlead_response": send_result.get("message"),
+        "contact_id": contact.id if contact else None,
     }
 
 
@@ -1980,6 +2285,7 @@ async def create_test_campaign(
 @router.post("/test-flow/simulate-reply")
 async def simulate_test_reply(
     campaign_id: str = Query(..., description="Campaign ID to simulate reply for"),
+    campaign_name: str = Query("", description="Campaign name (auto-resolved from Smartlead if empty)"),
     message: str = Query("Hi, I'm interested in learning more about your product. Can we schedule a demo?", description="Test reply message"),
     lead_email: str = Query("test.lead@example.com", description="Test lead email"),
     lead_name: str = Query("Test Lead", description="Test lead name"),
@@ -1987,7 +2293,7 @@ async def simulate_test_reply(
     db: AsyncSession = Depends(get_session)
 ):
     """Simulate a reply to test the full automation flow.
-    
+
     This will:
     1. Create a webhook-like payload
     2. Process it through the reply processor
@@ -1995,12 +2301,59 @@ async def simulate_test_reply(
     """
     from app.services.reply_processor import process_reply_webhook
     from datetime import datetime
-    
+
+    import os
+    api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
+
+    # Auto-resolve campaign name and lead ID from Smartlead
+    resolved_name = campaign_name
+    sl_lead_id = None
+    sl_lead_map_id = None
+
+    if api_key:
+        # Resolve campaign name
+        if not resolved_name:
+            try:
+                resp = await smartlead_request(
+                    "GET",
+                    f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}",
+                    params={"api_key": api_key},
+                    timeout=15.0,
+                )
+                data = resp.json()
+                resolved_name = data.get("name", "")
+            except Exception:
+                pass
+
+        # Look up lead_id by email in campaign leads
+        try:
+            resp = await smartlead_request(
+                "GET",
+                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
+                params={"api_key": api_key, "limit": 100, "offset": 0},
+                timeout=30.0,
+            )
+            leads_resp = resp.json()
+            for entry in (leads_resp.get("data") or []):
+                lead_obj = entry.get("lead", {}) if isinstance(entry, dict) else {}
+                if lead_obj.get("email", "").lower() == lead_email.lower():
+                    sl_lead_id = str(lead_obj.get("id") or "")
+                    sl_lead_map_id = str(entry.get("campaign_lead_map_id") or "")
+                    break
+        except Exception:
+            pass
+
+    inbox_link = f"https://app.smartlead.ai/app/master-inbox?action=INBOX&leadMap={sl_lead_map_id}" if sl_lead_map_id else None
+
     # Create test payload matching Smartlead format
     test_payload = {
         "event_type": "EMAIL_REPLY",
         "campaign_id": campaign_id,
+        "campaign_name": resolved_name,
         "sl_lead_email": lead_email,
+        "sl_email_lead_id": sl_lead_id,
+        "sl_email_lead_map_id": sl_lead_map_id,
+        "ui_master_inbox_link": inbox_link,
         "first_name": lead_name.split()[0] if lead_name else "Test",
         "last_name": lead_name.split()[-1] if len(lead_name.split()) > 1 else "Lead",
         "company_name": company,

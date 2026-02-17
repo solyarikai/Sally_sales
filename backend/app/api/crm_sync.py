@@ -431,9 +431,36 @@ async def backfill_reply_contacts(
                 """))
                 fixed = fix_result.rowcount
                 
+                # Step 3: Merge all campaign entries for each contact
+                # (contacts may have replies from multiple campaigns but only 1 recorded)
+                multi_result = await bg_session.execute(text("""
+                    SELECT LOWER(pr.lead_email) AS email,
+                           json_agg(DISTINCT jsonb_build_object(
+                               'name', pr.campaign_name,
+                               'id', CAST(pr.campaign_id AS text),
+                               'source', COALESCE(pr.source, 'smartlead')
+                           )) AS all_campaigns
+                    FROM processed_replies pr
+                    WHERE pr.lead_email IS NOT NULL AND pr.lead_email != ''
+                    GROUP BY LOWER(pr.lead_email)
+                    HAVING COUNT(DISTINCT pr.campaign_name) > 1
+                """))
+                for row in multi_result.fetchall():
+                    email, all_campaigns = row
+                    cq = await bg_session.execute(
+                        select(Contact).where(
+                            func.lower(Contact.email) == email,
+                            Contact.deleted_at.is_(None),
+                        )
+                    )
+                    c = cq.scalar_one_or_none()
+                    if c:
+                        c.campaigns = all_campaigns
+                merged = multi_result.rowcount if hasattr(multi_result, 'rowcount') else 0
+
                 await bg_session.commit()
-                logger.info(f"Backfill complete: {created} contacts created, {fixed} contacts fixed")
-                
+                logger.info(f"Backfill complete: {created} contacts created, {fixed} contacts fixed, {merged} campaigns merged")
+
             except Exception as e:
                 await bg_session.rollback()
                 logger.error(f"Backfill failed: {e}")
@@ -1100,79 +1127,22 @@ async def getsales_webhook(
         contact.reply_category = category
         contact.reply_sentiment = get_sentiment_from_category(category)
 
-        # Generate draft reply and create ProcessedReply for GetSales replies
+        # Create/update ProcessedReply with classification + draft via shared function
         try:
-            from app.services.reply_processor import generate_draft_reply
-            from app.models.reply import ProcessedReply, ReplyPromptTemplateModel
+            from app.services.reply_processor import process_getsales_reply
 
-            # Look up project-based prompt and sender identity
-            custom_reply_prompt = None
-            gs_sender_name = None
-            gs_sender_position = None
-            gs_sender_company = None
-            flow_name_for_lookup = automation_data.get("name")
-            if flow_name_for_lookup:
-                from app.models.contact import Project
-                from sqlalchemy.dialects.postgresql import JSONB
-                from sqlalchemy import cast as sa_cast
-                proj_result = await session.execute(
-                    select(Project).where(
-                        and_(
-                            sa_cast(Project.campaign_filters, JSONB).contains([flow_name_for_lookup]),
-                            Project.deleted_at.is_(None),
-                        )
-                    ).limit(1)
-                )
-                proj = proj_result.scalar()
-                if proj:
-                    gs_sender_name = proj.sender_name
-                    gs_sender_position = proj.sender_position
-                    gs_sender_company = proj.sender_company
-                    if proj.reply_prompt_template_id:
-                        tmpl_result = await session.execute(
-                            select(ReplyPromptTemplateModel).where(
-                                ReplyPromptTemplateModel.id == proj.reply_prompt_template_id
-                            )
-                        )
-                        tmpl = tmpl_result.scalar()
-                        if tmpl:
-                            custom_reply_prompt = tmpl.prompt_text
-                            logger.info(f"[GETSALES] Using project prompt from '{proj.name}'")
-
-            draft = await generate_draft_reply(
-                subject="LinkedIn conversation",
-                body=message_text,
-                category=category,
-                first_name=contact_data.get("first_name", ""),
-                last_name=contact_data.get("last_name", ""),
-                company=account_data.get("name", ""),
-                custom_prompt=custom_reply_prompt,
-                sender_name=gs_sender_name,
-                sender_position=gs_sender_position,
-                sender_company=gs_sender_company,
+            await process_getsales_reply(
+                message_text=message_text,
+                contact=contact,
+                flow_name=automation_data.get("name", ""),
+                flow_uuid=automation_data.get("uuid", ""),
+                message_id=linkedin_message.get("uuid", ""),
+                activity_at=activity_at,
+                raw_data=body,
+                session=session,
             )
-
-            processed_reply = ProcessedReply(
-                campaign_id=automation_data.get("uuid"),
-                campaign_name=automation_data.get("name"),
-                lead_email=contact.email,
-                lead_first_name=contact_data.get("first_name"),
-                lead_last_name=contact_data.get("last_name"),
-                lead_company=account_data.get("name"),
-                email_subject="LinkedIn conversation",
-                email_body=message_text,
-                reply_text=message_text,
-                received_at=activity_at,
-                category=category,
-                category_confidence="medium",
-                draft_reply=draft.get("body"),
-                draft_subject=draft.get("subject"),
-                raw_webhook_data=body,
-            )
-            session.add(processed_reply)
-            logger.info(f"[GETSALES] Created ProcessedReply for {contact.email}")
-        except Exception as draft_err:
-            logger.warning(f"[GETSALES] Draft reply generation failed (non-fatal): {draft_err}")
+        except Exception as pr_err:
+            logger.warning(f"[GETSALES] ProcessedReply creation failed (non-fatal): {pr_err}")
         
         # Append to touches JSON
         from datetime import datetime as dt

@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     # Integrations
     INSTANTLY_API_KEY: Optional[str] = None
     INSTANTLY_BASE_URL: str = "https://api.instantly.ai/api/v2"
+    SMARTLEAD_API_KEY: Optional[str] = None
     
     # Google Sheets Integration
     # Either set GOOGLE_SERVICE_ACCOUNT_JSON (JSON string) or GOOGLE_APPLICATION_CREDENTIALS (path to JSON file)

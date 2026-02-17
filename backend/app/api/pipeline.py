@@ -404,9 +404,6 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
     from sqlalchemy import select, text as sql_text
     from app.models.pipeline import CampaignPushRule, PipelineEvent, PipelineEventType
     from app.services.name_classifier import classify_contact, match_rule
-    from app.services.smartlead_service import smartlead_service
-    import httpx
-
     stats = {"campaigns_created": 0, "leads_pushed": 0, "errors": 0, "rules_matched": {}}
     progress["smartlead_push_stats"] = stats
 
@@ -498,210 +495,211 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
 
     # 4. Push each bucket to SmartLead
     import os
-    from app.services.smartlead_service import smartlead_service as _sl_svc
+    from app.services.smartlead_service import smartlead_service as _sl_svc, smartlead_request as _sl_req
     api_key = os.environ.get("SMARTLEAD_API_KEY") or getattr(_sl_svc, "_api_key", None)
     if not api_key:
         logger.error("SMARTLEAD_API_KEY not configured, cannot push")
         stats["errors"] += 1
         return
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        for rule in rules:
-            bucket_contacts = buckets.get(rule.id, [])
-            if not bucket_contacts:
+    for rule in rules:
+        bucket_contacts = buckets.get(rule.id, [])
+        if not bucket_contacts:
+            continue
+
+        if progress.get("stop_requested"):
+            break
+
+        try:
+            campaign_id = await _ensure_campaign_for_rule(
+                None, api_key, rule, len(bucket_contacts), session=None
+            )
+            if not campaign_id:
+                logger.error(f"Failed to create/get campaign for rule '{rule.name}'")
+                stats["errors"] += len(bucket_contacts)
                 continue
 
-            if progress.get("stop_requested"):
-                break
+            stats["campaigns_created"] += 1 if not rule.current_campaign_id else 0
 
-            try:
-                campaign_id = await _ensure_campaign_for_rule(
-                    client, api_key, rule, len(bucket_contacts), session=None
+            # Upload leads in batches of 100, track actually pushed emails
+            LEAD_BATCH = 100
+            actually_pushed_contacts = []
+            total_uploaded = 0
+            total_duplicates = 0
+            total_invalid = 0
+
+            for i in range(0, len(bucket_contacts), LEAD_BATCH):
+                batch = bucket_contacts[i:i + LEAD_BATCH]
+                leads = []
+                for contact, cls in batch:
+                    lead = {
+                        "email": contact.email,
+                        "first_name": contact.first_name or "",
+                        "last_name": contact.last_name or "",
+                        "company_name": contact.company_name or "",
+                        "website": contact.url or f"https://{contact.domain}" if contact.domain else "",
+                    }
+                    if contact.job_title:
+                        lead["custom_fields"] = {"job_title": contact.job_title}
+                    leads.append(lead)
+
+                # Push to SmartLead (API expects {lead_list: [...]})
+                resp = await _sl_req(
+                    "POST",
+                    f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
+                    params={"api_key": api_key},
+                    json={"lead_list": leads},
+                    timeout=60,
                 )
-                if not campaign_id:
-                    logger.error(f"Failed to create/get campaign for rule '{rule.name}'")
-                    stats["errors"] += len(bucket_contacts)
-                    continue
+                if resp.status_code == 200:
+                    resp_data = resp.json() if resp.text else {}
+                    upload_count = resp_data.get("upload_count", len(leads))
+                    duplicate_count = resp_data.get("duplicate_count", 0)
+                    invalid_count = resp_data.get("invalid_email_count", 0)
 
-                stats["campaigns_created"] += 1 if not rule.current_campaign_id else 0
+                    total_uploaded += upload_count
+                    total_duplicates += duplicate_count
+                    total_invalid += invalid_count
+                    stats["leads_pushed"] += upload_count
 
-                # Upload leads in batches of 100, track actually pushed emails
-                LEAD_BATCH = 100
-                actually_pushed_contacts = []
-                total_uploaded = 0
-                total_duplicates = 0
-                total_invalid = 0
-
-                for i in range(0, len(bucket_contacts), LEAD_BATCH):
-                    batch = bucket_contacts[i:i + LEAD_BATCH]
-                    leads = []
-                    for contact, cls in batch:
-                        lead = {
-                            "email": contact.email,
-                            "first_name": contact.first_name or "",
-                            "last_name": contact.last_name or "",
-                            "company_name": contact.company_name or "",
-                            "website": contact.url or f"https://{contact.domain}" if contact.domain else "",
-                        }
-                        if contact.job_title:
-                            lead["custom_fields"] = {"job_title": contact.job_title}
-                        leads.append(lead)
-
-                    # Push to SmartLead (API expects {lead_list: [...]})
-                    resp = await client.post(
-                        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
-                        params={"api_key": api_key},
-                        json={"lead_list": leads},
-                        timeout=60,
+                    logger.info(
+                        f"Pushed batch to campaign {campaign_id}: "
+                        f"uploaded={upload_count}, duplicates={duplicate_count}, "
+                        f"invalid={invalid_count} (sent {len(leads)})"
                     )
-                    if resp.status_code == 200:
-                        resp_data = resp.json() if resp.text else {}
-                        upload_count = resp_data.get("upload_count", len(leads))
-                        duplicate_count = resp_data.get("duplicate_count", 0)
-                        invalid_count = resp_data.get("invalid_email_count", 0)
 
-                        total_uploaded += upload_count
-                        total_duplicates += duplicate_count
-                        total_invalid += invalid_count
-                        stats["leads_pushed"] += upload_count
+                    # Only record contacts as pushed if some were actually uploaded
+                    if upload_count > 0:
+                        actually_pushed_contacts.extend(batch)
+                else:
+                    logger.error(f"Failed to push leads: {resp.status_code} {resp.text[:200]}")
+                    stats["errors"] += len(leads)
 
-                        logger.info(
-                            f"Pushed batch to campaign {campaign_id}: "
-                            f"uploaded={upload_count}, duplicates={duplicate_count}, "
-                            f"invalid={invalid_count} (sent {len(leads)})"
-                        )
+                await asyncio.sleep(3)  # Rate limit — SmartLead allows 200 req/min
 
-                        # Only record contacts as pushed if some were actually uploaded
-                        if upload_count > 0:
-                            actually_pushed_contacts.extend(batch)
-                    else:
-                        logger.error(f"Failed to push leads: {resp.status_code} {resp.text[:200]}")
-                        stats["errors"] += len(leads)
-
-                    await asyncio.sleep(3)  # Rate limit — SmartLead allows 200 req/min
-
-                # Verification: check actual lead count in SmartLead campaign
-                verified_count = None
-                try:
-                    verify_resp = await client.get(
-                        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
-                        params={"api_key": api_key, "offset": 0, "limit": 1},
-                        timeout=30,
+            # Verification: check actual lead count in SmartLead campaign
+            verified_count = None
+            try:
+                verify_resp = await _sl_req(
+                    "GET",
+                    f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
+                    params={"api_key": api_key, "offset": 0, "limit": 1},
+                    timeout=30,
+                )
+                if verify_resp.status_code == 200:
+                    verify_data = verify_resp.json()
+                    if isinstance(verify_data, dict):
+                        verified_count = verify_data.get("totalCount", verify_data.get("total", None))
+                    elif isinstance(verify_data, list):
+                        # Some endpoints return list; check headers or len
+                        verified_count = len(verify_data)
+                    logger.info(
+                        f"Verification for campaign {campaign_id}: "
+                        f"API reported={total_uploaded}, verified_in_campaign={verified_count}"
                     )
-                    if verify_resp.status_code == 200:
-                        verify_data = verify_resp.json()
-                        if isinstance(verify_data, dict):
-                            verified_count = verify_data.get("totalCount", verify_data.get("total", None))
-                        elif isinstance(verify_data, list):
-                            # Some endpoints return list; check headers or len
-                            verified_count = len(verify_data)
-                        logger.info(
-                            f"Verification for campaign {campaign_id}: "
-                            f"API reported={total_uploaded}, verified_in_campaign={verified_count}"
-                        )
-                except Exception as ve:
-                    logger.warning(f"Verification check failed for campaign {campaign_id}: {ve}")
+            except Exception as ve:
+                logger.warning(f"Verification check failed for campaign {campaign_id}: {ve}")
 
-                # Record event with detailed push results (use raw SQL to avoid enum mismatch)
+            # Record event with detailed push results (use raw SQL to avoid enum mismatch)
+            async with async_session_maker() as session:
+                await session.execute(sql_text("""
+                    INSERT INTO pipeline_events (company_id, event_type, detail, created_at)
+                    VALUES (:cid, 'smartlead_leads_pushed', CAST(:detail AS jsonb), NOW())
+                """), {
+                    "cid": company_id,
+                    "detail": json.dumps({
+                        "rule_name": rule.name,
+                        "campaign_id": str(campaign_id),
+                        "leads_sent": len(bucket_contacts),
+                        "leads_uploaded": total_uploaded,
+                        "leads_duplicate": total_duplicates,
+                        "leads_invalid": total_invalid,
+                        "verified_count": verified_count,
+                    }),
+                })
+                await session.commit()
+
+            # Upsert actually-pushed contacts into contacts table
+            if actually_pushed_contacts:
+                campaign_entry = [{
+                    "name": rule.campaign_name_template,
+                    "id": str(campaign_id),
+                    "source": "smartlead",
+                }]
                 async with async_session_maker() as session:
-                    await session.execute(sql_text("""
-                        INSERT INTO pipeline_events (company_id, event_type, detail, created_at)
-                        VALUES (:cid, 'smartlead_leads_pushed', CAST(:detail AS jsonb), NOW())
-                    """), {
-                        "cid": company_id,
-                        "detail": json.dumps({
-                            "rule_name": rule.name,
-                            "campaign_id": str(campaign_id),
-                            "leads_sent": len(bucket_contacts),
-                            "leads_uploaded": total_uploaded,
-                            "leads_duplicate": total_duplicates,
-                            "leads_invalid": total_invalid,
-                            "verified_count": verified_count,
-                        }),
-                    })
+                    for contact, cls in actually_pushed_contacts:
+                        domain = contact.email.split("@")[-1] if "@" in contact.email else None
+                        seg = getattr(contact, "matched_segment", None) or None
+                        # Check if contact already exists
+                        existing = await session.execute(sql_text("""
+                            SELECT id, campaigns FROM contacts
+                            WHERE company_id = :cid AND lower(email) = lower(:email)
+                            AND deleted_at IS NULL
+                            LIMIT 1
+                        """), {"cid": company_id, "email": contact.email})
+                        row = existing.fetchone()
+                        if row:
+                            # Update existing contact with pipeline data
+                            old_campaigns = row.campaigns or []
+                            if isinstance(old_campaigns, str):
+                                try:
+                                    old_campaigns = json.loads(old_campaigns)
+                                except Exception:
+                                    old_campaigns = []
+                            merged_campaigns = old_campaigns + campaign_entry
+                            await session.execute(sql_text("""
+                                UPDATE contacts SET
+                                    project_id = COALESCE(project_id, :project_id),
+                                    segment = COALESCE(segment, :segment),
+                                    company_name = COALESCE(company_name, :company_name),
+                                    job_title = COALESCE(job_title, :job_title),
+                                    campaigns = CAST(:campaigns AS jsonb),
+                                    updated_at = NOW()
+                                WHERE id = :id
+                            """), {
+                                "id": row.id,
+                                "project_id": project_id,
+                                "segment": seg,
+                                "company_name": contact.company_name or None,
+                                "job_title": contact.job_title or None,
+                                "campaigns": json.dumps(merged_campaigns),
+                            })
+                        else:
+                            # Insert new contact
+                            await session.execute(sql_text("""
+                                INSERT INTO contacts (company_id, email, first_name, last_name, domain,
+                                                      company_name, job_title, project_id, segment,
+                                                      source, status, campaigns, is_active,
+                                                      created_at, updated_at)
+                                VALUES (:cid, :email, :fname, :lname, :domain,
+                                        :company_name, :job_title, :project_id, :segment,
+                                        'smartlead_pipeline_push', 'contacted', CAST(:campaigns AS jsonb), true,
+                                        NOW(), NOW())
+                            """), {
+                                "cid": company_id, "email": contact.email,
+                                "fname": contact.first_name or "", "lname": contact.last_name or "",
+                                "domain": domain,
+                                "company_name": contact.company_name or "",
+                                "job_title": contact.job_title or "",
+                                "project_id": project_id,
+                                "segment": seg,
+                                "campaigns": json.dumps(campaign_entry),
+                            })
                     await session.commit()
 
-                # Upsert actually-pushed contacts into contacts table
-                if actually_pushed_contacts:
-                    campaign_entry = [{
-                        "name": rule.campaign_name_template,
-                        "id": str(campaign_id),
-                        "source": "smartlead",
-                    }]
-                    async with async_session_maker() as session:
-                        for contact, cls in actually_pushed_contacts:
-                            domain = contact.email.split("@")[-1] if "@" in contact.email else None
-                            seg = getattr(contact, "matched_segment", None) or None
-                            # Check if contact already exists
-                            existing = await session.execute(sql_text("""
-                                SELECT id, campaigns FROM contacts
-                                WHERE company_id = :cid AND lower(email) = lower(:email)
-                                AND deleted_at IS NULL
-                                LIMIT 1
-                            """), {"cid": company_id, "email": contact.email})
-                            row = existing.fetchone()
-                            if row:
-                                # Update existing contact with pipeline data
-                                old_campaigns = row.campaigns or []
-                                if isinstance(old_campaigns, str):
-                                    try:
-                                        old_campaigns = json.loads(old_campaigns)
-                                    except Exception:
-                                        old_campaigns = []
-                                merged_campaigns = old_campaigns + campaign_entry
-                                await session.execute(sql_text("""
-                                    UPDATE contacts SET
-                                        project_id = COALESCE(project_id, :project_id),
-                                        segment = COALESCE(segment, :segment),
-                                        company_name = COALESCE(company_name, :company_name),
-                                        job_title = COALESCE(job_title, :job_title),
-                                        campaigns = CAST(:campaigns AS jsonb),
-                                        updated_at = NOW()
-                                    WHERE id = :id
-                                """), {
-                                    "id": row.id,
-                                    "project_id": project_id,
-                                    "segment": seg,
-                                    "company_name": contact.company_name or None,
-                                    "job_title": contact.job_title or None,
-                                    "campaigns": json.dumps(merged_campaigns),
-                                })
-                            else:
-                                # Insert new contact
-                                await session.execute(sql_text("""
-                                    INSERT INTO contacts (company_id, email, first_name, last_name, domain,
-                                                          company_name, job_title, project_id, segment,
-                                                          source, status, campaigns, is_active,
-                                                          created_at, updated_at)
-                                    VALUES (:cid, :email, :fname, :lname, :domain,
-                                            :company_name, :job_title, :project_id, :segment,
-                                            'smartlead_pipeline_push', 'contacted', CAST(:campaigns AS jsonb), true,
-                                            NOW(), NOW())
-                                """), {
-                                    "cid": company_id, "email": contact.email,
-                                    "fname": contact.first_name or "", "lname": contact.last_name or "",
-                                    "domain": domain,
-                                    "company_name": contact.company_name or "",
-                                    "job_title": contact.job_title or "",
-                                    "project_id": project_id,
-                                    "segment": seg,
-                                    "campaigns": json.dumps(campaign_entry),
-                                })
-                        await session.commit()
+            # Update rule's lead count
+            async with async_session_maker() as session:
+                await session.execute(sql_text("""
+                    UPDATE campaign_push_rules
+                    SET current_campaign_lead_count = COALESCE(current_campaign_lead_count, 0) + :cnt,
+                        updated_at = NOW()
+                    WHERE id = :rid
+                """), {"cnt": total_uploaded, "rid": rule.id})
+                await session.commit()
 
-                # Update rule's lead count
-                async with async_session_maker() as session:
-                    await session.execute(sql_text("""
-                        UPDATE campaign_push_rules
-                        SET current_campaign_lead_count = COALESCE(current_campaign_lead_count, 0) + :cnt,
-                            updated_at = NOW()
-                        WHERE id = :rid
-                    """), {"cnt": total_uploaded, "rid": rule.id})
-                    await session.commit()
-
-            except Exception as e:
-                logger.error(f"SmartLead push error for rule '{rule.name}': {e}", exc_info=True)
-                stats["errors"] += len(bucket_contacts)
+        except Exception as e:
+            logger.error(f"SmartLead push error for rule '{rule.name}': {e}", exc_info=True)
+            stats["errors"] += len(bucket_contacts)
 
     progress["smartlead_push_stats"] = stats
     logger.info(f"SmartLead push done for project {project_id}: {stats}")
@@ -854,7 +852,7 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
 
 
 async def _ensure_campaign_for_rule(
-    client: "httpx.AsyncClient",
+    client,  # unused now, kept for signature compat
     api_key: str,
     rule: "CampaignPushRule",
     contacts_count: int,
@@ -865,6 +863,8 @@ async def _ensure_campaign_for_rule(
     No campaign creation — campaigns are set up manually in SmartLead,
     and the rule just points to them via current_campaign_id.
     """
+    from app.services.smartlead_service import smartlead_request as _sl_req
+
     if not rule.current_campaign_id:
         logger.warning(
             f"Rule '{rule.name}' has no current_campaign_id set. "
@@ -872,43 +872,31 @@ async def _ensure_campaign_for_rule(
         )
         return None
 
-    # Verify the campaign exists (with retry on rate-limit)
-    for attempt in range(3):
-        try:
-            resp = await client.get(
-                f"https://server.smartlead.ai/api/v1/campaigns/{rule.current_campaign_id}",
-                params={"api_key": api_key},
-                timeout=15,
+    try:
+        resp = await _sl_req(
+            "GET",
+            f"https://server.smartlead.ai/api/v1/campaigns/{rule.current_campaign_id}",
+            params={"api_key": api_key},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            campaign_name = data.get("name", "unknown")
+            logger.info(
+                f"Using existing campaign '{campaign_name}' (ID: {rule.current_campaign_id}) "
+                f"for rule '{rule.name}'"
             )
-            if resp.status_code == 200:
-                data = resp.json()
-                campaign_name = data.get("name", "unknown")
-                logger.info(
-                    f"Using existing campaign '{campaign_name}' (ID: {rule.current_campaign_id}) "
-                    f"for rule '{rule.name}'"
-                )
-                return rule.current_campaign_id
-            elif resp.status_code == 429:
-                logger.warning(
-                    f"SmartLead rate-limited verifying campaign {rule.current_campaign_id}, "
-                    f"attempt {attempt + 1}/3, waiting 10s..."
-                )
-                await asyncio.sleep(10)
-                continue
-            else:
-                logger.error(
-                    f"Campaign {rule.current_campaign_id} not found in SmartLead "
-                    f"(status {resp.status_code}). Fix the push rule."
-                )
-                return None
-        except Exception as e:
-            logger.error(f"Failed to verify campaign {rule.current_campaign_id}: {e}")
-            # Still return the campaign_id — we trust the user set it correctly
             return rule.current_campaign_id
-
-    # Exhausted retries — trust user config
-    logger.warning(f"Rate-limited 3 times, trusting campaign_id {rule.current_campaign_id}")
-    return rule.current_campaign_id
+        else:
+            logger.error(
+                f"Campaign {rule.current_campaign_id} not found in SmartLead "
+                f"(status {resp.status_code}). Fix the push rule."
+            )
+            return None
+    except Exception as e:
+        logger.error(f"Failed to verify campaign {rule.current_campaign_id}: {e}")
+        # Still return the campaign_id — we trust the user set it correctly
+        return rule.current_campaign_id
 
 
 # ============ Projects (for dropdown) ============
@@ -1096,19 +1084,19 @@ async def list_smartlead_email_accounts(
     company: Company = Depends(get_required_company),
 ):
     """List available SmartLead email accounts for rule configuration."""
-    import httpx
+    from app.services.smartlead_service import smartlead_request as _sl_req
     api_key = settings.SMARTLEAD_API_KEY
     if not api_key:
         raise HTTPException(status_code=400, detail="SmartLead API key not configured")
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            "https://server.smartlead.ai/api/v1/email-accounts",
-            params={"api_key": api_key},
-        )
-        if resp.status_code != 200:
-            raise HTTPException(status_code=502, detail="Failed to fetch email accounts")
-        accounts = resp.json()
+    resp = await _sl_req(
+        "GET", "https://server.smartlead.ai/api/v1/email-accounts",
+        params={"api_key": api_key},
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to fetch email accounts")
+    accounts = resp.json()
 
     return [
         {

@@ -125,6 +125,8 @@ export interface ProcessedReply {
   automation_id: number | null;
   campaign_id: string | null;
   campaign_name: string | null;
+  source: string | null;
+  channel: string | null;
   lead_email: string;
   lead_first_name: string | null;
   lead_last_name: string | null;
@@ -146,6 +148,31 @@ export interface ProcessedReply {
   approved_by: string | null;
   approved_at: string | null;
   created_at: string;
+  // Contact dedup: how many campaigns this contact has (only set with group_by_contact)
+  contact_campaign_count?: number;
+}
+
+export interface ContactCampaignEntry {
+  reply_id: number;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  category: string | null;
+  classification_reasoning: string | null;
+  received_at: string | null;
+  email_subject: string | null;
+  email_body: string | null;
+  reply_text: string | null;
+  draft_reply: string | null;
+  draft_subject: string | null;
+  approval_status: string | null;
+  inbox_link: string | null;
+  channel: string | null;
+}
+
+export interface ContactCampaignsResponse {
+  lead_email: string;
+  campaigns: ContactCampaignEntry[];
+  total: number;
 }
 
 export interface ProcessedReplyStats {
@@ -280,13 +307,27 @@ export async function getReplies(params: {
   automation_id?: number;
   campaign_id?: string;
   campaign_names?: string;
+  project_id?: number;
   category?: ReplyCategory;
   approval_status?: string;
   needs_reply?: boolean;
+  channel?: string;
+  source?: string;
+  group_by_contact?: boolean;
   page?: number;
   page_size?: number;
-}): Promise<{ replies: ProcessedReply[]; total: number; page: number; page_size: number }> {
+}): Promise<{ replies: ProcessedReply[]; total: number; meeting_count: number; category_counts: Record<string, number>; page: number; page_size: number }> {
   const response = await api.get('/replies/', { params });
+  return response.data;
+}
+
+export async function getContactCampaigns(
+  leadEmail: string,
+  projectId?: number,
+): Promise<ContactCampaignsResponse> {
+  const response = await api.get(`/replies/contact-campaigns/${encodeURIComponent(leadEmail)}`, {
+    params: projectId ? { project_id: projectId } : {},
+  });
   return response.data;
 }
 
@@ -301,7 +342,19 @@ export interface ConversationMessage {
   extra_data: Record<string, unknown> | null;
 }
 
-export async function getConversation(replyId: number): Promise<{ messages: ConversationMessage[]; contact_id?: number }> {
+export interface ContactInfo {
+  linkedin_url: string | null;
+  phone: string | null;
+  job_title: string | null;
+  company_name: string | null;
+  domain: string | null;
+  location: string | null;
+  segment: string | null;
+  source: string | null;
+  campaigns: Array<Record<string, unknown>> | null;
+}
+
+export async function getConversation(replyId: number): Promise<{ messages: ConversationMessage[]; contact_id?: number; approval_status?: string; contact_info?: ContactInfo | null }> {
   const response = await api.get(`/replies/${replyId}/conversation`);
   return response.data;
 }
@@ -435,12 +488,24 @@ export async function approveAndSendReply(
   sent_to?: string;
   test_mode?: boolean;
   campaign_id?: string;
+  contact_id?: number;
 }> {
   // On localhost, always send in test_mode so emails go to pn@getsally.io instead of real leads
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const params = isLocal ? { test_mode: true } : {};
   const body = editedDraft && (editedDraft.draft_reply || editedDraft.draft_subject) ? editedDraft : null;
   const response = await api.post(`/replies/${replyId}/approve-and-send`, body, { params });
+  return response.data;
+}
+
+export async function regenerateDraft(replyId: number): Promise<{
+  reply_id: number;
+  draft_reply: string;
+  draft_subject: string;
+  category: string;
+  classification_reasoning: string;
+}> {
+  const response = await api.post(`/replies/${replyId}/regenerate-draft`);
   return response.data;
 }
 
@@ -475,6 +540,7 @@ export const repliesApi = {
   getSingleAutomationMonitoring,
   // Replies
   getReplies,
+  getContactCampaigns,
   getReply,
   getReplyStats,
   getConversation,
@@ -483,6 +549,7 @@ export const repliesApi = {
   // Approval / Moderation
   approveAndSendReply,
   dismissReply,
+  regenerateDraft,
   // Testing
   simulateReply,
   // Google Sheets

@@ -7,15 +7,18 @@ Tests cover:
 - Stats endpoint
 - Webhook endpoint
 - Resend notification endpoint
+- Regenerate-draft endpoint
 """
 
 import pytest
 import pytest_asyncio
+from unittest.mock import patch, AsyncMock
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
-from app.models.reply import ReplyAutomation, ProcessedReply, ReplyCategory
+from app.models.reply import ReplyAutomation, ProcessedReply, ReplyCategory, ReplyPromptTemplateModel
+from app.models.contact import Project
 
 
 class TestReplyAutomations:
@@ -402,6 +405,221 @@ class TestSmartleadWebhook:
     async def test_webhook_empty_payload(self, client: AsyncClient, db_session: AsyncSession):
         """Test webhook with empty payload still succeeds (but logs warning)."""
         payload = {}
-        
+
         response = await client.post("/api/smartlead/webhook", json=payload)
         assert response.status_code == 200
+
+
+class TestRegenerateDraft:
+    """Tests for POST /api/replies/{reply_id}/regenerate-draft endpoint."""
+
+    @pytest_asyncio.fixture
+    async def test_automation(self, db_session: AsyncSession) -> ReplyAutomation:
+        automation = ReplyAutomation(
+            name="Regen Test Automation",
+            campaign_ids=["camp_regen"],
+            active=True,
+        )
+        db_session.add(automation)
+        await db_session.flush()
+        await db_session.refresh(automation)
+        return automation
+
+    @pytest_asyncio.fixture
+    async def failed_reply(
+        self, db_session: AsyncSession, test_automation: ReplyAutomation
+    ) -> ProcessedReply:
+        reply = ProcessedReply(
+            automation_id=test_automation.id,
+            campaign_id="camp_regen",
+            campaign_name="Test Campaign Regen",
+            lead_email="regen@example.com",
+            lead_first_name="Alice",
+            lead_last_name="Regen",
+            lead_company="RegenCorp",
+            email_subject="Re: Partnership",
+            email_body="I'm interested, let's talk.",
+            category="interested",
+            category_confidence="high",
+            classification_reasoning="Lead expressed interest.",
+            draft_reply="{Draft generation failed: OpenAI error}",
+            draft_subject="Re: Partnership",
+            received_at=datetime.utcnow(),
+        )
+        db_session.add(reply)
+        await db_session.flush()
+        await db_session.refresh(reply)
+        return reply
+
+    @patch("app.services.reply_processor.generate_draft_reply", new_callable=AsyncMock)
+    @patch("app.services.reply_processor.classify_reply", new_callable=AsyncMock)
+    async def test_happy_path(
+        self,
+        mock_classify,
+        mock_generate,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        failed_reply: ProcessedReply,
+    ):
+        """Regenerate draft succeeds, updates draft_reply and draft_subject."""
+        mock_generate.return_value = {"body": "New draft body", "subject": "Re: Partnership"}
+
+        response = await client.post(f"/api/replies/{failed_reply.id}/regenerate-draft")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["draft_reply"] == "New draft body"
+        assert data["draft_subject"] == "Re: Partnership"
+        assert data["reply_id"] == failed_reply.id
+        mock_classify.assert_not_called()  # classification was fine
+
+    @patch("app.services.reply_processor.generate_draft_reply", new_callable=AsyncMock)
+    @patch("app.services.reply_processor.classify_reply", new_callable=AsyncMock)
+    async def test_reclassifies_when_failed(
+        self,
+        mock_classify,
+        mock_generate,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_automation: ReplyAutomation,
+    ):
+        """When classification_reasoning contains failure marker, re-classifies first."""
+        reply = ProcessedReply(
+            automation_id=test_automation.id,
+            campaign_id="camp_regen",
+            lead_email="reclass@example.com",
+            email_subject="Re: Hello",
+            email_body="What services do you offer?",
+            category="other",
+            classification_reasoning="Classification failed after 3 attempts",
+            draft_reply="{Draft generation failed}",
+            received_at=datetime.utcnow(),
+        )
+        db_session.add(reply)
+        await db_session.flush()
+        await db_session.refresh(reply)
+
+        mock_classify.return_value = {
+            "category": "question",
+            "reasoning": "Lead is asking about services.",
+            "confidence": "high",
+        }
+        mock_generate.return_value = {"body": "We offer X, Y, Z.", "subject": "Re: Hello"}
+
+        response = await client.post(f"/api/replies/{reply.id}/regenerate-draft")
+        assert response.status_code == 200
+        data = response.json()
+
+        mock_classify.assert_called_once()
+        assert data["category"] == "question"
+        assert data["classification_reasoning"] == "Lead is asking about services."
+        assert data["draft_reply"] == "We offer X, Y, Z."
+
+    @patch("app.services.reply_processor.generate_draft_reply", new_callable=AsyncMock)
+    @patch("app.services.reply_processor.classify_reply", new_callable=AsyncMock)
+    async def test_skips_reclassification_when_ok(
+        self,
+        mock_classify,
+        mock_generate,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        failed_reply: ProcessedReply,
+    ):
+        """When classification is fine, does NOT re-classify."""
+        mock_generate.return_value = {"body": "Fresh draft", "subject": "Re: Partnership"}
+
+        response = await client.post(f"/api/replies/{failed_reply.id}/regenerate-draft")
+        assert response.status_code == 200
+
+        mock_classify.assert_not_called()
+        mock_generate.assert_called_once()
+
+    async def test_404(self, client: AsyncClient, db_session: AsyncSession):
+        """Returns 404 for non-existent reply."""
+        response = await client.post("/api/replies/99999/regenerate-draft")
+        assert response.status_code == 404
+
+    @patch("app.services.reply_processor.generate_draft_reply", new_callable=AsyncMock)
+    async def test_openai_failure(
+        self,
+        mock_generate,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        failed_reply: ProcessedReply,
+    ):
+        """Returns 500 when generate_draft_reply raises."""
+        mock_generate.side_effect = Exception("OpenAI timeout")
+
+        response = await client.post(f"/api/replies/{failed_reply.id}/regenerate-draft")
+        assert response.status_code == 500
+        assert "Draft generation failed" in response.json()["detail"]
+
+    @patch("app.services.reply_processor.generate_draft_reply", new_callable=AsyncMock)
+    @patch("app.services.reply_processor.classify_reply", new_callable=AsyncMock)
+    async def test_project_sender_lookup(
+        self,
+        mock_classify,
+        mock_generate,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_automation: ReplyAutomation,
+    ):
+        """Verifies generate_draft_reply receives sender/prompt kwargs.
+
+        Note: The actual JSONB project lookup can't be tested with SQLite.
+        We mock the DB layer to simulate a successful project match.
+        """
+        from unittest.mock import MagicMock
+
+        # Create reply
+        reply = ProcessedReply(
+            automation_id=test_automation.id,
+            campaign_id="camp_regen",
+            campaign_name="My Campaign",
+            lead_email="project_lookup@example.com",
+            lead_first_name="Bob",
+            lead_last_name="Tester",
+            lead_company="TestCo",
+            email_subject="Re: Intro",
+            email_body="Tell me more.",
+            category="interested",
+            classification_reasoning="Lead is interested.",
+            draft_reply="{Draft generation failed}",
+            received_at=datetime.utcnow(),
+        )
+        db_session.add(reply)
+        await db_session.flush()
+        await db_session.refresh(reply)
+
+        mock_generate.return_value = {"body": "Hi Bob, ...", "subject": "Re: Intro"}
+
+        # Mock the project lookup query to return a fake project with sender info
+        mock_project = MagicMock()
+        mock_project.sender_name = "Pablo Medvedev"
+        mock_project.sender_position = "BD Manager"
+        mock_project.sender_company = "Rizzult"
+        mock_project.reply_prompt_template_id = None  # skip template lookup
+
+        original_execute = db_session.execute
+
+        call_count = 0
+        async def patched_execute(stmt, *args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # The 2nd execute is the project lookup (1st is the reply fetch)
+            if call_count == 2:
+                mock_result = MagicMock()
+                mock_result.scalar.return_value = mock_project
+                return mock_result
+            return await original_execute(stmt, *args, **kwargs)
+
+        with patch.object(db_session, 'execute', side_effect=patched_execute):
+            response = await client.post(f"/api/replies/{reply.id}/regenerate-draft")
+
+        assert response.status_code == 200
+
+        # Verify generate_draft_reply was called with project sender info
+        _, kwargs = mock_generate.call_args
+        assert kwargs["sender_name"] == "Pablo Medvedev"
+        assert kwargs["sender_position"] == "BD Manager"
+        assert kwargs["sender_company"] == "Rizzult"

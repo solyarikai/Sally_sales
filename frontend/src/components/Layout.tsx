@@ -22,6 +22,7 @@ export function Layout({ children }: LayoutProps) {
     currentProject, projects, setCurrentProject, setProjects,
   } = useAppStore();
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
   const projectDropdownRef = useRef<HTMLDivElement>(null);
   const { isDark, toggle: toggleTheme } = useTheme();
 
@@ -85,6 +86,7 @@ export function Layout({ children }: LayoutProps) {
     function handleClickOutside(event: MouseEvent) {
       if (projectDropdownRef.current && !projectDropdownRef.current.contains(event.target as Node)) {
         setShowProjectDropdown(false);
+        setProjectSearch('');
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -120,7 +122,7 @@ export function Layout({ children }: LayoutProps) {
         {projects.length > 0 && (
           <div className="relative mr-3" ref={projectDropdownRef}>
             <button
-              onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+              onClick={() => { setShowProjectDropdown(!showProjectDropdown); setProjectSearch(''); }}
               className={cn(
                 'flex items-center gap-1.5 px-2.5 py-1 rounded transition-colors text-[13px]',
                 currentProject
@@ -135,37 +137,68 @@ export function Layout({ children }: LayoutProps) {
               <ChevronDown className="w-3 h-3" />
             </button>
 
-            {showProjectDropdown && (
-              <div className={cn("absolute top-full left-0 mt-1 w-52 rounded-md shadow-xl z-50 py-0.5", isDark ? "bg-[#252526] border border-[#3c3c3c]" : "bg-white border border-[#ddd]")}>
-                <div className="max-h-60 overflow-y-auto py-0.5">
-                  <button
-                    onClick={() => { setCurrentProject(null); setShowProjectDropdown(false); }}
-                    className={cn(
-                      'w-full px-3 py-1.5 text-left text-[13px] transition-colors',
-                      !currentProject
-                        ? isDark ? 'bg-[#37373d] text-[#d4d4d4]' : 'bg-[#e8e8e8] text-[#333]'
-                        : isDark ? 'hover:bg-[#2d2d2d] text-[#969696]' : 'hover:bg-[#f0f0f0] text-[#666]'
-                    )}
-                  >
-                    All Projects
-                  </button>
-                  {projects.map((project) => (
-                    <button
-                      key={project.id}
-                      onClick={() => { setCurrentProject(project); setShowProjectDropdown(false); }}
+            {showProjectDropdown && (() => {
+              const filteredProjects = projectSearch
+                ? projects.filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase()))
+                : projects;
+              return (
+                <div className={cn("absolute top-full left-0 mt-1 w-52 rounded-md shadow-xl z-50 py-0.5", isDark ? "bg-[#252526] border border-[#3c3c3c]" : "bg-white border border-[#ddd]")}>
+                  <div className="px-1.5 py-1.5">
+                    <input
+                      type="text"
+                      value={projectSearch}
+                      onChange={(e) => setProjectSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') { setShowProjectDropdown(false); setProjectSearch(''); }
+                        if (e.key === 'Enter' && filteredProjects.length > 0) {
+                          setCurrentProject(filteredProjects[0]);
+                          setShowProjectDropdown(false);
+                          setProjectSearch('');
+                        }
+                      }}
+                      placeholder="Search projects..."
+                      autoFocus
                       className={cn(
-                        'w-full px-3 py-1.5 text-left text-[13px] truncate transition-colors',
-                        currentProject?.id === project.id
+                        "w-full px-2 py-1 text-[12px] rounded border-none focus:outline-none",
+                        isDark ? "bg-[#3c3c3c] text-[#d4d4d4] placeholder-[#6e6e6e]" : "bg-[#f0f0f0] text-[#333] placeholder-[#999]"
+                      )}
+                    />
+                  </div>
+                  <div className="max-h-60 overflow-y-auto py-0.5">
+                    <button
+                      onClick={() => { setCurrentProject(null); setShowProjectDropdown(false); setProjectSearch(''); }}
+                      className={cn(
+                        'w-full px-3 py-1.5 text-left text-[13px] transition-colors',
+                        !currentProject
                           ? isDark ? 'bg-[#37373d] text-[#d4d4d4]' : 'bg-[#e8e8e8] text-[#333]'
                           : isDark ? 'hover:bg-[#2d2d2d] text-[#969696]' : 'hover:bg-[#f0f0f0] text-[#666]'
                       )}
                     >
-                      {project.name}
+                      All Projects
                     </button>
-                  ))}
+                    {filteredProjects.map((project) => (
+                      <button
+                        key={project.id}
+                        onClick={() => { setCurrentProject(project); setShowProjectDropdown(false); setProjectSearch(''); }}
+                        className={cn(
+                          'w-full px-3 py-1.5 text-left text-[13px] truncate transition-colors',
+                          currentProject?.id === project.id
+                            ? isDark ? 'bg-[#37373d] text-[#d4d4d4]' : 'bg-[#e8e8e8] text-[#333]'
+                            : isDark ? 'hover:bg-[#2d2d2d] text-[#969696]' : 'hover:bg-[#f0f0f0] text-[#666]'
+                        )}
+                      >
+                        {project.name}
+                      </button>
+                    ))}
+                    {filteredProjects.length === 0 && projectSearch && (
+                      <div className={cn("px-3 py-2 text-[12px]", isDark ? "text-[#6e6e6e]" : "text-[#999]")}>
+                        No projects found
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 

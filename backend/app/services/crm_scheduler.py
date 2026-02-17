@@ -393,7 +393,7 @@ class CRMScheduler:
             
             await session.commit()
     
-    # ===== Conversation History Sync (every 10 min) =====
+    # ===== Conversation History Sync (every 3 min) =====
 
     async def _run_conversation_sync_loop(self):
         """Sync Smartlead message histories to detect operator replies.
@@ -401,10 +401,10 @@ class CRMScheduler:
         Checks pending replies for outbound messages in Smartlead's thread API.
         Marks replied-to conversations as 'replied_externally' and creates
         missing outbound ContactActivity records.
-        Runs every 10 minutes, processing up to 100 leads per run.
+        Runs every 3 minutes, processing up to 100 leads per run.
         """
-        await asyncio.sleep(180)  # Wait 3 min after startup for other syncs to settle
-        interval = 600  # 10 minutes
+        await asyncio.sleep(60)  # Wait 1 min after startup for other syncs to settle
+        interval = 180  # 3 minutes
 
         while self._running:
             try:

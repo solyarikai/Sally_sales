@@ -1,12 +1,12 @@
 import toast, { Toaster } from 'react-hot-toast';
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   Search, RefreshCw, X,
   Building2, ExternalLink,
-  XCircle, Edit3,
+  XCircle, Edit3, AlertTriangle,
   Clock, MessageCircle, ArrowRight, Brain,
-  Linkedin, Phone, MapPin, Tag, Globe, User,
+  Linkedin, Phone, MapPin, Tag, User, Copy, Mail,
 } from 'lucide-react';
 import {
   repliesApi,
@@ -14,8 +14,11 @@ import {
   type ConversationMessage,
   type ReplyCategory,
   type ContactInfo,
+  type ContactCampaignEntry,
 } from '../api/replies';
 import { cn } from '../lib/utils';
+import { stripHtml } from '../lib/htmlUtils';
+import { ConversationThread, adaptReplyThread } from '../components/ConversationThread';
 import { useAppStore } from '../store/appStore';
 import { useTheme } from '../hooks/useTheme';
 
@@ -46,148 +49,18 @@ function timeAgo(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
-/* ---------- Convert HTML email to clean readable text ---------- */
-function stripHtml(raw: string): string {
-  if (!raw) return '';
-  // If no tags at all, just clean up the plain text
-  if (!raw.includes('<')) return cleanPlainText(raw);
-
-  try {
-    const doc = new DOMParser().parseFromString(raw, 'text/html');
-
-    // Remove <style>, <script>, <head> entirely
-    doc.querySelectorAll('style, script, head').forEach(el => el.remove());
-
-    // Remove common signature / disclaimer containers
-    doc.querySelectorAll(
-      '[class*="gmail_signature"], [class*="signature"], [data-smartmail]'
-    ).forEach(el => el.remove());
-
-    // Remove quoted email chains (gmail_quote, blockquote, mso-reply)
-    doc.querySelectorAll(
-      '[class*="gmail_quote"], [class*="gmail_extra"], blockquote[type="cite"], ' +
-      '[class*="yahoo_quoted"], [class*="moz-cite-prefix"], [id*="replySplit"]'
-    ).forEach(el => el.remove());
-
-    // Walk the DOM, converting block elements to \n
-    const text = domToText(doc.body);
-    return cleanPlainText(text);
-  } catch {
-    // Fallback: regex approach
-    let text = raw;
-    // Block elements → newline
-    text = text.replace(/<\s*(br|\/div|\/p|\/tr|\/li|\/h[1-6])\s*\/?>/gi, '\n');
-    // All remaining tags → nothing
-    text = text.replace(/<[^>]*>/g, '');
-    // Decode common entities
-    text = decodeEntities(text);
-    return cleanPlainText(text);
-  }
+/* ---------- Campaign name display (strip hex IDs) ---------- */
+function displayCampaignName(name: string | null | undefined): string {
+  if (!name) return 'Unknown';
+  return name.replace(/\s+[0-9a-f]{6,}$/i, '').trim() || name;
 }
 
-/** Recursively extract text from DOM, inserting newlines for block elements */
-const BLOCK_TAGS = new Set([
-  'DIV', 'P', 'BR', 'TR', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
-  'BLOCKQUOTE', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'HR', 'UL', 'OL',
-  'TABLE', 'THEAD', 'TBODY',
-]);
+/* ---------- Draft / classification failure detection ---------- */
+const FAILED_DRAFT_RE = /^\{?(Draft generation failed|Error generating)/i;
+const FAILED_CLASS_RE = /Classification failed|failed after \d+ attempts/i;
 
-function domToText(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) {
-    return node.textContent || '';
-  }
-  if (node.nodeType !== Node.ELEMENT_NODE) return '';
-
-  const el = node as HTMLElement;
-  const tag = el.tagName;
-
-  // Skip hidden elements
-  if (el.style.display === 'none' || el.getAttribute('aria-hidden') === 'true') return '';
-  // Skip images (often tracking pixels)
-  if (tag === 'IMG') return '';
-
-  let result = '';
-  const isBlock = BLOCK_TAGS.has(tag);
-
-  if (tag === 'BR') return '\n';
-  if (tag === 'HR') return '\n---\n';
-
-  if (isBlock) result += '\n';
-
-  for (const child of Array.from(node.childNodes)) {
-    result += domToText(child);
-  }
-
-  if (isBlock) result += '\n';
-  return result;
-}
-
-function decodeEntities(text: string): string {
-  return text
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&#x27;/gi, "'");
-}
-
-/** Clean up plain text: trim signatures, disclaimers, quoted chains, collapse whitespace */
-function cleanPlainText(text: string): string {
-  // Decode HTML entities that might remain (including &lt; &gt; common in plain-text emails)
-  text = decodeEntities(text);
-
-  // Normalize line endings
-  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-  // Trim each line
-  text = text.split('\n').map(l => l.trimEnd()).join('\n');
-
-  // Collapse 3+ blank lines into 2
-  text = text.replace(/\n{3,}/g, '\n\n');
-
-  // Cut at first matching marker (works on both multi-line and single-line text)
-  // NOTE: No ^ or $ anchors — these patterns search anywhere in the text
-  const cutMarkers = [
-    // Quoted reply chains (most common patterns)
-    /On [A-Z][a-z]{2,8},?\s.{5,80}\s+wrote:\s*/i,        // "On Thu, Feb 12, 2026 ... wrote:"
-    /El [a-z]{2,10},?\s.{5,80}\s+escribi[oó]:\s*/i,       // Spanish: "El lun, 26 ene ... escribió:"
-    /Le [a-z]{2,10},?\s.{5,80}\s+[aà] [eé]crit\s*:\s*/i,  // French
-    /Am [A-Z0-9].{5,80}\s+schrieb\s*.*:\s*/i,              // German
-    /\d{1,2}\/\d{1,2}\/\d{2,4}.{0,60}wrote/i,            // "2/12/2026 ... wrote"
-    /-{2,}\s*Original Message\s*-{2,}/i,                    // "-- Original Message --"
-    // Outlook-style email headers (English)
-    /\nFrom:\s.{3,80}\n\s*Sent:\s/i,                        // "From: Name\nSent: date"
-    /\nFrom:\s.{3,80}\n\s*Date:\s/i,                        // "From: Name\nDate: date"
-    // Outlook-style email headers (Russian)
-    /\nОт:\s/i,                                             // "От: Name"
-    /\nОтправлено:\s/i,                                     // "Отправлено: date"
-    // Forwarded messages
-    /-{5,}\s*Forwarded message\s*-{5,}/i,
-    // Disclaimers / confidentiality
-    /AVISO DE CONFIDENCIALIDAD/i,
-    /CONFIDENTIALITY NOTICE/i,
-    /This email and any attachments? (?:are|is) confidential/i,
-    /CONSULTE NUESTRO AVISO/i,
-    /_{10,}/,
-    // Eco-friendly disclaimers (common in LATAM emails)
-    /Cuidemos nuestro planeta/i,
-    /Este correo electr[oó]nico y cualquier archivo/i,
-  ];
-
-  let earliest = text.length;
-  for (const marker of cutMarkers) {
-    const match = text.match(marker);
-    if (match && match.index !== undefined && match.index > 20 && match.index < earliest) {
-      earliest = match.index;
-    }
-  }
-  if (earliest < text.length) {
-    text = text.substring(0, earliest).trimEnd();
-  }
-
-  return text.trim();
+function isDraftFailed(draft: string | null | undefined): boolean {
+  return !!draft && FAILED_DRAFT_RE.test(draft.trim());
 }
 
 /* ---------- Theme color tokens ---------- */
@@ -225,6 +98,10 @@ function themeColors(isDark: boolean) {
         toastText: '#d4d4d4',
         toastBorder: '#3c3c3c',
         toastErrText: '#d4a4a4',
+        errorBg: '#3a2020',
+        errorBorder: '#5a3030',
+        errorText: '#d4a4a4',
+        warnText: '#d4a464',
         scrollThumb: 'rgba(255,255,255,0.1)',
       }
     : {
@@ -259,6 +136,10 @@ function themeColors(isDark: boolean) {
         toastText: '#333',
         toastBorder: '#ddd',
         toastErrText: '#c44',
+        errorBg: '#fef2f2',
+        errorBorder: '#fecaca',
+        errorText: '#b91c1c',
+        warnText: '#b45309',
         scrollThumb: 'rgba(0,0,0,0.12)',
       };
 }
@@ -269,6 +150,7 @@ export function RepliesPage() {
   const { currentProject, setCurrentProject, projects } = useAppStore();
   const { isDark } = useTheme();
   const t = themeColors(isDark);
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [replies, setReplies] = useState<ProcessedReply[]>([]);
@@ -289,6 +171,12 @@ export function RepliesPage() {
   const [threadMessages, setThreadMessages] = useState<Record<number, ConversationMessage[]>>({});
   const [loadingThreads, setLoadingThreads] = useState<Set<number>>(new Set());
   const [contactInfoMap, setContactInfoMap] = useState<Record<number, ContactInfo | null>>({});
+  const [regeneratingIds, setRegeneratingIds] = useState<Set<number>>(new Set());
+
+  // Campaign selector state (for group_by_contact dedup)
+  const [contactCampaigns, setContactCampaigns] = useState<Record<string, ContactCampaignEntry[]>>({});
+  const [loadingCampaigns, setLoadingCampaigns] = useState<Set<string>>(new Set());
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -349,6 +237,7 @@ export function RepliesPage() {
         project_id: currentProject?.id,
         needs_reply: true,
         category: (categoryFilter as ReplyCategory) || undefined,
+        group_by_contact: true,
         page: pg,
         page_size: PAGE_SIZE,
       });
@@ -390,23 +279,57 @@ export function RepliesPage() {
   }, [hasMore, isLoadingMore, isLoading, loadReplies]);
 
   /* ---- Actions ---- */
+  /** Re-fetch just the category counts from server after a reply is removed. */
+  const refreshCounts = () => {
+    repliesApi.getReplies({
+      project_id: currentProject?.id,
+      needs_reply: true,
+      category: (categoryFilter as ReplyCategory) || undefined,
+      group_by_contact: true,
+      page: 1,
+      page_size: 0,
+    }).then(response => {
+      setCategoryCounts(response.category_counts || {});
+      setTotal(response.total || 0);
+    }).catch(() => {});
+  };
+
   const handleApproveAndSend = async (reply: ProcessedReply) => {
     setSendingIds(prev => new Set(prev).add(reply.id));
     try {
       const edited = editingDrafts[reply.id];
       const editedDraft = edited ? { draft_reply: edited.reply, draft_subject: edited.subject } : undefined;
       const result = await repliesApi.approveAndSendReply(reply.id, editedDraft);
-      if (result.channel === 'linkedin') {
-        toast.success('Approved — copy draft to LinkedIn', { style: toastOk });
-      } else if (result.test_mode) {
-        toast.success(`Test sent to ${result.sent_to || 'pn@getsally.io'}`, { style: toastOk });
-      } else if (result.dry_run) {
-        toast.success('Approved (dry run)', { style: toastOk });
-      } else {
-        toast.success('Reply sent', { style: toastOk });
-      }
+      const contactId = result.contact_id;
+      const toastMsg = result.channel === 'linkedin'
+        ? 'Approved — copy draft to LinkedIn'
+        : 'Reply sent';
+      toast(
+        (tInstance) => (
+          <span style={{ color: t.toastText }}>
+            {toastMsg}
+            {contactId && (
+              <>
+                {' · '}
+                <a
+                  href={`/contacts?contact_id=${contactId}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toast.dismiss(tInstance.id);
+                    navigate(`/contacts?contact_id=${contactId}`);
+                  }}
+                  style={{ textDecoration: 'underline', color: t.toastText }}
+                >
+                  View conversation
+                </a>
+              </>
+            )}
+          </span>
+        ),
+        { style: toastOk, duration: 6000 }
+      );
       setReplies(prev => prev.filter(r => r.id !== reply.id));
-      setTotal(prev => Math.max(0, prev - 1));
+      refreshCounts();
       setEditingDrafts(prev => { const d = { ...prev }; delete d[reply.id]; return d; });
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to send', { style: toastErr });
@@ -420,7 +343,7 @@ export function RepliesPage() {
       await repliesApi.dismissReply(reply.id);
       toast.success('Skipped', { style: toastOk });
       setReplies(prev => prev.filter(r => r.id !== reply.id));
-      setTotal(prev => Math.max(0, prev - 1));
+      refreshCounts();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed', { style: toastErr });
     }
@@ -460,6 +383,90 @@ export function RepliesPage() {
       setThreadMessages(prev => ({ ...prev, [reply.id]: [] }));
     } finally {
       setLoadingThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+    }
+  };
+
+  /* ---- Campaign selector (for group_by_contact dedup) ---- */
+  const loadContactCampaigns = async (email: string) => {
+    if (contactCampaigns[email] || loadingCampaigns.has(email)) return;
+    setLoadingCampaigns(prev => new Set(prev).add(email));
+    try {
+      const data = await repliesApi.getContactCampaigns(email, currentProject?.id);
+      setContactCampaigns(prev => ({ ...prev, [email]: data.campaigns }));
+    } catch {
+      setContactCampaigns(prev => ({ ...prev, [email]: [] }));
+    } finally {
+      setLoadingCampaigns(prev => { const s = new Set(prev); s.delete(email); return s; });
+    }
+  };
+
+  const toggleCampaignSelector = (email: string) => {
+    setExpandedCampaigns(prev => {
+      const s = new Set(prev);
+      if (s.has(email)) { s.delete(email); } else { s.add(email); loadContactCampaigns(email); }
+      return s;
+    });
+  };
+
+  const switchCampaign = (reply: ProcessedReply, entry: ContactCampaignEntry) => {
+    if (entry.reply_id === reply.id) return; // already active
+    setReplies(prev => prev.map(r => {
+      if (r.id !== reply.id) return r;
+      return {
+        ...r,
+        id: entry.reply_id,
+        campaign_id: entry.campaign_id,
+        campaign_name: entry.campaign_name,
+        category: entry.category as ReplyCategory | null,
+        classification_reasoning: entry.classification_reasoning,
+        received_at: entry.received_at,
+        email_subject: entry.email_subject,
+        email_body: entry.email_body,
+        reply_text: entry.reply_text,
+        draft_reply: entry.draft_reply,
+        draft_subject: entry.draft_subject,
+        approval_status: entry.approval_status,
+        inbox_link: entry.inbox_link,
+        channel: entry.channel,
+      };
+    }));
+    // Clear editing & thread state for old reply
+    setEditingDrafts(prev => { const d = { ...prev }; delete d[reply.id]; return d; });
+    setExpandedThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+  };
+
+  // Close campaign dropdown on outside click
+  useEffect(() => {
+    if (expandedCampaigns.size === 0) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-campaign-dropdown]')) {
+        setExpandedCampaigns(new Set());
+      }
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [expandedCampaigns.size]);
+
+  const handleRegenerate = async (reply: ProcessedReply) => {
+    setRegeneratingIds(prev => new Set(prev).add(reply.id));
+    try {
+      const result = await repliesApi.regenerateDraft(reply.id);
+      setReplies(prev => prev.map(r => {
+        if (r.id !== reply.id) return r;
+        return {
+          ...r,
+          draft_reply: result.draft_reply,
+          draft_subject: result.draft_subject,
+          category: result.category as ProcessedReply['category'],
+          classification_reasoning: result.classification_reasoning,
+        };
+      }));
+      toast.success('Draft regenerated', { style: toastOk });
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Regeneration failed', { style: toastErr });
+    } finally {
+      setRegeneratingIds(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
     }
   };
 
@@ -576,8 +583,10 @@ export function RepliesPage() {
               const isThreadLoading = loadingThreads.has(reply.id);
               const thread = threadMessages[reply.id];
               const draftText = isEditing ? editingDrafts[reply.id].reply : (reply.draft_reply || '');
+              const draftFailed = isDraftFailed(reply.draft_reply);
+              const classificationFailed = FAILED_CLASS_RE.test(reply.classification_reasoning || '');
               const catLabel = CATEGORY_LABEL[reply.category || ''] || reply.category || '';
-              const hasReasoning = reply.classification_reasoning || reply.category_confidence;
+              const hasReasoning = !!reply.classification_reasoning;
               const contactInfo = contactInfoMap[reply.id];
 
               return (
@@ -644,8 +653,58 @@ export function RepliesPage() {
                           </div>
                         </div>
 
+                        {/* Campaign dropdown selector */}
                         {reply.campaign_name && (
-                          <div className="px-4 text-[11px] pb-1" style={{ color: t.text6 }}>{reply.campaign_name}</div>
+                          <div className="px-4 text-[11px] pb-1" style={{ color: t.text6 }}>
+                            {(reply.contact_campaign_count ?? 0) > 1 ? (
+                              <div className="relative inline-block" data-campaign-dropdown>
+                                <button
+                                  onClick={() => toggleCampaignSelector(reply.lead_email)}
+                                  className="inline-flex items-center gap-1 hover:opacity-80 transition-opacity"
+                                >
+                                  <span className="truncate max-w-[300px]">{displayCampaignName(reply.campaign_name)}</span>
+                                  <span
+                                    className="px-1 py-0.5 rounded text-[10px] font-medium"
+                                    style={{ background: t.badgeBg, color: t.badgeText }}
+                                  >
+                                    {reply.contact_campaign_count}
+                                  </span>
+                                  <span className="text-[10px]">{expandedCampaigns.has(reply.lead_email) ? '▲' : '▼'}</span>
+                                </button>
+                                {expandedCampaigns.has(reply.lead_email) && (
+                                  <div
+                                    className="absolute left-0 top-full mt-1 rounded-md border shadow-lg z-20 min-w-[260px] py-1"
+                                    style={{ background: t.cardBg, borderColor: t.cardBorder }}
+                                  >
+                                    {loadingCampaigns.has(reply.lead_email) ? (
+                                      <div className="px-3 py-2 text-[11px]" style={{ color: t.text5 }}>Loading...</div>
+                                    ) : (contactCampaigns[reply.lead_email] || []).map(entry => {
+                                      const isActive = entry.reply_id === reply.id;
+                                      return (
+                                        <button
+                                          key={entry.reply_id}
+                                          onClick={() => { switchCampaign(reply, entry); setExpandedCampaigns(new Set()); }}
+                                          className="w-full px-3 py-1.5 text-left text-[11px] flex items-center justify-between gap-2 transition-colors"
+                                          style={{
+                                            background: isActive ? t.badgeBg : 'transparent',
+                                            color: isActive ? t.text1 : t.text3,
+                                            fontWeight: isActive ? 600 : 400,
+                                          }}
+                                        >
+                                          <span className="truncate">{displayCampaignName(entry.campaign_name)}</span>
+                                          {entry.received_at && (
+                                            <span className="flex-shrink-0" style={{ color: t.text5 }}>{timeAgo(entry.received_at)}</span>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="truncate">{displayCampaignName(reply.campaign_name)}</span>
+                            )}
+                          </div>
                         )}
                         <div style={{ borderBottom: `1px solid ${t.divider}` }} />
                       </div>
@@ -674,44 +733,13 @@ export function RepliesPage() {
                           {isThreadOpen ? 'Hide thread' : 'Thread'}
                         </button>
                         {isThreadOpen && (
-                          <div className="mt-1.5 mb-2 space-y-1.5">
-                            {isThreadLoading ? (
-                              <div className="flex items-center gap-1.5 py-1.5 text-[11px]" style={{ color: t.text5 }}>
-                                <RefreshCw className="w-3 h-3 animate-spin" /> Loading...
-                              </div>
-                            ) : thread && thread.length > 0 ? (
-                              <>
-                                {thread.map((msg, i) => {
-                                  const cleaned = stripHtml(msg.body || '');
-                                  if (!cleaned || cleaned === '(no content)') return null;
-                                  const isInbound = msg.direction === 'inbound';
-                                  return (
-                                    <div key={i} className={cn("flex flex-col", isInbound ? "items-start" : "items-end")}>
-                                      <div
-                                        className="text-[10px] font-medium mb-0.5 px-1"
-                                        style={{ color: t.text5 }}
-                                      >
-                                        {isInbound ? 'Lead' : 'Operator'}
-                                      </div>
-                                      <div
-                                        className="max-w-[85%] rounded px-3 py-2 text-[13px]"
-                                        style={{
-                                          background: isInbound ? t.threadInbound : t.threadOutbound,
-                                          color: isInbound ? t.text2 : t.text3,
-                                        }}
-                                      >
-                                        <div className="whitespace-pre-wrap leading-relaxed">{cleaned}</div>
-                                        <div className="text-[10px] mt-1" style={{ color: t.text6 }}>
-                                          {msg.activity_at ? new Date(msg.activity_at).toLocaleString() : ''}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </>
-                            ) : (
-                              <div className="text-[11px] py-1" style={{ color: t.text6 }}>No history</div>
-                            )}
+                          <div className="mt-1.5 mb-2">
+                            <ConversationThread
+                              messages={thread ? adaptReplyThread(thread) : []}
+                              compact
+                              isDark={isDark}
+                              loading={isThreadLoading}
+                            />
                           </div>
                         )}
                       </div>
@@ -721,12 +749,14 @@ export function RepliesPage() {
                       {/* Draft -- always visible, NO max-height */}
                       <div className="px-4 py-2.5">
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[11px] uppercase tracking-wider" style={{ color: t.text5 }}>Draft</span>
+                          <span className="text-[11px] uppercase tracking-wider" style={{ color: draftFailed ? t.errorText : t.text5 }}>
+                            {draftFailed ? 'Draft (failed)' : 'Draft'}
+                          </span>
                           {!isEditing && reply.draft_reply ? (
                             <button
                               onClick={() => startEditing(reply)}
                               className="text-[11px] flex items-center gap-1 transition-colors"
-                              style={{ color: t.text5 }}
+                              style={{ color: draftFailed ? t.errorText : t.text5, fontWeight: draftFailed ? 500 : 400 }}
                             >
                               <Edit3 className="w-3 h-3" /> Edit
                             </button>
@@ -748,6 +778,9 @@ export function RepliesPage() {
                               ...prev,
                               [reply.id]: { ...prev[reply.id], reply: e.target.value },
                             }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Escape') { cancelEditing(reply.id); }
+                            }}
                             className="w-full text-[13px] rounded p-2.5 focus:outline-none min-h-[80px] resize-y border"
                             style={{
                               background: t.draftBg,
@@ -756,6 +789,32 @@ export function RepliesPage() {
                             }}
                             placeholder="Edit your reply..."
                           />
+                        ) : draftFailed ? (
+                          <div
+                            className="text-[13px] leading-relaxed rounded p-2.5 border flex items-start gap-2"
+                            style={{ background: t.errorBg, borderColor: t.errorBorder, color: t.errorText }}
+                          >
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <div className="font-medium mb-0.5">Draft generation failed</div>
+                              <div className="text-[12px] opacity-80">
+                                AI could not generate a reply. Edit manually or skip this reply.
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleRegenerate(reply)}
+                              disabled={regeneratingIds.has(reply.id)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded text-[12px] font-medium transition-colors flex-shrink-0"
+                              style={{
+                                background: t.btnPrimaryBg,
+                                color: t.btnPrimaryText,
+                                opacity: regeneratingIds.has(reply.id) ? 0.7 : 1,
+                              }}
+                            >
+                              <RefreshCw className={cn("w-3.5 h-3.5", regeneratingIds.has(reply.id) && "animate-spin")} />
+                              {regeneratingIds.has(reply.id) ? 'Regenerating...' : 'Regenerate'}
+                            </button>
+                          </div>
                         ) : (
                           <div
                             className="text-[13px] whitespace-pre-wrap leading-relaxed rounded p-2.5"
@@ -773,27 +832,45 @@ export function RepliesPage() {
                       >
                         <button
                           onClick={() => handleApproveAndSend(reply)}
-                          disabled={isSending || !reply.draft_reply}
+                          disabled={isSending || !reply.draft_reply || (draftFailed && !isEditing)}
                           className={cn(
-                            "flex items-center gap-1.5 px-3.5 py-1.5 rounded text-[13px] font-medium transition-colors",
-                            isSending ? "cursor-wait" : ""
+                            "flex items-center gap-1.5 px-3.5 py-1.5 rounded text-[13px] font-medium transition-all",
+                            isSending ? "cursor-wait" : "active:scale-[0.98]"
                           )}
                           style={{
-                            background: isSending ? t.divider : t.btnPrimaryBg,
-                            color: isSending ? t.text5 : t.btnPrimaryText,
+                            background: (isSending || (draftFailed && !isEditing)) ? t.divider : t.btnPrimaryBg,
+                            color: (isSending || (draftFailed && !isEditing)) ? t.text5 : t.btnPrimaryText,
+                            opacity: (draftFailed && !isEditing) ? 0.5 : 1,
+                          }}
+                          onMouseEnter={e => {
+                            if (!isSending && !(draftFailed && !isEditing)) {
+                              (e.currentTarget as HTMLElement).style.background = t.btnPrimaryHover;
+                            }
+                          }}
+                          onMouseLeave={e => {
+                            (e.currentTarget as HTMLElement).style.background =
+                              (isSending || (draftFailed && !isEditing)) ? t.divider : t.btnPrimaryBg;
                           }}
                         >
                           {isSending ? (
                             <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> {reply.channel === 'linkedin' ? 'Approving...' : 'Sending...'}</>
                           ) : (
-                            <><ArrowRight className="w-3.5 h-3.5" /> {reply.channel === 'linkedin' ? (isEditing ? 'Approve edited' : 'Approve') : (isEditing ? 'Send edited' : 'Send')}</>
+                            <><ArrowRight className="w-3.5 h-3.5" /> {reply.channel === 'linkedin'
+                              ? (isEditing ? 'Approve edited' : 'Approve')
+                              : (isEditing ? 'Send edited' : 'Send')
+                            }{(reply.contact_campaign_count ?? 0) > 1 && reply.campaign_name
+                              ? ` via ${displayCampaignName(reply.campaign_name)}`
+                              : ''
+                            }</>
                           )}
                         </button>
                         <button
                           onClick={() => handleDismiss(reply)}
                           disabled={isSending}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-colors"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-all active:scale-[0.98]"
                           style={{ color: t.text4 }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.btnGhostHover; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                         >
                           <XCircle className="w-3.5 h-3.5" /> Skip
                         </button>
@@ -826,19 +903,9 @@ export function RepliesPage() {
                                 <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
                                   Category
                                 </div>
-                                <div className="text-[13px] font-medium" style={{ color: t.text1 }}>
+                                <div className="text-[13px] font-medium flex items-center gap-1.5" style={{ color: classificationFailed ? t.warnText : t.text1 }}>
+                                  {classificationFailed && <AlertTriangle className="w-3.5 h-3.5" />}
                                   {CATEGORY_LABEL[reply.category] || reply.category}
-                                </div>
-                              </div>
-                            )}
-
-                            {reply.category_confidence && (
-                              <div className="mb-2">
-                                <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
-                                  Confidence
-                                </div>
-                                <div className="text-[12px]" style={{ color: t.text3 }}>
-                                  {reply.category_confidence}
                                 </div>
                               </div>
                             )}
@@ -846,11 +913,11 @@ export function RepliesPage() {
                             {reply.classification_reasoning && (
                               <div>
                                 <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
-                                  Reasoning
+                                  {classificationFailed ? 'Error' : 'Reasoning'}
                                 </div>
                                 <div
                                   className="text-[12px] leading-relaxed whitespace-pre-wrap"
-                                  style={{ color: t.text3 }}
+                                  style={{ color: classificationFailed ? t.warnText : t.text3 }}
                                 >
                                   {reply.classification_reasoning}
                                 </div>
@@ -859,80 +926,102 @@ export function RepliesPage() {
                           </>
                         )}
 
-                        {contactInfo && (
-                          <>
-                            {hasReasoning && <div className="my-2.5" style={{ borderTop: `1px solid ${t.divider}` }} />}
-                            <div className="flex items-center gap-1.5 mb-2">
-                              <User className="w-3.5 h-3.5" style={{ color: t.text4 }} />
-                              <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: t.text4 }}>
-                                Contact
+                        {/* Contact section — always show email, extras from contactInfo */}
+                        <>
+                          {hasReasoning && <div className="my-2.5" style={{ borderTop: `1px solid ${t.divider}` }} />}
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <User className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+                            <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: t.text4 }}>
+                              Contact
+                            </span>
+                          </div>
+
+                          {reply.lead_email && (
+                            <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
+                              <Mail className="w-3 h-3 flex-shrink-0" />
+                              <span>{reply.lead_email}</span>
+                            </div>
+                          )}
+
+                          {contactInfo?.linkedin_url && (
+                            <div className="mb-1.5 flex items-center justify-between">
+                              <a
+                                href={contactInfo.linkedin_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-[12px] hover:underline"
+                                style={{ color: '#0a66c2' }}
+                              >
+                                <Linkedin className="w-3.5 h-3.5" /> LinkedIn profile
+                              </a>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(contactInfo!.linkedin_url!);
+                                  toast.success('LinkedIn URL copied', { style: toastOk });
+                                }}
+                                className="p-0.5 rounded transition-colors"
+                                style={{ color: t.text5 }}
+                                title="Copy LinkedIn URL"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+
+                          {contactInfo?.job_title && (
+                            <div className="mb-1.5 text-[12px]" style={{ color: t.text2 }}>
+                              {contactInfo.job_title}
+                            </div>
+                          )}
+
+                          {(contactInfo?.company_name || contactInfo?.domain) && (
+                            <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
+                              <Building2 className="w-3 h-3 flex-shrink-0" />
+                              <span>
+                                {contactInfo.company_name}
+                                {contactInfo.domain && (
+                                  <>
+                                    {contactInfo.company_name ? ' · ' : ''}
+                                    <a
+                                      href={`https://${contactInfo.domain}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="hover:underline"
+                                      style={{ color: t.text3 }}
+                                    >
+                                      {contactInfo.domain}
+                                    </a>
+                                  </>
+                                )}
                               </span>
                             </div>
+                          )}
 
-                            {contactInfo.linkedin_url && (
-                              <div className="mb-1.5">
-                                <a
-                                  href={contactInfo.linkedin_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 text-[12px] hover:underline"
-                                  style={{ color: '#0a66c2' }}
-                                >
-                                  <Linkedin className="w-3.5 h-3.5" /> LinkedIn profile
-                                </a>
-                              </div>
-                            )}
+                          {contactInfo?.location && (
+                            <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
+                              <MapPin className="w-3 h-3 flex-shrink-0" />
+                              <span>{contactInfo.location}</span>
+                            </div>
+                          )}
 
-                            {contactInfo.job_title && (
-                              <div className="mb-1.5 text-[12px]" style={{ color: t.text2 }}>
-                                {contactInfo.job_title}
-                              </div>
-                            )}
+                          {contactInfo?.segment && (
+                            <div className="mb-1.5">
+                              <span
+                                className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded"
+                                style={{ background: t.badgeBg, color: t.badgeText }}
+                              >
+                                <Tag className="w-3 h-3" />{contactInfo.segment}
+                              </span>
+                            </div>
+                          )}
 
-                            {(contactInfo.company_name || contactInfo.domain) && (
-                              <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
-                                <Building2 className="w-3 h-3 flex-shrink-0" />
-                                <span>{contactInfo.company_name}{contactInfo.domain ? ` · ${contactInfo.domain}` : ''}</span>
-                              </div>
-                            )}
-
-                            {contactInfo.location && (
-                              <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
-                                <MapPin className="w-3 h-3 flex-shrink-0" />
-                                <span>{contactInfo.location}</span>
-                              </div>
-                            )}
-
-                            {contactInfo.segment && (
-                              <div className="mb-1.5">
-                                <span
-                                  className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded"
-                                  style={{ background: t.badgeBg, color: t.badgeText }}
-                                >
-                                  <Tag className="w-3 h-3" />{contactInfo.segment}
-                                </span>
-                              </div>
-                            )}
-
-                            {contactInfo.phone && (
-                              <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
-                                <Phone className="w-3 h-3 flex-shrink-0" />
-                                <span>{contactInfo.phone}</span>
-                              </div>
-                            )}
-
-                            {contactInfo.source && (
-                              <div className="mb-1.5">
-                                <span
-                                  className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded"
-                                  style={{ background: t.badgeBg, color: t.badgeText }}
-                                >
-                                  <Globe className="w-3 h-3" />{contactInfo.source}
-                                </span>
-                              </div>
-                            )}
-                          </>
-                        )}
+                          {contactInfo?.phone && (
+                            <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
+                              <Phone className="w-3 h-3 flex-shrink-0" />
+                              <span>{contactInfo.phone}</span>
+                            </div>
+                          )}
+                        </>
                       </div>
                     )}
                   </div>
