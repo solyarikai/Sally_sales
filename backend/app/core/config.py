@@ -100,6 +100,18 @@ class Settings(BaseSettings):
     APIFY_PROXY_PORT: int = 8000
     APIFY_PROXY_PASSWORD: Optional[str] = None
 
+    # GetSales Integration
+    GETSALES_API_KEY: Optional[str] = None
+
+    # Webhook URLs — used for SmartLead webhook registration
+    WEBHOOK_BASE_URL: str = "http://46.62.210.24:8000"
+
+    # Telegram Bot
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
+
+    # Test recipient for test_mode sends
+    TEST_RECIPIENT_EMAIL: str = "pn@getsally.io"
+
     # CORS - comma-separated list of allowed origins
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,http://46.62.210.24,http://46.62.210.24:80,http://46.62.210.24:8000"
     

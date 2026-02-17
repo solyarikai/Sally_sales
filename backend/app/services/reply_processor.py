@@ -487,8 +487,8 @@ async def _fetch_and_cache_thread(
             logger.warning(f"[THREAD_CACHE] Smartlead returned {resp.status_code} for reply {reply.id}")
             return False
 
-        hist = resp.json()
-        history_entries = hist if isinstance(hist, list) else hist.get("history", [])
+        from app.services.smartlead_service import parse_history_response
+        history_entries = parse_history_response(resp.json())
         if not history_entries:
             logger.info(f"[THREAD_CACHE] Empty history for reply {reply.id}")
             return False
@@ -698,17 +698,21 @@ async def process_reply_webhook(
             try:
                 from app.models.contact import Project
                 from app.models.reply import ReplyPromptTemplateModel
-                from sqlalchemy.dialects.postgresql import JSONB
-                from sqlalchemy import cast as sa_cast
-                
-                # Find the project matching this campaign name
+                from sqlalchemy import text as sa_text
+
+                # Case-insensitive match: find project where campaign_filters array
+                # contains campaign_name (ignoring case)
                 project_result = await session.execute(
                     select(Project).where(
                         and_(
-                            sa_cast(Project.campaign_filters, JSONB).contains([campaign_name]),
+                            Project.campaign_filters.isnot(None),
                             Project.deleted_at.is_(None),
+                            sa_text(
+                                "EXISTS (SELECT 1 FROM jsonb_array_elements_text(projects.campaign_filters) AS cf "
+                                "WHERE LOWER(cf) = LOWER(:cname))"
+                            ),
                         )
-                    ).limit(1)
+                    ).params(cname=campaign_name).limit(1)
                 )
                 project = project_result.scalar()
                 if project:
@@ -772,6 +776,26 @@ async def process_reply_webhook(
         existing_pr = existing_pr_result.scalar_one_or_none()
 
         if existing_pr:
+            # Snapshot previous version before overwriting (prevents data loss)
+            prev = {
+                "email_body": existing_pr.email_body,
+                "email_subject": existing_pr.email_subject,
+                "category": existing_pr.category,
+                "draft_reply": existing_pr.draft_reply,
+                "draft_subject": existing_pr.draft_subject,
+                "approval_status": existing_pr.approval_status,
+                "received_at": existing_pr.received_at.isoformat() if existing_pr.received_at else None,
+                "updated_at": existing_pr.updated_at.isoformat() if existing_pr.updated_at else None,
+            }
+            old_raw = existing_pr.raw_webhook_data or {}
+            if not isinstance(old_raw, dict):
+                old_raw = {}
+            versions = old_raw.get("_previous_versions", [])
+            versions.append(prev)
+            # Keep last 10 versions max
+            if len(versions) > 10:
+                versions = versions[-10:]
+
             # Update existing record with new reply data
             if received_at > (existing_pr.received_at or datetime.min):
                 existing_pr.received_at = received_at
@@ -784,7 +808,9 @@ async def process_reply_webhook(
             existing_pr.draft_reply = draft["body"]
             existing_pr.draft_subject = draft["subject"]
             existing_pr.approval_status = None  # Re-surface for operator
-            existing_pr.raw_webhook_data = payload
+            new_raw = dict(payload) if isinstance(payload, dict) else {}
+            new_raw["_previous_versions"] = versions
+            existing_pr.raw_webhook_data = new_raw
             existing_pr.updated_at = datetime.utcnow()
             existing_pr.source = existing_pr.source or "smartlead"
             existing_pr.channel = existing_pr.channel or "email"
@@ -1192,16 +1218,19 @@ async def process_getsales_reply(
         try:
             from app.models.contact import Project
             from app.models.reply import ReplyPromptTemplateModel
-            from sqlalchemy.dialects.postgresql import JSONB
-            from sqlalchemy import cast as sa_cast
+            from sqlalchemy import text as sa_text
 
             project_result = await session.execute(
                 select(Project).where(
                     and_(
-                        sa_cast(Project.campaign_filters, JSONB).contains([flow_name]),
+                        Project.campaign_filters.isnot(None),
                         Project.deleted_at.is_(None),
+                        sa_text(
+                            "EXISTS (SELECT 1 FROM jsonb_array_elements_text(projects.campaign_filters) AS cf "
+                            "WHERE LOWER(cf) = LOWER(:cname))"
+                        ),
                     )
-                ).limit(1)
+                ).params(cname=flow_name).limit(1)
             )
             project = project_result.scalar()
             if project:

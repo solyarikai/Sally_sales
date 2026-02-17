@@ -24,13 +24,18 @@ def track_openai_usage(model: str, input_tokens: int, output_tokens: int):
         pricing = PRICING.get(model, PRICING.get("gpt-4o-mini"))
         cost = (input_tokens / 1_000_000 * pricing["input"]) + (output_tokens / 1_000_000 * pricing["output"])
         
-        # Direct connection using known credentials
+        # Parse DATABASE_URL for sync psycopg2 connection
+        from app.core.config import settings as _s
+        import re as _re
+        _m = _re.match(r'postgresql\+asyncpg://(.+?):(.+?)@(.+?):(\d+)/(.+)', _s.DATABASE_URL)
+        if not _m:
+            return
         conn = psycopg2.connect(
-            host="postgres",  # Docker network hostname
-            port=5432,
-            user="leadgen",
-            password="leadgen_secret",
-            database="leadgen"
+            host=_m.group(3),
+            port=int(_m.group(4)),
+            user=_m.group(1),
+            password=_m.group(2),
+            database=_m.group(5),
         )
         cur = conn.cursor()
         cur.execute("""INSERT INTO openai_usage (model, input_tokens, output_tokens, cost_usd, source)

@@ -1,5 +1,5 @@
 """Models for Reply Automation feature."""
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -151,7 +151,17 @@ class ProcessedReply(Base, TimestampMixin):
         order_by="ThreadMessage.position",
         lazy="noload",
     )
-    
+
+    __table_args__ = (
+        # Unique per lead per campaign — prevents duplicate ProcessedReply
+        # from concurrent webhook + polling.
+        # For existing DBs run:
+        #   CREATE UNIQUE INDEX IF NOT EXISTS uq_processed_reply_email_campaign
+        #   ON processed_replies (LOWER(lead_email), campaign_id)
+        #   WHERE campaign_id IS NOT NULL;
+        Index('uq_processed_reply_email_campaign', 'lead_email', 'campaign_id', unique=True),
+    )
+
     def __repr__(self):
         return f"<ProcessedReply(id={self.id}, email='{self.lead_email}', category='{self.category}')>"
 

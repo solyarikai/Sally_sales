@@ -222,8 +222,8 @@ async def _sync_historical_replies_background(automation_id: int, google_sheet_i
                                         params={"api_key": api_key},
                                         timeout=60.0,
                                     )
-                                    hist = hist_resp.json()
-                                    for msg in hist.get("history", []):
+                                    from app.services.smartlead_service import parse_history_response
+                                    for msg in parse_history_response(hist_resp.json()):
                                         if msg.get("type") == "REPLY":
                                             reply_text = msg.get("email_body", "")
                                             if "<" in reply_text:
@@ -307,7 +307,7 @@ async def create_automation(
     await session.refresh(automation)
     
     # Auto-configure Smartlead webhooks for all campaigns
-    webhook_url = "http://46.62.210.24:8000/api/smartlead/webhook"
+    webhook_url = f"{settings.WEBHOOK_BASE_URL}/api/smartlead/webhook"
     for campaign_id in data.campaign_ids:
         try:
             await smartlead_service.configure_campaign_webhook(
@@ -562,7 +562,7 @@ async def add_campaigns_to_automation(
     
     # Configure webhooks for new campaigns
     from app.services.smartlead_service import smartlead_service
-    webhook_url = "http://46.62.210.24:8000/api/smartlead/webhook"
+    webhook_url = f"{settings.WEBHOOK_BASE_URL}/api/smartlead/webhook"
     
     for cid in campaign_ids:
         if cid not in existing:  # Only configure new ones
@@ -1531,8 +1531,13 @@ async def get_reply_conversation(
 
     contact_id = contact.id if contact else None
 
-    # --- Cache miss: fetch on demand ---
-    if reply.thread_fetched_at is None and reply.campaign_id and (not reply.source or reply.source == "smartlead"):
+    # --- Cache miss or stale (>5 min): re-fetch on demand ---
+    cache_stale = (
+        reply.thread_fetched_at is not None
+        and (datetime.utcnow() - reply.thread_fetched_at).total_seconds() > 300
+    )
+    need_fetch = (reply.thread_fetched_at is None or cache_stale)
+    if need_fetch and reply.campaign_id and (not reply.source or reply.source == "smartlead"):
         try:
             ok = await _fetch_and_cache_thread(reply, session)
             if ok:
@@ -1745,8 +1750,7 @@ async def regenerate_draft(
     """
     from app.services.reply_processor import classify_reply, generate_draft_reply
     from app.models.contact import Project
-    from sqlalchemy.dialects.postgresql import JSONB
-    from sqlalchemy import cast as sa_cast
+    from sqlalchemy import text as sa_text
 
     result = await db.execute(
         select(ProcessedReply).where(ProcessedReply.id == reply_id)
@@ -1790,10 +1794,14 @@ async def regenerate_draft(
             project_result = await db.execute(
                 select(Project).where(
                     and_(
-                        sa_cast(Project.campaign_filters, JSONB).contains([reply.campaign_name]),
+                        Project.campaign_filters.isnot(None),
                         Project.deleted_at.is_(None),
+                        sa_text(
+                            "EXISTS (SELECT 1 FROM jsonb_array_elements_text(projects.campaign_filters) AS cf "
+                            "WHERE LOWER(cf) = LOWER(:cname))"
+                        ),
                     )
-                ).limit(1)
+                ).params(cname=reply.campaign_name).limit(1)
             )
             project = project_result.scalar()
             if project:
@@ -2909,9 +2917,9 @@ async def get_lead_conversations(
                 params={"api_key": api_key},
                 timeout=30.0,
             )
-            hist_data = hist_resp.json()
+            from app.services.smartlead_service import parse_history_response as _parse_hist
 
-            for msg in hist_data.get("history", []):
+            for msg in _parse_hist(hist_resp.json()):
                 body = msg.get("email_body", "")
                 if "<" in body:
                     body = re.sub(r"<[^>]+>", "", body)
@@ -3593,7 +3601,8 @@ async def sync_outbound_status(
 
             delay = max(delay * 0.9, 1.0)
 
-            history = resp.json().get("history", [])
+            from app.services.smartlead_service import parse_history_response as _ph
+            history = _ph(resp.json())
             if not history:
                 still_pending_list.append({"reply_id": r.id, "email": r.lead_email,
                                            "campaign": r.campaign_name})

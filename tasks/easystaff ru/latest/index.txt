@@ -1,0 +1,97 @@
+# Auto-Replies Pipeline — Architecture Analysis (Feb 18, 2026)
+
+## Data Flow
+
+```
+  SmartLead (Email)                        GetSales (LinkedIn)
+  - Webhook → /api/smartlead/webhook       - Polling only (3-10 min)
+  - Polling → statistics API (fallback)    - Webhook → /api/crm-sync/webhook/getsales
+       |                                          |
+       v                                          v
+  reply_processor.py                       reply_processor.py
+  process_reply_webhook()                  process_getsales_reply()
+       |                                          |
+       +------ classify (GPT-4o-mini) -----------+
+       +------ draft reply (GPT-4o-mini) --------+
+       +------ create ProcessedReply -------------+
+       +------ create/update Contact -------------+
+       +------ cache thread messages -------------+
+       +------ notify Slack/Telegram -------------+
+       v
+  ProcessedReply table → Frontend GET /api/replies/?needs_reply=true
+```
+
+## CRITICAL Bugs
+
+C1. SILENT REPLY LOSS ON 429
+    File: smartlead_service.py:498-500
+    get_all_campaign_replied_leads() breaks on exception (including 429),
+    silently dropping ALL remaining pagination pages. No indication to caller
+    that results are incomplete. Primary reply discovery mechanism.
+
+C2. NO UNIQUE DB CONSTRAINT ON ProcessedReply
+    File: reply.py (model), reply_processor.py:764 (logic)
+    Dedup is application-level SELECT only. Concurrent webhook + polling
+    can create duplicate ProcessedReply records for same (email, campaign).
+    Race condition window is small but real.
+
+C3. CASE-SENSITIVE JSONB CONTAINS FOR PROJECT MATCHING
+    File: reply_processor.py:708-709
+    JSONB.contains([campaign_name]) is case-sensitive in PostgreSQL.
+    If campaign_filters stores "Rizzult Campaign" but webhook sends
+    "rizzult campaign", project sender identity + prompt template are
+    NOT applied. The UI listing (replies.py:681) uses lower() and works
+    fine — so replies appear in project but without correct draft quality.
+
+## HIGH Priority Issues
+
+H1. DUAL WEBHOOK ENDPOINTS
+    smartlead.py vs crm_sync.py:544 — two separate endpoints handle
+    SmartLead webhooks. crm_sync.py one does NOT call process_reply_webhook.
+    If SmartLead sends to wrong URL, replies stored as activities but
+    never classified/drafted/notified.
+
+H2. CONVERSATION HISTORY FORMAT MISMATCH
+    crm_sync_service.py:1822 — sync_conversation_histories() only tries
+    .get("history", []) but API sometimes returns plain list or
+    {"messages": [...]}. Causes replied_externally detection to miss.
+
+H3. THREAD CACHE STALENESS
+    reply_processor.py / replies.py:1535 — get_reply_conversation only
+    re-fetches if thread_fetched_at is None. If operator replied in
+    SmartLead after cache was populated, UI shows outdated thread.
+
+H4. AUTO-ASSIGN SUBSTRING MATCHING TOO BROAD
+    crm_scheduler.py:257-258 — project.name.lower() in c_name.lower()
+    Short project names match unrelated campaigns. "App" matches
+    "Happy App Dev". THIS is why EasyStaff Sigma campaigns leak
+    into EasyStaff RU project.
+
+H5. REPLY DATA OVERWRITTEN ON RE-REPLY
+    reply_processor.py:776-802 — when lead replies again, existing
+    ProcessedReply is updated. Original reply body, classification,
+    draft are permanently lost (no version history).
+
+## MEDIUM Issues
+
+M1. Synchronous psycopg2 in async service (openai_service.py:28-43)
+M2. Hardcoded DB credentials (openai_service.py:29-34)
+M3. Hardcoded webhook URL in 4+ places (46.62.210.24:8000)
+M4. Hardcoded Telegram bot token (crm_scheduler.py:438)
+M5. Process-local rate limiter — per-worker, not global (smartlead_service.py:17-21)
+M6. LinkedIn contact lookup is O(N) — loads ALL contacts (crm_sync_service.py:1100)
+M7. Thread cache DELETE+INSERT not atomic (reply_processor.py:497-530)
+M8. Hardcoded company_id=1 everywhere
+M9. Dead classify code in crm_sync_service.py:78-127 (unused)
+M10. No webhook health cross-check vs polling rate
+
+## Fix Priority Order
+
+1. Fix C3 (case-sensitive project matching) — 5 min, high impact
+2. Fix H4 (auto-assign substring) — change to exact match or regex
+3. Fix C1 (429 pagination) — retry page instead of break
+4. Add unique constraint C2 — migration + ON CONFLICT upsert
+5. Fix H2 (history format) — handle all 3 response formats
+6. Fix H3 (thread staleness) — re-fetch if older than 5 min
+7. Unify H1 (dual webhook) — route crm_sync endpoint to reply processor
+8. Centralize M2/M3/M4 — move secrets to Settings

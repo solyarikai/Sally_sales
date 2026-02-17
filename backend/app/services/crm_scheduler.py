@@ -16,6 +16,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
+from app.core.config import settings
 from app.db import async_session_maker
 from app.services.crm_sync_service import get_crm_sync_service, get_getsales_flow_name
 from app.services.cache_service import backfill_reply_cache_from_db
@@ -247,15 +248,23 @@ class CRMScheduler:
                     for name in (p.campaign_filters or []):
                         assigned_names.add(name.lower())
 
+                # Sort projects by name length descending so longer (more specific)
+                # names match first — "EasyStaff Russian" before "EasyStaff"
+                sorted_projects = sorted(projects, key=lambda p: len(p.name), reverse=True)
+
                 assigned_count = 0
                 for campaign in all_campaigns:
                     c_name = campaign.get("name", "")
                     if not c_name or c_name.lower() in assigned_names:
                         continue
 
-                    # Match campaign name against project names (case-insensitive substring)
-                    for project in projects:
-                        if project.name.lower() in c_name.lower():
+                    # Match: campaign name must START WITH the project name (case-insensitive)
+                    # e.g. project "EasyStaff - Russian" matches "EasyStaff - Russian DM [>500]"
+                    # but NOT "EasyStaff - Sigma" (different prefix)
+                    c_lower = c_name.lower()
+                    for project in sorted_projects:
+                        p_lower = project.name.lower()
+                        if c_lower.startswith(p_lower) or c_lower.startswith(p_lower.replace(" ", " - ")):
                             filters = list(project.campaign_filters or [])
                             filters.append(c_name)
                             project.campaign_filters = filters
@@ -435,7 +444,7 @@ class CRMScheduler:
         import os
         import httpx
 
-        bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss")
+        bot_token = settings.TELEGRAM_BOT_TOKEN or os.getenv("TELEGRAM_BOT_TOKEN")
         if not bot_token:
             logger.warning("TELEGRAM_BOT_TOKEN not set, Telegram polling disabled")
             return
@@ -904,7 +913,7 @@ async def setup_crm_webhooks_on_startup():
     
     logger.info("Setting up CRM webhooks for all campaigns (background)...")
     
-    webhook_base_url = "http://46.62.210.24:8000/api"
+    webhook_base_url = f"{settings.WEBHOOK_BASE_URL}/api"
     
     sync_service = get_crm_sync_service()
     

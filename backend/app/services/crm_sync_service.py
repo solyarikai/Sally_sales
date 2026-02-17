@@ -1819,7 +1819,8 @@ async def sync_conversation_histories(
                 stats["errors"] += 1
                 continue
 
-            history = resp.json().get("history", [])
+            from app.services.smartlead_service import parse_history_response
+            history = parse_history_response(resp.json())
             if not history:
                 stats["still_pending"] += 1
                 continue

@@ -214,7 +214,8 @@ async def setup_webhooks(
     
     # Default webhook base URL
     if not webhook_base_url:
-        webhook_base_url = "http://46.62.210.24:8000/api/crm-sync/webhook"
+        from app.core.config import settings as _s
+        webhook_base_url = f"{_s.WEBHOOK_BASE_URL}/api/crm-sync/webhook"
     
     results = {"getsales": None, "smartlead": None}
     

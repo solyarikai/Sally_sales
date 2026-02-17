@@ -13,6 +13,23 @@ import os
 
 logger = logging.getLogger(__name__)
 
+
+def parse_history_response(data) -> list:
+    """Normalize SmartLead message-history response to a list.
+
+    The API returns 3 different formats:
+      1. A plain list: [{"time_stamp": ..., "message_text": ...}, ...]
+      2. {"history": [...]}
+      3. {"messages": [...]}
+    This function handles all three.
+    """
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        return data.get("history", data.get("messages", []))
+    return []
+
+
 # --- Global SmartLead rate limiter ---
 _sl_semaphore = asyncio.Semaphore(10)        # max 10 concurrent requests
 _sl_timestamps: collections.deque = collections.deque()  # sliding window
@@ -461,6 +478,9 @@ class SmartleadService:
         offset = 0
         page_size = 500
 
+        page_retries = 0
+        max_page_retries = 3
+
         for page in range(max_pages):
             try:
                 response = await smartlead_request(
@@ -469,10 +489,23 @@ class SmartleadService:
                     timeout=60.0,
                 )
 
+                if response.status_code == 429:
+                    # Rate limited — wait and retry this page
+                    page_retries += 1
+                    if page_retries <= max_page_retries:
+                        wait = 5 * page_retries
+                        logger.warning(f"429 on statistics page {page} for campaign {campaign_id}, retry {page_retries} in {wait}s")
+                        await asyncio.sleep(wait)
+                        continue  # retry same offset
+                    else:
+                        logger.error(f"429 persisted after {max_page_retries} retries on page {page}, stopping (got {len(replied_by_email)} leads so far)")
+                        break
+
                 if response.status_code != 200:
                     logger.error(f"Statistics API error for campaign {campaign_id}: {response.status_code}")
                     break
 
+                page_retries = 0  # reset on success
                 data = response.json()
                 entries = data.get("data", [])
                 if not entries:
@@ -496,8 +529,14 @@ class SmartleadService:
                 await asyncio.sleep(0.2)
 
             except Exception as e:
-                logger.error(f"Error fetching statistics page {page} for campaign {campaign_id}: {e}")
-                break
+                page_retries += 1
+                if page_retries <= max_page_retries:
+                    logger.warning(f"Error on statistics page {page} for campaign {campaign_id} (retry {page_retries}): {e}")
+                    await asyncio.sleep(3 * page_retries)
+                    continue  # retry same offset
+                else:
+                    logger.error(f"Persistent error on page {page} after {max_page_retries} retries: {e}")
+                    break
 
         return list(replied_by_email.values())
 
@@ -560,8 +599,7 @@ class SmartleadService:
         if hist_resp.status_code != 200:
             return {"error": f"Failed to fetch history: {hist_resp.status_code} {hist_resp.text}"}
 
-        hist_data = hist_resp.json()
-        messages = hist_data.get("history", [])
+        messages = parse_history_response(hist_resp.json())
         if not messages:
             return {"error": "No message history found"}
 
@@ -734,7 +772,8 @@ async def sync_webhooks_on_startup():
 
     global _synced_campaign_ids
 
-    webhook_url = "http://46.62.210.24:8000/api/smartlead/webhook"
+    from app.core.config import settings
+    webhook_url = f"{settings.WEBHOOK_BASE_URL}/api/smartlead/webhook"
 
     # Collect unique campaign IDs across all active automations
     async with async_session_maker() as session:
@@ -810,12 +849,23 @@ async def fetch_all_campaign_replies(campaign_id: str, api_key: str, max_pages: 
     offset = 0
     page_size = 500
 
+    import asyncio
+    retries = 0
+    max_retries = 3
+
     for page in range(max_pages):
         try:
             resp = await smartlead_request(
                 "GET", f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/statistics",
                 params={"api_key": api_key, "limit": page_size, "offset": offset},
             )
+            if resp.status_code == 429:
+                retries += 1
+                if retries <= max_retries:
+                    await asyncio.sleep(5 * retries)
+                    continue
+                break
+            retries = 0
             data = resp.json()
             entries = data.get("data", [])
 
@@ -833,7 +883,12 @@ async def fetch_all_campaign_replies(campaign_id: str, api_key: str, max_pages: 
                 break
 
         except Exception as e:
-            logger.warning(f"Error fetching page {page} for campaign {campaign_id}: {e}")
+            retries += 1
+            if retries <= max_retries:
+                logger.warning(f"Error fetching page {page} for campaign {campaign_id} (retry {retries}): {e}")
+                await asyncio.sleep(3 * retries)
+                continue
+            logger.error(f"Persistent error on page {page} for campaign {campaign_id}: {e}")
             break
 
     return all_replies

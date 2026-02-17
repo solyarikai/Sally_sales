@@ -19,7 +19,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   Users, Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Sparkles, FileText, Target, Mail, Loader2, ChevronRight, ChevronDown, Upload, AlertCircle, Check,
-  MessageSquare, ListTodo, Save, Edit3, ChevronLeft
+  MessageSquare, ListTodo, Save, Edit3, ChevronLeft, Linkedin
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type OperatorTask } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -93,6 +93,7 @@ export function ContactsPage() {
   const [editingProject, setEditingProject] = useState(false);
   const [editProjectName, setEditProjectName] = useState('');
   const [editCampaignFilters, setEditCampaignFilters] = useState<string[]>([]);
+  const [editCampaignSearch, setEditCampaignSearch] = useState('');
 
   // Reply processing mode
   const [replyMode, setReplyMode] = useState(false);
@@ -632,26 +633,16 @@ export function ContactsPage() {
               <button onClick={() => { selectProject(null); clearFilters(); }} className="p-1 hover:bg-neutral-100 rounded" title="Back to all contacts">
                 <ChevronLeft className="w-4 h-4 text-neutral-500" />
               </button>
-              {editingProject ? (
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <input
-                    value={editProjectName}
-                    onChange={(e) => setEditProjectName(e.target.value)}
-                    className="text-sm font-semibold border border-indigo-300 rounded px-2 py-0.5 w-40"
-                    autoFocus
-                  />
-                  <button onClick={handleUpdateProject} className="p-1 hover:bg-green-100 rounded text-green-600"><Check className="w-3.5 h-3.5" /></button>
-                  <button onClick={() => setEditingProject(false)} className="p-1 hover:bg-neutral-100 rounded text-neutral-500"><X className="w-3.5 h-3.5" /></button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setEditingProject(true); setEditProjectName(activeProject.name); setEditCampaignFilters(activeProject.campaign_filters || []); }}
-                  className="text-base font-semibold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 shrink-0"
-                >
-                  {activeProject.name}
-                  <Edit3 className="w-3 h-3 text-indigo-400" />
-                </button>
-              )}
+              <button
+                onClick={() => { setEditingProject(!editingProject); setEditProjectName(activeProject.name); setEditCampaignFilters(activeProject.campaign_filters || []); setEditCampaignSearch(''); }}
+                className={cn(
+                  "text-base font-semibold flex items-center gap-1 shrink-0 transition-colors",
+                  editingProject ? "text-indigo-500" : "text-indigo-700 hover:text-indigo-900"
+                )}
+              >
+                {activeProject.name}
+                <Edit3 className="w-3 h-3 text-indigo-400" />
+              </button>
               <button
                 onClick={() => navigate(`/projects/${activeProject.id}/knowledge`)}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all"
@@ -961,6 +952,125 @@ export function ContactsPage() {
           )}
         </div>
       </div>
+
+      {/* Project Settings Panel — campaigns split by source */}
+      {editingProject && activeProject && (() => {
+        const q = editCampaignSearch.toLowerCase();
+        const slCampaigns = campaigns.filter(c => c.source === 'smartlead' && (!q || c.name.toLowerCase().includes(q)));
+        const gsCampaigns = campaigns.filter(c => c.source === 'getsales' && (!q || c.name.toLowerCase().includes(q)));
+        const toggleEditCampaign = (name: string) => {
+          setEditCampaignFilters(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+        };
+        return (
+          <div className="bg-white border-b border-neutral-200 px-5 py-3">
+            <div className="flex items-start gap-6">
+              {/* Name */}
+              <div className="shrink-0 w-48">
+                <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wide">Name</label>
+                <input
+                  value={editProjectName}
+                  onChange={(e) => setEditProjectName(e.target.value)}
+                  className="mt-1 w-full text-sm font-semibold border border-neutral-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  onKeyDown={(e) => { if (e.key === 'Escape') setEditingProject(false); }}
+                />
+                <div className="mt-3 flex gap-1.5">
+                  <button onClick={handleUpdateProject} className="px-3 py-1 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">Save</button>
+                  <button onClick={() => setEditingProject(false)} className="px-3 py-1 rounded-lg text-xs font-medium text-neutral-500 hover:bg-neutral-100 transition-colors">Cancel</button>
+                </div>
+              </div>
+
+              {/* Search campaigns */}
+              <div className="flex-1 min-w-0">
+                <div className="mb-2">
+                  <div className="relative max-w-xs">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      type="text"
+                      placeholder="Search campaigns..."
+                      value={editCampaignSearch}
+                      onChange={(e) => setEditCampaignSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* SmartLead campaigns */}
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Mail className="w-3 h-3 text-blue-500" />
+                      <span className="text-[10px] font-medium text-blue-600 uppercase tracking-wide">SmartLead — Email</span>
+                      <span className="text-[10px] text-neutral-400">
+                        {editCampaignFilters.filter(n => campaigns.find(c => c.name === n && c.source === 'smartlead')).length}/{slCampaigns.length}
+                      </span>
+                    </div>
+                    <div className="max-h-40 overflow-auto space-y-0.5 pr-1">
+                      {slCampaigns.length === 0 ? (
+                        <div className="text-[11px] text-neutral-300 py-2">No SmartLead campaigns</div>
+                      ) : slCampaigns.map(c => {
+                        const checked = editCampaignFilters.includes(c.name);
+                        return (
+                          <button
+                            key={c.name}
+                            onClick={() => toggleEditCampaign(c.name)}
+                            className={cn(
+                              "w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors",
+                              checked ? "bg-blue-50 text-blue-700" : "hover:bg-neutral-50 text-neutral-600"
+                            )}
+                          >
+                            <span className={cn(
+                              "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
+                              checked ? "bg-blue-500 border-blue-500" : "border-neutral-300"
+                            )}>
+                              {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                            </span>
+                            <span className="truncate">{c.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* GetSales campaigns */}
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Linkedin className="w-3 h-3 text-amber-500" />
+                      <span className="text-[10px] font-medium text-amber-600 uppercase tracking-wide">GetSales — LinkedIn</span>
+                      <span className="text-[10px] text-neutral-400">
+                        {editCampaignFilters.filter(n => campaigns.find(c => c.name === n && c.source === 'getsales')).length}/{gsCampaigns.length}
+                      </span>
+                    </div>
+                    <div className="max-h-40 overflow-auto space-y-0.5 pr-1">
+                      {gsCampaigns.length === 0 ? (
+                        <div className="text-[11px] text-neutral-300 py-2">No GetSales campaigns</div>
+                      ) : gsCampaigns.map(c => {
+                        const checked = editCampaignFilters.includes(c.name);
+                        return (
+                          <button
+                            key={c.name}
+                            onClick={() => toggleEditCampaign(c.name)}
+                            className={cn(
+                              "w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors",
+                              checked ? "bg-amber-50 text-amber-700" : "hover:bg-neutral-50 text-neutral-600"
+                            )}
+                          >
+                            <span className={cn(
+                              "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
+                              checked ? "bg-amber-500 border-amber-500" : "border-neutral-300"
+                            )}>
+                              {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                            </span>
+                            <span className="truncate">{c.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* AG Grid */}
       <div className="flex-1 px-4 pt-2 pb-1">
