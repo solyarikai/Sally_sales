@@ -1,15 +1,19 @@
 import toast, { Toaster } from 'react-hot-toast';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
   Search, RefreshCw, X,
-  Building2, ExternalLink, ChevronDown,
+  Building2, ExternalLink,
   XCircle, Edit3,
-  FolderOpen, Clock, MessageCircle, ArrowRight, Brain,
+  Clock, MessageCircle, ArrowRight, Brain,
+  Linkedin, Phone, MapPin, Tag, Globe, User,
 } from 'lucide-react';
 import {
   repliesApi,
   type ProcessedReply,
   type ConversationMessage,
+  type ReplyCategory,
+  type ContactInfo,
 } from '../api/replies';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -153,6 +157,12 @@ function cleanPlainText(text: string): string {
     /Am [A-Z0-9].{5,80}\s+schrieb\s*.*:\s*/i,              // German
     /\d{1,2}\/\d{1,2}\/\d{2,4}.{0,60}wrote/i,            // "2/12/2026 ... wrote"
     /-{2,}\s*Original Message\s*-{2,}/i,                    // "-- Original Message --"
+    // Outlook-style email headers (English)
+    /\nFrom:\s.{3,80}\n\s*Sent:\s/i,                        // "From: Name\nSent: date"
+    /\nFrom:\s.{3,80}\n\s*Date:\s/i,                        // "From: Name\nDate: date"
+    // Outlook-style email headers (Russian)
+    /\nОт:\s/i,                                             // "От: Name"
+    /\nОтправлено:\s/i,                                     // "Отправлено: date"
     // Forwarded messages
     /-{5,}\s*Forwarded message\s*-{5,}/i,
     // Disclaimers / confidentiality
@@ -259,60 +269,125 @@ export function RepliesPage() {
   const { currentProject, setCurrentProject, projects } = useAppStore();
   const { isDark } = useTheme();
   const t = themeColors(isDark);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [replies, setReplies] = useState<ProcessedReply[]>([]);
   const [total, setTotal] = useState(0);
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const pageRef = useRef(1);
+  const PAGE_SIZE = 30;
 
-  const [projectSearch, setProjectSearch] = useState('');
-  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
-  const projectDropdownRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>('meeting_request');
 
   const [editingDrafts, setEditingDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
   const [sendingIds, setSendingIds] = useState<Set<number>>(new Set());
   const [expandedThreads, setExpandedThreads] = useState<Set<number>>(new Set());
   const [threadMessages, setThreadMessages] = useState<Record<number, ConversationMessage[]>>({});
   const [loadingThreads, setLoadingThreads] = useState<Set<number>>(new Set());
+  const [contactInfoMap, setContactInfoMap] = useState<Record<number, ContactInfo | null>>({});
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const toastOk = { background: t.toastBg, color: t.toastText, border: `1px solid ${t.toastBorder}` };
   const toastErr = { background: t.toastBg, color: t.toastErrText, border: `1px solid ${t.toastBorder}` };
 
-  /* ---- Data loading ---- */
-  const loadReplies = useCallback(async () => {
-    setIsLoading(true);
+  /* ---- URL ↔ project sync ---- */
+  // URL is the source of truth on initial load.
+  // initialUrlParam captures the raw ?project= value at mount time (before
+  // the persisted store can clobber it).  We use a ref so the store→URL
+  // effect skips writing until the URL→store effect has resolved.
+  const initialUrlParam = useRef(searchParams.get('project'));
+  const urlApplied = useRef(!initialUrlParam.current); // true when no URL param
+
+  // URL → store: apply ?project=<name|id> to the store once projects load
+  useEffect(() => {
+    const projectParam = searchParams.get('project');
+    if (!projectParam || !projects.length) return;
+    const normalized = projectParam.toLowerCase().replace(/-/g, ' ');
+    const match = projects.find(p => p.name.toLowerCase() === normalized)
+      || projects.find(p => p.id === Number(projectParam));
+    if (match && (!currentProject || currentProject.id !== match.id)) {
+      setCurrentProject(match);
+    }
+    urlApplied.current = true;
+  }, [projects, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Store → URL: when project changes (dropdown), reflect in the URL
+  useEffect(() => {
+    // Don't overwrite the URL until the initial URL param has been resolved
+    if (!urlApplied.current) return;
+    const currentParam = searchParams.get('project');
+    const targetParam = currentProject
+      ? currentProject.name.toLowerCase().replace(/\s+/g, '-')
+      : null;
+    if (currentParam !== targetParam) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        if (targetParam) next.set('project', targetParam);
+        else next.delete('project');
+        return next;
+      }, { replace: true });
+    }
+  }, [currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ---- Data loading (infinite scroll) ---- */
+  const loadReplies = useCallback(async (reset = false) => {
+    if (reset) {
+      setIsLoading(true);
+      pageRef.current = 1;
+    } else {
+      setIsLoadingMore(true);
+    }
     try {
-      const campaignNames = currentProject?.campaign_filters?.length
-        ? currentProject.campaign_filters.join(',')
-        : undefined;
+      const pg = reset ? 1 : pageRef.current;
       const response = await repliesApi.getReplies({
-        campaign_names: campaignNames,
+        project_id: currentProject?.id,
         needs_reply: true,
-        page,
-        page_size: pageSize,
+        category: (categoryFilter as ReplyCategory) || undefined,
+        page: pg,
+        page_size: PAGE_SIZE,
       });
-      setReplies(response.replies || []);
+      const newReplies = response.replies || [];
+      if (reset) {
+        setReplies(newReplies);
+      } else {
+        setReplies(prev => [...prev, ...newReplies]);
+      }
       setTotal(response.total || 0);
+      setCategoryCounts(response.category_counts || {});
+      setHasMore(newReplies.length >= PAGE_SIZE);
     } catch (err) {
       console.error('Failed to load replies:', err);
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
-  }, [page, pageSize, currentProject]);
+  }, [currentProject, categoryFilter]);
 
-  useEffect(() => { setPage(1); }, [currentProject]);
+  // Reset on project/filter change
+  useEffect(() => { loadReplies(true); }, [loadReplies]);
+
+  // Infinite scroll via IntersectionObserver
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
-        setShowProjectDropdown(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-  useEffect(() => { loadReplies(); }, [loadReplies]);
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMore && !isLoadingMore && !isLoading) {
+          pageRef.current += 1;
+          loadReplies(false);
+        }
+      },
+      { root: scrollRef.current, rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, isLoading, loadReplies]);
 
   /* ---- Actions ---- */
   const handleApproveAndSend = async (reply: ProcessedReply) => {
@@ -321,7 +396,9 @@ export function RepliesPage() {
       const edited = editingDrafts[reply.id];
       const editedDraft = edited ? { draft_reply: edited.reply, draft_subject: edited.subject } : undefined;
       const result = await repliesApi.approveAndSendReply(reply.id, editedDraft);
-      if (result.test_mode) {
+      if (result.channel === 'linkedin') {
+        toast.success('Approved — copy draft to LinkedIn', { style: toastOk });
+      } else if (result.test_mode) {
         toast.success(`Test sent to ${result.sent_to || 'pn@getsally.io'}`, { style: toastOk });
       } else if (result.dry_run) {
         toast.success('Approved (dry run)', { style: toastOk });
@@ -370,6 +447,15 @@ export function RepliesPage() {
     try {
       const data = await repliesApi.getConversation(reply.id);
       setThreadMessages(prev => ({ ...prev, [reply.id]: data.messages || [] }));
+      if (data.contact_info !== undefined) {
+        setContactInfoMap(prev => ({ ...prev, [reply.id]: data.contact_info || null }));
+      }
+      // Auto-remove if operator already replied (detected by backend)
+      if (data.approval_status === 'replied_externally') {
+        toast.success('Operator already replied — removed from queue', { style: toastOk });
+        setReplies(prev => prev.filter(r => r.id !== reply.id));
+        setTotal(prev => Math.max(0, prev - 1));
+      }
     } catch {
       setThreadMessages(prev => ({ ...prev, [reply.id]: [] }));
     } finally {
@@ -390,7 +476,18 @@ export function RepliesPage() {
     );
   });
 
-  const totalPages = Math.ceil(total / pageSize);
+  const CATEGORY_FILTERS = [
+    { key: null, label: 'All need reply', countKey: null },
+    { key: 'meeting_request', label: 'Meetings', countKey: 'meeting_request' },
+    { key: 'interested', label: 'Interested', countKey: 'interested' },
+    { key: 'question', label: 'Questions', countKey: 'question' },
+    { key: 'other', label: 'Other', countKey: 'other' },
+  ] as const;
+
+  const getTabCount = (countKey: string | null): number => {
+    if (countKey === null) return Object.values(categoryCounts).reduce((a, b) => a + b, 0);
+    return categoryCounts[countKey] || 0;
+  };
 
   /* ==================================================================== */
   return (
@@ -399,106 +496,68 @@ export function RepliesPage() {
 
       {/* Header bar */}
       <div
-        className="border-b px-5 py-2.5 flex items-center justify-between"
+        className="border-b px-5 py-2.5 flex items-center gap-3"
         style={{ background: t.headerBg, borderColor: t.cardBorder }}
       >
-        <div className="flex items-center gap-3">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-[14px] font-medium" style={{ color: t.text1 }}>{total}</span>
-            <span className="text-[13px]" style={{ color: t.text4 }}>need reply</span>
-          </div>
-
-          <div className="w-px h-4" style={{ background: t.cardBorder }} />
-
-          {/* Project selector */}
-          <div className="relative" ref={projectDropdownRef}>
-            <button
-              onClick={() => { setShowProjectDropdown(!showProjectDropdown); setProjectSearch(''); }}
-              className="flex items-center gap-1.5 px-2 py-1 rounded text-[13px] transition-colors"
-              style={{ color: currentProject ? t.text1 : t.text3 }}
+        {currentProject && (
+          <>
+            <Link
+              to={`/projects/${currentProject.id}`}
+              className="text-[13px] hover:underline"
+              style={{ color: t.text4 }}
             >
-              <FolderOpen className="w-3.5 h-3.5" />
-              <span className="truncate max-w-[160px]">{currentProject ? currentProject.name : 'All Projects'}</span>
-              <ChevronDown className="w-3 h-3" />
-            </button>
-            {showProjectDropdown && (
-              <div
-                className="absolute top-full left-0 mt-1 w-64 rounded-md shadow-xl z-50 overflow-hidden border"
-                style={{ background: t.cardBg, borderColor: t.cardHoverBorder }}
+              {currentProject.name}
+            </Link>
+            <div className="w-px h-4" style={{ background: t.cardBorder }} />
+          </>
+        )}
+
+        {/* Category filter tabs with counts */}
+        <div className="flex items-center gap-1">
+          {CATEGORY_FILTERS.map(f => {
+            const active = categoryFilter === f.key;
+            const count = getTabCount(f.countKey);
+            return (
+              <button
+                key={f.key ?? 'all'}
+                onClick={() => setCategoryFilter(f.key)}
+                className={cn("px-2.5 py-1 rounded text-[12px] transition-colors", active ? "font-medium" : "")}
+                style={{
+                  background: active ? t.btnPrimaryBg : 'transparent',
+                  color: active ? t.btnPrimaryText : t.text4,
+                }}
               >
-                <div className="p-1.5 border-b" style={{ borderColor: t.divider }}>
-                  <input
-                    type="text"
-                    autoFocus
-                    value={projectSearch}
-                    onChange={e => setProjectSearch(e.target.value)}
-                    placeholder="Search..."
-                    className="w-full px-2 py-1 text-[13px] border-none rounded focus:outline-none"
-                    style={{ background: t.inputBg, color: t.text1 }}
-                  />
-                </div>
-                <div className="max-h-60 overflow-y-auto py-0.5">
-                  {!projectSearch && (
-                    <button
-                      onClick={() => { setCurrentProject(null); setShowProjectDropdown(false); }}
-                      className="w-full px-3 py-1.5 text-left text-[13px] transition-colors"
-                      style={{
-                        background: !currentProject ? t.badgeBg : undefined,
-                        color: !currentProject ? t.text1 : t.text3,
-                      }}
-                    >
-                      All Projects
-                    </button>
-                  )}
-                  {projects.length === 0 ? (
-                    <div className="px-3 py-1.5 text-[13px]" style={{ color: t.text5 }}>Loading...</div>
-                  ) : (
-                    projects
-                      .filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase()))
-                      .map(p => (
-                        <button
-                          key={p.id}
-                          onClick={() => { setCurrentProject(p); setShowProjectDropdown(false); setProjectSearch(''); }}
-                          className="w-full px-3 py-1.5 text-left text-[13px] truncate transition-colors"
-                          style={{
-                            background: currentProject?.id === p.id ? t.badgeBg : undefined,
-                            color: currentProject?.id === p.id ? t.text1 : t.text3,
-                          }}
-                        >
-                          {p.name}
-                        </button>
-                      ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+                {f.label}{count > 0 ? ` ${count}` : ''}
+              </button>
+            );
+          })}
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2" style={{ color: t.text5 }} />
-            <input
-              type="text"
-              placeholder="Filter..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-7 pr-2 py-1 text-[13px] border-none rounded w-36 focus:outline-none"
-              style={{ background: t.inputBg, color: t.text1 }}
-            />
-          </div>
-          <button
-            onClick={() => loadReplies()}
-            className="p-1.5 rounded transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} style={{ color: t.text4 }} />
-          </button>
+        <div className="flex-1" />
+
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2" style={{ color: t.text5 }} />
+          <input
+            type="text"
+            placeholder="Filter..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-7 pr-2 py-1 text-[13px] border-none rounded w-36 focus:outline-none"
+            style={{ background: t.inputBg, color: t.text1 }}
+          />
         </div>
+
+        <button
+          onClick={() => loadReplies(true)}
+          className="p-1.5 rounded transition-colors"
+          title="Refresh"
+        >
+          <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} style={{ color: t.text4 }} />
+        </button>
       </div>
 
-      {/* Reply queue */}
-      <div className="flex-1 overflow-auto">
+      {/* Reply queue — infinite scroll */}
+      <div ref={scrollRef} className="flex-1 overflow-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <RefreshCw className="w-5 h-5 animate-spin" style={{ color: t.text5 }} />
@@ -519,6 +578,7 @@ export function RepliesPage() {
               const draftText = isEditing ? editingDrafts[reply.id].reply : (reply.draft_reply || '');
               const catLabel = CATEGORY_LABEL[reply.category || ''] || reply.category || '';
               const hasReasoning = reply.classification_reasoning || reply.category_confidence;
+              const contactInfo = contactInfoMap[reply.id];
 
               return (
                 <div
@@ -533,48 +593,62 @@ export function RepliesPage() {
                   <div className="flex">
                     {/* Left: conversation & draft */}
                     <div className="flex-1 min-w-0">
-                      {/* Lead row */}
-                      <div className="flex items-center justify-between px-4 pt-3 pb-1">
-                        <div className="flex items-center gap-2 min-w-0 text-[13px]">
-                          <span className="font-medium truncate" style={{ color: t.text1 }}>{leadName}</span>
-                          {reply.lead_company && (
-                            <span className="flex items-center gap-1 truncate" style={{ color: t.text5 }}>
-                              <Building2 className="w-3 h-3" />{reply.lead_company}
+                      {/* Sticky header: lead row + campaign */}
+                      <div
+                        style={{ position: 'sticky', top: 0, zIndex: 10, background: t.cardBg }}
+                        className="rounded-t-md"
+                      >
+                        <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                          <div className="flex items-center gap-2 min-w-0 text-[13px]">
+                            <span className="font-medium truncate" style={{ color: t.text1 }}>{leadName}</span>
+                            {reply.lead_company && (
+                              <span className="flex items-center gap-1 truncate" style={{ color: t.text5 }}>
+                                <Building2 className="w-3 h-3" />{reply.lead_company}
+                              </span>
+                            )}
+                            {reply.channel === 'linkedin' && (
+                              <span
+                                className="text-[11px] px-1.5 py-0.5 rounded font-medium"
+                                style={{ background: '#e7f0fe', color: '#0a66c2' }}
+                              >
+                                LinkedIn
+                              </span>
+                            )}
+                            {catLabel && (
+                              <span
+                                className="text-[11px] px-1.5 py-0.5 rounded"
+                                style={{ background: t.badgeBg, color: t.badgeText }}
+                              >
+                                {catLabel}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0 text-[11px]" style={{ color: t.text5 }}>
+                            <span className="flex items-center gap-0.5">
+                              <Clock className="w-3 h-3" />
+                              {reply.received_at ? timeAgo(reply.received_at) : '?'}
                             </span>
-                          )}
-                          {catLabel && (
-                            <span
-                              className="text-[11px] px-1.5 py-0.5 rounded"
-                              style={{ background: t.badgeBg, color: t.badgeText }}
-                            >
-                              {catLabel}
-                            </span>
-                          )}
+                            {reply.inbox_link && (
+                              <a
+                                href={reply.inbox_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="transition-colors"
+                                title="Smartlead"
+                                onClick={e => e.stopPropagation()}
+                                style={{ color: t.text5 }}
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0 text-[11px]" style={{ color: t.text5 }}>
-                          <span className="flex items-center gap-0.5">
-                            <Clock className="w-3 h-3" />
-                            {reply.received_at ? timeAgo(reply.received_at) : '?'}
-                          </span>
-                          {reply.inbox_link && (
-                            <a
-                              href={reply.inbox_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="transition-colors"
-                              title="Smartlead"
-                              onClick={e => e.stopPropagation()}
-                              style={{ color: t.text5 }}
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
 
-                      {reply.campaign_name && (
-                        <div className="px-4 text-[11px] pb-1" style={{ color: t.text6 }}>{reply.campaign_name}</div>
-                      )}
+                        {reply.campaign_name && (
+                          <div className="px-4 text-[11px] pb-1" style={{ color: t.text6 }}>{reply.campaign_name}</div>
+                        )}
+                        <div style={{ borderBottom: `1px solid ${t.divider}` }} />
+                      </div>
 
                       {/* Their message -- NO max-height, full content visible */}
                       <div className="px-4 py-2">
@@ -608,6 +682,8 @@ export function RepliesPage() {
                             ) : thread && thread.length > 0 ? (
                               <>
                                 {thread.map((msg, i) => {
+                                  const cleaned = stripHtml(msg.body || '');
+                                  if (!cleaned || cleaned === '(no content)') return null;
                                   const isInbound = msg.direction === 'inbound';
                                   return (
                                     <div key={i} className={cn("flex flex-col", isInbound ? "items-start" : "items-end")}>
@@ -624,7 +700,7 @@ export function RepliesPage() {
                                           color: isInbound ? t.text2 : t.text3,
                                         }}
                                       >
-                                        <div className="whitespace-pre-wrap leading-relaxed">{stripHtml(msg.body || '') || '(no content)'}</div>
+                                        <div className="whitespace-pre-wrap leading-relaxed">{cleaned}</div>
                                         <div className="text-[10px] mt-1" style={{ color: t.text6 }}>
                                           {msg.activity_at ? new Date(msg.activity_at).toLocaleString() : ''}
                                         </div>
@@ -690,8 +766,11 @@ export function RepliesPage() {
                         )}
                       </div>
 
-                      {/* Actions */}
-                      <div className="px-4 pb-3 flex items-center gap-1.5">
+                      {/* Actions — sticky at bottom */}
+                      <div
+                        className="px-4 pb-3 pt-2 flex items-center gap-1.5"
+                        style={{ position: 'sticky', bottom: 0, zIndex: 10, background: t.cardBg, borderTop: `1px solid ${t.divider}` }}
+                      >
                         <button
                           onClick={() => handleApproveAndSend(reply)}
                           disabled={isSending || !reply.draft_reply}
@@ -705,9 +784,9 @@ export function RepliesPage() {
                           }}
                         >
                           {isSending ? (
-                            <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Sending...</>
+                            <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> {reply.channel === 'linkedin' ? 'Approving...' : 'Sending...'}</>
                           ) : (
-                            <><ArrowRight className="w-3.5 h-3.5" /> {isEditing ? 'Send edited' : 'Send'}</>
+                            <><ArrowRight className="w-3.5 h-3.5" /> {reply.channel === 'linkedin' ? (isEditing ? 'Approve edited' : 'Approve') : (isEditing ? 'Send edited' : 'Send')}</>
                           )}
                         </button>
                         <button
@@ -721,56 +800,138 @@ export function RepliesPage() {
                       </div>
                     </div>
 
-                    {/* Right: AI reasoning sidebar */}
-                    {hasReasoning && (
+                    {/* Right: AI reasoning + contact info sidebar — sticky while scrolling */}
+                    {(hasReasoning || contactInfo) && (
                       <div
                         className="w-64 flex-shrink-0 border-l px-3 py-3"
                         style={{
                           borderColor: t.divider,
                           background: t.reasoningBg,
+                          position: 'sticky',
+                          top: 0,
+                          alignSelf: 'flex-start',
                         }}
                       >
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <Brain className="w-3.5 h-3.5" style={{ color: t.text4 }} />
-                          <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: t.text4 }}>
-                            AI Analysis
-                          </span>
-                        </div>
+                        {hasReasoning && (
+                          <>
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <Brain className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+                              <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: t.text4 }}>
+                                AI Analysis
+                              </span>
+                            </div>
 
-                        {reply.category && (
-                          <div className="mb-2">
-                            <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
-                              Category
-                            </div>
-                            <div className="text-[13px] font-medium" style={{ color: t.text1 }}>
-                              {CATEGORY_LABEL[reply.category] || reply.category}
-                            </div>
-                          </div>
+                            {reply.category && (
+                              <div className="mb-2">
+                                <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
+                                  Category
+                                </div>
+                                <div className="text-[13px] font-medium" style={{ color: t.text1 }}>
+                                  {CATEGORY_LABEL[reply.category] || reply.category}
+                                </div>
+                              </div>
+                            )}
+
+                            {reply.category_confidence && (
+                              <div className="mb-2">
+                                <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
+                                  Confidence
+                                </div>
+                                <div className="text-[12px]" style={{ color: t.text3 }}>
+                                  {reply.category_confidence}
+                                </div>
+                              </div>
+                            )}
+
+                            {reply.classification_reasoning && (
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
+                                  Reasoning
+                                </div>
+                                <div
+                                  className="text-[12px] leading-relaxed whitespace-pre-wrap"
+                                  style={{ color: t.text3 }}
+                                >
+                                  {reply.classification_reasoning}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
 
-                        {reply.category_confidence && (
-                          <div className="mb-2">
-                            <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
-                              Confidence
+                        {contactInfo && (
+                          <>
+                            {hasReasoning && <div className="my-2.5" style={{ borderTop: `1px solid ${t.divider}` }} />}
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <User className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+                              <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: t.text4 }}>
+                                Contact
+                              </span>
                             </div>
-                            <div className="text-[12px]" style={{ color: t.text3 }}>
-                              {reply.category_confidence}
-                            </div>
-                          </div>
-                        )}
 
-                        {reply.classification_reasoning && (
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>
-                              Reasoning
-                            </div>
-                            <div
-                              className="text-[12px] leading-relaxed whitespace-pre-wrap"
-                              style={{ color: t.text3 }}
-                            >
-                              {reply.classification_reasoning}
-                            </div>
-                          </div>
+                            {contactInfo.linkedin_url && (
+                              <div className="mb-1.5">
+                                <a
+                                  href={contactInfo.linkedin_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 text-[12px] hover:underline"
+                                  style={{ color: '#0a66c2' }}
+                                >
+                                  <Linkedin className="w-3.5 h-3.5" /> LinkedIn profile
+                                </a>
+                              </div>
+                            )}
+
+                            {contactInfo.job_title && (
+                              <div className="mb-1.5 text-[12px]" style={{ color: t.text2 }}>
+                                {contactInfo.job_title}
+                              </div>
+                            )}
+
+                            {(contactInfo.company_name || contactInfo.domain) && (
+                              <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
+                                <Building2 className="w-3 h-3 flex-shrink-0" />
+                                <span>{contactInfo.company_name}{contactInfo.domain ? ` · ${contactInfo.domain}` : ''}</span>
+                              </div>
+                            )}
+
+                            {contactInfo.location && (
+                              <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
+                                <MapPin className="w-3 h-3 flex-shrink-0" />
+                                <span>{contactInfo.location}</span>
+                              </div>
+                            )}
+
+                            {contactInfo.segment && (
+                              <div className="mb-1.5">
+                                <span
+                                  className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded"
+                                  style={{ background: t.badgeBg, color: t.badgeText }}
+                                >
+                                  <Tag className="w-3 h-3" />{contactInfo.segment}
+                                </span>
+                              </div>
+                            )}
+
+                            {contactInfo.phone && (
+                              <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
+                                <Phone className="w-3 h-3 flex-shrink-0" />
+                                <span>{contactInfo.phone}</span>
+                              </div>
+                            )}
+
+                            {contactInfo.source && (
+                              <div className="mb-1.5">
+                                <span
+                                  className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded"
+                                  style={{ background: t.badgeBg, color: t.badgeText }}
+                                >
+                                  <Globe className="w-3 h-3" />{contactInfo.source}
+                                </span>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
@@ -778,37 +939,21 @@ export function RepliesPage() {
                 </div>
               );
             })}
+            {/* Infinite scroll sentinel */}
+            <div ref={sentinelRef} className="h-4" />
+            {isLoadingMore && (
+              <div className="flex items-center justify-center py-4">
+                <RefreshCw className="w-4 h-4 animate-spin" style={{ color: t.text5 }} />
+              </div>
+            )}
+            {!hasMore && replies.length > 0 && (
+              <div className="text-center py-3 text-[11px]" style={{ color: t.text6 }}>
+                Showing all {replies.length} of {total}
+              </div>
+            )}
           </div>
         )}
       </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div
-          className="border-t px-5 py-2 flex items-center justify-between"
-          style={{ background: t.headerBg, borderColor: t.cardBorder }}
-        >
-          <span className="text-[11px]" style={{ color: t.text5 }}>Page {page} of {totalPages}</span>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-2 py-1 text-[11px] rounded disabled:opacity-30 transition-colors"
-              style={{ color: t.text4 }}
-            >
-              Prev
-            </button>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="px-2 py-1 text-[11px] rounded disabled:opacity-30 transition-colors"
-              style={{ color: t.text4 }}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

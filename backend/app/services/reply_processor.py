@@ -1,15 +1,36 @@
 """Reply processing service for AI classification and draft generation."""
 import logging
+import re
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
-from app.models.reply import ProcessedReply, ReplyAutomation, ReplyCategory
+from app.models.reply import ProcessedReply, ReplyAutomation, ReplyCategory, ThreadMessage
 from app.models.contact import Contact, ContactActivity
 from app.services.openai_service import openai_service
+from app.services.smartlead_service import smartlead_request
 
 logger = logging.getLogger(__name__)
+
+
+# Regex for placeholder brackets GPT sometimes generates despite instructions.
+# Matches patterns like [Your Name], [Ваше имя], [Tu Nombre], [Your Contact Information], etc.
+_PLACEHOLDER_RE = re.compile(
+    r"\[(?:Your |Ваш[аеи]? |Tu |Su |Ihr )"  # common prefixes
+    r"[^\[\]]{2,40}\]",                        # content inside brackets (2-40 chars)
+    re.IGNORECASE,
+)
+
+
+def _strip_placeholder_brackets(text: str) -> str:
+    """Remove GPT-generated placeholder brackets like [Your Name], [Ваше имя] etc."""
+    if not text:
+        return text
+    cleaned = _PLACEHOLDER_RE.sub("", text)
+    # Collapse multiple blank lines that may result from removal
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 
 # Classification prompt template
@@ -352,12 +373,16 @@ async def generate_draft_reply(
             if attempt > 0:
                 logger.info(f"[PROCESSOR] Draft generation succeeded after {attempt + 1} attempts")
             
+            draft_body = result.get("body", "")
+            # Strip GPT placeholder brackets like [Your Name], [Ваше имя], etc.
+            draft_body = _strip_placeholder_brackets(draft_body)
+
             return {
                 "subject": result.get("subject", f"Re: {subject}"),
-                "body": result.get("body", ""),
+                "body": draft_body,
                 "tone": result.get("tone", "professional")
             }
-            
+
         except json.JSONDecodeError as e:
             last_error = f"JSON parse error: {str(e)}"
             logger.warning(f"[PROCESSOR] Draft generation attempt {attempt + 1} failed - invalid JSON: {e}")
@@ -391,6 +416,140 @@ async def generate_draft_reply(
         "body": f"(Draft generation failed after {max_retries} attempts: {last_error})",
         "tone": "error"
     }
+
+
+async def _fetch_and_cache_thread(
+    reply: ProcessedReply,
+    session: AsyncSession,
+) -> bool:
+    """Fetch Smartlead message-history and store as ThreadMessage rows.
+
+    Non-fatal: any failure is logged as a warning and returns False.
+    On success sets reply.thread_fetched_at and returns True.
+    Also detects replied_externally (last message outbound).
+    """
+    import os
+    from sqlalchemy import delete as sa_delete
+
+    try:
+        api_key = os.getenv("SMARTLEAD_API_KEY", "")
+        if not api_key or not reply.campaign_id:
+            return False
+
+        # --- Resolve lead_id (same chain as sync_conversation_histories) ---
+        lead_id = reply.smartlead_lead_id
+
+        if not lead_id:
+            # Try contact.smartlead_id
+            if reply.lead_email:
+                from sqlalchemy import func
+                row = (await session.execute(
+                    select(Contact.smartlead_id).where(
+                        func.lower(Contact.email) == reply.lead_email.lower(),
+                        Contact.deleted_at.is_(None),
+                    )
+                )).first()
+                if row and row[0]:
+                    lead_id = str(row[0])
+
+        if not lead_id and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+            lead_id = str(
+                reply.raw_webhook_data.get("sl_email_lead_id")
+                or reply.raw_webhook_data.get("sl_lead_id")
+                or reply.raw_webhook_data.get("lead_id")
+                or ""
+            ).strip() or None
+
+        if not lead_id:
+            logger.info(f"[THREAD_CACHE] No lead_id for reply {reply.id}, skipping thread fetch")
+            return False
+
+        # Persist lead_id for next time
+        if not reply.smartlead_lead_id:
+            reply.smartlead_lead_id = lead_id
+
+        # --- Fetch message-history via smartlead_request (429-tolerant) ---
+        resp = await smartlead_request(
+            "GET",
+            f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
+            params={"api_key": api_key},
+            timeout=15.0,
+        )
+
+        if resp.status_code != 200:
+            logger.warning(f"[THREAD_CACHE] Smartlead returned {resp.status_code} for reply {reply.id}")
+            return False
+
+        hist = resp.json()
+        history_entries = hist if isinstance(hist, list) else hist.get("history", [])
+        if not history_entries:
+            logger.info(f"[THREAD_CACHE] Empty history for reply {reply.id}")
+            return False
+
+        # --- Replace cached messages (idempotent) ---
+        await session.execute(
+            sa_delete(ThreadMessage).where(ThreadMessage.reply_id == reply.id)
+        )
+
+        last_direction = None
+        for idx, entry in enumerate(history_entries):
+            msg_type = (entry.get("type") or "").upper()
+            direction = "outbound" if msg_type == "SENT" else "inbound"
+            last_direction = direction
+            body = entry.get("email_body") or entry.get("email_text") or entry.get("message") or ""
+            subject = entry.get("email_subject") or entry.get("subject") or ""
+            time_str = entry.get("time") or entry.get("created_at") or ""
+
+            activity_at = None
+            if time_str:
+                try:
+                    from dateutil.parser import parse as parse_dt
+                    activity_at = parse_dt(time_str)
+                    if activity_at.tzinfo:
+                        activity_at = activity_at.replace(tzinfo=None)
+                except Exception:
+                    pass
+
+            session.add(ThreadMessage(
+                reply_id=reply.id,
+                direction=direction,
+                channel="email",
+                subject=subject,
+                body=body,
+                activity_at=activity_at,
+                source="smartlead",
+                activity_type="email_sent" if direction == "outbound" else "email_replied",
+                position=idx,
+            ))
+
+        reply.thread_fetched_at = datetime.utcnow()
+
+        # Update last_touched_at from the last message timestamp
+        if history_entries:
+            last_ts = history_entries[-1].get("time") or history_entries[-1].get("created_at")
+            if last_ts:
+                try:
+                    from dateutil.parser import parse as parse_dt
+                    lt = parse_dt(last_ts)
+                    if lt.tzinfo:
+                        lt = lt.replace(tzinfo=None)
+                    reply.last_touched_at = lt
+                except Exception:
+                    pass
+
+        # Detect replied_externally: last message is outbound
+        if last_direction == "outbound" and reply.approval_status in (None, "pending"):
+            reply.approval_status = "replied_externally"
+            reply.approved_at = datetime.utcnow()
+
+        logger.info(
+            f"[THREAD_CACHE] Cached {len(history_entries)} messages for reply {reply.id}"
+        )
+        return True
+
+    except Exception as e:
+        logger.warning(f"[THREAD_CACHE] Failed to fetch/cache thread for reply {reply.id}: {e}")
+        return False
 
 
 async def process_reply_webhook(
@@ -457,18 +616,21 @@ async def process_reply_webhook(
         # Campaign name
         campaign_name = payload.get("campaign_name", "")
         
-        # Inbox link - construct lead-specific URL if we have leadMap ID
-        lead_map_id = (
-            payload.get("sl_email_lead_map_id") or 
-            payload.get("sl_email_lead_id") or
-            (payload.get("body") or {}).get("lead_id")
+        # Inbox link — prefer the webhook-provided URL (most reliable),
+        # fall back to constructing one from leadMap ID
+        inbox_link = (
+            payload.get("ui_master_inbox_link")
+            or (payload.get("body") or {}).get("ui_master_inbox_link")
         )
-        if lead_map_id:
-            inbox_link = f"https://app.smartlead.ai/app/master-inbox?action=INBOX&leadMap={lead_map_id}"
-            logger.info(f"[PROCESSOR] Built inbox link with leadMap={lead_map_id}")
-        else:
-            inbox_link = payload.get("ui_master_inbox_link") or (payload.get("body") or {}).get("ui_master_inbox_link")
-            logger.info(f"[PROCESSOR] Using generic inbox link")
+        if not inbox_link:
+            lead_map_id = (
+                payload.get("sl_email_lead_map_id")
+                or payload.get("sl_email_lead_id")
+                or (payload.get("body") or {}).get("lead_id")
+            )
+            if lead_map_id:
+                inbox_link = f"https://app.smartlead.ai/app/master-inbox?action=INBOX&leadMap={lead_map_id}"
+        logger.info(f"[PROCESSOR] Inbox link: {inbox_link}")
         
         # Conversation history
         lead_correspondence = payload.get("leadCorrespondence", [])
@@ -482,7 +644,13 @@ async def process_reply_webhook(
         if not lead_email:
             logger.warning("No lead_email in webhook payload, skipping")
             return None
-        
+
+        # Skip empty/meaningless reply bodies — no point classifying or drafting
+        _body_stripped = (body or "").strip().lower()
+        if not _body_stripped or _body_stripped in ("(no content)", "(empty)", "no content", "empty"):
+            logger.info(f"[PROCESSOR] Skipping empty reply body for {lead_email}")
+            return None
+
         # Find matching automation (if any)
         automation_id = None
         automation = None
@@ -611,10 +779,20 @@ async def process_reply_webhook(
             existing_pr.approval_status = None  # Re-surface for operator
             existing_pr.raw_webhook_data = payload
             existing_pr.updated_at = datetime.utcnow()
+            existing_pr.source = existing_pr.source or "smartlead"
+            existing_pr.channel = existing_pr.channel or "email"
+            # Backfill / update smartlead_lead_id + invalidate thread cache
+            existing_pr.smartlead_lead_id = (
+                existing_pr.smartlead_lead_id
+                or payload.get("sl_email_lead_id")
+                or None
+            )
+            existing_pr.thread_fetched_at = None  # invalidate so thread is re-fetched
             if inbox_link:
                 existing_pr.inbox_link = inbox_link
             processed_reply = existing_pr
             await session.flush()
+            await _fetch_and_cache_thread(processed_reply, session)
             logger.info(f"[PROCESSOR] Updated existing ProcessedReply {existing_pr.id} for {lead_email} with new reply")
         else:
             # Create new processed reply record
@@ -622,6 +800,8 @@ async def process_reply_webhook(
                 automation_id=automation_id,
                 campaign_id=campaign_id,
                 campaign_name=campaign_name,
+                source="smartlead",
+                channel="email",
                 lead_email=lead_email,
                 lead_first_name=first_name,
                 lead_last_name=last_name,
@@ -636,10 +816,12 @@ async def process_reply_webhook(
                 draft_reply=draft["body"],
                 draft_subject=draft["subject"],
                 inbox_link=inbox_link,  # Smartlead master inbox link
-                raw_webhook_data=payload
+                raw_webhook_data=payload,
+                smartlead_lead_id=payload.get("sl_email_lead_id") or None,
             )
             session.add(processed_reply)
             await session.flush()
+            await _fetch_and_cache_thread(processed_reply, session)
             logger.info(f"[PROCESSOR] Created new ProcessedReply {processed_reply.id} for {lead_email}")
         
         # Create ContactActivity for conversation history
@@ -924,3 +1106,161 @@ async def process_reply_webhook(
                 logger.warning(f"Failed to log automation error stats: {log_err}")
                 await session.rollback()
         raise
+
+
+async def process_getsales_reply(
+    message_text: str,
+    contact: "Contact",
+    flow_name: str,
+    flow_uuid: str,
+    message_id: str,
+    activity_at: datetime,
+    raw_data: dict,
+    session: AsyncSession,
+) -> Optional[ProcessedReply]:
+    """Process a GetSales LinkedIn reply: classify, generate draft, create/update ProcessedReply.
+
+    Used by both the webhook path (crm_sync.py) and the polling path
+    (crm_sync_service.sync_getsales_replies) so classification + draft logic
+    lives in one place.
+
+    Returns the created/updated ProcessedReply, or None if skipped.
+    """
+    from sqlalchemy import func as sa_func
+
+    lead_email = (contact.email or "").lower().strip()
+    if not lead_email:
+        logger.warning(f"[GETSALES] Skipping reply — contact {contact.id} has no email")
+        return None
+
+    # --- Dedup: check for existing ProcessedReply (same source + email + flow) ---
+    existing_result = await session.execute(
+        select(ProcessedReply).where(
+            and_(
+                ProcessedReply.source == "getsales",
+                sa_func.lower(ProcessedReply.lead_email) == lead_email,
+                ProcessedReply.campaign_id == flow_uuid,
+            )
+        ).limit(1)
+    )
+    existing_pr = existing_result.scalar_one_or_none()
+
+    if existing_pr and existing_pr.received_at and activity_at <= existing_pr.received_at:
+        logger.info(f"[GETSALES] Skipping older/duplicate reply for {lead_email} (existing received_at={existing_pr.received_at})")
+        return existing_pr
+
+    # --- Find project for sender identity + prompt template ---
+    custom_reply_prompt = None
+    proj_sender_name = None
+    proj_sender_position = None
+    proj_sender_company = None
+
+    if flow_name:
+        try:
+            from app.models.contact import Project
+            from app.models.reply import ReplyPromptTemplateModel
+            from sqlalchemy.dialects.postgresql import JSONB
+            from sqlalchemy import cast as sa_cast
+
+            project_result = await session.execute(
+                select(Project).where(
+                    and_(
+                        sa_cast(Project.campaign_filters, JSONB).contains([flow_name]),
+                        Project.deleted_at.is_(None),
+                    )
+                ).limit(1)
+            )
+            project = project_result.scalar()
+            if project:
+                proj_sender_name = project.sender_name
+                proj_sender_position = project.sender_position
+                proj_sender_company = project.sender_company
+                logger.info(f"[GETSALES] Project '{project.name}' sender: {proj_sender_name}")
+
+                if project.reply_prompt_template_id:
+                    tmpl_result = await session.execute(
+                        select(ReplyPromptTemplateModel).where(
+                            ReplyPromptTemplateModel.id == project.reply_prompt_template_id
+                        )
+                    )
+                    tmpl = tmpl_result.scalar()
+                    if tmpl:
+                        custom_reply_prompt = tmpl.prompt_text
+                        logger.info(f"[GETSALES] Using project prompt template '{tmpl.name}'")
+        except Exception as proj_err:
+            logger.warning(f"[GETSALES] Project lookup failed (non-fatal): {proj_err}")
+
+    # --- Classify ---
+    linkedin_suffix = "This is a LinkedIn DM, not an email. Classify based on the message content."
+    classification = await classify_reply(
+        subject="(LinkedIn message)",
+        body=message_text,
+        custom_prompt=linkedin_suffix,
+    )
+    logger.info(f"[GETSALES] Classification: {classification['category']} ({classification['confidence']})")
+
+    # --- Generate draft ---
+    linkedin_draft_suffix = (
+        "This is a LinkedIn message, keep reply SHORT (2-3 sentences), "
+        "conversational, no subject line needed."
+    )
+    combined_prompt = linkedin_draft_suffix
+    if custom_reply_prompt:
+        combined_prompt = custom_reply_prompt + "\n\n" + linkedin_draft_suffix
+
+    draft = await generate_draft_reply(
+        subject="LinkedIn conversation",
+        body=message_text,
+        category=classification["category"],
+        first_name=contact.first_name or "",
+        last_name=contact.last_name or "",
+        company=contact.company_name or "",
+        custom_prompt=combined_prompt,
+        sender_name=proj_sender_name,
+        sender_position=proj_sender_position,
+        sender_company=proj_sender_company,
+    )
+
+    # --- Create or update ProcessedReply ---
+    if existing_pr:
+        existing_pr.received_at = activity_at
+        existing_pr.email_body = message_text
+        existing_pr.reply_text = message_text
+        existing_pr.category = classification["category"]
+        existing_pr.category_confidence = classification["confidence"]
+        existing_pr.classification_reasoning = classification["reasoning"]
+        existing_pr.draft_reply = draft.get("body")
+        existing_pr.draft_subject = draft.get("subject")
+        existing_pr.approval_status = None  # Re-surface for operator
+        existing_pr.raw_webhook_data = raw_data
+        existing_pr.updated_at = datetime.utcnow()
+        existing_pr.campaign_name = flow_name or existing_pr.campaign_name
+        processed_reply = existing_pr
+        await session.flush()
+        logger.info(f"[GETSALES] Updated ProcessedReply {existing_pr.id} for {lead_email}")
+    else:
+        processed_reply = ProcessedReply(
+            source="getsales",
+            channel="linkedin",
+            campaign_id=flow_uuid,
+            campaign_name=flow_name,
+            lead_email=lead_email,
+            lead_first_name=contact.first_name,
+            lead_last_name=contact.last_name,
+            lead_company=contact.company_name,
+            email_subject="LinkedIn conversation",
+            email_body=message_text,
+            reply_text=message_text,
+            received_at=activity_at,
+            category=classification["category"],
+            category_confidence=classification["confidence"],
+            classification_reasoning=classification["reasoning"],
+            draft_reply=draft.get("body"),
+            draft_subject=draft.get("subject"),
+            raw_webhook_data=raw_data,
+        )
+        session.add(processed_reply)
+        await session.flush()
+        logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email}")
+
+    return processed_reply

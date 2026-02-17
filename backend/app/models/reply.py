@@ -86,7 +86,11 @@ class ProcessedReply(Base, TimestampMixin):
     # Smartlead context
     campaign_id = Column(String(100), nullable=True, index=True)
     campaign_name = Column(String(255), nullable=True, index=True)
-    
+
+    # Source tracking
+    source = Column(String(50), nullable=True, index=True)   # "smartlead" or "getsales"
+    channel = Column(String(50), nullable=True, index=True)   # "email" or "linkedin"
+
     # Lead information
     lead_email = Column(String(255), nullable=False, index=True)
     lead_first_name = Column(String(100), nullable=True)
@@ -118,9 +122,13 @@ class ProcessedReply(Base, TimestampMixin):
     telegram_sent_at = Column(DateTime, nullable=True)  # When Telegram notification was sent
     
     # Approval workflow
-    approval_status = Column(String(50), nullable=True, index=True)  # pending, approved, dismissed, edited
+    approval_status = Column(String(50), nullable=True, index=True)  # pending, approved, dismissed, edited, replied_externally
     approved_by = Column(String(100), nullable=True)
     approved_at = Column(DateTime, nullable=True)
+
+    # Cohort tracking — denormalized from contact_activities for fast queries
+    # Updated when conversation is loaded from SmartLead or when new activity arrives
+    last_touched_at = Column(DateTime, nullable=True, index=True)  # latest activity (inbound or outbound) timestamp
     
     # Smartlead inbox link (from webhook: ui_master_inbox_link)
     inbox_link = Column(String(500), nullable=True)
@@ -130,12 +138,48 @@ class ProcessedReply(Base, TimestampMixin):
     
     # Full webhook payload for debugging
     raw_webhook_data = Column(JSON, nullable=True)
-    
+
+    # Thread cache — pre-fetched at processing time
+    smartlead_lead_id = Column(String(100), nullable=True, index=True)
+    thread_fetched_at = Column(DateTime, nullable=True)
+
     # Relationships
     automation = relationship("ReplyAutomation", back_populates="processed_replies")
+    thread_messages = relationship(
+        "ThreadMessage", back_populates="reply",
+        cascade="all, delete-orphan",
+        order_by="ThreadMessage.position",
+        lazy="noload",
+    )
     
     def __repr__(self):
         return f"<ProcessedReply(id={self.id}, email='{self.lead_email}', category='{self.category}')>"
+
+
+class ThreadMessage(Base):
+    """Cached conversation message from Smartlead message-history API.
+
+    Pre-fetched at reply processing time so the UI reads instantly from DB
+    instead of hitting the Smartlead API on every thread click.
+    """
+    __tablename__ = "thread_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    reply_id = Column(Integer, ForeignKey("processed_replies.id", ondelete="CASCADE"), nullable=False, index=True)
+    direction = Column(String(20), nullable=False)      # inbound / outbound
+    channel = Column(String(50), default="email")
+    subject = Column(String(500), nullable=True)
+    body = Column(Text, nullable=True)
+    activity_at = Column(DateTime, nullable=True)
+    source = Column(String(50), default="smartlead")
+    activity_type = Column(String(50), nullable=True)    # email_sent / email_replied
+    position = Column(Integer, nullable=False, default=0)  # ordering index
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    reply = relationship("ProcessedReply", back_populates="thread_messages")
+
+    def __repr__(self):
+        return f"<ThreadMessage(id={self.id}, reply_id={self.reply_id}, direction='{self.direction}', pos={self.position})>"
 
 
 class ReplyPromptTemplateModel(Base):

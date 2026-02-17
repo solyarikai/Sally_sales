@@ -6,7 +6,7 @@ from .knowledge_base import (
     Competitor, CaseStudy, VoiceTone, Blocklist, BookingLink
 )
 from .prospect import Prospect, ProspectActivity
-from .reply import ReplyAutomation, ProcessedReply, ReplyCategory
+from .reply import ReplyAutomation, ProcessedReply, ReplyCategory, ThreadMessage
 from .contact import Contact, Project, ContactActivity
 from .domain import (
     Domain, DomainStatus, DomainSource,
@@ -36,7 +36,7 @@ __all__ = [
     # Prospects
     "Prospect", "ProspectActivity",
     # Reply Automation
-    "ReplyAutomation", "ProcessedReply", "ReplyCategory",
+    "ReplyAutomation", "ProcessedReply", "ReplyCategory", "ThreadMessage",
     # CRM
     "Contact", "Project", "ContactActivity",
     # Domain & Search

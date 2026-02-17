@@ -29,7 +29,7 @@ from app.services.notification_service import (
     create_slack_channel
 )
 from app.services.google_sheets_service import google_sheets_service
-from app.services.smartlead_service import smartlead_service
+from app.services.smartlead_service import smartlead_service, smartlead_request
 from app.services.crm_sync_service import parse_campaigns
 
 logger = logging.getLogger(__name__)
@@ -147,91 +147,95 @@ async def list_automations(
 
 async def _sync_historical_replies_background(automation_id: int, google_sheet_id: str, campaign_ids: list, automation_name: str):
     """Background task to sync historical replies without blocking API response."""
-    import httpx
     import os
     import re as regex
-    
+
     api_key = os.environ.get("SMARTLEAD_API_KEY")
     synced = 0
     existing_emails = set()
-    
+
     try:
         if api_key:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                for campaign_id in campaign_ids:
-                    offset = 0
-                    page_size = 500
-                    empty_pages = 0
-                    
-                    while offset < 5000 and empty_pages < 3:
-                        try:
-                            resp = await client.get(
-                                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/statistics",
-                                params={"api_key": api_key, "limit": page_size, "offset": offset}
-                            )
-                            stats = resp.json()
-                            page_entries = stats.get("data", [])
-                            
-                            if not page_entries:
-                                break
-                            
-                            page_replies = [e for e in page_entries if e.get("reply_time")]
-                            if not page_replies:
-                                empty_pages += 1
-                                offset += page_size
-                                continue
-                            empty_pages = 0
-                            
-                            for entry in page_replies:
-                                lead_email = entry.get("lead_email", "").lower()
-                                if "@example.com" in lead_email or "@test.com" in lead_email:
-                                    continue
-                                if lead_email in existing_emails:
-                                    continue
-                                
-                                reply_text = ""
-                                try:
-                                    lead_resp = await client.get(
-                                        "https://server.smartlead.ai/api/v1/leads",
-                                        params={"api_key": api_key, "email": entry.get("lead_email")}
-                                    )
-                                    lead_data = lead_resp.json()
-                                    lead_id = lead_data.get("id")
-                                    if lead_id:
-                                        hist_resp = await client.get(
-                                            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads/{lead_id}/message-history",
-                                            params={"api_key": api_key}
-                                        )
-                                        hist = hist_resp.json()
-                                        for msg in hist.get("history", []):
-                                            if msg.get("type") == "REPLY":
-                                                reply_text = msg.get("email_body", "")
-                                                if "<" in reply_text:
-                                                    reply_text = regex.sub(r"<[^>]+>", " ", reply_text)
-                                                    reply_text = regex.sub(r"\s+", " ", reply_text).strip()
-                                                break
-                                except Exception:
-                                    pass
-                                
-                                row_data = {
-                                    "lead_email": entry.get("lead_email", ""),
-                                    "lead_name": entry.get("lead_name", ""),
-                                    "subject": entry.get("email_subject", ""),
-                                    "reply_text": reply_text[:1000] if reply_text else f"[Reply at {entry.get('reply_time', '')}]",
-                                    "received_at": entry.get("reply_time", ""),
-                                    "campaign_name": automation_name,
-                                    "smartlead_status": entry.get("lead_category", "") or "",
-                                    "source": "historical"
-                                }
-                                google_sheets_service.append_reply(google_sheet_id, row_data)
-                                synced += 1
-                                existing_emails.add(lead_email)
-                            
-                            offset += page_size
-                        except Exception as api_err:
-                            logger.warning(f"Failed to fetch stats for campaign {campaign_id}: {api_err}")
+            for campaign_id in campaign_ids:
+                offset = 0
+                page_size = 500
+                empty_pages = 0
+
+                while offset < 5000 and empty_pages < 3:
+                    try:
+                        resp = await smartlead_request(
+                            "GET",
+                            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/statistics",
+                            params={"api_key": api_key, "limit": page_size, "offset": offset},
+                            timeout=60.0,
+                        )
+                        stats = resp.json()
+                        page_entries = stats.get("data", [])
+
+                        if not page_entries:
                             break
-        
+
+                        page_replies = [e for e in page_entries if e.get("reply_time")]
+                        if not page_replies:
+                            empty_pages += 1
+                            offset += page_size
+                            continue
+                        empty_pages = 0
+
+                        for entry in page_replies:
+                            lead_email = entry.get("lead_email", "").lower()
+                            if "@example.com" in lead_email or "@test.com" in lead_email:
+                                continue
+                            if lead_email in existing_emails:
+                                continue
+
+                            reply_text = ""
+                            try:
+                                lead_resp = await smartlead_request(
+                                    "GET",
+                                    "https://server.smartlead.ai/api/v1/leads",
+                                    params={"api_key": api_key, "email": entry.get("lead_email")},
+                                    timeout=60.0,
+                                )
+                                lead_data = lead_resp.json()
+                                lead_id = lead_data.get("id")
+                                if lead_id:
+                                    hist_resp = await smartlead_request(
+                                        "GET",
+                                        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads/{lead_id}/message-history",
+                                        params={"api_key": api_key},
+                                        timeout=60.0,
+                                    )
+                                    hist = hist_resp.json()
+                                    for msg in hist.get("history", []):
+                                        if msg.get("type") == "REPLY":
+                                            reply_text = msg.get("email_body", "")
+                                            if "<" in reply_text:
+                                                reply_text = regex.sub(r"<[^>]+>", " ", reply_text)
+                                                reply_text = regex.sub(r"\s+", " ", reply_text).strip()
+                                            break
+                            except Exception:
+                                pass
+
+                            row_data = {
+                                "lead_email": entry.get("lead_email", ""),
+                                "lead_name": entry.get("lead_name", ""),
+                                "subject": entry.get("email_subject", ""),
+                                "reply_text": reply_text[:1000] if reply_text else f"[Reply at {entry.get('reply_time', '')}]",
+                                "received_at": entry.get("reply_time", ""),
+                                "campaign_name": automation_name,
+                                "smartlead_status": entry.get("lead_category", "") or "",
+                                "source": "historical"
+                            }
+                            google_sheets_service.append_reply(google_sheet_id, row_data)
+                            synced += 1
+                            existing_emails.add(lead_email)
+
+                        offset += page_size
+                    except Exception as api_err:
+                        logger.warning(f"Failed to fetch stats for campaign {campaign_id}: {api_err}")
+                        break
+
         if synced > 0:
             logger.info(f"Background sync: {synced} historical replies to Google Sheet")
     except Exception as e:
@@ -623,6 +627,8 @@ async def list_replies(
     category: Optional[str] = None,
     approval_status: Optional[str] = Query(None, description="Filter by status: pending, approved, dismissed"),
     needs_reply: Optional[bool] = Query(None, description="Filter to replies with no outbound activity after received_at"),
+    channel: Optional[str] = Query(None, description="Filter by channel: email, linkedin"),
+    source: Optional[str] = Query(None, description="Filter by source: smartlead, getsales"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     session: AsyncSession = Depends(get_session)
@@ -644,7 +650,7 @@ async def list_replies(
         query = query.where(ProcessedReply.campaign_id == campaign_id)
         count_query = count_query.where(ProcessedReply.campaign_id == campaign_id)
 
-    # Filter by project's campaign_filters
+    # Filter by project's campaign_filters (case-insensitive)
     if project_id:
         from app.models.contact import Project
         project_result = await session.execute(
@@ -655,21 +661,31 @@ async def list_replies(
         )
         project = project_result.scalar_one_or_none()
         if project and project.campaign_filters:
-            project_campaigns = [c for c in project.campaign_filters if isinstance(c, str)]
+            project_campaigns = [c.lower() for c in project.campaign_filters if isinstance(c, str)]
             if project_campaigns:
-                query = query.where(ProcessedReply.campaign_name.in_(project_campaigns))
-                count_query = count_query.where(ProcessedReply.campaign_name.in_(project_campaigns))
+                campaign_filter = func.lower(ProcessedReply.campaign_name).in_(project_campaigns)
+                query = query.where(campaign_filter)
+                count_query = count_query.where(campaign_filter)
 
     if campaign_names:
-        names = [n.strip() for n in campaign_names.split(",") if n.strip()]
+        names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
         if names:
-            query = query.where(ProcessedReply.campaign_name.in_(names))
-            count_query = count_query.where(ProcessedReply.campaign_name.in_(names))
+            campaign_filter = func.lower(ProcessedReply.campaign_name).in_(names)
+            query = query.where(campaign_filter)
+            count_query = count_query.where(campaign_filter)
+
+    if channel:
+        query = query.where(ProcessedReply.channel == channel)
+        count_query = count_query.where(ProcessedReply.channel == channel)
+
+    if source:
+        query = query.where(ProcessedReply.source == source)
+        count_query = count_query.where(ProcessedReply.source == source)
 
     if category:
         query = query.where(ProcessedReply.category == category)
         count_query = count_query.where(ProcessedReply.category == category)
-    
+
     # Filter by approval status (pending, approved, dismissed)
     if approval_status:
         if approval_status == "pending":
@@ -686,37 +702,12 @@ async def list_replies(
             query = query.where(ProcessedReply.approval_status == approval_status)
             count_query = count_query.where(ProcessedReply.approval_status == approval_status)
     
-    # Filter: needs_reply — replies where the LAST message in the conversation
-    # is inbound (lead sent the most recent message, operator hasn't replied yet).
-    # Handles multi-round conversations correctly.
+    # Filter: needs_reply — show only replies that still need operator attention.
+    # Uses approval_status (fast indexed column) instead of expensive correlated subqueries.
+    # Background sync (every 10 min) + on-demand conversation endpoint mark replied ones
+    # as 'replied_externally'. Approved/dismissed are also excluded.
     if needs_reply:
-        from app.models.contact import Contact, ContactActivity
         from sqlalchemy import and_, or_
-
-        # Two-step correlated subquery for speed (~0.4ms per row):
-        # Step 1: look up contact_id via idx_contacts_email_unique
-        # Step 2: get latest activity direction via ix_activities_contact_time
-        # The conditions on Contact match the partial unique index exactly.
-        contact_id_subq = (
-            select(Contact.id)
-            .where(
-                func.lower(Contact.email) == func.lower(ProcessedReply.lead_email),
-                Contact.deleted_at.is_(None),
-                Contact.email.isnot(None),
-                Contact.email != "",
-            )
-            .correlate(ProcessedReply)
-            .limit(1)
-            .scalar_subquery()
-        )
-        latest_direction = (
-            select(ContactActivity.direction)
-            .where(ContactActivity.contact_id == contact_id_subq)
-            .order_by(ContactActivity.activity_at.desc())
-            .limit(1)
-            .correlate(ProcessedReply)
-            .scalar_subquery()
-        )
 
         pending_cond = or_(
             ProcessedReply.approval_status == None,
@@ -728,21 +719,54 @@ async def list_replies(
             ProcessedReply.category == None,
             ~ProcessedReply.category.in_(no_reply_categories),
         )
-        # Latest activity is NOT outbound (lead sent the last message, or no activities yet)
-        latest_not_outbound = or_(
-            latest_direction.is_(None),
-            latest_direction != "outbound",
-        )
 
-        query = query.where(and_(pending_cond, latest_not_outbound, category_cond))
-        count_query = count_query.where(and_(pending_cond, latest_not_outbound, category_cond))
+        query = query.where(and_(pending_cond, category_cond))
+        count_query = count_query.where(and_(pending_cond, category_cond))
 
     # Get total count
     total_result = await session.execute(count_query)
     total = total_result.scalar()
 
-    # Apply pagination and ordering — newest replies first
-    query = query.order_by(desc(ProcessedReply.received_at))
+    # Fast category counts: simple GROUP BY without expensive correlated subqueries.
+    # Uses same project/campaign filters + approval_status + category exclusion, but
+    # skips the latest_not_outbound check (so counts may be slightly higher than actual).
+    category_counts: dict = {}
+    try:
+        cat_q = select(ProcessedReply.category, func.count(ProcessedReply.id)).group_by(ProcessedReply.category)
+        # Apply same basic filters
+        from sqlalchemy import or_
+        cat_q = cat_q.where(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
+        no_reply_cats = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
+        cat_q = cat_q.where(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))
+        # Apply project/campaign filter if present
+        if project_id:
+            from app.models.contact import Project
+            proj_r = await session.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
+            proj = proj_r.scalar_one_or_none()
+            if proj and proj.campaign_filters:
+                pc = [c.lower() for c in proj.campaign_filters if isinstance(c, str)]
+                if pc:
+                    cat_q = cat_q.where(func.lower(ProcessedReply.campaign_name).in_(pc))
+        elif campaign_names:
+            names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
+            if names:
+                cat_q = cat_q.where(func.lower(ProcessedReply.campaign_name).in_(names))
+        cat_result = await session.execute(cat_q)
+        category_counts = {row[0] or "other": row[1] for row in cat_result.all()}
+    except Exception as e:
+        logger.warning(f"Failed to compute category counts: {e}")
+    meeting_count = category_counts.get("meeting_request", 0)
+
+    # Order by category priority (meetings/interested first), then newest
+    from sqlalchemy import case
+    category_priority = case(
+        (ProcessedReply.category == "meeting_request", 0),
+        (ProcessedReply.category == "interested", 1),
+        (ProcessedReply.category == "question", 2),
+        (ProcessedReply.category == "other", 3),
+        else_=4,
+    )
+    query = query.order_by(category_priority, desc(ProcessedReply.received_at))
     query = query.offset((page - 1) * page_size).limit(page_size)
 
     result = await session.execute(query)
@@ -751,6 +775,8 @@ async def list_replies(
     return ProcessedReplyListResponse(
         replies=[ProcessedReplyResponse.model_validate(r) for r in replies],
         total=total,
+        meeting_count=meeting_count,
+        category_counts=category_counts,
         page=page,
         page_size=page_size
     )
@@ -1310,14 +1336,12 @@ async def get_reply_conversation(
 ):
     """Get the conversation thread for a reply's contact.
 
-    First checks local ContactActivity records.
-    If no outbound messages exist locally, fetches the full thread from
-    the Smartlead message-history API (one call) so the operator sees
-    both sides of the conversation.
+    Cache-first: reads from thread_messages (pre-fetched at processing time).
+    If cache is empty (pre-fetch failed), fetches on demand as fallback.
     """
-    import httpx
-    from app.models.contact import Contact, ContactActivity
-    from sqlalchemy import and_
+    from app.models.contact import Contact
+    from app.models.reply import ThreadMessage
+    from app.services.reply_processor import _fetch_and_cache_thread
 
     result = await session.execute(
         select(ProcessedReply).where(ProcessedReply.id == reply_id)
@@ -1330,150 +1354,72 @@ async def get_reply_conversation(
         return {"messages": []}
 
     # Find contact by email
-    contact_result = await session.execute(
-        select(Contact).where(
-            and_(
-                func.lower(Contact.email) == reply.lead_email.lower(),
-                Contact.deleted_at.is_(None),
+    contact = None
+    if reply.lead_email:
+        contact_result = await session.execute(
+            select(Contact).where(
+                and_(
+                    func.lower(Contact.email) == reply.lead_email.lower(),
+                    Contact.deleted_at.is_(None),
+                )
             )
         )
-    )
-    contact = contact_result.scalar_one_or_none()
+        contact = contact_result.scalar_one_or_none()
 
-    messages = []
     contact_id = contact.id if contact else None
 
-    # ---------- Try local DB first ----------
-    if contact:
-        activities_result = await session.execute(
-            select(ContactActivity).where(
-                ContactActivity.contact_id == contact.id
-            ).order_by(ContactActivity.activity_at.asc())
-        )
-        activities = activities_result.scalars().all()
+    # --- Cache miss: fetch on demand ---
+    if reply.thread_fetched_at is None and reply.campaign_id and (not reply.source or reply.source == "smartlead"):
+        try:
+            ok = await _fetch_and_cache_thread(reply, session)
+            if ok:
+                await session.commit()
+        except Exception as e:
+            logger.warning(f"get_reply_conversation: fallback fetch failed for reply {reply_id}: {e}")
+            await session.rollback()
 
-        MESSAGE_TYPES = {"email_sent", "email_replied", "manual_note"}
-        for a in activities:
-            if a.activity_type not in MESSAGE_TYPES:
-                continue
-            body = a.body or a.snippet
-            if not body and a.extra_data and isinstance(a.extra_data, dict):
-                body = a.extra_data.get("email_body") or a.extra_data.get("email_text")
-            if not body and a.direction == "outbound":
-                body = "(sent email — body not captured)"
+    # --- Cache hit: read from thread_messages ---
+    messages = []
+    if reply.thread_fetched_at is not None:
+        tm_result = await session.execute(
+            select(ThreadMessage)
+            .where(ThreadMessage.reply_id == reply.id)
+            .order_by(ThreadMessage.position)
+        )
+        for tm in tm_result.scalars().all():
             messages.append({
-                "direction": a.direction,
-                "channel": a.channel,
-                "subject": a.subject,
-                "body": body,
-                "activity_at": a.activity_at.isoformat() if a.activity_at else None,
-                "source": a.source,
-                "activity_type": a.activity_type,
+                "direction": tm.direction,
+                "channel": tm.channel,
+                "subject": tm.subject,
+                "body": tm.body,
+                "activity_at": tm.activity_at.isoformat() if tm.activity_at else None,
+                "source": tm.source,
+                "activity_type": tm.activity_type,
             })
 
-    has_outbound = any(m["direction"] == "outbound" for m in messages)
+    contact_info = _build_contact_info(contact) if contact else None
 
-    # ---------- Fallback: fetch from Smartlead if missing outbound ----------
-    if not has_outbound and reply.campaign_id:
-        import os
-        lead_id = (contact.smartlead_id if contact else None)
-        # Fallback: extract lead_id from the stored webhook payload
-        if not lead_id and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
-            lead_id = reply.raw_webhook_data.get("sl_email_lead_id") or reply.raw_webhook_data.get("sl_lead_id") or reply.raw_webhook_data.get("lead_id")
-            if lead_id:
-                lead_id = str(lead_id)
-        api_key = os.environ.get("SMARTLEAD_API_KEY") or getattr(smartlead_service, "api_key", None) or getattr(smartlead_service, "_api_key", None)
+    return {
+        "messages": messages,
+        "contact_id": contact_id,
+        "approval_status": reply.approval_status,
+        "contact_info": contact_info,
+    }
 
-        if lead_id and api_key:
-            try:
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    resp = await client.get(
-                        f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
-                        params={"api_key": api_key},
-                    )
-                    if resp.status_code == 200:
-                        hist = resp.json()
-                        history_entries = hist if isinstance(hist, list) else hist.get("history", [])
-                        messages = []  # Replace local messages with full Smartlead thread
-                        last_direction = None
-                        for entry in history_entries:
-                            msg_type = (entry.get("type") or "").upper()
-                            direction = "outbound" if msg_type == "SENT" else "inbound"
-                            last_direction = direction
-                            body = entry.get("email_body") or entry.get("email_text") or entry.get("message") or ""
-                            subject = entry.get("email_subject") or entry.get("subject") or ""
-                            time_str = entry.get("time") or entry.get("created_at") or ""
-                            messages.append({
-                                "direction": direction,
-                                "channel": "email",
-                                "subject": subject,
-                                "body": body,
-                                "activity_at": time_str,
-                                "source": "smartlead",
-                                "activity_type": "email_sent" if direction == "outbound" else "email_replied",
-                            })
 
-                        # --- Persist: create missing ContactActivity records & update status ---
-                        try:
-                            if contact_id and messages:
-                                from dateutil.parser import parse as parse_dt
-                                # Get existing activity timestamps to avoid duplicates
-                                existing_result = await session.execute(
-                                    select(ContactActivity.activity_at).where(
-                                        ContactActivity.contact_id == contact_id
-                                    )
-                                )
-                                existing_times = {r[0] for r in existing_result.all() if r[0]}
-
-                                created_count = 0
-                                for m in messages:
-                                    try:
-                                        act_time = parse_dt(m["activity_at"]) if m["activity_at"] else None
-                                    except Exception:
-                                        act_time = None
-                                    # Skip if we already have an activity at this exact time
-                                    if act_time and act_time in existing_times:
-                                        continue
-                                    activity = ContactActivity(
-                                        contact_id=contact_id,
-                                        activity_type=m["activity_type"],
-                                        direction=m["direction"],
-                                        channel="email",
-                                        subject=m.get("subject"),
-                                        body=m.get("body"),
-                                        source="smartlead",
-                                        activity_at=act_time,
-                                    )
-                                    session.add(activity)
-                                    created_count += 1
-
-                                # If last message is outbound, operator already replied
-                                if last_direction == "outbound" and reply.approval_status in (None, "pending"):
-                                    reply.approval_status = "replied_externally"
-                                    reply.approved_at = datetime.utcnow()
-                                    session.add(reply)
-
-                                # Backfill Contact.smartlead_id
-                                if contact and not contact.smartlead_id and lead_id:
-                                    contact.smartlead_id = str(lead_id)
-                                    session.add(contact)
-
-                                if created_count > 0 or reply.approval_status == "replied_externally":
-                                    await session.commit()
-                                    logger.info(
-                                        f"get_reply_conversation: persisted {created_count} activities "
-                                        f"for reply {reply_id}, status={reply.approval_status}"
-                                    )
-                        except Exception as persist_err:
-                            logger.warning(f"Failed to persist conversation data for reply {reply_id}: {persist_err}")
-                            await session.rollback()
-
-                    else:
-                        logger.warning(f"Smartlead message-history returned {resp.status_code} for reply {reply_id}")
-            except Exception as e:
-                logger.warning(f"Failed to fetch Smartlead message-history for reply {reply_id}: {e}")
-
-    return {"messages": messages, "contact_id": contact_id}
+def _build_contact_info(contact) -> dict:
+    """Extract display-safe contact info dict."""
+    return {
+        "linkedin_url": contact.linkedin_url,
+        "phone": contact.phone,
+        "job_title": contact.job_title,
+        "company_name": contact.company_name,
+        "domain": contact.domain,
+        "location": contact.location,
+        "segment": contact.segment,
+        "source": contact.source,
+        "campaigns": contact.campaigns,
+    }
 
 
 @router.get("/{reply_id}", response_model=ProcessedReplyResponse)
@@ -1671,6 +1617,49 @@ async def approve_and_send_reply(
 
     if reply.approval_status in ("approved", "approved_dry_run"):
         raise HTTPException(status_code=400, detail="Reply already approved")
+
+    # --- LinkedIn replies: mark approved but don't try to send via SmartLead ---
+    if reply.channel == "linkedin" or reply.source == "getsales":
+        reply.approval_status = "approved"
+        reply.approved_at = datetime.utcnow()
+
+        # Create outbound ContactActivity for conversation tracking
+        try:
+            from app.models.contact import Contact, ContactActivity
+            contact_result = await db.execute(
+                select(Contact).where(
+                    func.lower(Contact.email) == reply.lead_email.lower(),
+                    Contact.deleted_at.is_(None),
+                )
+            )
+            contact = contact_result.scalar_one_or_none()
+            if contact:
+                outbound = ContactActivity(
+                    contact_id=contact.id,
+                    company_id=contact.company_id,
+                    activity_type="linkedin_replied",
+                    channel="linkedin",
+                    direction="outbound",
+                    source="getsales",
+                    body=reply.draft_reply,
+                    snippet=(reply.draft_reply or "")[:200],
+                    extra_data={"processed_reply_id": reply.id, "approved_via": "approve-and-send"},
+                    activity_at=datetime.utcnow(),
+                )
+                db.add(outbound)
+        except Exception as act_err:
+            logger.warning(f"Failed to create outbound activity for LinkedIn reply: {act_err}")
+
+        db.add(reply)
+        await db.commit()
+        await db.refresh(reply)
+        return {
+            "status": "approved",
+            "channel": "linkedin",
+            "reply_id": reply_id,
+            "lead_email": reply.lead_email,
+            "message": "Approved. Copy draft to LinkedIn conversation.",
+        }
 
     # --- Find contact and campaign ---
     contact = None
@@ -2047,21 +2036,20 @@ async def simulate_test_reply(
 @router.get("/test-flow/email-accounts")
 async def get_available_email_accounts():
     """Get Smartlead email accounts with available sending capacity."""
-    import httpx
     import os
-    from app.services.smartlead_service import smartlead_service
-    
+
     api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
-    
+
     if not api_key:
         raise HTTPException(status_code=400, detail="Smartlead API key not configured")
-    
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.get(
-            f"https://server.smartlead.ai/api/v1/email-accounts",
-            params={"api_key": api_key, "limit": 50}
-        )
-        accounts = response.json()
+
+    response = await smartlead_request(
+        "GET",
+        "https://server.smartlead.ai/api/v1/email-accounts",
+        params={"api_key": api_key, "limit": 50},
+        timeout=60.0,
+    )
+    accounts = response.json()
     
     if not isinstance(accounts, list):
         return {"accounts": [], "error": str(accounts)}
@@ -2095,60 +2083,62 @@ async def create_real_test_campaign(
     db: AsyncSession = Depends(get_session)
 ):
     """Create a real test campaign in Smartlead and send email to user."""
-    import httpx
     import os
     import uuid
-    from app.services.smartlead_service import smartlead_service
-    
+
     api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
     if not api_key:
         raise HTTPException(status_code=400, detail="Smartlead not configured")
-    
+
     test_id = uuid.uuid4().hex[:8]
     campaign_name = f"Auto-Reply Test {test_id}"
-    
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        # 0. Auto-select email account if not provided
-        if not email_account_id:
-            acct_resp = await client.get(
-                "https://server.smartlead.ai/api/v1/email-accounts",
-                params={"api_key": api_key}
-            )
-            accounts = acct_resp.json()
-            if isinstance(accounts, list) and len(accounts) > 0:
-                # Pick account with most remaining capacity
-                for acc in accounts:
-                    limit = acc.get("message_per_day") or 50
-                    sent = acc.get("daily_sent_count") or 0
-                    if limit - sent > 0:
-                        email_account_id = acc.get("id")
-                        break
-        
-        if not email_account_id:
-            return {"success": False, "error": "No email accounts with available capacity"}
-        
-        # 1. Create campaign
-        resp = await client.post(
-            "https://server.smartlead.ai/api/v1/campaigns/create",
+
+    # 0. Auto-select email account if not provided
+    if not email_account_id:
+        acct_resp = await smartlead_request(
+            "GET",
+            "https://server.smartlead.ai/api/v1/email-accounts",
             params={"api_key": api_key},
-            json={"name": campaign_name}
+            timeout=30.0,
         )
-        campaign_data = resp.json()
-        
-        if "id" not in campaign_data:
-            return {"success": False, "error": f"Failed to create campaign: {campaign_data}"}
-        
-        campaign_id = campaign_data["id"]
-        
-        # 2. Add email sequence
-        await client.post(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/sequences",
-            params={"api_key": api_key},
-            json={"sequences": [{
-                "seq_number": 1,
-                "seq_delay_details": {"delay_in_days": 0},
-                "subject": "Quick test for auto-reply system",
-                "email_body": """Hi {{first_name}},
+        accounts = acct_resp.json()
+        if isinstance(accounts, list) and len(accounts) > 0:
+            # Pick account with most remaining capacity
+            for acc in accounts:
+                limit = acc.get("message_per_day") or 50
+                sent = acc.get("daily_sent_count") or 0
+                if limit - sent > 0:
+                    email_account_id = acc.get("id")
+                    break
+
+    if not email_account_id:
+        return {"success": False, "error": "No email accounts with available capacity"}
+
+    # 1. Create campaign
+    resp = await smartlead_request(
+        "POST",
+        "https://server.smartlead.ai/api/v1/campaigns/create",
+        params={"api_key": api_key},
+        json={"name": campaign_name},
+        timeout=30.0,
+    )
+    campaign_data = resp.json()
+
+    if "id" not in campaign_data:
+        return {"success": False, "error": f"Failed to create campaign: {campaign_data}"}
+
+    campaign_id = campaign_data["id"]
+
+    # 2. Add email sequence
+    await smartlead_request(
+        "POST",
+        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/sequences",
+        params={"api_key": api_key},
+        json={"sequences": [{
+            "seq_number": 1,
+            "seq_delay_details": {"delay_in_days": 0},
+            "subject": "Quick test for auto-reply system",
+            "email_body": """Hi {{first_name}},
 
 This is a test email to verify the auto-reply system is working.
 
@@ -2156,48 +2146,55 @@ Please reply to this email with any message to test the automation!
 
 Example replies to try:
 - "Yes, I'm interested!" (should classify as interested)
-- "Not interested, thanks" (should classify as not interested)  
+- "Not interested, thanks" (should classify as not interested)
 - "Can we schedule a call?" (should classify as meeting request)
 
 Best,
 {{sender_name}}"""
-            }]}
-        )
-        
-        # 3. Add sender account (required for launch)
-        await client.post(
-                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/email-accounts",
-                params={"api_key": api_key},
-                json={"email_account_ids": [email_account_id]}
-            )
-        
-        # 4. Configure schedule for sending (days 0=Sun to 6=Sat)
-        await client.post(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
-            params={"api_key": api_key},
-            json={
-                "timezone": "UTC",
-                "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
-                "start_hour": "00:00",
-                "end_hour": "23:59",
-                "min_time_btw_emails": 3,
-                "max_new_leads_per_day": 100
-            }
-        )
-        
-        # 5. Add user as lead
-        parts = user_name.split() if user_name else ["Test", "User"]
-        await client.post(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
-            params={"api_key": api_key},
-            json={"lead_list": [{
-                "email": user_email,
-                "first_name": parts[0],
-                "last_name": parts[-1] if len(parts) > 1 else "User",
-                "company_name": "Test Company"
-            }]}
-        )
-        
+        }]},
+        timeout=30.0,
+    )
+
+    # 3. Add sender account (required for launch)
+    await smartlead_request(
+        "POST",
+        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/email-accounts",
+        params={"api_key": api_key},
+        json={"email_account_ids": [email_account_id]},
+        timeout=30.0,
+    )
+
+    # 4. Configure schedule for sending (days 0=Sun to 6=Sat)
+    await smartlead_request(
+        "POST",
+        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
+        params={"api_key": api_key},
+        json={
+            "timezone": "UTC",
+            "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
+            "start_hour": "00:00",
+            "end_hour": "23:59",
+            "min_time_btw_emails": 3,
+            "max_new_leads_per_day": 100
+        },
+        timeout=30.0,
+    )
+
+    # 5. Add user as lead
+    parts = user_name.split() if user_name else ["Test", "User"]
+    await smartlead_request(
+        "POST",
+        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads",
+        params={"api_key": api_key},
+        json={"lead_list": [{
+            "email": user_email,
+            "first_name": parts[0],
+            "last_name": parts[-1] if len(parts) > 1 else "User",
+            "company_name": "Test Company"
+        }]},
+        timeout=30.0,
+    )
+
     return {
         "success": True,
         "campaign_id": str(campaign_id),
@@ -2212,23 +2209,22 @@ Best,
     }
 
 
-@router.get("/test-flow/campaigns")  
+@router.get("/test-flow/campaigns")
 async def list_test_campaigns():
     """List test campaigns."""
-    import httpx
     import os
-    from app.services.smartlead_service import smartlead_service
-    
+
     api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
     if not api_key:
         return {"campaigns": []}
-    
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(
-            "https://server.smartlead.ai/api/v1/campaigns",
-            params={"api_key": api_key, "limit": 100}
-        )
-        campaigns = resp.json()
+
+    resp = await smartlead_request(
+        "GET",
+        "https://server.smartlead.ai/api/v1/campaigns",
+        params={"api_key": api_key, "limit": 100},
+        timeout=60.0,
+    )
+    campaigns = resp.json()
     
     if not isinstance(campaigns, list):
         return {"campaigns": []}
@@ -2284,21 +2280,20 @@ async def check_test_setup(
 @router.get("/campaign/{campaign_id}/status")
 async def get_campaign_status(campaign_id: str):
     """Get campaign status from Smartlead."""
-    import httpx
     import os
-    from app.services.smartlead_service import smartlead_service
-    
+
     api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
     if not api_key:
         raise HTTPException(status_code=400, detail="Smartlead not configured")
-    
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}",
-            params={"api_key": api_key}
-        )
-        data = resp.json()
-    
+
+    resp = await smartlead_request(
+        "GET",
+        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}",
+        params={"api_key": api_key},
+        timeout=60.0,
+    )
+    data = resp.json()
+
     return {
         "campaign_id": campaign_id,
         "name": data.get("name"),
@@ -2310,62 +2305,62 @@ async def get_campaign_status(campaign_id: str):
 @router.post("/campaign/{campaign_id}/launch")
 async def launch_campaign(campaign_id: str):
     """Start/launch a Smartlead campaign. Sets schedule if missing."""
-    import httpx
     import os
-    from app.services.smartlead_service import smartlead_service
-    
+
     api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
     if not api_key:
         raise HTTPException(status_code=400, detail="Smartlead not configured")
-    
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        # First ensure schedule is set
-        await client.post(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
-            params={"api_key": api_key},
-            json={
-                "timezone": "UTC",
-                "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
-                "start_hour": "00:00",
-                "end_hour": "23:59",
-                "min_time_btw_emails": 3,
-                "max_new_leads_per_day": 100
-            }
-        )
-        
-        # Now launch
-        resp = await client.post(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
-            params={"api_key": api_key},
-            json={"status": "START"}
-        )
-        data = resp.json()
-    
+
+    # First ensure schedule is set
+    await smartlead_request(
+        "POST",
+        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
+        params={"api_key": api_key},
+        json={
+            "timezone": "UTC",
+            "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
+            "start_hour": "00:00",
+            "end_hour": "23:59",
+            "min_time_btw_emails": 3,
+            "max_new_leads_per_day": 100
+        },
+        timeout=60.0,
+    )
+
+    # Now launch
+    resp = await smartlead_request(
+        "POST",
+        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
+        params={"api_key": api_key},
+        json={"status": "START"},
+        timeout=60.0,
+    )
+    data = resp.json()
+
     if data.get("error"):
         return {"success": False, "message": data.get("error"), "response": data}
-    
+
     return {"success": True, "message": f"Campaign {campaign_id} launched!", "response": data}
 
 
 @router.post("/campaign/{campaign_id}/pause")
 async def pause_campaign(campaign_id: str):
     """Pause a Smartlead campaign."""
-    import httpx
     import os
-    from app.services.smartlead_service import smartlead_service
-    
+
     api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
     if not api_key:
         raise HTTPException(status_code=400, detail="Smartlead not configured")
-    
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
-            params={"api_key": api_key},
-            json={"status": "PAUSE"}
-        )
-        data = resp.json()
-    
+
+    resp = await smartlead_request(
+        "POST",
+        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
+        params={"api_key": api_key},
+        json={"status": "PAUSE"},
+        timeout=60.0,
+    )
+    data = resp.json()
+
     return {"success": True, "message": f"Campaign {campaign_id} paused", "response": data}
 
 
@@ -2420,22 +2415,21 @@ async def search_leads(
     db: AsyncSession = Depends(get_session)
 ):
     """Search for leads by email or name."""
-    import httpx
     import os
-    
+
     api_key = os.getenv('SMARTLEAD_API_KEY')
     results = []
     seen_emails = set()
-    
+
     # 1. Search local database (ProcessedReply) - supports name and partial email
     local_query = select(ProcessedReply).where(
         (ProcessedReply.lead_email.ilike(f'%{q}%')) |
         (ProcessedReply.lead_first_name.ilike(f'%{q}%'))
     ).order_by(ProcessedReply.received_at.desc()).limit(10)
-    
+
     local_result = await db.execute(local_query)
     local_leads = local_result.scalars().all()
-    
+
     for lead in local_leads:
         if lead.lead_email and lead.lead_email not in seen_emails:
             seen_emails.add(lead.lead_email)
@@ -2446,36 +2440,37 @@ async def search_leads(
                 'first_name': lead.lead_first_name.split()[0] if lead.lead_first_name else '',
                 'last_name': ' '.join(lead.lead_first_name.split()[1:]) if lead.lead_first_name and ' ' in lead.lead_first_name else ''
             })
-    
+
     # 2. Try Smartlead exact email match (if looks like email)
     if api_key and '@' in q:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                lead_resp = await client.get(
-                    'https://server.smartlead.ai/api/v1/leads',
-                    params={'api_key': api_key, 'email': q}
-                )
-                
-                if lead_resp.status_code == 200:
-                    lead_data = lead_resp.json()
-                    
-                    if isinstance(lead_data, dict) and lead_data.get('email'):
-                        email = lead_data['email']
-                        if email not in seen_emails:
-                            seen_emails.add(email)
-                            campaign_info = lead_data.get('lead_campaign_data', [])
-                            campaign_name = campaign_info[0].get('campaign_name', '') if campaign_info else ''
-                            campaign_id = campaign_info[0].get('campaign_id', '') if campaign_info else ''
-                            
-                            results.insert(0, {
-                                'email': email,
-                                'campaign_name': campaign_name,
-                                'campaign_id': str(campaign_id),
-                                'first_name': lead_data.get('first_name', ''),
-                                'last_name': lead_data.get('last_name', '')
-                            })
-            except Exception as e:
-                logging.warning(f'Smartlead search failed: {e}')
+        try:
+            lead_resp = await smartlead_request(
+                "GET",
+                'https://server.smartlead.ai/api/v1/leads',
+                params={'api_key': api_key, 'email': q},
+                timeout=10.0,
+            )
+
+            if lead_resp.status_code == 200:
+                lead_data = lead_resp.json()
+
+                if isinstance(lead_data, dict) and lead_data.get('email'):
+                    email = lead_data['email']
+                    if email not in seen_emails:
+                        seen_emails.add(email)
+                        campaign_info = lead_data.get('lead_campaign_data', [])
+                        campaign_name = campaign_info[0].get('campaign_name', '') if campaign_info else ''
+                        campaign_id = campaign_info[0].get('campaign_id', '') if campaign_info else ''
+
+                        results.insert(0, {
+                            'email': email,
+                            'campaign_name': campaign_name,
+                            'campaign_id': str(campaign_id),
+                            'first_name': lead_data.get('first_name', ''),
+                            'last_name': lead_data.get('last_name', '')
+                        })
+        except Exception as e:
+            logging.warning(f'Smartlead search failed: {e}')
     
     return {'results': results[:10]}
 
@@ -2486,19 +2481,17 @@ async def get_lead_conversations(
     db: AsyncSession = Depends(get_session)
 ):
     """Get conversation history for a lead from local database or Smartlead API."""
-    import httpx
     import os
     import re
-    from app.services.smartlead_service import smartlead_service
-    
+
     # First try local database
     query = select(ProcessedReply).where(
         ProcessedReply.lead_email.ilike(f"%{lead_email}%")
     ).order_by(ProcessedReply.received_at.desc()).limit(20)
-    
+
     result = await db.execute(query)
     replies = result.scalars().all()
-    
+
     if replies:
         messages = []
         for r in replies:
@@ -2517,7 +2510,7 @@ async def get_lead_conversations(
                     "timestamp": r.received_at.isoformat() if r.received_at else None,
                     "status": r.approval_status
                 })
-        
+
         first_reply = replies[0]
         return {
             "lead_email": lead_email,
@@ -2525,68 +2518,82 @@ async def get_lead_conversations(
             "campaign": first_reply.campaign_name or f"Campaign {first_reply.campaign_id}",
             "messages": messages
         }
-    
+
     # Fallback to Smartlead API
     api_key = os.environ.get("SMARTLEAD_API_KEY") or smartlead_service.api_key
     if not api_key:
         return {"conversations": [], "message": "Lead not found"}
-    
+
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            lead_resp = await client.get(
-                "https://server.smartlead.ai/api/v1/leads",
-                params={"api_key": api_key, "email": lead_email}
+        lead_resp = await smartlead_request(
+            "GET",
+            "https://server.smartlead.ai/api/v1/leads",
+            params={"api_key": api_key, "email": lead_email},
+            timeout=30.0,
+        )
+        lead_data = lead_resp.json()
+
+        if not lead_data or not lead_data.get("id"):
+            return {"conversations": [], "message": "Lead not found in Smartlead"}
+
+        lead_id = lead_data["id"]
+        lead_name = f"{lead_data.get('first_name', '')} {lead_data.get('last_name', '')}".strip()
+        lead_campaigns = lead_data.get("lead_campaign_data", [])
+
+        messages = []
+        campaign_name = ""
+
+        for campaign_info in lead_campaigns[:3]:
+            campaign_id = campaign_info.get("campaign_id")
+            if not campaign_id:
+                continue
+
+            campaign_name = campaign_info.get("campaign_name", f"Campaign {campaign_id}")
+
+            hist_resp = await smartlead_request(
+                "GET",
+                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads/{lead_id}/message-history",
+                params={"api_key": api_key},
+                timeout=30.0,
             )
-            lead_data = lead_resp.json()
-            
-            if not lead_data or not lead_data.get("id"):
-                return {"conversations": [], "message": "Lead not found in Smartlead"}
-            
-            lead_id = lead_data["id"]
-            lead_name = f"{lead_data.get('first_name', '')} {lead_data.get('last_name', '')}".strip()
-            lead_campaigns = lead_data.get("lead_campaign_data", [])
-            
-            messages = []
-            campaign_name = ""
-            
-            for campaign_info in lead_campaigns[:3]:
-                campaign_id = campaign_info.get("campaign_id")
-                if not campaign_id:
-                    continue
-                    
-                campaign_name = campaign_info.get("campaign_name", f"Campaign {campaign_id}")
-                
-                hist_resp = await client.get(
-                    f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads/{lead_id}/message-history",
-                    params={"api_key": api_key}
-                )
-                hist_data = hist_resp.json()
-                
-                for msg in hist_data.get("history", []):
-                    body = msg.get("email_body", "")
-                    if "<" in body:
-                        body = re.sub(r"<[^>]+>", "", body)
-                    
-                    messages.append({
-                        "type": msg.get("type", "SENT"),
-                        "body": body[:500],
-                        "subject": msg.get("subject", ""),
-                        "timestamp": msg.get("time"),
-                        "from": msg.get("from"),
-                        "to": msg.get("to")
-                    })
-            
-            if not messages:
-                return {"conversations": [], "message": "No message history found"}
-            
-            return {
-                "lead_email": lead_email,
-                "lead_name": lead_name,
-                "campaign": campaign_name,
-                "messages": messages
-            }
+            hist_data = hist_resp.json()
+
+            for msg in hist_data.get("history", []):
+                body = msg.get("email_body", "")
+                if "<" in body:
+                    body = re.sub(r"<[^>]+>", "", body)
+
+                messages.append({
+                    "type": msg.get("type", "SENT"),
+                    "body": body[:500],
+                    "subject": msg.get("subject", ""),
+                    "timestamp": msg.get("time"),
+                    "from": msg.get("from"),
+                    "to": msg.get("to")
+                })
+
+        if not messages:
+            return {"conversations": [], "message": "No message history found"}
+
+        return {
+            "lead_email": lead_email,
+            "lead_name": lead_name,
+            "campaign": campaign_name,
+            "messages": messages
+        }
     except Exception as e:
         return {"conversations": [], "message": f"Error: {str(e)}"}
+
+
+@router.get("/smartlead/rate-limit-stats")
+async def get_rate_limit_stats():
+    """Get SmartLead API rate limiter stats."""
+    from app.services.smartlead_service import _sl_429_count, _sl_total_count, _sl_timestamps
+    return {
+        "total_requests": _sl_total_count,
+        "429_count": _sl_429_count,
+        "window_size": len(_sl_timestamps),
+    }
 
 
 @router.get("/slack/status")
@@ -2866,46 +2873,46 @@ async def sync_historical_replies(
     
     # If no local data, fetch from Smartlead statistics API
     if True:  # Always fetch from Smartlead API
-        import httpx
         import os
         api_key = os.environ.get("SMARTLEAD_API_KEY")
         if api_key:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                for campaign_id in (automation.campaign_ids or []):
-                    try:
-                        resp = await client.get(
-                            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/statistics",
-                            params={"api_key": api_key, "limit": limit * 10}
-                        )
-                        stats = resp.json()
-                        for entry in stats.get("data", []):
-                            if not entry.get("reply_time"):
-                                continue
-                            if synced >= limit:
-                                break
-                            lead_email = entry.get("lead_email", "").lower()
-                            if lead_email in existing_emails:
-                                skipped += 1
-                                continue
-                            
-                            row_data = {
-                                "lead_email": entry.get("lead_email", ""),
-                                "lead_name": entry.get("lead_name", ""),
-                                "subject": entry.get("email_subject", ""),
-                                "reply_text": f"[Reply received at {entry.get('reply_time', '')}]",
-                                "received_at": entry.get("reply_time", ""),
-                                "campaign_name": automation.name,
-                                "category": "",
-                                "status": ""
-                            }
-                            try:
-                                google_sheets_service.append_reply(automation.google_sheet_id, row_data)
-                                synced += 1
-                                existing_emails.add(lead_email)
-                            except Exception as e:
-                                errors.append(f"{lead_email}: {str(e)}")
-                    except Exception as api_err:
-                        errors.append(f"Campaign {campaign_id}: {str(api_err)}")
+            for campaign_id in (automation.campaign_ids or []):
+                try:
+                    resp = await smartlead_request(
+                        "GET",
+                        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/statistics",
+                        params={"api_key": api_key, "limit": limit * 10},
+                        timeout=60.0,
+                    )
+                    stats = resp.json()
+                    for entry in stats.get("data", []):
+                        if not entry.get("reply_time"):
+                            continue
+                        if synced >= limit:
+                            break
+                        lead_email = entry.get("lead_email", "").lower()
+                        if lead_email in existing_emails:
+                            skipped += 1
+                            continue
+
+                        row_data = {
+                            "lead_email": entry.get("lead_email", ""),
+                            "lead_name": entry.get("lead_name", ""),
+                            "subject": entry.get("email_subject", ""),
+                            "reply_text": f"[Reply received at {entry.get('reply_time', '')}]",
+                            "received_at": entry.get("reply_time", ""),
+                            "campaign_name": automation.name,
+                            "category": "",
+                            "status": ""
+                        }
+                        try:
+                            google_sheets_service.append_reply(automation.google_sheet_id, row_data)
+                            synced += 1
+                            existing_emails.add(lead_email)
+                        except Exception as e:
+                            errors.append(f"{lead_email}: {str(e)}")
+                except Exception as api_err:
+                    errors.append(f"Campaign {campaign_id}: {str(api_err)}")
     
     return {
         "success": True,
@@ -3109,7 +3116,6 @@ async def sync_outbound_status(
     Resolves lead_id from DB only (zero API calls for resolution).
     Fetches message-history only for recent pending leads (~5-10 API calls).
     """
-    import httpx
     import asyncio
     from app.services.smartlead_service import SmartleadService
     from app.models.contact import Contact
@@ -3172,129 +3178,122 @@ async def sync_outbound_status(
     errors = []
     delay = 1.5
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        for r in to_check:
-            email_lower = (r.lead_email or "").lower()
+    for r in to_check:
+        email_lower = (r.lead_email or "").lower()
 
-            # Resolve lead_id from local data only — zero Smartlead API calls
-            lead_id = None
+        # Resolve lead_id from local data only — zero Smartlead API calls
+        lead_id = None
 
-            # 1. Contact.smartlead_id from DB
-            contact_result = await db.execute(
-                select(Contact.id, Contact.smartlead_id).where(
-                    func.lower(Contact.email) == email_lower,
-                    Contact.deleted_at.is_(None),
-                )
+        # 1. Contact.smartlead_id from DB
+        contact_result = await db.execute(
+            select(Contact.id, Contact.smartlead_id).where(
+                func.lower(Contact.email) == email_lower,
+                Contact.deleted_at.is_(None),
             )
-            row = contact_result.first()
-            if row and row[1]:
-                lead_id = str(row[1])
+        )
+        row = contact_result.first()
+        if row and row[1]:
+            lead_id = str(row[1])
 
-            # 2. Webhook raw data (sl_email_lead_id is the primary field Smartlead sends)
-            if not lead_id and r.raw_webhook_data and isinstance(r.raw_webhook_data, dict):
-                lead_id = str(
-                    r.raw_webhook_data.get("sl_email_lead_id")
-                    or r.raw_webhook_data.get("sl_lead_id")
-                    or r.raw_webhook_data.get("lead_id")
-                    or ""
-                ).strip() or None
+        # 2. Webhook raw data (sl_email_lead_id is the primary field Smartlead sends)
+        if not lead_id and r.raw_webhook_data and isinstance(r.raw_webhook_data, dict):
+            lead_id = str(
+                r.raw_webhook_data.get("sl_email_lead_id")
+                or r.raw_webhook_data.get("sl_lead_id")
+                or r.raw_webhook_data.get("lead_id")
+                or ""
+            ).strip() or None
 
-            # Backfill Contact.smartlead_id if null
-            if lead_id and row and not row[1]:
-                from sqlalchemy import update as sa_update
-                await db.execute(
-                    sa_update(Contact).where(Contact.id == row[0]).values(smartlead_id=lead_id)
-                )
+        # Backfill Contact.smartlead_id if null
+        if lead_id and row and not row[1]:
+            from sqlalchemy import update as sa_update
+            await db.execute(
+                sa_update(Contact).where(Contact.id == row[0]).values(smartlead_id=lead_id)
+            )
 
-            if not lead_id:
-                skipped_no_lead_id.append({
-                    "reply_id": r.id, "email": r.lead_email,
-                    "campaign": r.campaign_name,
-                })
+        if not lead_id:
+            skipped_no_lead_id.append({
+                "reply_id": r.id, "email": r.lead_email,
+                "campaign": r.campaign_name,
+            })
+            continue
+
+        cid = r.campaign_id
+
+        try:
+            await asyncio.sleep(delay)
+            resp = await smartlead_request(
+                "GET",
+                f"https://server.smartlead.ai/api/v1/campaigns/{cid}/leads/{lead_id}/message-history",
+                params={"api_key": sl._api_key},
+                timeout=30.0,
+            )
+
+            if resp.status_code == 429:
+                delay = min(delay * 2, 15.0)
+                errors.append({"reply_id": r.id, "error": "429 after retry", "email": r.lead_email})
                 continue
 
-            cid = r.campaign_id
+            if resp.status_code != 200:
+                errors.append({"reply_id": r.id, "error": f"API {resp.status_code}"})
+                continue
 
-            try:
-                await asyncio.sleep(delay)
-                resp = await client.get(
-                    f"https://server.smartlead.ai/api/v1/campaigns/{cid}/leads/{lead_id}/message-history",
-                    params={"api_key": sl._api_key},
-                )
+            delay = max(delay * 0.9, 1.0)
 
-                if resp.status_code == 429:
-                    delay = min(delay * 2, 10.0)
-                    logger.info(f"sync: 429 for {r.lead_email}, delay now {delay:.1f}s")
-                    await asyncio.sleep(delay)
-                    resp = await client.get(
-                        f"https://server.smartlead.ai/api/v1/campaigns/{cid}/leads/{lead_id}/message-history",
-                        params={"api_key": sl._api_key},
-                    )
-                if resp.status_code == 429:
-                    delay = min(delay * 2, 15.0)
-                    errors.append({"reply_id": r.id, "error": "429 after retry", "email": r.lead_email})
-                    continue
+            history = resp.json().get("history", [])
+            if not history:
+                still_pending_list.append({"reply_id": r.id, "email": r.lead_email,
+                                           "campaign": r.campaign_name})
+                continue
 
-                if resp.status_code != 200:
-                    errors.append({"reply_id": r.id, "error": f"API {resp.status_code}"})
-                    continue
+            last_msg = history[-1]
+            msg_type = last_msg.get("type", "")
 
-                delay = max(delay * 0.9, 1.0)
-
-                history = resp.json().get("history", [])
-                if not history:
-                    still_pending_list.append({"reply_id": r.id, "email": r.lead_email,
-                                               "campaign": r.campaign_name})
-                    continue
-
-                last_msg = history[-1]
-                msg_type = last_msg.get("type", "")
-
-                if msg_type != "REPLY":
-                    already_replied.append({
-                        "reply_id": r.id,
-                        "lead_email": r.lead_email,
-                        "campaign": r.campaign_name,
-                        "last_msg_type": msg_type,
-                        "messages_total": len(history),
-                    })
-                    if not dry_run:
-                        group_key = (r.campaign_id, email_lower)
-                        for gr in reply_groups.get(group_key, []):
-                            if gr.approval_status in (None, "pending"):
-                                gr.approval_status = "replied_externally"
-                                gr.approved_at = datetime.utcnow()
-                                db.add(gr)
-                else:
-                    if auto_dismiss:
-                        reply_text = last_msg.get("email_body", "") or ""
-                        classification = await _classify_reply_needs_action(reply_text)
-                        if classification != "needs_reply":
-                            auto_dismissed.append({
-                                "reply_id": r.id, "lead_email": r.lead_email,
-                                "campaign": r.campaign_name, "reason": classification,
-                            })
-                            if not dry_run:
-                                group_key = (r.campaign_id, email_lower)
-                                for gr in reply_groups.get(group_key, []):
-                                    if gr.approval_status in (None, "pending"):
-                                        gr.approval_status = "dismissed"
-                                        gr.approved_at = datetime.utcnow()
-                                        db.add(gr)
-                        else:
-                            still_pending_list.append({
-                                "reply_id": r.id, "email": r.lead_email,
-                                "campaign": r.campaign_name,
-                            })
+            if msg_type != "REPLY":
+                already_replied.append({
+                    "reply_id": r.id,
+                    "lead_email": r.lead_email,
+                    "campaign": r.campaign_name,
+                    "last_msg_type": msg_type,
+                    "messages_total": len(history),
+                })
+                if not dry_run:
+                    group_key = (r.campaign_id, email_lower)
+                    for gr in reply_groups.get(group_key, []):
+                        if gr.approval_status in (None, "pending"):
+                            gr.approval_status = "replied_externally"
+                            gr.approved_at = datetime.utcnow()
+                            db.add(gr)
+            else:
+                if auto_dismiss:
+                    reply_text = last_msg.get("email_body", "") or ""
+                    classification = await _classify_reply_needs_action(reply_text)
+                    if classification != "needs_reply":
+                        auto_dismissed.append({
+                            "reply_id": r.id, "lead_email": r.lead_email,
+                            "campaign": r.campaign_name, "reason": classification,
+                        })
+                        if not dry_run:
+                            group_key = (r.campaign_id, email_lower)
+                            for gr in reply_groups.get(group_key, []):
+                                if gr.approval_status in (None, "pending"):
+                                    gr.approval_status = "dismissed"
+                                    gr.approved_at = datetime.utcnow()
+                                    db.add(gr)
                     else:
                         still_pending_list.append({
                             "reply_id": r.id, "email": r.lead_email,
                             "campaign": r.campaign_name,
                         })
+                else:
+                    still_pending_list.append({
+                        "reply_id": r.id, "email": r.lead_email,
+                        "campaign": r.campaign_name,
+                    })
 
-            except Exception as e:
-                logger.error(f"sync: error checking {r.lead_email}: {e}")
-                errors.append({"reply_id": r.id, "error": str(e)})
+        except Exception as e:
+            logger.error(f"sync: error checking {r.lead_email}: {e}")
+            errors.append({"reply_id": r.id, "error": str(e)})
 
     if not dry_run:
         try:
