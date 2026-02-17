@@ -428,12 +428,13 @@ async def _fetch_and_cache_thread(
     On success sets reply.thread_fetched_at and returns True.
     Also detects replied_externally (last message outbound).
     """
-    import os
+    from app.core.config import settings as _settings
     from sqlalchemy import delete as sa_delete
 
     try:
-        api_key = os.getenv("SMARTLEAD_API_KEY", "")
+        api_key = _settings.SMARTLEAD_API_KEY or ""
         if not api_key or not reply.campaign_id:
+            logger.info(f"[THREAD_CACHE] Skipping: api_key={'set' if api_key else 'EMPTY'}, campaign_id={reply.campaign_id}")
             return False
 
         # --- Resolve lead_id (same chain as sync_conversation_histories) ---
