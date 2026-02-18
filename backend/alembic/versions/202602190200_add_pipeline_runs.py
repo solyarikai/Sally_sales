@@ -9,7 +9,6 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -20,86 +19,84 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create enum types explicitly with checkfirst
+    # Use raw SQL to avoid SQLAlchemy's enum auto-creation issues with asyncpg
     conn = op.get_bind()
-    for enum_name, values in [
-        ('pipeline_run_status', ['PENDING', 'RUNNING', 'PAUSED', 'STOPPED', 'COMPLETED', 'FAILED']),
-        ('pipeline_phase', ['SEARCH', 'EXTRACTION', 'ENRICHMENT', 'VERIFICATION', 'CRM_PROMOTE', 'SMARTLEAD_PUSH']),
-        ('pipeline_phase_status', ['STARTED', 'COMPLETED', 'FAILED', 'SKIPPED']),
-    ]:
-        conn.execute(sa.text(
-            f"DO $$ BEGIN CREATE TYPE {enum_name} AS ENUM ({', '.join(repr(v) for v in values)}); EXCEPTION WHEN duplicate_object THEN NULL; END $$"
-        ))
 
-    # Use create_type=False so create_table doesn't try to re-create enums
-    pipeline_run_status = sa.Enum(
-        'PENDING', 'RUNNING', 'PAUSED', 'STOPPED', 'COMPLETED', 'FAILED',
-        name='pipeline_run_status', create_type=False,
-    )
-    pipeline_phase = sa.Enum(
-        'SEARCH', 'EXTRACTION', 'ENRICHMENT', 'VERIFICATION', 'CRM_PROMOTE', 'SMARTLEAD_PUSH',
-        name='pipeline_phase', create_type=False,
-    )
-    pipeline_phase_status = sa.Enum(
-        'STARTED', 'COMPLETED', 'FAILED', 'SKIPPED',
-        name='pipeline_phase_status', create_type=False,
-    )
+    # Create enum types (idempotent)
+    conn.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE pipeline_run_status AS ENUM ('PENDING', 'RUNNING', 'PAUSED', 'STOPPED', 'COMPLETED', 'FAILED');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$
+    """))
+    conn.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE pipeline_phase AS ENUM ('SEARCH', 'EXTRACTION', 'ENRICHMENT', 'VERIFICATION', 'CRM_PROMOTE', 'SMARTLEAD_PUSH');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$
+    """))
+    conn.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE pipeline_phase_status AS ENUM ('STARTED', 'COMPLETED', 'FAILED', 'SKIPPED');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$
+    """))
 
-    # pipeline_runs
-    op.create_table(
-        'pipeline_runs',
-        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('project_id', sa.Integer(), sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('company_id', sa.Integer(), sa.ForeignKey('companies.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('status', pipeline_run_status, nullable=False, server_default='PENDING'),
-        sa.Column('current_phase', pipeline_phase, nullable=True),
-        sa.Column('config', postgresql.JSONB(), nullable=True),
-        sa.Column('progress', postgresql.JSONB(), nullable=True),
-        sa.Column('total_cost_usd', sa.Numeric(10, 4), server_default='0'),
-        sa.Column('budget_limit_usd', sa.Numeric(10, 4), nullable=True),
-        sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('error_message', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-    )
-    op.create_index('ix_pipeline_runs_project_id', 'pipeline_runs', ['project_id'])
+    # Create tables with raw SQL to avoid SQLAlchemy trying to re-create enums
+    conn.execute(sa.text("""
+        CREATE TABLE IF NOT EXISTS pipeline_runs (
+            id SERIAL PRIMARY KEY,
+            project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            status pipeline_run_status NOT NULL DEFAULT 'PENDING',
+            current_phase pipeline_phase,
+            config JSONB,
+            progress JSONB,
+            total_cost_usd NUMERIC(10,4) DEFAULT 0,
+            budget_limit_usd NUMERIC(10,4),
+            started_at TIMESTAMPTZ,
+            completed_at TIMESTAMPTZ,
+            error_message TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_pipeline_runs_project_id ON pipeline_runs (project_id)"))
 
-    # pipeline_phase_logs
-    op.create_table(
-        'pipeline_phase_logs',
-        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('pipeline_run_id', sa.Integer(), sa.ForeignKey('pipeline_runs.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('phase', pipeline_phase, nullable=False),
-        sa.Column('status', pipeline_phase_status, nullable=False),
-        sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('stats', postgresql.JSONB(), nullable=True),
-        sa.Column('cost_usd', sa.Numeric(10, 4), server_default='0'),
-        sa.Column('error_message', sa.Text(), nullable=True),
-    )
-    op.create_index('ix_pipeline_phase_logs_run_id', 'pipeline_phase_logs', ['pipeline_run_id'])
+    conn.execute(sa.text("""
+        CREATE TABLE IF NOT EXISTS pipeline_phase_logs (
+            id SERIAL PRIMARY KEY,
+            pipeline_run_id INTEGER NOT NULL REFERENCES pipeline_runs(id) ON DELETE CASCADE,
+            phase pipeline_phase NOT NULL,
+            status pipeline_phase_status NOT NULL,
+            started_at TIMESTAMPTZ,
+            completed_at TIMESTAMPTZ,
+            stats JSONB,
+            cost_usd NUMERIC(10,4) DEFAULT 0,
+            error_message TEXT
+        )
+    """))
+    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_pipeline_phase_logs_run_id ON pipeline_phase_logs (pipeline_run_id)"))
 
-    # cost_events
-    op.create_table(
-        'cost_events',
-        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('project_id', sa.Integer(), sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('pipeline_run_id', sa.Integer(), sa.ForeignKey('pipeline_runs.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('service', sa.String(50), nullable=False),
-        sa.Column('units', sa.Integer(), nullable=False, server_default='1'),
-        sa.Column('cost_usd', sa.Numeric(10, 6), nullable=False, server_default='0'),
-        sa.Column('description', sa.String(500), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-    )
-    op.create_index('ix_cost_events_project_id', 'cost_events', ['project_id'])
+    conn.execute(sa.text("""
+        CREATE TABLE IF NOT EXISTS cost_events (
+            id SERIAL PRIMARY KEY,
+            project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            pipeline_run_id INTEGER REFERENCES pipeline_runs(id) ON DELETE SET NULL,
+            service VARCHAR(50) NOT NULL,
+            units INTEGER NOT NULL DEFAULT 1,
+            cost_usd NUMERIC(10,6) NOT NULL DEFAULT 0,
+            description VARCHAR(500),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_cost_events_project_id ON cost_events (project_id)"))
 
 
 def downgrade() -> None:
-    op.drop_table('cost_events')
-    op.drop_table('pipeline_phase_logs')
-    op.drop_table('pipeline_runs')
-
-    sa.Enum(name='pipeline_phase_status').drop(op.get_bind(), checkfirst=True)
-    sa.Enum(name='pipeline_phase').drop(op.get_bind(), checkfirst=True)
-    sa.Enum(name='pipeline_run_status').drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TABLE IF EXISTS cost_events")
+    op.execute("DROP TABLE IF EXISTS pipeline_phase_logs")
+    op.execute("DROP TABLE IF EXISTS pipeline_runs")
+    op.execute("DROP TYPE IF EXISTS pipeline_phase_status")
+    op.execute("DROP TYPE IF EXISTS pipeline_phase")
+    op.execute("DROP TYPE IF EXISTS pipeline_run_status")
