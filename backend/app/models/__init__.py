@@ -27,6 +27,11 @@ from .pipeline import (
 from .task import OperatorTask
 from .chat import ProjectChatMessage
 from .project_knowledge import ProjectKnowledge
+from .pipeline_run import (
+    PipelineRun, PipelineRunStatus, PipelinePhase,
+    PipelinePhaseLog, PipelinePhaseStatus,
+    CostEvent,
+)
 
 __all__ = [
     # User & Multi-tenancy
@@ -63,4 +68,8 @@ __all__ = [
     "ProjectChatMessage",
     # Project Knowledge
     "ProjectKnowledge",
+    # Pipeline Runs & Cost
+    "PipelineRun", "PipelineRunStatus", "PipelinePhase",
+    "PipelinePhaseLog", "PipelinePhaseStatus",
+    "CostEvent",
 ]

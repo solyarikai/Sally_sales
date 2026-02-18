@@ -102,6 +102,7 @@ class ContactResponse(BaseModel):
     domain: Optional[str] = None
     job_title: Optional[str] = None
     segment: Optional[str] = None
+    geo: Optional[str] = None
     project_id: Optional[int] = None
     project_name: Optional[str] = None
     source: str
@@ -232,6 +233,7 @@ async def _build_filtered_query(
     company_id: Optional[int],
     project_id: Optional[int] = None,
     segment: Optional[str] = None,
+    geo: Optional[str] = None,
     status: Optional[str] = None,
     source: Optional[str] = None,
     has_replied: Optional[bool] = None,
@@ -288,6 +290,8 @@ async def _build_filtered_query(
 
     if segment:
         query = query.where(Contact.segment == segment)
+    if geo:
+        query = query.where(Contact.geo == geo)
     if status:
         statuses = [s.strip() for s in status.split(',') if s.strip()]
         if len(statuses) == 1:
@@ -363,6 +367,7 @@ async def list_contacts(
     # Filters
     project_id: Optional[int] = Query(None),
     segment: Optional[str] = Query(None),
+    geo: Optional[str] = Query(None, description="Filter by geo: RU, Global"),
     status: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
     has_replied: Optional[bool] = Query(None, description="Filter by replied status"),
@@ -378,7 +383,7 @@ async def list_contacts(
     """Get paginated list of contacts with filters"""
     query = await _build_filtered_query(
         session, company_id,
-        project_id=project_id, segment=segment, status=status, source=source,
+        project_id=project_id, segment=segment, geo=geo, status=status, source=source,
         has_replied=has_replied, has_smartlead=has_smartlead, has_getsales=has_getsales,
         campaign=campaign, needs_followup=needs_followup,
         created_after=created_after, created_before=created_before, search=search,
@@ -511,7 +516,13 @@ async def get_filter_options(
         select(Contact.source).where(base_filter).distinct()
     )
     sources = [r[0] for r in sources_result.all() if r[0]]
-    
+
+    # Get unique geos
+    geos_result = await session.execute(
+        select(Contact.geo).where(base_filter).distinct()
+    )
+    geos = [r[0] for r in geos_result.all() if r[0]]
+
     # Get projects
     projects_result = await session.execute(
         select(Project.id, Project.name)
@@ -524,6 +535,7 @@ async def get_filter_options(
         "statuses": CONTACT_STATUSES,
         "sources": sources if sources else CONTACT_SOURCES,
         "segments": segments if segments else DEFAULT_SEGMENTS,
+        "geos": geos,
         "projects": projects,
     }
 
@@ -1192,6 +1204,7 @@ async def _get_filtered_contacts_for_export(
     project_id: Optional[int] = None,
     campaign: Optional[str] = None,
     segment: Optional[str] = None,
+    geo: Optional[str] = None,
     status: Optional[str] = None,
     source: Optional[str] = None,
     search: Optional[str] = None,
@@ -1211,7 +1224,7 @@ async def _get_filtered_contacts_for_export(
     else:
         query = await _build_filtered_query(
             session, company_id,
-            project_id=project_id, campaign=campaign, segment=segment,
+            project_id=project_id, campaign=campaign, segment=segment, geo=geo,
             status=status, source=source, search=search,
             has_replied=has_replied, created_after=created_after,
             created_before=created_before,

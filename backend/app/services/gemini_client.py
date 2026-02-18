@@ -5,7 +5,7 @@ Falls back to OpenAI GPT-4o-mini if Gemini API key is not configured.
 import json
 import logging
 import re
-from typing import Optional
+from typing import Optional, AsyncGenerator
 
 from app.core.config import settings
 
@@ -34,6 +34,7 @@ async def gemini_generate(
     temperature: float = 0.5,
     max_tokens: int = 4000,
     model: Optional[str] = None,
+    project_id: Optional[int] = None,
 ) -> dict:
     """
     Call Gemini API for text generation.
@@ -68,10 +69,62 @@ async def gemini_generate(
             "total": usage.total_token_count or 0,
         }
 
+        # Track cost if project_id provided
+        if project_id and tokens["total"] > 0:
+            try:
+                from app.services.cost_service import cost_service
+                await cost_service.record_cost_standalone(
+                    project_id, "gemini_1k_tokens",
+                    units=max(1, tokens["total"] // 1000),
+                    description=f"gemini/{model_name}",
+                )
+            except Exception as cost_err:
+                logger.debug(f"Failed to record Gemini cost: {cost_err}")
+
         return {"content": content, "tokens": tokens, "model": model_name}
 
     except Exception as e:
         logger.error(f"Gemini API call failed: {e}")
+        raise
+
+
+async def gemini_generate_stream(
+    system_prompt: str,
+    user_prompt: str,
+    temperature: float = 0.5,
+    max_tokens: int = 4000,
+    model: Optional[str] = None,
+) -> AsyncGenerator[str, None]:
+    """
+    Stream Gemini response token-by-token.
+    Yields text chunks as they arrive.
+    """
+    client = _get_client()
+    if not client:
+        raise RuntimeError("Gemini API key not configured")
+
+    model_name = model or settings.GEMINI_MODEL
+    full_prompt = f"{system_prompt}\n\n{user_prompt}"
+
+    try:
+        from google.genai import types
+
+        response_stream = client.models.generate_content_stream(
+            model=model_name,
+            contents=full_prompt,
+            config=types.GenerateContentConfig(
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+            ),
+        )
+
+        for chunk in response_stream:
+            text = chunk.text
+            if text:
+                yield text
+
+    except Exception as e:
+        logger.error(f"Gemini streaming call failed: {e}")
         raise
 
 

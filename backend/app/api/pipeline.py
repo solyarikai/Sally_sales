@@ -33,8 +33,90 @@ from pydantic import BaseModel, Field
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 logger = logging.getLogger(__name__)
 
-# In-memory registry of running full-pipeline tasks
+# In-memory registry of running full-pipeline tasks (cache — DB is source of truth)
 _running_pipelines: dict[int, dict] = {}
+
+
+# ---- DB-backed pipeline state helpers ----
+
+async def _create_pipeline_run(project_id: int, company_id: int, config: dict) -> int:
+    """Create a PipelineRun in DB, return its ID."""
+    from app.models.pipeline_run import PipelineRun, PipelineRunStatus
+    async with async_session_maker() as session:
+        run = PipelineRun(
+            project_id=project_id,
+            company_id=company_id,
+            status=PipelineRunStatus.RUNNING,
+            config=config,
+            progress={},
+            started_at=datetime.utcnow(),
+        )
+        session.add(run)
+        await session.commit()
+        await session.refresh(run)
+        return run.id
+
+
+async def _update_pipeline_run(run_id: int, **kwargs):
+    """Update a PipelineRun's fields."""
+    from app.models.pipeline_run import PipelineRun
+    async with async_session_maker() as session:
+        result = await session.execute(select(PipelineRun).where(PipelineRun.id == run_id))
+        run = result.scalar_one_or_none()
+        if run:
+            for k, v in kwargs.items():
+                setattr(run, k, v)
+            await session.commit()
+
+
+async def _log_phase(run_id: int, phase: str, status: str, **kwargs):
+    """Log a pipeline phase transition."""
+    from app.models.pipeline_run import PipelinePhaseLog, PipelinePhase, PipelinePhaseStatus
+    phase_enum = PipelinePhase(phase) if phase in [p.value for p in PipelinePhase] else None
+    if not phase_enum:
+        return
+    async with async_session_maker() as session:
+        log = PipelinePhaseLog(
+            pipeline_run_id=run_id,
+            phase=phase_enum,
+            status=PipelinePhaseStatus(status),
+            started_at=kwargs.get("started_at"),
+            completed_at=kwargs.get("completed_at"),
+            stats=kwargs.get("stats"),
+            cost_usd=kwargs.get("cost_usd", 0),
+            error_message=kwargs.get("error_message"),
+        )
+        session.add(log)
+        await session.commit()
+
+
+async def _check_stop_requested(run_id: int) -> bool:
+    """Check if a pipeline run has been requested to stop (via DB)."""
+    from app.models.pipeline_run import PipelineRun, PipelineRunStatus
+    async with async_session_maker() as session:
+        result = await session.execute(select(PipelineRun.status).where(PipelineRun.id == run_id))
+        status = result.scalar_one_or_none()
+        return status == PipelineRunStatus.STOPPED
+
+
+async def _mark_interrupted_runs():
+    """On startup, mark any RUNNING pipeline runs as FAILED."""
+    from app.models.pipeline_run import PipelineRun, PipelineRunStatus
+    try:
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(PipelineRun).where(PipelineRun.status == PipelineRunStatus.RUNNING)
+            )
+            runs = result.scalars().all()
+            for run in runs:
+                run.status = PipelineRunStatus.FAILED
+                run.error_message = "Server restarted while pipeline was running"
+                run.completed_at = datetime.utcnow()
+            if runs:
+                await session.commit()
+                logger.info(f"Marked {len(runs)} interrupted pipeline runs as FAILED")
+    except Exception as e:
+        logger.error(f"Failed to mark interrupted runs: {e}")
 
 
 # ============ Full Pipeline (background task) ============
@@ -85,18 +167,22 @@ async def run_full_pipeline(
     if project_id in _running_pipelines and _running_pipelines[project_id].get("running"):
         return {"status": "already_running", "progress": _running_pipelines[project_id]}
 
+    # Create DB-backed pipeline run
+    run_id = await _create_pipeline_run(project_id, company.id, body.model_dump())
+
     _running_pipelines[project_id] = {
         "running": True,
         "phase": "starting",
         "started_at": datetime.utcnow().isoformat(),
         "config": body.model_dump(),
+        "pipeline_run_id": run_id,
     }
 
     background_tasks.add_task(
         _run_full_pipeline_bg, project_id, company.id, body
     )
 
-    return {"status": "started", "project_id": project_id}
+    return {"status": "started", "project_id": project_id, "pipeline_run_id": run_id}
 
 
 @router.get("/full-pipeline/{project_id}/status")
@@ -106,9 +192,32 @@ async def get_full_pipeline_status(
     company: Company = Depends(get_required_company),
 ):
     """Get status of a running full pipeline."""
-    if project_id not in _running_pipelines:
-        return {"status": "not_running"}
-    return _running_pipelines[project_id]
+    if project_id in _running_pipelines and _running_pipelines[project_id].get("running"):
+        return _running_pipelines[project_id]
+
+    # Fall back to DB for historical/restarted runs
+    from app.models.pipeline_run import PipelineRun
+    result = await db.execute(
+        select(PipelineRun)
+        .where(PipelineRun.project_id == project_id, PipelineRun.company_id == company.id)
+        .order_by(PipelineRun.created_at.desc())
+        .limit(1)
+    )
+    run = result.scalar_one_or_none()
+    if run:
+        return {
+            "pipeline_run_id": run.id,
+            "running": run.status.value == "RUNNING",
+            "phase": run.current_phase.value if run.current_phase else None,
+            "status": run.status.value,
+            "progress": run.progress or {},
+            "config": run.config or {},
+            "total_cost_usd": float(run.total_cost_usd or 0),
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "error_message": run.error_message,
+        }
+    return {"status": "not_running"}
 
 
 @router.post("/full-pipeline/{project_id}/stop")
@@ -120,53 +229,131 @@ async def stop_full_pipeline(
     """Request stop for a running pipeline (checked between phases)."""
     if project_id in _running_pipelines:
         _running_pipelines[project_id]["stop_requested"] = True
+        # Also mark in DB
+        run_id = _running_pipelines[project_id].get("pipeline_run_id")
+        if run_id:
+            from app.models.pipeline_run import PipelineRunStatus
+            await _update_pipeline_run(run_id, status=PipelineRunStatus.STOPPED)
         return {"status": "stop_requested"}
     return {"status": "not_running"}
 
 
 async def _run_full_pipeline_bg(project_id: int, company_id: int, cfg: FullPipelineRequest):
-    """Background task: full pipeline orchestration."""
-    progress = _running_pipelines[project_id]
+    """Background task: full pipeline orchestration with DB-backed state."""
+    from app.models.pipeline_run import PipelineRunStatus, PipelinePhase
+
+    progress = _running_pipelines.get(project_id, {})
+    run_id = progress.get("pipeline_run_id")
+
+    async def _transition_phase(phase_name: str, phase_enum_val: str):
+        """Update both in-memory cache and DB."""
+        progress["phase"] = phase_name
+        if run_id:
+            try:
+                phase_enum = PipelinePhase(phase_enum_val)
+                await _update_pipeline_run(run_id, current_phase=phase_enum, progress=progress)
+                await _log_phase(run_id, phase_enum_val, "STARTED", started_at=datetime.utcnow())
+            except Exception:
+                pass
+
+    async def _complete_phase(phase_enum_val: str, stats: dict = None):
+        if run_id:
+            try:
+                await _log_phase(run_id, phase_enum_val, "COMPLETED", completed_at=datetime.utcnow(), stats=stats)
+            except Exception:
+                pass
+        # Send chat notification
+        try:
+            from app.services.chat_notification_service import chat_notification_service
+            await chat_notification_service.on_pipeline_phase_complete(project_id, phase_enum_val, stats)
+        except Exception:
+            pass
+
+    def _is_stopped():
+        return progress.get("stop_requested", False)
+
     try:
         # --- Phase 1: Parallel Search ---
         if not cfg.skip_search:
-            progress["phase"] = "search"
+            await _transition_phase("search", "SEARCH")
             await _bg_phase_search(project_id, company_id, cfg, progress)
-            if progress.get("stop_requested"):
+            await _complete_phase("SEARCH", progress.get("search_results"))
+            if _is_stopped():
                 progress.update({"running": False, "phase": "stopped"})
+                if run_id:
+                    await _update_pipeline_run(run_id, status=PipelineRunStatus.STOPPED, completed_at=datetime.utcnow())
                 return
 
         # --- Phase 2: Website Contact Extraction ---
         if not cfg.skip_extraction:
-            progress["phase"] = "extraction"
+            await _transition_phase("extraction", "EXTRACTION")
             await _bg_phase_extraction(project_id, company_id, progress)
-            if progress.get("stop_requested"):
+            await _complete_phase("EXTRACTION", progress.get("extraction_stats"))
+            if _is_stopped():
                 progress.update({"running": False, "phase": "stopped"})
+                if run_id:
+                    await _update_pipeline_run(run_id, status=PipelineRunStatus.STOPPED, completed_at=datetime.utcnow())
                 return
 
         # --- Phase 3: Apollo Enrichment ---
         if not cfg.skip_enrichment:
-            progress["phase"] = "enrichment"
+            await _transition_phase("enrichment", "ENRICHMENT")
             await _bg_phase_enrichment(project_id, company_id, cfg, progress)
-            if progress.get("stop_requested"):
+            await _complete_phase("ENRICHMENT", progress.get("enrichment_stats"))
+            if _is_stopped():
                 progress.update({"running": False, "phase": "stopped"})
+                if run_id:
+                    await _update_pipeline_run(run_id, status=PipelineRunStatus.STOPPED, completed_at=datetime.utcnow())
                 return
 
         # --- Phase 4: SmartLead Push ---
         if not cfg.skip_smartlead_push:
-            progress["phase"] = "smartlead_push"
+            await _transition_phase("smartlead_push", "SMARTLEAD_PUSH")
             await _bg_phase_smartlead_push(project_id, company_id, progress)
+            await _complete_phase("SMARTLEAD_PUSH", progress.get("smartlead_push_stats"))
 
         # --- Phase 5: Auto-promote all target contacts to CRM ---
-        progress["phase"] = "crm_promote"
+        await _transition_phase("crm_promote", "CRM_PROMOTE")
         await _bg_phase_crm_promote(project_id, company_id, progress)
+        await _complete_phase("CRM_PROMOTE")
 
         progress.update({"running": False, "phase": "completed", "completed_at": datetime.utcnow().isoformat()})
-        logger.info(f"Full pipeline completed for project {project_id}: {progress}")
+        if run_id:
+            await _update_pipeline_run(
+                run_id,
+                status=PipelineRunStatus.COMPLETED,
+                completed_at=datetime.utcnow(),
+                progress=progress,
+            )
+        logger.info(f"Full pipeline completed for project {project_id}")
+
+        # Notify chat
+        try:
+            from app.services.chat_notification_service import chat_notification_service
+            await chat_notification_service.on_pipeline_complete(project_id)
+        except Exception:
+            pass
 
     except Exception as e:
         logger.error(f"Full pipeline crashed for project {project_id}: {e}", exc_info=True)
         progress.update({"running": False, "phase": "error", "error": str(e)[:500]})
+        if run_id:
+            await _update_pipeline_run(
+                run_id,
+                status=PipelineRunStatus.FAILED,
+                error_message=str(e)[:500],
+                completed_at=datetime.utcnow(),
+                progress=progress,
+            )
+        # Notify chat of error
+        try:
+            from app.services.chat_notification_service import chat_notification_service
+            await chat_notification_service.on_error(
+                project_id, "pipeline", str(e)[:300],
+                suggestion="Check logs and retry",
+            )
+        except Exception:
+            pass
 
 
 async def _bg_phase_search(project_id: int, company_id: int, cfg: FullPipelineRequest, progress: dict):
@@ -2041,6 +2228,50 @@ async def get_pipeline_stats(
             logger.warning(f"Failed to get spending for project {project_id}: {e}")
 
     return PipelineStats(**stats, spending=spending)
+
+
+# ============ Cost Breakdown ============
+
+@router.get("/cost-breakdown/{project_id}")
+async def get_cost_breakdown(
+    project_id: int,
+    pipeline_run_id: Optional[int] = QueryParam(None),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get detailed cost breakdown from cost_events table."""
+    from app.services.cost_service import cost_service
+    return await cost_service.get_spending_breakdown(db, project_id, pipeline_run_id)
+
+
+@router.get("/pipeline-runs/{project_id}")
+async def list_pipeline_runs(
+    project_id: int,
+    limit: int = QueryParam(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """List pipeline runs for a project."""
+    from app.models.pipeline_run import PipelineRun
+    result = await db.execute(
+        select(PipelineRun)
+        .where(PipelineRun.project_id == project_id, PipelineRun.company_id == company.id)
+        .order_by(PipelineRun.created_at.desc())
+        .limit(limit)
+    )
+    runs = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "status": r.status.value,
+            "current_phase": r.current_phase.value if r.current_phase else None,
+            "total_cost_usd": float(r.total_cost_usd or 0),
+            "started_at": r.started_at.isoformat() if r.started_at else None,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+            "error_message": r.error_message,
+        }
+        for r in runs
+    ]
 
 
 # ============ Bulk Status Update ============

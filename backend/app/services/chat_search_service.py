@@ -32,6 +32,7 @@ CHAT_ACTIONS = [
     "show_verification_stats",  # Show email verification stats
     "show_segments",     # Show segment breakdown across pipeline
     "toggle_verification",  # Enable/disable Findymail for project
+    "show_contacts",     # Show CRM contacts with filters, open CRM view
     "info",              # General question / unknown
 ]
 
@@ -186,7 +187,14 @@ AVAILABLE ACTIONS:
     Use when user says "enable findymail", "turn on verification", "disable findymail", "turn off verification".
     Set "toggle_value" to true (enable) or false (disable).
 
-18. "info" — Fallback for anything that doesn't map to any action. Reply conversationally.
+18. "show_contacts" — Show CRM contacts or open filtered CRM view.
+    Use when user asks about contacts, wants to see/view contacts, asks "show me contacts", "how many contacts replied",
+    "open Family Office RU contacts", "which campaigns have contacts", "show contacts in outreach", etc.
+    Parameters: contact_segment (optional), contact_geo (optional "RU"|"Global"), contact_status (optional),
+    contact_campaign (optional), contact_replied (optional bool), contact_source (optional).
+    The reply should summarize the contacts and tell user a CRM view is opening.
+
+19. "info" — Fallback for anything that doesn't map to any action. Reply conversationally.
 
 AVAILABLE SEGMENTS: {', '.join(available_segments)}
 
@@ -207,7 +215,7 @@ RULES:
 
 Respond ONLY with JSON:
 {{
-    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|show_knowledge|update_knowledge|ask|verify_emails|show_verification_stats|show_segments|toggle_verification|info",
+    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|show_knowledge|update_knowledge|ask|verify_emails|show_verification_stats|show_segments|toggle_verification|show_contacts|info",
     "engine": "yandex|google|both|null",
     "segments": ["segment_key", ...] or null,
     "geos": ["geo_key", ...] or null,
@@ -222,6 +230,12 @@ Respond ONLY with JSON:
     "kb_value": "content to store or null",
     "kb_title": "human-readable title or null",
     "toggle_value": true,
+    "contact_segment": "segment name or null",
+    "contact_geo": "RU|Global|null",
+    "contact_status": "status or null",
+    "contact_campaign": "campaign name or null",
+    "contact_replied": true,
+    "contact_source": "source or null",
     "reply": "..."
 }}"""
 

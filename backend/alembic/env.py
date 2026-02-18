@@ -22,6 +22,7 @@ from app.models import (
     DiscoveredCompany, ExtractedContact, PipelineEvent,
     EnrichmentAttempt, EnrichmentEffectiveness, EmailVerification,
     ProjectChatMessage,
+    PipelineRun, PipelinePhaseLog, CostEvent,
 )
 
 config = context.config

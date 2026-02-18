@@ -9,7 +9,7 @@ Endpoints:
 """
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, and_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
@@ -68,16 +68,28 @@ async def _load_chat_context(db: AsyncSession, project_id: int, limit: int = 20)
 
 
 async def _save_chat_message(
-    db: AsyncSession, project_id: int, role: str, content: str, client_id: Optional[str] = None,
+    db: AsyncSession, project_id: int, role: str, content: str,
+    client_id: Optional[str] = None,
+    action_type: Optional[str] = None,
+    action_data: Optional[Dict[str, Any]] = None,
+    suggestions: Optional[List[str]] = None,
+    tokens_used: Optional[int] = None,
+    duration_ms: Optional[int] = None,
 ):
     """Insert a chat message. ON CONFLICT DO NOTHING for dedup via client_id."""
     if client_id:
         stmt = pg_insert(ProjectChatMessage).values(
             project_id=project_id, role=role, content=content, client_id=client_id,
+            action_type=action_type, action_data=action_data,
+            suggestions=suggestions, tokens_used=tokens_used, duration_ms=duration_ms,
         ).on_conflict_do_nothing(index_elements=["project_id", "client_id"])
         await db.execute(stmt)
     else:
-        db.add(ProjectChatMessage(project_id=project_id, role=role, content=content))
+        db.add(ProjectChatMessage(
+            project_id=project_id, role=role, content=content,
+            action_type=action_type, action_data=action_data,
+            suggestions=suggestions, tokens_used=tokens_used, duration_ms=duration_ms,
+        ))
 
 
 # ---- Chat message endpoints ----
@@ -115,9 +127,42 @@ async def get_chat_messages(
             "content": r.content,
             "client_id": r.client_id,
             "timestamp": r.created_at.isoformat() if r.created_at else None,
+            "action_type": r.action_type,
+            "action_data": r.action_data,
+            "suggestions": r.suggestions,
+            "feedback": r.feedback,
+            "tokens_used": r.tokens_used,
+            "duration_ms": r.duration_ms,
         }
         for r in rows
     ]
+
+
+class FeedbackRequest(BaseModel):
+    feedback: str = Field(..., pattern="^(positive|negative)$")
+
+
+@router.patch("/chat/messages/{project_id}/{message_id}/feedback")
+async def set_message_feedback(
+    project_id: int,
+    message_id: int,
+    body: FeedbackRequest,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Set thumbs up/down feedback on a chat message."""
+    result = await db.execute(
+        select(ProjectChatMessage).where(
+            ProjectChatMessage.id == message_id,
+            ProjectChatMessage.project_id == project_id,
+        )
+    )
+    msg = result.scalar_one_or_none()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    msg.feedback = body.feedback
+    await db.commit()
+    return {"id": message_id, "feedback": body.feedback}
 
 
 @router.post("/chat/messages/{project_id}")
@@ -164,6 +209,9 @@ async def chat_search(
     - "push all contacts to smartlead"
     - "stop"
     """
+    import time as _time
+    _start_time = _time.time()
+
     if not settings.OPENAI_API_KEY and not settings.GEMINI_API_KEY:
         raise HTTPException(status_code=400, detail="No AI API key configured (need OPENAI_API_KEY or GEMINI_API_KEY)")
 
@@ -230,6 +278,8 @@ async def chat_search(
         response = await _handle_show_segments(parsed, body, db, company, project)
     elif action == "toggle_verification":
         response = await _handle_toggle_verification(parsed, body, db, company, project)
+    elif action == "show_contacts":
+        response = await _handle_show_contacts(parsed, body, db, company, project)
     elif action == "search":
         response = await _handle_new_search(body, background_tasks, db, company)
     else:
@@ -243,7 +293,14 @@ async def chat_search(
     # --- Save assistant reply to DB ---
     resp_project_id = response.project_id or project_id
     if resp_project_id and response.reply:
-        await _save_chat_message(db, resp_project_id, "assistant", response.reply)
+        _duration = int((_time.time() - _start_time) * 1000)
+        await _save_chat_message(
+            db, resp_project_id, "assistant", response.reply,
+            action_type=response.action,
+            action_data=response.data,
+            suggestions=response.suggestions if response.suggestions else None,
+            duration_ms=_duration,
+        )
         await db.commit()
 
     return response
@@ -1616,4 +1673,139 @@ async def _handle_toggle_verification(
         reply=reply,
         project_id=project.id,
         suggestions=["verify all emails", "show verification stats"] if enable else ["show stats", "show segments"],
+    )
+
+
+async def _handle_show_contacts(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Handle 'show contacts' requests — query CRM and return a link to filtered view."""
+    from app.models.contact import Contact
+
+    project_id = project.id if project else body.project_id
+
+    # Extract filter params from parsed intent
+    segment = parsed.get("contact_segment")
+    geo = parsed.get("contact_geo")
+    status = parsed.get("contact_status")
+    campaign = parsed.get("contact_campaign")
+    replied = parsed.get("contact_replied")
+    source = parsed.get("contact_source")
+
+    # Build base filter
+    filters = [Contact.company_id == company.id, Contact.deleted_at.is_(None)]
+    if project_id:
+        filters.append(Contact.project_id == project_id)
+    if segment:
+        filters.append(Contact.segment == segment)
+    if geo:
+        filters.append(Contact.geo == geo)
+    if status:
+        filters.append(Contact.status == status)
+    if source:
+        filters.append(Contact.source == source)
+    if replied is True:
+        filters.append(Contact.has_replied == True)
+    if replied is False:
+        filters.append(Contact.has_replied == False)
+    if campaign:
+        from sqlalchemy import text as sql_text
+        filters.append(sql_text("contacts.campaigns::text ILIKE :camp_filter").bindparams(camp_filter=f"%{campaign}%"))
+
+    where_clause = and_(*filters)
+
+    # Total count
+    total_result = await db.execute(select(func.count()).select_from(Contact).where(where_clause))
+    total = total_result.scalar() or 0
+
+    # Breakdown by segment
+    seg_result = await db.execute(
+        select(Contact.segment, func.count()).where(where_clause).group_by(Contact.segment)
+    )
+    by_segment = {(r[0] or "Unassigned"): r[1] for r in seg_result.all()}
+
+    # Breakdown by geo
+    geo_result = await db.execute(
+        select(Contact.geo, func.count()).where(where_clause).group_by(Contact.geo)
+    )
+    by_geo = {(r[0] or "Unknown"): r[1] for r in geo_result.all()}
+
+    # Breakdown by status
+    status_result = await db.execute(
+        select(Contact.status, func.count()).where(where_clause).group_by(Contact.status)
+    )
+    by_status = {r[0]: r[1] for r in status_result.all() if r[0]}
+
+    # Replied count
+    replied_result = await db.execute(
+        select(func.count()).select_from(Contact).where(and_(where_clause, Contact.has_replied == True))
+    )
+    replied_count = replied_result.scalar() or 0
+
+    # Build URL query params for CRM link
+    url_params = []
+    if project_id:
+        url_params.append(f"project_id={project_id}")
+    if segment:
+        url_params.append(f"segment={segment}")
+    if geo:
+        url_params.append(f"geo={geo}")
+    if status:
+        url_params.append(f"status={status}")
+    if campaign:
+        url_params.append(f"campaign={campaign}")
+    if replied is True:
+        url_params.append("replied=true")
+    if replied is False:
+        url_params.append("replied=false")
+    if source:
+        url_params.append(f"source={source}")
+    crm_url = "/contacts" + ("?" + "&".join(url_params) if url_params else "")
+
+    # Build reply
+    filter_desc = []
+    if project and project.name:
+        filter_desc.append(project.name)
+    if segment:
+        filter_desc.append(segment)
+    if geo:
+        filter_desc.append(geo)
+    if replied is True:
+        filter_desc.append("replied")
+    desc = " / ".join(filter_desc) if filter_desc else "All contacts"
+
+    lines = [f"**{desc}**: {total} contacts"]
+    if replied_count > 0:
+        lines.append(f"Replied: {replied_count}")
+    if len(by_segment) > 1:
+        seg_parts = [f"{k}: {v}" for k, v in sorted(by_segment.items(), key=lambda x: -x[1])[:5]]
+        lines.append(f"By segment: {', '.join(seg_parts)}")
+    if len(by_geo) > 1:
+        geo_parts = [f"{k}: {v}" for k, v in sorted(by_geo.items(), key=lambda x: -x[1])]
+        lines.append(f"By geo: {', '.join(geo_parts)}")
+    if len(by_status) > 1:
+        status_parts = [f"{k}: {v}" for k, v in sorted(by_status.items(), key=lambda x: -x[1])[:5]]
+        lines.append(f"By status: {', '.join(status_parts)}")
+
+    lines.append(f"\n[Open in CRM →]({crm_url})")
+    reply = "\n".join(lines)
+
+    return ChatResponse(
+        action="show_contacts",
+        reply=reply,
+        project_id=project_id,
+        data={
+            "crm_url": crm_url,
+            "total": total,
+            "by_segment": by_segment,
+            "by_geo": by_geo,
+            "by_status": by_status,
+            "replied_count": replied_count,
+        },
+        suggestions=[
+            f"show {segment or 'all'} contacts" if not replied else "show all contacts",
+            "show RU contacts" if geo != "RU" else "show Global contacts",
+            "show replied contacts" if not replied else "show all contacts",
+            "show stats",
+        ],
     )

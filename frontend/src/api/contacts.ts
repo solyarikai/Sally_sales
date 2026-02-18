@@ -9,6 +9,7 @@ export interface Contact {
   domain?: string;
   job_title?: string;
   segment?: string;
+  geo?: string;
   project_id?: number;
   project_name?: string;
   source: string;
@@ -51,6 +52,7 @@ export interface FilterOptions {
   statuses: string[];
   sources: string[];
   segments: string[];
+  geos: string[];
   projects: Array<{ id: number; name: string }>;
 }
 
@@ -154,6 +156,7 @@ export interface ContactFilters {
   search?: string;
   project_id?: number;
   segment?: string;
+  geo?: string;
   status?: string;
   source?: string;
   has_replied?: boolean;

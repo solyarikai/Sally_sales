@@ -100,6 +100,7 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     
     # Categorization - simple string fields for easy filtering
     segment = Column(String(255), nullable=True, index=True)      # e.g., "iGaming", "B2B SaaS", "FinTech"
+    geo = Column(String(50), nullable=True, index=True)           # "RU", "Global", etc.
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
     
     # Source tracking
