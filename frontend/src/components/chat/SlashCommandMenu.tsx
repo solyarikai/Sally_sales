@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   Search, Square, Activity, Send, Target, BarChart3, Globe,
-  Settings, BookOpen, PenLine, MessageCircle, Mail, ShieldCheck,
-  Layers, ToggleLeft, Users, HelpCircle, Eye,
+  Settings, BookOpen, PenLine, MessageCircle, Mail,
+  Layers, Users, Eye,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../hooks/useTheme';
@@ -71,7 +71,7 @@ interface SlashCommandMenuProps {
   selectedIndex: number;
 }
 
-export function SlashCommandMenu({ isOpen, filter, onSelect, onClose, selectedIndex }: SlashCommandMenuProps) {
+export function SlashCommandMenu({ isOpen, filter, onSelect, selectedIndex }: SlashCommandMenuProps) {
   const { isDark } = useTheme();
   const menuRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
