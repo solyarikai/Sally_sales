@@ -8,7 +8,7 @@ import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useTheme } from '../hooks/useTheme';
 import { api } from '../api/client';
-import { knowledgeApi, type KnowledgeGrouped, type KnowledgeEntry } from '../api/knowledge';
+import { knowledgeApi, type KnowledgeGrouped } from '../api/knowledge';
 
 // ---- Types ----
 interface ChatMessage {
