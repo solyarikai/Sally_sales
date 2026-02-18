@@ -26,7 +26,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
-import { ContactsFilterContext } from '../components/filters';
+import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter } from '../components/filters';
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
 
 // Status configuration — proper lead statuses (no "replied" — that's a flag, not a status)
@@ -352,7 +352,7 @@ export function ContactsPage() {
     }
   };
 
-  // AG Grid Column Definitions — minimalist: no floating filters, no duplicate column-level filters
+  // AG Grid Column Definitions — with column-embedded filters
   const columnDefs = useMemo<ColDef[]>(() => [
     {
       width: 40,
@@ -362,8 +362,8 @@ export function ContactsPage() {
       filter: false,
     },
     ...(replyMode ? [{
-      headerName: '',
-      width: 40,
+      headerName: 'Done',
+      width: 60,
       pinned: 'left' as const,
       filter: false,
       sortable: false,
@@ -379,9 +379,9 @@ export function ContactsPage() {
     {
       field: 'status',
       headerName: 'Status',
-      width: 110,
+      width: 120,
       sortable: true,
-      filter: false,
+      filter: StatusColumnFilter,
       cellRenderer: (params: { value: string }) => {
         const cfg = STATUS_CONFIG[params.value];
         return cfg ? (
@@ -393,9 +393,17 @@ export function ContactsPage() {
       },
     },
     {
-      headerName: 'Name',
+      field: 'email',
+      headerName: 'Email',
+      filter: 'agTextColumnFilter',
       sortable: true,
-      filter: false,
+      flex: 2,
+      minWidth: 180,
+    },
+    {
+      headerName: 'Name',
+      filter: 'agTextColumnFilter',
+      sortable: true,
       flex: 1.5,
       minWidth: 140,
       valueGetter: (params) => {
@@ -404,26 +412,25 @@ export function ContactsPage() {
       },
     },
     {
-      field: 'email',
-      headerName: 'Email',
-      filter: false,
-      sortable: true,
-      flex: 2,
-      minWidth: 180,
-    },
-    {
       field: 'company_name',
       headerName: 'Company',
-      filter: false,
+      filter: 'agTextColumnFilter',
       sortable: true,
       flex: 1.5,
+      minWidth: 130,
+    },
+    {
+      field: 'job_title',
+      headerName: 'Title',
+      filter: 'agTextColumnFilter',
+      sortable: true,
+      flex: 1,
       minWidth: 120,
-      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
     {
       headerName: 'Campaign',
-      filter: false,
-      sortable: false,
+      filter: CampaignColumnFilter,
+      sortable: true,
       flex: 1.5,
       minWidth: 140,
       valueGetter: (params) => {
@@ -450,22 +457,60 @@ export function ContactsPage() {
       },
     },
     {
+      field: 'source',
+      headerName: 'Source',
+      filter: 'agTextColumnFilter',
+      sortable: true,
+      width: 90,
+      cellRenderer: (params: { value: string }) => {
+        const label = params.value === 'smartlead' ? 'Email' : params.value === 'getsales' ? 'LinkedIn' : (params.value || '-');
+        return <span className="text-xs">{label}</span>;
+      },
+    },
+    {
+      field: 'segment',
+      headerName: 'Segment',
+      filter: 'agTextColumnFilter',
+      sortable: true,
+      width: 120,
+      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
+    },
+    {
+      field: 'location',
+      headerName: 'Location',
+      filter: 'agTextColumnFilter',
+      sortable: true,
+      width: 130,
+      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
+    },
+    {
       field: 'created_at',
       headerName: 'Added',
       sortable: true,
-      width: 90,
-      filter: false,
+      width: 95,
+      filter: DateColumnFilter,
       valueFormatter: (params: ValueFormatterParams) => {
         if (!params.value) return '-';
         return new Date(params.value).toLocaleDateString();
       },
     },
+    {
+      field: 'project_name',
+      headerName: 'Project',
+      filter: 'agTextColumnFilter',
+      sortable: true,
+      width: 130,
+      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
+    },
   ], []);
 
-  // Default column settings — clean, no floating filters
+  // Default column settings
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
     suppressMovable: false,
+    filter: 'agTextColumnFilter',
+    floatingFilter: false,
+    filterParams: { debounceMs: 300 },
   }), []);
 
   // Grid events
