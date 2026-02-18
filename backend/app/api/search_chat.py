@@ -222,6 +222,14 @@ async def chat_search(
         response = await _handle_update_knowledge(parsed, body, db, company, project)
     elif action == "ask":
         response = await _handle_ask(parsed, body, db, company, project)
+    elif action == "verify_emails":
+        response = await _handle_verify_emails(parsed, body, background_tasks, db, company, project)
+    elif action == "show_verification_stats":
+        response = await _handle_verification_stats(parsed, body, db, company, project)
+    elif action == "show_segments":
+        response = await _handle_show_segments(parsed, body, db, company, project)
+    elif action == "toggle_verification":
+        response = await _handle_toggle_verification(parsed, body, db, company, project)
     elif action == "search":
         response = await _handle_new_search(body, background_tasks, db, company)
     else:
@@ -311,6 +319,37 @@ async def _build_project_context(db: AsyncSession, project: Project, company: Co
     from app.services.project_knowledge_service import project_knowledge_service
     knowledge_summary = await project_knowledge_service.get_summary(db, pid)
 
+    # Verification stats
+    verif_stats = await db.execute(sql_text("""
+        SELECT
+            COUNT(DISTINCT ev.email) as verified_emails,
+            COUNT(*) FILTER (WHERE ev.result = 'valid') as valid,
+            COUNT(*) FILTER (WHERE ev.result = 'invalid') as invalid,
+            COUNT(*) FILTER (WHERE ev.result = 'catch_all') as catch_all,
+            COALESCE(SUM(ev.cost_usd), 0) as total_cost
+        FROM email_verifications ev
+        WHERE ev.project_id = :pid
+    """), {"pid": pid})
+    v_row = verif_stats.fetchone()
+
+    # Segment breakdown on discovered companies
+    dc_seg_stats = await db.execute(sql_text("""
+        SELECT
+            COALESCE(matched_segment, 'unclassified') as segment,
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE is_target) as targets,
+            COUNT(*) FILTER (WHERE contacts_count > 0) as with_contacts
+        FROM discovered_companies
+        WHERE project_id = :pid AND company_id = :cid
+        GROUP BY COALESCE(matched_segment, 'unclassified')
+        ORDER BY COUNT(*) FILTER (WHERE is_target) DESC
+    """), {"pid": pid, "cid": cid})
+    dc_segments = [dict(r._mapping) for r in dc_seg_stats.fetchall()]
+
+    # Findymail enabled status
+    auto_config = project.auto_enrich_config or {}
+    findymail_enabled = auto_config.get("findymail_enabled", False)
+
     return {
         "project_id": pid,
         "project_name": project.name,
@@ -325,6 +364,15 @@ async def _build_project_context(db: AsyncSession, project: Project, company: Co
         "pipeline_phase": pipeline_phase,
         "search_config": config or {},
         "knowledge_summary": knowledge_summary,
+        "verification": {
+            "findymail_enabled": findymail_enabled,
+            "verified_emails": v_row.verified_emails if v_row else 0,
+            "valid": v_row.valid if v_row else 0,
+            "invalid": v_row.invalid if v_row else 0,
+            "catch_all": v_row.catch_all if v_row else 0,
+            "cost_usd": float(v_row.total_cost) if v_row else 0,
+        },
+        "segments_breakdown": dc_segments,
     }
 
 
@@ -342,8 +390,13 @@ def _build_suggestions(project_context: Optional[Dict[str, Any]]) -> List[str]:
         if project_context.get("unpushed_contacts", 0) > 0:
             suggestions.append(f"push {project_context['unpushed_contacts']} contacts to smartlead")
         suggestions.append("run yandex on best segments")
-        if project_context.get("total_targets", 0) > 0:
-            suggestions.append("show funnel")
+        verif = project_context.get("verification", {})
+        if verif.get("findymail_enabled") and verif.get("verified_emails", 0) == 0:
+            suggestions.append("verify all emails")
+        elif not verif.get("findymail_enabled"):
+            suggestions.append("enable findymail")
+        if project_context.get("segments_breakdown"):
+            suggestions.append("show segments")
         suggestions.append("show knowledge")
 
     return suggestions[:4]
@@ -1345,3 +1398,222 @@ async def bootstrap_search_config(
         "segments_count": len(config.get("segments", {})),
         "doc_keywords_groups": len(config.get("doc_keywords", [])),
     }
+
+
+# ============ Verification & Segment Chat Handlers ============
+
+async def _handle_verify_emails(
+    parsed: Dict, body: ChatRequest, background_tasks: BackgroundTasks,
+    db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Handle 'verify emails' / 'run findymail' requests."""
+    if not project:
+        return ChatResponse(
+            action="info", reply="Please select a project first.",
+            project_id=body.project_id, suggestions=["show stats"],
+        )
+
+    config = project.auto_enrich_config or {}
+    if not config.get("findymail_enabled", False):
+        return ChatResponse(
+            action="info",
+            reply="Findymail is disabled for this project. Say **'enable findymail'** to turn it on first.",
+            project_id=project.id,
+            suggestions=["enable findymail", "show verification stats"],
+        )
+
+    from app.models.pipeline import ExtractedContact, DiscoveredCompany
+    from sqlalchemy import text as sql_text
+
+    # Count unverified emails
+    count_result = await db.execute(sql_text("""
+        SELECT COUNT(*) FROM extracted_contacts ec
+        JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+        WHERE dc.project_id = :pid AND dc.company_id = :cid
+          AND ec.email IS NOT NULL AND ec.is_verified = false
+    """), {"pid": project.id, "cid": company.id})
+    unverified = count_result.scalar() or 0
+
+    if unverified == 0:
+        return ChatResponse(
+            action="verify_emails",
+            reply="All emails are already verified. No unverified emails found.",
+            project_id=project.id,
+            suggestions=["show verification stats", "show segments"],
+        )
+
+    # Get unverified contact IDs
+    ids_result = await db.execute(sql_text("""
+        SELECT ec.id FROM extracted_contacts ec
+        JOIN discovered_companies dc ON ec.discovered_company_id = dc.id
+        WHERE dc.project_id = :pid AND dc.company_id = :cid
+          AND ec.email IS NOT NULL AND ec.is_verified = false
+    """), {"pid": project.id, "cid": company.id})
+    ec_ids = [r[0] for r in ids_result.fetchall()]
+
+    max_credits = config.get("findymail_max_credits_per_batch", 100)
+
+    from app.services.pipeline_service import pipeline_service
+    async def _bg_verify():
+        from app.db import async_session_maker
+        async with async_session_maker() as session:
+            await pipeline_service.verify_emails_batch(
+                session, ec_ids, company.id,
+                project_id=project.id,
+                max_credits=max_credits,
+            )
+
+    background_tasks.add_task(_bg_verify)
+
+    return ChatResponse(
+        action="verify_emails",
+        reply=f"Started verifying **{min(unverified, max_credits)}** emails via Findymail (budget: {max_credits} credits). {unverified} total unverified.",
+        project_id=project.id,
+        suggestions=["show verification stats", "show segments"],
+    )
+
+
+async def _handle_verification_stats(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Handle 'show verification stats' / 'how many verified' requests."""
+    if not project:
+        return ChatResponse(
+            action="info", reply="Please select a project first.",
+            project_id=body.project_id,
+        )
+
+    from app.services.email_verification_service import email_verification_service
+    stats = await email_verification_service.get_stats(db, project_id=project.id, company_id=company.id)
+
+    config = project.auto_enrich_config or {}
+    enabled = config.get("findymail_enabled", False)
+
+    lines = [
+        f"**Email Verification Stats** (Project: {project.name})",
+        f"Findymail: {'Enabled' if enabled else 'Disabled'}",
+        f"",
+        f"| Metric | Count |",
+        f"|--------|-------|",
+        f"| Unique emails verified | {stats['unique_emails']} |",
+        f"| Valid | {stats['valid']} |",
+        f"| Invalid | {stats['invalid']} |",
+        f"| Catch-all | {stats['catch_all']} |",
+        f"| Errors | {stats['errors']} |",
+        f"| Total cost | ${stats['total_cost_usd']:.2f} |",
+    ]
+
+    return ChatResponse(
+        action="show_verification_stats",
+        reply="\n".join(lines),
+        project_id=project.id,
+        data=stats,
+        suggestions=["verify all emails", "show segments", "show funnel"],
+    )
+
+
+async def _handle_show_segments(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Handle 'show segments' / 'segment breakdown' requests."""
+    if not project:
+        return ChatResponse(
+            action="info", reply="Please select a project first.",
+            project_id=body.project_id,
+        )
+
+    from sqlalchemy import text as sql_text
+
+    # Segment breakdown from discovered_companies
+    seg_result = await db.execute(sql_text("""
+        SELECT
+            COALESCE(dc.matched_segment, 'unclassified') as segment,
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE dc.is_target) as targets,
+            COUNT(*) FILTER (WHERE dc.contacts_count > 0) as with_contacts
+        FROM discovered_companies dc
+        WHERE dc.project_id = :pid AND dc.company_id = :cid
+        GROUP BY COALESCE(dc.matched_segment, 'unclassified')
+        ORDER BY COUNT(*) FILTER (WHERE dc.is_target) DESC
+    """), {"pid": project.id, "cid": company.id})
+    segments = seg_result.fetchall()
+
+    if not segments:
+        return ChatResponse(
+            action="show_segments",
+            reply="No segment data available yet. Run a search first.",
+            project_id=project.id,
+            suggestions=["run yandex search", "show stats"],
+        )
+
+    # Contact-level segment breakdown
+    contact_seg = await db.execute(sql_text("""
+        SELECT
+            COALESCE(c.segment, 'unclassified') as segment,
+            COUNT(*) as contacts,
+            COUNT(*) FILTER (WHERE c.has_replied) as replied,
+            COUNT(*) FILTER (WHERE c.is_email_verified) as verified
+        FROM contacts c
+        WHERE c.project_id = :pid AND c.deleted_at IS NULL
+        GROUP BY COALESCE(c.segment, 'unclassified')
+        ORDER BY COUNT(*) DESC
+    """), {"pid": project.id})
+    contact_segments = contact_seg.fetchall()
+
+    lines = [
+        f"**Segment Breakdown** (Project: {project.name})",
+        "",
+        "**Discovery Pipeline:**",
+        "| Segment | Discovered | Targets | With Contacts |",
+        "|---------|------------|---------|---------------|",
+    ]
+    for s in segments:
+        lines.append(f"| {s.segment} | {s.total} | {s.targets} | {s.with_contacts} |")
+
+    if contact_segments:
+        lines.extend([
+            "",
+            "**CRM Contacts:**",
+            "| Segment | Contacts | Replied | Verified |",
+            "|---------|----------|---------|----------|",
+        ])
+        for cs in contact_segments:
+            lines.append(f"| {cs.segment} | {cs.contacts} | {cs.replied} | {cs.verified} |")
+
+    return ChatResponse(
+        action="show_segments",
+        reply="\n".join(lines),
+        project_id=project.id,
+        data={"discovery": [dict(r._mapping) for r in segments]},
+        suggestions=["show verification stats", "show funnel", "run yandex on best segments"],
+    )
+
+
+async def _handle_toggle_verification(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Handle 'enable findymail' / 'disable findymail' requests."""
+    if not project:
+        return ChatResponse(
+            action="info", reply="Please select a project first.",
+            project_id=body.project_id,
+        )
+
+    enable = parsed.get("toggle_value", True)
+
+    config = project.auto_enrich_config or {}
+    config["findymail_enabled"] = enable
+    project.auto_enrich_config = config
+    await db.commit()
+
+    status = "enabled" if enable else "disabled"
+    reply = f"Findymail verification **{status}** for project {project.name}."
+    if enable:
+        reply += " You can now say 'verify all emails' to start verification."
+
+    return ChatResponse(
+        action="toggle_verification",
+        reply=reply,
+        project_id=project.id,
+        suggestions=["verify all emails", "show verification stats"] if enable else ["show stats", "show segments"],
+    )

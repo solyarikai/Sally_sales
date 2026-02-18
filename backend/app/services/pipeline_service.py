@@ -16,10 +16,12 @@ from app.models.pipeline import (
     DiscoveredCompany, DiscoveredCompanyStatus,
     ExtractedContact, ContactSource,
     PipelineEvent, PipelineEventType,
+    EnrichmentAttempt,
 )
 from app.models.contact import Contact, Project
 from app.services.contact_extraction_service import contact_extraction_service
 from app.services.apollo_service import apollo_service
+from app.services.enrichment_intelligence_service import enrichment_intelligence_service
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +78,7 @@ class PipelineService:
                 dc.confidence = sr.confidence
                 dc.reasoning = sr.reasoning
                 dc.company_info = sr.company_info
+                dc.matched_segment = sr.matched_segment
                 dc.status = DiscoveredCompanyStatus.ANALYZED
                 dc.scraped_html = sr.html_snippet
                 dc.scraped_at = sr.scraped_at
@@ -94,6 +97,7 @@ class PipelineService:
                     confidence=sr.confidence,
                     reasoning=sr.reasoning,
                     company_info=sr.company_info,
+                    matched_segment=sr.matched_segment,
                     status=DiscoveredCompanyStatus.ANALYZED,
                     scraped_html=sr.html_snippet,
                     scraped_at=sr.scraped_at,
@@ -132,7 +136,8 @@ class PipelineService:
     ) -> Dict[str, Any]:
         """
         Run GPT contact extraction on selected DiscoveredCompanies.
-        Uses cached scraped_html.
+        Uses cached scraped_html. Proactively scrapes subpages for all targets.
+        All attempts logged to enrichment_attempts.
         """
         result = await session.execute(
             select(DiscoveredCompany).where(
@@ -160,11 +165,23 @@ class PipelineService:
                     dc.scraped_at = datetime.utcnow()
 
             if not html:
+                # Log failed attempt
+                attempt_id = await enrichment_intelligence_service.log_attempt(
+                    session, dc.id, "WEBSITE_SCRAPE", "homepage_gpt",
+                )
+                await enrichment_intelligence_service.update_attempt(
+                    session, attempt_id, "ERROR", error_message="No HTML to extract contacts from",
+                )
                 stats["errors"] += 1
                 self._add_event(session, dc, PipelineEventType.ERROR, company_id, error_message="No HTML to extract contacts from")
                 continue
 
             try:
+                # --- Homepage extraction (logged) ---
+                homepage_attempt_id = await enrichment_intelligence_service.log_attempt(
+                    session, dc.id, "WEBSITE_SCRAPE", "homepage_gpt",
+                )
+
                 contacts = await contact_extraction_service.extract_contacts_from_html(dc.domain, html)
 
                 # Regex fallback: find emails/phones GPT missed
@@ -197,10 +214,28 @@ class PipelineService:
                             "source": "regex",
                         })
 
-                # Subpage scraping fallback: if homepage yielded no contacts,
-                # try /contacts and /about subpages via Crona
-                if not contacts:
-                    contacts = await self._scrape_subpages_for_contacts(dc.domain)
+                homepage_emails = [c.get("email") for c in contacts if c.get("email")]
+                await enrichment_intelligence_service.update_attempt(
+                    session, homepage_attempt_id,
+                    status="SUCCESS" if contacts else "ZERO_RESULTS",
+                    contacts_found=len(contacts),
+                    emails_found=len(homepage_emails),
+                    result_summary={"emails": homepage_emails[:20]},
+                )
+
+                # --- Proactive subpage scraping for ALL targets (not just fallback) ---
+                subpage_contacts = await self._scrape_subpages_for_contacts(
+                    dc.domain, session=session, dc_id=dc.id,
+                )
+                if subpage_contacts:
+                    existing_emails = {(c.get("email") or "").lower() for c in contacts if c.get("email")}
+                    for sc in subpage_contacts:
+                        sc_email = (sc.get("email") or "").lower()
+                        if sc_email and sc_email not in existing_emails:
+                            contacts.append(sc)
+                            existing_emails.add(sc_email)
+                        elif not sc_email and sc.get("phone"):
+                            contacts.append(sc)
 
                 # Store contacts (with email validation)
                 from app.services.contact_extraction_service import is_valid_email
@@ -213,6 +248,10 @@ class PipelineService:
                         logger.debug(f"Rejected junk email: {email} from {dc.domain}")
                         continue
 
+                    source = ContactSource.WEBSITE_SCRAPE
+                    if c_data.get("source") in ("subpage_regex", "subpage_gpt"):
+                        source = ContactSource.SUBPAGE_SCRAPE
+
                     ec = ExtractedContact(
                         discovered_company_id=dc.id,
                         email=email,
@@ -220,7 +259,7 @@ class PipelineService:
                         first_name=c_data.get("first_name"),
                         last_name=c_data.get("last_name"),
                         job_title=c_data.get("job_title"),
-                        source=ContactSource.WEBSITE_SCRAPE,
+                        source=source,
                         raw_data=c_data,
                     )
                     session.add(ec)
@@ -257,30 +296,66 @@ class PipelineService:
 
     CONTACT_SUBPAGES = ["/contacts", "/contact", "/kontakty", "/about"]
 
-    async def _scrape_subpages_for_contacts(self, domain: str) -> list[dict]:
+    async def _scrape_subpages_for_contacts(
+        self,
+        domain: str,
+        session: Optional[AsyncSession] = None,
+        dc_id: Optional[int] = None,
+    ) -> list[dict]:
         """
-        Scrape /contacts, /about subpages when homepage yielded zero contacts.
-        Returns list of contact dicts from the first subpage that has contacts.
+        Proactively scrape /contacts, /about subpages for all targets.
+        Each subpage attempt is logged to enrichment_attempts when session is provided.
+        Returns list of contact dicts (aggregated from all subpages that yield contacts).
         """
         from app.services.crona_service import crona_service
+        import httpx as _httpx
 
-        if not crona_service.is_configured:
-            return []
+        all_contacts = []
+        seen_emails: set[str] = set()
 
         for subpath in self.CONTACT_SUBPAGES:
             url = f"https://{domain}{subpath}"
+            attempt_id = None
+
+            # Log attempt start
+            if session and dc_id:
+                attempt_id = await enrichment_intelligence_service.log_attempt(
+                    session, dc_id, "SUBPAGE_SCRAPE", f"subpage_{subpath}",
+                    config={"subpage_path": subpath, "url": url},
+                )
+
             try:
-                results = await crona_service.scrape_domains([url])
                 text = None
-                for v in results.values():
-                    if v and len(v.strip()) > 50:
-                        text = v
-                        break
+                # Try Crona first, fall back to httpx
+                if crona_service.is_configured:
+                    results = await crona_service.scrape_domains([url])
+                    for v in results.values():
+                        if v and len(v.strip()) > 50:
+                            text = v
+                            break
 
                 if not text:
+                    # httpx fallback
+                    try:
+                        async with _httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                            resp = await client.get(url)
+                            if resp.status_code == 200 and len(resp.text) > 100:
+                                text = resp.text
+                    except Exception:
+                        pass
+
+                if not text:
+                    if session and attempt_id:
+                        await enrichment_intelligence_service.update_attempt(
+                            session, attempt_id, "ZERO_RESULTS",
+                        )
                     continue
 
                 contacts = await contact_extraction_service.extract_contacts_from_html(domain, text)
+                # Mark source for subpage contacts
+                for c in contacts:
+                    c["source"] = "subpage_gpt"
+
                 # Also try regex
                 regex_emails = contact_extraction_service.extract_emails_regex(text)
                 existing = {(c.get("email") or "").lower() for c in contacts}
@@ -293,15 +368,41 @@ class PipelineService:
                             "source": "subpage_regex",
                         })
 
-                if contacts:
-                    logger.info(f"Subpage {subpath} found {len(contacts)} contacts for {domain}")
-                    return contacts
+                # Deduplicate against already-found contacts
+                new_contacts = []
+                for c in contacts:
+                    c_email = (c.get("email") or "").lower()
+                    if c_email and c_email not in seen_emails:
+                        new_contacts.append(c)
+                        seen_emails.add(c_email)
+                    elif not c_email and c.get("phone"):
+                        new_contacts.append(c)
+
+                subpage_emails = [c.get("email") for c in new_contacts if c.get("email")]
+
+                if session and attempt_id:
+                    await enrichment_intelligence_service.update_attempt(
+                        session, attempt_id,
+                        status="SUCCESS" if new_contacts else "ZERO_RESULTS",
+                        contacts_found=len(new_contacts),
+                        emails_found=len(subpage_emails),
+                        result_summary={"emails": subpage_emails[:20], "subpage": subpath},
+                    )
+
+                if new_contacts:
+                    logger.info(f"Subpage {subpath} found {len(new_contacts)} contacts for {domain}")
+                    all_contacts.extend(new_contacts)
 
             except Exception as e:
                 logger.debug(f"Subpage scrape {domain}{subpath} failed: {e}")
+                if session and attempt_id:
+                    await enrichment_intelligence_service.update_attempt(
+                        session, attempt_id, "ERROR",
+                        error_message=str(e)[:500],
+                    )
                 continue
 
-        return []
+        return all_contacts
 
     # ========== Apollo Enrichment ==========
 
@@ -313,23 +414,47 @@ class PipelineService:
         max_people: int = 5,
         max_credits: Optional[int] = None,
         titles: Optional[List[str]] = None,
+        force_retry: bool = False,
     ) -> Dict[str, Any]:
-        """Run Apollo enrichment on selected DiscoveredCompanies."""
+        """Run Apollo enrichment on selected DiscoveredCompanies.
+
+        With force_retry=False (default), skips companies with a recent successful Apollo attempt.
+        With force_retry=True, re-enriches even previously-enriched companies.
+        All attempts logged to enrichment_attempts.
+        """
         if not apollo_service.is_configured():
             return {"error": "Apollo API key not configured", "processed": 0}
 
-        # SQL-level guard: only load companies that haven't been Apollo-enriched yet
-        result = await session.execute(
-            select(DiscoveredCompany).where(
-                DiscoveredCompany.id.in_(discovered_company_ids),
-                DiscoveredCompany.company_id == company_id,
-                DiscoveredCompany.apollo_enriched_at.is_(None),  # Never re-enrich
+        if force_retry:
+            # Load all requested companies regardless of enrichment status
+            result = await session.execute(
+                select(DiscoveredCompany).where(
+                    DiscoveredCompany.id.in_(discovered_company_ids),
+                    DiscoveredCompany.company_id == company_id,
+                )
             )
-        )
-        companies = result.scalars().all()
-
-        # Count skipped (requested but already enriched)
-        skipped_count = len(discovered_company_ids) - len(companies)
+            companies = result.scalars().all()
+            # Filter out only those with a recent successful Apollo attempt (30 days)
+            filtered = []
+            for dc in companies:
+                has_recent = await enrichment_intelligence_service.has_recent_success(
+                    session, dc.id, "APOLLO_PEOPLE", days=30,
+                )
+                if not has_recent:
+                    filtered.append(dc)
+            skipped_count = len(discovered_company_ids) - len(filtered)
+            companies = filtered
+        else:
+            # Legacy behavior: skip already-enriched
+            result = await session.execute(
+                select(DiscoveredCompany).where(
+                    DiscoveredCompany.id.in_(discovered_company_ids),
+                    DiscoveredCompany.company_id == company_id,
+                    DiscoveredCompany.apollo_enriched_at.is_(None),
+                )
+            )
+            companies = result.scalars().all()
+            skipped_count = len(discovered_company_ids) - len(companies)
 
         stats = {"processed": 0, "people_found": 0, "errors": 0, "credits_used": 0, "skipped": skipped_count}
 
@@ -341,14 +466,33 @@ class PipelineService:
             batch_credits = apollo_service.credits_used - credits_before
             if max_credits is not None and batch_credits >= max_credits:
                 logger.info(f"Apollo credit cap reached ({max_credits}), stopping enrichment. Batch used {batch_credits} credits.")
+                stats["paused_for_budget"] = True
                 break
 
             credits_before_company = apollo_service.credits_used
+
+            # Log attempt
+            attempt_id = await enrichment_intelligence_service.log_attempt(
+                session, dc.id, "APOLLO_PEOPLE",
+                method=f"apollo_titles_{'_'.join(titles[:3])}" if titles else "apollo_default",
+                config={"max_people": max_people, "titles": titles, "force_retry": force_retry},
+            )
 
             try:
                 people = await apollo_service.enrich_by_domain(dc.domain, limit=max_people, titles=titles)
 
                 credits_for_company = apollo_service.credits_used - credits_before_company
+                people_emails = [p.get("email") for p in people if p.get("email")]
+
+                # Update attempt
+                await enrichment_intelligence_service.update_attempt(
+                    session, attempt_id,
+                    status="SUCCESS" if people else "ZERO_RESULTS",
+                    contacts_found=len(people),
+                    emails_found=len(people_emails),
+                    credits_used=credits_for_company,
+                    result_summary={"emails": people_emails[:20], "domain": dc.domain},
+                )
 
                 for person in people:
                     ec = ExtractedContact(
@@ -366,9 +510,9 @@ class PipelineService:
                     )
                     session.add(ec)
 
-                dc.apollo_people_count = len(people)
+                dc.apollo_people_count = (dc.apollo_people_count or 0) + len(people) if force_retry else len(people)
                 dc.apollo_enriched_at = datetime.utcnow()
-                dc.apollo_credits_used = credits_for_company
+                dc.apollo_credits_used = (dc.apollo_credits_used or 0) + credits_for_company
                 dc.contacts_count = (dc.contacts_count or 0) + len(people)
                 if dc.status in (DiscoveredCompanyStatus.NEW, DiscoveredCompanyStatus.SCRAPED, DiscoveredCompanyStatus.ANALYZED, DiscoveredCompanyStatus.CONTACTS_EXTRACTED):
                     dc.status = DiscoveredCompanyStatus.ENRICHED
@@ -380,12 +524,17 @@ class PipelineService:
                     "people_found": len(people),
                     "credits_used": credits_for_company,
                     "domain": dc.domain,
+                    "force_retry": force_retry,
                 })
 
                 logger.info(f"Apollo enriched {dc.domain}: {len(people)} people, {credits_for_company} credits")
 
             except Exception as e:
                 logger.error(f"Apollo enrichment failed for {dc.domain}: {e}")
+                await enrichment_intelligence_service.update_attempt(
+                    session, attempt_id, "ERROR",
+                    error_message=str(e)[:500],
+                )
                 stats["errors"] += 1
                 self._add_event(session, dc, PipelineEventType.ERROR, company_id, error_message=str(e))
 
@@ -404,7 +553,7 @@ class PipelineService:
         project_id: Optional[int] = None,
         segment: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Promote ExtractedContacts to CRM Contact records."""
+        """Promote ExtractedContacts to CRM Contact records with full provenance."""
         result = await session.execute(
             select(ExtractedContact)
             .join(DiscoveredCompany)
@@ -440,11 +589,47 @@ class PipelineService:
                 stats["skipped"] += 1
                 continue
 
-            # Load parent company info
+            # Load parent company info + search provenance
             dc_result = await session.execute(
                 select(DiscoveredCompany).where(DiscoveredCompany.id == ec.discovered_company_id)
             )
             dc = dc_result.scalar_one_or_none()
+
+            # Build gathering_details with full provenance chain
+            gathering_details = self._build_gathering_details(session, ec, dc)
+            if dc and dc.search_result_id:
+                # Enrich with search query provenance
+                from sqlalchemy import text as sql_text
+                prov_row = await session.execute(sql_text("""
+                    SELECT sq.query_text, sq.geo, sq.search_engine,
+                           sj.id as search_job_id, sr.matched_segment
+                    FROM search_results sr
+                    LEFT JOIN search_queries sq ON sr.source_query_id = sq.id
+                    LEFT JOIN search_jobs sj ON sq.search_job_id = sj.id
+                    WHERE sr.id = :sr_id
+                    LIMIT 1
+                """), {"sr_id": dc.search_result_id})
+                prov = prov_row.fetchone()
+                if prov:
+                    if prov.search_job_id:
+                        gathering_details["search_job_id"] = prov.search_job_id
+                    if prov.query_text:
+                        gathering_details["query"] = prov.query_text
+                    if prov.geo:
+                        gathering_details["geo"] = prov.geo
+                    if prov.search_engine:
+                        gathering_details["search_engine"] = str(prov.search_engine)
+                    if prov.matched_segment:
+                        gathering_details["segment"] = prov.matched_segment
+
+            source_str = "pipeline"
+            if ec.source == ContactSource.APOLLO:
+                source_str = "apollo"
+            elif ec.source == ContactSource.SUBPAGE_SCRAPE:
+                source_str = "subpage_scrape"
+
+            # Resolve segment: explicit > search_result > discovered_company
+            resolved_segment = segment or gathering_details.get("segment") or (dc.matched_segment if dc else None)
 
             contact = Contact(
                 company_id=company_id,
@@ -456,10 +641,14 @@ class PipelineService:
                 job_title=ec.job_title,
                 phone=ec.phone,
                 linkedin_url=ec.linkedin_url,
-                segment=segment,
+                segment=resolved_segment,
                 project_id=project_id,
-                source="pipeline" if ec.source == ContactSource.WEBSITE_SCRAPE else "apollo",
+                source=source_str,
                 status="lead",
+                gathering_details=gathering_details,
+                # Propagate verification status from extracted contact
+                is_email_verified=ec.is_verified or False,
+                email_verification_result=ec.verification_method if ec.is_verified else None,
             )
             session.add(contact)
             await session.flush()
@@ -475,6 +664,83 @@ class PipelineService:
 
         await session.commit()
         return stats
+
+    def _build_gathering_details(
+        self,
+        session: AsyncSession,
+        ec: ExtractedContact,
+        dc: Optional[DiscoveredCompany],
+    ) -> Dict[str, Any]:
+        """Build provenance JSON for a promoted contact."""
+        details: Dict[str, Any] = {
+            "gathered_at": datetime.utcnow().isoformat(),
+            "source": str(ec.source.value) if ec.source else "unknown",
+            "extracted_contact_id": ec.id,
+        }
+        if dc:
+            details["domain"] = dc.domain
+            details["company_name"] = dc.name
+            details["discovered_company_id"] = dc.id
+            if dc.confidence is not None:
+                details["confidence"] = dc.confidence
+            if dc.search_job_id:
+                details["search_job_id"] = dc.search_job_id
+        return details
+
+    # ========== Email Verification ==========
+
+    async def verify_emails_batch(
+        self,
+        session: AsyncSession,
+        extracted_contact_ids: List[int],
+        company_id: int,
+        project_id: Optional[int] = None,
+        max_credits: int = 100,
+    ) -> Dict[str, Any]:
+        """Verify emails for extracted contacts via Findymail.
+
+        Only works if findymail is enabled in project's auto_enrich_config.
+        """
+        # Check if findymail is enabled for this project
+        if project_id:
+            proj_result = await session.execute(
+                select(Project).where(Project.id == project_id)
+            )
+            project = proj_result.scalar_one_or_none()
+            if project:
+                config = project.auto_enrich_config or {}
+                if not config.get("findymail_enabled", False):
+                    return {"error": "Findymail is disabled for this project. Enable it first.", "verified": 0}
+
+        from app.services.email_verification_service import email_verification_service
+
+        # Load contacts
+        result = await session.execute(
+            select(ExtractedContact)
+            .join(DiscoveredCompany)
+            .where(
+                ExtractedContact.id.in_(extracted_contact_ids),
+                DiscoveredCompany.company_id == company_id,
+                ExtractedContact.email.isnot(None),
+            )
+        )
+        contacts = result.scalars().all()
+
+        emails = [ec.email for ec in contacts if ec.email]
+        email_to_extracted = {ec.email: ec.id for ec in contacts if ec.email}
+        email_to_contact = {ec.email: ec.contact_id for ec in contacts if ec.email and ec.contact_id}
+
+        batch_result = await email_verification_service.verify_batch(
+            session, emails,
+            project_id=project_id,
+            company_id=company_id,
+            max_credits=max_credits,
+            email_to_contact=email_to_contact,
+            email_to_extracted=email_to_extracted,
+        )
+
+        await session.commit()
+        return batch_result.get("stats", {})
 
     # ========== Pipeline Stats ==========
 

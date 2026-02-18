@@ -28,6 +28,10 @@ CHAT_ACTIONS = [
     "show_knowledge",    # Display knowledge base entries
     "update_knowledge",  # Add/edit a knowledge base entry via natural language
     "ask",               # General question answered using KB context
+    "verify_emails",     # Run Findymail verification on contacts
+    "show_verification_stats",  # Show email verification stats
+    "show_segments",     # Show segment breakdown across pipeline
+    "toggle_verification",  # Enable/disable Findymail for project
     "info",              # General question / unknown
 ]
 
@@ -95,6 +99,15 @@ class ChatSearchService:
                 parts.append(f"TOP SEGMENTS BY TARGETS: {project_context['top_segments']}")
             if project_context.get("cost_summary"):
                 parts.append(f"COST SPENT: {project_context['cost_summary']}")
+            verif = project_context.get("verification", {})
+            if verif:
+                parts.append(f"FINDYMAIL: {'enabled' if verif.get('findymail_enabled') else 'disabled'}, "
+                           f"verified={verif.get('verified_emails', 0)}, valid={verif.get('valid', 0)}, "
+                           f"invalid={verif.get('invalid', 0)}, cost=${verif.get('cost_usd', 0):.2f}")
+            seg_breakdown = project_context.get("segments_breakdown", [])
+            if seg_breakdown:
+                seg_summary = ", ".join(f"{s['segment']}({s['targets']} targets)" for s in seg_breakdown[:5])
+                parts.append(f"SEGMENTS: {seg_summary}")
             if project_context.get("knowledge_summary"):
                 parts.append(f"\nPROJECT KNOWLEDGE BASE:\n{project_context['knowledge_summary'][:2000]}")
             project_block = "\n".join(parts)
@@ -160,7 +173,20 @@ AVAILABLE ACTIONS:
 13. "ask" — Answer a general question using project knowledge context.
     Use when user asks a question about the project, strategy, ICP, or needs advice based on existing data.
 
-14. "info" — Fallback for anything that doesn't map to any action. Reply conversationally.
+14. "verify_emails" — Run Findymail email verification on contacts.
+    Use when user says "verify emails", "run findymail", "check emails", "validate emails".
+
+15. "show_verification_stats" — Show email verification statistics.
+    Use when user asks "how many verified?", "email quality", "findymail stats", "verification results".
+
+16. "show_segments" — Show segment breakdown across the pipeline.
+    Use when user asks "show segments", "segment breakdown", "funnel by segment", "how many family office?".
+
+17. "toggle_verification" — Enable or disable Findymail for the project.
+    Use when user says "enable findymail", "turn on verification", "disable findymail", "turn off verification".
+    Set "toggle_value" to true (enable) or false (disable).
+
+18. "info" — Fallback for anything that doesn't map to any action. Reply conversationally.
 
 AVAILABLE SEGMENTS: {', '.join(available_segments)}
 
@@ -181,7 +207,7 @@ RULES:
 
 Respond ONLY with JSON:
 {{
-    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|show_knowledge|update_knowledge|ask|info",
+    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|show_knowledge|update_knowledge|ask|verify_emails|show_verification_stats|show_segments|toggle_verification|info",
     "engine": "yandex|google|both|null",
     "segments": ["segment_key", ...] or null,
     "geos": ["geo_key", ...] or null,
@@ -195,6 +221,7 @@ Respond ONLY with JSON:
     "kb_key": "key name or null",
     "kb_value": "content to store or null",
     "kb_title": "human-readable title or null",
+    "toggle_value": true,
     "reply": "..."
 }}"""
 

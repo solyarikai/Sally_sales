@@ -368,9 +368,21 @@ async def _bg_phase_extraction(project_id: int, company_id: int, progress: dict)
 
 
 async def _bg_phase_enrichment(project_id: int, company_id: int, cfg: FullPipelineRequest, progress: dict):
-    """Apollo people enrichment for unenriched targets."""
+    """Apollo people enrichment for unenriched targets.
+
+    Includes budget guardrail: pauses at apollo_credit_limit (default 200) from auto_enrich_config.
+    """
     from sqlalchemy import select
     from app.models.pipeline import DiscoveredCompany
+    from app.models.contact import Project
+
+    # Load project's auto_enrich_config for credit limit
+    apollo_credit_limit = cfg.apollo_credits  # Default from pipeline request
+    async with async_session_maker() as session:
+        proj_result = await session.execute(select(Project).where(Project.id == project_id))
+        project = proj_result.scalar_one_or_none()
+        if project and project.auto_enrich_config:
+            apollo_credit_limit = project.auto_enrich_config.get("apollo_credit_limit", apollo_credit_limit)
 
     async with async_session_maker() as session:
         result = await session.execute(
@@ -393,9 +405,35 @@ async def _bg_phase_enrichment(project_id: int, company_id: int, cfg: FullPipeli
     for i in range(0, len(ids), BATCH):
         if progress.get("stop_requested"):
             break
-        remaining = cfg.apollo_credits - stats["credits_used"]
+        remaining = apollo_credit_limit - stats["credits_used"]
         if remaining <= 0:
+            # Budget pause: log and stop
+            logger.warning(
+                f"Apollo credit limit reached ({apollo_credit_limit} credits) for project {project_id}. "
+                f"Used: {stats['credits_used']}. Pausing enrichment."
+            )
+            progress["enrichment_paused"] = True
+            progress["enrichment_pause_reason"] = f"Apollo credit limit reached ({apollo_credit_limit})"
+            # Save a chat message for the user
+            try:
+                from sqlalchemy import text as sql_text
+                async with async_session_maker() as session:
+                    await session.execute(sql_text("""
+                        INSERT INTO project_chat_messages (project_id, role, content, created_at)
+                        VALUES (:pid, 'system', :content, NOW())
+                    """), {
+                        "pid": project_id,
+                        "content": (
+                            f"Apollo enrichment paused: credit limit of {apollo_credit_limit} reached "
+                            f"({stats['credits_used']} credits used, {stats['people_found']} people found). "
+                            f"Resume via pipeline API or increase limit in auto_enrich_config."
+                        ),
+                    })
+                    await session.commit()
+            except Exception as chat_err:
+                logger.debug(f"Failed to save enrichment pause chat message: {chat_err}")
             break
+
         batch = ids[i:i + BATCH]
         try:
             async with async_session_maker() as session:
@@ -1845,6 +1883,127 @@ async def promote_to_crm(
     return stats
 
 
+# ============ Enrichment Tracking ============
+
+@router.get("/enrichment/stats")
+async def get_enrichment_stats(
+    project_id: int = QueryParam(...),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get enrichment effectiveness stats by source for a project."""
+    from app.services.enrichment_intelligence_service import enrichment_intelligence_service
+    stats = await enrichment_intelligence_service.get_effectiveness_stats(db, project_id)
+    return {"project_id": project_id, "stats": stats}
+
+
+@router.get("/enrichment/history/{dc_id}")
+async def get_enrichment_history(
+    dc_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get all enrichment attempts for a discovered company."""
+    from app.models.pipeline import DiscoveredCompany, EnrichmentAttempt
+    from app.services.enrichment_intelligence_service import enrichment_intelligence_service
+
+    # Verify company access
+    dc = await db.execute(
+        select(DiscoveredCompany).where(
+            DiscoveredCompany.id == dc_id,
+            DiscoveredCompany.company_id == company.id,
+        )
+    )
+    if not dc.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Discovered company not found")
+
+    attempts = await enrichment_intelligence_service.get_attempts_for_company(db, dc_id)
+    return {
+        "discovered_company_id": dc_id,
+        "attempts": [
+            {
+                "id": a.id,
+                "source_type": a.source_type,
+                "method": a.method,
+                "attempted_at": a.attempted_at.isoformat() if a.attempted_at else None,
+                "credits_used": a.credits_used or 0,
+                "cost_usd": float(a.cost_usd) if a.cost_usd else 0.0,
+                "contacts_found": a.contacts_found or 0,
+                "emails_found": a.emails_found or 0,
+                "status": a.status,
+                "error_message": a.error_message,
+                "config": a.config,
+                "result_summary": a.result_summary,
+            }
+            for a in attempts
+        ],
+    }
+
+
+@router.post("/enrichment/retry")
+async def retry_enrichment(
+    body: dict,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Retry enrichment with a different strategy.
+
+    Body: {discovered_company_ids, source_type, max_people, titles, max_credits}
+    """
+    dc_ids = body.get("discovered_company_ids", [])
+    source_type = body.get("source_type", "APOLLO_PEOPLE")
+    if not dc_ids:
+        raise HTTPException(status_code=400, detail="discovered_company_ids required")
+
+    if source_type == "APOLLO_PEOPLE":
+        stats = await pipeline_service.enrich_apollo_batch(
+            session=db,
+            discovered_company_ids=dc_ids,
+            company_id=company.id,
+            max_people=body.get("max_people", 5),
+            titles=body.get("titles"),
+            max_credits=body.get("max_credits", 50),
+            force_retry=True,
+        )
+        return stats
+    elif source_type in ("WEBSITE_SCRAPE", "SUBPAGE_SCRAPE"):
+        stats = await pipeline_service.extract_contacts_batch(
+            session=db,
+            discovered_company_ids=dc_ids,
+            company_id=company.id,
+        )
+        return stats
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported source_type: {source_type}")
+
+
+@router.post("/enrichment/recompute/{project_id}")
+async def recompute_enrichment_effectiveness(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Recompute enrichment effectiveness stats from attempt history."""
+    from app.services.enrichment_intelligence_service import enrichment_intelligence_service
+    await enrichment_intelligence_service.update_effectiveness(db, project_id)
+    await db.commit()
+    stats = await enrichment_intelligence_service.get_effectiveness_stats(db, project_id)
+    return {"project_id": project_id, "recomputed": True, "stats": stats}
+
+
+@router.get("/enrichment/recommend/{project_id}")
+async def recommend_enrichment_strategy(
+    project_id: int,
+    segment: Optional[str] = QueryParam(None),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get recommended enrichment strategy based on historical effectiveness."""
+    from app.services.enrichment_intelligence_service import enrichment_intelligence_service
+    strategy = await enrichment_intelligence_service.recommend_strategy(db, project_id, segment)
+    return {"project_id": project_id, "segment": segment, "strategy": strategy}
+
+
 # ============ Pipeline Stats ============
 
 @router.get("/stats", response_model=PipelineStats)
@@ -2390,3 +2549,97 @@ async def export_contacts_sheet(
         raise HTTPException(status_code=500, detail="Google Sheets export failed")
 
     return {"url": url, "rows": len(data) - 1}
+
+
+# ============ Email Verification Endpoints ============
+
+class VerifyEmailsRequest(BaseModel):
+    extracted_contact_ids: List[int] = Field(..., min_length=1)
+    max_credits: int = Field(100, ge=1, le=10000)
+
+
+class VerifyAllRequest(BaseModel):
+    max_credits: int = Field(100, ge=1, le=10000)
+
+
+@router.post("/verify-emails")
+async def verify_emails(
+    body: VerifyEmailsRequest,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+    project_id: Optional[int] = QueryParam(None),
+):
+    """Verify a batch of extracted contacts' emails via Findymail."""
+    stats = await pipeline_service.verify_emails_batch(
+        db, body.extracted_contact_ids, company.id,
+        project_id=project_id,
+        max_credits=body.max_credits,
+    )
+    return stats
+
+
+@router.get("/verification-stats")
+async def get_verification_stats(
+    project_id: Optional[int] = QueryParam(None),
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get email verification statistics for a project."""
+    from app.services.email_verification_service import email_verification_service
+    stats = await email_verification_service.get_stats(
+        db, project_id=project_id, company_id=company.id,
+    )
+    return stats
+
+
+@router.post("/project/{project_id}/verify-all")
+async def verify_all_project_emails(
+    project_id: int,
+    body: VerifyAllRequest = VerifyAllRequest(),
+    background_tasks: BackgroundTasks = None,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Verify all unverified emails for a project. Runs in background."""
+    from app.models.contact import Project
+    from app.models.pipeline import ExtractedContact, DiscoveredCompany
+
+    proj = await db.execute(select(Project).where(Project.id == project_id, Project.company_id == company.id))
+    project = proj.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    config = project.auto_enrich_config or {}
+    if not config.get("findymail_enabled", False):
+        raise HTTPException(status_code=400, detail="Findymail is disabled for this project. Enable it via chat first.")
+
+    # Get all unverified extracted contacts with emails
+    dc_ids_subq = (
+        select(DiscoveredCompany.id)
+        .where(DiscoveredCompany.company_id == company.id, DiscoveredCompany.project_id == project_id)
+        .scalar_subquery()
+    )
+    unverified_q = await db.execute(
+        select(ExtractedContact.id)
+        .where(
+            ExtractedContact.discovered_company_id.in_(dc_ids_subq),
+            ExtractedContact.email.isnot(None),
+            ExtractedContact.is_verified == False,
+        )
+    )
+    ec_ids = [row[0] for row in unverified_q.fetchall()]
+
+    if not ec_ids:
+        return {"status": "no_unverified_emails", "count": 0}
+
+    async def _bg_verify():
+        from app.db import async_session_maker
+        async with async_session_maker() as session:
+            await pipeline_service.verify_emails_batch(
+                session, ec_ids, company.id,
+                project_id=project_id,
+                max_credits=body.max_credits,
+            )
+
+    background_tasks.add_task(_bg_verify)
+    return {"status": "started", "emails_to_verify": len(ec_ids), "max_credits": body.max_credits}

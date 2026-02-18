@@ -139,6 +139,11 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     # Campaign info from source systems
     campaigns = Column(JSON, nullable=True)  # List of {name, id, source, status}
 
+    # Email verification
+    is_email_verified = Column(Boolean, default=False, index=True)
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
+    email_verification_result = Column(String(30), nullable=True)  # valid, invalid, catch_all
+
     # Pipeline gathering details (populated during CRM promote)
     gathering_details = Column(JSON, nullable=True)  # {gathered_at, source, search_job_id, query, geo, domain, ...}
 
