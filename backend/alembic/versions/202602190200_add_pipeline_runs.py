@@ -20,24 +20,30 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create enum types
+    # Create enum types explicitly with checkfirst
+    conn = op.get_bind()
+    for enum_name, values in [
+        ('pipeline_run_status', ['PENDING', 'RUNNING', 'PAUSED', 'STOPPED', 'COMPLETED', 'FAILED']),
+        ('pipeline_phase', ['SEARCH', 'EXTRACTION', 'ENRICHMENT', 'VERIFICATION', 'CRM_PROMOTE', 'SMARTLEAD_PUSH']),
+        ('pipeline_phase_status', ['STARTED', 'COMPLETED', 'FAILED', 'SKIPPED']),
+    ]:
+        conn.execute(sa.text(
+            f"DO $$ BEGIN CREATE TYPE {enum_name} AS ENUM ({', '.join(repr(v) for v in values)}); EXCEPTION WHEN duplicate_object THEN NULL; END $$"
+        ))
+
+    # Use create_type=False so create_table doesn't try to re-create enums
     pipeline_run_status = sa.Enum(
         'PENDING', 'RUNNING', 'PAUSED', 'STOPPED', 'COMPLETED', 'FAILED',
-        name='pipeline_run_status',
+        name='pipeline_run_status', create_type=False,
     )
-    pipeline_run_status.create(op.get_bind(), checkfirst=True)
-
     pipeline_phase = sa.Enum(
         'SEARCH', 'EXTRACTION', 'ENRICHMENT', 'VERIFICATION', 'CRM_PROMOTE', 'SMARTLEAD_PUSH',
-        name='pipeline_phase',
+        name='pipeline_phase', create_type=False,
     )
-    pipeline_phase.create(op.get_bind(), checkfirst=True)
-
     pipeline_phase_status = sa.Enum(
         'STARTED', 'COMPLETED', 'FAILED', 'SKIPPED',
-        name='pipeline_phase_status',
+        name='pipeline_phase_status', create_type=False,
     )
-    pipeline_phase_status.create(op.get_bind(), checkfirst=True)
 
     # pipeline_runs
     op.create_table(
