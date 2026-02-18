@@ -1098,16 +1098,20 @@ class CRMSyncService:
                 return contact
         
         if linkedin:
-            # Need to match normalized LinkedIn
+            # M6 FIX: SQL-level match instead of loading all contacts into memory.
+            # linkedin is already a normalized handle (e.g. "john-doe").
+            # Match with ILIKE on the /in/<handle> portion of the URL.
             result = await session.execute(
                 select(Contact).where(
-                    and_(*conditions, Contact.linkedin_url.isnot(None))
-                )
+                    and_(
+                        *conditions,
+                        Contact.linkedin_url.ilike(f"%/in/{linkedin}%"),
+                    )
+                ).limit(1)
             )
-            contacts = result.scalars().all()
-            for c in contacts:
-                if self.normalize_linkedin(c.linkedin_url) == linkedin:
-                    return c
+            contact = result.scalars().first()
+            if contact:
+                return contact
 
         return None
 

@@ -18,38 +18,34 @@ PRICING = {
 }
 
 def track_openai_usage(model: str, input_tokens: int, output_tokens: int):
-    """Track OpenAI usage in PostgreSQL database"""
-    import psycopg2
-    try:
-        pricing = PRICING.get(model, PRICING.get("gpt-4o-mini"))
-        cost = (input_tokens / 1_000_000 * pricing["input"]) + (output_tokens / 1_000_000 * pricing["output"])
-        
-        # Parse DATABASE_URL for sync psycopg2 connection
-        from app.core.config import settings as _s
-        import re as _re
-        _m = _re.match(r'postgresql\+asyncpg://(.+?):(.+?)@(.+?):(\d+)/(.+)', _s.DATABASE_URL)
-        if not _m:
-            return
-        conn = psycopg2.connect(
-            host=_m.group(3),
-            port=int(_m.group(4)),
-            user=_m.group(1),
-            password=_m.group(2),
-            database=_m.group(5),
-        )
-        cur = conn.cursor()
-        cur.execute("""INSERT INTO openai_usage (model, input_tokens, output_tokens, cost_usd, source)
-                     VALUES (%s, %s, %s, %s, 'backend')""",
-                  (model, input_tokens, output_tokens, cost))
-        conn.commit()
-        cur.close()
-        conn.close()
-        logger.info(f"Tracked usage: {model} {input_tokens}in/{output_tokens}out = ${cost:.6f}")
-    except Exception as e:
-        logger.warning(f"Failed to track usage: {e}")
+    """Track OpenAI usage — fires async DB write without blocking the event loop."""
+    pricing = PRICING.get(model, PRICING.get("gpt-4o-mini"))
+    cost = (input_tokens / 1_000_000 * pricing["input"]) + (output_tokens / 1_000_000 * pricing["output"])
+    logger.info(f"Tracked usage: {model} {input_tokens}in/{output_tokens}out = ${cost:.6f}")
 
-# Placeholder to mark end of tracking code
-_TRACKING_LOADED = True
+    async def _write():
+        try:
+            from app.db.database import async_session_maker
+            from sqlalchemy import text
+            async with async_session_maker() as session:
+                await session.execute(
+                    text(
+                        "INSERT INTO openai_usage (model, input_tokens, output_tokens, cost_usd, source) "
+                        "VALUES (:model, :input_tokens, :output_tokens, :cost, 'backend')"
+                    ),
+                    {"model": model, "input_tokens": input_tokens, "output_tokens": output_tokens, "cost": cost},
+                )
+                await session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to track usage in DB: {e}")
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_write())
+    except RuntimeError:
+        # No running event loop — skip async write
+        pass
+
 
 
 

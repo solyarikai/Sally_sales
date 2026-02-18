@@ -6,6 +6,8 @@ Provides:
 - Webhook endpoints for Smartlead and GetSales
 - Activity history endpoints
 """
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Body, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc, String
@@ -18,6 +20,7 @@ import hashlib
 import hmac
 
 from app.db import get_session
+from app.db.database import async_session_maker
 from app.models import Company, Contact, ContactActivity
 from app.api.companies import get_required_company
 from app.services.crm_sync_service import get_crm_sync_service, CRMSyncService, get_getsales_flow_name, parse_campaigns
@@ -792,8 +795,45 @@ async def smartlead_webhook(
         contact.smartlead_id = str(lead_id)
     
     await session.commit()
-    
+
+    # H1 FIX: Route EMAIL_REPLY events through the reply processor so replies
+    # arriving at this endpoint also get classified, drafted, and notified —
+    # prevents silent data loss when SmartLead is configured to the wrong URL.
+    if "replied" in activity_type and lead_email:
+        full_payload = {
+            "event_type": event_type or "EMAIL_REPLY",
+            "campaign_id": str(campaign_id) if campaign_id else None,
+            "campaign_name": campaign_name,
+            "lead_email": lead_email,
+            "to_email": lead_email,
+            "to_name": f"{lead_data.get('first_name', '')} {lead_data.get('last_name', '')}".strip(),
+            "first_name": lead_data.get("first_name", ""),
+            "last_name": lead_data.get("last_name", ""),
+            "company_name": lead_data.get("company_name", ""),
+            "email_subject": subject,
+            "email_body": reply_body or reply_text or "",
+            "preview_text": reply_text or reply_body or "",
+            "sl_email_lead_id": str(lead_id) if lead_id else "",
+            "linkedin_profile": lead_data.get("linkedin_profile", ""),
+            "time_replied": body.get("event_timestamp"),
+            "_source": "crm_sync_webhook",
+        }
+        asyncio.create_task(_process_smartlead_reply_safe(full_payload))
+        logger.info(f"[CRM-SYNC] Queued reply processing for {lead_email}")
+
     return {"status": "processed", "activity_id": activity.id}
+
+
+async def _process_smartlead_reply_safe(payload: dict):
+    """Process a SmartLead reply via the shared reply processor. Fire-and-forget."""
+    from app.services.reply_processor import process_reply_webhook
+
+    try:
+        async with async_session_maker() as session:
+            await process_reply_webhook(payload, session)
+            await session.commit()
+    except Exception as e:
+        logger.error(f"[CRM-SYNC] Reply processing failed (non-fatal): {e}")
 
 
 @router.post("/webhook/getsales/bulk-import")
@@ -1114,25 +1154,16 @@ async def getsales_webhook(
         contact.reply_channel = "linkedin"
         contact.last_reply_at = activity_at
         contact.getsales_status = contact_data.get("pipeline_stage_name")
-        
-        # Classify the reply
-        from app.services.crm_sync_service import classify_reply, get_status_from_category, get_sentiment_from_category
-        category = await classify_reply(message_text)
 
-        # Update activity with category
-        if not is_duplicate:
-            activity.extra_data["category"] = category
-
-        # Update contact status and sentiment
-        contact.status = get_status_from_category(category)
-        contact.reply_category = category
-        contact.reply_sentiment = get_sentiment_from_category(category)
-
-        # Create/update ProcessedReply with classification + draft via shared function
+        # M9 FIX: Use process_getsales_reply as the single source of classification.
+        # Previously we did a lightweight classify_reply here (redundant) and then called
+        # process_getsales_reply which does proper GPT classification again.
+        # Now: call process_getsales_reply once, use its result for contact status.
+        category = "other"  # default fallback
         try:
             from app.services.reply_processor import process_getsales_reply
 
-            await process_getsales_reply(
+            pr = await process_getsales_reply(
                 message_text=message_text,
                 contact=contact,
                 flow_name=automation_data.get("name", ""),
@@ -1142,9 +1173,21 @@ async def getsales_webhook(
                 raw_data=body,
                 session=session,
             )
+            if pr and pr.category:
+                category = pr.category
         except Exception as pr_err:
             logger.warning(f"[GETSALES] ProcessedReply creation failed (non-fatal): {pr_err}")
-        
+
+        # Update activity with category from the proper classification
+        if not is_duplicate:
+            activity.extra_data["category"] = category
+
+        # Update contact status and sentiment from category
+        from app.services.crm_sync_service import get_status_from_category, get_sentiment_from_category
+        contact.status = get_status_from_category(category)
+        contact.reply_category = category
+        contact.reply_sentiment = get_sentiment_from_category(category)
+
         # Append to touches JSON
         from datetime import datetime as dt
         touch = {
