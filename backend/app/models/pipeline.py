@@ -5,7 +5,8 @@ DiscoveredCompany: persists across search jobs, tracks companies through the out
 ExtractedContact: contacts found from website scraping or Apollo enrichment.
 PipelineEvent: audit trail for all pipeline actions.
 """
-from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey, Boolean, Float, Enum as SQLEnum, Index
+from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey, Boolean, Float, Numeric, Enum as SQLEnum, Index
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -24,7 +25,11 @@ class DiscoveredCompanyStatus(str, enum.Enum):
 
 class ContactSource(str, enum.Enum):
     WEBSITE_SCRAPE = "website_scrape"
+    SUBPAGE_SCRAPE = "subpage_scrape"
     APOLLO = "apollo"
+    APOLLO_ORG = "apollo_org"
+    LINKEDIN = "linkedin"
+    CLAY = "clay"
     MANUAL = "manual"
 
 
@@ -68,6 +73,9 @@ class DiscoveredCompany(Base):
     confidence = Column(Float, nullable=True)
     reasoning = Column(Text, nullable=True)
     company_info = Column(JSON, nullable=True)
+
+    # Segment classification (copied from SearchResult.matched_segment)
+    matched_segment = Column(String(100), nullable=True, index=True)
 
     # Pipeline status
     status = Column(SQLEnum(DiscoveredCompanyStatus), default=DiscoveredCompanyStatus.NEW, nullable=False, index=True)
@@ -167,6 +175,99 @@ class PipelineEvent(Base):
 
     __table_args__ = (
         Index("ix_pipeline_event_company_type", "company_id", "event_type"),
+    )
+
+
+class EnrichmentAttempt(Base):
+    """
+    Log of every enrichment attempt per company — scrape, Apollo call, subpage, etc.
+    Tracks success/failure, cost, and contacts found.
+    """
+    __tablename__ = "enrichment_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    discovered_company_id = Column(Integer, ForeignKey("discovered_companies.id", ondelete="CASCADE"), nullable=False)
+
+    source_type = Column(String(50), nullable=False)  # WEBSITE_SCRAPE, SUBPAGE_SCRAPE, APOLLO_PEOPLE, APOLLO_ORG, etc.
+    method = Column(String(100), nullable=True)  # "homepage_gpt", "subpage_/contacts", "apollo_titles_CEO"
+    attempted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    credits_used = Column(Integer, server_default="0")
+    cost_usd = Column(Numeric(10, 4), server_default="0")
+    contacts_found = Column(Integer, server_default="0")
+    emails_found = Column(Integer, server_default="0")
+    status = Column(String(20), nullable=False, server_default="SUCCESS")  # SUCCESS, ZERO_RESULTS, ERROR, SKIPPED
+    error_message = Column(Text, nullable=True)
+    config = Column(JSONB, nullable=True)  # {titles, max_people, subpage_path, ...}
+    result_summary = Column(JSONB, nullable=True)  # {contact_ids, emails, source_url}
+
+    # Relationships
+    discovered_company = relationship("DiscoveredCompany", backref="enrichment_attempts")
+
+    __table_args__ = (
+        Index("ix_enrichment_attempts_dc_id", "discovered_company_id"),
+        Index("ix_enrichment_attempts_source", "source_type", "status"),
+        Index("ix_enrichment_attempts_attempted_at", "attempted_at"),
+    )
+
+
+class EnrichmentEffectiveness(Base):
+    """
+    Aggregated stats per (project, segment, source_type) — the self-evolving brain.
+    Recomputed periodically from enrichment_attempts.
+    """
+    __tablename__ = "enrichment_effectiveness"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    segment = Column(String(255), nullable=True)
+    source_type = Column(String(50), nullable=False)
+
+    total_attempts = Column(Integer, server_default="0")
+    successful_attempts = Column(Integer, server_default="0")
+    total_contacts_found = Column(Integer, server_default="0")
+    total_credits_used = Column(Integer, server_default="0")
+    success_rate = Column(Numeric(5, 4), server_default="0")
+    cost_per_contact = Column(Numeric(10, 4), server_default="0")
+    priority_rank = Column(Integer, server_default="99")  # auto-computed, lower = better ROI
+
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    project = relationship("Project")
+
+    __table_args__ = (
+        Index("uq_enrichment_effectiveness_project_seg_source", "project_id", "segment", "source_type", unique=True),
+    )
+
+
+class EmailVerification(Base):
+    """
+    Email verification history + 90-day cache.
+    Before calling Findymail API, check if a recent valid result exists.
+    """
+    __tablename__ = "email_verifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), nullable=False)
+    service = Column(String(50), nullable=False)  # 'findymail', 'millionverifier'
+    result = Column(String(30), nullable=True)  # 'valid', 'invalid', 'catch_all', 'unknown', 'error'
+    is_valid = Column(Boolean, nullable=True)
+    provider = Column(String(100), nullable=True)  # email provider from API
+    raw_response = Column(JSONB, nullable=True)
+    cost_usd = Column(Numeric(10, 4), nullable=True)
+    credits_used = Column(Integer, server_default="1")
+    verified_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=True)  # verified_at + 90 days
+
+    # Links
+    contact_id = Column(Integer, ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True)
+    extracted_contact_id = Column(Integer, ForeignKey("extracted_contacts.id", ondelete="SET NULL"), nullable=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+
+    __table_args__ = (
+        Index("ix_email_verifications_email_verified", "email", "verified_at"),
+        Index("ix_email_verifications_company_project", "company_id", "project_id"),
     )
 
 

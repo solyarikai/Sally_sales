@@ -21,7 +21,11 @@ class DiscoveredCompanyStatusEnum(str, Enum):
 
 class ContactSourceEnum(str, Enum):
     website_scrape = "website_scrape"
+    subpage_scrape = "subpage_scrape"
     apollo = "apollo"
+    apollo_org = "apollo_org"
+    linkedin = "linkedin"
+    clay = "clay"
     manual = "manual"
 
 
@@ -87,6 +91,7 @@ class DiscoveredCompanyResponse(BaseModel):
     confidence: Optional[float] = None
     reasoning: Optional[str] = None
     company_info: Optional[Dict[str, Any]] = None
+    matched_segment: Optional[str] = None
     status: str
     contacts_count: int = 0
     emails_found: Optional[List[str]] = None
@@ -227,3 +232,68 @@ class ProjectEnrichRequest(BaseModel):
     max_people: int = Field(5, ge=1, le=25)
     titles: Optional[List[str]] = Field(None, description="Filter by job titles, e.g. ['CEO', 'CTO', 'Founder']")
     max_credits: Optional[int] = Field(50, ge=1, description="Max Apollo credits to use for this project enrichment")
+
+
+# ============ Enrichment Tracking ============
+
+class EnrichmentAttemptResponse(BaseModel):
+    id: int
+    discovered_company_id: int
+    source_type: str
+    method: Optional[str] = None
+    attempted_at: Optional[datetime] = None
+    credits_used: int = 0
+    cost_usd: float = 0.0
+    contacts_found: int = 0
+    emails_found: int = 0
+    status: str
+    error_message: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None
+    result_summary: Optional[Dict[str, Any]] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EnrichmentEffectivenessResponse(BaseModel):
+    segment: Optional[str] = None
+    source_type: str
+    total_attempts: int = 0
+    successful_attempts: int = 0
+    total_contacts_found: int = 0
+    total_credits_used: int = 0
+    success_rate: float = 0.0
+    cost_per_contact: float = 0.0
+    priority_rank: int = 99
+
+    class Config:
+        from_attributes = True
+
+
+class EnrichmentRetryRequest(BaseModel):
+    discovered_company_ids: List[int] = Field(..., min_length=1)
+    source_type: str = Field("APOLLO_PEOPLE", description="Which enrichment source to retry")
+    max_people: int = Field(5, ge=1, le=25)
+    titles: Optional[List[str]] = None
+    max_credits: Optional[int] = Field(50, ge=1)
+
+
+# ============ Email Verification ============
+
+class EmailVerificationResponse(BaseModel):
+    email: str
+    result: Optional[str] = None
+    is_valid: Optional[bool] = None
+    provider: Optional[str] = None
+    cached: bool = False
+    cost_usd: float = 0.0
+
+
+class VerificationStatsResponse(BaseModel):
+    total_verifications: int = 0
+    unique_emails: int = 0
+    valid: int = 0
+    invalid: int = 0
+    catch_all: int = 0
+    errors: int = 0
+    total_cost_usd: float = 0.0

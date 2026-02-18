@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Database, FileText, Settings, BookOpen, Users, ChevronDown, MessageSquare, Contact, ListTodo, Search, Zap, Target, Layers, FolderOpen, Moon, Sun } from 'lucide-react';
+import { Database, FileText, Settings, BookOpen, Users, ChevronDown, MessageSquare, MessageCircle, Contact, ListTodo, Search, Zap, Target, Layers, FolderOpen, Moon, Sun } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -39,6 +39,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },
     { path: `${companyPrefix}/knowledge-base`, icon: BookOpen, label: 'Knowledge Base', needsCompany: true },
     { path: '/projects', icon: FolderOpen, label: 'Projects', global: true },
+    ...(currentProject ? [{ path: `/projects/${currentProject.id}/chat`, icon: MessageCircle, label: 'Project Chat', global: true }] : []),
     { path: '/replies', icon: MessageSquare, label: 'Replies', global: true },
     { path: '/prompt-debug', icon: Zap, label: 'Prompt Debug', global: true },
     { path: '/tasks', icon: ListTodo, label: 'Tasks', global: true },

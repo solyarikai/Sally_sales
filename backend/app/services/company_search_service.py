@@ -423,6 +423,7 @@ class CompanySearchService:
         Returns stats dict.
         """
         from app.services.query_templates import build_segment_queries, build_doc_keyword_queries
+        from app.services.search_config_service import search_config_service
 
         # Load project for target_segments
         result = await session.execute(
@@ -433,6 +434,11 @@ class CompanySearchService:
             raise ValueError(f"Project {project_id} not found")
 
         knowledge_data = await self._load_project_knowledge(session, project_id)
+
+        # Load per-project search config (segments/geos/templates from DB)
+        config = await search_config_service.get_or_create_config(session, project_id)
+        segments_data = config.get("segments") if config else None
+        doc_keywords_data = config.get("doc_keywords") if config else None
 
         # Collect all used queries for this project (dedup across jobs)
         existing_result = await session.execute(
@@ -449,6 +455,7 @@ class CompanySearchService:
             segment_key=segment_key,
             geo_key=geo_key,
             existing_queries=existing_queries,
+            doc_keywords_data=doc_keywords_data,
         )
         doc_count = len(tagged_queries)
 
@@ -459,12 +466,14 @@ class CompanySearchService:
             geo_key=geo_key,
             language="ru",
             existing_queries=existing_queries,
+            segments_data=segments_data,
         )
         template_queries_en = build_segment_queries(
             segment_key=segment_key,
             geo_key=geo_key,
             language="en",
             existing_queries=existing_queries,
+            segments_data=segments_data,
         )
         # Dedup templates against doc keywords already added
         doc_query_texts = set(q["query"].strip().lower() for q in tagged_queries)
@@ -773,6 +782,19 @@ class CompanySearchService:
             if batch_size <= 0:
                 logger.info(f"Iteration {iteration}: query budget exhausted ({total_queries_used}/{max_queries})")
                 break
+
+            # Google SERP cost guardrail: hard stop at budget limit
+            if job.search_engine == SearchEngine.GOOGLE_SERP:
+                google_cost_limit = 50.0  # Default $50
+                if project and project.auto_enrich_config:
+                    google_cost_limit = project.auto_enrich_config.get("google_cost_limit_usd", 50.0)
+                estimated_cost = (total_queries_used / 1000) * GOOGLE_SERP_COST_PER_1K_REQUESTS
+                if estimated_cost >= google_cost_limit:
+                    logger.warning(
+                        f"Google SERP cost limit reached: ${estimated_cost:.2f} >= ${google_cost_limit:.2f} "
+                        f"({total_queries_used} queries). Stopping search."
+                    )
+                    break
 
             logger.info(
                 f"Iteration {iteration}: generating {batch_size} queries "
@@ -1217,12 +1239,19 @@ CRITICAL FALSE POSITIVE RULES:
                     logger.error(f"Crona batch failed: {result}")
 
             crona_credits_used = crona_service.credits_used
-            used_crona = True
-            logger.info(f"Crona scraped {len(to_analyze)} domains, credits_used={crona_credits_used}")
-        else:
-            # Fallback: direct httpx (won't render JS)
-            logger.warning("Crona not configured, falling back to direct httpx scraping")
-            semaphore = asyncio.Semaphore(3)
+            # Check if Crona actually returned any content (402 = out of credits)
+            crona_success = sum(1 for v in scraped_texts.values() if v)
+            if crona_success > 0:
+                used_crona = True
+                logger.info(f"Crona scraped {len(to_analyze)} domains: {crona_success} success, credits_used={crona_credits_used}")
+            else:
+                logger.warning(f"Crona returned 0 content for {len(to_analyze)} domains (likely out of credits), falling back to httpx")
+                scraped_texts.clear()
+
+        if not used_crona:
+            # Fallback: direct httpx (won't render JS but works for most sites)
+            logger.info(f"Using httpx to scrape {len(to_analyze)} domains")
+            semaphore = asyncio.Semaphore(10)
 
             async def scrape_one(domain: str):
                 async with semaphore:
@@ -1230,6 +1259,8 @@ CRITICAL FALSE POSITIVE RULES:
                     scraped_texts[domain] = html
 
             await asyncio.gather(*[scrape_one(d) for d in to_analyze], return_exceptions=True)
+            httpx_success = sum(1 for v in scraped_texts.values() if v and len(v) >= 50)
+            logger.info(f"httpx scraped {len(to_analyze)} domains: {httpx_success} with content")
 
         scraped_at = datetime.utcnow()
 
@@ -1294,7 +1325,7 @@ CRITICAL FALSE POSITIVE RULES:
                     company_info=analysis.get("company_info", {}),
                     scores=analysis.get("scores", {}),
                     matched_segment=analysis.get("matched_segment"),
-                    html_snippet=content[:2000],
+                    html_snippet=content[:2000].replace("\x00", "") if content else None,
                     scraped_at=scraped_at,
                     analyzed_at=analyzed_at,
                     source_query_id=source_qid,

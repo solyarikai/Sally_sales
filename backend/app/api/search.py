@@ -83,6 +83,32 @@ class ReviewRequest(BaseModel):
     note: Optional[str] = Field(None, description="Optional review note")
 
 
+class BatchSegmentSearchRequest(BaseModel):
+    segments: Optional[List[str]] = Field(None, description="Segment keys to search (default: all)")
+    geos: Optional[List[str]] = Field(None, description="Geo keys to search (default: all)")
+    search_engine: str = Field("google_serp", description="google_serp or yandex_api")
+    ai_expand_rounds: int = Field(0, ge=0, le=5, description="AI expansion rounds per combo (0=templates only)")
+    max_concurrent: int = Field(2, ge=1, le=5, description="Max concurrent segment searches")
+
+
+class BatchSegmentSearchResponse(BaseModel):
+    status: str = "running"
+    total_combos: int
+    message: str
+
+
+class AnalyzeDomainsRequest(BaseModel):
+    """Re-analyze unprocessed domains from an existing search job."""
+    job_id: int = Field(..., description="SearchJob ID to resume analysis for")
+    batch_size: int = Field(50, ge=10, le=200, description="Domains per batch")
+
+
+class AnalyzeDomainsResponse(BaseModel):
+    status: str
+    domains_to_analyze: int
+    message: str
+
+
 # ============ Query Generation ============
 
 @router.post("/generate-queries", response_model=GenerateQueriesResponse)
@@ -567,6 +593,187 @@ async def _run_project_search_background(job_id: int, project_id: int, company_i
 
     except Exception as e:
         logger.error(f"Background project search crashed: {e}")
+
+
+@router.post("/projects/{project_id}/batch-segments", response_model=BatchSegmentSearchResponse)
+async def batch_segment_search(
+    project_id: int,
+    body: BatchSegmentSearchRequest = BatchSegmentSearchRequest(),
+    background_tasks: BackgroundTasks = None,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Run segment search across all (or selected) segment×geo combos from search_config.
+
+    This replaces the need for standalone scripts. Runs in background with
+    configurable concurrency. Progress visible via /search/jobs endpoint.
+    """
+    from app.services.search_config_service import search_config_service
+
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.company_id == company.id)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    config = await search_config_service.get_or_create_config(db, project_id)
+    if not config or not config.get("segments"):
+        raise HTTPException(status_code=400, detail="No search_config found. Configure segments first.")
+
+    # Build combos list
+    combos = []
+    segments_data = config["segments"]
+    for seg_key, seg in segments_data.items():
+        if body.segments and seg_key not in body.segments:
+            continue
+        for geo_key in seg.get("geos", {}):
+            if body.geos and geo_key not in body.geos:
+                continue
+            combos.append((seg_key, geo_key))
+
+    if not combos:
+        raise HTTPException(status_code=400, detail="No matching segment×geo combos found")
+
+    engine = SearchEngine.GOOGLE_SERP if body.search_engine == "google_serp" else SearchEngine.YANDEX_API
+
+    background_tasks.add_task(
+        _run_batch_segments_background,
+        project_id, company.id, combos, engine,
+        body.ai_expand_rounds, body.max_concurrent,
+    )
+
+    return BatchSegmentSearchResponse(
+        status="running",
+        total_combos=len(combos),
+        message=f"Launched {len(combos)} segment×geo searches ({body.search_engine}, concurrency={body.max_concurrent})",
+    )
+
+
+async def _run_batch_segments_background(
+    project_id: int,
+    company_id: int,
+    combos: list,
+    search_engine: SearchEngine,
+    ai_expand_rounds: int,
+    max_concurrent: int,
+):
+    """Background task: run segment searches with concurrency control."""
+    sem = asyncio.Semaphore(max_concurrent)
+    total = len(combos)
+    completed = 0
+    total_targets = 0
+    total_queries = 0
+
+    async def run_one(seg_key: str, geo_key: str, idx: int):
+        nonlocal completed, total_targets, total_queries
+        async with sem:
+            logger.info(f"Batch segment [{idx+1}/{total}]: {seg_key}/{geo_key}")
+            try:
+                async with async_session_maker() as session:
+                    stats = await company_search_service.run_segment_search(
+                        session=session,
+                        project_id=project_id,
+                        company_id=company_id,
+                        segment_key=seg_key,
+                        geo_key=geo_key,
+                        search_engine=search_engine,
+                        ai_expand_rounds=ai_expand_rounds,
+                    )
+                completed += 1
+                total_targets += stats.get("targets_found", 0)
+                total_queries += stats.get("total_queries", 0)
+                logger.info(
+                    f"Batch segment [{idx+1}/{total}] done: {seg_key}/{geo_key} — "
+                    f"{stats.get('targets_found', 0)} targets, {stats.get('total_queries', 0)} queries "
+                    f"(running: {completed}/{total}, {total_targets} total targets)"
+                )
+            except Exception as e:
+                completed += 1
+                logger.error(f"Batch segment [{idx+1}/{total}] {seg_key}/{geo_key} failed: {e}")
+
+    tasks = [run_one(seg, geo, i) for i, (seg, geo) in enumerate(combos)]
+    await asyncio.gather(*tasks)
+
+    logger.info(
+        f"Batch segment search complete: {completed}/{total} combos, "
+        f"{total_targets} targets, {total_queries} queries"
+    )
+
+
+@router.post("/projects/{project_id}/analyze-domains", response_model=AnalyzeDomainsResponse)
+async def analyze_unprocessed_domains(
+    project_id: int,
+    body: AnalyzeDomainsRequest,
+    background_tasks: BackgroundTasks = None,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Resume analysis of unprocessed domains from an existing search job.
+
+    Useful when a previous search found domains but analysis was interrupted.
+    Rebuilds skip set and analyzes any domains not yet in search_results.
+    """
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.company_id == company.id)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    job_result = await db.execute(
+        select(SearchJob).where(SearchJob.id == body.job_id, SearchJob.project_id == project_id)
+    )
+    job = job_result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Search job not found")
+
+    # Count unanalyzed domains
+    skip_set = await company_search_service._build_skip_set(db, project_id)
+    new_domains = await company_search_service._get_new_domains_from_job(db, job, skip_set)
+
+    if not new_domains:
+        return AnalyzeDomainsResponse(
+            status="complete", domains_to_analyze=0,
+            message="No unanalyzed domains remaining",
+        )
+
+    background_tasks.add_task(
+        _analyze_domains_background, job.id, project_id, new_domains, project.target_segments, body.batch_size,
+    )
+
+    return AnalyzeDomainsResponse(
+        status="running",
+        domains_to_analyze=len(new_domains),
+        message=f"Analyzing {len(new_domains)} domains in batches of {body.batch_size}",
+    )
+
+
+async def _analyze_domains_background(
+    job_id: int, project_id: int, domains: list, target_segments: str, batch_size: int,
+):
+    """Background: analyze domains in batches."""
+    try:
+        async with async_session_maker() as session:
+            job_result = await session.execute(select(SearchJob).where(SearchJob.id == job_id))
+            job = job_result.scalar_one()
+
+            for i in range(0, len(domains), batch_size):
+                batch = domains[i:i + batch_size]
+                logger.info(f"Analyze batch {i//batch_size + 1}: {len(batch)} domains (job {job_id})")
+                try:
+                    await company_search_service._scrape_and_analyze_domains(
+                        session=session, job=job, domains=batch,
+                        target_segments=target_segments,
+                    )
+                    await session.commit()
+                except Exception as e:
+                    logger.error(f"Batch analysis failed: {e}")
+                    await session.rollback()
+
+            logger.info(f"Domain analysis complete for job {job_id}: {len(domains)} domains processed")
+    except Exception as e:
+        logger.error(f"Background domain analysis crashed: {e}")
 
 
 @router.get("/projects/{project_id}/results/stats")

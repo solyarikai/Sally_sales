@@ -116,6 +116,30 @@ SEGMENTS: dict[str, dict] = {
                 "districts_ru": [],
                 "districts_en": [],
             },
+            "london": {
+                "cities_ru": ["Лондон"],
+                "cities_en": ["London", "Chelsea", "Kensington", "Mayfair", "Knightsbridge", "Canary Wharf"],
+                "country_ru": "Великобритания",
+                "country_en": "UK",
+                "districts_ru": [],
+                "districts_en": ["Belgravia", "Hampstead", "Richmond", "Notting Hill"],
+            },
+            "israel": {
+                "cities_ru": ["Тель-Авив", "Герцлия", "Нетания", "Хайфа", "Иерусалим"],
+                "cities_en": ["Tel Aviv", "Herzliya", "Netanya", "Haifa", "Jerusalem", "Bat Yam", "Ashdod"],
+                "country_ru": "Израиль",
+                "country_en": "Israel",
+                "districts_ru": [],
+                "districts_en": [],
+            },
+            "italy": {
+                "cities_ru": ["Милан", "Рим", "Флоренция", "Венеция", "Комо", "Сардиния", "Сицилия"],
+                "cities_en": ["Milan", "Rome", "Florence", "Venice", "Lake Como", "Sardinia", "Sicily", "Tuscany", "Amalfi Coast"],
+                "country_ru": "Италия",
+                "country_en": "Italy",
+                "districts_ru": [],
+                "districts_en": [],
+            },
         },
 
         "templates_ru": [
@@ -323,6 +347,30 @@ SEGMENTS: dict[str, dict] = {
                 "districts_ru": [],
                 "districts_en": ["Nevis", "Jersey", "Guernsey", "Isle of Man", "Luxembourg", "Liechtenstein"],
             },
+            "london": {
+                "cities_ru": ["Лондон"],
+                "cities_en": ["London"],
+                "country_ru": "Великобритания",
+                "country_en": "UK",
+                "districts_ru": [],
+                "districts_en": ["City of London", "Mayfair"],
+            },
+            "malta": {
+                "cities_ru": ["Мальта", "Валлетта"],
+                "cities_en": ["Malta", "Valletta"],
+                "country_ru": "Мальта",
+                "country_en": "Malta",
+                "districts_ru": [],
+                "districts_en": [],
+            },
+            "israel": {
+                "cities_ru": ["Тель-Авив", "Иерусалим"],
+                "cities_en": ["Tel Aviv", "Jerusalem", "Herzliya"],
+                "country_ru": "Израиль",
+                "country_en": "Israel",
+                "districts_ru": [],
+                "districts_en": [],
+            },
         },
 
         "templates_ru": [
@@ -440,6 +488,30 @@ SEGMENTS: dict[str, dict] = {
                 "cities_en": [],
                 "country_ru": "США",
                 "country_en": "USA",
+                "districts_ru": [],
+                "districts_en": [],
+            },
+            "malta_rp": {
+                "cities_ru": ["Мальта"],
+                "cities_en": ["Malta", "Valletta"],
+                "country_ru": "Мальта",
+                "country_en": "Malta",
+                "districts_ru": [],
+                "districts_en": [],
+            },
+            "uk_visa": {
+                "cities_ru": ["Лондон"],
+                "cities_en": ["London", "UK"],
+                "country_ru": "Великобритания",
+                "country_en": "UK",
+                "districts_ru": [],
+                "districts_en": [],
+            },
+            "italy_gv": {
+                "cities_ru": ["Рим", "Милан"],
+                "cities_en": ["Rome", "Milan", "Italy"],
+                "country_ru": "Италия",
+                "country_en": "Italy",
                 "districts_ru": [],
                 "districts_en": [],
             },
@@ -709,6 +781,7 @@ def build_segment_queries(
     geo_key: str | None = None,
     language: str | None = None,
     existing_queries: set[str] | None = None,
+    segments_data: dict | None = None,
 ) -> list[dict]:
     """
     Generate queries via cartesian product of templates x variables x geos.
@@ -717,8 +790,9 @@ def build_segment_queries(
         [{"query": "...", "segment": "real_estate", "geo": "dubai", "language": "ru", "source": "template"}, ...]
 
     Deterministic, zero AI cost. Deduplicates against existing_queries.
+    If segments_data is provided, uses it instead of the hardcoded SEGMENTS dict.
     """
-    seg = SEGMENTS.get(segment_key)
+    seg = (segments_data or SEGMENTS).get(segment_key)
     if not seg:
         return []
 
@@ -3328,16 +3402,19 @@ def build_doc_keyword_queries(
     geo_key: str | None = None,
     language: str | None = None,
     existing_queries: set[str] | None = None,
+    doc_keywords_data: list | None = None,
 ) -> list[dict]:
     """
     Return raw doc keyword phrases as query dicts, optionally filtered by segment/geo/language.
     These are exact keyword phrases from tasks/deliryo/keywords_*.md, used as-is.
+    If doc_keywords_data is provided, uses it instead of the hardcoded DOC_KEYWORDS list.
     """
     existing = existing_queries or set()
     results: list[dict] = []
     seen: set[str] = set(existing)
 
-    for seg, geo, lang, phrases in DOC_KEYWORDS:
+    source = doc_keywords_data if doc_keywords_data is not None else DOC_KEYWORDS
+    for seg, geo, lang, phrases in source:
         if segment_key and seg != segment_key:
             continue
         if geo_key and geo != geo_key:

@@ -20,9 +20,13 @@ from .pipeline import (
     DiscoveredCompany, DiscoveredCompanyStatus,
     ExtractedContact, ContactSource,
     PipelineEvent, PipelineEventType,
+    EnrichmentAttempt, EnrichmentEffectiveness,
+    EmailVerification,
     CampaignPushRule,
 )
 from .task import OperatorTask
+from .chat import ProjectChatMessage
+from .project_knowledge import ProjectKnowledge
 
 __all__ = [
     # User & Multi-tenancy
@@ -50,7 +54,13 @@ __all__ = [
     "DiscoveredCompany", "DiscoveredCompanyStatus",
     "ExtractedContact", "ContactSource",
     "PipelineEvent", "PipelineEventType",
+    "EnrichmentAttempt", "EnrichmentEffectiveness",
+    "EmailVerification",
     "CampaignPushRule",
     # Tasks
     "OperatorTask",
+    # Chat
+    "ProjectChatMessage",
+    # Project Knowledge
+    "ProjectKnowledge",
 ]

@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     APOLLO_API_KEY: Optional[str] = None
     APOLLO_API_URL: str = "https://api.apollo.io/api/v1"
 
+    # Findymail API (email verification + finding)
+    FINDYMAIL_API_KEY: Optional[str] = None
+
     # Clay API (company enrichment via webhooks)
     CLAY_API_KEY: Optional[str] = None
 

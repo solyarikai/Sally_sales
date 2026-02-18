@@ -4,7 +4,7 @@ Connect your local backend to the production database on Hetzner.
 
 ## Prerequisites
 
-- SSH access to Hetzner server (configured as `hetzner` in ~/.ssh/config)
+co
 - Python 3.11+
 - The backend code from the repo
 

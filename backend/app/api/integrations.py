@@ -101,15 +101,19 @@ async def save_integration_setting(
 
 async def load_integration_keys(session: AsyncSession):
     """Load all integration keys from DB into services."""
+    from app.core.config import settings as app_settings
+
     # Load Instantly
     instantly_setting = await get_integration_setting(session, "instantly")
     if instantly_setting and instantly_setting.api_key:
         instantly_service.set_api_key(instantly_setting.api_key)
-    
-    # Load Findymail
+
+    # Load Findymail (DB key takes priority, then env var)
     findymail_setting = await get_integration_setting(session, "findymail")
     if findymail_setting and findymail_setting.api_key:
         findymail_service.set_api_key(findymail_setting.api_key)
+    elif app_settings.FINDYMAIL_API_KEY and not findymail_service.is_connected():
+        findymail_service.set_api_key(app_settings.FINDYMAIL_API_KEY)
     
     # Load Smartlead
     smartlead_setting = await get_integration_setting(session, "smartlead")

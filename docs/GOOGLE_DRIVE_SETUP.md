@@ -123,3 +123,5 @@ If you need to create a new service account:
 | "Failed to initialize Google Drive service" | Verify the JSON key is valid and not expired; re-download from Google Cloud Console |
 | Upload succeeds but file not visible | Check the `SHARED_DRIVE_ID` is correct and the service account has access to that Shared Drive |
 | Permission errors on Shared Drive | Add `autoreplies@autoreplies010226.iam.gserviceaccount.com` as a member of the Shared Drive |
+
+
