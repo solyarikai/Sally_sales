@@ -171,6 +171,7 @@ export function RepliesPage() {
 
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>('meeting_request');
+  const campaignNamesParam = searchParams.get('campaigns') || undefined;
 
   const [editingDrafts, setEditingDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
   const [sendingIds, setSendingIds] = useState<Set<number>>(new Set());
@@ -245,6 +246,7 @@ export function RepliesPage() {
       const pg = reset ? 1 : pageRef.current;
       const response = await repliesApi.getReplies({
         project_id: currentProject?.id,
+        campaign_names: campaignNamesParam,
         needs_reply: true,
         category: (categoryFilter as ReplyCategory) || undefined,
         group_by_contact: true,
@@ -266,7 +268,7 @@ export function RepliesPage() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [currentProject, categoryFilter]);
+  }, [currentProject, categoryFilter, campaignNamesParam]);
 
   // Reset on project/filter change
   useEffect(() => { loadReplies(true); }, [loadReplies]);
@@ -413,6 +415,14 @@ export function RepliesPage() {
     try {
       const data = await repliesApi.getFullHistory(reply.id);
       setHistoryData(prev => ({ ...prev, [reply.id]: data }));
+      // F19: Auto-select most recent campaign (never default to "all")
+      if (data.campaigns.length > 0) {
+        const mostRecent = data.campaigns[0]; // sorted by latest_at desc from backend
+        setSelectedHistoryCampaign(prev => ({
+          ...prev,
+          [reply.id]: `${mostRecent.channel}::${mostRecent.campaign_name}`,
+        }));
+      }
       if (data.contact_info !== undefined) {
         setContactInfoMap(prev => ({ ...prev, [reply.id]: data.contact_info || null }));
       }
@@ -758,7 +768,7 @@ export function RepliesPage() {
                           <div className="text-[13px] mb-1" style={{ color: t.text2 }}>{reply.email_subject}</div>
                         )}
                         <div
-                          className="text-[13px] leading-relaxed whitespace-pre-wrap"
+                          className="text-[13px] leading-relaxed whitespace-pre-wrap break-words"
                           style={{ color: t.text3 }}
                         >
                           {stripHtml(reply.email_body || reply.reply_text || '') || '(empty)'}
@@ -785,7 +795,7 @@ export function RepliesPage() {
                         </button>
                         {isThreadOpen && (
                           <div className="mt-1.5 mb-2">
-                            {history && history.campaigns.length > 1 && (
+                            {history && history.campaigns.length > 0 && (
                               <div className="mb-1.5">
                                 <CampaignDropdown
                                   campaigns={history.campaigns}

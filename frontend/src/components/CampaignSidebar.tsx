@@ -96,13 +96,13 @@ export function CampaignSidebar({
   return (
     <div className={containerCls}>
       <div className="p-2">
-        {/* All */}
-        <button onClick={() => onSelect(null)} className={allBtnCls(selectedCampaign === null)}>
-          All
-          <span className={cn('ml-1 text-[10px] font-normal', isDark ? 'text-[#6e6e6e]' : 'text-gray-400')}>
-            ({totalCount})
-          </span>
-        </button>
+        {/* F20: Campaign count badge */}
+        <div className={cn(
+          'px-2.5 py-1.5 mb-1 text-[10px] font-semibold rounded-lg',
+          isDark ? 'bg-[#2d2d2d] text-[#858585]' : 'bg-gray-100 text-gray-500'
+        )}>
+          {email.length + linkedin.length} campaigns · {totalCount} messages
+        </div>
 
         {/* Email section */}
         {emailCount > 0 && (

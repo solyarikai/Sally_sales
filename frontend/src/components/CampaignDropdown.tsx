@@ -27,7 +27,7 @@ export function CampaignDropdown({
   isDark = false,
 }: {
   campaigns: FullHistoryCampaign[];
-  selectedCampaign: string | null; // null = All, or "channel::name"
+  selectedCampaign: string | null; // "channel::name" — F19: null no longer means "all"
   onSelect: (campaign: string | null) => void;
   isDark?: boolean;
 }) {
@@ -55,10 +55,8 @@ export function CampaignDropdown({
     if (isOpen) searchRef.current?.focus();
   }, [isOpen]);
 
-  // Don't render if 0-1 campaigns
-  if (campaigns.length <= 1) return null;
-
-  const totalMessages = campaigns.reduce((s, c) => s + c.message_count, 0);
+  // Don't render if 0 campaigns
+  if (campaigns.length === 0) return null;
 
   // Find selected campaign info for button label
   const selectedInfo = selectedCampaign
@@ -85,6 +83,8 @@ export function CampaignDropdown({
   const text2 = isDark ? '#969696' : '#666';
   const text3 = isDark ? '#6e6e6e' : '#999';
   const inputBg = isDark ? '#3c3c3c' : '#f5f5f5';
+  const badgeBg = isDark ? '#37373d' : '#e5e7eb';
+  const badgeText = isDark ? '#969696' : '#6b7280';
 
   return (
     <div ref={dropdownRef} className="relative">
@@ -103,10 +103,16 @@ export function CampaignDropdown({
             <span style={{ color: text3 }}>({selectedInfo.message_count})</span>
           </>
         ) : (
-          <>
-            All campaigns
-            <span style={{ color: text3 }}>({totalMessages})</span>
-          </>
+          <span>Select campaign</span>
+        )}
+        {/* F20: Campaign count badge */}
+        {campaigns.length > 1 && (
+          <span
+            className="ml-1 px-1.5 py-px rounded-full text-[10px]"
+            style={{ background: badgeBg, color: badgeText }}
+          >
+            {campaigns.length} campaigns
+          </span>
         )}
         <ChevronDown className={cn("w-3 h-3 transition-transform", isOpen && "rotate-180")} />
       </button>
@@ -136,25 +142,7 @@ export function CampaignDropdown({
           )}
 
           <div className="max-h-[280px] overflow-y-auto py-1">
-            {/* All option */}
-            <button
-              onClick={() => { onSelect(null); setIsOpen(false); setSearchQuery(''); }}
-              className="w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors"
-              style={{
-                background: selectedCampaign === null ? activeBg : 'transparent',
-                color: selectedCampaign === null ? (isDark ? '#d4d4d4' : '#1d4ed8') : text1,
-                fontWeight: selectedCampaign === null ? 600 : 400,
-              }}
-              onMouseEnter={e => { if (selectedCampaign !== null) (e.currentTarget as HTMLElement).style.background = hoverBg; }}
-              onMouseLeave={e => { if (selectedCampaign !== null) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-            >
-              All campaigns
-              <span className="ml-auto" style={{ color: text3 }}>{totalMessages}</span>
-            </button>
-
-            <div className="mx-2 my-1" style={{ borderTop: `1px solid ${border}` }} />
-
-            {/* Campaign list */}
+            {/* Campaign list — F19: no "All campaigns" option */}
             {visible.map(c => {
               const key = `${c.channel}::${c.campaign_name}`;
               const isActive = selectedCampaign === key;

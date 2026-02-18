@@ -237,18 +237,19 @@ test.describe('Send Reply → Verify Conversation History', () => {
     const sidebar = modalPanel.locator('.w-\\[180px\\]');
     await expect(sidebar).toBeVisible({ timeout: 10000 });
 
-    const allButton = sidebar.locator('button.font-semibold').first();
-    await expect(allButton).toBeVisible({ timeout: 10000 });
+    // Look for the count badge (e.g. "31 campaigns · 101 messages")
+    const countBadge = sidebar.locator('text=/\\d+\\s*campaigns?\\s*·\\s*\\d+\\s*messages?/');
+    await expect(countBadge).toBeVisible({ timeout: 10000 });
 
-    // Poll until "All" count matches expected
+    // Verify badge shows correct total message count
     await expect(async () => {
-      const text = await allButton.textContent();
-      const match = text?.match(/\((\d+)\)/);
+      const text = await countBadge.textContent();
+      const match = text?.match(/(\d+)\s*messages?/);
       const count = match ? parseInt(match[1]) : 0;
       expect(count).toBe(modalTotalMessages);
     }).toPass({ timeout: 15000 });
 
-    // Count campaign buttons
+    // Count campaign buttons in the sidebar
     const campaignButtons = sidebar.locator('button.text-\\[11px\\]');
     const uiCampaignCount = await campaignButtons.count();
     console.log(`UI sidebar: ${uiCampaignCount} campaigns, expected: ${expectedCampaignCount}`);

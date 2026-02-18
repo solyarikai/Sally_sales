@@ -269,6 +269,24 @@ export function ContactDetailModal({
             ];
 
             setActivities(allActivities);
+            // F19: Auto-select most recent campaign (never default to "all")
+            if (allActivities.length > 0) {
+              const campaignMap = new Map<string, string>();
+              for (const a of allActivities) {
+                const name = a.campaign || a.automation || 'Unknown';
+                const ch = a.channel || 'email';
+                const key = `${ch}::${name}`;
+                if (!campaignMap.has(key)) campaignMap.set(key, a.timestamp);
+                else if (a.timestamp > (campaignMap.get(key) || '')) campaignMap.set(key, a.timestamp);
+              }
+              // Pick the campaign with the latest timestamp
+              let mostRecent = '';
+              let latestTs = '';
+              for (const [key, ts] of campaignMap) {
+                if (ts > latestTs) { mostRecent = key; latestTs = ts; }
+              }
+              if (mostRecent) setSelectedCampaign(mostRecent);
+            }
           }
         } catch (err: any) {
           if (err.name !== 'AbortError') {

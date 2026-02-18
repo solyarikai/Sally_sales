@@ -73,11 +73,11 @@ test.describe('Replies Flow — Smoke Test', () => {
     await expect(sendButton).toBeVisible();
     await sendButton.click();
 
-    // Card should disappear (either count decreases or specific lead disappears)
+    // Card should disappear after API responds (may take a while for email send)
     await expect(async () => {
       const newCount = await cards.count();
       expect(newCount).toBeLessThan(initialCount);
-    }).toPass({ timeout: 10000 });
+    }).toPass({ timeout: 30000 });
 
     // If we had the lead name, verify it's gone
     if (leadName) {
