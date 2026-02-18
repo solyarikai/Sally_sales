@@ -289,7 +289,11 @@ async def _build_filtered_query(
             query = query.where(Contact.project_id == project_id)
 
     if segment:
-        query = query.where(Contact.segment == segment)
+        segments_list = [s.strip() for s in segment.split(',') if s.strip()]
+        if len(segments_list) == 1:
+            query = query.where(Contact.segment == segments_list[0])
+        else:
+            query = query.where(Contact.segment.in_(segments_list))
     if geo:
         query = query.where(Contact.geo == geo)
     if status:
