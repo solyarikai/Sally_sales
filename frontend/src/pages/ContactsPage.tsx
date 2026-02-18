@@ -274,9 +274,12 @@ export function ContactsPage() {
     const id = parseInt(contactIdParam);
     if (isNaN(id)) return;
     deepLinkHandled.current = true;
-    // Fetch directly — don't wait for table contacts to load
-    contactsApi.getContactWithActivities(id).then(full => {
-      setSelectedContact(full as unknown as Contact);
+    // Fetch basic contact — the modal will load history internally via /contacts/{id}/history
+    fetch(`/api/contacts/${id}/`).then(r => {
+      if (!r.ok) throw new Error(`${r.status}`);
+      return r.json();
+    }).then((contact: Contact) => {
+      setSelectedContact(contact);
       setShowContactModal(true);
     }).catch(() => {
       deepLinkRetries.current += 1;

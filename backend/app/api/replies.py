@@ -760,7 +760,8 @@ async def list_replies(
         result = await session.execute(query)
         replies = result.scalars().all()
 
-        # Compute contact_campaign_count: distinct campaigns per email (ALL replies, not just filtered)
+        # Compute contact_campaign_count: distinct campaigns per email
+        # Uses base_conditions (project + needs_reply filters) to match what the campaign dropdown shows
         page_emails = list({r.lead_email for r in replies})
         campaign_count_map: dict = {}
         if page_emails:
@@ -769,7 +770,10 @@ async def list_replies(
                     ProcessedReply.lead_email,
                     func.count(func.distinct(ProcessedReply.campaign_name)),
                 )
-                .where(ProcessedReply.lead_email.in_(page_emails))
+                .where(
+                    ProcessedReply.lead_email.in_(page_emails),
+                    *base_conditions,
+                )
                 .group_by(ProcessedReply.lead_email)
             )
             count_result = await session.execute(count_q)
@@ -2011,6 +2015,24 @@ async def approve_and_send_reply(
     )
 
     if "error" in send_result:
+        if test_mode:
+            # In test mode, gracefully fall back to dry_run instead of 502
+            logger.warning(f"test_mode send_reply failed ({send_result['error']}), falling back to approved_dry_run")
+            reply.approval_status = "approved_dry_run"
+            reply.approved_at = datetime.utcnow()
+            db.add(reply)
+            await db.commit()
+            await db.refresh(reply)
+            return {
+                "status": "approved_dry_run",
+                "dry_run": True,
+                "reply_id": reply_id,
+                "test_mode": True,
+                "lead_email": reply.lead_email,
+                "sent_to": TEST_RECIPIENT_EMAIL,
+                "message": f"SmartLead send failed ({send_result['error']}) — marked approved (dry run).",
+                "contact_id": contact.id if contact else None,
+            }
         raise HTTPException(status_code=502, detail=send_result["error"])
 
     status = "approved_test" if test_mode else "approved"

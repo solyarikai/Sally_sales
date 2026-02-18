@@ -49,10 +49,16 @@ function timeAgo(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
-/* ---------- Campaign name display (strip hex IDs) ---------- */
+/* ---------- Campaign name display (strip hex IDs, emails, long suffixes) ---------- */
 function displayCampaignName(name: string | null | undefined): string {
   if (!name) return 'Unknown';
-  return name.replace(/\s+[0-9a-f]{6,}$/i, '').trim() || name;
+  let clean = name
+    .replace(/\s+[0-9a-f]{6,}$/i, '')   // strip trailing hex IDs
+    .replace(/\s+\S+@\S+\.\S+$/i, '')   // strip trailing email addresses
+    .trim();
+  // Truncate if still too long for a button label
+  if (clean.length > 30) clean = clean.slice(0, 27) + '...';
+  return clean || name;
 }
 
 /* ---------- Draft / classification failure detection ---------- */

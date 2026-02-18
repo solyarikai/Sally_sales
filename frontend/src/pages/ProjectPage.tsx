@@ -5,6 +5,9 @@ import {
   MessageCircle, Loader2, Unlink, FolderOpen,
 } from 'lucide-react';
 import { contactsApi, type Project } from '../api/contacts';
+import { useTheme } from '../hooks/useTheme';
+import { useAppStore } from '../store/appStore';
+import { cn } from '../lib/utils';
 
 interface CampaignOption {
   name: string;
@@ -15,6 +18,8 @@ export function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const projectId = Number(id);
+  const { isDark } = useTheme();
+  const { setCurrentProject } = useAppStore();
 
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,6 +63,13 @@ export function ProjectPage() {
     loadProject();
     loadCampaigns();
   }, [loadProject, loadCampaigns]);
+
+  // Sync loaded project to the global store (project selector in header)
+  useEffect(() => {
+    if (project) {
+      setCurrentProject(project as any);
+    }
+  }, [project, setCurrentProject]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -120,7 +132,7 @@ export function ProjectPage() {
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <div className="text-center py-20 text-neutral-400">Loading project...</div>
+        <div className={cn("text-center py-20", isDark ? "text-[#858585]" : "text-neutral-400")} data-testid="project-loading">Loading project...</div>
       </div>
     );
   }
@@ -133,7 +145,7 @@ export function ProjectPage() {
       <div>
         <Link
           to="/projects"
-          className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 mb-4 transition-colors"
+          className={cn("inline-flex items-center gap-1.5 text-sm mb-4 transition-colors", isDark ? "text-[#858585] hover:text-[#d4d4d4]" : "text-neutral-500 hover:text-neutral-900")}
         >
           <ArrowLeft className="w-4 h-4" />
           All Projects
@@ -141,8 +153,8 @@ export function ProjectPage() {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
-              <FolderOpen className="w-5 h-5 text-violet-600" />
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", isDark ? "bg-violet-900/30" : "bg-violet-50")}>
+              <FolderOpen className={cn("w-5 h-5", isDark ? "text-violet-400" : "text-violet-600")} />
             </div>
             {editingName ? (
               <div className="flex items-center gap-2">
@@ -152,19 +164,22 @@ export function ProjectPage() {
                   onChange={e => setNameValue(e.target.value)}
                   autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false); }}
-                  className="text-2xl font-bold px-2 py-1 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  className={cn(
+                    "text-2xl font-bold px-2 py-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20",
+                    isDark ? "bg-[#3c3c3c] border border-[#505050] text-[#d4d4d4]" : "border border-neutral-300 text-neutral-900"
+                  )}
                 />
                 <button onClick={handleSaveName} disabled={savingName} className="p-1 text-green-600 hover:text-green-700">
                   <Check className="w-5 h-5" />
                 </button>
-                <button onClick={() => { setEditingName(false); setNameValue(project.name); }} className="p-1 text-neutral-400 hover:text-neutral-600">
+                <button onClick={() => { setEditingName(false); setNameValue(project.name); }} className={cn("p-1", isDark ? "text-[#6e6e6e] hover:text-[#b0b0b0]" : "text-neutral-400 hover:text-neutral-600")}>
                   <X className="w-5 h-5" />
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-neutral-900">{project.name}</h1>
-                <button onClick={() => setEditingName(true)} className="p-1 text-neutral-400 hover:text-neutral-700 transition-colors">
+                <h1 className={cn("text-2xl font-bold", isDark ? "text-[#d4d4d4]" : "text-neutral-900")} data-testid="project-name">{project.name}</h1>
+                <button onClick={() => setEditingName(true)} className={cn("p-1 transition-colors", isDark ? "text-[#6e6e6e] hover:text-[#d4d4d4]" : "text-neutral-400 hover:text-neutral-700")}>
                   <Pencil className="w-4 h-4" />
                 </button>
               </div>
@@ -176,12 +191,12 @@ export function ProjectPage() {
               <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium">
                 Confirm Delete
               </button>
-              <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1.5 text-neutral-500 text-sm">
+              <button onClick={() => setShowDeleteConfirm(false)} className={cn("px-3 py-1.5 text-sm", isDark ? "text-[#858585]" : "text-neutral-500")}>
                 Cancel
               </button>
             </div>
           ) : (
-            <button onClick={() => setShowDeleteConfirm(true)} className="p-2 text-neutral-400 hover:text-red-500 transition-colors" title="Delete project">
+            <button onClick={() => setShowDeleteConfirm(true)} className={cn("p-2 transition-colors", isDark ? "text-[#6e6e6e] hover:text-red-400" : "text-neutral-400 hover:text-red-500")} title="Delete project">
               <Trash2 className="w-4 h-4" />
             </button>
           )}
@@ -189,34 +204,38 @@ export function ProjectPage() {
       </div>
 
       {/* Campaigns Section */}
-      <div className="bg-white border border-neutral-200 rounded-xl p-5">
+      <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")} data-testid="campaigns-section">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-neutral-900">
+          <h2 className={cn("text-sm font-semibold", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
             Campaigns ({(project.campaign_filters || []).length})
           </h2>
         </div>
 
         {/* Campaign list with source badges */}
         {(project.campaign_filters || []).length > 0 ? (
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4" data-testid="campaign-list">
             {(project.campaign_filters || []).map(name => {
               const source = getSource(name);
               return (
                 <span
                   key={name}
-                  className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 bg-neutral-50 border border-neutral-200 rounded-lg text-sm group"
+                  data-testid="campaign-badge"
+                  className={cn(
+                    "inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg text-sm group border",
+                    isDark ? "bg-[#2d2d2d] border-[#3c3c3c]" : "bg-neutral-50 border-neutral-200"
+                  )}
                 >
                   <span className={`text-[10px] font-bold px-1 py-0.5 rounded ${
                     source === 'smartlead' ? 'bg-blue-100 text-blue-700' :
                     source === 'getsales' ? 'bg-green-100 text-green-700' :
-                    'bg-neutral-100 text-neutral-500'
+                    isDark ? 'bg-[#3c3c3c] text-[#858585]' : 'bg-neutral-100 text-neutral-500'
                   }`}>
                     {source === 'smartlead' ? 'SL' : source === 'getsales' ? 'GS' : '?'}
                   </span>
-                  <span className="text-neutral-700">{name}</span>
+                  <span className={cn(isDark ? "text-[#b0b0b0]" : "text-neutral-700")}>{name}</span>
                   <button
                     onClick={() => handleRemoveCampaign(name)}
-                    className="p-0.5 text-neutral-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                    className={cn("p-0.5 transition-colors opacity-0 group-hover:opacity-100", isDark ? "text-[#6e6e6e] hover:text-red-400" : "text-neutral-300 hover:text-red-500")}
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -225,37 +244,42 @@ export function ProjectPage() {
             })}
           </div>
         ) : (
-          <p className="text-sm text-neutral-400 mb-4">No campaigns linked yet. Add campaigns below.</p>
+          <p className={cn("text-sm mb-4", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>No campaigns linked yet. Add campaigns below.</p>
         )}
 
         {/* Add campaign search */}
         <div className="relative" ref={dropdownRef}>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <Search className={cn("absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4", isDark ? "text-[#6e6e6e]" : "text-neutral-400")} />
             <input
               type="text"
               value={campaignSearch}
               onChange={e => setCampaignSearch(e.target.value)}
               onFocus={() => setShowCampaignDropdown(true)}
               placeholder="Search campaigns to add..."
-              className="w-full pl-9 pr-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              className={cn(
+                "w-full pl-9 pr-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20",
+                isDark
+                  ? "bg-[#3c3c3c] border border-transparent text-[#d4d4d4] placeholder-[#6e6e6e] focus:border-[#505050]"
+                  : "border border-neutral-300 text-neutral-900 focus:border-violet-300"
+              )}
             />
           </div>
           {showCampaignDropdown && (campaignSearch || filteredCampaigns.length > 0) && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-50 max-h-56 overflow-y-auto">
+            <div className={cn("absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg z-50 max-h-56 overflow-y-auto border", isDark ? "bg-[#252526] border-[#3c3c3c]" : "bg-white border-neutral-200")}>
               {filteredCampaigns.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-neutral-500">No matching campaigns</div>
+                <div className={cn("px-3 py-2 text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-500")}>No matching campaigns</div>
               ) : (
                 filteredCampaigns.map(c => (
                   <button
                     key={c.name}
                     onClick={() => { handleAddCampaign(c.name); setShowCampaignDropdown(false); }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+                    className={cn("w-full px-3 py-2 text-left text-sm flex items-center gap-2", isDark ? "hover:bg-[#2d2d2d] text-[#b0b0b0]" : "hover:bg-neutral-50 text-neutral-700")}
                   >
                     <span className={`text-[10px] font-bold px-1 py-0.5 rounded ${
                       c.source === 'smartlead' ? 'bg-blue-100 text-blue-700' :
                       c.source === 'getsales' ? 'bg-green-100 text-green-700' :
-                      'bg-neutral-100 text-neutral-500'
+                      isDark ? 'bg-[#3c3c3c] text-[#858585]' : 'bg-neutral-100 text-neutral-500'
                     }`}>
                       {c.source === 'smartlead' ? 'SL' : c.source === 'getsales' ? 'GS' : '?'}
                     </span>
@@ -269,12 +293,12 @@ export function ProjectPage() {
       </div>
 
       {/* Telegram Section */}
-      <div className="bg-white border border-neutral-200 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
+      <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
+        <h2 className={cn("text-sm font-semibold mb-3 flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
           <MessageCircle className="w-4 h-4" />
           Telegram Notifications
         </h2>
-        <TelegramConnect projectId={project.id} onUpdate={loadProject} />
+        <TelegramConnect projectId={project.id} onUpdate={loadProject} isDark={isDark} />
       </div>
     </div>
   );
@@ -282,7 +306,7 @@ export function ProjectPage() {
 
 
 /* One-click Telegram connect component */
-function TelegramConnect({ projectId, onUpdate }: { projectId: number; onUpdate: () => void }) {
+function TelegramConnect({ projectId, onUpdate, isDark }: { projectId: number; onUpdate: () => void; isDark: boolean }) {
   const [status, setStatus] = useState<'idle' | 'waiting' | 'connected'>('idle');
   const [firstName, setFirstName] = useState('');
   const [username, setUsername] = useState('');
@@ -343,12 +367,12 @@ function TelegramConnect({ projectId, onUpdate }: { projectId: number; onUpdate:
 
   if (status === 'connected') {
     return (
-      <div className="flex items-center justify-between py-2 px-3 bg-green-50 rounded-lg">
-        <div className="flex items-center gap-2 text-sm text-green-700">
+      <div className={cn("flex items-center justify-between py-2 px-3 rounded-lg", isDark ? "bg-green-900/20" : "bg-green-50")}>
+        <div className={cn("flex items-center gap-2 text-sm", isDark ? "text-green-400" : "text-green-700")}>
           <Check className="w-4 h-4" />
           <span>Connected{firstName ? ` as ${firstName}` : ''}{username ? ` (@${username})` : ''}</span>
         </div>
-        <button onClick={handleDisconnect} className="flex items-center gap-1 text-xs text-neutral-400 hover:text-red-500 transition-colors">
+        <button onClick={handleDisconnect} className={cn("flex items-center gap-1 text-xs transition-colors", isDark ? "text-[#6e6e6e] hover:text-red-400" : "text-neutral-400 hover:text-red-500")}>
           <Unlink className="w-3.5 h-3.5" />
           Disconnect
         </button>
@@ -358,10 +382,10 @@ function TelegramConnect({ projectId, onUpdate }: { projectId: number; onUpdate:
 
   if (status === 'waiting') {
     return (
-      <div className="flex items-center gap-3 py-2 px-3 bg-blue-50 rounded-lg">
-        <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-        <div className="text-sm text-blue-700">Tap <b>Start</b> in Telegram to connect...</div>
-        <button onClick={() => { if (pollRef.current) clearInterval(pollRef.current); if (timeoutRef.current) clearTimeout(timeoutRef.current); setStatus('idle'); }} className="ml-auto text-xs text-neutral-400 hover:text-neutral-600">
+      <div className={cn("flex items-center gap-3 py-2 px-3 rounded-lg", isDark ? "bg-blue-900/20" : "bg-blue-50")}>
+        <Loader2 className={cn("w-4 h-4 animate-spin", isDark ? "text-blue-400" : "text-blue-600")} />
+        <div className={cn("text-sm", isDark ? "text-blue-300" : "text-blue-700")}>Tap <b>Start</b> in Telegram to connect...</div>
+        <button onClick={() => { if (pollRef.current) clearInterval(pollRef.current); if (timeoutRef.current) clearTimeout(timeoutRef.current); setStatus('idle'); }} className={cn("ml-auto text-xs", isDark ? "text-[#6e6e6e] hover:text-[#b0b0b0]" : "text-neutral-400 hover:text-neutral-600")}>
           Cancel
         </button>
       </div>
@@ -370,11 +394,11 @@ function TelegramConnect({ projectId, onUpdate }: { projectId: number; onUpdate:
 
   return (
     <div className="flex items-center gap-3">
-      <button onClick={handleConnect} className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors">
+      <button onClick={handleConnect} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors", isDark ? "bg-blue-900/20 text-blue-400 hover:bg-blue-900/30" : "bg-blue-50 text-blue-700 hover:bg-blue-100")}>
         <MessageCircle className="w-4 h-4" />
         Connect Telegram
       </button>
-      <span className="text-xs text-neutral-400">Get reply notifications in Telegram</span>
+      <span className={cn("text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>Get reply notifications in Telegram</span>
     </div>
   );
 }
