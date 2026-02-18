@@ -163,6 +163,7 @@ export interface ContactFilters {
   has_smartlead?: boolean;
   has_getsales?: boolean;
   campaign?: string;
+  campaign_id?: string;
   needs_followup?: boolean;
   smartlead_id?: string;
   getsales_id?: string;

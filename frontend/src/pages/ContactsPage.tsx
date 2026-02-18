@@ -68,6 +68,7 @@ export function ContactsPage() {
   const [campaignFilters, setCampaignFilters] = useState<string[]>(
     searchParams.get('campaign')?.split(',').filter(Boolean) || []
   );
+  const [campaignIdFilter, setCampaignIdFilter] = useState<string | null>(searchParams.get('campaign_id'));
   const [campaignSearch, setCampaignSearch] = useState('');
   const [campaignDropdownOpen, setCampaignDropdownOpen] = useState(false);
   const campaignRef = useRef<HTMLDivElement>(null);
@@ -148,6 +149,7 @@ export function ContactsPage() {
     if (segmentFilter) params.set('segment', segmentFilter);
     if (geoFilter) params.set('geo', geoFilter);
     if (campaignFilters.length) params.set('campaign', campaignFilters.join(','));
+    if (campaignIdFilter) params.set('campaign_id', campaignIdFilter);
     if (repliedFilter) params.set('replied', 'true');
     if (followupFilter) params.set('followup', 'true');
     if (createdAfter) params.set('after', createdAfter);
@@ -156,7 +158,7 @@ export function ContactsPage() {
     const existingContactId = searchParams.get('contact_id');
     if (existingContactId) params.set('contact_id', existingContactId);
     setSearchParams(params, { replace: true });
-  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilter, geoFilter, campaignFilters, repliedFilter, followupFilter, createdAfter, createdBefore]);
+  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilter, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore]);
 
   // Close dropdowns on click outside
   useEffect(() => {
@@ -247,6 +249,7 @@ export function ContactsPage() {
         segment: segmentFilter || undefined,
         geo: geoFilter || undefined,
         campaign: campaignFilters.length > 0 ? campaignFilters.join(',') : undefined,
+        campaign_id: campaignIdFilter || undefined,
         has_replied: replyMode ? true : (repliedFilter ?? undefined),
         needs_followup: followupFilter ?? undefined,
         project_id: activeProject?.id,
@@ -262,7 +265,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilter, geoFilter, campaignFilters, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilter, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -539,6 +542,7 @@ export function ContactsPage() {
     } else {
       if (activeProject?.id) filters.project_id = activeProject.id;
       if (campaignFilters.length > 0) filters.campaign = campaignFilters.join(',');
+      if (campaignIdFilter) filters.campaign_id = campaignIdFilter;
       if (statusFilters.length > 0) filters.status = statusFilters.join(',');
       if (sourceFilter) filters.source = sourceFilter;
       if (segmentFilter) filters.segment = segmentFilter;
@@ -659,6 +663,7 @@ export function ContactsPage() {
     setSegmentFilter(null);
     setGeoFilter(null);
     setCampaignFilters([]);
+    setCampaignIdFilter(null);
     setFollowupFilter(null);
     setRepliedFilter(null);
     setCreatedAfter(null);
@@ -721,7 +726,7 @@ export function ContactsPage() {
     return contacts.filter(c => c.has_replied && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
-  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilter || geoFilter || campaignFilters.length > 0 || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode;
+  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilter || geoFilter || campaignFilters.length > 0 || campaignIdFilter || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode;
   const totalPages = Math.ceil(total / pageSize);
 
   const setDateRange = useCallback((after: string | null, before: string | null) => {
