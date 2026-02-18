@@ -19,7 +19,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   Users, Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Sparkles, FileText, Target, Mail, Loader2, ChevronRight, ChevronDown, Upload, AlertCircle, Check,
-  MessageSquare, ListTodo, Save, Edit3, ChevronLeft, Linkedin, FileSpreadsheet, ShieldCheck
+  MessageSquare, ListTodo, Save, Edit3, ChevronLeft, Linkedin, FileSpreadsheet, ShieldCheck, MapPin
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type OperatorTask } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -64,6 +64,7 @@ export function ContactsPage() {
   );
   const [sourceFilter, setSourceFilter] = useState<string | null>(searchParams.get('source'));
   const [segmentFilter, setSegmentFilter] = useState<string | null>(searchParams.get('segment'));
+  const [geoFilter, setGeoFilter] = useState<string | null>(searchParams.get('geo'));
   const [campaignFilters, setCampaignFilters] = useState<string[]>(
     searchParams.get('campaign')?.split(',').filter(Boolean) || []
   );
@@ -145,6 +146,7 @@ export function ContactsPage() {
     if (statusFilters.length) params.set('status', statusFilters.join(','));
     if (sourceFilter) params.set('source', sourceFilter);
     if (segmentFilter) params.set('segment', segmentFilter);
+    if (geoFilter) params.set('geo', geoFilter);
     if (campaignFilters.length) params.set('campaign', campaignFilters.join(','));
     if (repliedFilter) params.set('replied', 'true');
     if (followupFilter) params.set('followup', 'true');
@@ -154,7 +156,7 @@ export function ContactsPage() {
     const existingContactId = searchParams.get('contact_id');
     if (existingContactId) params.set('contact_id', existingContactId);
     setSearchParams(params, { replace: true });
-  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilter, campaignFilters, repliedFilter, followupFilter, createdAfter, createdBefore]);
+  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilter, geoFilter, campaignFilters, repliedFilter, followupFilter, createdAfter, createdBefore]);
 
   // Close dropdowns on click outside
   useEffect(() => {
@@ -243,6 +245,7 @@ export function ContactsPage() {
         status: statusFilters.length > 0 ? statusFilters.join(',') : undefined,
         source: sourceFilter || undefined,
         segment: segmentFilter || undefined,
+        geo: geoFilter || undefined,
         campaign: campaignFilters.length > 0 ? campaignFilters.join(',') : undefined,
         has_replied: replyMode ? true : (repliedFilter ?? undefined),
         needs_followup: followupFilter ?? undefined,
@@ -259,7 +262,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilter, campaignFilters, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilter, geoFilter, campaignFilters, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -494,13 +497,14 @@ export function ContactsPage() {
       if (statusFilters.length > 0) filters.status = statusFilters.join(',');
       if (sourceFilter) filters.source = sourceFilter;
       if (segmentFilter) filters.segment = segmentFilter;
+      if (geoFilter) filters.geo = geoFilter;
       if (debouncedSearch) filters.search = debouncedSearch;
       if (repliedFilter !== null) filters.has_replied = repliedFilter;
       if (createdAfter) filters.created_after = createdAfter;
       if (createdBefore) filters.created_before = createdBefore;
     }
     return filters;
-  }, [selectedContacts, activeProject, campaignFilters, statusFilters, sourceFilter, segmentFilter, debouncedSearch, repliedFilter, createdAfter, createdBefore]);
+  }, [selectedContacts, activeProject, campaignFilters, statusFilters, sourceFilter, segmentFilter, geoFilter, debouncedSearch, repliedFilter, createdAfter, createdBefore]);
 
   // Export states
   const [isExportingSheet, setIsExportingSheet] = useState(false);
@@ -608,6 +612,7 @@ export function ContactsPage() {
     setStatusFilters([]);
     setSourceFilter(null);
     setSegmentFilter(null);
+    setGeoFilter(null);
     setCampaignFilters([]);
     setFollowupFilter(null);
     setRepliedFilter(null);
@@ -671,7 +676,7 @@ export function ContactsPage() {
     return contacts.filter(c => c.has_replied && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
-  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilter || campaignFilters.length > 0 || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode;
+  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilter || geoFilter || campaignFilters.length > 0 || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode;
   const totalPages = Math.ceil(total / pageSize);
 
   const setDateRange = useCallback((after: string | null, before: string | null) => {
@@ -691,8 +696,8 @@ export function ContactsPage() {
     setSegmentFilter: (s: string | null) => { setSegmentFilter(s); setPage(1); },
     sourceFilter,
     setSourceFilter: (s: string | null) => { setSourceFilter(s); setPage(1); },
-    geoFilter: null as string | null,
-    setGeoFilter: (_s: string | null) => { /* not yet implemented */ },
+    geoFilter,
+    setGeoFilter: (s: string | null) => { setGeoFilter(s); setPage(1); },
     repliedFilter,
     setRepliedFilter: (v: boolean | null) => { setRepliedFilter(v); setPage(1); },
     followupFilter,
@@ -704,7 +709,7 @@ export function ContactsPage() {
     createdAfter,
     createdBefore,
     setDateRange,
-  }), [campaignFilters, toggleCampaign, statusFilters, toggleStatus, segmentFilter, sourceFilter, repliedFilter, followupFilter, campaigns, stats, filterOptions, resetPage, createdAfter, createdBefore, setDateRange]);
+  }), [campaignFilters, toggleCampaign, statusFilters, toggleStatus, segmentFilter, geoFilter, sourceFilter, repliedFilter, followupFilter, campaigns, stats, filterOptions, resetPage, createdAfter, createdBefore, setDateRange]);
 
   return (
     <ContactsFilterContext.Provider value={filterCtx}>
@@ -983,6 +988,17 @@ export function ContactsPage() {
               <Target className="w-3 h-3" />
               {segmentFilter.replace(/_/g, ' ')}
               <button onClick={() => { setSegmentFilter(null); setPage(1); }} className="ml-0.5 hover:bg-blue-100 rounded p-0.5">
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          )}
+
+          {/* Active geo filter badge */}
+          {geoFilter && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200 shrink-0">
+              <MapPin className="w-3 h-3" />
+              {geoFilter}
+              <button onClick={() => { setGeoFilter(null); setPage(1); }} className="ml-0.5 hover:bg-violet-100 rounded p-0.5">
                 <X className="w-2.5 h-2.5" />
               </button>
             </span>
