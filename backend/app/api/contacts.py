@@ -240,6 +240,7 @@ async def _build_filtered_query(
     has_smartlead: Optional[bool] = None,
     has_getsales: Optional[bool] = None,
     campaign: Optional[str] = None,
+    campaign_id: Optional[str] = None,
     needs_followup: Optional[bool] = None,
     created_after: Optional[str] = None,
     created_before: Optional[str] = None,
@@ -314,7 +315,18 @@ async def _build_filtered_query(
         query = query.where(Contact.getsales_id.isnot(None))
     elif has_getsales is False:
         query = query.where(Contact.getsales_id.is_(None))
-    if campaign:
+    if campaign_id:
+        ids = [i.strip() for i in campaign_id.split(',') if i.strip()]
+        if len(ids) == 1:
+            query = query.where(
+                sql_text("contacts.campaigns::text LIKE :cid_0")
+                .bindparams(cid_0=f"%{ids[0]}%")
+            )
+        else:
+            cid_parts = " OR ".join(f"contacts.campaigns::text LIKE :cid_{i}" for i in range(len(ids)))
+            cid_params = {f"cid_{i}": f"%{v}%" for i, v in enumerate(ids)}
+            query = query.where(sql_text(f"({cid_parts})").bindparams(**cid_params))
+    elif campaign:
         names = [n.strip() for n in campaign.split(',') if n.strip()]
         if len(names) == 1:
             query = query.where(
@@ -378,6 +390,7 @@ async def list_contacts(
     has_smartlead: Optional[bool] = Query(None, description="Filter contacts with Smartlead history"),
     has_getsales: Optional[bool] = Query(None, description="Filter contacts with GetSales history"),
     campaign: Optional[str] = Query(None, description="Filter by campaign name (partial match)"),
+    campaign_id: Optional[str] = Query(None, description="Filter by campaign ID (comma-separated)"),
     needs_followup: Optional[bool] = Query(None, description="Filter contacts needing follow-up (no reply in 3+ days)"),
     created_after: Optional[str] = Query(None, description="Filter contacts created after this date (ISO format, e.g. 2026-02-02)"),
     created_before: Optional[str] = Query(None, description="Filter contacts created before this date (ISO format, e.g. 2026-02-09)"),
@@ -389,7 +402,7 @@ async def list_contacts(
         session, company_id,
         project_id=project_id, segment=segment, geo=geo, status=status, source=source,
         has_replied=has_replied, has_smartlead=has_smartlead, has_getsales=has_getsales,
-        campaign=campaign, needs_followup=needs_followup,
+        campaign=campaign, campaign_id=campaign_id, needs_followup=needs_followup,
         created_after=created_after, created_before=created_before, search=search,
     )
     
