@@ -20,6 +20,7 @@ import { PipelinePage } from './pages/PipelinePage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectPage } from './pages/ProjectPage';
 import { ProjectKnowledgePage } from './pages/ProjectKnowledgePage';
+import { ProjectChatPage } from './pages/ProjectChatPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -132,6 +133,11 @@ function App() {
         <Route path="/projects/:projectId/knowledge" element={
           <Layout>
             <ProjectKnowledgePage />
+          </Layout>
+        } />
+        <Route path="/projects/:projectId/chat" element={
+          <Layout>
+            <ProjectChatPage />
           </Layout>
         } />
 

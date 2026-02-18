@@ -15,17 +15,20 @@ logger = logging.getLogger(__name__)
 
 # All actions the chat can route to
 CHAT_ACTIONS = [
-    "start_search",   # Launch segment-based search pipeline
-    "stop",           # Stop running pipeline
-    "status",         # Show pipeline status
-    "push",           # Push contacts to SmartLead
-    "show_targets",   # List top target companies
-    "show_stats",     # Performance analytics
-    "search",         # New ICP-based search (legacy AI-random)
-    "lookup_domain",  # Look up everything known about specific domains
-    "show_config",    # Show current search config (segments/geos/templates)
-    "edit_config",    # Edit search config via AI
-    "info",           # General question / unknown
+    "start_search",      # Launch segment-based search pipeline
+    "stop",              # Stop running pipeline
+    "status",            # Show pipeline status
+    "push",              # Push contacts to SmartLead
+    "show_targets",      # List top target companies
+    "show_stats",        # Performance analytics
+    "search",            # New ICP-based search (legacy AI-random)
+    "lookup_domain",     # Look up everything known about specific domains
+    "show_config",       # Show current search config (segments/geos/templates)
+    "edit_config",       # Edit search config via AI
+    "show_knowledge",    # Display knowledge base entries
+    "update_knowledge",  # Add/edit a knowledge base entry via natural language
+    "ask",               # General question answered using KB context
+    "info",              # General question / unknown
 ]
 
 # Fallback segment keys when no DB config exists (Deliryo defaults)
@@ -92,6 +95,8 @@ class ChatSearchService:
                 parts.append(f"TOP SEGMENTS BY TARGETS: {project_context['top_segments']}")
             if project_context.get("cost_summary"):
                 parts.append(f"COST SPENT: {project_context['cost_summary']}")
+            if project_context.get("knowledge_summary"):
+                parts.append(f"\nPROJECT KNOWLEDGE BASE:\n{project_context['knowledge_summary'][:2000]}")
             project_block = "\n".join(parts)
 
         # Build dynamic segments/geos from project's search_config (if available)
@@ -144,7 +149,18 @@ AVAILABLE ACTIONS:
     Use when user wants to add/remove/change segments, geos, templates, or keywords.
     The "edit_instruction" field should contain the user's edit request as-is.
 
-11. "info" — General question that doesn't map to any action. Reply conversationally.
+11. "show_knowledge" — Show project knowledge base entries.
+    Use when user asks to see/show/display knowledge, KB, notes, ICP details, outreach strategy.
+    Parameter: kb_category (icp|search|outreach|contacts|gtm|notes|null for all)
+
+12. "update_knowledge" — Add or edit a knowledge base entry.
+    Use when user says "remember", "note", "add to KB", "update ICP", "set outreach tone", or provides info about ICP/outreach/contacts that should be stored.
+    Parameters: kb_category, kb_key, kb_value (the content to store), kb_title
+
+13. "ask" — Answer a general question using project knowledge context.
+    Use when user asks a question about the project, strategy, ICP, or needs advice based on existing data.
+
+14. "info" — Fallback for anything that doesn't map to any action. Reply conversationally.
 
 AVAILABLE SEGMENTS: {', '.join(available_segments)}
 
@@ -165,7 +181,7 @@ RULES:
 
 Respond ONLY with JSON:
 {{
-    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|info",
+    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|show_knowledge|update_knowledge|ask|info",
     "engine": "yandex|google|both|null",
     "segments": ["segment_key", ...] or null,
     "geos": ["geo_key", ...] or null,
@@ -175,6 +191,10 @@ Respond ONLY with JSON:
     "stats_scope": "segment|geo|engine|cost|funnel|top_queries|null",
     "domains": ["domain1.com", "domain2.com"] or null,
     "edit_instruction": "user's config edit request as-is, or null",
+    "kb_category": "icp|search|outreach|contacts|gtm|notes|null",
+    "kb_key": "key name or null",
+    "kb_value": "content to store or null",
+    "kb_title": "human-readable title or null",
     "reply": "..."
 }}"""
 

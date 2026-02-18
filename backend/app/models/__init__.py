@@ -24,6 +24,7 @@ from .pipeline import (
 )
 from .task import OperatorTask
 from .chat import ProjectChatMessage
+from .project_knowledge import ProjectKnowledge
 
 __all__ = [
     # User & Multi-tenancy
@@ -56,4 +57,6 @@ __all__ = [
     "OperatorTask",
     # Chat
     "ProjectChatMessage",
+    # Project Knowledge
+    "ProjectKnowledge",
 ]

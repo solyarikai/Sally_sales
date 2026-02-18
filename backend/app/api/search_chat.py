@@ -216,6 +216,12 @@ async def chat_search(
         response = await _handle_show_config(parsed, body, db, company, project)
     elif action == "edit_config":
         response = await _handle_edit_config(parsed, body, db, company, project)
+    elif action == "show_knowledge":
+        response = await _handle_show_knowledge(parsed, body, db, company, project)
+    elif action == "update_knowledge":
+        response = await _handle_update_knowledge(parsed, body, db, company, project)
+    elif action == "ask":
+        response = await _handle_ask(parsed, body, db, company, project)
     elif action == "search":
         response = await _handle_new_search(body, background_tasks, db, company)
     else:
@@ -301,6 +307,10 @@ async def _build_project_context(db: AsyncSession, project: Project, company: Co
     # Load search config for dynamic segments/geos in chat
     config = await search_config_service.get_config(db, pid)
 
+    # Load knowledge summary for enriched AI context
+    from app.services.project_knowledge_service import project_knowledge_service
+    knowledge_summary = await project_knowledge_service.get_summary(db, pid)
+
     return {
         "project_id": pid,
         "project_name": project.name,
@@ -314,13 +324,14 @@ async def _build_project_context(db: AsyncSession, project: Project, company: Co
         "pipeline_running": pipeline_running,
         "pipeline_phase": pipeline_phase,
         "search_config": config or {},
+        "knowledge_summary": knowledge_summary,
     }
 
 
 def _build_suggestions(project_context: Optional[Dict[str, Any]]) -> List[str]:
     """Generate contextual suggestions based on project state."""
     if not project_context:
-        return ["show stats by segment", "run yandex search", "show funnel"]
+        return ["show knowledge", "show stats by segment", "run yandex search"]
 
     suggestions = []
     if project_context.get("pipeline_running"):
@@ -333,6 +344,7 @@ def _build_suggestions(project_context: Optional[Dict[str, Any]]) -> List[str]:
         suggestions.append("run yandex on best segments")
         if project_context.get("total_targets", 0) > 0:
             suggestions.append("show funnel")
+        suggestions.append("show knowledge")
 
     return suggestions[:4]
 
@@ -1026,6 +1038,187 @@ async def _handle_stats(
         project_id=project_id,
         suggestions=_build_suggestions(None),
     )
+
+
+# ---- Knowledge handlers ----
+
+async def _handle_show_knowledge(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Show project knowledge base entries."""
+    from app.services.project_knowledge_service import project_knowledge_service
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+
+    category = parsed.get("kb_category")
+    if category:
+        entries = await project_knowledge_service.get_by_category(db, proj.id, category)
+        if not entries:
+            return ChatResponse(
+                action="show_knowledge",
+                reply=f"No knowledge entries in **{category}** category yet.",
+                project_id=proj.id,
+                suggestions=["show all knowledge", f"add {category} note"],
+            )
+        lines = [f"**{category.upper()} knowledge for {proj.name}:**\n"]
+        for e in entries:
+            title = e.get("title") or e["key"]
+            val = e["value"]
+            if isinstance(val, dict) and "text" in val:
+                lines.append(f"- **{title}**: {val['text'][:200]}")
+            else:
+                import json as _json
+                lines.append(f"- **{title}**: {_json.dumps(val, ensure_ascii=False)[:200]}")
+        return ChatResponse(
+            action="show_knowledge",
+            reply="\n".join(lines),
+            project_id=proj.id,
+            data={"category": category, "entries": entries},
+            suggestions=["show all knowledge", "update knowledge"],
+        )
+    else:
+        summary = await project_knowledge_service.get_summary(db, proj.id)
+        grouped = await project_knowledge_service.get_all(db, proj.id)
+        if not grouped:
+            # Auto-sync from legacy on first access
+            count = await project_knowledge_service.sync_from_legacy(db, proj.id)
+            if count > 0:
+                summary = await project_knowledge_service.get_summary(db, proj.id)
+                grouped = await project_knowledge_service.get_all(db, proj.id)
+            else:
+                return ChatResponse(
+                    action="show_knowledge",
+                    reply=f"No knowledge entries for **{proj.name}** yet. Try: 'note: our ICP is luxury real estate agencies in Dubai'",
+                    project_id=proj.id,
+                    suggestions=["sync knowledge", "add note"],
+                )
+        return ChatResponse(
+            action="show_knowledge",
+            reply=f"**Knowledge base for {proj.name}:**\n\n{summary}",
+            project_id=proj.id,
+            data={"knowledge": grouped},
+            suggestions=["show icp", "show search knowledge", "add note"],
+        )
+
+
+async def _handle_update_knowledge(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Add or update a knowledge base entry via natural language."""
+    from app.services.project_knowledge_service import project_knowledge_service
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+
+    category = parsed.get("kb_category") or "notes"
+    key = parsed.get("kb_key")
+    value = parsed.get("kb_value")
+    title = parsed.get("kb_title")
+
+    if not value:
+        return ChatResponse(
+            action="info",
+            reply="Please specify what to remember. Example: 'note: ICP targets luxury RE in Dubai'",
+            project_id=proj.id,
+        )
+
+    # Auto-generate key from title or content if not provided
+    if not key:
+        import re
+        base = title or str(value)[:50]
+        key = re.sub(r'[^a-z0-9]+', '_', base.lower()).strip('_')[:80]
+
+    # If value is a plain string, wrap it
+    if isinstance(value, str):
+        value = {"text": value}
+
+    entry = await project_knowledge_service.upsert(
+        db, proj.id, category, key,
+        value=value, title=title, source="chat",
+    )
+
+    return ChatResponse(
+        action="knowledge_updated",
+        reply=parsed.get("reply", f"Saved to **{category}/{key}**: {title or key}"),
+        project_id=proj.id,
+        data={"entry": entry},
+        suggestions=["show knowledge", "show " + category],
+    )
+
+
+async def _handle_ask(
+    parsed: Dict, body: ChatRequest, db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Answer a question using project knowledge context."""
+    from app.services.project_knowledge_service import project_knowledge_service
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+
+    # Build context from knowledge
+    summary = await project_knowledge_service.get_summary(db, proj.id)
+
+    # Use AI to answer the question with knowledge context
+    try:
+        from app.services.gemini_client import is_gemini_available, gemini_generate, extract_json_from_gemini
+        import json
+
+        system_prompt = f"""You are a project assistant for "{proj.name}". Answer the user's question based on the project knowledge below.
+
+PROJECT KNOWLEDGE:
+{summary[:4000]}
+
+TARGET DESCRIPTION: {proj.target_segments or 'Not defined'}
+
+RULES:
+- Answer concisely, using specific data from the knowledge base when available.
+- If you don't have enough info, say so and suggest what knowledge could be added.
+- Reply in the same language the user used.
+- Return JSON: {{"reply": "your answer", "suggestions": ["follow-up suggestion 1", "follow-up suggestion 2"]}}"""
+
+        if is_gemini_available():
+            gen_result = await gemini_generate(
+                system_prompt=system_prompt,
+                user_prompt=body.message,
+                temperature=0.3,
+                max_tokens=1500,
+            )
+            raw = extract_json_from_gemini(gen_result["content"])
+            result = json.loads(raw)
+        else:
+            import openai
+            from app.core.config import settings
+            client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": body.message},
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"},
+                max_tokens=1500,
+            )
+            result = json.loads(response.choices[0].message.content)
+
+        return ChatResponse(
+            action="answer",
+            reply=result.get("reply", parsed.get("reply", "I couldn't find an answer in the knowledge base.")),
+            project_id=proj.id,
+            suggestions=result.get("suggestions", ["show knowledge", "add note"]),
+        )
+    except Exception as e:
+        logger.error(f"Failed to answer question: {e}", exc_info=True)
+        return ChatResponse(
+            action="answer",
+            reply=parsed.get("reply", "I couldn't process your question. Please try rephrasing."),
+            project_id=proj.id,
+            suggestions=["show knowledge"],
+        )
 
 
 # ---- Search Config handlers ----

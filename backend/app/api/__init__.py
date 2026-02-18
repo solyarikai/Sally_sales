@@ -26,6 +26,7 @@ from .data_search import router as data_search_router
 from .search import router as search_router
 from .search_chat import router as search_chat_router
 from .pipeline import router as pipeline_router
+from .knowledge import router as project_knowledge_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -79,5 +80,8 @@ api_router.include_router(search_chat_router)
 
 # Pipeline (outreach data processing)
 api_router.include_router(pipeline_router)
+
+# Project Knowledge (unified KB per project)
+api_router.include_router(project_knowledge_router)
 
 __all__ = ["api_router"]
