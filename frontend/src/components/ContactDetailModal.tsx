@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles } from 'lucide-react';
+import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
 import type { Contact } from '../api/contacts';
 import { contactsApi } from '../api/contacts';
 import { ConversationThread, adaptContactHistory } from './ConversationThread';
+import { CampaignSidebar } from './CampaignSidebar';
 
 interface Activity {
   id: number;
@@ -27,129 +28,6 @@ interface ContactDetailModalProps {
   currentIndex?: number;
   onNavigate?: (index: number) => void;
   onMarkProcessed?: (contactId: number) => void;
-}
-
-// ── Campaign sidebar data ──────────────────────────────────────────
-interface CampaignEntry {
-  name: string;
-  channel: 'email' | 'linkedin';
-  count: number;
-}
-
-function buildCampaignList(activities: Activity[]): { email: CampaignEntry[]; linkedin: CampaignEntry[] } {
-  const map = new Map<string, CampaignEntry>();
-  for (const a of activities) {
-    const name = a.campaign || a.automation || 'Unknown';
-    const channel = a.channel || 'email';
-    const key = `${channel}::${name}`;
-    const entry = map.get(key);
-    if (entry) {
-      entry.count++;
-    } else {
-      map.set(key, { name, channel: channel as 'email' | 'linkedin', count: 1 });
-    }
-  }
-  const email: CampaignEntry[] = [];
-  const linkedin: CampaignEntry[] = [];
-  for (const entry of map.values()) {
-    if (entry.channel === 'linkedin') linkedin.push(entry);
-    else email.push(entry);
-  }
-  email.sort((a, b) => b.count - a.count);
-  linkedin.sort((a, b) => b.count - a.count);
-  return { email, linkedin };
-}
-
-// ── Campaign sidebar component ─────────────────────────────────────
-function CampaignSidebar({
-  activities,
-  selectedCampaign,
-  onSelect,
-}: {
-  activities: Activity[];
-  selectedCampaign: string | null; // null = All
-  onSelect: (campaign: string | null) => void;
-}) {
-  const { email, linkedin } = useMemo(() => buildCampaignList(activities), [activities]);
-  const totalCount = activities.length;
-  const emailCount = activities.filter(a => (a.channel || 'email') === 'email').length;
-  const linkedinCount = activities.filter(a => a.channel === 'linkedin').length;
-
-  return (
-    <div className="w-[180px] flex-shrink-0 border-r border-gray-100 overflow-y-auto bg-gray-50/30">
-      <div className="p-2">
-        {/* All */}
-        <button
-          onClick={() => onSelect(null)}
-          className={cn(
-            "w-full text-left px-2.5 py-2 rounded-lg text-[12px] font-semibold transition-colors mb-1",
-            selectedCampaign === null
-              ? "bg-blue-50 text-blue-700"
-              : "text-gray-600 hover:bg-gray-100"
-          )}
-        >
-          All
-          <span className="ml-1 text-[10px] font-normal text-gray-400">({totalCount})</span>
-        </button>
-
-        {/* Email section */}
-        {emailCount > 0 && (
-          <div className="mt-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-              <Mail className="w-3 h-3" />
-              Email
-              <span className="ml-auto font-normal">({emailCount})</span>
-            </div>
-            {email.map((c) => (
-              <button
-                key={`email-${c.name}`}
-                onClick={() => onSelect(`email::${c.name}`)}
-                className={cn(
-                  "w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors flex items-center gap-1.5",
-                  selectedCampaign === `email::${c.name}`
-                    ? "bg-blue-50 text-blue-700 font-medium"
-                    : "text-gray-500 hover:bg-gray-100"
-                )}
-              >
-                <span className="truncate flex-1">{c.name}</span>
-                <span className="text-[10px] text-gray-400 flex-shrink-0">{c.count}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* LinkedIn section */}
-        {linkedinCount > 0 && (
-          <div className="mt-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-              <Linkedin className="w-3 h-3" />
-              LinkedIn
-              <span className="ml-auto font-normal">({linkedinCount})</span>
-            </div>
-            {linkedin.map((c) => (
-              <button
-                key={`linkedin-${c.name}`}
-                onClick={() => onSelect(`linkedin::${c.name}`)}
-                className={cn(
-                  "w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors flex items-center gap-1.5",
-                  selectedCampaign === `linkedin::${c.name}`
-                    ? "bg-blue-50 text-blue-700 font-medium"
-                    : "text-gray-500 hover:bg-gray-100"
-                )}
-              >
-                <span className="truncate flex-1">{c.name}</span>
-                <span className="text-[10px] text-gray-400 flex-shrink-0">{c.count}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {totalCount === 0 && (
-          <p className="text-[11px] text-gray-300 px-2.5 py-4 text-center">No messages</p>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ── Messenger-style conversation view (delegates to shared ConversationThread) ──
@@ -339,7 +217,7 @@ export function ContactDetailModal({
       setDraftReply('');
       setReplyChannel(null);
       setSavedDraft(false);
-      setActiveTab(replyMode ? 'conversation' : 'details');
+      setActiveTab('conversation');
       setSelectedProject(contact.project_id || null);
       setAddedToProject(false);
       setAiDraftBody('');
@@ -543,6 +421,17 @@ export function ContactDetailModal({
                   {aiCategory.replace(/_/g, ' ')}
                 </span>
               )}
+              {contact.smartlead_id && (
+                <a
+                  href={`https://app.smartlead.ai/app/email-accounts/leads/${contact.smartlead_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-gray-500 hover:bg-gray-100 transition-colors"
+                  title="Open in SmartLead"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
               <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
                 <X className="w-4 h-4 text-gray-400" />
               </button>
@@ -694,9 +583,23 @@ export function ContactDetailModal({
               <p className="text-sm text-gray-400">{contact.email}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-            <X className="w-5 h-5 text-gray-400" />
-          </button>
+          <div className="flex items-center gap-2">
+            {contact.smartlead_id && (
+              <a
+                href={`https://app.smartlead.ai/app/email-accounts/leads/${contact.smartlead_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] text-gray-500 hover:bg-gray-100 transition-colors"
+                title="Open in SmartLead"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                SmartLead
+              </a>
+            )}
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}

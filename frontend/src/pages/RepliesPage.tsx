@@ -11,14 +11,15 @@ import {
 import {
   repliesApi,
   type ProcessedReply,
-  type ConversationMessage,
   type ReplyCategory,
   type ContactInfo,
   type ContactCampaignEntry,
+  type FullHistoryResponse,
 } from '../api/replies';
 import { cn } from '../lib/utils';
 import { stripHtml } from '../lib/htmlUtils';
-import { ConversationThread, adaptReplyThread } from '../components/ConversationThread';
+import { ConversationThread, adaptContactHistory } from '../components/ConversationThread';
+import { CampaignDropdown } from '../components/CampaignDropdown';
 import { useAppStore } from '../store/appStore';
 import { useTheme } from '../hooks/useTheme';
 
@@ -174,10 +175,13 @@ export function RepliesPage() {
   const [editingDrafts, setEditingDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
   const [sendingIds, setSendingIds] = useState<Set<number>>(new Set());
   const [expandedThreads, setExpandedThreads] = useState<Set<number>>(new Set());
-  const [threadMessages, setThreadMessages] = useState<Record<number, ConversationMessage[]>>({});
   const [loadingThreads, setLoadingThreads] = useState<Set<number>>(new Set());
   const [contactInfoMap, setContactInfoMap] = useState<Record<number, ContactInfo | null>>({});
   const [regeneratingIds, setRegeneratingIds] = useState<Set<number>>(new Set());
+
+  // Full history state (cross-campaign)
+  const [historyData, setHistoryData] = useState<Record<number, FullHistoryResponse>>({});
+  const [selectedHistoryCampaign, setSelectedHistoryCampaign] = useState<Record<number, string | null>>({});
 
   // Campaign selector state (for group_by_contact dedup)
   const [contactCampaigns, setContactCampaigns] = useState<Record<string, ContactCampaignEntry[]>>({});
@@ -306,6 +310,30 @@ export function RepliesPage() {
       const edited = editingDrafts[reply.id];
       const editedDraft = edited ? { draft_reply: edited.reply, draft_subject: edited.subject } : undefined;
       const result = await repliesApi.approveAndSendReply(reply.id, editedDraft);
+      // Optimistically insert sent message into history so it's immediately visible
+      const sentContent = edited ? edited.reply : (reply.draft_reply || '');
+      if (sentContent && historyData[reply.id]) {
+        setHistoryData(prev => {
+          const existing = prev[reply.id];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [reply.id]: {
+              ...existing,
+              activities: [
+                ...existing.activities,
+                {
+                  direction: 'outbound' as const,
+                  content: sentContent,
+                  timestamp: new Date().toISOString(),
+                  channel: (reply.channel || 'email') as 'email' | 'linkedin',
+                  campaign: reply.campaign_name || 'Unknown',
+                },
+              ],
+            },
+          };
+        });
+      }
       const contactId = result.contact_id;
       const toastMsg = result.channel === 'linkedin'
         ? 'Approved — copy draft to LinkedIn'
@@ -334,8 +362,7 @@ export function RepliesPage() {
         ),
         { style: toastOk, duration: 6000 }
       );
-      setReplies(prev => prev.filter(r => r.id !== reply.id));
-      refreshCounts();
+      optimisticRemoveReply(reply);
       setEditingDrafts(prev => { const d = { ...prev }; delete d[reply.id]; return d; });
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to send', { style: toastErr });
@@ -348,8 +375,7 @@ export function RepliesPage() {
     try {
       await repliesApi.dismissReply(reply.id);
       toast.success('Skipped', { style: toastOk });
-      setReplies(prev => prev.filter(r => r.id !== reply.id));
-      refreshCounts();
+      optimisticRemoveReply(reply);
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed', { style: toastErr });
     }
@@ -365,28 +391,38 @@ export function RepliesPage() {
     setEditingDrafts(prev => { const d = { ...prev }; delete d[id]; return d; });
   };
 
-  const loadThread = async (reply: ProcessedReply) => {
+  /** Optimistically remove a reply from the list and update counts. */
+  const optimisticRemoveReply = (reply: ProcessedReply) => {
+    setReplies(prev => prev.filter(r => r.id !== reply.id));
+    setTotal(prev => Math.max(0, prev - 1));
+    setCategoryCounts(prev => {
+      const cat = reply.category || 'other';
+      return { ...prev, [cat]: Math.max(0, (prev[cat] || 0) - 1) };
+    });
+    refreshCounts(); // background reconciliation
+  };
+
+  const loadHistory = async (reply: ProcessedReply) => {
     if (expandedThreads.has(reply.id)) {
       setExpandedThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
       return;
     }
     setExpandedThreads(prev => new Set(prev).add(reply.id));
-    if (threadMessages[reply.id]) return;
+    if (historyData[reply.id]) return;
     setLoadingThreads(prev => new Set(prev).add(reply.id));
     try {
-      const data = await repliesApi.getConversation(reply.id);
-      setThreadMessages(prev => ({ ...prev, [reply.id]: data.messages || [] }));
+      const data = await repliesApi.getFullHistory(reply.id);
+      setHistoryData(prev => ({ ...prev, [reply.id]: data }));
       if (data.contact_info !== undefined) {
         setContactInfoMap(prev => ({ ...prev, [reply.id]: data.contact_info || null }));
       }
       // Auto-remove if operator already replied (detected by backend)
       if (data.approval_status === 'replied_externally') {
         toast.success('Operator already replied — removed from queue', { style: toastOk });
-        setReplies(prev => prev.filter(r => r.id !== reply.id));
-        setTotal(prev => Math.max(0, prev - 1));
+        optimisticRemoveReply(reply);
       }
     } catch {
-      setThreadMessages(prev => ({ ...prev, [reply.id]: [] }));
+      setHistoryData(prev => ({ ...prev, [reply.id]: { contact_id: null, contact_info: null, campaigns: [], activities: [], approval_status: null } }));
     } finally {
       setLoadingThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
     }
@@ -587,7 +623,8 @@ export function RepliesPage() {
               const isSending = sendingIds.has(reply.id);
               const isThreadOpen = expandedThreads.has(reply.id);
               const isThreadLoading = loadingThreads.has(reply.id);
-              const thread = threadMessages[reply.id];
+              const history = historyData[reply.id];
+              const historyMsgCount = history?.activities?.length || 0;
               const draftText = isEditing ? editingDrafts[reply.id].reply : (reply.draft_reply || '');
               const draftFailed = isDraftFailed(reply.draft_reply);
               const classificationFailed = FAILED_CLASS_RE.test(reply.classification_reasoning || '');
@@ -728,22 +765,43 @@ export function RepliesPage() {
                         </div>
                       </div>
 
-                      {/* Thread */}
+                      {/* History */}
                       <div className="px-4">
                         <button
-                          onClick={() => loadThread(reply)}
+                          onClick={() => loadHistory(reply)}
                           className="text-[11px] flex items-center gap-1 py-0.5 transition-colors"
                           style={{ color: t.text5 }}
                         >
                           <MessageCircle className="w-3 h-3" />
-                          {isThreadOpen ? 'Hide thread' : 'Thread'}
+                          {isThreadOpen ? 'Hide history' : 'History'}
+                          {historyMsgCount > 0 && (
+                            <span
+                              className="ml-0.5 px-1.5 py-px rounded-full text-[10px]"
+                              style={{ background: t.badgeBg, color: t.badgeText }}
+                            >
+                              {historyMsgCount}
+                            </span>
+                          )}
                         </button>
                         {isThreadOpen && (
                           <div className="mt-1.5 mb-2">
+                            {history && history.campaigns.length > 1 && (
+                              <div className="mb-1.5">
+                                <CampaignDropdown
+                                  campaigns={history.campaigns}
+                                  selectedCampaign={selectedHistoryCampaign[reply.id] ?? null}
+                                  onSelect={(c) => setSelectedHistoryCampaign(prev => ({ ...prev, [reply.id]: c }))}
+                                  isDark={isDark}
+                                />
+                              </div>
+                            )}
                             <ConversationThread
-                              messages={thread ? adaptReplyThread(thread) : []}
+                              messages={history ? adaptContactHistory(history.activities) : []}
                               compact
                               isDark={isDark}
+                              showDateSeparators
+                              showCampaignMarkers
+                              filterCampaign={selectedHistoryCampaign[reply.id] ?? null}
                               loading={isThreadLoading}
                             />
                           </div>

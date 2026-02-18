@@ -1246,11 +1246,17 @@ export function ContactsPage() {
           contact={selectedContact}
           isOpen={showContactModal}
           onClose={() => {
+            // Filter CRM to the contact that was just viewed (F18)
+            const viewedEmail = selectedContact?.email;
             setShowContactModal(false);
             setSelectedContact(null);
-            // Remove contact_id from URL when modal closes
             const p = new URLSearchParams(searchParams);
             p.delete('contact_id');
+            if (viewedEmail) {
+              setSearch(viewedEmail);
+              setDebouncedSearch(viewedEmail);
+              p.set('search', viewedEmail);
+            }
             setSearchParams(p, { replace: true });
           }}
           replyMode={replyMode}

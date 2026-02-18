@@ -359,6 +359,37 @@ export async function getConversation(replyId: number): Promise<{ messages: Conv
   return response.data;
 }
 
+// Full cross-campaign history
+export interface FullHistoryCampaign {
+  campaign_name: string;
+  channel: string;
+  message_count: number;
+  latest_at: string;
+  earliest_at: string;
+}
+
+export interface FullHistoryActivity {
+  direction: 'inbound' | 'outbound';
+  content: string;
+  timestamp: string;
+  channel: 'email' | 'linkedin';
+  campaign: string;
+}
+
+export interface FullHistoryResponse {
+  contact_id: number | null;
+  contact_info: ContactInfo | null;
+  campaigns: FullHistoryCampaign[];
+  activities: FullHistoryActivity[];
+  approval_status: string | null;
+  inbox_links: Record<string, string>;
+}
+
+export async function getFullHistory(replyId: number): Promise<FullHistoryResponse> {
+  const response = await api.get(`/replies/${replyId}/full-history`);
+  return response.data;
+}
+
 export async function getReply(id: number): Promise<ProcessedReply> {
   const response = await api.get(`/replies/${id}`);
   return response.data;
@@ -544,6 +575,7 @@ export const repliesApi = {
   getReply,
   getReplyStats,
   getConversation,
+  getFullHistory,
   resendNotification,
   getCampaignAnalyticsSummary,
   // Approval / Moderation

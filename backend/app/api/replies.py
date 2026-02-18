@@ -1594,6 +1594,163 @@ def _build_contact_info(contact) -> dict:
     }
 
 
+@router.get("/{reply_id}/full-history")
+async def get_reply_full_history(
+    reply_id: int,
+    session: AsyncSession = Depends(get_session)
+):
+    """Get cross-campaign conversation history for a reply's lead.
+
+    Finds ALL ProcessedReply records with the same lead_email, collects all
+    ThreadMessage rows, and merges with ContactActivity (LinkedIn history).
+    Returns a unified activity stream + campaign summary.
+    """
+    from app.models.reply import ThreadMessage
+    from app.models.contact import Contact, ContactActivity
+    from app.services.reply_processor import _fetch_and_cache_thread
+
+    result = await session.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+    if not reply.lead_email:
+        return {"campaigns": [], "activities": [], "approval_status": reply.approval_status}
+
+    # 1. Find ALL replies for this lead
+    all_replies_result = await session.execute(
+        select(ProcessedReply).where(
+            func.lower(ProcessedReply.lead_email) == reply.lead_email.lower()
+        )
+    )
+    all_replies = all_replies_result.scalars().all()
+    reply_ids = [r.id for r in all_replies]
+
+    # 2. Refresh stale thread caches (>5 min)
+    for r in all_replies:
+        cache_stale = (
+            r.thread_fetched_at is not None
+            and (datetime.utcnow() - r.thread_fetched_at).total_seconds() > 300
+        )
+        need_fetch = (r.thread_fetched_at is None or cache_stale)
+        if need_fetch and r.campaign_id and (not r.source or r.source == "smartlead"):
+            try:
+                ok = await _fetch_and_cache_thread(r, session)
+                if ok:
+                    await session.commit()
+            except Exception as e:
+                logger.warning(f"full-history: fetch failed for reply {r.id}: {e}")
+                await session.rollback()
+
+    # 3. Query all ThreadMessages across all reply IDs
+    tm_result = await session.execute(
+        select(ThreadMessage)
+        .where(ThreadMessage.reply_id.in_(reply_ids))
+        .order_by(ThreadMessage.activity_at)
+    )
+    thread_msgs = tm_result.scalars().all()
+
+    # Build reply_id → campaign_name map
+    reply_campaign = {r.id: (r.campaign_name or f"Campaign {r.campaign_id}") for r in all_replies}
+
+    # 4. Find contact + LinkedIn activities
+    contact = None
+    contact_result = await session.execute(
+        select(Contact).where(
+            and_(
+                func.lower(Contact.email) == reply.lead_email.lower(),
+                Contact.deleted_at.is_(None),
+            )
+        )
+    )
+    contact = contact_result.scalar_one_or_none()
+
+    linkedin_activities = []
+    if contact:
+        ca_result = await session.execute(
+            select(ContactActivity)
+            .where(
+                and_(
+                    ContactActivity.contact_id == contact.id,
+                    ContactActivity.channel == "linkedin",
+                )
+            )
+            .order_by(ContactActivity.activity_at)
+        )
+        linkedin_activities = ca_result.scalars().all()
+
+    # 5. Build unified activity list
+    activities = []
+    for tm in thread_msgs:
+        activities.append({
+            "direction": tm.direction,
+            "content": tm.body or "",
+            "timestamp": tm.activity_at.isoformat() if tm.activity_at else "",
+            "channel": tm.channel or "email",
+            "campaign": reply_campaign.get(tm.reply_id, "Unknown"),
+        })
+
+    for ca in linkedin_activities:
+        direction = ca.direction or ("outbound" if ca.activity_type in ("linkedin_sent",) else "inbound")
+        campaign_name = "Unknown"
+        if ca.extra_data and isinstance(ca.extra_data, dict):
+            campaign_name = ca.extra_data.get("automation_name") or ca.extra_data.get("campaign_name") or "LinkedIn"
+        activities.append({
+            "direction": direction,
+            "content": ca.body or ca.snippet or "",
+            "timestamp": ca.activity_at.isoformat() if ca.activity_at else "",
+            "channel": "linkedin",
+            "campaign": campaign_name,
+        })
+
+    # Sort all activities chronologically
+    activities.sort(key=lambda a: a["timestamp"])
+
+    # 6. Build campaign summary with dates
+    campaign_counts: dict[str, dict] = {}
+    for a in activities:
+        key = f"{a['channel']}::{a['campaign']}"
+        ts = a["timestamp"]
+        if key not in campaign_counts:
+            campaign_counts[key] = {
+                "campaign_name": a["campaign"],
+                "channel": a["channel"],
+                "message_count": 0,
+                "latest_at": ts,
+                "earliest_at": ts,
+            }
+        campaign_counts[key]["message_count"] += 1
+        if ts and ts > campaign_counts[key]["latest_at"]:
+            campaign_counts[key]["latest_at"] = ts
+        if ts and (not campaign_counts[key]["earliest_at"] or ts < campaign_counts[key]["earliest_at"]):
+            campaign_counts[key]["earliest_at"] = ts
+
+    # Sort campaigns by latest_at descending (most recent first)
+    campaigns_sorted = sorted(
+        campaign_counts.values(),
+        key=lambda c: c.get("latest_at", ""),
+        reverse=True,
+    )
+
+    # Collect inbox links from all replies
+    inbox_links = {
+        (r.campaign_name or f"Campaign {r.campaign_id}"): r.inbox_link
+        for r in all_replies if r.inbox_link
+    }
+
+    contact_info = _build_contact_info(contact) if contact else None
+
+    return {
+        "contact_id": contact.id if contact else None,
+        "contact_info": contact_info,
+        "campaigns": campaigns_sorted,
+        "activities": activities,
+        "approval_status": reply.approval_status,
+        "inbox_links": inbox_links,
+    }
+
+
 @router.get("/{reply_id}", response_model=ProcessedReplyResponse)
 async def get_reply(
     reply_id: int,
