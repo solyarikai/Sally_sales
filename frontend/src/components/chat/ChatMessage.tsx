@@ -4,12 +4,11 @@ import remarkGfm from 'remark-gfm';
 import {
   Bot, User, Zap, ThumbsUp, ThumbsDown, Copy, Check,
   ExternalLink, BarChart3, Users, ArrowRight, AlertTriangle,
-  ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../hooks/useTheme';
-import { api } from '../../api/client';
+
 
 export interface ChatMessageData {
   id: string | number;
@@ -107,61 +106,6 @@ function ActionButtons({ action_type, action_data }: { action_type?: string; act
   return <div className="flex flex-wrap">{buttons}</div>;
 }
 
-function CollapsibleContent({ content, maxItems = 5 }: { content: string; maxItems?: number }) {
-  const [expanded, setExpanded] = useState(false);
-  const { isDark } = useTheme();
-  const lines = content.split('\n');
-
-  // Only collapse if there are many items (list lines starting with - or |)
-  const listLines = lines.filter(l => l.trim().startsWith('-') || l.trim().startsWith('|'));
-  if (listLines.length <= maxItems + 2) {
-    return <>{content}</>;
-  }
-
-  if (expanded) {
-    return (
-      <>
-        {content}
-        <button
-          onClick={() => setExpanded(false)}
-          className={cn("flex items-center gap-1 text-xs mt-1", isDark ? "text-indigo-400" : "text-indigo-600")}
-        >
-          <ChevronUp className="w-3 h-3" /> Show less
-        </button>
-      </>
-    );
-  }
-
-  // Truncate after maxItems list items
-  let count = 0;
-  let truncateIdx = lines.length;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().startsWith('-') || (lines[i].trim().startsWith('|') && !lines[i].includes('---'))) {
-      count++;
-      if (count > maxItems + 1) { // +1 for header row in tables
-        truncateIdx = i;
-        break;
-      }
-    }
-  }
-
-  const truncated = lines.slice(0, truncateIdx).join('\n');
-  const remaining = listLines.length - maxItems;
-
-  return (
-    <>
-      {truncated}
-      {'\n'}
-      <button
-        onClick={() => setExpanded(true)}
-        className={cn("flex items-center gap-1 text-xs mt-1", isDark ? "text-indigo-400" : "text-indigo-600")}
-      >
-        <ChevronDown className="w-3 h-3" /> Show {remaining} more
-      </button>
-    </>
-  );
-}
-
 function SystemBanner({ message }: { message: ChatMessageData }) {
   const { isDark } = useTheme();
   const action = message.action_type;
@@ -222,7 +166,7 @@ function SystemBanner({ message }: { message: ChatMessageData }) {
   );
 }
 
-export function ChatMessage({ message, projectId, onFeedback, isLast }: ChatMessageProps) {
+export function ChatMessage({ message, onFeedback }: ChatMessageProps) {
   const { isDark } = useTheme();
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';

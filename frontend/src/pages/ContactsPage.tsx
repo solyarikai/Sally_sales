@@ -687,13 +687,24 @@ export function ContactsPage() {
     statusFilters,
     setStatusFilters: (statuses: string[]) => { setStatusFilters(statuses); setPage(1); },
     toggleStatus,
+    segmentFilter,
+    setSegmentFilter: (s: string | null) => { setSegmentFilter(s); setPage(1); },
+    sourceFilter,
+    setSourceFilter: (s: string | null) => { setSourceFilter(s); setPage(1); },
+    geoFilter: null as string | null,
+    setGeoFilter: (_s: string | null) => { /* not yet implemented */ },
+    repliedFilter,
+    setRepliedFilter: (v: boolean | null) => { setRepliedFilter(v); setPage(1); },
+    followupFilter,
+    setFollowupFilter: (v: boolean | null) => { setFollowupFilter(v); setPage(1); },
     campaigns,
     stats,
+    filterOptions,
     resetPage,
     createdAfter,
     createdBefore,
     setDateRange,
-  }), [campaignFilters, toggleCampaign, statusFilters, toggleStatus, campaigns, stats, resetPage, createdAfter, createdBefore, setDateRange]);
+  }), [campaignFilters, toggleCampaign, statusFilters, toggleStatus, segmentFilter, sourceFilter, repliedFilter, followupFilter, campaigns, stats, filterOptions, resetPage, createdAfter, createdBefore, setDateRange]);
 
   return (
     <ContactsFilterContext.Provider value={filterCtx}>

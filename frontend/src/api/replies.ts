@@ -520,6 +520,7 @@ export async function approveAndSendReply(
   test_mode?: boolean;
   campaign_id?: string;
   contact_id?: number;
+  channel?: string;
 }> {
   // On localhost, always send in test_mode so emails go to pn@getsally.io instead of real leads
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';

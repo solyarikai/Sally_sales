@@ -347,7 +347,7 @@ export function ProjectChatPage() {
     let accumulated = '';
     let doneReceived = false;
 
-    es.addEventListener('intent', (event) => {
+    es.addEventListener('intent', () => {
       // Intent parsed — could show a preview, but we just let the stream flow
     });
 

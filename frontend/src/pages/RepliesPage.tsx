@@ -422,7 +422,7 @@ export function RepliesPage() {
         optimisticRemoveReply(reply);
       }
     } catch {
-      setHistoryData(prev => ({ ...prev, [reply.id]: { contact_id: null, contact_info: null, campaigns: [], activities: [], approval_status: null } }));
+      setHistoryData(prev => ({ ...prev, [reply.id]: { contact_id: null, contact_info: null, campaigns: [], activities: [], approval_status: null, inbox_links: {} } }));
     } finally {
       setLoadingThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
     }
