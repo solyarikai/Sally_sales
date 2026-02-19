@@ -10,7 +10,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        target: process.env.BACKEND_URL || 'http://localhost:8000',
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on('proxyRes', (proxyRes) => {
