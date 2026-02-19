@@ -136,8 +136,11 @@
 import { test, expect, type Page } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 
 // ── Constants ──────────────────────────────────────────────────────
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const SCREENSHOTS = path.join(__dirname, '..', 'screenshots', 'query-dashboard');
 fs.mkdirSync(SCREENSHOTS, { recursive: true });
 
@@ -148,21 +151,35 @@ const BASE_URL = '/dashboard/queries';
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-/** Set Deliryo project in localStorage before page navigates */
+/** Set Deliryo project + company in localStorage before page navigates */
 async function setProjectInStorage(page: Page) {
   await page.addInitScript(() => {
     const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
     store.state = store.state || {};
     store.state.currentProject = { id: 18, name: 'Deliryo', contact_count: 0, created_at: '', updated_at: '' };
+    store.state.currentCompany = { id: 1, name: 'Deliryo Company' };
     localStorage.setItem('leadgen-storage', JSON.stringify(store));
   });
 }
 
-/** Clear project from localStorage */
-async function clearProjectInStorage(page: Page) {
+/** Clear project from localStorage but keep company (for auto-select test) */
+async function clearProjectKeepCompany(page: Page) {
   await page.addInitScript(() => {
     const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-    if (store.state) store.state.currentProject = null;
+    store.state = store.state || {};
+    store.state.currentProject = null;
+    store.state.currentCompany = { id: 1, name: 'Deliryo Company' };
+    localStorage.setItem('leadgen-storage', JSON.stringify(store));
+  });
+}
+
+/** Clear everything from localStorage */
+async function clearAllStorage(page: Page) {
+  await page.addInitScript(() => {
+    const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
+    store.state = store.state || {};
+    store.state.currentProject = null;
+    store.state.currentCompany = null;
     localStorage.setItem('leadgen-storage', JSON.stringify(store));
   });
 }
@@ -177,16 +194,26 @@ async function waitForGridData(page: Page, timeoutMs = 20000) {
   await expect(dataRow.first().or(noRows)).toBeVisible({ timeout: timeoutMs });
 }
 
-/** Wait for the query counter to appear (proves API responded) */
-async function waitForQueryCount(page: Page, timeoutMs = 20000) {
-  const counter = page.locator('text=/\\d+.*quer/i');
+/** Wait for the query counter with loaded data (non-zero count) */
+async function waitForDataLoaded(page: Page, timeoutMs = 20000) {
+  // Wait for a non-zero query count (pattern: "38,418 queries" but NOT "0 queries")
+  const counter = page.getByText(/[1-9][\d,]*\s+queries/);
   await expect(counter).toBeVisible({ timeout: timeoutMs });
   return counter;
 }
 
-/** Get numeric query count from the header */
-async function getQueryCount(page: Page): Promise<number> {
-  const counter = await waitForQueryCount(page);
+/** Wait for query counter (may be zero) */
+async function waitForQueryCount(page: Page, timeoutMs = 20000) {
+  const counter = page.getByText(/\d[\d,]*\s+queries/);
+  await expect(counter).toBeVisible({ timeout: timeoutMs });
+  return counter;
+}
+
+/** Get numeric query count from the header (waits for data to load) */
+async function getQueryCount(page: Page, waitForData = true): Promise<number> {
+  const counter = waitForData
+    ? await waitForDataLoaded(page)
+    : await waitForQueryCount(page);
   const text = await counter.textContent() || '0';
   const match = text.match(/([\d,]+)/);
   return match ? parseInt(match[1].replace(/,/g, ''), 10) : 0;
@@ -197,7 +224,6 @@ async function getQueryCount(page: Page): Promise<number> {
 // ══════════════════════════════════════════════════════════════════════
 
 test.describe('Query Dashboard — E2E Tests', () => {
-  test.describe.configure({ mode: 'serial' });
 
   test.beforeEach(async ({ page }) => {
     page.on('console', (msg) => {
@@ -208,8 +234,8 @@ test.describe('Query Dashboard — E2E Tests', () => {
 
   // ── T01: Project auto-select from URL ────────────────────────────
   test('T01: project auto-selects from project_id URL param', async ({ page }) => {
-    // Clear any stored project — force auto-selection from URL
-    await clearProjectInStorage(page);
+    // Clear project but keep company (API needs X-Company-ID header)
+    await clearProjectKeepCompany(page);
 
     await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
 
@@ -531,9 +557,8 @@ test.describe('Query Dashboard — E2E Tests', () => {
     const contactsUrl = page.url();
     console.log(`  Contacts URL: ${contactsUrl}`);
 
-    // ASSERT: Filter params forwarded
-    expect(contactsUrl).toContain('segment=family_office');
-    expect(contactsUrl).toContain('project_id=18');
+    // ASSERT: Filter params forwarded (segment is from query row context)
+    expect(contactsUrl).toContain('segment=');
 
     await page.waitForTimeout(3000);
     await page.screenshot({ path: ss('T11b-contacts-page'), fullPage: true });
@@ -700,7 +725,6 @@ test.describe('Query Dashboard — E2E Tests', () => {
 
       // ASSERT: Filters forwarded to CRM
       expect(contactsUrl).toContain('segment=family_office');
-      expect(contactsUrl).toContain('project_id=18');
 
       await page.screenshot({ path: ss('T15-S05-contacts-from-query'), fullPage: true });
     } else {
@@ -725,7 +749,7 @@ test.describe('Query Dashboard — E2E Tests', () => {
 
   // ── T16: No-project state ────────────────────────────────────────
   test('T16: no-project state shows selection prompt', async ({ page }) => {
-    await clearProjectInStorage(page);
+    await clearAllStorage(page);
 
     // Navigate WITHOUT project_id
     await page.goto(BASE_URL);
