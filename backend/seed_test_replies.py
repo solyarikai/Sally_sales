@@ -17,9 +17,9 @@ from sqlalchemy import text
 
 
 TEST_CAMPAIGNS = [
-    {"name": "E2E_Test_GetSally", "campaign_id": "2947079"},
-    {"name": "E2E_Test_Outreach", "campaign_id": "2947080"},
-    {"name": "E2E_Test_Partnership", "campaign_id": "2947081"},
+    {"name": "E2E_Test_GetSally", "campaign_id": "2954039"},
+    {"name": "E2E_Test_Outreach", "campaign_id": "2954040"},
+    {"name": "E2E_Test_Partnership", "campaign_id": "2954041"},
 ]
 PROJECT_ID = 43
 
