@@ -634,9 +634,6 @@ export function RepliesPage() {
               const isThreadOpen = expandedThreads.has(reply.id);
               const isThreadLoading = loadingThreads.has(reply.id);
               const history = historyData[reply.id];
-              const selectedKey = selectedHistoryCampaign[reply.id] ?? null;
-              const selectedCamp = selectedKey ? history?.campaigns?.find(c => `${c.channel}::${c.campaign_name}` === selectedKey) : null;
-              const historyMsgCount = selectedCamp?.message_count ?? (history?.campaigns?.length === 1 ? history.campaigns[0].message_count : 0);
               const draftText = isEditing ? editingDrafts[reply.id].reply : (reply.draft_reply || '');
               const draftFailed = isDraftFailed(reply.draft_reply);
               const classificationFailed = FAILED_CLASS_RE.test(reply.classification_reasoning || '');
@@ -692,19 +689,25 @@ export function RepliesPage() {
                               <Clock className="w-3 h-3" />
                               {reply.received_at ? timeAgo(reply.received_at) : '?'}
                             </span>
-                            {(reply.inbox_link || history?.inbox_links?.[reply.campaign_name]) && (
-                              <a
-                                href={reply.inbox_link || history?.inbox_links?.[reply.campaign_name]}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="transition-colors"
-                                title="Open in Smartlead"
-                                onClick={e => e.stopPropagation()}
-                                style={{ color: t.text5 }}
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
+                            {(() => {
+                              const inboxUrl = reply.inbox_link
+                                || history?.inbox_links?.[reply.campaign_name]
+                                || (history?.inbox_links && Object.values(history.inbox_links)[0])
+                                || null;
+                              return inboxUrl ? (
+                                <a
+                                  href={inboxUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="transition-colors"
+                                  title="Open in Smartlead"
+                                  onClick={e => e.stopPropagation()}
+                                  style={{ color: t.text5 }}
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              ) : null;
+                            })()}
                           </div>
                         </div>
 
@@ -739,14 +742,6 @@ export function RepliesPage() {
                         >
                           <MessageCircle className="w-3 h-3" />
                           {isThreadOpen ? 'Hide history' : 'History'}
-                          {historyMsgCount > 0 && (
-                            <span
-                              className="ml-0.5 px-1.5 py-px rounded-full text-[10px]"
-                              style={{ background: t.badgeBg, color: t.badgeText }}
-                            >
-                              {historyMsgCount}
-                            </span>
-                          )}
                         </button>
                         {isThreadOpen && (
                           <div className="mt-1.5 mb-2">

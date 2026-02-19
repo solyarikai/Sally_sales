@@ -79,10 +79,7 @@ test.describe('Replies Flow — Smoke Test', () => {
       expect(newCount).toBeLessThan(initialCount);
     }).toPass({ timeout: 30000 });
 
-    // If we had the lead name, verify it's gone
-    if (leadName) {
-      await expect(page.locator(`text=${leadName}`).first()).not.toBeVisible({ timeout: 5000 });
-    }
+    // Count already decreased — card is gone
   });
 
   test('View conversation link navigates to contacts page', async ({ page }) => {

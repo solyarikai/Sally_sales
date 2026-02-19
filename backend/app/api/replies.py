@@ -1627,21 +1627,17 @@ async def get_reply_full_history(
     all_replies = all_replies_result.scalars().all()
     reply_ids = [r.id for r in all_replies]
 
-    # 2. Refresh stale thread caches (>5 min)
-    for r in all_replies:
-        cache_stale = (
-            r.thread_fetched_at is not None
-            and (datetime.utcnow() - r.thread_fetched_at).total_seconds() > 300
-        )
-        need_fetch = (r.thread_fetched_at is None or cache_stale)
-        if need_fetch and r.campaign_id and (not r.source or r.source == "smartlead"):
-            try:
-                ok = await _fetch_and_cache_thread(r, session)
-                if ok:
-                    await session.commit()
-            except Exception as e:
-                logger.warning(f"full-history: fetch failed for reply {r.id}: {e}")
-                await session.rollback()
+    # 2. Fetch threads only for replies that have NEVER been fetched (not stale refresh).
+    #    This keeps full-history fast — stale caches are fine for immediate display.
+    unfetched = [r for r in all_replies if r.thread_fetched_at is None and r.campaign_id and (not r.source or r.source == "smartlead")]
+    for r in unfetched:
+        try:
+            ok = await _fetch_and_cache_thread(r, session)
+            if ok:
+                await session.commit()
+        except Exception as e:
+            logger.warning(f"full-history: fetch failed for reply {r.id}: {e}")
+            await session.rollback()
 
     # 3. Query all ThreadMessages across all reply IDs
     tm_result = await session.execute(
