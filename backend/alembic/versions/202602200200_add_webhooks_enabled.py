@@ -1,8 +1,8 @@
 """add webhooks_enabled to projects
 
-Revision ID: 202602200100
-Revises: 202602190200
-Create Date: 2026-02-20 01:00:00.000000
+Revision ID: 202602200200
+Revises: 202602200100
+Create Date: 2026-02-20 02:00:00.000000
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '202602200100'
-down_revision: Union[str, None] = '202602190200'
+revision: str = '202602200200'
+down_revision: Union[str, None] = '202602200100'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
