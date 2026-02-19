@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { ColDef, GridReadyEvent, SortChangedEvent } from 'ag-grid-community';
@@ -95,6 +95,7 @@ function SaturationTable({ title, data, onClickRow }: { title: string; data: Seg
 
 export function QueryDashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { currentProject } = useAppStore();
 
@@ -286,6 +287,24 @@ export function QueryDashboardPage() {
 
   const onGridReady = useCallback((_params: GridReadyEvent) => {}, []);
 
+  // ── Navigate to CRM contacts with query context ────────────
+  const openContactsForQuery = useCallback((row: QueryRecord, mode: 'domains' | 'targets') => {
+    const params = new URLSearchParams();
+    if (row.segment) params.set('segment', row.segment);
+    if (row.geo) params.set('geo', row.geo);
+    // Map search engine to contact source
+    const sourceMap: Record<string, string> = {
+      google_serp: 'pipeline',
+      yandex_api: 'pipeline',
+      apollo_org: 'pipeline',
+      clay: 'pipeline',
+    };
+    const contactSource = sourceMap[row.source];
+    if (contactSource) params.set('source', contactSource);
+    if (currentProject) params.set('project_id', String(currentProject.id));
+    navigate(`/contacts?${params.toString()}`);
+  }, [navigate, currentProject]);
+
   // ── Column definitions ─────────────────────────────────────
   const columnDefs = useMemo<ColDef[]>(() => [
     {
@@ -365,8 +384,13 @@ export function QueryDashboardPage() {
       sortable: true,
       filter: QueryRangeColumnFilter,
       filterParams: { rangeField: 'domains' },
-      cellRenderer: (params: { value: number }) =>
-        <span className="text-xs font-medium">{params.value}</span>,
+      cellRenderer: (params: { value: number; data: QueryRecord }) =>
+        params.value > 0 ? (
+          <button onClick={() => openContactsForQuery(params.data, 'domains')}
+            className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer" title="View contacts from these domains">
+            {params.value}
+          </button>
+        ) : <span className="text-xs text-neutral-400">0</span>,
     },
     {
       field: 'targets_found',
@@ -375,8 +399,13 @@ export function QueryDashboardPage() {
       sortable: true,
       filter: QueryRangeColumnFilter,
       filterParams: { rangeField: 'targets' },
-      cellRenderer: (params: { value: number }) =>
-        <span className={cn('text-xs font-medium', params.value > 0 ? 'text-green-600' : 'text-neutral-400')}>{params.value}</span>,
+      cellRenderer: (params: { value: number; data: QueryRecord }) =>
+        params.value > 0 ? (
+          <button onClick={() => openContactsForQuery(params.data, 'targets')}
+            className="text-xs font-medium text-green-600 hover:text-green-800 hover:underline cursor-pointer" title="View target contacts">
+            {params.value}
+          </button>
+        ) : <span className="text-xs text-neutral-400">0</span>,
     },
     {
       field: 'effectiveness_score',
