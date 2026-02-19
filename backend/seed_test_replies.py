@@ -16,18 +16,22 @@ from datetime import datetime, timedelta
 from sqlalchemy import text
 
 
-TEST_CAMPAIGN = "E2E_Test_GetSally"
-SMARTLEAD_CAMPAIGN_ID = "2947079"  # Real SmartLead campaign
+TEST_CAMPAIGNS = [
+    {"name": "E2E_Test_GetSally", "campaign_id": "2947079"},
+    {"name": "E2E_Test_Outreach", "campaign_id": "2947080"},
+    {"name": "E2E_Test_Partnership", "campaign_id": "2947081"},
+]
 PROJECT_ID = 43
 
 REPLIES = [
+    # --- Campaign 1: E2E_Test_GetSally (2 replies, each with outbound+inbound thread) ---
     {
         "lead_email": "pn@getsally.io",
         "lead_first_name": "Petr",
         "lead_last_name": "Nikolaev",
         "lead_company": "GetSally",
-        "campaign_id": SMARTLEAD_CAMPAIGN_ID,
-        "campaign_name": TEST_CAMPAIGN,
+        "campaign_id": TEST_CAMPAIGNS[0]["campaign_id"],
+        "campaign_name": TEST_CAMPAIGNS[0]["name"],
         "source": "smartlead",
         "channel": "email",
         "email_subject": "Re: Partnership Opportunity with GetSally",
@@ -39,14 +43,18 @@ REPLIES = [
         "draft_reply": "Hi Petr,\n\nThank you for your interest! I'd be happy to schedule a call this week. How does Thursday at 2pm CET work for you?\n\nLooking forward to connecting.\n\nBest regards",
         "draft_subject": "Re: Partnership Opportunity with GetSally",
         "received_at": datetime.utcnow() - timedelta(minutes=15),
+        "thread": [
+            {"direction": "outbound", "subject": "Partnership Opportunity with GetSally", "body": "Hi Petr,\n\nI noticed GetSally is growing fast in the sales automation space. We help companies like yours scale outreach by 3x.\n\nWould love to chat about a potential partnership. Got 15 minutes this week?\n\nBest,\nAlex", "offset_min": -60},
+            {"direction": "inbound", "subject": "Re: Partnership Opportunity with GetSally", "body": "Hi there,\n\nThanks for reaching out! I'm very interested in learning more about your solution. Could we schedule a call this week?\n\nBest,\nPetr", "offset_min": -15},
+        ],
     },
     {
         "lead_email": "pn@getsally.io",
         "lead_first_name": "Petr",
         "lead_last_name": "Nikolaev",
         "lead_company": "GetSally",
-        "campaign_id": SMARTLEAD_CAMPAIGN_ID,
-        "campaign_name": TEST_CAMPAIGN,
+        "campaign_id": TEST_CAMPAIGNS[0]["campaign_id"],
+        "campaign_name": TEST_CAMPAIGNS[0]["name"],
         "source": "smartlead",
         "channel": "email",
         "email_subject": "Re: Quick question about your platform",
@@ -58,14 +66,19 @@ REPLIES = [
         "draft_reply": "Hi Petr,\n\nAbsolutely! I've attached a case study from a company in your space that saw a 3x improvement in outreach efficiency using our platform.\n\nWould you like to walk through it together on a quick call?\n\nBest regards",
         "draft_subject": "Re: Quick question about your platform",
         "received_at": datetime.utcnow() - timedelta(minutes=30),
+        "thread": [
+            {"direction": "outbound", "subject": "Quick question about your platform", "body": "Hi Petr,\n\nJust following up on my earlier note. We recently launched a feature that integrates directly with CRM platforms like yours.\n\nCurious if you'd be open to seeing a quick demo?\n\nCheers,\nAlex", "offset_min": -90},
+            {"direction": "inbound", "subject": "Re: Quick question about your platform", "body": "Hey,\n\nThis looks interesting. Can you send me a case study or some examples of companies in our industry that use your product?\n\nThanks,\nPetr", "offset_min": -30},
+        ],
     },
+    # --- Campaign 2: E2E_Test_Outreach (2 replies) ---
     {
         "lead_email": "pn@getsally.io",
         "lead_first_name": "Petr",
         "lead_last_name": "Nikolaev",
         "lead_company": "GetSally",
-        "campaign_id": SMARTLEAD_CAMPAIGN_ID,
-        "campaign_name": TEST_CAMPAIGN,
+        "campaign_id": TEST_CAMPAIGNS[1]["campaign_id"],
+        "campaign_name": TEST_CAMPAIGNS[1]["name"],
         "source": "smartlead",
         "channel": "email",
         "email_subject": "Re: Streamline your outreach",
@@ -77,14 +90,19 @@ REPLIES = [
         "draft_reply": "Hi Petr,\n\nGreat questions! For a team of 5, our Growth plan at $99/mo would be perfect. Migration is seamless - we handle the import and setup for you, typically done in under 24 hours.\n\nWant me to set up a quick demo so you can see it in action?\n\nBest regards",
         "draft_subject": "Re: Streamline your outreach",
         "received_at": datetime.utcnow() - timedelta(hours=1),
+        "thread": [
+            {"direction": "outbound", "subject": "Streamline your outreach", "body": "Hi Petr,\n\nAre you tired of manually managing outreach sequences? Our platform automates email campaigns, follow-ups, and lead scoring.\n\nSave 10+ hours a week. Want to see how?\n\nBest,\nMaria", "offset_min": -180},
+            {"direction": "outbound", "subject": "Re: Streamline your outreach", "body": "Hi Petr,\n\nJust bumping this in case it got buried. Happy to jump on a quick call to walk you through the platform.\n\nMaria", "offset_min": -120},
+            {"direction": "inbound", "subject": "Re: Streamline your outreach", "body": "Hi,\n\nWhat's the pricing like? We're a team of 5 and currently using another tool. What would migration look like?\n\nPetr", "offset_min": -60},
+        ],
     },
     {
         "lead_email": "pn@getsally.io",
         "lead_first_name": "Petr",
         "lead_last_name": "Nikolaev",
         "lead_company": "GetSally",
-        "campaign_id": SMARTLEAD_CAMPAIGN_ID,
-        "campaign_name": TEST_CAMPAIGN,
+        "campaign_id": TEST_CAMPAIGNS[1]["campaign_id"],
+        "campaign_name": TEST_CAMPAIGNS[1]["name"],
         "source": "smartlead",
         "channel": "email",
         "email_subject": "Re: Collaboration opportunity",
@@ -96,14 +114,19 @@ REPLIES = [
         "draft_reply": "Hi Petr,\n\nNo problem at all! I appreciate you letting me know. If anything changes down the road, feel free to reach out.\n\nWishing you all the best.\n\nBest regards",
         "draft_subject": "Re: Collaboration opportunity",
         "received_at": datetime.utcnow() - timedelta(hours=2),
+        "thread": [
+            {"direction": "outbound", "subject": "Collaboration opportunity", "body": "Hi Petr,\n\nI came across GetSally and think there's a great collaboration opportunity between our teams. We work with similar customers and our tools complement each other.\n\nWould you be open to a quick exploratory call?\n\nBest,\nMaria", "offset_min": -240},
+            {"direction": "inbound", "subject": "Re: Collaboration opportunity", "body": "Not interested at this time, thanks.\n\nPetr", "offset_min": -120},
+        ],
     },
+    # --- Campaign 3: E2E_Test_Partnership (2 replies) ---
     {
         "lead_email": "pn@getsally.io",
         "lead_first_name": "Petr",
         "lead_last_name": "Nikolaev",
         "lead_company": "GetSally",
-        "campaign_id": SMARTLEAD_CAMPAIGN_ID,
-        "campaign_name": TEST_CAMPAIGN,
+        "campaign_id": TEST_CAMPAIGNS[2]["campaign_id"],
+        "campaign_name": TEST_CAMPAIGNS[2]["name"],
         "source": "smartlead",
         "channel": "email",
         "email_subject": "Re: Automate your sales pipeline",
@@ -115,14 +138,18 @@ REPLIES = [
         "draft_reply": None,
         "draft_subject": None,
         "received_at": datetime.utcnow() - timedelta(hours=3),
+        "thread": [
+            {"direction": "outbound", "subject": "Automate your sales pipeline", "body": "Hi Petr,\n\nManaging a growing sales pipeline manually is tough. Our AI-powered platform handles lead scoring, sequence automation, and CRM sync.\n\nLet me show you how we helped a similar-sized team close 40% more deals.\n\nBest,\nDaniel", "offset_min": -360},
+            {"direction": "inbound", "subject": "Re: Automate your sales pipeline", "body": "Hi,\n\nI'm out of the office until February 25th with limited access to email. I'll get back to you when I return.\n\nBest,\nPetr", "offset_min": -180},
+        ],
     },
     {
         "lead_email": "pn@getsally.io",
         "lead_first_name": "Petr",
         "lead_last_name": "Nikolaev",
         "lead_company": "GetSally",
-        "campaign_id": SMARTLEAD_CAMPAIGN_ID,
-        "campaign_name": TEST_CAMPAIGN,
+        "campaign_id": TEST_CAMPAIGNS[2]["campaign_id"],
+        "campaign_name": TEST_CAMPAIGNS[2]["name"],
         "source": "smartlead",
         "channel": "email",
         "email_subject": "Re: Let's connect about lead generation",
@@ -134,18 +161,22 @@ REPLIES = [
         "draft_reply": "Hi Petr,\n\nPerfect! I've booked Wednesday at 11am through your Calendly. Looking forward to our chat!\n\nBest regards",
         "draft_subject": "Re: Let's connect about lead generation",
         "received_at": datetime.utcnow() - timedelta(minutes=5),
+        "thread": [
+            {"direction": "outbound", "subject": "Let's connect about lead generation", "body": "Hi Petr,\n\nI've been following GetSally's growth — impressive traction! We specialize in lead generation tools for SaaS companies.\n\nI think we could help you 2x your outbound pipeline. Got time for a quick chat?\n\nBest,\nDaniel", "offset_min": -30},
+            {"direction": "inbound", "subject": "Re: Let's connect about lead generation", "body": "Sounds great! Let's do Wednesday at 11am. Here's my Calendly link: https://calendly.com/petr-nikolaev/30min\n\nCheers,\nPetr", "offset_min": -5},
+        ],
     },
 ]
 
 
 async def main():
     from app.db.database import async_session_maker
-    from app.models.reply import ProcessedReply
+    from app.models.reply import ProcessedReply, ThreadMessage
     from app.models.contact import Project
     from sqlalchemy import select, update
 
     async with async_session_maker() as session:
-        # 1. Update project campaign_filters to include our test campaign
+        # 1. Update project campaign_filters to include all test campaigns
         result = await session.execute(
             select(Project).where(Project.id == PROJECT_ID)
         )
@@ -154,30 +185,38 @@ async def main():
             print(f"Project {PROJECT_ID} not found!")
             return
 
+        campaign_names = [c["name"] for c in TEST_CAMPAIGNS]
         filters = list(project.campaign_filters or [])
-        if TEST_CAMPAIGN not in filters:
-            filters.append(TEST_CAMPAIGN)
-            # Must assign a NEW list for SQLAlchemy JSON mutation tracking
+        changed = False
+        for cname in campaign_names:
+            if cname not in filters:
+                filters.append(cname)
+                changed = True
+        if changed:
             project.campaign_filters = list(filters)
             from sqlalchemy.orm.attributes import flag_modified
             flag_modified(project, "campaign_filters")
-            print(f"Added '{TEST_CAMPAIGN}' to project campaign_filters: {filters}")
+            print(f"Updated project campaign_filters: {filters}")
         else:
-            print(f"Campaign filter already present: {filters}")
+            print(f"All campaign filters already present: {filters}")
 
-        # 2. Delete existing test replies for this campaign (clean slate)
+        # 2. Delete existing test replies + their thread messages (cascade)
         existing = await session.execute(
             select(ProcessedReply).where(
-                ProcessedReply.campaign_name == TEST_CAMPAIGN
+                ProcessedReply.campaign_name.in_(campaign_names)
             )
         )
         old = existing.scalars().all()
         if old:
             for r in old:
                 await session.delete(r)
-            print(f"Deleted {len(old)} existing test replies")
+            print(f"Deleted {len(old)} existing test replies (thread_messages cascade)")
 
-        # 3. Create new test replies
+        # Flush deletes before inserting new ones
+        await session.flush()
+
+        # 3. Create new test replies + thread messages
+        total_threads = 0
         for i, data in enumerate(REPLIES):
             reply = ProcessedReply(
                 lead_email=data["lead_email"],
@@ -200,14 +239,38 @@ async def main():
                 processed_at=datetime.utcnow(),
                 approval_status=None,  # NULL = shows as needs_reply
                 sent_to_slack=False,
+                thread_fetched_at=datetime.utcnow(),  # Prevent SmartLead re-fetch
             )
             session.add(reply)
-            print(f"  [{i+1}] {data['category']:20s} | {data['email_subject'][:50]}")
+            await session.flush()  # Get reply.id for thread messages
+
+            # Create thread messages for this reply
+            for pos, msg in enumerate(data.get("thread", [])):
+                tm = ThreadMessage(
+                    reply_id=reply.id,
+                    direction=msg["direction"],
+                    channel="email",
+                    subject=msg["subject"],
+                    body=msg["body"],
+                    activity_at=datetime.utcnow() + timedelta(minutes=msg["offset_min"]),
+                    source="smartlead",
+                    activity_type="email_sent" if msg["direction"] == "outbound" else "email_replied",
+                    position=pos,
+                )
+                session.add(tm)
+                total_threads += 1
+
+            print(f"  [{i+1}] {data['category']:20s} | {data['campaign_name']:25s} | {len(data.get('thread', []))} msgs | {data['email_subject'][:40]}")
 
         await session.commit()
-        print(f"\nCreated {len(REPLIES)} test replies for project '{project.name}' (id={PROJECT_ID})")
-        print(f"Campaign: {TEST_CAMPAIGN}")
-        print(f"\nView at: http://localhost:5179/replies (select project TEST_LORD_TEST)")
+        print(f"\nCreated {len(REPLIES)} test replies + {total_threads} thread messages")
+        print(f"Project: '{project.name}' (id={PROJECT_ID})")
+        print(f"Campaigns ({len(TEST_CAMPAIGNS)}):")
+        for c in TEST_CAMPAIGNS:
+            count = sum(1 for r in REPLIES if r["campaign_name"] == c["name"])
+            msgs = sum(len(r.get("thread", [])) for r in REPLIES if r["campaign_name"] == c["name"])
+            print(f"  - {c['name']} ({count} replies, {msgs} thread messages)")
+        print(f"\nView at: http://localhost:5179/replies?project=test_lord_test")
 
 
 if __name__ == "__main__":

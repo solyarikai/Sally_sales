@@ -255,8 +255,39 @@ test.describe('Send Reply → Verify Conversation History', () => {
     console.log(`UI sidebar: ${uiCampaignCount} campaigns, expected: ${expectedCampaignCount}`);
     expect(uiCampaignCount).toBe(expectedCampaignCount);
 
-    // Verify clicking a campaign filters messages
-    if (uiCampaignCount > 0) {
+    // Per-campaign filtering: verify clicking campaigns changes message list
+    if (uiCampaignCount > 1) {
+      // Click first campaign and record state
+      await campaignButtons.first().click();
+      await page.waitForTimeout(500);
+      const filteredBubbles = modalPanel.locator('.whitespace-pre-wrap');
+      await expect(filteredBubbles.first()).toBeVisible({ timeout: 5000 });
+      const countA = await filteredBubbles.count();
+      expect(countA).toBeGreaterThan(0);
+      const firstTextA = (await filteredBubbles.first().textContent()) || '';
+
+      // Click a DIFFERENT campaign
+      await campaignButtons.nth(1).click();
+      await page.waitForTimeout(500);
+      await expect(filteredBubbles.first()).toBeVisible({ timeout: 5000 });
+      const countB = await filteredBubbles.count();
+      expect(countB).toBeGreaterThan(0);
+      const firstTextB = (await filteredBubbles.first().textContent()) || '';
+
+      // ASSERT: visible message count changed OR content changed (campaigns differ)
+      const countDiffers = countA !== countB;
+      const textDiffers = firstTextA !== firstTextB;
+      expect(
+        countDiffers || textDiffers,
+        `Per-campaign: switching sidebar campaign must change count (${countA}→${countB}) or content`,
+      ).toBeTruthy();
+
+      // ASSERT: neither count equals total messages (not showing all)
+      expect(countA, `Per-campaign: campaign A count (${countA}) must be < total (${modalTotalMessages})`).toBeLessThan(modalTotalMessages);
+      expect(countB, `Per-campaign: campaign B count (${countB}) must be < total (${modalTotalMessages})`).toBeLessThan(modalTotalMessages);
+
+      console.log(`Per-campaign filtering: A=${countA} msgs, B=${countB} msgs, total=${modalTotalMessages}`);
+    } else if (uiCampaignCount > 0) {
       await campaignButtons.first().click();
       const filteredBubbles = modalPanel.locator('.whitespace-pre-wrap');
       await expect(filteredBubbles.first()).toBeVisible({ timeout: 5000 });

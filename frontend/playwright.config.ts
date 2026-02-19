@@ -5,6 +5,7 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
+  workers: 1,  // Sequential file execution: read-only tests run before send tests
   retries: 0,
   use: {
     baseURL: process.env.PW_BASE_URL || 'http://localhost:5179',

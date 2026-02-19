@@ -645,7 +645,7 @@ export function RepliesPage() {
               return (
                 <div
                   key={reply.id}
-                  className="rounded-md border transition-colors"
+                  className="rounded-md border transition-colors overflow-hidden"
                   style={{
                     background: t.cardBg,
                     borderColor: t.cardBorder,
@@ -795,7 +795,7 @@ export function RepliesPage() {
                         </button>
                         {isThreadOpen && (
                           <div className="mt-1.5 mb-2">
-                            {history && history.campaigns.length > 0 && (
+                            {history && history.campaigns.length > 1 && (
                               <div className="mb-1.5">
                                 <CampaignDropdown
                                   campaigns={history.campaigns}
@@ -810,7 +810,7 @@ export function RepliesPage() {
                               compact
                               isDark={isDark}
                               showDateSeparators
-                              showCampaignMarkers
+                              showCampaignMarkers={!!(history && history.campaigns.length > 1)}
                               filterCampaign={selectedHistoryCampaign[reply.id] ?? null}
                               loading={isThreadLoading}
                             />
@@ -954,7 +954,7 @@ export function RepliesPage() {
                     {/* Right: AI reasoning + contact info sidebar — sticky while scrolling */}
                     {(hasReasoning || contactInfo) && (
                       <div
-                        className="w-64 flex-shrink-0 border-l px-3 py-3"
+                        className="w-64 flex-shrink-0 border-l px-3 py-3 overflow-hidden"
                         style={{
                           borderColor: t.divider,
                           background: t.reasoningBg,
