@@ -55,6 +55,13 @@ export function CampaignDropdown({
     if (isOpen) searchRef.current?.focus();
   }, [isOpen]);
 
+  // Filter by search (must be before any early return to maintain hook order)
+  const filtered = useMemo(() => {
+    if (!searchQuery) return campaigns;
+    const q = searchQuery.toLowerCase();
+    return campaigns.filter(c => c.campaign_name.toLowerCase().includes(q));
+  }, [campaigns, searchQuery]);
+
   // Don't render if 0 campaigns
   if (campaigns.length === 0) return null;
 
@@ -62,13 +69,6 @@ export function CampaignDropdown({
   const selectedInfo = selectedCampaign
     ? campaigns.find(c => `${c.channel}::${c.campaign_name}` === selectedCampaign)
     : null;
-
-  // Filter by search
-  const filtered = useMemo(() => {
-    if (!searchQuery) return campaigns;
-    const q = searchQuery.toLowerCase();
-    return campaigns.filter(c => c.campaign_name.toLowerCase().includes(q));
-  }, [campaigns, searchQuery]);
 
   // Show limited or all
   const visible = showAll || searchQuery ? filtered : filtered.slice(0, INITIAL_SHOW);

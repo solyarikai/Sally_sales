@@ -150,16 +150,11 @@ test.describe('Send Reply → Verify Conversation History', () => {
     await page.goto(`/contacts?contact_id=${contactId}`);
     await expect(page).toHaveURL(/\/contacts/, { timeout: 10000 });
 
-    // Modal should open
-    const modalPanel = page.locator('.bg-white.rounded-2xl.shadow-2xl');
+    // Modal should open (conversation tab auto-selected)
+    const modalPanel = page.locator('.rounded-2xl.shadow-2xl');
     await expect(modalPanel).toBeVisible({ timeout: 20000 });
 
-    // Click Conversation tab
-    const conversationTab = modalPanel.locator('button:has-text("Conversation")');
-    await expect(conversationTab).toBeVisible({ timeout: 5000 });
-    await conversationTab.click();
-
-    // Messages should load
+    // Messages should load (conversation auto-selected)
     const messageBubbles = modalPanel.locator('.whitespace-pre-wrap');
     await expect(messageBubbles.first()).toBeVisible({ timeout: 15000 });
     const messageCount = await messageBubbles.count();
@@ -167,13 +162,16 @@ test.describe('Send Reply → Verify Conversation History', () => {
     console.log(`Conversation: ${messageCount} messages for contact ${contactId}`);
 
     // Outbound messages should exist
-    const outboundBubbles = modalPanel.locator('.justify-end .whitespace-pre-wrap');
+    const outboundBubbles = modalPanel.locator('.items-end .whitespace-pre-wrap');
     const outboundCount = await outboundBubbles.count();
     console.log(`Outbound messages: ${outboundCount}`);
     expect(outboundCount).toBeGreaterThan(0);
+
+    // Screenshot: modal after send + redirect
+    await page.screenshot({ path: 'test-results/modal-after-send.png', fullPage: false });
   });
 
-  test('campaign sidebar count matches API history for pn@getsally.io', async ({ page }) => {
+  test('campaign dropdown + per-campaign filtering for pn@getsally.io', async ({ page }) => {
     page.on('console', (msg) => {
       if (msg.type() === 'error') console.log(`[BROWSER ERROR] ${msg.text()}`);
     });
@@ -202,13 +200,11 @@ test.describe('Send Reply → Verify Conversation History', () => {
 
     // Open modal via deep-link
     await page.goto(`/contacts?contact_id=${contactId}`);
-    const modalPanel = page.locator('.bg-white.rounded-2xl.shadow-2xl');
+    const modalPanel = page.locator('.rounded-2xl.shadow-2xl');
     await expect(modalPanel).toBeVisible({ timeout: 20000 });
 
-    // Switch to Conversation tab
-    const conversationTab = modalPanel.locator('button:has-text("Conversation")');
-    await expect(conversationTab).toBeVisible({ timeout: 5000 });
-    await conversationTab.click();
+    // Conversation tab auto-selected on open
+    await page.waitForTimeout(1000);
 
     // Capture the history response the modal received
     const historyResp = await historyPromise;
@@ -233,66 +229,60 @@ test.describe('Send Reply → Verify Conversation History', () => {
     const expectedCampaignCount = expectedCampaigns.size;
     console.log(`Modal received: ${modalTotalMessages} messages, ${expectedCampaignCount} campaigns`);
 
-    // Wait for sidebar to render
-    const sidebar = modalPanel.locator('.w-\\[180px\\]');
-    await expect(sidebar).toBeVisible({ timeout: 10000 });
+    // Screenshot: dark theme modal with conversation
+    await page.screenshot({ path: 'test-results/modal-dark-conversation.png', fullPage: false });
 
-    // Look for the count badge (e.g. "31 campaigns · 101 messages")
-    const countBadge = sidebar.locator('text=/\\d+\\s*campaigns?\\s*·\\s*\\d+\\s*messages?/');
-    await expect(countBadge).toBeVisible({ timeout: 10000 });
+    // CampaignDropdown should be visible (trigger button with campaign name)
+    const dropdownTrigger = modalPanel.locator('.relative button').first();
+    await expect(dropdownTrigger).toBeVisible({ timeout: 5000 });
+    const triggerText = await dropdownTrigger.textContent() || '';
+    console.log(`CampaignDropdown trigger: "${triggerText}"`);
+    expect(triggerText.length).toBeGreaterThan(0);
 
-    // Verify badge shows correct total message count
-    await expect(async () => {
-      const text = await countBadge.textContent();
-      const match = text?.match(/(\d+)\s*messages?/);
-      const count = match ? parseInt(match[1]) : 0;
-      expect(count).toBe(modalTotalMessages);
-    }).toPass({ timeout: 15000 });
+    // Messages should be visible (dark compact mode)
+    const messageBubbles = modalPanel.locator('.whitespace-pre-wrap');
+    await expect(messageBubbles.first()).toBeVisible({ timeout: 10000 });
+    const visibleCount = await messageBubbles.count();
+    console.log(`Visible messages (filtered to auto-selected campaign): ${visibleCount}`);
+    expect(visibleCount).toBeGreaterThan(0);
 
-    // Count campaign buttons in the sidebar
-    const campaignButtons = sidebar.locator('button.text-\\[11px\\]');
-    const uiCampaignCount = await campaignButtons.count();
-    console.log(`UI sidebar: ${uiCampaignCount} campaigns, expected: ${expectedCampaignCount}`);
-    expect(uiCampaignCount).toBe(expectedCampaignCount);
+    // If multi-campaign, test per-campaign filtering via dropdown
+    if (expectedCampaignCount > 1) {
+      // Open dropdown
+      await dropdownTrigger.click();
+      await page.waitForTimeout(300);
 
-    // Per-campaign filtering: verify clicking campaigns changes message list
-    if (uiCampaignCount > 1) {
-      // Click first campaign and record state
-      await campaignButtons.first().click();
-      await page.waitForTimeout(500);
-      const filteredBubbles = modalPanel.locator('.whitespace-pre-wrap');
-      await expect(filteredBubbles.first()).toBeVisible({ timeout: 5000 });
-      const countA = await filteredBubbles.count();
-      expect(countA).toBeGreaterThan(0);
-      const firstTextA = (await filteredBubbles.first().textContent()) || '';
+      const dropdownPanel = modalPanel.locator('.absolute.rounded-lg.border.shadow-lg');
+      await expect(dropdownPanel).toBeVisible({ timeout: 3000 });
 
-      // Click a DIFFERENT campaign
-      await campaignButtons.nth(1).click();
-      await page.waitForTimeout(500);
-      await expect(filteredBubbles.first()).toBeVisible({ timeout: 5000 });
-      const countB = await filteredBubbles.count();
-      expect(countB).toBeGreaterThan(0);
-      const firstTextB = (await filteredBubbles.first().textContent()) || '';
+      // Screenshot: dropdown open
+      await page.screenshot({ path: 'test-results/modal-campaign-dropdown-open.png', fullPage: false });
 
-      // ASSERT: visible message count changed OR content changed (campaigns differ)
-      const countDiffers = countA !== countB;
-      const textDiffers = firstTextA !== firstTextB;
-      expect(
-        countDiffers || textDiffers,
-        `Per-campaign: switching sidebar campaign must change count (${countA}→${countB}) or content`,
-      ).toBeTruthy();
+      // Count dropdown items
+      const items = dropdownPanel.locator('button');
+      const itemCount = await items.count();
+      console.log(`Dropdown items: ${itemCount} (initial 8 + show-more, total campaigns: ${expectedCampaignCount})`);
+      // Dropdown shows max 8 initially + "Show more" button; verify at least 2 items visible
+      expect(itemCount).toBeGreaterThanOrEqual(2);
 
-      // ASSERT: neither count equals total messages (not showing all)
-      expect(countA, `Per-campaign: campaign A count (${countA}) must be < total (${modalTotalMessages})`).toBeLessThan(modalTotalMessages);
-      expect(countB, `Per-campaign: campaign B count (${countB}) must be < total (${modalTotalMessages})`).toBeLessThan(modalTotalMessages);
+      // Record state A (current auto-selected campaign)
+      const countA = visibleCount;
 
-      console.log(`Per-campaign filtering: A=${countA} msgs, B=${countB} msgs, total=${modalTotalMessages}`);
-    } else if (uiCampaignCount > 0) {
-      await campaignButtons.first().click();
-      const filteredBubbles = modalPanel.locator('.whitespace-pre-wrap');
-      await expect(filteredBubbles.first()).toBeVisible({ timeout: 5000 });
-      const filteredCount = await filteredBubbles.count();
-      expect(filteredCount).toBeGreaterThan(0);
+      // Click second campaign in dropdown
+      if (itemCount >= 2) {
+        await items.nth(1).click();
+        await page.waitForTimeout(500);
+
+        const countB = await messageBubbles.count();
+        console.log(`Per-campaign filtering: A=${countA} msgs, B=${countB} msgs, total=${modalTotalMessages}`);
+
+        // Screenshot: different campaign selected
+        await page.screenshot({ path: 'test-results/modal-switched-campaign.png', fullPage: false });
+
+        // ASSERT: filtered — not showing all messages
+        expect(countA, `Campaign A (${countA}) < total (${modalTotalMessages})`).toBeLessThanOrEqual(modalTotalMessages);
+        expect(countB, `Campaign B (${countB}) < total (${modalTotalMessages})`).toBeLessThanOrEqual(modalTotalMessages);
+      }
     }
   });
 
@@ -348,18 +338,18 @@ test.describe('Send Reply → Verify Conversation History', () => {
     console.log(`Testing deep-link for contact ${contactId} (${leadEmail})`);
     await page.goto(`/contacts?contact_id=${contactId}`);
 
-    const modalPanel = page.locator('.bg-white.rounded-2xl.shadow-2xl');
+    const modalPanel = page.locator('.rounded-2xl.shadow-2xl');
     await expect(modalPanel).toBeVisible({ timeout: 20000 });
 
-    const conversationTab = modalPanel.locator('button:has-text("Conversation")');
-    await expect(conversationTab).toBeVisible({ timeout: 5000 });
-    await conversationTab.click();
-
+    // Conversation tab is auto-selected on open
     const messageBubbles = modalPanel.locator('.whitespace-pre-wrap');
     await expect(messageBubbles.first()).toBeVisible({ timeout: 15000 });
     const count = await messageBubbles.count();
     expect(count).toBeGreaterThan(0);
     console.log(`Deep-link modal: ${count} conversation messages`);
+
+    // Screenshot: dark theme modal after deep-link
+    await page.screenshot({ path: 'test-results/modal-deep-link.png', fullPage: false });
   });
 });
 

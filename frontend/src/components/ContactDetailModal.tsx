@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles, ExternalLink, Link2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
 import type { Contact } from '../api/contacts';
 import { contactsApi } from '../api/contacts';
 import { ConversationThread, adaptContactHistory } from './ConversationThread';
-import { CampaignSidebar } from './CampaignSidebar';
+import { CampaignDropdown } from './CampaignDropdown';
+import type { FullHistoryCampaign } from '../api/replies';
+import { useTheme } from '../hooks/useTheme';
 
 interface Activity {
   id: number;
@@ -16,6 +18,48 @@ interface Activity {
   channel?: 'email' | 'linkedin';
   campaign?: string;
   automation?: string;
+}
+
+// Build CampaignDropdown data from activities
+function buildCampaignsFromActivities(activities: Activity[]): FullHistoryCampaign[] {
+  const map = new Map<string, { channel: string; campaign_name: string; count: number; latest: string; earliest: string }>();
+  for (const a of activities) {
+    const name = a.campaign || a.automation || 'Unknown';
+    const ch = a.channel || 'email';
+    const key = `${ch}::${name}`;
+    const entry = map.get(key);
+    if (entry) {
+      entry.count++;
+      if (a.timestamp > entry.latest) entry.latest = a.timestamp;
+      if (a.timestamp < entry.earliest) entry.earliest = a.timestamp;
+    } else {
+      map.set(key, { channel: ch, campaign_name: name, count: 1, latest: a.timestamp, earliest: a.timestamp });
+    }
+  }
+  return Array.from(map.values())
+    .map(e => ({ channel: e.channel, campaign_name: e.campaign_name, message_count: e.count, latest_at: e.latest, earliest_at: e.earliest }))
+    .sort((a, b) => b.latest_at.localeCompare(a.latest_at));
+}
+
+// Theme tokens (matching RepliesPage)
+function modalTheme(isDark: boolean) {
+  return isDark ? {
+    bg: '#1e1e1e', cardBg: '#252526', border: '#333', divider: '#2d2d2d',
+    text1: '#d4d4d4', text2: '#b0b0b0', text3: '#969696', text4: '#858585', text5: '#6e6e6e', text6: '#4e4e4e',
+    inputBg: '#3c3c3c', inputBorder: '#505050', badgeBg: '#2d2d2d', badgeText: '#858585',
+    tabActive: '#d4d4d4', tabInactive: '#6e6e6e', tabBorder: '#d4d4d4',
+    btnPrimaryBg: '#d4d4d4', btnPrimaryText: '#1e1e1e', btnPrimaryHover: '#e0e0e0',
+    btnGhostHover: '#2d2d2d', overlay: 'rgba(0,0,0,0.6)',
+    composeBg: '#252526', composeBorder: '#333',
+  } : {
+    bg: '#ffffff', cardBg: '#ffffff', border: '#e0e0e0', divider: '#f0f0f0',
+    text1: '#1a1a1a', text2: '#333', text3: '#555', text4: '#777', text5: '#999', text6: '#bbb',
+    inputBg: '#f5f5f5', inputBorder: '#ddd', badgeBg: '#eee', badgeText: '#666',
+    tabActive: '#1a1a1a', tabInactive: '#999', tabBorder: '#1a1a1a',
+    btnPrimaryBg: '#333', btnPrimaryText: '#fff', btnPrimaryHover: '#222',
+    btnGhostHover: '#f5f5f5', overlay: 'rgba(0,0,0,0.4)',
+    composeBg: '#ffffff', composeBorder: '#e0e0e0',
+  };
 }
 
 interface ContactDetailModalProps {
@@ -35,21 +79,23 @@ function ConversationView({
   activities,
   contactName,
   compact = false,
+  isDark = false,
   filterCampaign = null,
 }: {
   activities: Activity[];
   contactName: string;
   compact?: boolean;
+  isDark?: boolean;
   filterCampaign?: string | null;
 }) {
   return (
     <ConversationThread
       messages={adaptContactHistory(activities)}
       contactName={contactName}
-      showAvatars
       showDateSeparators
-      showCampaignMarkers
+      showCampaignMarkers={false}
       compact={compact}
+      isDark={isDark}
       filterCampaign={filterCampaign}
     />
   );
@@ -66,6 +112,8 @@ function ComposeArea({
   setSavedDraft,
   isSaving,
   handleSaveDraft,
+  isDark = false,
+  t,
 }: {
   contact: Contact;
   replyChannel: 'email' | 'linkedin' | null;
@@ -76,8 +124,11 @@ function ComposeArea({
   setSavedDraft: (v: boolean) => void;
   isSaving: boolean;
   handleSaveDraft: () => void;
+  isDark?: boolean;
+  t?: ReturnType<typeof modalTheme>;
 }) {
-  // Auto-select channel on first render if not set
+  const th = t || modalTheme(isDark);
+
   useEffect(() => {
     if (replyChannel) return;
     if (contact.smartlead_id) {
@@ -92,34 +143,34 @@ function ComposeArea({
   const channelLabel = replyChannel === 'email' ? 'Email' : 'LinkedIn';
   const viaLabel = replyChannel === 'email' ? 'via Smartlead' : 'via GetSales';
 
-  // If no channel available at all
   if (!canEmail && !canLinkedin) {
     return (
-      <div className="border-t border-gray-100 p-4 bg-white">
-        <p className="text-[11px] text-gray-400 text-center">No reply channels available</p>
+      <div className="p-4" style={{ borderTop: `1px solid ${th.border}`, background: th.composeBg }}>
+        <p className="text-[11px] text-center" style={{ color: th.text5 }}>No reply channels available</p>
       </div>
     );
   }
 
   return (
-    <div className="border-t border-gray-100 p-4 bg-white">
+    <div className="p-4" style={{ borderTop: `1px solid ${th.border}`, background: th.composeBg }}>
       <div className="flex items-center gap-2 mb-3 px-1">
-        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-        <p className="text-[11px] text-amber-600">Draft mode — replies are saved but NOT sent automatically</p>
+        <AlertTriangle className="w-3.5 h-3.5" style={{ color: isDark ? '#d4a464' : '#f59e0b' }} />
+        <p className="text-[11px]" style={{ color: isDark ? '#d4a464' : '#d97706' }}>Draft mode — replies are saved but NOT sent automatically</p>
       </div>
 
       <div className="flex items-center gap-2 mb-2">
-        <span className={cn(
-          "px-2 py-0.5 rounded-full text-[10px] font-medium",
-          replyChannel === 'email' ? "bg-purple-50 text-purple-600" : "bg-blue-50 text-blue-600"
-        )}>
+        <span
+          className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+          style={{ background: isDark ? '#2d2d2d' : (replyChannel === 'email' ? '#faf5ff' : '#eff6ff'), color: isDark ? th.text3 : (replyChannel === 'email' ? '#9333ea' : '#2563eb') }}
+        >
           {channelLabel}
         </span>
-        <span className="text-[10px] text-gray-400">{viaLabel}</span>
+        <span className="text-[10px]" style={{ color: th.text5 }}>{viaLabel}</span>
         {canEmail && canLinkedin && (
           <button
             onClick={() => setReplyChannel(replyChannel === 'email' ? 'linkedin' : 'email')}
-            className="text-[10px] text-blue-500 hover:text-blue-700 transition-colors ml-1"
+            className="text-[10px] transition-colors ml-1 cursor-pointer"
+            style={{ color: isDark ? th.text3 : '#3b82f6' }}
           >
             Switch
           </button>
@@ -131,19 +182,19 @@ function ComposeArea({
           value={draftReply}
           onChange={(e) => { setDraftReply(e.target.value); setSavedDraft(false); }}
           placeholder={replyChannel === 'email' ? "Write your email reply..." : "Write your LinkedIn message..."}
-          className="flex-1 p-3 border border-gray-200 rounded-xl resize-none text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 min-h-[60px] max-h-[120px]"
+          className="flex-1 p-3 rounded-xl resize-none text-sm focus:outline-none min-h-[60px] max-h-[120px]"
+          style={{ background: th.inputBg, color: th.text1, border: `1px solid ${th.inputBorder}` }}
           autoFocus
           rows={2}
         />
         <button
           onClick={handleSaveDraft}
           disabled={!draftReply.trim() || isSaving}
-          className={cn(
-            "self-end p-2.5 rounded-xl transition-all",
-            draftReply.trim()
-              ? "bg-blue-500 text-white hover:bg-blue-600 shadow-sm"
-              : "bg-gray-100 text-gray-400 cursor-not-allowed"
-          )}
+          className="self-end p-2.5 rounded-xl transition-all cursor-pointer"
+          style={{
+            background: draftReply.trim() ? th.btnPrimaryBg : th.badgeBg,
+            color: draftReply.trim() ? th.btnPrimaryText : th.text5,
+          }}
         >
           <Send className="w-4 h-4" />
         </button>
@@ -163,6 +214,9 @@ export function ContactDetailModal({
   replyMode = false, contactList = [], currentIndex = 0,
   onNavigate, onMarkProcessed,
 }: ContactDetailModalProps) {
+  const { isDark } = useTheme();
+  const t = modalTheme(isDark);
+
   const [activeTab, setActiveTab] = useState<'details' | 'conversation' | 'sequence'>('details');
   const [sequencePlan, setSequencePlan] = useState<any>(null);
   const [sequenceLoading, setSequenceLoading] = useState(false);
@@ -177,6 +231,9 @@ export function ContactDetailModal({
   const [isAddingToProject, setIsAddingToProject] = useState(false);
   const [addedToProject, setAddedToProject] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+
+  // Build campaigns list for CampaignDropdown
+  const campaigns = useMemo(() => buildCampaignsFromActivities(activities), [activities]);
 
   // AI draft state
   const [aiDraftLoading, setAiDraftLoading] = useState(false);
@@ -244,7 +301,7 @@ export function ContactDetailModal({
       const fetchHistory = async () => {
         setIsLoadingHistory(true);
         try {
-          const response = await fetch(`/api/contacts/${contact.id}/history`, { signal });
+          const response = await fetch(`/api/contacts/${contact.id}/history`, { signal, cache: 'no-store' });
           if (response.ok) {
             const data = await response.json();
             const allActivities: Activity[] = [
@@ -398,19 +455,20 @@ export function ContactDetailModal({
     });
   };
 
-  // ── Reply mode: 3-column split layout ─────────────────────────────
+  // ── Reply mode: 2-column split layout ──────────────────────────────
   if (replyMode) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
+        <div className="absolute inset-0 backdrop-blur-sm" style={{ background: t.overlay }} onClick={onClose} />
+        <div className="relative rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden" style={{ background: t.cardBg }}>
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-white/80 backdrop-blur-lg">
+          <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${t.border}`, background: t.cardBg }}>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onNavigate?.(currentIndex - 1)}
                 disabled={currentIndex <= 0}
-                className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-20 transition-colors"
+                className="p-1.5 rounded-lg disabled:opacity-20 transition-colors cursor-pointer"
+                style={{ color: t.text3 }}
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -418,10 +476,10 @@ export function ContactDetailModal({
                 {contact.first_name?.[0]}{contact.last_name?.[0]}
               </div>
               <div className="ml-1">
-                <h2 className="text-[15px] font-semibold text-gray-900 leading-tight">
+                <h2 className="text-[15px] font-semibold leading-tight" style={{ color: t.text1 }}>
                   {contact.first_name} {contact.last_name}
                 </h2>
-                <p className="text-[11px] text-gray-400 leading-tight">
+                <p className="text-[11px] leading-tight" style={{ color: t.text4 }}>
                   {contact.email}
                   {contact.company_name ? ` · ${contact.company_name}` : ''}
                   {contact.job_title ? ` · ${contact.job_title}` : ''}
@@ -430,65 +488,59 @@ export function ContactDetailModal({
               <button
                 onClick={() => onNavigate?.(currentIndex + 1)}
                 disabled={currentIndex >= contactList.length - 1}
-                className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-20 transition-colors ml-1"
+                className="p-1.5 rounded-lg disabled:opacity-20 transition-colors ml-1 cursor-pointer"
+                style={{ color: t.text3 }}
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
-              <span className="text-[11px] text-gray-300 ml-1 tabular-nums">
+              <span className="text-[11px] ml-1 tabular-nums" style={{ color: t.text6 }}>
                 {currentIndex + 1}/{contactList.length}
               </span>
             </div>
             <div className="flex items-center gap-2">
               {aiCategory && (
-                <span className={cn(
-                  "px-2 py-0.5 rounded-full text-[11px] font-medium",
-                  aiCategory === 'interested' || aiCategory === 'meeting_request' ? "bg-green-50 text-green-600" :
-                  aiCategory === 'not_interested' ? "bg-red-50 text-red-500" :
-                  aiCategory === 'question' ? "bg-blue-50 text-blue-600" :
-                  "bg-gray-100 text-gray-500"
-                )}>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ background: t.badgeBg, color: t.badgeText }}>
                   {aiCategory.replace(/_/g, ' ')}
                 </span>
               )}
               {contact.smartlead_id && (
-                <a
-                  href={`https://app.smartlead.ai/app/email-accounts/leads/${contact.smartlead_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-gray-500 hover:bg-gray-100 transition-colors"
-                  title="Open in SmartLead"
-                >
+                <a href={`https://app.smartlead.ai/app/email-accounts/leads/${contact.smartlead_id}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-colors" style={{ color: t.text5 }} title="Open in SmartLead">
                   <ExternalLink className="w-3 h-3" />
                 </a>
               )}
               <button
                 onClick={handleShareLink}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-gray-500 hover:bg-gray-100 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-colors cursor-pointer"
+                style={{ color: t.text5 }}
                 title="Copy link to contact"
               >
                 <Link2 className="w-3 h-3" />
               </button>
-              <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-                <X className="w-4 h-4 text-gray-400" />
+              <button onClick={onClose} className="p-1.5 rounded-lg transition-colors cursor-pointer" style={{ color: t.text4 }}>
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* 3-column split content */}
+          {/* 2-column split content */}
           <div className="flex-1 flex overflow-hidden">
-            {/* Left: Campaign sidebar */}
-            <CampaignSidebar
-              activities={activities}
-              selectedCampaign={selectedCampaign}
-              onSelect={setSelectedCampaign}
-            />
+            {/* Left: Conversation with CampaignDropdown */}
+            <div className="flex-1 flex flex-col min-w-0" style={{ background: isDark ? '#1e1e1e' : '#fafafa' }}>
+              {/* Campaign dropdown bar */}
+              <div className="px-4 py-2 flex items-center gap-2" style={{ borderBottom: `1px solid ${t.divider}` }}>
+                <CampaignDropdown
+                  campaigns={campaigns}
+                  selectedCampaign={selectedCampaign}
+                  onSelect={setSelectedCampaign}
+                  isDark={isDark}
+                />
+              </div>
 
-            {/* Center: Conversation (messenger view) */}
-            <div className="flex-1 flex flex-col bg-white min-w-0">
               {isLoadingHistory ? (
                 <div className="flex-1 p-4 space-y-3">
                   {[...Array(4)].map((_, i) => (
-                    <div key={i} className="animate-pulse bg-gray-200/20 rounded h-4" style={{ width: `${60 + (i % 3) * 15}%` }} />
+                    <div key={i} className="animate-pulse rounded h-4" style={{ width: `${60 + (i % 3) * 15}%`, background: t.divider }} />
                   ))}
                 </div>
               ) : (
@@ -496,62 +548,48 @@ export function ContactDetailModal({
                   activities={activities}
                   contactName={contactFirstName}
                   compact
+                  isDark={isDark}
                   filterCampaign={selectedCampaign}
                 />
               )}
             </div>
 
             {/* Right: AI Draft + Reply */}
-            <div className="w-[320px] flex flex-col border-l border-gray-100 bg-gray-50/50">
+            <div className="w-[320px] flex flex-col" style={{ borderLeft: `1px solid ${t.border}`, background: t.cardBg }}>
               {/* Contact summary */}
-              <div className="px-4 py-3 border-b border-gray-100">
+              <div className="px-4 py-3" style={{ borderBottom: `1px solid ${t.divider}` }}>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                   <div>
-                    <span className="text-gray-400 text-[10px] uppercase tracking-wider">Status</span>
-                    <div className="font-medium text-gray-700">{contact.status || '—'}</div>
+                    <span className="text-[10px] uppercase tracking-wider" style={{ color: t.text5 }}>Status</span>
+                    <div className="font-medium" style={{ color: t.text2 }}>{contact.status || '—'}</div>
                   </div>
                   <div>
-                    <span className="text-gray-400 text-[10px] uppercase tracking-wider">Source</span>
-                    <div className="font-medium text-gray-700">{contact.source || '—'}</div>
+                    <span className="text-[10px] uppercase tracking-wider" style={{ color: t.text5 }}>Source</span>
+                    <div className="font-medium" style={{ color: t.text2 }}>{contact.source || '—'}</div>
                   </div>
-                  {contact.campaigns && contact.campaigns.length > 0 && (
-                    <div className="col-span-2 mt-1">
-                      <span className="text-gray-400 text-[10px] uppercase tracking-wider">Campaigns</span>
-                      <div className="font-medium text-gray-700 text-[11px] line-clamp-2">{contact.campaigns.map(c => c.name).join(', ')}</div>
-                    </div>
-                  )}
                 </div>
               </div>
 
               {/* AI Draft */}
               <div className="flex-1 px-4 py-3 flex flex-col min-h-0">
                 <div className="flex items-center gap-1.5 mb-3">
-                  <Sparkles className="w-3.5 h-3.5 text-purple-500" />
-                  <span className="text-xs font-semibold text-gray-700">AI Suggested Reply</span>
+                  <Sparkles className="w-3.5 h-3.5" style={{ color: isDark ? '#a78bfa' : '#8b5cf6' }} />
+                  <span className="text-xs font-semibold" style={{ color: t.text2 }}>AI Suggested Reply</span>
                 </div>
 
                 {aiDraftLoading ? (
-                  <div className="flex items-center gap-2 text-xs text-gray-400 py-4">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Generating draft...
+                  <div className="flex items-center gap-2 text-xs py-4" style={{ color: t.text5 }}>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating draft...
                   </div>
                 ) : (
                   <div className="flex-1 flex flex-col min-h-0">
-                    {/* Channel selector */}
                     {replyChannel && (
                       <div className="flex items-center gap-2 mb-2">
-                        <span className={cn(
-                          "px-2 py-0.5 rounded-full text-[10px] font-medium",
-                          replyChannel === 'email' ? "bg-purple-50 text-purple-600" : "bg-blue-50 text-blue-600"
-                        )}>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ background: t.badgeBg, color: t.badgeText }}>
                           {replyChannel === 'email' ? 'Email' : 'LinkedIn'}
                         </span>
-                        <button
-                          onClick={() => setReplyChannel(replyChannel === 'email' ? 'linkedin' : 'email')}
-                          className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
-                        >
-                          Switch
-                        </button>
+                        <button onClick={() => setReplyChannel(replyChannel === 'email' ? 'linkedin' : 'email')}
+                          className="text-[10px] transition-colors cursor-pointer" style={{ color: t.text5 }}>Switch</button>
                       </div>
                     )}
 
@@ -559,28 +597,19 @@ export function ContactDetailModal({
                       value={draftReply}
                       onChange={(e) => { setDraftReply(e.target.value); setSavedDraft(false); }}
                       placeholder="Write your reply..."
-                      className="flex-1 w-full p-3 border border-gray-200 rounded-xl resize-none text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 min-h-[100px] bg-white transition-all"
+                      className="flex-1 w-full p-3 rounded-xl resize-none text-[13px] focus:outline-none min-h-[100px] transition-all"
+                      style={{ background: t.inputBg, color: t.text1, border: `1px solid ${t.inputBorder}` }}
                     />
 
                     <div className="flex items-center justify-between mt-3 gap-2">
-                      <button
-                        onClick={handleSkip}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                      >
-                        <SkipForward className="w-3 h-3" />
-                        Skip
+                      <button onClick={handleSkip}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer"
+                        style={{ color: t.text4 }}>
+                        <SkipForward className="w-3 h-3" /> Skip
                       </button>
-
-                      <button
-                        onClick={handleSaveDraft}
-                        disabled={!draftReply.trim() || isSaving}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold transition-all",
-                          draftReply.trim()
-                            ? "bg-blue-500 text-white hover:bg-blue-600 shadow-sm"
-                            : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                        )}
-                      >
+                      <button onClick={handleSaveDraft} disabled={!draftReply.trim() || isSaving}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer"
+                        style={{ background: draftReply.trim() ? t.btnPrimaryBg : t.badgeBg, color: draftReply.trim() ? t.btnPrimaryText : t.text5 }}>
                         <Send className="w-3 h-3" />
                         {isSaving ? 'Saving...' : savedDraft ? 'Saved' : 'Save & Next'}
                       </button>
@@ -601,89 +630,61 @@ export function ContactDetailModal({
     );
   }
 
-  // ── Normal mode: 2-column (sidebar + conversation) ────────────────
+  // ── Normal mode: conversation-first with tabs ─────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden">
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: t.overlay }} onClick={onClose} />
+      <div className="relative rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden" style={{ background: t.cardBg }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${t.border}` }}>
           <div className="flex items-center gap-4">
             <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-base font-semibold">
               {contact.first_name?.[0]}{contact.last_name?.[0]}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 className="text-lg font-semibold" style={{ color: t.text1 }}>
                 {contact.first_name} {contact.last_name}
               </h2>
-              <p className="text-sm text-gray-400">{contact.email}</p>
+              <p className="text-sm" style={{ color: t.text4 }}>{contact.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {contact.smartlead_id && (
-              <a
-                href={`https://app.smartlead.ai/app/email-accounts/leads/${contact.smartlead_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] text-gray-500 hover:bg-gray-100 transition-colors"
-                title="Open in SmartLead"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                SmartLead
+              <a href={`https://app.smartlead.ai/app/email-accounts/leads/${contact.smartlead_id}`} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] transition-colors"
+                style={{ color: t.text5 }} title="Open in SmartLead">
+                <ExternalLink className="w-3.5 h-3.5" /> SmartLead
               </a>
             )}
             <button
               onClick={handleShareLink}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] text-gray-500 hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] transition-colors cursor-pointer"
+              style={{ color: t.text5 }}
               title="Copy link to contact"
             >
               <Link2 className="w-3.5 h-3.5" />
               Share
             </button>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-              <X className="w-5 h-5 text-gray-400" />
+            <button onClick={onClose} className="p-2 rounded-lg transition-colors cursor-pointer" style={{ color: t.text4 }}>
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-100 px-6">
-          <button
-            onClick={() => setActiveTab('details')}
-            className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'details'
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            )}
-          >
-            <User className="w-4 h-4 inline mr-1.5" />
-            Details
-          </button>
-          <button
-            onClick={() => setActiveTab('conversation')}
-            className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'conversation'
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            )}
-          >
-            <MessageSquare className="w-4 h-4 inline mr-1.5" />
-            Conversation
-          </button>
-          <button
-            onClick={() => setActiveTab('sequence')}
-            className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'sequence'
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            )}
-          >
-            <SkipForward className="w-4 h-4 inline mr-1.5" />
-            Sequence
-          </button>
+        <div className="flex px-6" style={{ borderBottom: `1px solid ${t.border}` }}>
+          {(['details', 'conversation', 'sequence'] as const).map(tab => {
+            const active = activeTab === tab;
+            const Icon = tab === 'details' ? User : tab === 'conversation' ? MessageSquare : SkipForward;
+            const label = tab.charAt(0).toUpperCase() + tab.slice(1);
+            return (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className="px-4 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer"
+                style={{ borderColor: active ? t.tabBorder : 'transparent', color: active ? t.tabActive : t.tabInactive }}>
+                <Icon className="w-4 h-4 inline mr-1.5" />{label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Content */}
@@ -692,34 +693,34 @@ export function ContactDetailModal({
             <div className="flex-1 overflow-auto p-6">
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900">Contact Information</h3>
+                  <h3 className="font-semibold" style={{ color: t.text1 }}>Contact Information</h3>
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <Mail className="w-4 h-4 text-gray-400" />
-                      <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline">{contact.email}</a>
+                      <Mail className="w-4 h-4" style={{ color: t.text5 }} />
+                      <a href={`mailto:${contact.email}`} style={{ color: isDark ? '#93c5fd' : '#2563eb' }}>{contact.email}</a>
                     </div>
                     {contact.company_name && (
                       <div className="flex items-center gap-3">
-                        <Building className="w-4 h-4 text-gray-400" />
-                        <span>{contact.company_name}</span>
+                        <Building className="w-4 h-4" style={{ color: t.text5 }} />
+                        <span style={{ color: t.text2 }}>{contact.company_name}</span>
                       </div>
                     )}
                     {contact.job_title && (
                       <div className="flex items-center gap-3">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <span>{contact.job_title}</span>
+                        <User className="w-4 h-4" style={{ color: t.text5 }} />
+                        <span style={{ color: t.text2 }}>{contact.job_title}</span>
                       </div>
                     )}
                     {contact.location && (
                       <div className="flex items-center gap-3">
-                        <MapPin className="w-4 h-4 text-gray-400" />
-                        <span>{contact.location}</span>
+                        <MapPin className="w-4 h-4" style={{ color: t.text5 }} />
+                        <span style={{ color: t.text2 }}>{contact.location}</span>
                       </div>
                     )}
                     {contact.linkedin_url && (
                       <div className="flex items-center gap-3">
-                        <Linkedin className="w-4 h-4 text-gray-400" />
-                        <a href={`https://${contact.linkedin_url}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        <Linkedin className="w-4 h-4" style={{ color: t.text5 }} />
+                        <a href={`https://${contact.linkedin_url}`} target="_blank" rel="noopener noreferrer" style={{ color: isDark ? '#93c5fd' : '#2563eb' }}>
                           View LinkedIn Profile
                         </a>
                       </div>
@@ -728,66 +729,54 @@ export function ContactDetailModal({
                 </div>
 
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900">Status</h3>
+                  <h3 className="font-semibold" style={{ color: t.text1 }}>Status</h3>
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">Source:</span>
-                      <span className={cn(
-                        "px-2 py-1 rounded-full text-xs font-medium",
-                        contact.source === 'smartlead' ? "bg-purple-50 text-purple-600" :
-                        contact.source === 'getsales' ? "bg-blue-50 text-blue-600" :
-                        "bg-gray-100 text-gray-600"
-                      )}>
-                        {contact.source}
-                      </span>
+                      <span className="text-sm" style={{ color: t.text4 }}>Source:</span>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ background: t.badgeBg, color: t.badgeText }}>{contact.source}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">Status:</span>
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{contact.status}</span>
+                      <span className="text-sm" style={{ color: t.text4 }}>Status:</span>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ background: t.badgeBg, color: t.badgeText }}>{contact.status}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">Has Replied:</span>
-                      <span className={cn("px-2 py-1 rounded-full text-xs font-medium", contact.has_replied ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-600")}>
+                      <span className="text-sm" style={{ color: t.text4 }}>Has Replied:</span>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium"
+                        style={{ background: contact.has_replied ? (isDark ? '#1a3a2a' : '#f0fdf4') : t.badgeBg, color: contact.has_replied ? (isDark ? '#6ee7b7' : '#16a34a') : t.badgeText }}>
                         {contact.has_replied ? 'Yes' : 'No'}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-500">Added {new Date(contact.created_at).toLocaleDateString()}</span>
+                      <Clock className="w-4 h-4" style={{ color: t.text5 }} />
+                      <span className="text-sm" style={{ color: t.text4 }}>Added {new Date(contact.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                   {contact.notes && (
                     <div className="mt-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Notes</h4>
-                      <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-xl">{contact.notes}</p>
+                      <h4 className="text-sm font-medium mb-2" style={{ color: t.text2 }}>Notes</h4>
+                      <p className="text-sm p-3 rounded-xl" style={{ background: t.divider, color: t.text3 }}>{contact.notes}</p>
                     </div>
                   )}
-                  <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                    <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <FolderPlus className="w-4 h-4 text-blue-500" />
+                  <div className="mt-6 p-4 rounded-xl" style={{ background: t.divider, border: `1px solid ${t.border}` }}>
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: t.text1 }}>
+                      <FolderPlus className="w-4 h-4" style={{ color: isDark ? '#93c5fd' : '#3b82f6' }} />
                       Add to Project
                     </h4>
                     <div className="flex items-center gap-3">
                       <select
                         value={selectedProject || ''}
                         onChange={(e) => setSelectedProject(e.target.value ? Number(e.target.value) : null)}
-                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                        className="flex-1 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                        style={{ background: t.inputBg, color: t.text1, border: `1px solid ${t.inputBorder}` }}
                       >
                         <option value="">Select a project...</option>
                         {projects.map((project) => (
                           <option key={project.id} value={project.id}>{project.name}</option>
                         ))}
                       </select>
-                      <button
-                        onClick={handleAddToProject}
-                        disabled={!selectedProject || isAddingToProject}
-                        className={cn(
-                          "px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all",
-                          selectedProject && !isAddingToProject
-                            ? "bg-blue-500 text-white hover:bg-blue-600 shadow-sm"
-                            : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                        )}
-                      >
+                      <button onClick={handleAddToProject} disabled={!selectedProject || isAddingToProject}
+                        className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all cursor-pointer"
+                        style={{ background: (selectedProject && !isAddingToProject) ? t.btnPrimaryBg : t.badgeBg, color: (selectedProject && !isAddingToProject) ? t.btnPrimaryText : t.text5 }}>
                         {isAddingToProject ? 'Adding...' : addedToProject ? 'Added!' : 'Add'}
                       </button>
                     </div>
@@ -803,43 +792,50 @@ export function ContactDetailModal({
           )}
 
           {activeTab === 'conversation' && (
-            <div className="flex-1 flex overflow-hidden">
-              {/* Campaign sidebar */}
-              <CampaignSidebar
-                activities={activities}
-                selectedCampaign={selectedCampaign}
-                onSelect={setSelectedCampaign}
-              />
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Campaign dropdown bar */}
+              <div className="px-4 py-2 flex items-center gap-2" style={{ borderBottom: `1px solid ${t.divider}` }}>
+                <CampaignDropdown
+                  campaigns={campaigns}
+                  selectedCampaign={selectedCampaign}
+                  onSelect={setSelectedCampaign}
+                  isDark={isDark}
+                />
+              </div>
 
-              {/* Conversation + compose */}
-              <div className="flex-1 flex flex-col min-w-0">
+              {/* Conversation */}
+              <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ background: isDark ? '#1e1e1e' : '#fafafa' }}>
                 {isLoadingHistory ? (
                   <div className="flex-1 p-4 space-y-3">
                     {[...Array(4)].map((_, i) => (
-                      <div key={i} className="animate-pulse bg-gray-200/20 rounded h-4" style={{ width: `${60 + (i % 3) * 15}%` }} />
+                      <div key={i} className="animate-pulse rounded h-4" style={{ width: `${60 + (i % 3) * 15}%`, background: t.divider }} />
                     ))}
                   </div>
                 ) : (
                   <ConversationView
                     activities={activities}
                     contactName={contactFirstName}
+                    compact
+                    isDark={isDark}
                     filterCampaign={selectedCampaign}
                   />
                 )}
-
-                {/* Compose area with auto-selected channel */}
-                <ComposeArea
-                  contact={contact}
-                  replyChannel={replyChannel}
-                  setReplyChannel={setReplyChannel}
-                  draftReply={draftReply}
-                  setDraftReply={setDraftReply}
-                  savedDraft={savedDraft}
-                  setSavedDraft={setSavedDraft}
-                  isSaving={isSaving}
-                  handleSaveDraft={handleSaveDraft}
-                />
               </div>
+
+              {/* Compose area */}
+              <ComposeArea
+                contact={contact}
+                replyChannel={replyChannel}
+                setReplyChannel={setReplyChannel}
+                draftReply={draftReply}
+                setDraftReply={setDraftReply}
+                savedDraft={savedDraft}
+                setSavedDraft={setSavedDraft}
+                isSaving={isSaving}
+                handleSaveDraft={handleSaveDraft}
+                isDark={isDark}
+                t={t}
+              />
             </div>
           )}
 
@@ -847,84 +843,48 @@ export function ContactDetailModal({
             <div className="flex-1 overflow-auto p-6">
               {sequenceLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text5 }} />
                 </div>
               ) : !sequencePlan || sequencePlan.campaigns?.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">
+                <div className="text-center py-12 text-sm" style={{ color: t.text5 }}>
                   No sequence data available for this contact.
                 </div>
               ) : (
                 <div className="space-y-6">
                   {sequencePlan.campaigns.map((camp: any) => (
-                    <div key={camp.campaign_id} className="border border-gray-200 rounded-lg overflow-hidden">
-                      <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <div key={camp.campaign_id} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${t.border}` }}>
+                      <div className="px-4 py-3" style={{ background: t.divider, borderBottom: `1px solid ${t.border}` }}>
                         <div className="flex items-center justify-between">
                           <div>
-                            <h4 className="font-medium text-gray-900 text-sm">{camp.campaign_name || camp.campaign_id}</h4>
-                            <span className="text-xs text-gray-500">
-                              {camp.steps_sent}/{camp.total_steps} steps sent
-                            </span>
+                            <h4 className="font-medium text-sm" style={{ color: t.text1 }}>{camp.campaign_name || camp.campaign_id}</h4>
+                            <span className="text-xs" style={{ color: t.text4 }}>{camp.steps_sent}/{camp.total_steps} steps sent</span>
                           </div>
-                          <span className={cn(
-                            "text-xs font-medium px-2 py-0.5 rounded",
-                            camp.steps_sent === camp.total_steps
-                              ? "bg-green-100 text-green-700"
-                              : camp.steps_sent > 0
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-gray-100 text-gray-500"
-                          )}>
+                          <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: t.badgeBg, color: t.badgeText }}>
                             {camp.steps_sent === camp.total_steps ? 'Complete' : camp.steps_sent > 0 ? 'In Progress' : 'Queued'}
                           </span>
                         </div>
-                        {/* Progress bar */}
-                        <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500 rounded-full transition-all"
-                            style={{ width: camp.total_steps > 0 ? `${(camp.steps_sent / camp.total_steps) * 100}%` : '0%' }}
-                          />
+                        <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: t.divider }}>
+                          <div className="h-full rounded-full transition-all" style={{ width: camp.total_steps > 0 ? `${(camp.steps_sent / camp.total_steps) * 100}%` : '0%', background: isDark ? '#d4d4d4' : '#3b82f6' }} />
                         </div>
                       </div>
-                      <div className="divide-y divide-gray-100">
-                        {camp.steps.map((step: any) => (
-                          <div key={step.seq_number} className="px-4 py-3 flex items-start gap-3">
-                            <div className={cn(
-                              "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold",
-                              step.status === 'sent' ? "bg-green-100 text-green-700" :
-                              step.status === 'scheduled' ? "bg-blue-100 text-blue-700" :
-                              "bg-gray-100 text-gray-400"
-                            )}>
-                              {step.status === 'sent' ? (
-                                <CheckIcon className="w-3.5 h-3.5" />
-                              ) : (
-                                step.seq_number
-                              )}
+                      <div>
+                        {camp.steps.map((step: any, si: number) => (
+                          <div key={step.seq_number} className="px-4 py-3 flex items-start gap-3" style={{ borderTop: si > 0 ? `1px solid ${t.divider}` : undefined }}>
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold"
+                              style={{ background: t.badgeBg, color: step.status === 'sent' ? (isDark ? '#6ee7b7' : '#16a34a') : t.badgeText }}>
+                              {step.status === 'sent' ? <CheckIcon className="w-3.5 h-3.5" /> : step.seq_number}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className="font-medium text-sm text-gray-900 truncate">
-                                  {step.subject || `Step ${step.seq_number}`}
-                                </span>
-                                <span className={cn(
-                                  "text-[10px] font-medium uppercase px-1.5 py-0.5 rounded flex-shrink-0",
-                                  step.status === 'sent' ? "bg-green-100 text-green-700" :
-                                  step.status === 'scheduled' ? "bg-blue-100 text-blue-700" :
-                                  "bg-gray-100 text-gray-500"
-                                )}>
-                                  {step.status}
-                                </span>
+                                <span className="font-medium text-sm truncate" style={{ color: t.text1 }}>{step.subject || `Step ${step.seq_number}`}</span>
+                                <span className="text-[10px] font-medium uppercase px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: t.badgeBg, color: t.badgeText }}>{step.status}</span>
                               </div>
-                              {step.body_preview && (
-                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                  {step.body_preview}
-                                </p>
-                              )}
+                              {step.body_preview && <p className="text-xs mt-1 line-clamp-2" style={{ color: t.text4 }}>{step.body_preview}</p>}
                             </div>
                           </div>
                         ))}
                         {camp.steps.length === 0 && (
-                          <div className="px-4 py-6 text-center text-gray-400 text-sm">
-                            No sequence steps found for this campaign.
-                          </div>
+                          <div className="px-4 py-6 text-center text-sm" style={{ color: t.text5 }}>No sequence steps found for this campaign.</div>
                         )}
                       </div>
                     </div>
