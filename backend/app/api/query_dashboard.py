@@ -198,9 +198,9 @@ async def list_queries(
             segment=r.segment,
             geo=r.geo,
             language=r.language,
-            source=str(r.source),
+            source=r.source.value if hasattr(r.source, 'value') else str(r.source),
             job_id=r.job_id,
-            status=str(r.status),
+            status=r.status.value if hasattr(r.status, 'value') else str(r.status),
             domains_found=r.domains_found,
             targets_found=r.targets_found,
             effectiveness_score=r.effectiveness_score,
@@ -361,7 +361,7 @@ async def get_summary(
 
     by_source = [
         SegmentSaturation(
-            key=str(r.key),
+            key=r.key.value if hasattr(r.key, 'value') else str(r.key),
             total=r.total,
             saturated=r.saturated or 0,
             saturation_rate=round((r.saturated or 0) / r.total * 100, 1) if r.total else 0,
@@ -433,7 +433,7 @@ async def get_filter_options(
     segments = [r[0] for r in (await db.execute(segments_q)).all()]
     geos = [r[0] for r in (await db.execute(geos_q)).all()]
     languages = [r[0] for r in (await db.execute(langs_q)).all()]
-    sources = [str(r[0]) for r in (await db.execute(sources_q)).all()]
+    sources = [r[0].value if hasattr(r[0], 'value') else str(r[0]) for r in (await db.execute(sources_q)).all()]
 
     return FilterOptionsResponse(
         segments=segments,

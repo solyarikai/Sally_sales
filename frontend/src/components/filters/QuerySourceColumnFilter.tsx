@@ -4,12 +4,12 @@ import { useQueryDashboardFilter } from './QueryDashboardFilterContext';
 import { cn } from '../../lib/utils';
 import { Check } from 'lucide-react';
 
-const SOURCES = [
-  { key: 'google_serp', label: 'Google SERP', color: 'text-blue-600' },
-  { key: 'yandex_api', label: 'Yandex API', color: 'text-red-600' },
-  { key: 'apollo_org', label: 'Apollo Org', color: 'text-purple-600' },
-  { key: 'clay', label: 'Clay', color: 'text-amber-600' },
-] as const;
+const SOURCE_META: Record<string, { label: string; color: string }> = {
+  google_serp: { label: 'Google SERP', color: 'text-blue-600' },
+  yandex_api: { label: 'Yandex API', color: 'text-red-600' },
+  apollo_org: { label: 'Apollo Org', color: 'text-purple-600' },
+  clay: { label: 'Clay', color: 'text-amber-600' },
+};
 
 export const QuerySourceColumnFilter = forwardRef((props: IFilterParams, ref) => {
   const { sourceFilters, toggleSource, setSourceFilters, filterOptions, resetPage } = useQueryDashboardFilter();
@@ -23,7 +23,8 @@ export const QuerySourceColumnFilter = forwardRef((props: IFilterParams, ref) =>
 
   useEffect(() => { props.filterChangedCallback(); }, [sourceFilters]);
 
-  const available = new Set(filterOptions?.sources || []);
+  // Use dynamic sources from API
+  const sources = filterOptions?.sources || [];
 
   return (
     <div className="p-3 min-w-[180px]">
@@ -34,7 +35,10 @@ export const QuerySourceColumnFilter = forwardRef((props: IFilterParams, ref) =>
         )}
       </div>
       <div className="flex flex-col gap-1">
-        {SOURCES.filter(s => available.has(s.key)).map(({ key, label, color }) => {
+        {sources.map((key) => {
+          const meta = SOURCE_META[key];
+          const label = meta?.label || key.replace(/_/g, ' ');
+          const color = meta?.color || 'text-neutral-600';
           const isActive = sourceFilters.includes(key);
           return (
             <button key={key} onClick={() => { toggleSource(key); resetPage(); }}
