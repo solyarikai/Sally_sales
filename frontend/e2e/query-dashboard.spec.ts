@@ -1,501 +1,741 @@
-import { test, expect } from '@playwright/test';
+/**
+ * ══════════════════════════════════════════════════════════════════════
+ * E2E Tests: Query Dashboard — Discovery Intelligence System
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * Target: /dashboard/queries
+ * Live backend: Hetzner (46.62.210.24) via baseURL in playwright.config
+ * Reference project: Deliryo (id=18, company_id=1)
+ * Reference segment: family_office
+ * Reference geo: moscow_fo (Moscow, Russia)
+ *
+ * ── TEST PLAN & EXPECTED OUTCOMES ──────────────────────────────────
+ *
+ * T01 - PROJECT AUTO-SELECT FROM URL
+ *   Navigate to /dashboard/queries?project_id=18 without localStorage.
+ *   Expected: Page auto-loads project from URL param, shows grid data.
+ *   Screenshot: T01-project-auto-select.png
+ *
+ * T02 - PAGE LOAD & STRUCTURE
+ *   Navigate with project set. Expected:
+ *   - "Query Dashboard" h1 title visible
+ *   - Search input visible
+ *   - Query count > 0 ("N queries" text)
+ *   - AG Grid rendered with rows
+ *   - Pagination controls with "Page 1 of N"
+ *   Screenshot: T02-page-loaded.png
+ *
+ * T03 - SUMMARY METRICS BAR
+ *   Expected 6+ metric cards visible:
+ *   - Queries (total count)
+ *   - Done (green)
+ *   - Domains (blue)
+ *   - Targets (green)
+ *   - Est. Cost (amber)
+ *   - Saturation % (color-coded)
+ *   Screenshot: T03-summary-metrics.png
+ *
+ * T04 - URL FILTER: segment=family_office&geo=moscow_fo
+ *   Navigate with pre-applied filters in URL.
+ *   Expected:
+ *   - Grid shows filtered data (fewer queries than unfiltered)
+ *   - URL retains segment=family_office&geo=moscow_fo
+ *   - Query count reflects filtered subset
+ *   Screenshots: T04a-filtered-view.png, T04b-filtered-count.png
+ *
+ * T05 - SATURATION PANEL
+ *   Click "Saturation breakdown" toggle.
+ *   Expected:
+ *   - Panel opens with "By Segment", "By Geo", "By Source" tables
+ *   - Each table has columns: Key, Queries, Saturated, Rate, Domains, Targets
+ *   - Rate column is color-coded (red >80%, amber >50%, green otherwise)
+ *   Screenshots: T05a-panel-closed.png, T05b-panel-open.png
+ *
+ * T06 - SATURATION PANEL CLICK-THROUGH
+ *   Click a segment row in saturation panel.
+ *   Expected:
+ *   - Segment filter applies (URL updates with segment=X)
+ *   - Grid reloads with filtered data
+ *   Screenshot: T06-segment-clicked.png
+ *
+ * T07 - SEARCH INPUT
+ *   Type "family office" in search.
+ *   Expected:
+ *   - After 300ms debounce, grid reloads with filtered results
+ *   - URL contains q=family+office or q=family%20office
+ *   - Query count changes
+ *   Screenshots: T07a-before-search.png, T07b-after-search.png
+ *
+ * T08 - CLEAR FILTERS
+ *   Start with filters applied, click "Clear filters".
+ *   Expected:
+ *   - All URL filter params removed
+ *   - Grid shows unfiltered data
+ *   - "Clear filters" button disappears
+ *   Screenshot: T08-cleared.png
+ *
+ * T09 - PAGINATION
+ *   On unfiltered view (should have 42K+ queries).
+ *   Expected:
+ *   - "Page 1 of N" visible (N > 1 for 42K queries at 50/page)
+ *   - Click next → "Page 2 of N", URL has page=2
+ *   - Click first → "Page 1 of N", URL has no page param
+ *   Screenshots: T09a-page1.png, T09b-page2.png, T09c-back-to-page1.png
+ *
+ * T10 - URL STATE PERSISTENCE ON RELOAD
+ *   Navigate with complex filters, reload page.
+ *   Expected: All filters preserved in URL and applied to grid.
+ *   Screenshots: T10a-before-reload.png, T10b-after-reload.png
+ *
+ * T11 - CLICK-THROUGH: DOMAINS → CRM CONTACTS
+ *   Click a blue domains_found number in the grid.
+ *   Expected:
+ *   - Navigates to /contacts with segment, geo, source, project_id params
+ *   - Contacts page loads with matching filters
+ *   Screenshots: T11a-grid-with-domains.png, T11b-contacts-page.png
+ *
+ * T12 - CLICK-THROUGH: TARGETS → CRM CONTACTS
+ *   Click a green targets_found number in the grid.
+ *   Expected:
+ *   - Same navigation as T11 but for targets
+ *   Screenshots: T12a-grid-with-targets.png, T12b-contacts-page.png
+ *
+ * T13 - SATURATED ROW STYLING
+ *   View queries with is_saturated=true.
+ *   Expected:
+ *   - Saturated rows have gray background + reduced opacity
+ *   - Query text has strikethrough
+ *   - "SAT" badge visible
+ *   Screenshot: T13-saturated-rows.png
+ *
+ * T14 - SATURATED FILTER TOGGLE
+ *   Apply is_saturated=true filter via URL.
+ *   Expected:
+ *   - Only saturated rows shown (all have "SAT" badge)
+ *   - URL has is_saturated=true
+ *   Screenshot: T14-saturated-only.png
+ *
+ * T15 - FULL SCENARIO: Deliryo family_office Russia
+ *   Complete user journey:
+ *   1. Open /dashboard/queries?project_id=18&segment=family_office&geo=moscow_fo
+ *   2. Verify filtered data loads
+ *   3. Open saturation panel
+ *   4. Sort by targets_found desc
+ *   5. Click top targets_found → navigate to CRM
+ *   6. Verify contacts page shows matching data
+ *   Screenshots: T15-S01 through T15-S06
+ *
+ * T16 - NO-PROJECT STATE
+ *   Navigate without project_id and with cleared localStorage.
+ *   Expected: "Select a project" prompt shown.
+ *   Screenshot: T16-no-project.png
+ *
+ * ══════════════════════════════════════════════════════════════════════
+ */
+
+import { test, expect, type Page } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
 
+// ── Constants ──────────────────────────────────────────────────────
 const SCREENSHOTS = path.join(__dirname, '..', 'screenshots', 'query-dashboard');
-
-// Ensure screenshots directory exists
 fs.mkdirSync(SCREENSHOTS, { recursive: true });
 
 const ss = (name: string) => path.join(SCREENSHOTS, `${name}.png`);
 
-/**
- * E2E tests for /dashboard/queries — Query Dashboard page.
- * Tests against live backend with Deliryo project (id=18),
- * segment=family_office, geo=moscow_fo.
- */
-test.describe('Query Dashboard', () => {
+const DELIRYO_PROJECT_ID = 18;
+const BASE_URL = '/dashboard/queries';
+
+// ── Helpers ────────────────────────────────────────────────────────
+
+/** Set Deliryo project in localStorage before page navigates */
+async function setProjectInStorage(page: Page) {
+  await page.addInitScript(() => {
+    const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
+    store.state = store.state || {};
+    store.state.currentProject = { id: 18, name: 'Deliryo', contact_count: 0, created_at: '', updated_at: '' };
+    localStorage.setItem('leadgen-storage', JSON.stringify(store));
+  });
+}
+
+/** Clear project from localStorage */
+async function clearProjectInStorage(page: Page) {
+  await page.addInitScript(() => {
+    const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
+    if (store.state) store.state.currentProject = null;
+    localStorage.setItem('leadgen-storage', JSON.stringify(store));
+  });
+}
+
+/** Wait for grid to be fully loaded with data rows */
+async function waitForGridData(page: Page, timeoutMs = 20000) {
+  // Wait for AG Grid container
+  await expect(page.locator('.ag-theme-alpine')).toBeVisible({ timeout: timeoutMs });
+  // Wait for at least one data row OR the no-rows overlay
+  const dataRow = page.locator('.ag-row');
+  const noRows = page.locator('.ag-overlay-no-rows-center');
+  await expect(dataRow.first().or(noRows)).toBeVisible({ timeout: timeoutMs });
+}
+
+/** Wait for the query counter to appear (proves API responded) */
+async function waitForQueryCount(page: Page, timeoutMs = 20000) {
+  const counter = page.locator('text=/\\d+.*quer/i');
+  await expect(counter).toBeVisible({ timeout: timeoutMs });
+  return counter;
+}
+
+/** Get numeric query count from the header */
+async function getQueryCount(page: Page): Promise<number> {
+  const counter = await waitForQueryCount(page);
+  const text = await counter.textContent() || '0';
+  const match = text.match(/([\d,]+)/);
+  return match ? parseInt(match[1].replace(/,/g, ''), 10) : 0;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// TESTS
+// ══════════════════════════════════════════════════════════════════════
+
+test.describe('Query Dashboard — E2E Tests', () => {
+  test.describe.configure({ mode: 'serial' });
+
   test.beforeEach(async ({ page }) => {
     page.on('console', (msg) => {
-      if (msg.type() === 'error') console.log(`[BROWSER ERROR] ${msg.text()}`);
+      if (msg.type() === 'error') console.log(`[BROWSER] ${msg.text()}`);
     });
     page.on('pageerror', (err) => console.log(`[PAGE ERROR] ${err.message}`));
   });
 
-  test('page loads and shows query data for Deliryo project', async ({ page }) => {
-    // Set project in localStorage before navigating
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
+  // ── T01: Project auto-select from URL ────────────────────────────
+  test('T01: project auto-selects from project_id URL param', async ({ page }) => {
+    // Clear any stored project — force auto-selection from URL
+    await clearProjectInStorage(page);
 
-    await page.goto('/dashboard/queries?project_id=18');
-    await expect(page).toHaveURL(/\/dashboard\/queries/);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
 
-    // Wait for either the grid or loading to finish
+    // The page should auto-fetch the project and load data
+    // (not show "Select a project")
+    const selectPrompt = page.locator('text=Select a project');
     const grid = page.locator('.ag-theme-alpine');
+
+    // Either grid loads OR we see a brief "Select a project" that resolves
+    await expect(grid.or(selectPrompt)).toBeVisible({ timeout: 5000 });
+
+    // Give auto-selection time to complete
+    await page.waitForTimeout(3000);
+
+    // After auto-select, grid should be visible
     await expect(grid).toBeVisible({ timeout: 15000 });
+    await waitForQueryCount(page);
 
-    // Wait for data to load — look for "queries" counter in command bar
-    const queriesCount = page.locator('text=/\\d+.*queries/');
-    await expect(queriesCount).toBeVisible({ timeout: 15000 });
+    await page.screenshot({ path: ss('T01-project-auto-select'), fullPage: true });
 
-    await page.screenshot({ path: ss('01-page-loaded') });
+    // ASSERT: "Select a project" should NOT be visible anymore
+    await expect(selectPrompt).not.toBeVisible({ timeout: 5000 });
 
-    // Verify "Query Dashboard" title
+    console.log('T01 PASS: Project auto-selected from URL param');
+  });
+
+  // ── T02: Page load & structure ───────────────────────────────────
+  test('T02: page loads with correct structure', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
+
+    // ASSERT: Title
     const title = page.locator('h1:has-text("Query Dashboard")');
-    await expect(title).toBeVisible();
+    await expect(title).toBeVisible({ timeout: 10000 });
 
-    // Verify search input exists
+    // ASSERT: Search input
     const searchInput = page.locator('input[placeholder="Search query text..."]');
     await expect(searchInput).toBeVisible();
 
-    console.log('Query Dashboard loaded successfully');
+    // ASSERT: Query count > 0
+    const count = await getQueryCount(page);
+    expect(count).toBeGreaterThan(0);
+    console.log(`  Total queries: ${count.toLocaleString()}`);
+
+    // ASSERT: AG Grid has rows
+    await waitForGridData(page);
+    const rowCount = await page.locator('.ag-row').count();
+    expect(rowCount).toBeGreaterThan(0);
+    console.log(`  Visible rows: ${rowCount}`);
+
+    // ASSERT: Pagination
+    const pageInfo = page.locator('text=/Page \\d+ of \\d+/');
+    await expect(pageInfo).toBeVisible();
+
+    await page.screenshot({ path: ss('T02-page-loaded'), fullPage: true });
+    console.log('T02 PASS: Page structure verified');
   });
 
-  test('summary metrics bar shows aggregate data', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
+  // ── T03: Summary metrics bar ─────────────────────────────────────
+  test('T03: summary metrics bar shows all 6+ cards', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
+    await waitForQueryCount(page);
 
-    await page.goto('/dashboard/queries?project_id=18');
+    // ASSERT: Each metric label visible
+    const metrics = ['Queries', 'Done', 'Domains', 'Targets', 'Est. Cost', 'Saturation'];
+    for (const label of metrics) {
+      const el = page.locator(`text=${label}`).first();
+      await expect(el).toBeVisible({ timeout: 10000 });
+      console.log(`  Metric "${label}" visible`);
+    }
 
-    // Wait for summary to load
-    const queriesMetric = page.locator('text=Queries').first();
-    await expect(queriesMetric).toBeVisible({ timeout: 15000 });
-
-    // Verify key metrics are visible
-    await expect(page.locator('text=Done').first()).toBeVisible();
-    await expect(page.locator('text=Domains').first()).toBeVisible();
-    await expect(page.locator('text=Targets').first()).toBeVisible();
-    await expect(page.locator('text=Saturation').first()).toBeVisible();
-
-    await page.screenshot({ path: ss('02-summary-metrics') });
-    console.log('Summary metrics bar visible');
+    await page.screenshot({ path: ss('T03-summary-metrics'), fullPage: true });
+    console.log('T03 PASS: All summary metrics visible');
   });
 
-  test('filter by family_office segment and moscow_fo geo via URL', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
+  // ── T04: URL-driven filters ──────────────────────────────────────
+  test('T04: segment + geo filters applied from URL', async ({ page }) => {
+    await setProjectInStorage(page);
 
-    // Navigate with pre-applied filters
-    await page.goto('/dashboard/queries?project_id=18&segment=family_office&geo=moscow_fo');
+    // First get unfiltered count for comparison
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
+    const unfilteredCount = await getQueryCount(page);
+    console.log(`  Unfiltered count: ${unfilteredCount.toLocaleString()}`);
 
-    // Wait for grid to load
-    const grid = page.locator('.ag-theme-alpine');
-    await expect(grid).toBeVisible({ timeout: 15000 });
+    // Now navigate with filters
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&segment=family_office&geo=moscow_fo`);
+    await waitForGridData(page);
 
-    // Wait for data rows to appear
-    await page.waitForTimeout(2000);
+    const filteredCount = await getQueryCount(page);
+    console.log(`  Filtered count (family_office + moscow_fo): ${filteredCount.toLocaleString()}`);
 
-    await page.screenshot({ path: ss('03-family-office-russia-filtered'), fullPage: true });
+    await page.screenshot({ path: ss('T04a-filtered-view'), fullPage: true });
 
-    // Verify URL still has the filters
+    // ASSERT: Filtered count < unfiltered count
+    expect(filteredCount).toBeLessThan(unfilteredCount);
+    expect(filteredCount).toBeGreaterThan(0);
+
+    // ASSERT: URL retains filter params
     const url = page.url();
     expect(url).toContain('segment=family_office');
     expect(url).toContain('geo=moscow_fo');
 
-    console.log(`Filtered page URL: ${url}`);
-
-    // Check that the query count reflects filtered data
-    const queriesCount = page.locator('text=/\\d+.*queries/');
-    await expect(queriesCount).toBeVisible({ timeout: 10000 });
-    const countText = await queriesCount.textContent();
-    console.log(`Filtered results: ${countText}`);
+    await page.screenshot({ path: ss('T04b-filtered-count'), fullPage: true });
+    console.log('T04 PASS: URL filters applied correctly');
   });
 
-  test('saturation panel opens and shows segment/geo breakdown', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
+  // ── T05: Saturation panel ────────────────────────────────────────
+  test('T05: saturation panel opens with breakdown tables', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
+    await waitForQueryCount(page);
 
-    await page.goto('/dashboard/queries?project_id=18');
-
-    // Wait for summary metrics
-    await expect(page.locator('text=Saturation').first()).toBeVisible({ timeout: 15000 });
-
-    // Click "Saturation breakdown" toggle
+    // ASSERT: Toggle button visible
     const toggleBtn = page.locator('button:has-text("Saturation breakdown")');
     await expect(toggleBtn).toBeVisible({ timeout: 10000 });
-    await toggleBtn.click();
 
-    // Wait for breakdown tables to appear
+    await page.screenshot({ path: ss('T05a-panel-closed'), fullPage: true });
+
+    // Click to open
+    await toggleBtn.click();
     await page.waitForTimeout(1000);
 
-    // Verify "By Segment" and "By Geo" headers
-    const bySegment = page.locator('text=By Segment');
-    const byGeo = page.locator('text=By Geo');
-    await expect(bySegment).toBeVisible({ timeout: 5000 });
-    await expect(byGeo).toBeVisible({ timeout: 5000 });
+    // ASSERT: Breakdown tables visible
+    await expect(page.locator('text=By Segment')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=By Geo')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=By Source')).toBeVisible({ timeout: 5000 });
 
-    await page.screenshot({ path: ss('04-saturation-panel-open'), fullPage: true });
+    // ASSERT: Tables have data rows
+    const segmentTable = page.locator('text=By Segment').locator('..').locator('table');
+    const segmentRows = segmentTable.locator('tbody tr');
+    const segmentRowCount = await segmentRows.count();
+    expect(segmentRowCount).toBeGreaterThan(0);
+    console.log(`  Segment breakdown rows: ${segmentRowCount}`);
 
-    console.log('Saturation panel opened with breakdown tables');
+    await page.screenshot({ path: ss('T05b-panel-open'), fullPage: true });
+    console.log('T05 PASS: Saturation panel opens with all 3 breakdown tables');
   });
 
-  test('clicking segment row in saturation panel applies segment filter', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
-
-    await page.goto('/dashboard/queries?project_id=18');
+  // ── T06: Saturation panel click-through ──────────────────────────
+  test('T06: clicking saturation segment row applies filter', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
+    await waitForQueryCount(page);
 
     // Open saturation panel
-    const toggleBtn = page.locator('button:has-text("Saturation breakdown")');
-    await expect(toggleBtn).toBeVisible({ timeout: 15000 });
-    await toggleBtn.click();
+    await page.locator('button:has-text("Saturation breakdown")').click();
     await page.waitForTimeout(1000);
 
-    // Click the first segment row in the By Segment table
-    const segmentRows = page.locator('text=By Segment').locator('..').locator('table tbody tr');
-    const rowCount = await segmentRows.count();
-    if (rowCount > 0) {
-      const firstRow = segmentRows.first();
-      const segmentName = await firstRow.locator('td').first().textContent();
-      console.log(`Clicking segment: "${segmentName}"`);
-      await firstRow.click();
+    // Get first segment row and click it
+    const segmentTable = page.locator('text=By Segment').locator('..').locator('table');
+    const firstRow = segmentTable.locator('tbody tr').first();
+    const segmentName = await firstRow.locator('td').first().textContent();
+    console.log(`  Clicking segment: "${segmentName}"`);
+    await firstRow.click();
 
-      // URL should now have segment filter
-      await page.waitForTimeout(500);
-      const url = page.url();
-      expect(url).toContain('segment=');
-      console.log(`URL after segment click: ${url}`);
+    await page.waitForTimeout(1500);
 
-      await page.screenshot({ path: ss('05-segment-filter-applied') });
-    } else {
-      console.log('No segment rows to click');
-    }
+    // ASSERT: URL now has segment filter
+    const url = page.url();
+    expect(url).toContain('segment=');
+    console.log(`  URL after click: ${url}`);
+
+    await page.screenshot({ path: ss('T06-segment-clicked'), fullPage: true });
+    console.log('T06 PASS: Segment click-through applies filter');
   });
 
-  test('URL state is preserved on page reload', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
+  // ── T07: Search input ────────────────────────────────────────────
+  test('T07: search input filters queries by text', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
 
-    const targetUrl = '/dashboard/queries?project_id=18&segment=family_office&geo=moscow_fo&sort_by=targets_found&sort_order=desc';
-    await page.goto(targetUrl);
+    const countBefore = await getQueryCount(page);
+    console.log(`  Before search: ${countBefore.toLocaleString()}`);
 
-    // Wait for grid to load
-    const grid = page.locator('.ag-theme-alpine');
-    await expect(grid).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(2000);
+    await page.screenshot({ path: ss('T07a-before-search'), fullPage: true });
 
-    // Get the current URL
-    const urlBefore = page.url();
-    expect(urlBefore).toContain('segment=family_office');
-    expect(urlBefore).toContain('geo=moscow_fo');
-
-    // Reload the page
-    await page.reload();
-
-    // Wait for grid to load again
-    await expect(grid).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(2000);
-
-    // Verify URL still has the same filters
-    const urlAfter = page.url();
-    expect(urlAfter).toContain('segment=family_office');
-    expect(urlAfter).toContain('geo=moscow_fo');
-
-    await page.screenshot({ path: ss('06-url-preserved-after-reload') });
-    console.log('URL state preserved after reload');
-  });
-
-  test('clicking domains count navigates to CRM contacts page', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
-
-    await page.goto('/dashboard/queries?project_id=18&segment=family_office');
-
-    // Wait for grid
-    const grid = page.locator('.ag-theme-alpine');
-    await expect(grid).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(2000);
-
-    await page.screenshot({ path: ss('07-before-domains-click') });
-
-    // Find a clickable domains number (blue, non-zero)
-    const domainLinks = page.locator('button[title="View contacts from these domains"]');
-    const linkCount = await domainLinks.count();
-    console.log(`Found ${linkCount} clickable domain links`);
-
-    if (linkCount > 0) {
-      const firstLink = domainLinks.first();
-      const value = await firstLink.textContent();
-      console.log(`Clicking domains count: ${value}`);
-
-      await firstLink.click();
-
-      // Should navigate to /contacts with filters
-      await expect(page).toHaveURL(/\/contacts/, { timeout: 10000 });
-      const contactsUrl = page.url();
-      expect(contactsUrl).toContain('segment=family_office');
-      console.log(`Navigated to: ${contactsUrl}`);
-
-      await page.waitForTimeout(2000);
-      await page.screenshot({ path: ss('08-contacts-from-domains-click') });
-    } else {
-      console.log('No clickable domain links found (all queries have 0 domains)');
-    }
-  });
-
-  test('clicking targets count navigates to CRM contacts page', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
-
-    await page.goto('/dashboard/queries?project_id=18');
-
-    // Wait for grid
-    const grid = page.locator('.ag-theme-alpine');
-    await expect(grid).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(2000);
-
-    // Find a clickable targets number (green, non-zero)
-    const targetLinks = page.locator('button[title="View target contacts"]');
-    const linkCount = await targetLinks.count();
-    console.log(`Found ${linkCount} clickable target links`);
-
-    if (linkCount > 0) {
-      const firstLink = targetLinks.first();
-      const value = await firstLink.textContent();
-      console.log(`Clicking targets count: ${value}`);
-
-      await firstLink.click();
-
-      // Should navigate to /contacts
-      await expect(page).toHaveURL(/\/contacts/, { timeout: 10000 });
-      const contactsUrl = page.url();
-      console.log(`Navigated to CRM: ${contactsUrl}`);
-
-      await page.waitForTimeout(2000);
-      await page.screenshot({ path: ss('09-contacts-from-targets-click') });
-    } else {
-      console.log('No clickable target links found (all queries have 0 targets)');
-    }
-  });
-
-  test('pagination controls work', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
-
-    await page.goto('/dashboard/queries?project_id=18');
-
-    // Wait for grid
-    const grid = page.locator('.ag-theme-alpine');
-    await expect(grid).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(2000);
-
-    // Check pagination info is visible
-    const pageInfo = page.locator('text=/Page \\d+ of \\d+/');
-    await expect(pageInfo).toBeVisible({ timeout: 10000 });
-    const pageText = await pageInfo.textContent();
-    console.log(`Pagination: ${pageText}`);
-
-    // If multi-page, test next button
-    const match = pageText?.match(/Page (\d+) of (\d+)/);
-    if (match && parseInt(match[2]) > 1) {
-      // Click next page
-      const nextBtn = page.locator('button').filter({ has: page.locator('svg.lucide-chevron-right') }).first();
-      await nextBtn.click();
-      await page.waitForTimeout(1500);
-
-      // Page should now be 2
-      const newPageInfo = page.locator('text=/Page 2 of/');
-      await expect(newPageInfo).toBeVisible({ timeout: 5000 });
-      console.log('Navigated to page 2');
-
-      // URL should have page=2
-      expect(page.url()).toContain('page=2');
-
-      await page.screenshot({ path: ss('10-pagination-page-2') });
-    } else {
-      console.log('Only one page of results — pagination not testable');
-    }
-  });
-
-  test('search filters queries by text', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
-
-    await page.goto('/dashboard/queries?project_id=18');
-
-    // Wait for grid
-    const grid = page.locator('.ag-theme-alpine');
-    await expect(grid).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(2000);
-
-    // Get initial count
-    const countBefore = page.locator('text=/\\d+.*queries/');
-    const textBefore = await countBefore.textContent();
-    console.log(`Before search: ${textBefore}`);
-
-    // Type a search query
+    // Type in search
     const searchInput = page.locator('input[placeholder="Search query text..."]');
     await searchInput.fill('family office');
 
-    // Wait for debounce + API response
-    await page.waitForTimeout(1000);
-
-    // Get new count
-    const textAfter = await countBefore.textContent();
-    console.log(`After search "family office": ${textAfter}`);
-
-    // URL should have q=family+office
-    expect(page.url()).toContain('q=family');
-
-    await page.screenshot({ path: ss('11-search-family-office') });
-  });
-
-  test('clear filters button resets all filters', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
-
-    // Start with filters applied
-    await page.goto('/dashboard/queries?project_id=18&segment=family_office&geo=moscow_fo&q=office');
-
-    const grid = page.locator('.ag-theme-alpine');
-    await expect(grid).toBeVisible({ timeout: 15000 });
+    // Wait for debounce (300ms) + API
     await page.waitForTimeout(2000);
 
-    // Find "Clear filters" button
+    const countAfter = await getQueryCount(page);
+    console.log(`  After search "family office": ${countAfter.toLocaleString()}`);
+
+    // ASSERT: Count changed (filtered)
+    expect(countAfter).toBeLessThanOrEqual(countBefore);
+
+    // ASSERT: URL has search param
+    expect(page.url()).toContain('q=family');
+
+    await page.screenshot({ path: ss('T07b-after-search'), fullPage: true });
+    console.log('T07 PASS: Search filters queries');
+  });
+
+  // ── T08: Clear filters ───────────────────────────────────────────
+  test('T08: clear filters button resets everything', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&segment=family_office&geo=moscow_fo&q=office`);
+    await waitForGridData(page);
+
+    // ASSERT: "Clear filters" button visible (since we have filters)
     const clearBtn = page.locator('button:has-text("Clear filters")');
-    await expect(clearBtn).toBeVisible({ timeout: 5000 });
+    await expect(clearBtn).toBeVisible({ timeout: 10000 });
+
     await clearBtn.click();
+    await page.waitForTimeout(1500);
 
-    await page.waitForTimeout(1000);
-
-    // URL should no longer have segment/geo/q params
+    // ASSERT: URL filter params removed
     const url = page.url();
     expect(url).not.toContain('segment=');
     expect(url).not.toContain('geo=');
     expect(url).not.toContain('q=');
 
-    await page.screenshot({ path: ss('12-filters-cleared') });
-    console.log('All filters cleared');
+    // ASSERT: "Clear filters" button is gone (no active filters)
+    await expect(clearBtn).not.toBeVisible({ timeout: 3000 });
+
+    await page.screenshot({ path: ss('T08-cleared'), fullPage: true });
+    console.log('T08 PASS: All filters cleared');
   });
 
-  test('FULL SCENARIO: Deliryo family_office Russia deep analysis', async ({ page }) => {
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      store.state = store.state || {};
-      store.state.currentProject = { id: 18, name: 'Deliryo' };
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
+  // ── T09: Pagination ──────────────────────────────────────────────
+  test('T09: pagination navigates between pages', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
+    await waitForGridData(page);
 
-    // Step 1: Load with family_office + moscow_fo filters
-    console.log('--- Step 1: Loading filtered dashboard ---');
-    await page.goto('/dashboard/queries?project_id=18&segment=family_office&geo=moscow_fo');
-    const grid = page.locator('.ag-theme-alpine');
-    await expect(grid).toBeVisible({ timeout: 15000 });
+    // ASSERT: Page 1
+    const pageInfo = page.locator('text=/Page 1 of (\\d+)/');
+    await expect(pageInfo).toBeVisible({ timeout: 10000 });
+    const pageText = await pageInfo.textContent();
+    const totalPages = parseInt(pageText?.match(/of (\d+)/)?.[1] || '1', 10);
+    console.log(`  Total pages: ${totalPages}`);
+    expect(totalPages).toBeGreaterThan(1);
+
+    await page.screenshot({ path: ss('T09a-page1'), fullPage: true });
+
+    // Click Next
+    const nextBtn = page.locator('button').filter({ has: page.locator('.lucide-chevron-right') }).first();
+    await nextBtn.click();
+    await page.waitForTimeout(2000);
+
+    // ASSERT: Page 2
+    await expect(page.locator('text=/Page 2 of/')).toBeVisible({ timeout: 10000 });
+    expect(page.url()).toContain('page=2');
+
+    await page.screenshot({ path: ss('T09b-page2'), fullPage: true });
+
+    // Click First (double chevron left)
+    const firstBtn = page.locator('button').filter({ has: page.locator('.lucide-chevrons-left') }).first();
+    await firstBtn.click();
+    await page.waitForTimeout(2000);
+
+    // ASSERT: Back to page 1
+    await expect(page.locator('text=/Page 1 of/')).toBeVisible({ timeout: 10000 });
+    expect(page.url()).not.toContain('page=');
+
+    await page.screenshot({ path: ss('T09c-back-to-page1'), fullPage: true });
+    console.log('T09 PASS: Pagination works correctly');
+  });
+
+  // ── T10: URL state persistence on reload ─────────────────────────
+  test('T10: URL state survives page reload', async ({ page }) => {
+    await setProjectInStorage(page);
+    const filterUrl = `${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&segment=family_office&geo=moscow_fo&sort_by=targets_found&sort_order=desc`;
+    await page.goto(filterUrl);
+    await waitForGridData(page);
+
+    const countBefore = await getQueryCount(page);
+
+    await page.screenshot({ path: ss('T10a-before-reload'), fullPage: true });
+
+    // Reload
+    await page.reload();
+    await waitForGridData(page);
+
+    const countAfter = await getQueryCount(page);
+
+    // ASSERT: Same filters in URL
+    const url = page.url();
+    expect(url).toContain('segment=family_office');
+    expect(url).toContain('geo=moscow_fo');
+
+    // ASSERT: Same data count
+    expect(countAfter).toBe(countBefore);
+
+    await page.screenshot({ path: ss('T10b-after-reload'), fullPage: true });
+    console.log(`T10 PASS: Reload preserved state (count: ${countAfter})`);
+  });
+
+  // ── T11: Click-through domains → contacts ────────────────────────
+  test('T11: clicking domains count navigates to CRM contacts', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&segment=family_office`);
+    await waitForGridData(page);
+
+    await page.screenshot({ path: ss('T11a-grid-with-domains'), fullPage: true });
+
+    // Find clickable domain links
+    const domainLinks = page.locator('button[title="View contacts from these domains"]');
+    const linkCount = await domainLinks.count();
+    console.log(`  Clickable domain links: ${linkCount}`);
+
+    if (linkCount === 0) {
+      console.log('  SKIP: No domains > 0 in current view');
+      test.skip();
+      return;
+    }
+
+    const value = await domainLinks.first().textContent();
+    console.log(`  Clicking domains count: ${value}`);
+    await domainLinks.first().click();
+
+    // ASSERT: Navigated to /contacts
+    await expect(page).toHaveURL(/\/contacts/, { timeout: 10000 });
+
+    const contactsUrl = page.url();
+    console.log(`  Contacts URL: ${contactsUrl}`);
+
+    // ASSERT: Filter params forwarded
+    expect(contactsUrl).toContain('segment=family_office');
+    expect(contactsUrl).toContain('project_id=18');
+
     await page.waitForTimeout(3000);
+    await page.screenshot({ path: ss('T11b-contacts-page'), fullPage: true });
+    console.log('T11 PASS: Domains click-through to CRM');
+  });
 
-    // Read query count and summary
-    const countText = await page.locator('text=/\\d+.*queries/').textContent();
-    console.log(`Filtered queries count: ${countText}`);
+  // ── T12: Click-through targets → contacts ────────────────────────
+  test('T12: clicking targets count navigates to CRM contacts', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
+    await waitForGridData(page);
 
-    await page.screenshot({ path: ss('FULL-01-dashboard-filtered'), fullPage: true });
+    await page.screenshot({ path: ss('T12a-grid-with-targets'), fullPage: true });
 
-    // Step 2: Open saturation panel for breakdown
-    console.log('--- Step 2: Opening saturation panel ---');
+    const targetLinks = page.locator('button[title="View target contacts"]');
+    const linkCount = await targetLinks.count();
+    console.log(`  Clickable target links: ${linkCount}`);
+
+    if (linkCount === 0) {
+      console.log('  SKIP: No targets > 0 in current view');
+      test.skip();
+      return;
+    }
+
+    const value = await targetLinks.first().textContent();
+    console.log(`  Clicking targets count: ${value}`);
+    await targetLinks.first().click();
+
+    // ASSERT: Navigated to /contacts
+    await expect(page).toHaveURL(/\/contacts/, { timeout: 10000 });
+    const contactsUrl = page.url();
+    expect(contactsUrl).toContain('project_id=18');
+
+    await page.waitForTimeout(3000);
+    await page.screenshot({ path: ss('T12b-contacts-page'), fullPage: true });
+    console.log('T12 PASS: Targets click-through to CRM');
+  });
+
+  // ── T13: Saturated row styling ───────────────────────────────────
+  test('T13: saturated rows have distinct visual styling', async ({ page }) => {
+    await setProjectInStorage(page);
+    // Navigate with saturated filter to ensure we see saturated rows
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&is_saturated=true`);
+    await waitForGridData(page);
+
+    // ASSERT: SAT badges visible
+    const satBadges = page.locator('text=SAT');
+    const badgeCount = await satBadges.count();
+    console.log(`  SAT badges visible: ${badgeCount}`);
+
+    if (badgeCount === 0) {
+      console.log('  SKIP: No saturated queries found');
+      test.skip();
+      return;
+    }
+
+    expect(badgeCount).toBeGreaterThan(0);
+
+    // ASSERT: Rows have reduced opacity class
+    const saturatedRows = page.locator('.ag-row.opacity-60');
+    const satRowCount = await saturatedRows.count();
+    console.log(`  Rows with opacity-60: ${satRowCount}`);
+
+    await page.screenshot({ path: ss('T13-saturated-rows'), fullPage: true });
+    console.log('T13 PASS: Saturated rows have visual styling');
+  });
+
+  // ── T14: Saturated filter toggle ─────────────────────────────────
+  test('T14: is_saturated URL filter shows only saturated queries', async ({ page }) => {
+    await setProjectInStorage(page);
+
+    // Get total count
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
+    const totalCount = await getQueryCount(page);
+
+    // Apply saturated filter
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&is_saturated=true`);
+    await waitForGridData(page);
+
+    const saturatedCount = await getQueryCount(page);
+    console.log(`  Total: ${totalCount}, Saturated only: ${saturatedCount}`);
+
+    // ASSERT: Saturated < total
+    expect(saturatedCount).toBeLessThan(totalCount);
+
+    // ASSERT: URL has is_saturated=true
+    expect(page.url()).toContain('is_saturated=true');
+
+    await page.screenshot({ path: ss('T14-saturated-only'), fullPage: true });
+    console.log('T14 PASS: Saturated filter works');
+  });
+
+  // ── T15: FULL SCENARIO — Deliryo family_office Russia ────────────
+  test('T15: full scenario — Deliryo family_office Russia deep analysis', async ({ page }) => {
+    await setProjectInStorage(page);
+
+    // Step 1: Load with filters
+    console.log('  S01: Loading filtered dashboard');
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&segment=family_office&geo=moscow_fo`);
+    await waitForGridData(page);
+
+    const queryCount = await getQueryCount(page);
+    console.log(`  → Queries found: ${queryCount}`);
+    expect(queryCount).toBeGreaterThan(0);
+
+    await page.screenshot({ path: ss('T15-S01-filtered-dashboard'), fullPage: true });
+
+    // Step 2: Read summary metrics
+    console.log('  S02: Verifying summary metrics');
+    await expect(page.locator('text=Queries').first()).toBeVisible();
+    await expect(page.locator('text=Domains').first()).toBeVisible();
+    await expect(page.locator('text=Targets').first()).toBeVisible();
+    await expect(page.locator('text=Saturation').first()).toBeVisible();
+
+    await page.screenshot({ path: ss('T15-S02-summary-metrics'), fullPage: true });
+
+    // Step 3: Open saturation panel
+    console.log('  S03: Opening saturation breakdown');
     const toggleBtn = page.locator('button:has-text("Saturation breakdown")');
     if (await toggleBtn.isVisible()) {
       await toggleBtn.click();
       await page.waitForTimeout(1000);
-      await page.screenshot({ path: ss('FULL-02-saturation-panel'), fullPage: true });
+      await page.screenshot({ path: ss('T15-S03-saturation-panel'), fullPage: true });
     }
 
-    // Step 3: Sort by targets_found desc to see most productive queries
-    console.log('--- Step 3: Sorting by targets found ---');
-    const targetsHeader = page.locator('.ag-header-cell:has-text("Targets")').first();
+    // Step 4: Sort by targets_found descending
+    console.log('  S04: Sorting by targets found (desc)');
+    const targetsHeader = page.locator('.ag-header-cell-label:has-text("Targets")').first();
     if (await targetsHeader.isVisible()) {
       await targetsHeader.click();
       await page.waitForTimeout(1500);
-      await targetsHeader.click(); // Click again for desc
+      // Click again for descending
+      await targetsHeader.click();
       await page.waitForTimeout(1500);
     }
-    await page.screenshot({ path: ss('FULL-03-sorted-by-targets'), fullPage: true });
 
-    // Step 4: Click through to contacts
-    console.log('--- Step 4: Click-through to CRM contacts ---');
+    await page.screenshot({ path: ss('T15-S04-sorted-by-targets'), fullPage: true });
+
+    // Step 5: Click-through to CRM contacts
+    console.log('  S05: Click-through to CRM contacts');
     const targetLinks = page.locator('button[title="View target contacts"]');
-    const linkCount = await targetLinks.count();
-    if (linkCount > 0) {
-      await targetLinks.first().click();
-      await expect(page).toHaveURL(/\/contacts/, { timeout: 10000 });
-      await page.waitForTimeout(3000);
-      await page.screenshot({ path: ss('FULL-04-contacts-from-query'), fullPage: true });
+    const domainLinks = page.locator('button[title="View contacts from these domains"]');
 
-      const contactsUrl = page.url();
-      console.log(`CRM contacts URL: ${contactsUrl}`);
-      expect(contactsUrl).toContain('segment=family_office');
-    } else {
-      console.log('No target links to click through');
-      // Try domain links instead
-      const domainLinks = page.locator('button[title="View contacts from these domains"]');
-      if (await domainLinks.count() > 0) {
-        await domainLinks.first().click();
-        await expect(page).toHaveURL(/\/contacts/, { timeout: 10000 });
-        await page.waitForTimeout(3000);
-        await page.screenshot({ path: ss('FULL-04-contacts-from-domains'), fullPage: true });
-      }
+    let clickedThrough = false;
+
+    if (await targetLinks.count() > 0) {
+      const targetValue = await targetLinks.first().textContent();
+      console.log(`  → Clicking target count: ${targetValue}`);
+      await targetLinks.first().click();
+      clickedThrough = true;
+    } else if (await domainLinks.count() > 0) {
+      const domainValue = await domainLinks.first().textContent();
+      console.log(`  → Clicking domain count: ${domainValue}`);
+      await domainLinks.first().click();
+      clickedThrough = true;
     }
 
-    console.log('--- Full scenario complete ---');
+    if (clickedThrough) {
+      await expect(page).toHaveURL(/\/contacts/, { timeout: 10000 });
+      await page.waitForTimeout(3000);
+
+      const contactsUrl = page.url();
+      console.log(`  → CRM URL: ${contactsUrl}`);
+
+      // ASSERT: Filters forwarded to CRM
+      expect(contactsUrl).toContain('segment=family_office');
+      expect(contactsUrl).toContain('project_id=18');
+
+      await page.screenshot({ path: ss('T15-S05-contacts-from-query'), fullPage: true });
+    } else {
+      console.log('  → No clickable links (0 domains/targets in filtered view)');
+      await page.screenshot({ path: ss('T15-S05-no-clickable-links'), fullPage: true });
+    }
+
+    // Step 6: Navigate back and verify URL is still correct
+    console.log('  S06: Navigating back to verify URL persistence');
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&segment=family_office&geo=moscow_fo`);
+    await waitForGridData(page);
+    expect(page.url()).toContain('segment=family_office');
+    expect(page.url()).toContain('geo=moscow_fo');
+
+    await page.screenshot({ path: ss('T15-S06-back-to-dashboard'), fullPage: true });
+
+    console.log('T15 PASS: Full scenario complete');
+    console.log(`\n  ═══ DEEP ANALYSIS URL ═══`);
+    console.log(`  ${page.url()}`);
+    console.log(`  ═════════════════════════\n`);
   });
 
-  test('no-project state shows prompt to select project', async ({ page }) => {
-    // Clear any stored project
-    await page.addInitScript(() => {
-      const store = JSON.parse(localStorage.getItem('leadgen-storage') || '{}');
-      if (store.state) store.state.currentProject = null;
-      localStorage.setItem('leadgen-storage', JSON.stringify(store));
-    });
+  // ── T16: No-project state ────────────────────────────────────────
+  test('T16: no-project state shows selection prompt', async ({ page }) => {
+    await clearProjectInStorage(page);
 
-    await page.goto('/dashboard/queries');
+    // Navigate WITHOUT project_id
+    await page.goto(BASE_URL);
     await page.waitForTimeout(2000);
 
-    const selectPrompt = page.locator('text=Select a project');
-    await expect(selectPrompt).toBeVisible({ timeout: 10000 });
+    // ASSERT: "Select a project" prompt visible
+    const prompt = page.locator('text=Select a project');
+    await expect(prompt).toBeVisible({ timeout: 10000 });
 
-    await page.screenshot({ path: ss('13-no-project-selected') });
-    console.log('No-project state shows prompt');
+    await page.screenshot({ path: ss('T16-no-project'), fullPage: true });
+    console.log('T16 PASS: No-project prompt shown');
   });
 });

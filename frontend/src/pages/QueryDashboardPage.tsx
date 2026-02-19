@@ -9,6 +9,7 @@ import { Search, RefreshCw, X, Loader2, ChevronLeft, ChevronRight, ChevronsLeft,
 import { useToast } from '../components/Toast';
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
+import { contactsApi } from '../api/contacts';
 import { queryDashboardApi } from '../api/queryDashboard';
 import type { QueryRecord, QuerySummaryResponse, FilterOptionsResponse, GeoHierarchyResponse, SegmentSaturation } from '../api/queryDashboard';
 import { QueryDashboardFilterContext } from '../components/filters/QueryDashboardFilterContext';
@@ -97,7 +98,7 @@ export function QueryDashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const { currentProject } = useAppStore();
+  const { currentProject, setCurrentProject } = useAppStore();
 
   // ── Filter state (initialized from URL) ────────────────────
   const [search, setSearch] = useState(searchParams.get('q') || '');
@@ -129,6 +130,20 @@ export function QueryDashboardPage() {
   const [geoHierarchy, setGeoHierarchy] = useState<GeoHierarchyResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showSaturationPanel, setShowSaturationPanel] = useState(false);
+
+  // ── Auto-select project from URL param ────────────────────
+  useEffect(() => {
+    const urlProjectId = searchParams.get('project_id');
+    if (urlProjectId && !currentProject) {
+      const pid = parseInt(urlProjectId, 10);
+      if (!isNaN(pid)) {
+        contactsApi.listProjectsLite().then((projects) => {
+          const match = projects.find(p => p.id === pid);
+          if (match) setCurrentProject(match as any);
+        }).catch(() => {});
+      }
+    }
+  }, [searchParams, currentProject, setCurrentProject]);
 
   // ── Debounce search ────────────────────────────────────────
   useEffect(() => {
