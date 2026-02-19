@@ -136,7 +136,10 @@ export function ProjectPage() {
 
   const getSource = (campaignName: string): string => {
     const match = allCampaigns.find(c => c.name === campaignName);
-    return match?.source || 'unknown';
+    if (match) return match.source;
+    // Campaign not in contacts yet — if no SmartLead campaign has this name, assume GetSales
+    const inSmartlead = allCampaigns.some(c => c.source === 'smartlead' && c.name === campaignName);
+    return inSmartlead ? 'smartlead' : 'getsales';
   };
 
   const filteredCampaigns = allCampaigns
