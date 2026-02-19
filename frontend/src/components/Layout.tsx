@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Database, FileText, Settings, BookOpen, Users, ChevronDown, MessageSquare, MessageCircle, Contact, ListTodo, Search, Zap, Target, Layers, FolderOpen, Moon, Sun } from 'lucide-react';
+import { Database, FileText, Settings, BookOpen, Users, ChevronDown, MessageSquare, MessageCircle, Contact, ListTodo, Search, Zap, Target, Layers, FolderOpen, Moon, Sun, BarChart2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -34,6 +34,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/', icon: Search, label: 'Data Search', global: true },
     { path: '/search-results', icon: Target, label: 'Query Investigation', global: true },
     { path: '/pipeline', icon: Layers, label: 'Pipeline', global: true },
+    { path: '/dashboard/queries', icon: BarChart2, label: 'Query Dashboard', global: true },
     { path: `${companyPrefix}/data`, icon: Database, label: 'Data', needsCompany: true },
     { path: `${companyPrefix}/prospects`, icon: Users, label: 'All Prospects', needsCompany: true },
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },

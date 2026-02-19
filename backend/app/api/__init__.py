@@ -28,6 +28,7 @@ from .search_chat import router as search_chat_router
 from .chat_stream import router as chat_stream_router
 from .pipeline import router as pipeline_router
 from .knowledge import router as project_knowledge_router
+from .query_dashboard import router as query_dashboard_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -65,6 +66,7 @@ api_router.include_router(errors_router)
 
 # Dashboard
 api_router.include_router(dashboard_router)
+api_router.include_router(query_dashboard_router)
 
 # Tasks (from state/tasks.md)
 api_router.include_router(tasks_router)
