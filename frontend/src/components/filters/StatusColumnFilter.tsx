@@ -1,8 +1,8 @@
-import { forwardRef, useImperativeHandle } from 'react';
+import { forwardRef, useImperativeHandle, useEffect, useState, useMemo } from 'react';
 import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
-import { Check } from 'lucide-react';
+import { Check, Search } from 'lucide-react';
 
 const STATUSES = [
   { key: 'touched',        label: 'Touched',         dot: 'bg-blue-500',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
@@ -17,8 +17,9 @@ const STATUSES = [
   { key: 'lost',           label: 'Lost',            dot: 'bg-red-500',     colors: 'bg-red-100 text-red-600 border-red-300' },
 ] as const;
 
-export const StatusColumnFilter = forwardRef((_props: IFilterParams, ref) => {
+export const StatusColumnFilter = forwardRef((props: IFilterParams, ref) => {
   const { statusFilters, toggleStatus, setStatusFilters, stats, resetPage } = useContactsFilter();
+  const [query, setQuery] = useState('');
 
   useImperativeHandle(ref, () => ({
     isFilterActive: () => statusFilters.length > 0,
@@ -29,6 +30,10 @@ export const StatusColumnFilter = forwardRef((_props: IFilterParams, ref) => {
     doesFilterPass: () => true, // Server-side filtering
   }));
 
+  useEffect(() => {
+    props.filterChangedCallback();
+  }, [statusFilters]);
+
   const handleToggle = (key: string) => {
     toggleStatus(key);
     resetPage();
@@ -38,6 +43,12 @@ export const StatusColumnFilter = forwardRef((_props: IFilterParams, ref) => {
     if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`;
     return String(n);
   };
+
+  const filteredStatuses = useMemo(() => {
+    if (!query.trim()) return STATUSES;
+    const q = query.toLowerCase();
+    return STATUSES.filter(s => s.label.toLowerCase().includes(q) || s.key.toLowerCase().includes(q));
+  }, [query]);
 
   return (
     <div className="p-3 min-w-[180px]">
@@ -52,8 +63,18 @@ export const StatusColumnFilter = forwardRef((_props: IFilterParams, ref) => {
           </button>
         )}
       </div>
-      <div className="flex flex-col gap-1">
-        {STATUSES.map(({ key, label, dot, colors }) => {
+      <div className="relative mb-2">
+        <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" />
+        <input
+          type="text"
+          placeholder="Search statuses..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full pl-7 pr-2 py-1.5 rounded-md border border-neutral-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+      </div>
+      <div className="flex flex-col gap-1 max-h-[320px] overflow-y-auto">
+        {filteredStatuses.map(({ key, label, dot }) => {
           const isActive = statusFilters.includes(key);
           const count = stats?.by_status?.[key] ?? 0;
           return (
@@ -62,7 +83,7 @@ export const StatusColumnFilter = forwardRef((_props: IFilterParams, ref) => {
               onClick={() => handleToggle(key)}
               className={cn(
                 "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all text-left",
-                isActive ? colors : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400"
+                isActive ? "bg-indigo-50 text-indigo-700 border-indigo-200" : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400"
               )}
             >
               <span className={cn(

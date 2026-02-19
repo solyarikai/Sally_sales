@@ -467,3 +467,12 @@
 .ag-theme-alpine .ag-header {
   border-bottom: 1px solid var(--border);
 }
+
+.ag-theme-alpine .ag-header-cell-filtered .ag-header-cell-text {
+  color: #4f46e5;
+  font-weight: 700;
+}
+
+.ag-theme-alpine .ag-header-cell-filtered {
+  background-color: rgba(79, 70, 229, 0.05);
+}

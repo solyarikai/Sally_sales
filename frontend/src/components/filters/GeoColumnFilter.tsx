@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle } from 'react';
+import { forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
@@ -9,7 +9,7 @@ const GEOS = [
   { key: 'Global', label: 'Global', flag: '🌍' },
 ] as const;
 
-export const GeoColumnFilter = forwardRef((_props: IFilterParams, ref) => {
+export const GeoColumnFilter = forwardRef((props: IFilterParams, ref) => {
   const { geoFilter, setGeoFilter, filterOptions, resetPage } = useContactsFilter();
 
   // Merge static GEOS with any dynamic ones from API
@@ -23,6 +23,10 @@ export const GeoColumnFilter = forwardRef((_props: IFilterParams, ref) => {
     },
     doesFilterPass: () => true,
   }));
+
+  useEffect(() => {
+    props.filterChangedCallback();
+  }, [geoFilter]);
 
   const handleSelect = (key: string) => {
     setGeoFilter(geoFilter === key ? null : key);

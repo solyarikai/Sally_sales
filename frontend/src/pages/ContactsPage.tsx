@@ -26,7 +26,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
-import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter } from '../components/filters';
+import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter, SegmentColumnFilter, SourceColumnFilter } from '../components/filters';
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
 
 // Status configuration — proper lead statuses (no "replied" — that's a flag, not a status)
@@ -63,7 +63,9 @@ export function ContactsPage() {
     searchParams.get('status')?.split(',').filter(Boolean) || []
   );
   const [sourceFilter, setSourceFilter] = useState<string | null>(searchParams.get('source'));
-  const [segmentFilter, setSegmentFilter] = useState<string | null>(searchParams.get('segment'));
+  const [segmentFilters, setSegmentFilters] = useState<string[]>(
+    searchParams.get('segment')?.split(',').filter(Boolean) || []
+  );
   const [geoFilter, setGeoFilter] = useState<string | null>(searchParams.get('geo'));
   const [campaignFilters, setCampaignFilters] = useState<string[]>(
     searchParams.get('campaign')?.split(',').filter(Boolean) || []
@@ -154,7 +156,7 @@ export function ContactsPage() {
       search: debouncedSearch || null,
       status: statusFilters.length ? statusFilters.join(',') : null,
       source: sourceFilter,
-      segment: segmentFilter,
+      segment: segmentFilters.length ? segmentFilters.join(',') : null,
       geo: geoFilter,
       campaign: campaignFilters.length ? campaignFilters.join(',') : null,
       campaign_id: campaignIdFilter,
@@ -175,7 +177,7 @@ export function ContactsPage() {
     if (existingContactId) params.set('contact_id', existingContactId);
 
     setSearchParams(params, { replace: true });
-  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilter, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore]);
+  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore]);
 
   // Close dropdowns on click outside
   useEffect(() => {
@@ -250,6 +252,10 @@ export function ContactsPage() {
     setStatusFilters(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]);
     setPage(1);
   }, []);
+  const toggleSegment = useCallback((segment: string) => {
+    setSegmentFilters(prev => prev.includes(segment) ? prev.filter(s => s !== segment) : [...prev, segment]);
+    setPage(1);
+  }, []);
 
   // Load data
   const loadContacts = useCallback(async () => {
@@ -263,7 +269,7 @@ export function ContactsPage() {
         search: debouncedSearch || undefined,
         status: statusFilters.length > 0 ? statusFilters.join(',') : undefined,
         source: sourceFilter || undefined,
-        segment: segmentFilter || undefined,
+        segment: segmentFilters.length > 0 ? segmentFilters.join(',') : undefined,
         geo: geoFilter || undefined,
         campaign: campaignFilters.length > 0 ? campaignFilters.join(',') : undefined,
         campaign_id: campaignIdFilter || undefined,
@@ -282,7 +288,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilter, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -418,14 +424,14 @@ export function ContactsPage() {
       filter: 'agTextColumnFilter',
       sortable: true,
       flex: 2,
-      minWidth: 180,
+      minWidth: 160,
     },
     {
       headerName: 'Name',
       filter: 'agTextColumnFilter',
       sortable: true,
       flex: 1.5,
-      minWidth: 140,
+      minWidth: 120,
       valueGetter: (params) => {
         const c = params.data as Contact;
         return `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || '-';
@@ -437,7 +443,7 @@ export function ContactsPage() {
       filter: 'agTextColumnFilter',
       sortable: true,
       flex: 1.5,
-      minWidth: 130,
+      minWidth: 110,
     },
     {
       field: 'job_title',
@@ -445,14 +451,14 @@ export function ContactsPage() {
       filter: 'agTextColumnFilter',
       sortable: true,
       flex: 1,
-      minWidth: 120,
+      minWidth: 100,
     },
     {
       headerName: 'Campaign',
       filter: CampaignColumnFilter,
       sortable: true,
       flex: 1.5,
-      minWidth: 140,
+      minWidth: 120,
       valueGetter: (params) => {
         const c = params.data as Contact;
         if (!c?.campaigns || c.campaigns.length === 0) return '';
@@ -479,9 +485,9 @@ export function ContactsPage() {
     {
       field: 'source',
       headerName: 'Source',
-      filter: 'agTextColumnFilter',
+      filter: SourceColumnFilter,
       sortable: true,
-      width: 90,
+      width: 80,
       cellRenderer: (params: { value: string }) => {
         const label = params.value === 'smartlead' ? 'Email' : params.value === 'getsales' ? 'LinkedIn' : (params.value || '-');
         return <span className="text-xs">{label}</span>;
@@ -490,9 +496,9 @@ export function ContactsPage() {
     {
       field: 'segment',
       headerName: 'Segment',
-      filter: 'agTextColumnFilter',
+      filter: SegmentColumnFilter,
       sortable: true,
-      width: 120,
+      width: 100,
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
     {
@@ -500,14 +506,14 @@ export function ContactsPage() {
       headerName: 'Location',
       filter: 'agTextColumnFilter',
       sortable: true,
-      width: 130,
+      width: 110,
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
     {
       field: 'created_at',
       headerName: 'Added',
       sortable: true,
-      width: 95,
+      width: 88,
       filter: DateColumnFilter,
       valueFormatter: (params: ValueFormatterParams) => {
         if (!params.value) return '-';
@@ -519,7 +525,7 @@ export function ContactsPage() {
       headerName: 'Project',
       filter: 'agTextColumnFilter',
       sortable: true,
-      width: 130,
+      width: 110,
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
   ], []);
@@ -562,7 +568,7 @@ export function ContactsPage() {
       if (campaignIdFilter) filters.campaign_id = campaignIdFilter;
       if (statusFilters.length > 0) filters.status = statusFilters.join(',');
       if (sourceFilter) filters.source = sourceFilter;
-      if (segmentFilter) filters.segment = segmentFilter;
+      if (segmentFilters.length > 0) filters.segment = segmentFilters.join(',');
       if (geoFilter) filters.geo = geoFilter;
       if (debouncedSearch) filters.search = debouncedSearch;
       if (repliedFilter !== null) filters.has_replied = repliedFilter;
@@ -570,7 +576,7 @@ export function ContactsPage() {
       if (createdBefore) filters.created_before = createdBefore;
     }
     return filters;
-  }, [selectedContacts, activeProject, campaignFilters, statusFilters, sourceFilter, segmentFilter, geoFilter, debouncedSearch, repliedFilter, createdAfter, createdBefore]);
+  }, [selectedContacts, activeProject, campaignFilters, statusFilters, sourceFilter, segmentFilters, geoFilter, debouncedSearch, repliedFilter, createdAfter, createdBefore]);
 
   // Export states
   const [isExportingSheet, setIsExportingSheet] = useState(false);
@@ -677,7 +683,7 @@ export function ContactsPage() {
   const clearFilters = () => {
     setStatusFilters([]);
     setSourceFilter(null);
-    setSegmentFilter(null);
+    setSegmentFilters([]);
     setGeoFilter(null);
     setCampaignFilters([]);
     setCampaignIdFilter(null);
@@ -743,7 +749,7 @@ export function ContactsPage() {
     return contacts.filter(c => c.has_replied && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
-  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilter || geoFilter || campaignFilters.length > 0 || campaignIdFilter || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode;
+  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilters.length > 0 || geoFilter || campaignFilters.length > 0 || campaignIdFilter || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode;
   const totalPages = Math.ceil(total / pageSize);
 
   const setDateRange = useCallback((after: string | null, before: string | null) => {
@@ -756,11 +762,14 @@ export function ContactsPage() {
     campaignFilters,
     setCampaignFilters: (names: string[]) => { setCampaignFilters(names); setPage(1); },
     toggleCampaign,
+    campaignIdFilter,
+    setCampaignIdFilter: (id: string | null) => { setCampaignIdFilter(id); setPage(1); },
     statusFilters,
     setStatusFilters: (statuses: string[]) => { setStatusFilters(statuses); setPage(1); },
     toggleStatus,
-    segmentFilter,
-    setSegmentFilter: (s: string | null) => { setSegmentFilter(s); setPage(1); },
+    segmentFilters,
+    setSegmentFilters: (segs: string[]) => { setSegmentFilters(segs); setPage(1); },
+    toggleSegment,
     sourceFilter,
     setSourceFilter: (s: string | null) => { setSourceFilter(s); setPage(1); },
     geoFilter,
@@ -776,7 +785,7 @@ export function ContactsPage() {
     createdAfter,
     createdBefore,
     setDateRange,
-  }), [campaignFilters, toggleCampaign, statusFilters, toggleStatus, segmentFilter, geoFilter, sourceFilter, repliedFilter, followupFilter, campaigns, stats, filterOptions, resetPage, createdAfter, createdBefore, setDateRange]);
+  }), [campaignFilters, toggleCampaign, campaignIdFilter, statusFilters, toggleStatus, segmentFilters, toggleSegment, geoFilter, sourceFilter, repliedFilter, followupFilter, campaigns, stats, filterOptions, resetPage, createdAfter, createdBefore, setDateRange]);
 
   return (
     <ContactsFilterContext.Provider value={filterCtx}>
@@ -1049,16 +1058,16 @@ export function ContactsPage() {
             </div>
           )}
 
-          {/* Active segment filter badge */}
-          {segmentFilter && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+          {/* Active segment filter badges */}
+          {segmentFilters.map(seg => (
+            <span key={seg} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
               <Target className="w-3 h-3" />
-              {segmentFilter.replace(/_/g, ' ')}
-              <button onClick={() => { setSegmentFilter(null); setPage(1); }} className="ml-0.5 hover:bg-blue-100 rounded p-0.5">
+              {seg.replace(/_/g, ' ')}
+              <button onClick={() => toggleSegment(seg)} className="ml-0.5 hover:bg-blue-100 rounded p-0.5">
                 <X className="w-2.5 h-2.5" />
               </button>
             </span>
-          )}
+          ))}
 
           {/* Active geo filter badge */}
           {geoFilter && (
@@ -1433,17 +1442,10 @@ export function ContactsPage() {
           contact={selectedContact}
           isOpen={showContactModal}
           onClose={() => {
-            // Filter CRM to the contact that was just viewed (F18)
-            const viewedEmail = selectedContact?.email;
             setShowContactModal(false);
             setSelectedContact(null);
             const p = new URLSearchParams(searchParams);
             p.delete('contact_id');
-            if (viewedEmail) {
-              setSearch(viewedEmail);
-              setDebouncedSearch(viewedEmail);
-              p.set('search', viewedEmail);
-            }
             setSearchParams(p, { replace: true });
           }}
           replyMode={replyMode}

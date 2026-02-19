@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useState, useMemo } from 'react';
+import { forwardRef, useImperativeHandle, useState, useMemo, useEffect } from 'react';
 import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
@@ -18,18 +18,23 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   );
 }
 
-export const CampaignColumnFilter = forwardRef((_props: IFilterParams, ref) => {
-  const { campaignFilters, setCampaignFilters, toggleCampaign, campaigns, resetPage } = useContactsFilter();
+export const CampaignColumnFilter = forwardRef((props: IFilterParams, ref) => {
+  const { campaignFilters, setCampaignFilters, toggleCampaign, campaigns, resetPage, campaignIdFilter, setCampaignIdFilter } = useContactsFilter();
   const [query, setQuery] = useState('');
 
   useImperativeHandle(ref, () => ({
-    isFilterActive: () => campaignFilters.length > 0,
-    getModel: () => (campaignFilters.length > 0 ? { values: campaignFilters } : null),
-    setModel: (model: { values: string[] } | null) => {
+    isFilterActive: () => campaignFilters.length > 0 || !!campaignIdFilter,
+    getModel: () => (campaignFilters.length > 0 || campaignIdFilter) ? { values: campaignFilters, ids: campaignIdFilter } : null,
+    setModel: (model: { values: string[]; ids?: string | null } | null) => {
       setCampaignFilters(model?.values ?? []);
+      if (model?.ids !== undefined) setCampaignIdFilter(model.ids ?? null);
     },
     doesFilterPass: () => true, // Server-side filtering
   }));
+
+  useEffect(() => {
+    props.filterChangedCallback();
+  }, [campaignFilters, campaignIdFilter]);
 
   // Sort: prefix matches first, then includes
   const filtered = useMemo(() => {
@@ -58,6 +63,7 @@ export const CampaignColumnFilter = forwardRef((_props: IFilterParams, ref) => {
 
   const clearAll = () => {
     setCampaignFilters([]);
+    setCampaignIdFilter(null);
     resetPage();
     setQuery('');
   };
@@ -90,12 +96,22 @@ export const CampaignColumnFilter = forwardRef((_props: IFilterParams, ref) => {
     <div className="p-3 min-w-[260px] max-w-[320px]">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-neutral-500">CAMPAIGN</span>
-        {campaignFilters.length > 0 && (
+        {(campaignFilters.length > 0 || campaignIdFilter) && (
           <button onClick={clearAll} className="text-[10px] text-red-500 hover:text-red-700">
-            Clear all ({campaignFilters.length})
+            Clear all {campaignFilters.length > 0 ? `(${campaignFilters.length})` : ''}
           </button>
         )}
       </div>
+
+      {/* Campaign ID filter notice */}
+      {campaignIdFilter && (
+        <div className="flex items-center justify-between px-2 py-1.5 mb-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-700">
+          <span>Filtered by campaign IDs</span>
+          <button onClick={() => { setCampaignIdFilter(null); resetPage(); }} className="text-amber-500 hover:text-amber-700">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
 
       {/* Selected campaign chips */}
       {campaignFilters.length > 0 && (

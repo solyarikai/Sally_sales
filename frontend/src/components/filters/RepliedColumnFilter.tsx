@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle } from 'react';
+import { forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
@@ -10,7 +10,7 @@ const OPTIONS = [
   { key: 'followup',   label: 'Needs Follow-up',  dot: 'bg-orange-500' },
 ] as const;
 
-export const RepliedColumnFilter = forwardRef((_props: IFilterParams, ref) => {
+export const RepliedColumnFilter = forwardRef((props: IFilterParams, ref) => {
   const { repliedFilter, setRepliedFilter, followupFilter, setFollowupFilter, resetPage } = useContactsFilter();
 
   const activeKey = followupFilter === true ? 'followup' : repliedFilter === true ? 'replied' : repliedFilter === false ? 'no_reply' : null;
@@ -35,6 +35,10 @@ export const RepliedColumnFilter = forwardRef((_props: IFilterParams, ref) => {
     },
     doesFilterPass: () => true,
   }));
+
+  useEffect(() => {
+    props.filterChangedCallback();
+  }, [repliedFilter, followupFilter]);
 
   const handleSelect = (key: string) => {
     if (activeKey === key) {

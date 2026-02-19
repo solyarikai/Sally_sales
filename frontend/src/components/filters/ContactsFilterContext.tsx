@@ -5,11 +5,14 @@ export interface ContactsFilterState {
   campaignFilters: string[];
   setCampaignFilters: (names: string[]) => void;
   toggleCampaign: (name: string) => void;
+  campaignIdFilter: string | null;
+  setCampaignIdFilter: (id: string | null) => void;
   statusFilters: string[];
   setStatusFilters: (statuses: string[]) => void;
   toggleStatus: (status: string) => void;
-  segmentFilter: string | null;
-  setSegmentFilter: (s: string | null) => void;
+  segmentFilters: string[];
+  setSegmentFilters: (segments: string[]) => void;
+  toggleSegment: (segment: string) => void;
   sourceFilter: string | null;
   setSourceFilter: (s: string | null) => void;
   geoFilter: string | null;

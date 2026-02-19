@@ -1,8 +1,8 @@
-import { forwardRef, useImperativeHandle } from 'react';
+import { forwardRef, useImperativeHandle, useEffect, useState, useMemo } from 'react';
 import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
-import { Check } from 'lucide-react';
+import { Check, Search } from 'lucide-react';
 
 const SOURCES = [
   { key: 'smartlead',                label: 'Email',        color: 'text-blue-600' },
@@ -12,8 +12,9 @@ const SOURCES = [
   { key: 'smartlead_deliryo_sync',   label: 'SL Sync',      color: 'text-blue-500' },
 ] as const;
 
-export const SourceColumnFilter = forwardRef((_props: IFilterParams, ref) => {
+export const SourceColumnFilter = forwardRef((props: IFilterParams, ref) => {
   const { sourceFilter, setSourceFilter, resetPage } = useContactsFilter();
+  const [query, setQuery] = useState('');
 
   useImperativeHandle(ref, () => ({
     isFilterActive: () => !!sourceFilter,
@@ -24,10 +25,20 @@ export const SourceColumnFilter = forwardRef((_props: IFilterParams, ref) => {
     doesFilterPass: () => true,
   }));
 
+  useEffect(() => {
+    props.filterChangedCallback();
+  }, [sourceFilter]);
+
   const handleSelect = (key: string) => {
     setSourceFilter(sourceFilter === key ? null : key);
     resetPage();
   };
+
+  const filteredSources = useMemo(() => {
+    if (!query.trim()) return SOURCES;
+    const q = query.toLowerCase();
+    return SOURCES.filter(s => s.label.toLowerCase().includes(q) || s.key.toLowerCase().includes(q));
+  }, [query]);
 
   return (
     <div className="p-3 min-w-[160px]">
@@ -42,8 +53,18 @@ export const SourceColumnFilter = forwardRef((_props: IFilterParams, ref) => {
           </button>
         )}
       </div>
+      <div className="relative mb-2">
+        <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" />
+        <input
+          type="text"
+          placeholder="Search sources..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full pl-7 pr-2 py-1.5 rounded-md border border-neutral-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+      </div>
       <div className="flex flex-col gap-1">
-        {SOURCES.map(({ key, label, color }) => {
+        {filteredSources.map(({ key, label, color }) => {
           const isActive = sourceFilter === key;
           return (
             <button

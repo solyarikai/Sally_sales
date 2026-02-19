@@ -256,9 +256,12 @@ async def _build_filtered_query(
 
     if project_id:
         proj_result = await session.execute(
-            select(Project.campaign_filters, Project.name).where(Project.id == project_id)
+            select(Project.campaign_filters, Project.name, Project.company_id).where(Project.id == project_id)
         )
         proj_row = proj_result.first()
+        if proj_row and company_id and proj_row[2] and proj_row[2] != company_id:
+            # Project belongs to a different company — return empty results
+            query = query.where(sql_text("1 = 0"))
         proj_campaign_filters = proj_row[0] if proj_row else None
         proj_name = (proj_row[1] if proj_row else "") or ""
 
@@ -367,6 +370,7 @@ async def _build_filtered_query(
                 Contact.last_name.ilike(search_term),
                 Contact.company_name.ilike(search_term),
                 Contact.domain.ilike(search_term),
+                Contact.job_title.ilike(search_term),
             )
         )
 

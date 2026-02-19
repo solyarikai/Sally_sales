@@ -89,13 +89,22 @@ async def detailed_health(session: AsyncSession = Depends(get_session)):
         checks["database"]["status"] = "unhealthy"
         checks["database"]["error"] = str(e)
     
-    # Environment info
+    # Environment info — all integrations
     checks["environment"] = {
         "debug": settings.DEBUG,
-        "smartlead_configured": bool(getattr(settings, 'SMARTLEAD_API_KEY', None)),
-        "slack_configured": bool(getattr(settings, 'SLACK_BOT_TOKEN', None)),
-        "google_sheets_configured": bool(settings.GOOGLE_SERVICE_ACCOUNT_JSON or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")),
-        "openai_configured": bool(settings.OPENAI_API_KEY),
+        "openai": bool(settings.OPENAI_API_KEY),
+        "apollo": bool(settings.APOLLO_API_KEY),
+        "findymail": bool(settings.FINDYMAIL_API_KEY),
+        "smartlead": bool(settings.SMARTLEAD_API_KEY),
+        "yandex_search": bool(settings.YANDEX_SEARCH_API_KEY),
+        "crona": bool(settings.CRONA_EMAIL and settings.CRONA_PASSWORD),
+        "apify_proxy": bool(settings.APIFY_PROXY_PASSWORD),
+        "google_sheets": bool(settings.GOOGLE_SERVICE_ACCOUNT_JSON or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")),
+        "getsales": bool(settings.GETSALES_API_KEY),
+        "gemini": bool(settings.GEMINI_API_KEY),
+        "instantly": bool(settings.INSTANTLY_API_KEY),
+        "clay": bool(settings.CLAY_API_KEY),
+        "telegram": bool(settings.TELEGRAM_BOT_TOKEN),
     }
     
     # System info

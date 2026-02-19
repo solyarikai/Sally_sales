@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useState } from 'react';
+import { forwardRef, useImperativeHandle, useState, useEffect } from 'react';
 import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
@@ -40,7 +40,7 @@ const PRESETS = [
   { key: 'last_30d', label: 'Last 30 days' },
 ] as const;
 
-export const DateColumnFilter = forwardRef((_props: IFilterParams, ref) => {
+export const DateColumnFilter = forwardRef((props: IFilterParams, ref) => {
   const { createdAfter, createdBefore, setDateRange, resetPage } = useContactsFilter();
   const [customFrom, setCustomFrom] = useState(createdAfter || '');
   const [customTo, setCustomTo] = useState(createdBefore || '');
@@ -58,6 +58,10 @@ export const DateColumnFilter = forwardRef((_props: IFilterParams, ref) => {
     },
     doesFilterPass: () => true,
   }));
+
+  useEffect(() => {
+    props.filterChangedCallback();
+  }, [createdAfter, createdBefore]);
 
   const handlePreset = (key: string) => {
     if (activePreset === key) {

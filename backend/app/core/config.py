@@ -1,6 +1,9 @@
 from pydantic_settings import BaseSettings
 from typing import Optional, List
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -124,3 +127,84 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+# ── Startup integration check ──────────────────────────────────────────
+# Runs once on import.  Logs every integration as OK / MISSING so you
+# can tell at a glance what the running container actually has access to.
+
+_REQUIRED_KEYS = {
+    # key_name          → human label shown in logs
+    "OPENAI_API_KEY":   "OpenAI (GPT scoring, extraction)",
+    "APOLLO_API_KEY":   "Apollo (people enrichment)",
+    "FINDYMAIL_API_KEY": "FindyMail (email verification + finding)",
+    "SMARTLEAD_API_KEY": "SmartLead (campaign push)",
+}
+
+_OPTIONAL_KEYS = {
+    "YANDEX_SEARCH_API_KEY": "Yandex Search",
+    "CRONA_EMAIL":           "Crona (JS scraping)",
+    "APIFY_PROXY_PASSWORD":  "Apify Proxy (Google SERP)",
+    "GETSALES_API_KEY":      "GetSales",
+    "GEMINI_API_KEY":        "Google Gemini",
+    "INSTANTLY_API_KEY":     "Instantly",
+    "CLAY_API_KEY":          "Clay",
+    "TELEGRAM_BOT_TOKEN":    "Telegram Bot",
+}
+
+
+def _check_integrations() -> None:
+    """Print status of every integration on startup.
+
+    Uses print() because this runs at import time before logging is configured.
+    """
+    import sys
+    missing_required = []
+
+    def out(msg: str) -> None:
+        print(msg, file=sys.stderr, flush=True)
+
+    out("")
+    out("=" * 62)
+    out("  INTEGRATION STATUS CHECK")
+    out("=" * 62)
+
+    for key, label in _REQUIRED_KEYS.items():
+        val = getattr(settings, key, None)
+        if val:
+            masked = val[:4] + "..." + val[-4:] if len(val) > 12 else "***"
+            out(f"  OK      {label:.<42s} {masked}")
+        else:
+            out(f"  MISSING {label:.<42s} !! SET {key} IN .env !!")
+            missing_required.append(key)
+
+    for key, label in _OPTIONAL_KEYS.items():
+        val = getattr(settings, key, None)
+        if val:
+            out(f"  OK      {label:.<42s} set")
+        else:
+            out(f"  ---     {label:.<42s} not set (optional)")
+
+    # Google creds
+    creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS
+    if creds_path and os.path.isfile(creds_path) and os.path.getsize(creds_path) > 10:
+        out(f"  OK      {'Google Service Account':.<42s} {creds_path}")
+    elif settings.GOOGLE_SERVICE_ACCOUNT_JSON:
+        out(f"  OK      {'Google Service Account (JSON)':.<42s} set")
+    else:
+        out(f"  MISSING {'Google Service Account':.<42s} !! no creds file or JSON !!")
+        missing_required.append("GOOGLE_APPLICATION_CREDENTIALS")
+
+    out("=" * 62)
+
+    if missing_required:
+        out(
+            f"\n  *** {len(missing_required)} REQUIRED integration(s) MISSING: "
+            f"{', '.join(missing_required)}\n"
+            f"  *** Pipeline features WILL FAIL. Fix .env and restart.\n"
+        )
+    else:
+        out("  All required integrations configured.\n")
+
+
+_check_integrations()

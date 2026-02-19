@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles, ExternalLink } from 'lucide-react';
+import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles, ExternalLink, Link2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
 import type { Contact } from '../api/contacts';
@@ -369,6 +369,17 @@ export function ContactDetailModal({
     }
   };
 
+  const handleShareLink = () => {
+    if (!contact) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('contact_id', String(contact.id));
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      toast('Link copied to clipboard');
+    }).catch(() => {
+      toast.error('Failed to copy link');
+    });
+  };
+
   // ── Reply mode: 3-column split layout ─────────────────────────────
   if (replyMode) {
     return (
@@ -432,6 +443,13 @@ export function ContactDetailModal({
                   <ExternalLink className="w-3 h-3" />
                 </a>
               )}
+              <button
+                onClick={handleShareLink}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-gray-500 hover:bg-gray-100 transition-colors"
+                title="Copy link to contact"
+              >
+                <Link2 className="w-3 h-3" />
+              </button>
               <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
                 <X className="w-4 h-4 text-gray-400" />
               </button>
@@ -596,6 +614,14 @@ export function ContactDetailModal({
                 SmartLead
               </a>
             )}
+            <button
+              onClick={handleShareLink}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] text-gray-500 hover:bg-gray-100 transition-colors"
+              title="Copy link to contact"
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              Share
+            </button>
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <X className="w-5 h-5 text-gray-400" />
             </button>
