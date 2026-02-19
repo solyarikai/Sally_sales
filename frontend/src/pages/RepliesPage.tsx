@@ -634,7 +634,9 @@ export function RepliesPage() {
               const isThreadOpen = expandedThreads.has(reply.id);
               const isThreadLoading = loadingThreads.has(reply.id);
               const history = historyData[reply.id];
-              const historyMsgCount = history?.activities?.length || 0;
+              const selectedKey = selectedHistoryCampaign[reply.id] ?? null;
+              const selectedCamp = selectedKey ? history?.campaigns?.find(c => `${c.channel}::${c.campaign_name}` === selectedKey) : null;
+              const historyMsgCount = selectedCamp?.message_count ?? (history?.campaigns?.length === 1 ? history.campaigns[0].message_count : 0);
               const draftText = isEditing ? editingDrafts[reply.id].reply : (reply.draft_reply || '');
               const draftFailed = isDraftFailed(reply.draft_reply);
               const classificationFailed = FAILED_CLASS_RE.test(reply.classification_reasoning || '');
@@ -645,7 +647,7 @@ export function RepliesPage() {
               return (
                 <div
                   key={reply.id}
-                  className="rounded-md border transition-colors overflow-hidden"
+                  className="rounded-md border transition-colors"
                   style={{
                     background: t.cardBg,
                     borderColor: t.cardBorder,
@@ -690,13 +692,13 @@ export function RepliesPage() {
                               <Clock className="w-3 h-3" />
                               {reply.received_at ? timeAgo(reply.received_at) : '?'}
                             </span>
-                            {reply.inbox_link && (
+                            {(reply.inbox_link || history?.inbox_links?.[reply.campaign_name]) && (
                               <a
-                                href={reply.inbox_link}
+                                href={reply.inbox_link || history?.inbox_links?.[reply.campaign_name]}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="transition-colors"
-                                title="Smartlead"
+                                title="Open in Smartlead"
                                 onClick={e => e.stopPropagation()}
                                 style={{ color: t.text5 }}
                               >
@@ -706,57 +708,10 @@ export function RepliesPage() {
                           </div>
                         </div>
 
-                        {/* Campaign dropdown selector */}
+                        {/* Campaign name — simple label */}
                         {reply.campaign_name && (
-                          <div className="px-4 text-[11px] pb-1" style={{ color: t.text6 }}>
-                            {(reply.contact_campaign_count ?? 0) > 1 ? (
-                              <div className="relative inline-block" data-campaign-dropdown>
-                                <button
-                                  onClick={() => toggleCampaignSelector(reply.lead_email)}
-                                  className="inline-flex items-center gap-1 hover:opacity-80 transition-opacity"
-                                >
-                                  <span className="truncate max-w-[300px]">{displayCampaignName(reply.campaign_name)}</span>
-                                  <span
-                                    className="px-1 py-0.5 rounded text-[10px] font-medium"
-                                    style={{ background: t.badgeBg, color: t.badgeText }}
-                                  >
-                                    {reply.contact_campaign_count}
-                                  </span>
-                                  <span className="text-[10px]">{expandedCampaigns.has(reply.lead_email) ? '▲' : '▼'}</span>
-                                </button>
-                                {expandedCampaigns.has(reply.lead_email) && (
-                                  <div
-                                    className="absolute left-0 top-full mt-1 rounded-md border shadow-lg z-20 min-w-[260px] py-1"
-                                    style={{ background: t.cardBg, borderColor: t.cardBorder }}
-                                  >
-                                    {loadingCampaigns.has(reply.lead_email) ? (
-                                      <div className="px-3 py-2 text-[11px]" style={{ color: t.text5 }}>Loading...</div>
-                                    ) : (contactCampaigns[reply.lead_email] || []).map(entry => {
-                                      const isActive = entry.reply_id === reply.id;
-                                      return (
-                                        <button
-                                          key={entry.reply_id}
-                                          onClick={() => { switchCampaign(reply, entry); setExpandedCampaigns(new Set()); }}
-                                          className="w-full px-3 py-1.5 text-left text-[11px] flex items-center justify-between gap-2 transition-colors"
-                                          style={{
-                                            background: isActive ? t.badgeBg : 'transparent',
-                                            color: isActive ? t.text1 : t.text3,
-                                            fontWeight: isActive ? 600 : 400,
-                                          }}
-                                        >
-                                          <span className="truncate">{displayCampaignName(entry.campaign_name)}</span>
-                                          {entry.received_at && (
-                                            <span className="flex-shrink-0" style={{ color: t.text5 }}>{timeAgo(entry.received_at)}</span>
-                                          )}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="truncate">{displayCampaignName(reply.campaign_name)}</span>
-                            )}
+                          <div className="px-4 text-[11px] pb-1 truncate" style={{ color: t.text6 }}>
+                            {displayCampaignName(reply.campaign_name)}
                           </div>
                         )}
                         <div style={{ borderBottom: `1px solid ${t.divider}` }} />
@@ -932,7 +887,7 @@ export function RepliesPage() {
                             <><ArrowRight className="w-3.5 h-3.5" /> {reply.channel === 'linkedin'
                               ? (isEditing ? 'Approve edited' : 'Approve')
                               : (isEditing ? 'Send edited' : 'Send')
-                            }{(reply.contact_campaign_count ?? 0) > 1 && reply.campaign_name
+                            }{reply.campaign_name
                               ? ` via ${displayCampaignName(reply.campaign_name)}`
                               : ''
                             }</>
