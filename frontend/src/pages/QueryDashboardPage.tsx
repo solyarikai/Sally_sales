@@ -96,7 +96,7 @@ function SaturationTable({ title, data, onClickRow }: { title: string; data: Seg
 export function QueryDashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const toast = useToast();
   const { currentProject } = useAppStore();
 
   // ── Filter state (initialized from URL) ────────────────────
@@ -288,7 +288,7 @@ export function QueryDashboardPage() {
   const onGridReady = useCallback((_params: GridReadyEvent) => {}, []);
 
   // ── Navigate to CRM contacts with query context ────────────
-  const openContactsForQuery = useCallback((row: QueryRecord, mode: 'domains' | 'targets') => {
+  const openContactsForQuery = useCallback((row: QueryRecord, _mode: 'domains' | 'targets') => {
     const params = new URLSearchParams();
     if (row.segment) params.set('segment', row.segment);
     if (row.geo) params.set('geo', row.geo);
@@ -465,7 +465,7 @@ export function QueryDashboardPage() {
   }), []);
 
   // ── Row class for saturated ────────────────────────────────
-  const getRowClass = useCallback((params: { data: QueryRecord }) => {
+  const getRowClass = useCallback((params: { data: QueryRecord | undefined }) => {
     if (params.data?.is_saturated) return 'bg-neutral-50 opacity-60';
     return '';
   }, []);

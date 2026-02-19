@@ -24,7 +24,7 @@ export const QueryLanguageColumnFilter = forwardRef((props: IFilterParams, ref) 
   const available = new Set(filterOptions?.languages || []);
 
   // Include both static + any dynamic languages from API
-  const allLangs = [...LANGUAGES.filter(l => available.has(l.key))];
+  const allLangs: Array<{ key: string; label: string }> = [...LANGUAGES.filter(l => available.has(l.key))];
   const extraLangs = (filterOptions?.languages || []).filter(l => !LANGUAGES.some(s => s.key === l));
   extraLangs.forEach(l => allLangs.push({ key: l, label: l.toUpperCase() }));
 
