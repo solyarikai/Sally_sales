@@ -388,22 +388,20 @@ class SmartleadClient:
         
         return await self._post(f"/campaigns/{campaign_id}/webhooks", webhook_data)
     
-    async def setup_crm_webhooks(self, webhook_url: str) -> Dict[str, Any]:
+    async def setup_crm_webhooks(self, webhook_url: str, skip_campaigns: set = None) -> Dict[str, Any]:
         """
         Set up CRM webhooks for all active Smartlead campaigns.
         Runs up to 10 checks concurrently with a shared HTTP client.
         Filters out campaigns with non-numeric IDs (test entries).
+        skip_campaigns: set of campaign names to skip (from disabled projects).
         """
         import asyncio
 
         results = {"created": [], "existing": [], "failed": [], "skipped": []}
+        skip_campaigns = skip_campaigns or set()
 
         try:
             campaigns = await self.get_campaigns()
-            # TODO: remove this hardcoded skip once webhook conflict on Smartlead side is resolved
-            _SKIP_WEBHOOK_CAMPAIGNS = {
-                "Rizzult Partner Agencies Latam",
-            }
 
             active = []
             for c in campaigns:
@@ -418,10 +416,10 @@ class SmartleadClient:
                 if not str(cid).isdigit():
                     results["skipped"].append({"id": cid, "name": cname, "reason": "non-numeric ID"})
                     continue
-                # Skip campaigns with external webhook conflicts (hardcoded, will be removed)
-                if cname in _SKIP_WEBHOOK_CAMPAIGNS:
-                    results["skipped"].append({"id": cid, "name": cname, "reason": "webhook conflict — skipped"})
-                    logger.info(f"Skipping CRM webhook for '{cname}' (hardcoded skip)")
+                # Skip campaigns from projects with webhooks disabled
+                if cname in skip_campaigns:
+                    results["skipped"].append({"id": cid, "name": cname, "reason": "webhooks disabled for project"})
+                    logger.info(f"Skipping webhook for '{cname}' (project webhooks disabled)")
                     continue
                 active.append(c)
 
@@ -1150,7 +1148,8 @@ class CRMSyncService:
         self,
         session: AsyncSession,
         company_id: int,
-        since: datetime = None
+        since: datetime = None,
+        skip_campaigns: set = None,
     ) -> Dict[str, int]:
         """
         Sync reply activities from Smartlead using per-campaign polling.
@@ -1166,6 +1165,7 @@ class CRMSyncService:
 
         Uses Redis cache for fast dedup, falls back to DB check.
         Reuses a single httpx client for all message-history fetches.
+        skip_campaigns: set of campaign names to skip (from disabled projects).
         """
         if not self.smartlead:
             raise ValueError("Smartlead API key not configured")
@@ -1173,6 +1173,7 @@ class CRMSyncService:
         from app.models.reply import ProcessedReply
         from app.services.smartlead_service import smartlead_service
 
+        skip_campaigns = skip_campaigns or set()
         stats = {
             "new_replies": 0, "existing": 0, "cached": 0,
             "campaigns_checked": 0, "errors": 0,
@@ -1192,6 +1193,10 @@ class CRMSyncService:
                     campaign_name = campaign.get("name", "Unknown")
 
                     if status not in ("ACTIVE", "PAUSED", "COMPLETED"):
+                        continue
+
+                    # Skip campaigns from projects with webhooks disabled
+                    if campaign_name in skip_campaigns:
                         continue
 
                     stats["campaigns_checked"] += 1

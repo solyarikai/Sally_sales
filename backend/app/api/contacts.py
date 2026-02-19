@@ -164,6 +164,7 @@ class ProjectUpdate(BaseModel):
     campaign_filters: Optional[List[str]] = None
     telegram_chat_id: Optional[str] = None  # Resolved chat ID (set automatically)
     telegram_username: Optional[str] = None  # Operator @username for notifications
+    webhooks_enabled: Optional[bool] = None
 
 
 class ProjectResponse(BaseModel):
@@ -175,6 +176,7 @@ class ProjectResponse(BaseModel):
     campaign_filters: Optional[List[str]] = None
     telegram_chat_id: Optional[str] = None
     telegram_username: Optional[str] = None
+    webhooks_enabled: bool = True
     contact_count: int = 0
     created_at: datetime
     updated_at: datetime

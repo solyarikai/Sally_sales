@@ -16,12 +16,32 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
+from sqlalchemy import select
+
 from app.core.config import settings
 from app.db import async_session_maker
 from app.services.crm_sync_service import get_crm_sync_service, get_getsales_flow_name
 from app.services.cache_service import backfill_reply_cache_from_db
 
 logger = logging.getLogger(__name__)
+
+
+async def _get_disabled_campaign_names() -> set:
+    """Query campaign names from projects with webhooks_enabled=False."""
+    from app.models.contact import Project
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Project.campaign_filters).where(
+                Project.webhooks_enabled == False,
+                Project.campaign_filters.isnot(None),
+                Project.deleted_at.is_(None),
+            )
+        )
+        names = set()
+        for (filters,) in result.all():
+            if isinstance(filters, list):
+                names.update(filters)
+        return names
 
 # Shared webhook health state (updated by webhook handlers)
 _last_webhook_received_at: Optional[datetime] = None
@@ -290,11 +310,20 @@ class CRMScheduler:
         """Check for new replies via API polling (backup to webhooks)."""
         logger.info(f"Checking replies via API (run #{self._reply_count + 1})")
         sync_service = get_crm_sync_service()
-        
+
+        # Get campaigns to skip from disabled projects
+        try:
+            skip_campaigns = await _get_disabled_campaign_names()
+        except Exception as e:
+            logger.warning(f"Failed to load disabled campaigns: {e}")
+            skip_campaigns = set()
+
         async with async_session_maker() as session:
             try:
                 if sync_service.smartlead:
-                    results = await sync_service.sync_smartlead_replies(session, self.company_id)
+                    results = await sync_service.sync_smartlead_replies(
+                        session, self.company_id, skip_campaigns=skip_campaigns
+                    )
                     new_replies = results.get('new_replies', 0)
                     campaigns_checked = results.get('campaigns_checked', 0)
                     logger.info(f"Smartlead reply check: {new_replies} new, {campaigns_checked} campaigns checked")
@@ -910,13 +939,22 @@ async def _setup_webhooks_background():
 async def setup_crm_webhooks_on_startup():
     """Set up CRM webhooks in external systems."""
     from app.services.crm_sync_service import get_crm_sync_service
-    
+
     logger.info("Setting up CRM webhooks for all campaigns (background)...")
-    
+
     webhook_base_url = f"{settings.WEBHOOK_BASE_URL}/api"
-    
+
     sync_service = get_crm_sync_service()
-    
+
+    # Get campaigns to skip from disabled projects
+    try:
+        skip_campaigns = await _get_disabled_campaign_names()
+        if skip_campaigns:
+            logger.info(f"Skipping webhooks for {len(skip_campaigns)} campaigns (disabled projects)")
+    except Exception as e:
+        logger.warning(f"Failed to load disabled campaigns: {e}")
+        skip_campaigns = set()
+
     # Set up GetSales webhooks
     if sync_service.getsales:
         try:
@@ -925,18 +963,18 @@ async def setup_crm_webhooks_on_startup():
             logger.info(f"GetSales webhooks: {len(results.get('created', []))} created, {len(results.get('existing', []))} existing")
         except Exception as e:
             logger.warning(f"Failed to set up GetSales webhooks: {e}")
-    
+
     # Set up Smartlead webhooks
     if sync_service.smartlead:
         try:
             smartlead_url = f"{webhook_base_url}/smartlead/webhook"
-            results = await sync_service.smartlead.setup_crm_webhooks(smartlead_url)
+            results = await sync_service.smartlead.setup_crm_webhooks(smartlead_url, skip_campaigns=skip_campaigns)
             created = len(results.get('created', []))
             existing = len(results.get('existing', []))
             skipped = len(results.get('skipped', []))
             failed = len(results.get('failed', []))
             active_count = created + existing
-            
+
             logger.info(f"Smartlead webhook setup: {active_count} active, {created} new, {existing} existing, {skipped} skipped")
             if failed > 0:
                 logger.warning(f"  Failed: {failed}")

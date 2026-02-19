@@ -65,6 +65,7 @@ export interface Project {
   campaign_filters?: string[];
   telegram_chat_id?: string;
   telegram_username?: string;
+  webhooks_enabled?: boolean;
   contact_count: number;
   created_at: string;
   updated_at: string;
@@ -351,7 +352,7 @@ export const contactsApi = {
   },
 
   // Update project
-  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[]; telegram_username?: string }): Promise<Project> {
+  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[]; telegram_username?: string; webhooks_enabled?: boolean }): Promise<Project> {
     const response = await api.patch(`/contacts/projects/${id}`, updates);
     return response.data;
   },

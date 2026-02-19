@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Check, X, Search, Trash2,
-  MessageCircle, Loader2, Unlink, FolderOpen,
+  MessageCircle, Loader2, Unlink, FolderOpen, Zap,
 } from 'lucide-react';
 import { contactsApi, type Project } from '../api/contacts';
 import { useTheme } from '../hooks/useTheme';
@@ -34,6 +34,9 @@ export function ProjectPage() {
   const [campaignSearch, setCampaignSearch] = useState('');
   const [showCampaignDropdown, setShowCampaignDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Webhook toggle
+  const [togglingWebhooks, setTogglingWebhooks] = useState(false);
 
   // Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -117,6 +120,18 @@ export function ProjectPage() {
       await contactsApi.deleteProject(project.id);
       navigate('/projects');
     } catch {}
+  };
+
+  const handleToggleWebhooks = async () => {
+    if (!project) return;
+    setTogglingWebhooks(true);
+    try {
+      const updated = await contactsApi.updateProject(project.id, {
+        webhooks_enabled: !project.webhooks_enabled,
+      });
+      setProject(updated);
+    } catch {}
+    setTogglingWebhooks(false);
   };
 
   const getSource = (campaignName: string): string => {
@@ -290,6 +305,41 @@ export function ProjectPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Webhook Tracking Section */}
+      <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
+        <div className="flex items-center justify-between">
+          <h2 className={cn("text-sm font-semibold flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+            <Zap className="w-4 h-4" />
+            Webhook Tracking
+          </h2>
+          <div className="flex items-center gap-3">
+            <span className={cn(
+              "text-xs font-medium px-2 py-0.5 rounded-full",
+              project.webhooks_enabled !== false
+                ? "bg-green-100 text-green-700"
+                : "bg-red-100 text-red-700"
+            )}>
+              {project.webhooks_enabled !== false ? "Enabled" : "Disabled"}
+            </span>
+            <button
+              onClick={handleToggleWebhooks}
+              disabled={togglingWebhooks}
+              className={cn(
+                "text-xs px-3 py-1.5 rounded-lg font-medium transition-colors",
+                project.webhooks_enabled !== false
+                  ? isDark ? "bg-red-900/30 text-red-400 hover:bg-red-900/50" : "bg-red-50 text-red-600 hover:bg-red-100"
+                  : isDark ? "bg-green-900/30 text-green-400 hover:bg-green-900/50" : "bg-green-50 text-green-600 hover:bg-green-100"
+              )}
+            >
+              {togglingWebhooks ? <Loader2 className="w-3 h-3 animate-spin" /> : project.webhooks_enabled !== false ? "Disable" : "Enable"}
+            </button>
+          </div>
+        </div>
+        <p className={cn("text-xs mt-2", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+          Controls SmartLead webhook registration, reply polling, and event processing for this project's campaigns.
+        </p>
       </div>
 
       {/* Telegram Section */}

@@ -56,6 +56,9 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     sender_company = Column(String(255), nullable=True)    # e.g. "Rizzult"
     sender_signature = Column(Text, nullable=True)         # Full signature block (optional override)
 
+    # Webhook control — disable to stop processing SmartLead/GetSales webhooks for this project
+    webhooks_enabled = Column(Boolean, default=True, server_default='true', nullable=False)
+
     # Generated content (for AI SDR later)
     tam_analysis = Column(Text, nullable=True)       # Total Addressable Market analysis
     gtm_plan = Column(Text, nullable=True)           # Go-to-market plan

@@ -28,6 +28,37 @@ from app.services.notification_service import send_telegram_notification
 
 logger = logging.getLogger(__name__)
 
+# Cached disabled-project data (campaign names + project names), 60s TTL
+_disabled_cache: dict | None = None
+_disabled_cache_ts: float = 0
+
+
+async def _get_disabled_project_info(session: AsyncSession) -> dict:
+    """Get campaign names and project names from projects with webhooks_enabled=False. Cached 60s."""
+    global _disabled_cache, _disabled_cache_ts
+    import time
+    now = time.time()
+    if _disabled_cache is not None and (now - _disabled_cache_ts) < 60:
+        return _disabled_cache
+
+    from app.models.contact import Project
+    result = await session.execute(
+        select(Project.campaign_filters, Project.name).where(
+            Project.webhooks_enabled == False,
+            Project.deleted_at.is_(None),
+        )
+    )
+    campaign_names = set()
+    project_names = set()
+    for filters, pname in result.all():
+        if pname:
+            project_names.add(pname.lower())
+        if isinstance(filters, list):
+            campaign_names.update(filters)
+    _disabled_cache = {"campaigns": campaign_names, "projects": project_names}
+    _disabled_cache_ts = now
+    return _disabled_cache
+
 
 def _extract_linkedin_handle(url: str) -> str:
     """Extract just the LinkedIn handle for matching."""
@@ -599,7 +630,14 @@ async def smartlead_webhook(
     lead_data = body.get("lead_data", {})
     
     logger.info(f"Smartlead webhook received: {event_type} for {lead_email}")
-    
+
+    # Skip events from campaigns belonging to disabled projects
+    if campaign_name:
+        disabled = await _get_disabled_project_info(session)
+        if campaign_name in disabled["campaigns"]:
+            logger.info(f"Smartlead webhook skipped: campaign '{campaign_name}' (webhooks disabled)")
+            return {"status": "skipped", "reason": "webhooks disabled for project"}
+
     if not lead_email:
         return {"status": "ignored", "reason": "no email"}
     
@@ -979,8 +1017,17 @@ async def getsales_webhook(
     message_type = linkedin_message.get("type", "").lower()
     is_reply = message_type == "inbox"
     
-    logger.info(f"GetSales webhook: contact={contact_data.get('name')}, message_type={message_type}, automation={automation_data.get('name')}")
-    
+    automation_name = automation_data.get("name", "")
+    logger.info(f"GetSales webhook: contact={contact_data.get('name')}, message_type={message_type}, automation={automation_name}")
+
+    # Skip events from automations belonging to disabled projects (startswith matching)
+    disabled = await _get_disabled_project_info(session)
+    if automation_name and disabled["projects"]:
+        auto_lower = automation_name.lower()
+        if any(auto_lower.startswith(pname) for pname in disabled["projects"]):
+            logger.info(f"GetSales webhook skipped: automation '{automation_name}' (webhooks disabled)")
+            return {"status": "skipped", "reason": "webhooks disabled for project"}
+
     # Signal webhook health to the scheduler
     from app.services.crm_scheduler import mark_webhook_received
     mark_webhook_received()
