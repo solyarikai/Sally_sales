@@ -183,6 +183,7 @@ export function RepliesPage() {
   // Full history state (cross-campaign)
   const [historyData, setHistoryData] = useState<Record<number, FullHistoryResponse>>({});
   const [selectedHistoryCampaign, setSelectedHistoryCampaign] = useState<Record<number, string | null>>({});
+  const [confirmSendId, setConfirmSendId] = useState<number | null>(null); // reply id awaiting campaign-mismatch confirmation
 
   // Campaign selector state (for group_by_contact dedup)
   const [contactCampaigns, setContactCampaigns] = useState<Record<string, ContactCampaignEntry[]>>({});
@@ -306,7 +307,21 @@ export function RepliesPage() {
     }).catch(() => {});
   };
 
+  // Guard: warn if sending to a different campaign than the one currently viewed
+  const guardSend = (reply: ProcessedReply) => {
+    const selKey = selectedHistoryCampaign[reply.id]; // "channel::campaign_name" or null
+    if (selKey && reply.campaign_name) {
+      const viewedCampaign = selKey.split('::').slice(1).join('::');
+      if (viewedCampaign && viewedCampaign !== reply.campaign_name) {
+        setConfirmSendId(reply.id);
+        return; // don't send yet — show confirmation
+      }
+    }
+    handleApproveAndSend(reply);
+  };
+
   const handleApproveAndSend = async (reply: ProcessedReply) => {
+    setConfirmSendId(null);
     setSendingIds(prev => new Set(prev).add(reply.id));
     try {
       const edited = editingDrafts[reply.id];
@@ -853,13 +868,49 @@ export function RepliesPage() {
                         )}
                       </div>
 
+                      {/* Campaign mismatch confirmation banner */}
+                      {confirmSendId === reply.id && (() => {
+                        const selKey = selectedHistoryCampaign[reply.id];
+                        const viewedCampaign = selKey ? selKey.split('::').slice(1).join('::') : null;
+                        return (
+                          <div
+                            className="mx-4 mb-1 rounded px-3 py-2 flex items-start gap-2 text-[12px]"
+                            style={{ background: isDark ? '#3a2e00' : '#fef3c7', color: isDark ? '#fbbf24' : '#92400e' }}
+                          >
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <div className="font-medium mb-1">Different campaign</div>
+                              <div style={{ color: isDark ? '#d4a017' : '#78350f' }}>
+                                You're viewing <strong>{displayCampaignName(viewedCampaign || '')}</strong> but this reply will be sent via <strong>{displayCampaignName(reply.campaign_name || '')}</strong>. Send anyway?
+                              </div>
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  onClick={() => handleApproveAndSend(reply)}
+                                  className="px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer"
+                                  style={{ background: isDark ? '#92400e' : '#f59e0b', color: '#fff' }}
+                                >
+                                  Yes, send via {displayCampaignName(reply.campaign_name || '')}
+                                </button>
+                                <button
+                                  onClick={() => setConfirmSendId(null)}
+                                  className="px-2.5 py-1 rounded text-[11px] cursor-pointer"
+                                  style={{ color: isDark ? '#d4a017' : '#92400e' }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* Actions — sticky at bottom */}
                       <div
                         className="px-4 pb-3 pt-2 flex items-center gap-1.5"
                         style={{ position: 'sticky', bottom: 0, zIndex: 10, background: t.cardBg, borderTop: `1px solid ${t.divider}` }}
                       >
                         <button
-                          onClick={() => handleApproveAndSend(reply)}
+                          onClick={() => guardSend(reply)}
                           disabled={isSending || !reply.draft_reply || (draftFailed && !isEditing)}
                           className={cn(
                             "flex items-center gap-1.5 px-3.5 py-1.5 rounded text-[13px] font-medium transition-all",
