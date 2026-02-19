@@ -514,7 +514,12 @@ async def _bg_phase_segment_search(
 
 
 async def _bg_phase_extraction(project_id: int, company_id: int, progress: dict):
-    """Extract contacts from target company websites."""
+    """Extract contacts from target company websites.
+
+    Interleaves SmartLead push + CRM promote every PUSH_INTERVAL_SEC seconds
+    so newly found contacts reach campaigns quickly (not waiting hours for extraction to finish).
+    """
+    import time as _time
     from sqlalchemy import select, or_
     from app.models.pipeline import DiscoveredCompany
 
@@ -535,7 +540,10 @@ async def _bg_phase_extraction(project_id: int, company_id: int, progress: dict)
         return
 
     BATCH = 20
-    stats = {"processed": 0, "contacts_found": 0, "errors": 0}
+    PUSH_INTERVAL_SEC = 600  # Push to SmartLead every 10 minutes
+    stats = {"processed": 0, "contacts_found": 0, "errors": 0, "interim_pushes": 0}
+    last_push_time = _time.time()
+
     for i in range(0, len(ids), BATCH):
         if progress.get("stop_requested"):
             break
@@ -550,6 +558,25 @@ async def _bg_phase_extraction(project_id: int, company_id: int, progress: dict)
         except Exception as e:
             logger.error(f"Extraction batch failed: {e}", exc_info=True)
             stats["errors"] += len(batch)
+
+        # Interim push: push new contacts to SmartLead every PUSH_INTERVAL_SEC
+        elapsed = _time.time() - last_push_time
+        if elapsed >= PUSH_INTERVAL_SEC and stats["contacts_found"] > 0:
+            try:
+                logger.info(f"Interim SmartLead push during extraction (elapsed {elapsed:.0f}s, {stats['contacts_found']} contacts found)")
+                push_progress = {}
+                await _bg_phase_smartlead_push(project_id, company_id, push_progress)
+                await _bg_phase_crm_promote(project_id, company_id, push_progress)
+                push_stats = push_progress.get("smartlead_push_stats", {})
+                stats["interim_pushes"] += 1
+                progress["last_interim_push"] = {
+                    "at": datetime.utcnow().isoformat(),
+                    "leads_pushed": push_stats.get("leads_pushed", 0),
+                }
+                logger.info(f"Interim push done: {push_stats}")
+            except Exception as e:
+                logger.error(f"Interim SmartLead push failed: {e}", exc_info=True)
+            last_push_time = _time.time()
 
     logger.info(f"Extraction done for project {project_id}: {stats}")
 
@@ -696,12 +723,32 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
         progress["smartlead_push_stats"]["skipped"] = "no_contacts"
         return
 
-    # Filter out junk emails before classifying
-    from app.services.contact_extraction_service import is_valid_email
-    valid_contacts = [c for c in contacts if is_valid_email(c.email)]
+    # Filter out only truly junk emails (placeholders, malformed).
+    # Allow generic company emails (info@, contact@, hello@) — they match "no-name" push rules.
+    import re as _re
+    _CYRILLIC = _re.compile(r'[\u0400-\u04FF]')
+    _JUNK_EMAILS = {"email", "corpora", "name", "test", "example", "undefined", "null", "nobody"}
+
+    def _is_pushable_email(email: str) -> bool:
+        if not email or "@" not in email or " " in email or "%" in email:
+            return False
+        local, _, domain = email.strip().lower().partition("@")
+        if not local or not domain or "." not in domain:
+            return False
+        if _CYRILLIC.search(email):
+            return False
+        if local in _JUNK_EMAILS:
+            return False
+        if domain in {"domain.com", "example.com", "test.com", "email.com"}:
+            return False
+        if len(local) < 2 or len(domain) < 4:
+            return False
+        return True
+
+    valid_contacts = [c for c in contacts if _is_pushable_email(c.email)]
     junk_count = len(contacts) - len(valid_contacts)
     if junk_count > 0:
-        logger.info(f"SmartLead push: filtered out {junk_count} junk emails")
+        logger.info(f"SmartLead push: filtered out {junk_count} truly junk emails (allowing generic company emails)")
     contacts = valid_contacts
 
     if not contacts:
