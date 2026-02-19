@@ -690,7 +690,11 @@ export function RepliesPage() {
                               {reply.received_at ? timeAgo(reply.received_at) : '?'}
                             </span>
                             {(() => {
-                              const inboxUrl = reply.inbox_link
+                              // Resolve inbox link: selected campaign > reply campaign > any available
+                              const selKey = selectedHistoryCampaign[reply.id];
+                              const selCampName = selKey ? selKey.split('::').slice(1).join('::') : null;
+                              const inboxUrl = (selCampName && history?.inbox_links?.[selCampName])
+                                || reply.inbox_link
                                 || history?.inbox_links?.[reply.campaign_name]
                                 || (history?.inbox_links && Object.values(history.inbox_links)[0])
                                 || null;
@@ -700,7 +704,7 @@ export function RepliesPage() {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="transition-colors"
-                                  title="Open in Smartlead"
+                                  title={selCampName ? `Open ${selCampName} in Smartlead` : 'Open in Smartlead'}
                                   onClick={e => e.stopPropagation()}
                                   style={{ color: t.text5 }}
                                 >
