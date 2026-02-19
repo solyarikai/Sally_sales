@@ -580,7 +580,7 @@ export function RepliesPage() {
               <button
                 key={f.key ?? 'all'}
                 onClick={() => setCategoryFilter(f.key)}
-                className={cn("px-2.5 py-1 rounded text-[12px] transition-colors", active ? "font-medium" : "")}
+                className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", active ? "font-medium" : "")}
                 style={{
                   background: active ? t.btnPrimaryBg : 'transparent',
                   color: active ? t.btnPrimaryText : t.text4,
@@ -741,7 +741,7 @@ export function RepliesPage() {
                       <div className="px-4">
                         <button
                           onClick={() => loadHistory(reply)}
-                          className="text-[11px] flex items-center gap-1 py-0.5 transition-colors"
+                          className="text-[11px] flex items-center gap-1 py-0.5 transition-colors cursor-pointer"
                           style={{ color: t.text5 }}
                         >
                           <MessageCircle className="w-3 h-3" />
@@ -764,7 +764,7 @@ export function RepliesPage() {
                               compact
                               isDark={isDark}
                               showDateSeparators
-                              showCampaignMarkers={!!(history && history.campaigns.length > 1)}
+                              showCampaignMarkers={false}
                               filterCampaign={selectedHistoryCampaign[reply.id] ?? null}
                               loading={isThreadLoading}
                             />
@@ -783,7 +783,7 @@ export function RepliesPage() {
                           {!isEditing && reply.draft_reply ? (
                             <button
                               onClick={() => startEditing(reply)}
-                              className="text-[11px] flex items-center gap-1 transition-colors"
+                              className="text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
                               style={{ color: draftFailed ? t.errorText : t.text5, fontWeight: draftFailed ? 500 : 400 }}
                             >
                               <Edit3 className="w-3 h-3" /> Edit
@@ -791,7 +791,7 @@ export function RepliesPage() {
                           ) : isEditing ? (
                             <button
                               onClick={() => cancelEditing(reply.id)}
-                              className="text-[11px] flex items-center gap-1 transition-colors"
+                              className="text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
                               style={{ color: t.text5 }}
                             >
                               <X className="w-3 h-3" /> Cancel
@@ -863,7 +863,7 @@ export function RepliesPage() {
                           disabled={isSending || !reply.draft_reply || (draftFailed && !isEditing)}
                           className={cn(
                             "flex items-center gap-1.5 px-3.5 py-1.5 rounded text-[13px] font-medium transition-all",
-                            isSending ? "cursor-wait" : "active:scale-[0.98]"
+                            isSending ? "cursor-wait" : "cursor-pointer active:scale-[0.98]"
                           )}
                           style={{
                             background: (isSending || (draftFailed && !isEditing)) ? t.divider : t.btnPrimaryBg,
@@ -895,7 +895,7 @@ export function RepliesPage() {
                         <button
                           onClick={() => handleDismiss(reply)}
                           disabled={isSending}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-all active:scale-[0.98]"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-all cursor-pointer active:scale-[0.98]"
                           style={{ color: t.text4 }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.btnGhostHover; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}

@@ -91,7 +91,7 @@ export function CampaignDropdown({
       {/* Trigger button — collapsed by default */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 px-2 py-1 rounded text-[11px] transition-colors"
+        className="flex items-center gap-1.5 px-2 py-1 rounded text-[11px] transition-colors cursor-pointer"
         style={{ color: text2, background: isOpen ? hoverBg : 'transparent' }}
         onMouseEnter={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = hoverBg; }}
         onMouseLeave={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
@@ -150,7 +150,7 @@ export function CampaignDropdown({
                 <button
                   key={key}
                   onClick={() => { onSelect(key); setIsOpen(false); setSearchQuery(''); }}
-                  className="w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors"
+                  className="w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors cursor-pointer"
                   style={{
                     background: isActive ? activeBg : 'transparent',
                     color: isActive ? (isDark ? '#d4d4d4' : '#1d4ed8') : text1,
@@ -173,7 +173,7 @@ export function CampaignDropdown({
             {hasMore && (
               <button
                 onClick={() => setShowAll(true)}
-                className="w-full text-center py-1.5 text-[10px] font-medium transition-colors"
+                className="w-full text-center py-1.5 text-[10px] font-medium transition-colors cursor-pointer"
                 style={{ color: isDark ? '#858585' : '#6b7280' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = hoverBg; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
