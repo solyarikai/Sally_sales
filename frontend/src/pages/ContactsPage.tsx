@@ -139,24 +139,41 @@ export function ContactsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Sync filters → URL (debounced via debouncedSearch)
+  // Sync filters → URL. Start from current URL params to preserve any we don't manage.
+  const isFirstSync = useRef(true);
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (activeProject) params.set('project_id', String(activeProject.id));
-    if (debouncedSearch) params.set('search', debouncedSearch);
-    if (statusFilters.length) params.set('status', statusFilters.join(','));
-    if (sourceFilter) params.set('source', sourceFilter);
-    if (segmentFilter) params.set('segment', segmentFilter);
-    if (geoFilter) params.set('geo', geoFilter);
-    if (campaignFilters.length) params.set('campaign', campaignFilters.join(','));
-    if (campaignIdFilter) params.set('campaign_id', campaignIdFilter);
-    if (repliedFilter) params.set('replied', 'true');
-    if (followupFilter) params.set('followup', 'true');
-    if (createdAfter) params.set('after', createdAfter);
-    if (createdBefore) params.set('before', createdBefore);
-    // Preserve contact_id for deep-link (modal may not be open yet on initial navigation)
+    // On first render, preserve all original URL params — don't overwrite
+    const params = isFirstSync.current
+      ? new URLSearchParams(searchParams)
+      : new URLSearchParams();
+    isFirstSync.current = false;
+
+    // Managed params: set or delete based on current state
+    const managed: Record<string, string | null> = {
+      project_id: activeProject ? String(activeProject.id) : null,
+      search: debouncedSearch || null,
+      status: statusFilters.length ? statusFilters.join(',') : null,
+      source: sourceFilter,
+      segment: segmentFilter,
+      geo: geoFilter,
+      campaign: campaignFilters.length ? campaignFilters.join(',') : null,
+      campaign_id: campaignIdFilter,
+      replied: repliedFilter ? 'true' : null,
+      followup: followupFilter ? 'true' : null,
+      after: createdAfter,
+      before: createdBefore,
+    };
+    for (const [key, value] of Object.entries(managed)) {
+      if (value) {
+        params.set(key, value);
+      } else if (!isFirstSync.current) {
+        params.delete(key);
+      }
+    }
+    // Preserve contact_id for deep-link
     const existingContactId = searchParams.get('contact_id');
     if (existingContactId) params.set('contact_id', existingContactId);
+
     setSearchParams(params, { replace: true });
   }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilter, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore]);
 
