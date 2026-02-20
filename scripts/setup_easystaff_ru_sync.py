@@ -170,7 +170,7 @@ async def main():
                 }
 
                 async with async_session_maker() as session:
-                    # Get existing emails in project 40
+                    # Get existing emails in project 40 (for update logic)
                     existing_result = await session.execute(
                         select(func.lower(Contact.email)).where(
                             and_(
@@ -179,8 +179,17 @@ async def main():
                             )
                         )
                     )
-                    existing_emails = {r[0] for r in existing_result.fetchall()}
-                    logger.info(f"Existing contacts in project 40: {len(existing_emails)}")
+                    project_emails = {r[0] for r in existing_result.fetchall()}
+                    logger.info(f"Existing contacts in project 40: {len(project_emails)}")
+
+                    # Get ALL non-deleted emails globally (unique constraint is global)
+                    all_emails_result = await session.execute(
+                        select(func.lower(Contact.email)).where(
+                            Contact.deleted_at.is_(None),
+                        )
+                    )
+                    all_emails = {r[0] for r in all_emails_result.fetchall()}
+                    logger.info(f"Total non-deleted emails globally: {len(all_emails)}")
 
                     created = 0
                     updated_qual = 0
@@ -210,7 +219,7 @@ async def main():
                         if qual_status:
                             crm_status = qual_status
 
-                        if email in existing_emails:
+                        if email in project_emails:
                             # Update qualification + client comment for existing contacts
                             if sheet_qual or get_cell(comment_es_idx):
                                 result = await session.execute(
@@ -246,6 +255,10 @@ async def main():
                                         updated_qual += 1
                             continue
 
+                        # Skip if email exists in another project (global unique constraint)
+                        if email in all_emails:
+                            continue
+
                         # Create new contact
                         contact = Contact(
                             email=email,
@@ -269,7 +282,7 @@ async def main():
                         )
                         session.add(contact)
                         created += 1
-                        existing_emails.add(email)
+                        all_emails.add(email)
 
                     await session.commit()
                     logger.info(f"Sheet import: {created} new contacts created, {updated_qual} updated with qualification")
