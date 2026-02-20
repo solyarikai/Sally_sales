@@ -15,7 +15,7 @@ export const QuerySegmentColumnFilter = forwardRef((props: IFilterParams, ref) =
     doesFilterPass: () => true,
   }));
 
-  useEffect(() => { props.filterChangedCallback(); }, [segmentFilters]);
+  useEffect(() => { props.filterChangedCallback?.(); }, [segmentFilters]);
 
   const segments = filterOptions?.segments || [];
   const filtered = useMemo(() => {

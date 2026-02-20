@@ -19,7 +19,7 @@ export const QueryLanguageColumnFilter = forwardRef((props: IFilterParams, ref) 
     doesFilterPass: () => true,
   }));
 
-  useEffect(() => { props.filterChangedCallback(); }, [languageFilters]);
+  useEffect(() => { props.filterChangedCallback?.(); }, [languageFilters]);
 
   const available = new Set(filterOptions?.languages || []);
 

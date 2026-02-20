@@ -20,7 +20,7 @@ export const QueryStatusColumnFilter = forwardRef((props: IFilterParams, ref) =>
     doesFilterPass: () => true,
   }));
 
-  useEffect(() => { props.filterChangedCallback(); }, [statusFilters]);
+  useEffect(() => { props.filterChangedCallback?.(); }, [statusFilters]);
 
   return (
     <div className="p-3 min-w-[160px]">

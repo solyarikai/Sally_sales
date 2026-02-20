@@ -47,7 +47,7 @@ export const QueryDateColumnFilter = forwardRef((props: IFilterParams, ref) => {
     doesFilterPass: () => true,
   }));
 
-  useEffect(() => { props.filterChangedCallback(); }, [dateFrom, dateTo]);
+  useEffect(() => { props.filterChangedCallback?.(); }, [dateFrom, dateTo]);
 
   const activePreset = useMemo(() => {
     if (!dateFrom) return null;

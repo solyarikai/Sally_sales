@@ -21,7 +21,7 @@ export const QuerySourceColumnFilter = forwardRef((props: IFilterParams, ref) =>
     doesFilterPass: () => true,
   }));
 
-  useEffect(() => { props.filterChangedCallback(); }, [sourceFilters]);
+  useEffect(() => { props.filterChangedCallback?.(); }, [sourceFilters]);
 
   // Use dynamic sources from API
   const sources = filterOptions?.sources || [];

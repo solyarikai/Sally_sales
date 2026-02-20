@@ -19,7 +19,7 @@ export const QuerySaturatedColumnFilter = forwardRef((props: IFilterParams, ref)
     doesFilterPass: () => true,
   }));
 
-  useEffect(() => { props.filterChangedCallback(); }, [saturatedFilter]);
+  useEffect(() => { props.filterChangedCallback?.(); }, [saturatedFilter]);
 
   return (
     <div className="p-3 min-w-[160px]">

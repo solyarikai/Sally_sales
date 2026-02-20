@@ -26,7 +26,7 @@ export const QueryRangeColumnFilter = forwardRef((props: QueryRangeColumnFilterP
     doesFilterPass: () => true,
   }));
 
-  useEffect(() => { props.filterChangedCallback(); }, [min, max]);
+  useEffect(() => { props.filterChangedCallback?.(); }, [min, max]);
 
   // Sync local state with context
   useEffect(() => {

@@ -15,7 +15,7 @@ export const QueryGeoColumnFilter = forwardRef((props: IFilterParams, ref) => {
     doesFilterPass: () => true,
   }));
 
-  useEffect(() => { props.filterChangedCallback(); }, [geoFilters]);
+  useEffect(() => { props.filterChangedCallback?.(); }, [geoFilters]);
 
   const geos = filterOptions?.geos || [];
 
