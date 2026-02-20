@@ -996,11 +996,17 @@ async def process_reply_webhook(
             contact.has_replied = True
             contact.reply_channel = "email"
             contact.last_reply_at = datetime.utcnow()
-            contact.status = "replied"
-            contact.funnel_stage = "replied"
-            
-            # Sync reply category and sentiment
+
+            # Use status machine for forward-only transition
             category = classification.get("category", "other")
+            from app.services.status_machine import transition_status, status_from_ai_category
+            target = status_from_ai_category(category)
+            new_st, ok, _msg = transition_status(contact.status, target)
+            if ok:
+                contact.status = new_st
+            contact.funnel_stage = new_st if ok else (contact.funnel_stage or "replied")
+
+            # Sync reply category and sentiment
             contact.reply_category = category
             
             # Determine sentiment from category

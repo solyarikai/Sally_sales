@@ -1549,11 +1549,14 @@ class CRMSyncService:
                     )
                     session.add(activity)
 
-                    # Update contact
+                    # Update contact — use status machine for forward-only transition
                     contact.has_replied = True
                     contact.reply_channel = "linkedin"
                     contact.last_reply_at = activity.activity_at
-                    contact.status = "replied"
+                    from app.services.status_machine import transition_status
+                    new_st, ok, _msg = transition_status(contact.status, "interested")
+                    if ok:
+                        contact.status = new_st
 
                     # Create ProcessedReply with classification + draft (non-fatal)
                     try:

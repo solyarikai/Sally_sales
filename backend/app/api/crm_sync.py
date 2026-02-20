@@ -356,7 +356,10 @@ async def fetch_smartlead_replies(
                                 logger.info(f"Reply sync: created contact {email} from reply data")
                             elif not contact.has_replied:
                                 contact.has_replied = True
-                                contact.status = "replied"
+                                from app.services.status_machine import transition_status
+                                new_st, ok, _msg = transition_status(contact.status, "interested")
+                                if ok:
+                                    contact.status = new_st
                                 # Parse reply_time string to datetime
                                 reply_time_str = reply.get("reply_time")
                                 if reply_time_str:
@@ -799,34 +802,40 @@ async def smartlead_webhook(
     )
     session.add(activity)
     
-    # Update contact if replied
+    # Update contact if replied — use status machine for forward-only transitions
+    from app.services.status_machine import transition_status, status_from_ai_category
     if "replied" in activity_type:
         contact.has_replied = True
         contact.reply_channel = "email"
         contact.last_reply_at = event_time
-        # Don't overwrite status with "replied" — use Smartlead category for proper classification
-        # Only upgrade status to "warm" if currently in an initial outreach state
-        if contact.status in (None, "", "new", "contacted", "lead"):
-            contact.status = "warm"
 
-    # Update contact's Smartlead status from category
+    # Map Smartlead category → 13-status via state machine
     if lead_data.get("category"):
         category = lead_data["category"]
         cat_name = category.get("name", "").lower()
         contact.smartlead_status = category.get("name")
-        # Map Smartlead categories to proper CRM statuses
-        status_map = {
-            "interested": "warm",
-            "meeting booked": "warm",
+        # Map Smartlead category names to AI categories for status machine
+        sl_to_ai = {
+            "interested": "interested",
+            "meeting booked": "meeting_request",
             "out of office": "out_of_office",
             "not interested": "not_interested",
-            "wrong person": "not_interested",
+            "wrong person": "wrong_person",
             "do not contact": "not_interested",
             "auto reply": "out_of_office",
         }
-        mapped = status_map.get(cat_name)
-        if mapped:
-            contact.status = mapped
+        ai_cat = sl_to_ai.get(cat_name)
+        if ai_cat:
+            target = status_from_ai_category(ai_cat)
+            new_st, ok, msg = transition_status(contact.status, target)
+            if ok:
+                contact.status = new_st
+                logger.info(f"SmartLead webhook: {contact.email} → {new_st} (from {cat_name})")
+    elif "replied" in activity_type:
+        # No category yet — default to "interested" if allowed
+        new_st, ok, _msg = transition_status(contact.status, "interested")
+        if ok:
+            contact.status = new_st
     
     # Update smartlead_id if not set
     if lead_id and not contact.smartlead_id:
@@ -1229,9 +1238,16 @@ async def getsales_webhook(
         if not is_duplicate:
             activity.extra_data["category"] = category
 
-        # Update contact status and sentiment from category
-        from app.services.crm_sync_service import get_status_from_category, get_sentiment_from_category
-        contact.status = get_status_from_category(category)
+        # Update contact status via state machine (forward-only)
+        from app.services.status_machine import transition_status, status_from_ai_category
+        from app.services.crm_sync_service import get_sentiment_from_category
+        target_status = status_from_ai_category(category)
+        new_st, ok, msg = transition_status(contact.status, target_status)
+        if ok:
+            contact.status = new_st
+            logger.info(f"[GETSALES] {contact.email} → {new_st} (category={category})")
+        else:
+            logger.warning(f"[GETSALES] Blocked transition for {contact.email}: {msg}")
         contact.reply_category = category
         contact.reply_sentiment = get_sentiment_from_category(category)
 
