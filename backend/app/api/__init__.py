@@ -29,6 +29,7 @@ from .chat_stream import router as chat_stream_router
 from .pipeline import router as pipeline_router
 from .knowledge import router as project_knowledge_router
 from .query_dashboard import router as query_dashboard_router
+from .operator_tasks import router as operator_tasks_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -87,5 +88,8 @@ api_router.include_router(pipeline_router)
 
 # Project Knowledge (unified KB per project)
 api_router.include_router(project_knowledge_router)
+
+# Operator Tasks (3-tab daily operations)
+api_router.include_router(operator_tasks_router)
 
 __all__ = ["api_router"]

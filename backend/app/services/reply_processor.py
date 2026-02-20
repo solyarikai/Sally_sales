@@ -689,6 +689,17 @@ async def process_reply_webhook(
         classification = await classify_reply(subject, body, custom_prompt=custom_classification_prompt)
         logger.info(f"[PROCESSOR] Classification: category={classification['category']}, confidence={classification['confidence']}")
 
+        # Track classification cost (non-fatal)
+        try:
+            if project:
+                from app.services.cost_service import cost_service
+                await cost_service.record_cost(
+                    session, project.id, "openai_4o_mini_1k",
+                    units=1, description="reply classification",
+                )
+        except Exception:
+            pass  # cost tracking is non-fatal
+
         # Look up project for sender identity + prompt template
         custom_reply_prompt = automation.reply_prompt if automation else None
         proj_sender_name = None

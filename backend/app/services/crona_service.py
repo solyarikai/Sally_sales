@@ -245,5 +245,143 @@ class CronaService:
                     pass  # Best-effort cleanup
 
 
+    async def enrich_person_by_linkedin(
+        self,
+        linkedin_url: str,
+        timeout: int = 60,
+        poll_interval: float = 3.0,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Enrich a person by their LinkedIn profile URL via Crona.
+
+        Uses the linkedin_profiles source type with linkedin_profile enricher.
+        Returns enrichment data dict or None if failed.
+        Cost: 1 credit per profile.
+        """
+        if not linkedin_url:
+            return None
+
+        if not self.is_configured:
+            logger.warning("Crona not configured, skipping LinkedIn enrichment")
+            return None
+
+        headers = await self._headers()
+        project_id = None
+
+        try:
+            # 1. Create project
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{settings.CRONA_API_URL}/api/projects",
+                    headers=headers,
+                    json={"project": {"name": f"li_enrich_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"}},
+                )
+                resp.raise_for_status()
+                project_id = resp.json()["id"]
+
+            # 2. Upload CSV with LinkedIn URL
+            csv_buffer = io.StringIO()
+            writer = csv.writer(csv_buffer)
+            writer.writerow(["linkedin_url"])
+            url = linkedin_url if linkedin_url.startswith("http") else f"https://{linkedin_url}"
+            writer.writerow([url])
+
+            token = await self._authenticate()
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    f"{settings.CRONA_API_URL}/api/projects/{project_id}/source_file",
+                    headers={"Authorization": f"Bearer {token}"},
+                    data={"source_type": "linkedin_profiles"},
+                    files={"file": ("profiles.csv", csv_buffer.getvalue().encode(), "text/csv")},
+                )
+                resp.raise_for_status()
+
+            # 3. Add linkedin_profile enricher
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{settings.CRONA_API_URL}/api/projects/{project_id}/enrichers",
+                    headers=headers,
+                    json={"enricher": {
+                        "name": "LinkedIn Profile",
+                        "field_name": "linkedin_data",
+                        "code": "",
+                        "order": 1,
+                        "type": "linkedin_profile",
+                        "arguments": {
+                            "based_on": "LinkedIn URL",
+                            "url_column": "linkedin_url",
+                        },
+                    }},
+                )
+                resp.raise_for_status()
+
+            # 4. Run project
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{settings.CRONA_API_URL}/api/projects/{project_id}/project_runs",
+                    headers=headers,
+                    json={},
+                )
+                resp.raise_for_status()
+
+            # 5. Poll until complete
+            start = datetime.utcnow()
+            while (datetime.utcnow() - start).total_seconds() < timeout:
+                await asyncio.sleep(poll_interval)
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.get(
+                        f"{settings.CRONA_API_URL}/api/projects/{project_id}/status",
+                        headers=headers,
+                    )
+                    resp.raise_for_status()
+                    status = resp.json()
+
+                if status["status"] == "completed":
+                    break
+                elif status["status"] == "failed":
+                    logger.error(f"Crona LinkedIn enrichment failed: {status.get('error_message')}")
+                    return None
+
+            # 6. Fetch results
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(
+                    f"{settings.CRONA_API_URL}/api/projects/{project_id}/last_results",
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                result_data = resp.json()
+
+            rows = result_data.get("data", [])
+            if len(rows) < 2:
+                return None
+
+            # Parse result — header row + data row
+            header = rows[0]
+            data_row = rows[1]
+            result = {}
+            for i, col_name in enumerate(header):
+                if i < len(data_row):
+                    result[col_name] = data_row[i]
+
+            self._credits_used += 1
+            logger.info(f"Crona LinkedIn enrichment OK for {linkedin_url}, credits_used={self._credits_used}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Crona LinkedIn enrichment failed: {e}")
+            return None
+
+        finally:
+            if project_id:
+                try:
+                    async with httpx.AsyncClient(timeout=10) as client:
+                        await client.delete(
+                            f"{settings.CRONA_API_URL}/api/projects/{project_id}",
+                            headers=headers,
+                        )
+                except Exception:
+                    pass
+
+
 # Module-level singleton
 crona_service = CronaService()

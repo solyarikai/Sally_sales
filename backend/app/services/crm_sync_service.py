@@ -126,17 +126,9 @@ async def classify_reply(text: str) -> str:
     return await classify_reply_with_ai(text)
 
 def get_status_from_category(category: str) -> str:
-    """Map reply category to contact status."""
-    if category in ("interested", "meeting_request", "question"):
-        return "warm"
-    elif category == "not_interested":
-        return "not_interested"
-    elif category == "out_of_office":
-        return "out_of_office"
-    elif category == "wrong_person":
-        return "wrong_person"
-    else:
-        return "touched"
+    """Map reply category to contact status (13-status funnel)."""
+    from app.services.status_machine import status_from_ai_category
+    return status_from_ai_category(category)
 
 def get_sentiment_from_category(category: str) -> str:
     """Map reply category to sentiment."""
@@ -153,6 +145,16 @@ GETSALES_FLOW_NAMES = {
     "f62647b1-c054-4434-8402-7adac1c26e64": "Inxy - Russian DM's",
     "4bbd26d3-706b-4168-9262-d70fe09a5b25": "RIzzult_Wellness apps 10 01 26",
     "6bfeca8c-23a6-49da-a8e8-b0dacae88857": "Rizzult_shopping_apps",
+    # EasyStaff RU sender profiles (project 40)
+    "b10a34f2-e7d0-490e-bc67-012b7ccd35b8": "EasyStaff RU - Alex",
+    "4d1effeb-34fc-4999-bada-4a3651021adb": "EasyStaff RU - Katya",
+    "7f829fca-20b8-4f0d-a19e-ec1b3f76704e": "EasyStaff RU - Eleonora",
+    "07d392a8-13bb-4a30-a86f-9fe692b7055a": "EasyStaff RU - Andrey",
+    "5ecc3a67-75f4-413d-96e7-ca256e3113e0": "EasyStaff RU - Alexander",
+    "774af09b-8158-4150-835d-6cf1ee00819a": "EasyStaff RU - Sergey",
+    "d67e1028-cf06-4ae8-bcc3-16e41710f19c": "EasyStaff RU - Alexandra",
+    "b3b69a39-6b46-4043-85b1-ef4ce22239d5": "EasyStaff RU - Alexandra 2",
+    "cf73001d-f893-4396-b301-0691ffdccd12": "EasyStaff RU - Unnamed",
 }
 
 def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: list = None) -> str:

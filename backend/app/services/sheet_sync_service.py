@@ -25,16 +25,25 @@ from app.services.google_sheets_service import google_sheets_service
 
 logger = logging.getLogger(__name__)
 
-# ── Status Mapping Constants ──
+# ── Status Mapping Constants (13-status funnel) ──
 
 # CRM status → Sheet status label
 CRM_TO_SHEET_STATUS = {
+    # Legacy statuses (backward compat)
     "warm": "Заинтересован",
     "scheduling": "Запланирована",
-    "scheduled": "Была встреча",
-    "qualified": "Была встреча",
-    "not_qualified": "Была встреча",
+    # 13-status funnel
+    "interested": "Заинтересован",
+    "negotiating_meeting": "Запланирована",
+    "scheduled": "Назначена встреча",
+    "meeting_held": "Была встреча",
+    "meeting_no_show": "Не пришёл",
+    "meeting_rescheduled": "Перенесена",
+    "qualified": "Засчитываем",
+    "not_qualified": "Не засчитываем",
     "not_interested": "Not interested",
+    "ooo": "Out of office",
+    "unsubscribed": "Unsubscribed",
 }
 
 # Sheet status → funnel rank (forward-only transitions)
@@ -42,8 +51,15 @@ SHEET_STATUS_RANK = {
     "Заинтересован": 1,
     "Пингануть": 1,
     "Not interested": 1,
+    "Out of office": 1,
+    "Unsubscribed": 1,
     "Запланирована": 2,
-    "Была встреча": 3,
+    "Назначена встреча": 3,
+    "Была встреча": 4,
+    "Не пришёл": 4,
+    "Перенесена": 4,
+    "Засчитываем": 5,
+    "Не засчитываем": 5,
 }
 
 # Sheet qualification → CRM status auto-transition
@@ -54,23 +70,41 @@ QUALIFICATION_TO_STATUS = {
 
 # Sheet status → CRM status (for bidirectional detection)
 SHEET_TO_CRM_STATUS = {
-    "Заинтересован": "warm",
-    "Пингануть": "warm",
-    "Запланирована": "scheduling",
-    "Была встреча": "scheduled",
+    "Заинтересован": "interested",
+    "Пингануть": "interested",
+    "Запланирована": "negotiating_meeting",
+    "Назначена встреча": "scheduled",
+    "Была встреча": "meeting_held",
+    "Не пришёл": "meeting_no_show",
+    "Перенесена": "meeting_rescheduled",
+    "Засчитываем": "qualified",
+    "Не засчитываем": "not_qualified",
     "Not interested": "not_interested",
+    "Out of office": "ooo",
+    "Unsubscribed": "unsubscribed",
 }
 
 # CRM status funnel rank (for comparing with sheet)
 CRM_STATUS_RANK = {
+    # Legacy
     "lead": 0,
     "contacted": 0,
     "warm": 1,
-    "not_interested": 1,
     "scheduling": 2,
+    # 13-status funnel
+    "to_be_sent": 0,
+    "sent": 0,
+    "interested": 1,
+    "not_interested": 1,
+    "ooo": 1,
+    "unsubscribed": 1,
+    "negotiating_meeting": 2,
     "scheduled": 3,
-    "qualified": 4,
-    "not_qualified": 4,
+    "meeting_held": 4,
+    "meeting_no_show": 4,
+    "meeting_rescheduled": 4,
+    "qualified": 5,
+    "not_qualified": 5,
 }
 
 # Expected Leads tab headers (19 columns A-S)
@@ -260,8 +294,13 @@ class SheetSyncService:
                     if len(row) > status_col_idx:
                         sheet_statuses[email_key] = row[status_col_idx].strip()
 
-            # Query contacts to push: warm+ leads
-            warm_statuses = ["warm", "scheduling", "scheduled", "qualified", "not_qualified"]
+            # Query contacts to push: warm+ leads (13-status + legacy)
+            warm_statuses = [
+                "warm", "scheduling",  # legacy
+                "interested", "negotiating_meeting", "scheduled",
+                "meeting_held", "meeting_no_show", "meeting_rescheduled",
+                "qualified", "not_qualified",
+            ]
             contacts_result = await session.execute(
                 select(Contact).where(
                     and_(

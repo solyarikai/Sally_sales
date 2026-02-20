@@ -22,6 +22,7 @@ import { ProjectPage } from './pages/ProjectPage';
 import { ProjectKnowledgePage } from './pages/ProjectKnowledgePage';
 import { ProjectChatPage } from './pages/ProjectChatPage';
 import { QueryDashboardPage } from './pages/QueryDashboardPage';
+import { OperatorTasksPage } from './pages/OperatorTasksPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -153,6 +154,13 @@ function App() {
         <Route path="/contacts/:contactId" element={
           <Layout>
             <ContactDetailPage />
+          </Layout>
+        } />
+
+        {/* Operator Tasks (3-tab daily operations) */}
+        <Route path="/operator-tasks" element={
+          <Layout>
+            <OperatorTasksPage />
           </Layout>
         } />
 
