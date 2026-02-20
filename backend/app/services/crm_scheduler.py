@@ -709,7 +709,8 @@ class CRMScheduler:
                         )
 
             except Exception as e:
-                logger.error(f"[SheetSync] Project {project_id} failed: {e}")
+                import traceback
+                logger.error(f"[SheetSync] Project {project_id} failed: {e}\n{traceback.format_exc()}")
                 # Store error in config
                 try:
                     async with async_session_maker() as err_session:

@@ -301,32 +301,23 @@ class SheetSyncService:
                 "meeting_held", "meeting_no_show", "meeting_rescheduled",
                 "qualified", "not_qualified",
             ]
-            # Use union_all (not union) to avoid JSON equality operator error in PostgreSQL
+            from sqlalchemy import or_
             contacts_result = await session.execute(
                 select(Contact).where(
                     and_(
                         Contact.project_id == project_id,
                         Contact.deleted_at.is_(None),
-                        Contact.has_replied == True,
-                        Contact.reply_sentiment.in_(["warm", "positive"]),
-                    )
-                ).union_all(
-                    select(Contact).where(
-                        and_(
-                            Contact.project_id == project_id,
-                            Contact.deleted_at.is_(None),
+                        or_(
+                            and_(
+                                Contact.has_replied == True,
+                                Contact.reply_sentiment.in_(["warm", "positive"]),
+                            ),
                             Contact.status.in_(warm_statuses),
-                        )
+                        ),
                     )
                 )
             )
-            # Deduplicate by id since we used union_all
-            seen_ids = set()
-            contacts = []
-            for c in contacts_result.scalars().all():
-                if c.id not in seen_ids:
-                    seen_ids.add(c.id)
-                    contacts.append(c)
+            contacts = contacts_result.scalars().all()
 
             if not contacts:
                 return stats
