@@ -160,7 +160,7 @@ export function OperatorTasksPage() {
   const [data, setData] = useState<OperatorTasksResponse | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('replies');
   const [loading, setLoading] = useState(true);
-  const [transitioning, setTransitioning] = useState<number | null>(null);
+  const [, setTransitioning] = useState<number | null>(null);
   const { currentProject } = useAppStore();
 
   const loadTasks = useCallback(async () => {
