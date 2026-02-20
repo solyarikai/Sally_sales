@@ -59,6 +59,9 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # Webhook control — disable to stop processing SmartLead/GetSales webhooks for this project
     webhooks_enabled = Column(Boolean, default=True, server_default='true', nullable=False)
 
+    # Google Sheet bidirectional sync config
+    sheet_sync_config = Column(JSON, nullable=True)
+
     # Generated content (for AI SDR later)
     tam_analysis = Column(Text, nullable=True)       # Total Addressable Market analysis
     gtm_plan = Column(Text, nullable=True)           # Go-to-market plan
@@ -150,6 +153,11 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
 
     # Pipeline gathering details (populated during CRM promote)
     gathering_details = Column(JSON, nullable=True)  # {gathered_at, source, search_job_id, query, geo, domain, ...}
+
+    # Google Sheet sync fields
+    sheet_qualification = Column(String(100), nullable=True)
+    sheet_client_comment = Column(String(2000), nullable=True)
+    sheet_row = Column(Integer, nullable=True)
 
     # Relationships
     company = relationship("Company", back_populates="contacts")

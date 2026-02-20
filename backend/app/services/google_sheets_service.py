@@ -724,5 +724,152 @@ class GoogleSheetsService:
             return None
 
 
+    def read_sheet_headers(self, sheet_id: str, tab_name: str = "Sheet1") -> List[str]:
+        """Read row 1 headers from a sheet tab.
+
+        Args:
+            sheet_id: The Google Sheet ID
+            tab_name: Tab name to read headers from
+
+        Returns:
+            List of header strings (empty list on error)
+        """
+        if not self._initialize():
+            return []
+
+        try:
+            result = self.sheets_service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=f"'{tab_name}'!1:1"
+            ).execute()
+            rows = result.get('values', [])
+            return rows[0] if rows else []
+        except Exception as e:
+            logger.error(f"Error reading headers from {sheet_id}/{tab_name}: {e}")
+            return []
+
+    def read_sheet_raw(self, sheet_id: str, tab_name: str = "Sheet1") -> List[List[str]]:
+        """Read all rows from a sheet tab as raw lists (including header).
+
+        Args:
+            sheet_id: The Google Sheet ID
+            tab_name: Tab name to read
+
+        Returns:
+            List of rows, each a list of cell values. First row is headers.
+        """
+        if not self._initialize():
+            return []
+
+        try:
+            result = self.sheets_service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=f"'{tab_name}'"
+            ).execute()
+            return result.get('values', [])
+        except Exception as e:
+            logger.error(f"Error reading raw data from {sheet_id}/{tab_name}: {e}")
+            return []
+
+    def append_rows(self, sheet_id: str, tab_name: str, rows: List[List[Any]]) -> int:
+        """Batch append rows to a sheet tab.
+
+        Args:
+            sheet_id: The Google Sheet ID
+            tab_name: Tab name to append to
+            rows: List of rows to append
+
+        Returns:
+            Row number of first appended row (1-indexed), or 0 on error
+        """
+        if not self._initialize() or not rows:
+            return 0
+
+        try:
+            # Get current row count to know where append starts
+            count_result = self.sheets_service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=f"'{tab_name}'!A:A"
+            ).execute()
+            current_rows = len(count_result.get('values', []))
+            first_new_row = current_rows + 1
+
+            body = {'values': rows}
+            self.sheets_service.spreadsheets().values().append(
+                spreadsheetId=sheet_id,
+                range=f"'{tab_name}'!A:A",
+                valueInputOption='RAW',
+                insertDataOption='INSERT_ROWS',
+                body=body
+            ).execute()
+
+            logger.info(f"Appended {len(rows)} rows to {sheet_id}/{tab_name} starting at row {first_new_row}")
+            return first_new_row
+        except Exception as e:
+            logger.error(f"Error appending rows to {sheet_id}/{tab_name}: {e}")
+            return 0
+
+    def update_cells(self, sheet_id: str, tab_name: str, updates: List[Dict[str, Any]]) -> bool:
+        """Batch update specific cells in a sheet.
+
+        Args:
+            sheet_id: The Google Sheet ID
+            tab_name: Tab name (used as prefix if ranges don't include tab)
+            updates: List of {"range": "A5", "values": [["val"]]} dicts
+
+        Returns:
+            True if successful
+        """
+        if not self._initialize() or not updates:
+            return False
+
+        try:
+            data = []
+            for u in updates:
+                r = u['range']
+                if '!' not in r:
+                    r = f"'{tab_name}'!{r}"
+                data.append({'range': r, 'values': u['values']})
+
+            body = {'data': data, 'valueInputOption': 'RAW'}
+            self.sheets_service.spreadsheets().values().batchUpdate(
+                spreadsheetId=sheet_id,
+                body=body
+            ).execute()
+
+            logger.info(f"Updated {len(updates)} cell ranges in {sheet_id}/{tab_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Error updating cells in {sheet_id}/{tab_name}: {e}")
+            return False
+
+    def get_tab_info(self, sheet_id: str) -> List[Dict[str, Any]]:
+        """Get information about all tabs in a sheet.
+
+        Returns:
+            List of {"name": str, "row_count": int} dicts
+        """
+        if not self._initialize():
+            return []
+
+        try:
+            result = self.sheets_service.spreadsheets().get(
+                spreadsheetId=sheet_id,
+                fields='sheets.properties'
+            ).execute()
+            tabs = []
+            for sheet in result.get('sheets', []):
+                props = sheet.get('properties', {})
+                grid = props.get('gridProperties', {})
+                tabs.append({
+                    'name': props.get('title', ''),
+                    'row_count': grid.get('rowCount', 0),
+                })
+            return tabs
+        except Exception as e:
+            logger.error(f"Error getting tab info for {sheet_id}: {e}")
+            return []
+
+
 # Global instance
 google_sheets_service = GoogleSheetsService()

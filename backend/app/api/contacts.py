@@ -165,6 +165,7 @@ class ProjectUpdate(BaseModel):
     telegram_chat_id: Optional[str] = None  # Resolved chat ID (set automatically)
     telegram_username: Optional[str] = None  # Operator @username for notifications
     webhooks_enabled: Optional[bool] = None
+    sheet_sync_config: Optional[Dict[str, Any]] = None
 
 
 class ProjectResponse(BaseModel):
@@ -177,6 +178,7 @@ class ProjectResponse(BaseModel):
     telegram_chat_id: Optional[str] = None
     telegram_username: Optional[str] = None
     webhooks_enabled: bool = True
+    sheet_sync_config: Optional[Dict[str, Any]] = None
     contact_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -1465,6 +1467,7 @@ async def list_projects(
             campaign_filters=project.campaign_filters,
             telegram_chat_id=project.telegram_chat_id,
             webhooks_enabled=project.webhooks_enabled,
+            sheet_sync_config=project.sheet_sync_config,
             contact_count=contact_count,
             created_at=project.created_at,
             updated_at=project.updated_at,
@@ -1509,6 +1512,7 @@ async def create_project(
         campaign_filters=db_project.campaign_filters,
         telegram_chat_id=db_project.telegram_chat_id,
         webhooks_enabled=db_project.webhooks_enabled,
+        sheet_sync_config=db_project.sheet_sync_config,
         contact_count=0,
         created_at=db_project.created_at,
         updated_at=db_project.updated_at,
@@ -1565,6 +1569,7 @@ async def get_project(
         campaign_filters=project.campaign_filters,
         telegram_chat_id=project.telegram_chat_id,
         webhooks_enabled=project.webhooks_enabled,
+        sheet_sync_config=project.sheet_sync_config,
         contact_count=contact_count,
         created_at=project.created_at,
         updated_at=project.updated_at,
@@ -1646,10 +1651,155 @@ async def update_project(
         telegram_chat_id=project.telegram_chat_id,
         telegram_username=project.telegram_username,
         webhooks_enabled=project.webhooks_enabled,
+        sheet_sync_config=project.sheet_sync_config,
         contact_count=contact_count,
         created_at=project.created_at,
         updated_at=project.updated_at,
     )
+
+
+# ============= Sheet Sync Endpoints =============
+
+@router.get("/projects/{project_id}/sheet-sync/status")
+async def get_sheet_sync_status(
+    project_id: int,
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Get sheet sync config and status for a project."""
+    result = await session.execute(
+        select(Project).where(
+            and_(
+                Project.id == project_id,
+                Project.company_id == company_id if company_id else True,
+                Project.deleted_at.is_(None),
+            )
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    config = project.sheet_sync_config or {}
+    return {
+        "configured": bool(config.get("sheet_id")),
+        "enabled": config.get("enabled", False),
+        "sheet_id": config.get("sheet_id"),
+        "leads_tab": config.get("leads_tab", "Leads"),
+        "replies_tab": config.get("replies_tab", "Replies"),
+        "last_replies_sync_at": config.get("last_replies_sync_at"),
+        "last_leads_push_at": config.get("last_leads_push_at"),
+        "last_qualification_poll_at": config.get("last_qualification_poll_at"),
+        "replies_synced_count": config.get("replies_synced_count", 0),
+        "leads_pushed_count": config.get("leads_pushed_count", 0),
+        "last_error": config.get("last_error"),
+        "last_error_at": config.get("last_error_at"),
+    }
+
+
+@router.post("/projects/{project_id}/sheet-sync/test")
+async def test_sheet_connection(
+    project_id: int,
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Test Google Sheet connection — verify sheet is accessible and tabs match."""
+    from app.services.google_sheets_service import google_sheets_service
+
+    result = await session.execute(
+        select(Project).where(
+            and_(
+                Project.id == project_id,
+                Project.company_id == company_id if company_id else True,
+                Project.deleted_at.is_(None),
+            )
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    config = project.sheet_sync_config or {}
+    sheet_id = config.get("sheet_id")
+    if not sheet_id:
+        raise HTTPException(status_code=400, detail="No sheet_id configured")
+
+    if not google_sheets_service.is_configured():
+        raise HTTPException(status_code=500, detail="Google Sheets service not configured")
+
+    # Get sheet info
+    info = google_sheets_service.get_sheet_info(sheet_id)
+    if not info:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot access sheet. Make sure it's shared with the service account.",
+        )
+
+    # Get tab info
+    tabs = google_sheets_service.get_tab_info(sheet_id)
+    tab_names = [t["name"] for t in tabs]
+
+    leads_tab = config.get("leads_tab", "Leads")
+    replies_tab = config.get("replies_tab", "Replies")
+
+    leads_ok = leads_tab in tab_names
+    replies_ok = replies_tab in tab_names
+
+    # Read headers if leads tab exists
+    leads_headers = []
+    if leads_ok:
+        leads_headers = google_sheets_service.read_sheet_headers(sheet_id, leads_tab)
+
+    return {
+        "success": leads_ok and replies_ok,
+        "sheet_title": info.get("title"),
+        "tabs": tabs,
+        "leads_tab_found": leads_ok,
+        "replies_tab_found": replies_ok,
+        "leads_headers": leads_headers,
+        "service_account": google_sheets_service.get_service_account_email(),
+    }
+
+
+@router.post("/projects/{project_id}/sheet-sync/trigger")
+async def trigger_sheet_sync(
+    project_id: int,
+    sync_type: str = Query(default="all", description="all, replies, leads, or qualification"),
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Manually trigger sheet sync for a project."""
+    from app.services.sheet_sync_service import sheet_sync_service
+
+    result = await session.execute(
+        select(Project).where(
+            and_(
+                Project.id == project_id,
+                Project.company_id == company_id if company_id else True,
+                Project.deleted_at.is_(None),
+            )
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    config = project.sheet_sync_config or {}
+    if not config.get("sheet_id"):
+        raise HTTPException(status_code=400, detail="No sheet_id configured")
+
+    results = {}
+
+    if sync_type in ("all", "replies"):
+        results["replies"] = await sheet_sync_service.sync_replies_to_sheet(project_id)
+
+    if sync_type in ("all", "leads"):
+        results["leads"] = await sheet_sync_service.push_leads_to_sheet(project_id)
+
+    if sync_type in ("all", "qualification"):
+        results["qualification"] = await sheet_sync_service.poll_qualification_from_sheet(project_id)
+
+    return {"sync_type": sync_type, "results": results}
 
 
 @router.delete("/projects/{project_id}")

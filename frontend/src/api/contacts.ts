@@ -56,6 +56,20 @@ export interface FilterOptions {
   projects: Array<{ id: number; name: string }>;
 }
 
+export interface SheetSyncConfig {
+  enabled: boolean;
+  sheet_id: string;
+  leads_tab?: string;
+  replies_tab?: string;
+  last_replies_sync_at?: string;
+  last_leads_push_at?: string;
+  last_qualification_poll_at?: string;
+  replies_synced_count?: number;
+  leads_pushed_count?: number;
+  last_error?: string | null;
+  last_error_at?: string | null;
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -66,6 +80,7 @@ export interface Project {
   telegram_chat_id?: string;
   telegram_username?: string;
   webhooks_enabled?: boolean;
+  sheet_sync_config?: SheetSyncConfig | null;
   contact_count: number;
   created_at: string;
   updated_at: string;
@@ -352,7 +367,7 @@ export const contactsApi = {
   },
 
   // Update project
-  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[]; telegram_username?: string; webhooks_enabled?: boolean }): Promise<Project> {
+  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[]; telegram_username?: string; webhooks_enabled?: boolean; sheet_sync_config?: SheetSyncConfig | null }): Promise<Project> {
     const response = await api.patch(`/contacts/projects/${id}`, updates);
     return response.data;
   },
@@ -462,6 +477,30 @@ export const contactsApi = {
 
   async updateTask(taskId: number, updates: { status?: string; title?: string }): Promise<OperatorTask> {
     const response = await api.patch(`/tasks/${taskId}`, updates);
+    return response.data;
+  },
+
+  // Sheet sync
+  async getSheetSyncStatus(projectId: number): Promise<Record<string, any>> {
+    const response = await api.get(`/contacts/projects/${projectId}/sheet-sync/status`);
+    return response.data;
+  },
+
+  async testSheetConnection(projectId: number): Promise<{
+    success: boolean;
+    sheet_title?: string;
+    tabs?: Array<{ name: string; row_count: number }>;
+    leads_tab_found: boolean;
+    replies_tab_found: boolean;
+    leads_headers?: string[];
+    service_account?: string;
+  }> {
+    const response = await api.post(`/contacts/projects/${projectId}/sheet-sync/test`);
+    return response.data;
+  },
+
+  async triggerSheetSync(projectId: number, syncType: 'all' | 'replies' | 'leads' | 'qualification' = 'all'): Promise<Record<string, any>> {
+    const response = await api.post(`/contacts/projects/${projectId}/sheet-sync/trigger?sync_type=${syncType}`);
     return response.data;
   },
 };

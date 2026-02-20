@@ -82,6 +82,7 @@ class CRMScheduler:
         self._recovery_task: Optional[asyncio.Task] = None
         self._conversation_sync_task: Optional[asyncio.Task] = None
         self._telegram_poll_task: Optional[asyncio.Task] = None
+        self._sheet_sync_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         
         # Tracking
@@ -108,10 +109,11 @@ class CRMScheduler:
         """Stop all scheduler tasks."""
         self._running = False
         all_tasks = [
-            self._task, self._reply_task, self._webhook_task, 
+            self._task, self._reply_task, self._webhook_task,
             self._report_task, self._prompt_refresh_task,
             self._recovery_task, self._conversation_sync_task,
-            self._telegram_poll_task, self._watchdog_task
+            self._telegram_poll_task, self._sheet_sync_task,
+            self._watchdog_task
         ]
         for task in all_tasks:
             if task:
@@ -133,6 +135,7 @@ class CRMScheduler:
             ("_recovery_task", self._run_event_recovery_loop, "Event recovery"),
             ("_conversation_sync_task", self._run_conversation_sync_loop, "Conversation sync"),
             ("_telegram_poll_task", self._run_telegram_poll_loop, "Telegram poll"),
+            ("_sheet_sync_task", self._run_sheet_sync_loop, "Sheet sync"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -640,6 +643,86 @@ class CRMScheduler:
                         chat_id=chat_id,
                     )
 
+    # ===== Google Sheet Sync (every 5 min) =====
+
+    async def _run_sheet_sync_loop(self):
+        """Sync project data to/from Google Sheets.
+
+        Every 5 min: push replies + leads.
+        Every 3rd cycle (15 min): poll qualification from sheet.
+        """
+        await asyncio.sleep(90)  # Initial delay
+        cycle = 0
+
+        while self._running:
+            cycle += 1
+            try:
+                await self._run_sheet_sync(poll_qualification=(cycle % 3 == 0))
+            except Exception as e:
+                logger.error(f"Sheet sync error: {e}")
+            await asyncio.sleep(300)  # 5 minutes
+
+    async def _run_sheet_sync(self, poll_qualification: bool = False):
+        """Run sheet sync for all projects with enabled sheet_sync_config."""
+        from app.models.contact import Project
+        from app.services.sheet_sync_service import sheet_sync_service
+
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(Project).where(
+                    Project.deleted_at.is_(None),
+                    Project.sheet_sync_config.isnot(None),
+                )
+            )
+            projects = result.scalars().all()
+
+        for project in projects:
+            config = project.sheet_sync_config
+            if not isinstance(config, dict) or not config.get("enabled"):
+                continue
+
+            project_id = project.id
+            try:
+                # Push replies
+                reply_stats = await sheet_sync_service.sync_replies_to_sheet(project_id)
+                if reply_stats.get("rows_appended"):
+                    logger.info(f"[SheetSync] Project {project_id}: {reply_stats['rows_appended']} replies appended")
+
+                # Push/update leads
+                lead_stats = await sheet_sync_service.push_leads_to_sheet(project_id)
+                if lead_stats.get("new_rows") or lead_stats.get("updated_rows"):
+                    logger.info(
+                        f"[SheetSync] Project {project_id}: "
+                        f"{lead_stats['new_rows']} new leads, "
+                        f"{lead_stats['updated_rows']} updated"
+                    )
+
+                # Poll qualification (every 3rd cycle)
+                if poll_qualification:
+                    qual_stats = await sheet_sync_service.poll_qualification_from_sheet(project_id)
+                    if qual_stats.get("contacts_updated"):
+                        logger.info(
+                            f"[SheetSync] Project {project_id}: "
+                            f"{qual_stats['contacts_updated']} contacts updated from sheet, "
+                            f"{qual_stats['qualifications_changed']} qualifications, "
+                            f"{qual_stats['statuses_advanced']} statuses advanced"
+                        )
+
+            except Exception as e:
+                logger.error(f"[SheetSync] Project {project_id} failed: {e}")
+                # Store error in config
+                try:
+                    async with async_session_maker() as err_session:
+                        proj = await err_session.get(Project, project_id)
+                        if proj and proj.sheet_sync_config:
+                            new_config = dict(proj.sheet_sync_config)
+                            new_config["last_error"] = str(e)[:500]
+                            new_config["last_error_at"] = datetime.utcnow().isoformat()
+                            proj.sheet_sync_config = new_config
+                            await err_session.commit()
+                except Exception:
+                    pass
+
     # ===== Reports (every 4 hours, per-project) =====
     
     async def _run_report_loop(self):
@@ -873,6 +956,7 @@ class CRMScheduler:
             ("_task", "sync"), ("_reply_task", "reply_check"),
             ("_webhook_task", "webhook_setup"), ("_report_task", "report"),
             ("_recovery_task", "event_recovery"), ("_prompt_refresh_task", "prompt_refresh"),
+            ("_sheet_sync_task", "sheet_sync"),
         ]:
             task = getattr(self, attr, None)
             if task is None:

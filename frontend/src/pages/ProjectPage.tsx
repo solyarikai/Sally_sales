@@ -2,9 +2,9 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Check, X, Search, Trash2,
-  MessageCircle, Loader2, Unlink, FolderOpen, Zap,
+  MessageCircle, Loader2, Unlink, FolderOpen, Zap, FileSpreadsheet, RefreshCw,
 } from 'lucide-react';
-import { contactsApi, type Project } from '../api/contacts';
+import { contactsApi, type Project, type SheetSyncConfig } from '../api/contacts';
 import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../store/appStore';
 import { cn } from '../lib/utils';
@@ -352,6 +352,318 @@ export function ProjectPage() {
           Telegram Notifications
         </h2>
         <TelegramConnect projectId={project.id} onUpdate={loadProject} isDark={isDark} />
+      </div>
+
+      {/* Google Sheet Sync Section */}
+      <SheetSyncSection project={project} onUpdate={loadProject} isDark={isDark} />
+    </div>
+  );
+}
+
+
+/* Google Sheet Sync section */
+function SheetSyncSection({ project, onUpdate, isDark }: { project: Project; onUpdate: () => void; isDark: boolean }) {
+  const config = project.sheet_sync_config;
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [leadsTab, setLeadsTab] = useState('Leads');
+  const [repliesTab, setRepliesTab] = useState('Replies');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<Record<string, any> | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<Record<string, any> | null>(null);
+  const [toggling, setToggling] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (config) {
+      setSheetUrl(config.sheet_id ? `https://docs.google.com/spreadsheets/d/${config.sheet_id}` : '');
+      setLeadsTab(config.leads_tab || 'Leads');
+      setRepliesTab(config.replies_tab || 'Replies');
+    }
+  }, [config]);
+
+  const parseSheetId = (url: string): string => {
+    const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : url.trim();
+  };
+
+  const handleSaveConfig = async () => {
+    setSaving(true);
+    try {
+      const sheetId = parseSheetId(sheetUrl);
+      if (!sheetId) return;
+      const newConfig: SheetSyncConfig = {
+        enabled: config?.enabled || false,
+        sheet_id: sheetId,
+        leads_tab: leadsTab,
+        replies_tab: repliesTab,
+        ...(config?.last_replies_sync_at ? { last_replies_sync_at: config.last_replies_sync_at } : {}),
+        ...(config?.last_leads_push_at ? { last_leads_push_at: config.last_leads_push_at } : {}),
+        ...(config?.last_qualification_poll_at ? { last_qualification_poll_at: config.last_qualification_poll_at } : {}),
+        replies_synced_count: config?.replies_synced_count || 0,
+        leads_pushed_count: config?.leads_pushed_count || 0,
+      };
+      await contactsApi.updateProject(project.id, { sheet_sync_config: newConfig });
+      onUpdate();
+    } catch {}
+    setSaving(false);
+  };
+
+  const handleToggleEnabled = async () => {
+    if (!config?.sheet_id) return;
+    setToggling(true);
+    try {
+      const newConfig = { ...config, enabled: !config.enabled };
+      await contactsApi.updateProject(project.id, { sheet_sync_config: newConfig });
+      onUpdate();
+    } catch {}
+    setToggling(false);
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await contactsApi.testSheetConnection(project.id);
+      setTestResult(result);
+    } catch (e: any) {
+      setTestResult({ success: false, error: e?.response?.data?.detail || 'Connection failed' });
+    }
+    setTesting(false);
+  };
+
+  const handleSync = async (type: 'all' | 'replies' | 'leads' | 'qualification') => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const result = await contactsApi.triggerSheetSync(project.id, type);
+      setSyncResult(result);
+      onUpdate();
+    } catch (e: any) {
+      setSyncResult({ error: e?.response?.data?.detail || 'Sync failed' });
+    }
+    setSyncing(false);
+  };
+
+  const formatTime = (iso?: string | null) => {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString();
+    } catch { return iso; }
+  };
+
+  return (
+    <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className={cn("text-sm font-semibold flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+          <FileSpreadsheet className="w-4 h-4" />
+          Google Sheet Sync
+        </h2>
+        {config?.sheet_id && (
+          <div className="flex items-center gap-3">
+            <span className={cn(
+              "text-xs font-medium px-2 py-0.5 rounded-full",
+              config.enabled
+                ? "bg-green-100 text-green-700"
+                : "bg-neutral-100 text-neutral-500"
+            )}>
+              {config.enabled ? "Enabled" : "Disabled"}
+            </span>
+            <button
+              onClick={handleToggleEnabled}
+              disabled={toggling}
+              className={cn(
+                "text-xs px-3 py-1.5 rounded-lg font-medium transition-colors",
+                config.enabled
+                  ? isDark ? "bg-red-900/30 text-red-400 hover:bg-red-900/50" : "bg-red-50 text-red-600 hover:bg-red-100"
+                  : isDark ? "bg-green-900/30 text-green-400 hover:bg-green-900/50" : "bg-green-50 text-green-600 hover:bg-green-100"
+              )}
+            >
+              {toggling ? <Loader2 className="w-3 h-3 animate-spin" /> : config.enabled ? "Disable" : "Enable"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Sheet URL input */}
+      <div className="space-y-3">
+        <div>
+          <label className={cn("text-xs font-medium block mb-1", isDark ? "text-[#858585]" : "text-neutral-500")}>
+            Google Sheet URL or ID
+          </label>
+          <input
+            type="text"
+            value={sheetUrl}
+            onChange={e => setSheetUrl(e.target.value)}
+            placeholder="https://docs.google.com/spreadsheets/d/..."
+            className={cn(
+              "w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20",
+              isDark
+                ? "bg-[#3c3c3c] border border-transparent text-[#d4d4d4] placeholder-[#6e6e6e] focus:border-[#505050]"
+                : "border border-neutral-300 text-neutral-900 focus:border-violet-300"
+            )}
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className={cn("text-xs font-medium block mb-1", isDark ? "text-[#858585]" : "text-neutral-500")}>
+              Leads Tab
+            </label>
+            <input
+              type="text"
+              value={leadsTab}
+              onChange={e => setLeadsTab(e.target.value)}
+              className={cn(
+                "w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20",
+                isDark
+                  ? "bg-[#3c3c3c] border border-transparent text-[#d4d4d4] focus:border-[#505050]"
+                  : "border border-neutral-300 text-neutral-900 focus:border-violet-300"
+              )}
+            />
+          </div>
+          <div className="flex-1">
+            <label className={cn("text-xs font-medium block mb-1", isDark ? "text-[#858585]" : "text-neutral-500")}>
+              Replies Tab
+            </label>
+            <input
+              type="text"
+              value={repliesTab}
+              onChange={e => setRepliesTab(e.target.value)}
+              className={cn(
+                "w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20",
+                isDark
+                  ? "bg-[#3c3c3c] border border-transparent text-[#d4d4d4] focus:border-[#505050]"
+                  : "border border-neutral-300 text-neutral-900 focus:border-violet-300"
+              )}
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={handleSaveConfig}
+            disabled={saving || !sheetUrl.trim()}
+            className={cn(
+              "text-xs px-3 py-1.5 rounded-lg font-medium transition-colors",
+              isDark ? "bg-violet-900/30 text-violet-400 hover:bg-violet-900/50" : "bg-violet-50 text-violet-600 hover:bg-violet-100"
+            )}
+          >
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save Config"}
+          </button>
+          {config?.sheet_id && (
+            <button
+              onClick={handleTest}
+              disabled={testing}
+              className={cn(
+                "text-xs px-3 py-1.5 rounded-lg font-medium transition-colors",
+                isDark ? "bg-blue-900/30 text-blue-400 hover:bg-blue-900/50" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+              )}
+            >
+              {testing ? <Loader2 className="w-3 h-3 animate-spin" /> : "Test Connection"}
+            </button>
+          )}
+        </div>
+
+        {/* Test result */}
+        {testResult && (
+          <div className={cn(
+            "text-xs p-3 rounded-lg",
+            testResult.success
+              ? isDark ? "bg-green-900/20 text-green-400" : "bg-green-50 text-green-700"
+              : isDark ? "bg-red-900/20 text-red-400" : "bg-red-50 text-red-700"
+          )}>
+            {testResult.success ? (
+              <div className="space-y-1">
+                <div className="font-medium">Connected: {testResult.sheet_title}</div>
+                {testResult.tabs?.map((t: any) => (
+                  <div key={t.name}>
+                    Tab "{t.name}" — {t.row_count} rows
+                    {t.name === leadsTab && (testResult.leads_tab_found ? ' ✓' : ' ✗')}
+                    {t.name === repliesTab && (testResult.replies_tab_found ? ' ✓' : ' ✗')}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div>{testResult.error || 'Connection failed'}</div>
+            )}
+          </div>
+        )}
+
+        {/* Sync status + manual trigger */}
+        {config?.sheet_id && (
+          <div className={cn("border-t pt-3 mt-3 space-y-2", isDark ? "border-[#333]" : "border-neutral-200")}>
+            <div className={cn("text-xs space-y-1", isDark ? "text-[#858585]" : "text-neutral-500")}>
+              <div>Replies synced: {config.replies_synced_count || 0} — last: {formatTime(config.last_replies_sync_at)}</div>
+              <div>Leads pushed: {config.leads_pushed_count || 0} — last: {formatTime(config.last_leads_push_at)}</div>
+              <div>Qualification poll: {formatTime(config.last_qualification_poll_at)}</div>
+              {config.last_error && (
+                <div className={cn("text-xs mt-1", isDark ? "text-red-400" : "text-red-600")}>
+                  Error: {config.last_error} ({formatTime(config.last_error_at)})
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => handleSync('all')}
+                disabled={syncing}
+                className={cn(
+                  "text-xs px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1",
+                  isDark ? "bg-violet-900/30 text-violet-400 hover:bg-violet-900/50" : "bg-violet-50 text-violet-600 hover:bg-violet-100"
+                )}
+              >
+                {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                Sync All
+              </button>
+              <button
+                onClick={() => handleSync('replies')}
+                disabled={syncing}
+                className={cn(
+                  "text-xs px-2.5 py-1.5 rounded-lg transition-colors",
+                  isDark ? "text-[#858585] hover:text-[#d4d4d4] hover:bg-[#333]" : "text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100"
+                )}
+              >
+                Replies
+              </button>
+              <button
+                onClick={() => handleSync('leads')}
+                disabled={syncing}
+                className={cn(
+                  "text-xs px-2.5 py-1.5 rounded-lg transition-colors",
+                  isDark ? "text-[#858585] hover:text-[#d4d4d4] hover:bg-[#333]" : "text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100"
+                )}
+              >
+                Leads
+              </button>
+              <button
+                onClick={() => handleSync('qualification')}
+                disabled={syncing}
+                className={cn(
+                  "text-xs px-2.5 py-1.5 rounded-lg transition-colors",
+                  isDark ? "text-[#858585] hover:text-[#d4d4d4] hover:bg-[#333]" : "text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100"
+                )}
+              >
+                Qualification
+              </button>
+            </div>
+
+            {/* Sync result */}
+            {syncResult && (
+              <div className={cn(
+                "text-xs p-2 rounded-lg",
+                syncResult.error
+                  ? isDark ? "bg-red-900/20 text-red-400" : "bg-red-50 text-red-700"
+                  : isDark ? "bg-green-900/20 text-green-400" : "bg-green-50 text-green-700"
+              )}>
+                {syncResult.error ? syncResult.error : (
+                  <pre className="whitespace-pre-wrap">{JSON.stringify(syncResult.results, null, 2)}</pre>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
