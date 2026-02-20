@@ -301,6 +301,7 @@ class SheetSyncService:
                 "meeting_held", "meeting_no_show", "meeting_rescheduled",
                 "qualified", "not_qualified",
             ]
+            # Use union_all (not union) to avoid JSON equality operator error in PostgreSQL
             contacts_result = await session.execute(
                 select(Contact).where(
                     and_(
@@ -309,7 +310,7 @@ class SheetSyncService:
                         Contact.has_replied == True,
                         Contact.reply_sentiment.in_(["warm", "positive"]),
                     )
-                ).union(
+                ).union_all(
                     select(Contact).where(
                         and_(
                             Contact.project_id == project_id,
@@ -319,7 +320,13 @@ class SheetSyncService:
                     )
                 )
             )
-            contacts = contacts_result.scalars().all()
+            # Deduplicate by id since we used union_all
+            seen_ids = set()
+            contacts = []
+            for c in contacts_result.scalars().all():
+                if c.id not in seen_ids:
+                    seen_ids.add(c.id)
+                    contacts.append(c)
 
             if not contacts:
                 return stats

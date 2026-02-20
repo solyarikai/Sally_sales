@@ -13,8 +13,9 @@ import argparse
 import sys
 import os
 
-# Add backend to path
+# Add backend to path (works both locally and inside Docker where /app = backend)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
+sys.path.insert(0, "/app")
 
 from app.db.database import async_session_maker
 from app.services.status_machine import LEGACY_STATUS_MAP, normalize_status
@@ -61,13 +62,21 @@ async def migrate(project_id: int, dry_run: bool):
                 print(f"  Migrated {legacy_status} → {new_status}: {result.rowcount} rows")
                 migrated += result.rowcount
 
-        # Also handle NULL/empty statuses
-        result = await session.execute(text(
-            "UPDATE contacts SET status = 'to_be_sent' WHERE project_id = :pid AND (status IS NULL OR status = '')"
-        ), {"pid": project_id})
-        if result.rowcount > 0:
-            print(f"  Migrated NULL/empty → to_be_sent: {result.rowcount} rows")
-            migrated += result.rowcount
+        # Also handle NULL/empty and other unmapped statuses
+        for unmapped in [None, "", "other", "synced"]:
+            if unmapped is None:
+                where = "status IS NULL"
+            elif unmapped == "":
+                where = "status = ''"
+            else:
+                where = f"status = '{unmapped}'"
+            result = await session.execute(text(
+                f"UPDATE contacts SET status = 'to_be_sent' WHERE project_id = :pid AND {where}"
+            ), {"pid": project_id})
+            if result.rowcount > 0:
+                label = unmapped if unmapped else "NULL/empty"
+                print(f"  Migrated {label} → to_be_sent: {result.rowcount} rows")
+                migrated += result.rowcount
 
         await session.commit()
         print(f"\nMigrated {migrated} contacts total.")
