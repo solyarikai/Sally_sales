@@ -313,8 +313,9 @@ export function QueryDashboardPage() {
   const openContactsForQuery = useCallback((row: QueryRecord, _mode: 'domains' | 'targets') => {
     const params = new URLSearchParams();
     if (row.segment) params.set('segment', row.segment);
-    if (row.geo) params.set('geo', row.geo);
-    if (row.country) params.set('country', row.country);
+    // Pass country as geo — backend maps country names to contact geo codes
+    // (query geo like moscow_fo has no match in contacts, but country=Russia → geo=RU)
+    if (row.country) params.set('geo', row.country);
     if (currentProject) params.set('project_id', String(currentProject.id));
     navigate(`/contacts?${params.toString()}`);
   }, [navigate, currentProject]);

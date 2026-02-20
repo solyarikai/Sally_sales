@@ -298,12 +298,28 @@ async def _build_filtered_query(
 
     if segment:
         segments_list = [s.strip() for s in segment.split(',') if s.strip()]
-        if len(segments_list) == 1:
-            query = query.where(Contact.segment == segments_list[0])
+        # Expand snake_case keys to also match display names (e.g. family_office → Family Office)
+        expanded = set(segments_list)
+        for s in segments_list:
+            if '_' in s:
+                expanded.add(s.replace('_', ' ').title())  # family_office → Family Office
+            expanded.add(s)  # keep original
+        all_variants = list(expanded)
+        if len(all_variants) == 1:
+            query = query.where(func.lower(Contact.segment) == all_variants[0].lower())
         else:
-            query = query.where(Contact.segment.in_(segments_list))
+            query = query.where(func.lower(Contact.segment).in_([v.lower() for v in all_variants]))
     if geo:
-        query = query.where(Contact.geo == geo)
+        # Map country names to 2-letter codes used in contacts (Russia→RU, etc.)
+        _COUNTRY_TO_GEO = {
+            "russia": "RU", "uae": "AE", "turkey": "TR", "cyprus": "CY",
+            "thailand": "TH", "montenegro": "ME", "spain": "ES", "greece": "GR",
+            "uk": "UK", "israel": "IL", "italy": "IT", "switzerland": "CH",
+            "singapore": "SG", "estonia": "EE", "georgia": "GE", "serbia": "RS",
+            "portugal": "PT", "indonesia": "ID", "malta": "MT",
+        }
+        geo_val = _COUNTRY_TO_GEO.get(geo.lower(), geo)
+        query = query.where(Contact.geo == geo_val)
     if status:
         statuses = [s.strip() for s in status.split(',') if s.strip()]
         if len(statuses) == 1:
