@@ -66,6 +66,8 @@ interface ContactDetailModalProps {
   contact: Contact | null;
   isOpen: boolean;
   onClose: () => void;
+  // Campaign pre-selection (from redirect with ?campaign=channel::name)
+  initialCampaignKey?: string | null;
   // Reply mode props
   replyMode?: boolean;
   contactList?: Contact[];
@@ -211,6 +213,7 @@ function ComposeArea({
 // ── Main Modal ─────────────────────────────────────────────────────
 export function ContactDetailModal({
   contact, isOpen, onClose,
+  initialCampaignKey,
   replyMode = false, contactList = [], currentIndex = 0,
   onNavigate, onMarkProcessed,
 }: ContactDetailModalProps) {
@@ -326,7 +329,7 @@ export function ContactDetailModal({
             ];
 
             setActivities(allActivities);
-            // F19: Auto-select most recent campaign (never default to "all")
+            // Campaign pre-selection: prefer initialCampaignKey (from redirect), else most recent
             if (allActivities.length > 0) {
               const campaignMap = new Map<string, string>();
               for (const a of allActivities) {
@@ -336,13 +339,21 @@ export function ContactDetailModal({
                 if (!campaignMap.has(key)) campaignMap.set(key, a.timestamp);
                 else if (a.timestamp > (campaignMap.get(key) || '')) campaignMap.set(key, a.timestamp);
               }
-              // Pick the campaign with the latest timestamp
-              let mostRecent = '';
-              let latestTs = '';
-              for (const [key, ts] of campaignMap) {
-                if (ts > latestTs) { mostRecent = key; latestTs = ts; }
+
+              // Try initialCampaignKey from URL redirect (format: "channel::campaign_name")
+              let preSelected = '';
+              if (initialCampaignKey && campaignMap.has(initialCampaignKey)) {
+                preSelected = initialCampaignKey;
               }
-              if (mostRecent) setSelectedCampaign(mostRecent);
+
+              // Fallback: pick most recent campaign (F19)
+              if (!preSelected) {
+                let latestTs = '';
+                for (const [key, ts] of campaignMap) {
+                  if (ts > latestTs) { preSelected = key; latestTs = ts; }
+                }
+              }
+              if (preSelected) setSelectedCampaign(preSelected);
             }
           }
         } catch (err: any) {
@@ -527,7 +538,8 @@ export function ContactDetailModal({
           <div className="flex-1 flex overflow-hidden">
             {/* Left: Conversation with CampaignDropdown */}
             <div className="flex-1 flex flex-col min-w-0" style={{ background: isDark ? '#1e1e1e' : '#fafafa' }}>
-              {/* Campaign dropdown bar */}
+              {/* Campaign dropdown bar — hidden for 1-campaign contacts (Rule 2) */}
+              {campaigns.length > 1 && (
               <div className="px-4 py-2 flex items-center gap-2" style={{ borderBottom: `1px solid ${t.divider}` }}>
                 <CampaignDropdown
                   campaigns={campaigns}
@@ -536,6 +548,7 @@ export function ContactDetailModal({
                   isDark={isDark}
                 />
               </div>
+              )}
 
               {isLoadingHistory ? (
                 <div className="flex-1 p-4 space-y-3">
@@ -793,15 +806,17 @@ export function ContactDetailModal({
 
           {activeTab === 'conversation' && (
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Campaign dropdown bar */}
-              <div className="px-4 py-2 flex items-center gap-2" style={{ borderBottom: `1px solid ${t.divider}` }}>
-                <CampaignDropdown
-                  campaigns={campaigns}
-                  selectedCampaign={selectedCampaign}
-                  onSelect={setSelectedCampaign}
-                  isDark={isDark}
-                />
-              </div>
+              {/* Campaign dropdown bar — hidden for 1-campaign contacts (Rule 2) */}
+              {campaigns.length > 1 && (
+                <div className="px-4 py-2 flex items-center gap-2" style={{ borderBottom: `1px solid ${t.divider}` }}>
+                  <CampaignDropdown
+                    campaigns={campaigns}
+                    selectedCampaign={selectedCampaign}
+                    onSelect={setSelectedCampaign}
+                    isDark={isDark}
+                  />
+                </div>
+              )}
 
               {/* Conversation */}
               <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ background: isDark ? '#1e1e1e' : '#fafafa' }}>

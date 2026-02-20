@@ -363,11 +363,11 @@ export function RepliesPage() {
               <>
                 {' · '}
                 <a
-                  href={`/contacts?contact_id=${contactId}`}
+                  href={`/contacts?contact_id=${contactId}&campaign=${encodeURIComponent(`${reply.channel || 'email'}::${reply.campaign_name || ''}`)}`}
                   onClick={(e) => {
                     e.preventDefault();
                     toast.dismiss(tInstance.id);
-                    navigate(`/contacts?contact_id=${contactId}`);
+                    navigate(`/contacts?contact_id=${contactId}&campaign=${encodeURIComponent(`${reply.channel || 'email'}::${reply.campaign_name || ''}`)}`);
                   }}
                   style={{ textDecoration: 'underline', color: t.toastText }}
                 >
@@ -868,33 +868,55 @@ export function RepliesPage() {
                         )}
                       </div>
 
-                      {/* Campaign mismatch confirmation banner */}
+                      {/* Cross-campaign safety modal overlay */}
                       {confirmSendId === reply.id && (() => {
                         const selKey = selectedHistoryCampaign[reply.id];
                         const viewedCampaign = selKey ? selKey.split('::').slice(1).join('::') : null;
+                        const mostRecentCampaign = reply.campaign_name || '';
                         return (
                           <div
-                            className="mx-4 mb-1 rounded px-3 py-2 flex items-start gap-2 text-[12px]"
-                            style={{ background: isDark ? '#3a2e00' : '#fef3c7', color: isDark ? '#fbbf24' : '#92400e' }}
+                            className="fixed inset-0 z-[100] flex items-center justify-center"
+                            style={{ background: 'rgba(0,0,0,0.5)' }}
+                            onClick={() => setConfirmSendId(null)}
                           >
-                            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1">
-                              <div className="font-medium mb-1">Different campaign</div>
-                              <div style={{ color: isDark ? '#d4a017' : '#78350f' }}>
-                                You're viewing <strong>{displayCampaignName(viewedCampaign || '')}</strong> but this reply will be sent via <strong>{displayCampaignName(reply.campaign_name || '')}</strong>. Send anyway?
+                            <div
+                              className="rounded-xl shadow-2xl p-5 max-w-[400px] w-full mx-4"
+                              style={{ background: t.cardBg, color: t.text1 }}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <div className="flex items-center gap-2 mb-3">
+                                <AlertTriangle className="w-5 h-5" style={{ color: isDark ? '#fbbf24' : '#f59e0b' }} />
+                                <h3 className="text-[15px] font-semibold">Sending to a different campaign</h3>
                               </div>
-                              <div className="flex gap-2 mt-2">
+                              <p className="text-[13px] mb-4" style={{ color: t.text3 }}>
+                                You're viewing <strong style={{ color: t.text1 }}>{displayCampaignName(viewedCampaign || '')}</strong> but this reply will be sent via <strong style={{ color: t.text1 }}>{displayCampaignName(mostRecentCampaign)}</strong>.
+                              </p>
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  onClick={() => {
+                                    // Switch to the reply's campaign (most recent) then send
+                                    setSelectedHistoryCampaign(prev => ({
+                                      ...prev,
+                                      [reply.id]: `${reply.channel || 'email'}::${mostRecentCampaign}`,
+                                    }));
+                                    handleApproveAndSend(reply);
+                                  }}
+                                  className="w-full px-3 py-2 rounded-lg text-[13px] font-medium cursor-pointer transition-opacity hover:opacity-90"
+                                  style={{ background: t.btnPrimaryBg, color: t.btnPrimaryText }}
+                                >
+                                  Switch to {displayCampaignName(mostRecentCampaign)} and send
+                                </button>
                                 <button
                                   onClick={() => handleApproveAndSend(reply)}
-                                  className="px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer"
-                                  style={{ background: isDark ? '#92400e' : '#f59e0b', color: '#fff' }}
+                                  className="w-full px-3 py-2 rounded-lg text-[13px] cursor-pointer transition-opacity hover:opacity-80"
+                                  style={{ background: isDark ? '#3a3a3a' : '#e5e7eb', color: t.text3 }}
                                 >
-                                  Yes, send via {displayCampaignName(reply.campaign_name || '')}
+                                  Send in {displayCampaignName(viewedCampaign || '')} anyway
                                 </button>
                                 <button
                                   onClick={() => setConfirmSendId(null)}
-                                  className="px-2.5 py-1 rounded text-[11px] cursor-pointer"
-                                  style={{ color: isDark ? '#d4a017' : '#92400e' }}
+                                  className="w-full px-3 py-1.5 text-[12px] cursor-pointer"
+                                  style={{ color: t.text5 }}
                                 >
                                   Cancel
                                 </button>

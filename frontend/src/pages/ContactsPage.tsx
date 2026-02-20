@@ -88,6 +88,7 @@ export function ContactsPage() {
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
+  const [initialCampaignKey, setInitialCampaignKey] = useState<string | null>(null);
 
   // Project view
   const [activeProject, setActiveProject] = useState<Project | null>(null);
@@ -297,7 +298,7 @@ export function ContactsPage() {
     loadContacts();
   }, [loadContacts]);
 
-  // Contact deep-link: ?contact_id=123 opens modal automatically
+  // Contact deep-link: ?contact_id=123&campaign=channel::name opens modal automatically
   const deepLinkHandled = useRef(false);
   const deepLinkRetries = useRef(0);
   useEffect(() => {
@@ -306,6 +307,9 @@ export function ContactsPage() {
     const id = parseInt(contactIdParam);
     if (isNaN(id)) return;
     deepLinkHandled.current = true;
+    // Read campaign key for pre-selection in modal (format: "channel::campaign_name")
+    const campaignParam = searchParams.get('campaign');
+    setInitialCampaignKey(campaignParam);
     // Fetch basic contact — the modal will load history internally via /contacts/{id}/history
     fetch(`/api/contacts/${id}/`).then(r => {
       if (!r.ok) throw new Error(`${r.status}`);
@@ -321,6 +325,7 @@ export function ContactsPage() {
         // Give up — remove contact_id from URL
         const p = new URLSearchParams(searchParams);
         p.delete('contact_id');
+        p.delete('campaign');
         setSearchParams(p, { replace: true });
       }
     });
@@ -1455,11 +1460,19 @@ export function ContactsPage() {
         <ContactDetailModal
           contact={selectedContact}
           isOpen={showContactModal}
+          initialCampaignKey={initialCampaignKey}
           onClose={() => {
             setShowContactModal(false);
             setSelectedContact(null);
+            setInitialCampaignKey(null);
             const p = new URLSearchParams(searchParams);
             p.delete('contact_id');
+            p.delete('campaign');
+            if (viewedEmail) {
+              setSearch(viewedEmail);
+              setDebouncedSearch(viewedEmail);
+              p.set('search', viewedEmail);
+            }
             setSearchParams(p, { replace: true });
           }}
           replyMode={replyMode}
