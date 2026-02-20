@@ -1043,6 +1043,147 @@ test.describe('Query Dashboard — E2E Tests', () => {
     console.log('T24 PASS: Summary metrics match list count');
   });
 
+  // ══════════════════════════════════════════════════════════════════
+  // COUNTRY COLUMN TESTS (T25-T28)
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── T25: Country column visible + filterable via URL ──────────────
+  test('T25: country column visible and filterable via URL', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
+    await waitForDataLoaded(page);
+
+    // ASSERT: Country column header visible
+    const countryHeader = page.locator('.ag-header-cell').filter({ hasText: 'Country' });
+    await expect(countryHeader).toBeVisible({ timeout: 10000 });
+    console.log('  Country column header visible');
+
+    const unfilteredCount = await getQueryCount(page);
+    await page.screenshot({ path: ss('T25a-country-column-visible'), fullPage: true });
+
+    // Apply country filter via URL
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&country=Russia`);
+    await waitForDataLoaded(page);
+    const russiaCount = await getQueryCount(page);
+
+    console.log(`  Unfiltered: ${unfilteredCount}, country=Russia: ${russiaCount}`);
+    expect(russiaCount).toBeLessThan(unfilteredCount);
+    expect(russiaCount).toBeGreaterThan(0);
+    expect(page.url()).toContain('country=Russia');
+
+    await page.screenshot({ path: ss('T25b-country-russia'), fullPage: true });
+
+    // Test UAE
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&country=UAE`);
+    await waitForDataLoaded(page);
+    const uaeCount = await getQueryCount(page);
+
+    console.log(`  country=UAE: ${uaeCount}`);
+    expect(uaeCount).toBeGreaterThan(0);
+
+    await page.screenshot({ path: ss('T25c-country-uae'), fullPage: true });
+    console.log('T25 PASS: Country column visible and filterable');
+  });
+
+  // ── T26: Country saturation breakdown ─────────────────────────────
+  test('T26: country saturation breakdown panel shows and click-through works', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}`);
+    await waitForQueryCount(page);
+
+    // Open saturation panel
+    const toggleBtn = page.locator('button:has-text("Saturation breakdown")');
+    await expect(toggleBtn).toBeVisible({ timeout: 10000 });
+    await toggleBtn.click();
+    await page.waitForTimeout(1000);
+
+    // ASSERT: "By Country" table visible
+    await expect(page.locator('text=By Country')).toBeVisible({ timeout: 5000 });
+    console.log('  By Country table visible');
+
+    // ASSERT: Table has data rows
+    const countryTable = page.locator('text=By Country').locator('..').locator('table');
+    const countryRows = countryTable.locator('tbody tr');
+    const rowCount = await countryRows.count();
+    expect(rowCount).toBeGreaterThan(0);
+    console.log(`  Country breakdown rows: ${rowCount}`);
+
+    await page.screenshot({ path: ss('T26a-country-breakdown'), fullPage: true });
+
+    // Click first country row to apply filter
+    const firstRow = countryRows.first();
+    const countryName = await firstRow.locator('td').first().textContent();
+    console.log(`  Clicking country: "${countryName}"`);
+    await firstRow.click();
+
+    await page.waitForTimeout(1500);
+
+    // ASSERT: URL now has country filter
+    const url = page.url();
+    expect(url).toContain('country=');
+    console.log(`  URL after click: ${url}`);
+
+    await page.screenshot({ path: ss('T26b-country-clicked'), fullPage: true });
+    console.log('T26 PASS: Country breakdown visible and click-through works');
+  });
+
+  // ── T27: Country URL filter persists across reload ────────────────
+  test('T27: country URL filter persists across page reload', async ({ page }) => {
+    await setProjectInStorage(page);
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&country=Russia`);
+    await waitForDataLoaded(page);
+
+    const countBefore = await getQueryCount(page);
+    await page.screenshot({ path: ss('T27a-before-reload'), fullPage: true });
+
+    // Reload
+    await page.reload();
+    await waitForDataLoaded(page);
+
+    const countAfter = await getQueryCount(page);
+
+    // ASSERT: Same filters in URL
+    expect(page.url()).toContain('country=Russia');
+
+    // ASSERT: Same data count
+    expect(countAfter).toBe(countBefore);
+
+    await page.screenshot({ path: ss('T27b-after-reload'), fullPage: true });
+    console.log(`T27 PASS: Country filter persists (count: ${countAfter})`);
+  });
+
+  // ── T28: Combined country+geo+segment filter ─────────────────────
+  test('T28: combined country+geo+segment filter narrows progressively', async ({ page }) => {
+    await setProjectInStorage(page);
+
+    // Step 1: Country only
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&country=Russia`);
+    await waitForDataLoaded(page);
+    const countryCount = await getQueryCount(page);
+
+    // Step 2: Country + segment
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&country=Russia&segment=family_office`);
+    await waitForDataLoaded(page);
+    const countrySegCount = await getQueryCount(page);
+
+    // Step 3: Country + segment + geo
+    await page.goto(`${BASE_URL}?project_id=${DELIRYO_PROJECT_ID}&country=Russia&segment=family_office&geo=moscow_fo`);
+    await waitForDataLoaded(page);
+    const allCount = await getQueryCount(page);
+
+    console.log(`  country=Russia: ${countryCount}`);
+    console.log(`  + segment=family_office: ${countrySegCount}`);
+    console.log(`  + geo=moscow_fo: ${allCount}`);
+
+    // Each additional filter should narrow or equal
+    expect(countrySegCount).toBeLessThanOrEqual(countryCount);
+    expect(allCount).toBeLessThanOrEqual(countrySegCount);
+    expect(allCount).toBeGreaterThan(0);
+
+    await page.screenshot({ path: ss('T28-combined-country-filters'), fullPage: true });
+    console.log('T28 PASS: Combined country+geo+segment filters narrow correctly');
+  });
+
   // ── T16: No-project state ────────────────────────────────────────
   test('T16: no-project state shows selection prompt', async ({ page }) => {
     await clearAllStorage(page);

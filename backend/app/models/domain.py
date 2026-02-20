@@ -126,6 +126,7 @@ class SearchQuery(Base):
     # Segment/geo tagging for systematic query approach
     segment = Column(String(100), nullable=True, index=True)   # e.g. "real_estate", "investment", "legal"
     geo = Column(String(100), nullable=True, index=True)        # e.g. "dubai", "turkey", "cyprus"
+    country = Column(String(100), nullable=True, index=True)    # e.g. "Russia", "UAE", "Turkey"
     language = Column(String(10), nullable=True)                 # "ru" or "en"
 
     # Query effectiveness tracking (Phase 3)

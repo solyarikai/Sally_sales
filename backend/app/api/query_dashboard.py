@@ -71,6 +71,10 @@ def _apply_filters(stmt, params: dict):
         vals = [s.strip() for s in params["geo"].split(",") if s.strip()]
         if vals:
             stmt = stmt.where(SearchQuery.geo.in_(vals))
+    if params.get("country"):
+        vals = [s.strip() for s in params["country"].split(",") if s.strip()]
+        if vals:
+            stmt = stmt.where(SearchQuery.country.in_(vals))
     if params.get("language"):
         vals = [s.strip() for s in params["language"].split(",") if s.strip()]
         if vals:
@@ -123,6 +127,7 @@ async def list_queries(
     q: Optional[str] = Query(None),
     segment: Optional[str] = Query(None),
     geo: Optional[str] = Query(None),
+    country: Optional[str] = Query(None),
     language: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -141,7 +146,7 @@ async def list_queries(
     company: Company = Depends(get_required_company),
 ):
     params = dict(
-        q=q, segment=segment, geo=geo, language=language, source=source,
+        q=q, segment=segment, geo=geo, country=country, language=language, source=source,
         status=status, domains_min=domains_min, domains_max=domains_max,
         targets_min=targets_min, targets_max=targets_max,
         date_from=str(date_from) if date_from else None,
@@ -156,6 +161,7 @@ async def list_queries(
             SearchQuery.query_text,
             SearchQuery.segment,
             SearchQuery.geo,
+            SearchQuery.country,
             SearchQuery.language,
             SearchJob.search_engine.label("source"),
             SearchJob.id.label("job_id"),
@@ -184,6 +190,8 @@ async def list_queries(
         "targets_found": SearchQuery.targets_found,
         "effectiveness_score": SearchQuery.effectiveness_score,
         "query_text": SearchQuery.query_text,
+        "country": SearchQuery.country,
+        "geo": SearchQuery.geo,
     }
     sort_col = sort_map.get(sort_by, SearchQuery.created_at)
     order = sort_col.desc() if sort_order == "desc" else sort_col.asc()
@@ -197,6 +205,7 @@ async def list_queries(
             query_text=r.query_text,
             segment=r.segment,
             geo=r.geo,
+            country=r.country,
             language=r.language,
             source=r.source.value if hasattr(r.source, 'value') else str(r.source),
             job_id=r.job_id,
@@ -221,6 +230,7 @@ async def get_summary(
     q: Optional[str] = Query(None),
     segment: Optional[str] = Query(None),
     geo: Optional[str] = Query(None),
+    country: Optional[str] = Query(None),
     language: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -235,7 +245,7 @@ async def get_summary(
     company: Company = Depends(get_required_company),
 ):
     params = dict(
-        q=q, segment=segment, geo=geo, language=language, source=source,
+        q=q, segment=segment, geo=geo, country=country, language=language, source=source,
         status=status, domains_min=domains_min, domains_max=domains_max,
         targets_min=targets_min, targets_max=targets_max,
         date_from=str(date_from) if date_from else None,
@@ -341,6 +351,37 @@ async def get_summary(
         for r in geo_rows
     ]
 
+    # By-country breakdown
+    country_q = (
+        select(
+            SearchQuery.country.label("key"),
+            func.count(SearchQuery.id).label("total"),
+            func.sum(saturated_case).label("saturated"),
+            func.coalesce(func.sum(SearchQuery.domains_found), 0).label("total_domains"),
+            func.coalesce(func.sum(SearchQuery.targets_found), 0).label("total_targets"),
+        )
+        .join(SearchJob, SearchQuery.search_job_id == SearchJob.id)
+        .where(SearchJob.project_id == project_id)
+        .where(SearchJob.company_id == company.id)
+        .where(SearchQuery.country.isnot(None))
+        .group_by(SearchQuery.country)
+        .order_by(func.count(SearchQuery.id).desc())
+    )
+    country_q = _apply_filters(country_q, params)
+    country_rows = (await db.execute(country_q)).all()
+
+    by_country = [
+        SegmentSaturation(
+            key=r.key or "unknown",
+            total=r.total,
+            saturated=r.saturated or 0,
+            saturation_rate=round((r.saturated or 0) / r.total * 100, 1) if r.total else 0,
+            total_domains=r.total_domains,
+            total_targets=r.total_targets,
+        )
+        for r in country_rows
+    ]
+
     # By-source breakdown
     src_q = (
         select(
@@ -382,6 +423,7 @@ async def get_summary(
         avg_effectiveness=round(float(agg.avg_effectiveness), 2) if agg.avg_effectiveness else None,
         by_segment=by_segment,
         by_geo=by_geo,
+        by_country=by_country,
         by_source=by_source,
     )
 
@@ -414,6 +456,14 @@ async def get_filter_options(
         .distinct()
         .order_by(SearchQuery.geo)
     )
+    countries_q = (
+        select(SearchQuery.country)
+        .join(SearchJob, SearchQuery.search_job_id == SearchJob.id)
+        .where(base_where)
+        .where(SearchQuery.country.isnot(None))
+        .distinct()
+        .order_by(SearchQuery.country)
+    )
     langs_q = (
         select(SearchQuery.language)
         .join(SearchJob, SearchQuery.search_job_id == SearchJob.id)
@@ -432,12 +482,14 @@ async def get_filter_options(
 
     segments = [r[0] for r in (await db.execute(segments_q)).all()]
     geos = [r[0] for r in (await db.execute(geos_q)).all()]
+    countries = [r[0] for r in (await db.execute(countries_q)).all()]
     languages = [r[0] for r in (await db.execute(langs_q)).all()]
     sources = [r[0].value if hasattr(r[0], 'value') else str(r[0]) for r in (await db.execute(sources_q)).all()]
 
     return FilterOptionsResponse(
         segments=segments,
         geos=geos,
+        countries=countries,
         languages=languages,
         sources=sources,
     )

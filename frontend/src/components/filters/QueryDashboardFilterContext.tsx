@@ -8,6 +8,9 @@ export interface QueryDashboardFilterState {
   geoFilters: string[];
   setGeoFilters: (v: string[]) => void;
   toggleGeo: (v: string) => void;
+  countryFilters: string[];
+  setCountryFilters: (v: string[]) => void;
+  toggleCountry: (v: string) => void;
   sourceFilters: string[];
   setSourceFilters: (v: string[]) => void;
   toggleSource: (v: string) => void;

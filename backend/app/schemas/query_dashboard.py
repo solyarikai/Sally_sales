@@ -13,6 +13,7 @@ class QueryRecord(BaseModel):
     query_text: str
     segment: Optional[str] = None
     geo: Optional[str] = None
+    country: Optional[str] = None
     language: Optional[str] = None
     source: str  # search engine name
     job_id: int
@@ -54,6 +55,7 @@ class QuerySummaryResponse(BaseModel):
     avg_effectiveness: Optional[float] = None
     by_segment: list[SegmentSaturation] = Field(default_factory=list)
     by_geo: list[SegmentSaturation] = Field(default_factory=list)
+    by_country: list[SegmentSaturation] = Field(default_factory=list)
     by_source: list[SegmentSaturation] = Field(default_factory=list)
 
 
@@ -61,6 +63,7 @@ class QuerySummaryResponse(BaseModel):
 class FilterOptionsResponse(BaseModel):
     segments: list[str] = Field(default_factory=list)
     geos: list[str] = Field(default_factory=list)
+    countries: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)
 

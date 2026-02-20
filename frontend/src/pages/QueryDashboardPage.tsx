@@ -16,6 +16,7 @@ import { QueryDashboardFilterContext } from '../components/filters/QueryDashboar
 import type { QueryDashboardFilterState } from '../components/filters/QueryDashboardFilterContext';
 import { QuerySegmentColumnFilter } from '../components/filters/QuerySegmentColumnFilter';
 import { QueryGeoColumnFilter } from '../components/filters/QueryGeoColumnFilter';
+import { QueryCountryColumnFilter } from '../components/filters/QueryCountryColumnFilter';
 import { QuerySourceColumnFilter } from '../components/filters/QuerySourceColumnFilter';
 import { QueryStatusColumnFilter } from '../components/filters/QueryStatusColumnFilter';
 import { QueryLanguageColumnFilter } from '../components/filters/QueryLanguageColumnFilter';
@@ -105,6 +106,7 @@ export function QueryDashboardPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get('q') || '');
   const [segmentFilters, setSegmentFilters] = useState<string[]>(parseCommaSeparated(searchParams.get('segment')));
   const [geoFilters, setGeoFilters] = useState<string[]>(parseCommaSeparated(searchParams.get('geo')));
+  const [countryFilters, setCountryFilters] = useState<string[]>(parseCommaSeparated(searchParams.get('country')));
   const [sourceFilters, setSourceFilters] = useState<string[]>(parseCommaSeparated(searchParams.get('source')));
   const [statusFilters, setStatusFilters] = useState<string[]>(parseCommaSeparated(searchParams.get('status')));
   const [languageFilters, setLanguageFilters] = useState<string[]>(parseCommaSeparated(searchParams.get('language')));
@@ -162,6 +164,7 @@ export function QueryDashboardPage() {
       q: debouncedSearch || null,
       segment: segmentFilters.length ? segmentFilters.join(',') : null,
       geo: geoFilters.length ? geoFilters.join(',') : null,
+      country: countryFilters.length ? countryFilters.join(',') : null,
       source: sourceFilters.length ? sourceFilters.join(',') : null,
       status: statusFilters.length ? statusFilters.join(',') : null,
       language: languageFilters.length ? languageFilters.join(',') : null,
@@ -183,7 +186,7 @@ export function QueryDashboardPage() {
     }
 
     setSearchParams(params, { replace: true });
-  }, [currentProject, debouncedSearch, segmentFilters, geoFilters, sourceFilters, statusFilters, languageFilters, saturatedFilter, domainsMin, domainsMax, targetsMin, targetsMax, dateFrom, dateTo, sortBy, sortOrder, page]);
+  }, [currentProject, debouncedSearch, segmentFilters, geoFilters, countryFilters, sourceFilters, statusFilters, languageFilters, saturatedFilter, domainsMin, domainsMax, targetsMin, targetsMax, dateFrom, dateTo, sortBy, sortOrder, page]);
 
   // ── Active project ID ──────────────────────────────────────
   const projectId = currentProject?.id;
@@ -202,6 +205,7 @@ export function QueryDashboardPage() {
     if (debouncedSearch) p.q = debouncedSearch;
     if (segmentFilters.length) p.segment = segmentFilters.join(',');
     if (geoFilters.length) p.geo = geoFilters.join(',');
+    if (countryFilters.length) p.country = countryFilters.join(',');
     if (sourceFilters.length) p.source = sourceFilters.join(',');
     if (statusFilters.length) p.status = statusFilters.join(',');
     if (languageFilters.length) p.language = languageFilters.join(',');
@@ -213,7 +217,7 @@ export function QueryDashboardPage() {
     if (dateFrom) p.date_from = dateFrom;
     if (dateTo) p.date_to = dateTo;
     return p;
-  }, [projectId, debouncedSearch, segmentFilters, geoFilters, sourceFilters, statusFilters, languageFilters, saturatedFilter, domainsMin, domainsMax, targetsMin, targetsMax, dateFrom, dateTo]);
+  }, [projectId, debouncedSearch, segmentFilters, geoFilters, countryFilters, sourceFilters, statusFilters, languageFilters, saturatedFilter, domainsMin, domainsMax, targetsMin, targetsMax, dateFrom, dateTo]);
 
   // ── Load queries ───────────────────────────────────────────
   const loadQueries = useCallback(async () => {
@@ -266,6 +270,9 @@ export function QueryDashboardPage() {
     geoFilters,
     setGeoFilters: (v) => { setGeoFilters(v); setPage(1); },
     toggleGeo: (v) => { setGeoFilters(prev => toggleItem(prev, v)); setPage(1); },
+    countryFilters,
+    setCountryFilters: (v) => { setCountryFilters(v); setPage(1); },
+    toggleCountry: (v) => { setCountryFilters(prev => toggleItem(prev, v)); setPage(1); },
     sourceFilters,
     setSourceFilters: (v) => { setSourceFilters(v); setPage(1); },
     toggleSource: (v) => { setSourceFilters(prev => toggleItem(prev, v)); setPage(1); },
@@ -289,7 +296,7 @@ export function QueryDashboardPage() {
     filterOptions,
     geoHierarchy,
     resetPage,
-  }), [segmentFilters, geoFilters, sourceFilters, statusFilters, languageFilters, saturatedFilter, domainsMin, domainsMax, targetsMin, targetsMax, dateFrom, dateTo, filterOptions, geoHierarchy, resetPage]);
+  }), [segmentFilters, geoFilters, countryFilters, sourceFilters, statusFilters, languageFilters, saturatedFilter, domainsMin, domainsMax, targetsMin, targetsMax, dateFrom, dateTo, filterOptions, geoHierarchy, resetPage]);
 
   // ── AG Grid sort handler ───────────────────────────────────
   const onSortChanged = useCallback((event: SortChangedEvent) => {
@@ -307,15 +314,7 @@ export function QueryDashboardPage() {
     const params = new URLSearchParams();
     if (row.segment) params.set('segment', row.segment);
     if (row.geo) params.set('geo', row.geo);
-    // Map search engine to contact source
-    const sourceMap: Record<string, string> = {
-      google_serp: 'pipeline',
-      yandex_api: 'pipeline',
-      apollo_org: 'pipeline',
-      clay: 'pipeline',
-    };
-    const contactSource = sourceMap[row.source];
-    if (contactSource) params.set('source', contactSource);
+    if (row.country) params.set('country', row.country);
     if (currentProject) params.set('project_id', String(currentProject.id));
     navigate(`/contacts?${params.toString()}`);
   }, [navigate, currentProject]);
@@ -352,6 +351,15 @@ export function QueryDashboardPage() {
       width: 120,
       sortable: false,
       filter: QueryGeoColumnFilter,
+      cellRenderer: (params: { value: string | null }) =>
+        params.value ? <span className="text-xs">{params.value.replace(/_/g, ' ')}</span> : <span className="text-neutral-400">—</span>,
+    },
+    {
+      field: 'country',
+      headerName: 'Country',
+      width: 110,
+      sortable: true,
+      filter: QueryCountryColumnFilter,
       cellRenderer: (params: { value: string | null }) =>
         params.value ? <span className="text-xs">{params.value.replace(/_/g, ' ')}</span> : <span className="text-neutral-400">—</span>,
     },
@@ -487,14 +495,14 @@ export function QueryDashboardPage() {
 
   // ── Pagination ─────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const hasFilters = segmentFilters.length > 0 || geoFilters.length > 0 || sourceFilters.length > 0
+  const hasFilters = segmentFilters.length > 0 || geoFilters.length > 0 || countryFilters.length > 0 || sourceFilters.length > 0
     || statusFilters.length > 0 || languageFilters.length > 0 || saturatedFilter !== null
     || domainsMin !== null || domainsMax !== null || targetsMin !== null || targetsMax !== null
     || dateFrom !== null || dateTo !== null || debouncedSearch !== '';
 
   const clearAllFilters = () => {
     setSearch(''); setDebouncedSearch('');
-    setSegmentFilters([]); setGeoFilters([]); setSourceFilters([]); setStatusFilters([]); setLanguageFilters([]);
+    setSegmentFilters([]); setGeoFilters([]); setCountryFilters([]); setSourceFilters([]); setStatusFilters([]); setLanguageFilters([]);
     setSaturatedFilter(null); setDomainsMin(null); setDomainsMax(null); setTargetsMin(null); setTargetsMax(null);
     setDateFrom(null); setDateTo(null);
     setPage(1);
@@ -582,6 +590,8 @@ export function QueryDashboardPage() {
                   onClickRow={(key) => { setSegmentFilters([key]); setPage(1); }} />
                 <SaturationTable title="By Geo" data={summary.by_geo}
                   onClickRow={(key) => { setGeoFilters([key]); setPage(1); }} />
+                <SaturationTable title="By Country" data={summary.by_country}
+                  onClickRow={(key) => { setCountryFilters([key]); setPage(1); }} />
                 <SaturationTable title="By Source" data={summary.by_source}
                   onClickRow={(key) => { setSourceFilters([key]); setPage(1); }} />
               </div>

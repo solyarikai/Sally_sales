@@ -7,6 +7,7 @@ export interface QueryRecord {
   query_text: string;
   segment: string | null;
   geo: string | null;
+  country: string | null;
   language: string | null;
   source: string;
   job_id: number;
@@ -46,12 +47,14 @@ export interface QuerySummaryResponse {
   avg_effectiveness: number | null;
   by_segment: SegmentSaturation[];
   by_geo: SegmentSaturation[];
+  by_country: SegmentSaturation[];
   by_source: SegmentSaturation[];
 }
 
 export interface FilterOptionsResponse {
   segments: string[];
   geos: string[];
+  countries: string[];
   languages: string[];
   sources: string[];
 }
@@ -76,6 +79,7 @@ export interface QueryDashboardFilters {
   q?: string;
   segment?: string;
   geo?: string;
+  country?: string;
   language?: string;
   source?: string;
   status?: string;

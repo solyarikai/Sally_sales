@@ -871,6 +871,7 @@ class PipelineService:
         status: Optional[str] = None,
         is_target: Optional[bool] = None,
         search: Optional[str] = None,
+        search_job_id: Optional[int] = None,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = "desc",
         page: int = 1,
@@ -889,6 +890,8 @@ class PipelineService:
                 (DiscoveredCompany.domain.ilike(f"%{search}%")) |
                 (DiscoveredCompany.name.ilike(f"%{search}%"))
             )
+        if search_job_id is not None:
+            filters.append(DiscoveredCompany.search_job_id == search_job_id)
 
         # Count
         count_q = await session.execute(
