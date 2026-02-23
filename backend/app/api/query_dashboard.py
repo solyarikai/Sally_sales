@@ -66,7 +66,12 @@ def _apply_filters(stmt, params: dict):
     if params.get("segment"):
         vals = [s.strip() for s in params["segment"].split(",") if s.strip()]
         if vals:
-            stmt = stmt.where(SearchQuery.segment.in_(vals))
+            expanded = set(vals)
+            for s in vals:
+                if '_' in s:
+                    expanded.add(s.replace('_', ' ').title())
+            all_variants = list(expanded)
+            stmt = stmt.where(func.lower(SearchQuery.segment).in_([v.lower() for v in all_variants]))
     if params.get("geo"):
         vals = [s.strip() for s in params["geo"].split(",") if s.strip()]
         if vals:
