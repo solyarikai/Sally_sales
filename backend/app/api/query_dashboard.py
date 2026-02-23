@@ -67,6 +67,11 @@ def _apply_filters(stmt, params: dict):
     """Apply common filter clauses to a SELECT already joining SQ+SJ."""
     if params.get("q"):
         stmt = stmt.where(SearchQuery.query_text.ilike(f"%{params['q']}%"))
+    if params.get("segment_prefix"):
+        prefixes = [p.strip() for p in params["segment_prefix"].split(",") if p.strip()]
+        if prefixes:
+            like_clauses = [SearchQuery.segment.ilike(f"{p}%") for p in prefixes]
+            stmt = stmt.where(or_(*like_clauses))
     if params.get("segment"):
         vals = [s.strip() for s in params["segment"].split(",") if s.strip()]
         if vals:
@@ -135,6 +140,7 @@ async def list_queries(
     project_id: int = Query(..., description="Project ID (required)"),
     q: Optional[str] = Query(None),
     segment: Optional[str] = Query(None),
+    segment_prefix: Optional[str] = Query(None, description="Comma-separated segment prefixes (e.g. fo_,family_office,gfo_)"),
     geo: Optional[str] = Query(None),
     country: Optional[str] = Query(None),
     language: Optional[str] = Query(None),
@@ -155,7 +161,8 @@ async def list_queries(
     company: Company = Depends(get_required_company),
 ):
     params = dict(
-        q=q, segment=segment, geo=geo, country=country, language=language, source=source,
+        q=q, segment=segment, segment_prefix=segment_prefix,
+        geo=geo, country=country, language=language, source=source,
         status=status, domains_min=domains_min, domains_max=domains_max,
         targets_min=targets_min, targets_max=targets_max,
         date_from=str(date_from) if date_from else None,
@@ -238,6 +245,7 @@ async def get_summary(
     project_id: int = Query(...),
     q: Optional[str] = Query(None),
     segment: Optional[str] = Query(None),
+    segment_prefix: Optional[str] = Query(None, description="Comma-separated segment prefixes"),
     geo: Optional[str] = Query(None),
     country: Optional[str] = Query(None),
     language: Optional[str] = Query(None),
@@ -254,7 +262,8 @@ async def get_summary(
     company: Company = Depends(get_required_company),
 ):
     params = dict(
-        q=q, segment=segment, geo=geo, country=country, language=language, source=source,
+        q=q, segment=segment, segment_prefix=segment_prefix,
+        geo=geo, country=country, language=language, source=source,
         status=status, domains_min=domains_min, domains_max=domains_max,
         targets_min=targets_min, targets_max=targets_max,
         date_from=str(date_from) if date_from else None,
@@ -421,6 +430,39 @@ async def get_summary(
         for r in src_rows
     ]
 
+    # Segment × Geo cross-tabulation (the most actionable grouping per doc)
+    cross_q = (
+        select(
+            func.concat(SearchQuery.segment, ' × ', SearchQuery.geo).label("key"),
+            func.count(SearchQuery.id).label("total"),
+            func.sum(saturated_case).label("saturated"),
+            func.coalesce(func.sum(SearchQuery.domains_found), 0).label("total_domains"),
+            func.coalesce(func.sum(SearchQuery.targets_found), 0).label("total_targets"),
+        )
+        .join(SearchJob, SearchQuery.search_job_id == SearchJob.id)
+        .where(SearchJob.project_id == project_id)
+        .where(SearchJob.company_id == company.id)
+        .where(SearchQuery.segment.isnot(None))
+        .where(SearchQuery.geo.isnot(None))
+        .group_by(SearchQuery.segment, SearchQuery.geo)
+        .order_by(func.sum(SearchQuery.targets_found).desc())
+        .limit(50)
+    )
+    cross_q = _apply_filters(cross_q, params)
+    cross_rows = (await db.execute(cross_q)).all()
+
+    by_segment_geo = [
+        SegmentSaturation(
+            key=r.key or "unknown",
+            total=r.total,
+            saturated=r.saturated or 0,
+            saturation_rate=round((r.saturated or 0) / r.total * 100, 1) if r.total else 0,
+            total_domains=r.total_domains,
+            total_targets=r.total_targets,
+        )
+        for r in cross_rows
+    ]
+
     return QuerySummaryResponse(
         total_queries=total_queries,
         done_queries=done_queries,
@@ -434,6 +476,7 @@ async def get_summary(
         by_geo=by_geo,
         by_country=by_country,
         by_source=by_source,
+        by_segment_geo=by_segment_geo,
     )
 
 

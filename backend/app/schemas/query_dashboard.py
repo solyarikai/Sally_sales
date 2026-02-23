@@ -57,6 +57,7 @@ class QuerySummaryResponse(BaseModel):
     by_geo: list[SegmentSaturation] = Field(default_factory=list)
     by_country: list[SegmentSaturation] = Field(default_factory=list)
     by_source: list[SegmentSaturation] = Field(default_factory=list)
+    by_segment_geo: list[SegmentSaturation] = Field(default_factory=list)
 
 
 # ── Filter options (distinct values) ─────────────────────────

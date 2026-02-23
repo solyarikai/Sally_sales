@@ -49,6 +49,7 @@ export interface QuerySummaryResponse {
   by_geo: SegmentSaturation[];
   by_country: SegmentSaturation[];
   by_source: SegmentSaturation[];
+  by_segment_geo: SegmentSaturation[];
 }
 
 export interface FilterOptionsResponse {
@@ -78,6 +79,7 @@ export interface QueryDashboardFilters {
   project_id: number;
   q?: string;
   segment?: string;
+  segment_prefix?: string;
   geo?: string;
   country?: string;
   language?: string;
