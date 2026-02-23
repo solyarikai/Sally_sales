@@ -185,6 +185,7 @@ export interface ContactFilters {
   getsales_id?: string;
   created_after?: string;
   created_before?: string;
+  domain?: string;
 }
 
 export interface GenerateReplyResponse {

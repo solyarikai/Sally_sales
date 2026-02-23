@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.companies import get_required_company
 from app.db import get_session
-from app.models.domain import SearchJob, SearchQuery, SearchQueryStatus, SearchEngine
+from app.models.contact import Contact
+from app.models.domain import SearchJob, SearchQuery, SearchQueryStatus, SearchEngine, SearchResult
+from app.models.pipeline import DiscoveredCompany
 from app.models.user import Company
 from app.schemas.query_dashboard import (
     FilterOptionsResponse,
@@ -18,6 +20,8 @@ from app.schemas.query_dashboard import (
     QueryListResponse,
     QueryRecord,
     QuerySummaryResponse,
+    QueryTargetsResponse,
+    TargetDomain,
     SegmentSaturation,
 )
 from app.services.geo_service import get_geo_hierarchy
@@ -504,3 +508,89 @@ async def get_filter_options(
 @router.get("/geo-hierarchy", response_model=GeoHierarchyResponse)
 async def geo_hierarchy():
     return GeoHierarchyResponse(countries=get_geo_hierarchy())
+
+
+# ── GET /api/dashboard/queries/{query_id}/targets ─────────────
+@router.get("/{query_id}/targets", response_model=QueryTargetsResponse)
+async def get_query_targets(
+    query_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Return target domains found by a specific query, with contact linkage."""
+    sq_row = (await db.execute(
+        select(SearchQuery.id, SearchQuery.query_text, SearchQuery.search_job_id)
+        .where(SearchQuery.id == query_id)
+    )).first()
+    if not sq_row:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Query not found")
+
+    sj_row = (await db.execute(
+        select(SearchJob.project_id)
+        .where(and_(SearchJob.id == sq_row.search_job_id, SearchJob.company_id == company.id))
+    )).first()
+    if not sj_row:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Query not found")
+
+    project_id = sj_row.project_id
+
+    target_rows = (await db.execute(
+        select(
+            SearchResult.domain,
+            SearchResult.is_target,
+            SearchResult.confidence,
+            SearchResult.matched_segment,
+            DiscoveredCompany.name.label("company_name"),
+        )
+        .outerjoin(DiscoveredCompany, SearchResult.discovered_company_id == DiscoveredCompany.id)
+        .where(and_(
+            SearchResult.source_query_id == query_id,
+            SearchResult.is_target == True,
+        ))
+        .order_by(SearchResult.domain)
+    )).all()
+
+    targets: list[TargetDomain] = []
+    domains = [r.domain for r in target_rows]
+
+    contact_counts: dict[str, list[int]] = {}
+    if domains:
+        contact_rows = (await db.execute(
+            select(Contact.domain, Contact.id)
+            .where(and_(
+                func.lower(Contact.domain).in_([d.lower() for d in domains]),
+                Contact.project_id == project_id,
+                Contact.deleted_at.is_(None),
+            ))
+        )).all()
+        for cr in contact_rows:
+            contact_counts.setdefault(cr.domain.lower(), []).append(cr.id)
+
+    with_contacts = 0
+    without_contacts = 0
+    for r in target_rows:
+        cids = contact_counts.get(r.domain.lower(), [])
+        if cids:
+            with_contacts += 1
+        else:
+            without_contacts += 1
+        targets.append(TargetDomain(
+            domain=r.domain,
+            company_name=r.company_name,
+            is_target=True,
+            confidence=r.confidence,
+            matched_segment=r.matched_segment,
+            contacts_count=len(cids),
+            contact_ids=cids,
+        ))
+
+    return QueryTargetsResponse(
+        query_id=query_id,
+        query_text=sq_row.query_text,
+        total_targets=len(targets),
+        targets_with_contacts=with_contacts,
+        targets_without_contacts=without_contacts,
+        targets=targets,
+    )

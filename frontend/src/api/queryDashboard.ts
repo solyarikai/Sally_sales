@@ -96,6 +96,25 @@ export interface QueryDashboardFilters {
   page_size?: number;
 }
 
+export interface TargetDomain {
+  domain: string;
+  company_name: string | null;
+  is_target: boolean;
+  confidence: number | null;
+  matched_segment: string | null;
+  contacts_count: number;
+  contact_ids: number[];
+}
+
+export interface QueryTargetsResponse {
+  query_id: number;
+  query_text: string;
+  total_targets: number;
+  targets_with_contacts: number;
+  targets_without_contacts: number;
+  targets: TargetDomain[];
+}
+
 // ── API methods ──────────────────────────────────────────────
 
 export const queryDashboardApi = {
@@ -128,6 +147,11 @@ export const queryDashboardApi = {
 
   async getGeoHierarchy(): Promise<GeoHierarchyResponse> {
     const response = await api.get('/dashboard/queries/geo-hierarchy');
+    return response.data;
+  },
+
+  async getQueryTargets(queryId: number): Promise<QueryTargetsResponse> {
+    const response = await api.get(`/dashboard/queries/${queryId}/targets`);
     return response.data;
   },
 };

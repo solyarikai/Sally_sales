@@ -309,13 +309,43 @@ export function QueryDashboardPage() {
 
   const onGridReady = useCallback((_params: GridReadyEvent) => {}, []);
 
+  // ── Targets panel state ─────────────────────────────────────
+  const [targetsPanel, setTargetsPanel] = useState<{
+    loading: boolean;
+    queryId: number | null;
+    queryText: string;
+    data: import('../api/queryDashboard').QueryTargetsResponse | null;
+  }>({ loading: false, queryId: null, queryText: '', data: null });
+
   // ── Navigate to CRM contacts with query context ────────────
-  const openContactsForQuery = useCallback((row: QueryRecord, _mode: 'domains' | 'targets') => {
+  const openContactsForQuery = useCallback((row: QueryRecord, mode: 'domains' | 'targets') => {
+    if (mode === 'targets') {
+      setTargetsPanel({ loading: true, queryId: row.query_id, queryText: row.query_text, data: null });
+      queryDashboardApi.getQueryTargets(row.query_id).then((data) => {
+        setTargetsPanel({ loading: false, queryId: row.query_id, queryText: row.query_text, data });
+      }).catch(() => {
+        setTargetsPanel(prev => ({ ...prev, loading: false }));
+        toast.error('Failed to load targets');
+      });
+      return;
+    }
     const params = new URLSearchParams();
     if (row.segment) params.set('segment', row.segment);
-    // Pass country as geo — backend maps country names to contact geo codes
-    // (query geo like moscow_fo has no match in contacts, but country=Russia → geo=RU)
     if (row.country) params.set('geo', row.country);
+    if (currentProject) params.set('project_id', String(currentProject.id));
+    navigate(`/contacts?${params.toString()}`);
+  }, [navigate, currentProject, toast]);
+
+  const navigateToContactsForDomains = useCallback((domains: string[]) => {
+    const params = new URLSearchParams();
+    params.set('domain', domains.join(','));
+    if (currentProject) params.set('project_id', String(currentProject.id));
+    navigate(`/contacts?${params.toString()}`);
+  }, [navigate, currentProject]);
+
+  const navigateToContact = useCallback((contactId: number) => {
+    const params = new URLSearchParams();
+    params.set('contact_id', String(contactId));
     if (currentProject) params.set('project_id', String(currentProject.id));
     navigate(`/contacts?${params.toString()}`);
   }, [navigate, currentProject]);
@@ -652,6 +682,100 @@ export function QueryDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Targets Panel (slide-over) ─────────────────── */}
+      {targetsPanel.queryId !== null && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/20" onClick={() => setTargetsPanel({ loading: false, queryId: null, queryText: '', data: null })} />
+          <div className="relative w-full max-w-md bg-white shadow-xl border-l border-neutral-200 flex flex-col animate-in slide-in-from-right">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-neutral-200 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-neutral-700">Target Domains</div>
+                <div className="text-xs text-neutral-400 truncate mt-0.5" title={targetsPanel.queryText}>
+                  {targetsPanel.queryText}
+                </div>
+              </div>
+              <button onClick={() => setTargetsPanel({ loading: false, queryId: null, queryText: '', data: null })}
+                className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors">
+                <X className="w-4 h-4 text-neutral-500" />
+              </button>
+            </div>
+
+            {/* Summary badges */}
+            {targetsPanel.data && (
+              <div className="px-5 py-3 border-b border-neutral-100 flex items-center gap-3">
+                <span className="text-xs font-medium text-neutral-500">
+                  {targetsPanel.data.total_targets} targets
+                </span>
+                <span className="text-xs text-green-600 font-medium">
+                  {targetsPanel.data.targets_with_contacts} with contacts
+                </span>
+                <span className="text-xs text-amber-600 font-medium">
+                  {targetsPanel.data.targets_without_contacts} companies only
+                </span>
+                {targetsPanel.data.targets_with_contacts > 0 && (
+                  <button
+                    onClick={() => {
+                      const domainsWithContacts = targetsPanel.data!.targets.filter(t => t.contacts_count > 0).map(t => t.domain);
+                      if (domainsWithContacts.length > 0) navigateToContactsForDomains(domainsWithContacts);
+                    }}
+                    className="ml-auto text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                  >
+                    View all in CRM
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto">
+              {targetsPanel.loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
+                </div>
+              ) : targetsPanel.data?.targets.map((target) => (
+                <div key={target.domain} className="px-5 py-3 border-b border-neutral-50 hover:bg-neutral-50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-neutral-800 truncate">{target.company_name || target.domain}</div>
+                      <div className="text-xs text-neutral-400 truncate">{target.domain}</div>
+                      {target.matched_segment && (
+                        <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium">
+                          {target.matched_segment.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      {target.confidence !== null && (
+                        <span className="text-[10px] text-neutral-400">{(target.confidence * 100).toFixed(0)}%</span>
+                      )}
+                      {target.contacts_count > 0 ? (
+                        <button
+                          onClick={() => {
+                            if (target.contact_ids.length === 1) {
+                              navigateToContact(target.contact_ids[0]);
+                            } else {
+                              navigateToContactsForDomains([target.domain]);
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 transition-colors"
+                        >
+                          {target.contacts_count} contact{target.contacts_count !== 1 ? 's' : ''}
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200">
+                          Company only
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </QueryDashboardFilterContext.Provider>
   );
 }

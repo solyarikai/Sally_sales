@@ -83,6 +83,7 @@ export function ContactsPage() {
   );
   const [createdAfter, setCreatedAfter] = useState<string | null>(searchParams.get('after'));
   const [createdBefore, setCreatedBefore] = useState<string | null>(searchParams.get('before'));
+  const [domainFilter, setDomainFilter] = useState<string | null>(searchParams.get('domain'));
 
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -164,6 +165,7 @@ export function ContactsPage() {
       followup: followupFilter ? 'true' : null,
       after: createdAfter,
       before: createdBefore,
+      domain: domainFilter,
     };
     for (const [key, value] of Object.entries(managed)) {
       if (value) {
@@ -177,7 +179,7 @@ export function ContactsPage() {
     if (existingContactId) params.set('contact_id', existingContactId);
 
     setSearchParams(params, { replace: true });
-  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore]);
+  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter]);
 
   // Close dropdowns on click outside
   useEffect(() => {
@@ -278,6 +280,7 @@ export function ContactsPage() {
         project_id: activeProject?.id,
         created_after: createdAfter || undefined,
         created_before: createdBefore || undefined,
+        domain: domainFilter || undefined,
       });
 
       setContacts(response.contacts);
@@ -288,7 +291,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -691,6 +694,7 @@ export function ContactsPage() {
     setRepliedFilter(null);
     setCreatedAfter(null);
     setCreatedBefore(null);
+    setDomainFilter(null);
     setSearch('');
     setReplyMode(false);
     gridRef.current?.api?.setFilterModel(null);
@@ -749,7 +753,7 @@ export function ContactsPage() {
     return contacts.filter(c => c.has_replied && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
-  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilters.length > 0 || geoFilter || campaignFilters.length > 0 || campaignIdFilter || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode;
+  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilters.length > 0 || geoFilter || campaignFilters.length > 0 || campaignIdFilter || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode || domainFilter;
   const totalPages = Math.ceil(total / pageSize);
 
   const setDateRange = useCallback((after: string | null, before: string | null) => {
@@ -1085,6 +1089,16 @@ export function ContactsPage() {
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
               src: {sourceFilter}
               <button onClick={() => { setSourceFilter(null); setPage(1); }} className="ml-0.5 hover:bg-emerald-100 rounded p-0.5">
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          )}
+
+          {/* Active domain filter badge */}
+          {domainFilter && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-cyan-50 text-cyan-700 border border-cyan-200 shrink-0">
+              domains: {domainFilter.split(',').length}
+              <button onClick={() => { setDomainFilter(null); setPage(1); }} className="ml-0.5 hover:bg-cyan-100 rounded p-0.5">
                 <X className="w-2.5 h-2.5" />
               </button>
             </span>

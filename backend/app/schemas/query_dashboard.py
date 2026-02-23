@@ -82,3 +82,23 @@ class CountryGroup(BaseModel):
 
 class GeoHierarchyResponse(BaseModel):
     countries: list[CountryGroup]
+
+
+# ── Query target drill-down ──────────────────────────────────
+class TargetDomain(BaseModel):
+    domain: str
+    company_name: Optional[str] = None
+    is_target: bool = True
+    confidence: Optional[float] = None
+    matched_segment: Optional[str] = None
+    contacts_count: int = 0
+    contact_ids: list[int] = Field(default_factory=list)
+
+
+class QueryTargetsResponse(BaseModel):
+    query_id: int
+    query_text: str
+    total_targets: int = 0
+    targets_with_contacts: int = 0
+    targets_without_contacts: int = 0
+    targets: list[TargetDomain] = Field(default_factory=list)
