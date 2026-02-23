@@ -85,7 +85,7 @@ test.describe('Send Reply → Verify Conversation History', () => {
     console.log('Test reply sent successfully');
   });
 
-  test('send real reply → navigate to contacts → conversation shows outbound', async ({ page }) => {
+  test('send reply → "View conversation" opens modal with same campaign selected', async ({ page }) => {
     page.on('console', (msg) => {
       if (msg.type() === 'error') console.log(`[BROWSER ERROR] ${msg.text()}`);
     });
@@ -105,11 +105,17 @@ test.describe('Send Reply → Verify Conversation History', () => {
     // Find a card that is NOT pn@getsally.io (real data with SmartLead thread)
     const initialCount = await cards.count();
     let targetCard = null;
+    let replyCampaignName = '';
     for (let i = 0; i < Math.min(initialCount, 5); i++) {
       const card = cards.nth(i);
       const cardText = await card.textContent();
       if (!cardText?.includes('pn@getsally.io')) {
         targetCard = card;
+        // Extract campaign name from the card's campaign marker
+        const campMarker = card.locator('.rounded-full.text-\\[10px\\]').first();
+        if (await campMarker.isVisible({ timeout: 1000 }).catch(() => false)) {
+          replyCampaignName = (await campMarker.textContent())?.replace(/^[✉📧🔗]\s*/, '').trim() || '';
+        }
         break;
       }
     }
@@ -133,7 +139,8 @@ test.describe('Send Reply → Verify Conversation History', () => {
     expect(sendData.status).toBeTruthy();
     const contactId = sendData.contact_id;
     const leadEmail = sendData.lead_email;
-    console.log(`Sent reply for ${leadEmail}, contact_id=${contactId}, status=${sendData.status}`);
+    const sentCampaignName = sendData.campaign_name || replyCampaignName;
+    console.log(`Sent reply for ${leadEmail}, contact_id=${contactId}, campaign=${sentCampaignName}, status=${sendData.status}`);
 
     // Card should disappear
     await expect(async () => {
@@ -141,25 +148,51 @@ test.describe('Send Reply → Verify Conversation History', () => {
       expect(newCount).toBeLessThan(initialCount);
     }).toPass({ timeout: 10000 });
 
-    // Navigate to contacts with deep-link
-    if (!contactId) {
-      console.log('No contact_id returned — skipping conversation check');
+    // Click "View conversation" link in the toast
+    const toastLink = page.locator('a:has-text("View conversation")').first();
+    if (await toastLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Verify the link contains campaign param
+      const href = await toastLink.getAttribute('href') || '';
+      console.log(`Toast link href: ${href}`);
+      expect(href).toContain('campaign=');
+      if (sentCampaignName) {
+        expect(href).toContain(encodeURIComponent(sentCampaignName));
+      }
+      await toastLink.click();
+    } else if (contactId) {
+      // Toast may have auto-dismissed, navigate manually with campaign param
+      const campaignKey = `email::${sentCampaignName}`;
+      await page.goto(`/contacts?contact_id=${contactId}&campaign=${encodeURIComponent(campaignKey)}`);
+    } else {
+      console.log('No contact_id and no toast link — skipping conversation check');
       return;
     }
 
-    await page.goto(`/contacts?contact_id=${contactId}`);
     await expect(page).toHaveURL(/\/contacts/, { timeout: 10000 });
 
-    // Modal should open (conversation tab auto-selected)
+    // Modal should open
     const modalPanel = page.locator('.rounded-2xl.shadow-2xl');
     await expect(modalPanel).toBeVisible({ timeout: 20000 });
 
-    // Messages should load (conversation auto-selected)
+    // Messages should load
     const messageBubbles = modalPanel.locator('.whitespace-pre-wrap');
     await expect(messageBubbles.first()).toBeVisible({ timeout: 15000 });
     const messageCount = await messageBubbles.count();
     expect(messageCount).toBeGreaterThan(0);
     console.log(`Conversation: ${messageCount} messages for contact ${contactId}`);
+
+    // ASSERT: Campaign dropdown (if visible) shows the SAME campaign that was sent
+    const dropdownTrigger = modalPanel.locator('.relative button').first();
+    if (await dropdownTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const triggerText = await dropdownTrigger.textContent() || '';
+      console.log(`Modal campaign dropdown: "${triggerText}"`);
+      if (sentCampaignName) {
+        expect(triggerText, `Campaign dropdown should show "${sentCampaignName}"`).toContain(sentCampaignName);
+      }
+    }
+
+    // ASSERT: URL contains campaign param
+    expect(page.url()).toContain('campaign=');
 
     // Outbound messages should exist
     const outboundBubbles = modalPanel.locator('.items-end .whitespace-pre-wrap');
@@ -167,8 +200,7 @@ test.describe('Send Reply → Verify Conversation History', () => {
     console.log(`Outbound messages: ${outboundCount}`);
     expect(outboundCount).toBeGreaterThan(0);
 
-    // Screenshot: modal after send + redirect
-    await page.screenshot({ path: 'test-results/modal-after-send.png', fullPage: false });
+    await page.screenshot({ path: 'test-results/modal-after-send-campaign-check.png', fullPage: false });
   });
 
   test('campaign dropdown + per-campaign filtering for pn@getsally.io', async ({ page }) => {

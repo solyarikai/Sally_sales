@@ -1,6 +1,7 @@
 """
 Create 3 REAL SmartLead campaigns that send actual emails to pn@getsally.io.
 Each campaign uses a different sender account and has a unique email sequence.
+Each run creates fresh campaigns with a timestamp suffix so they're unique.
 
 Usage: cd backend && python3 create_real_campaigns.py
 """
@@ -8,6 +9,7 @@ import httpx
 import json
 import time
 import sys
+from datetime import datetime
 
 API_KEY = "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"
 BASE = "https://server.smartlead.ai/api/v1"
@@ -15,6 +17,9 @@ LEAD_EMAIL = "pn@getsally.io"
 LEAD_FIRST = "Petr"
 LEAD_LAST = "Nikolaev"
 LEAD_COMPANY = "GetSally"
+
+# Timestamp suffix for unique campaign names each run
+TS = datetime.now().strftime("%m%d_%H%M")
 
 # 3 sender accounts (different domains for variety)
 SENDER_ACCOUNTS = [
@@ -25,7 +30,7 @@ SENDER_ACCOUNTS = [
 
 CAMPAIGNS = [
     {
-        "name": "E2E_Test_GetSally",
+        "name": f"E2E_Test_GetSally_{TS}",
         "sender_id": SENDER_ACCOUNTS[0],
         "subject": "Partnership Opportunity with GetSally",
         "body": """<p>Hi {{first_name}},</p>
@@ -34,7 +39,7 @@ CAMPAIGNS = [
 <p>Best,<br/>Danila</p>""",
     },
     {
-        "name": "E2E_Test_Outreach",
+        "name": f"E2E_Test_Outreach_{TS}",
         "sender_id": SENDER_ACCOUNTS[1],
         "subject": "Quick question about your outreach stack",
         "body": """<p>Hi {{first_name}},</p>
@@ -43,7 +48,7 @@ CAMPAIGNS = [
 <p>Cheers,<br/>Danila</p>""",
     },
     {
-        "name": "E2E_Test_Partnership",
+        "name": f"E2E_Test_Partnership_{TS}",
         "sender_id": SENDER_ACCOUNTS[2],
         "subject": "Let's connect about lead generation",
         "body": """<p>Hi {{first_name}},</p>
@@ -112,7 +117,7 @@ def create_campaign(config):
         "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
         "start_hour": "00:00",
         "end_hour": "23:59",
-        "min_time_btw_emails": 1,
+        "min_time_btw_emails": 3,
         "max_new_leads_per_day": 100,
     })
     print(f"  Schedule: {'OK' if sched_data is not None else 'FAILED'}")
@@ -147,7 +152,7 @@ def main():
         cid = create_campaign(config)
         if cid:
             created.append((config["name"], cid))
-        time.sleep(1)  # Brief pause between campaigns
+        time.sleep(3)  # Pause between campaigns to avoid rate limits
 
     print(f"\n{'='*60}")
     print(f"RESULTS: {len(created)}/{len(CAMPAIGNS)} campaigns created")
@@ -158,6 +163,10 @@ def main():
     if len(created) == 3:
         print(f"\nAll 3 campaigns created and STARTED. Emails will be sent to {LEAD_EMAIL} shortly.")
         print("Check inbox at pn@getsally.io for the test emails.")
+        print(f"\nTo update seed_test_replies.py, use these campaign IDs:")
+        for name, cid in created:
+            print(f'    {{"name": "{name}", "campaign_id": "{cid}"}},')
+        print(f"\nAlso add these campaign names to project campaign_filters.")
     else:
         print(f"\nWARNING: Only {len(created)}/3 campaigns created successfully.")
 

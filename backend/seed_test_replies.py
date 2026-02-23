@@ -17,10 +17,11 @@ from sqlalchemy import text
 
 
 TEST_CAMPAIGNS = [
-    {"name": "E2E_Test_GetSally", "campaign_id": "2954039"},
-    {"name": "E2E_Test_Outreach", "campaign_id": "2954040"},
-    {"name": "E2E_Test_Partnership", "campaign_id": "2954041"},
+    {"name": "E2E_Test_GetSally_0220_0211", "campaign_id": "2954070", "lead_map_id": "2735068804"},
+    {"name": "E2E_Test_Outreach_0220_0211", "campaign_id": "2954071", "lead_map_id": "2735068817"},
+    {"name": "E2E_Test_Partnership_0220_0211", "campaign_id": "2954072", "lead_map_id": "2735068829"},
 ]
+SMARTLEAD_LEAD_ID = "2916006166"
 PROJECT_ID = 43
 
 REPLIES = [
@@ -218,6 +219,11 @@ async def main():
         # 3. Create new test replies + thread messages
         total_threads = 0
         for i, data in enumerate(REPLIES):
+            # Find the matching campaign's lead_map_id for inbox link
+            camp_meta = next((c for c in TEST_CAMPAIGNS if c["campaign_id"] == data["campaign_id"]), None)
+            lead_map_id = camp_meta["lead_map_id"] if camp_meta else None
+            inbox_link = f"https://app.smartlead.ai/app/master-inbox?action=INBOX&leadMap={lead_map_id}" if lead_map_id else None
+
             reply = ProcessedReply(
                 lead_email=data["lead_email"],
                 lead_first_name=data["lead_first_name"],
@@ -240,6 +246,8 @@ async def main():
                 approval_status=None,  # NULL = shows as needs_reply
                 sent_to_slack=False,
                 thread_fetched_at=datetime.utcnow(),  # Prevent SmartLead re-fetch
+                smartlead_lead_id=SMARTLEAD_LEAD_ID,
+                inbox_link=inbox_link,
             )
             session.add(reply)
             await session.flush()  # Get reply.id for thread messages
