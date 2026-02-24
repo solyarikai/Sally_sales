@@ -197,44 +197,47 @@ class SmartleadService:
             raise ValueError("No leads provided")
         
         # Format leads for Smartlead API
+        # Allowed top-level: email, first_name, last_name, company_name, website.
+        # Everything else (phone, linkedin_url, etc.) goes into custom_fields.
         formatted_leads = []
+        TOP_LEVEL_KEYS = {"email", "first_name", "last_name", "company_name", "website"}
+        INPUT_ALIASES = {
+            "firstName": "first_name", "lastName": "last_name",
+            "companyName": "company_name", "phone_number": "phone",
+            "linkedinUrl": "linkedin_url",
+        }
         for lead in leads:
+            # Normalize aliases
+            normalized = {}
+            for k, v in lead.items():
+                key = INPUT_ALIASES.get(k, k)
+                if key == "custom_fields":
+                    continue  # handled separately
+                normalized[key] = v
+
             formatted_lead = {
-                "email": lead.get("email", ""),
-                "first_name": lead.get("first_name", lead.get("firstName", "")),
-                "last_name": lead.get("last_name", lead.get("lastName", "")),
+                "email": normalized.get("email", ""),
+                "first_name": normalized.get("first_name", ""),
+                "last_name": normalized.get("last_name", ""),
             }
-            
-            # Add optional fields
-            if "company_name" in lead or "companyName" in lead:
-                formatted_lead["company_name"] = lead.get("company_name", lead.get("companyName", ""))
-            
-            if "phone" in lead or "phone_number" in lead:
-                formatted_lead["phone"] = lead.get("phone", lead.get("phone_number", ""))
-            
-            if "website" in lead:
-                formatted_lead["website"] = lead["website"]
-            
-            if "linkedin_url" in lead or "linkedinUrl" in lead:
-                formatted_lead["linkedin_url"] = lead.get("linkedin_url", lead.get("linkedinUrl", ""))
-            
-            # Add custom variables (everything else goes here)
-            custom_fields = lead.get("custom_fields", {})
-            for key, value in lead.items():
-                if key not in ["email", "first_name", "firstName", "last_name", "lastName", 
-                              "company_name", "companyName", "phone", "phone_number", 
-                              "website", "linkedin_url", "linkedinUrl", "custom_fields"]:
+            if normalized.get("company_name"):
+                formatted_lead["company_name"] = normalized["company_name"]
+            if normalized.get("website"):
+                formatted_lead["website"] = normalized["website"]
+
+            # Everything else → custom_fields
+            custom_fields = dict(lead.get("custom_fields", {}))
+            for key, value in normalized.items():
+                if key not in TOP_LEVEL_KEYS and key != "custom_fields":
                     custom_fields[key] = value
-            
             if custom_fields:
                 formatted_lead["custom_fields"] = custom_fields
-            
+
             formatted_leads.append(formatted_lead)
         
         # Prepare request payload
         payload = {
-            "campaign_id": campaign_id,
-            "leads": formatted_leads,
+            "lead_list": formatted_leads,
         }
         
         # Add settings if provided
@@ -341,9 +344,25 @@ class SmartleadService:
 
             if response.status_code == 200:
                 data = response.json()
+                # Normalize response: API returns either a list or
+                # {"total_leads": N, "data": [{campaign_lead_map_id, lead: {...}}, ...]}
                 if isinstance(data, list):
-                    return {"leads": data, "total": len(data)}
-                return data
+                    leads = data
+                    total = len(data)
+                elif isinstance(data, dict):
+                    leads = data.get("data", data.get("leads", []))
+                    total = data.get("total_leads", data.get("total", len(leads)))
+                else:
+                    leads = []
+                    total = 0
+                # Flatten: extract inner "lead" object if present
+                flat = []
+                for item in leads:
+                    if isinstance(item, dict) and "lead" in item:
+                        flat.append(item["lead"])
+                    else:
+                        flat.append(item)
+                return {"leads": flat, "total": total}
             else:
                 logger.error(f"Failed to fetch campaign leads: {response.status_code}")
                 return {"leads": [], "total": 0}
@@ -376,9 +395,15 @@ class SmartleadService:
 
             if response.status_code == 200:
                 data = response.json()
-                leads = data if isinstance(data, list) else data.get("leads", [])
-                for lead in leads:
-                    if lead.get("email", "").lower() == email.lower():
+                if isinstance(data, list):
+                    items = data
+                elif isinstance(data, dict):
+                    items = data.get("data", data.get("leads", []))
+                else:
+                    items = []
+                for item in items:
+                    lead = item.get("lead", item) if isinstance(item, dict) else item
+                    if (lead.get("email") or "").lower() == email.lower():
                         return lead
                 return None
             else:

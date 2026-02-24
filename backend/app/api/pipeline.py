@@ -694,9 +694,36 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
         progress["smartlead_push_stats"] = {"skipped": "no_rules"}
         return
 
-    # 2. Query target contacts not yet pushed to SmartLead.
-    #    Include contacts already in CRM if they have no campaigns assigned
-    #    (i.e. CRM-promoted but never pushed to SmartLead).
+    # 2a. Build Smartlead dedup set from API (source of truth — catches anything not in DB)
+    import os as _os
+    from app.services.smartlead_service import smartlead_service as _sl_check
+    sl_api_emails: set[str] = set()
+    try:
+        for rule in rules:
+            if not rule.current_campaign_id:
+                continue
+            offset = 0
+            while True:
+                resp = await _sl_check.get_campaign_leads(
+                    rule.current_campaign_id, offset=offset, limit=100
+                )
+                leads = resp.get("leads", [])
+                if not leads:
+                    break
+                for lead in leads:
+                    email = (lead.get("email") or "").lower().strip()
+                    if email:
+                        sl_api_emails.add(email)
+                offset += len(leads)
+                if len(leads) < 100:
+                    break
+        logger.info(f"SmartLead API dedup: {len(sl_api_emails)} emails already in campaigns")
+    except Exception as e:
+        logger.warning(f"SmartLead API dedup check failed (will rely on DB dedup): {e}")
+
+    # 2b. Query target contacts not yet pushed to SmartLead.
+    #     Include contacts already in CRM if they have no campaigns assigned
+    #     (i.e. CRM-promoted but never pushed to SmartLead).
     async with async_session_maker() as session:
         rows = await session.execute(sql_text("""
             SELECT ec.id, ec.email, ec.first_name, ec.last_name, ec.job_title,
@@ -717,6 +744,14 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
             ORDER BY ec.id
         """), {"pid": project_id, "cid": company_id})
         contacts = rows.fetchall()
+
+    # 2c. Filter out emails already in Smartlead campaigns (API dedup)
+    if sl_api_emails:
+        before = len(contacts)
+        contacts = [c for c in contacts if c.email.lower().strip() not in sl_api_emails]
+        api_deduped = before - len(contacts)
+        if api_deduped:
+            logger.info(f"SmartLead API dedup removed {api_deduped} contacts (DB missed them)")
 
     if not contacts:
         logger.info(f"No new contacts to push for project {project_id}")
