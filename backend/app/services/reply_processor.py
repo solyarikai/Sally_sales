@@ -1140,7 +1140,25 @@ async def process_reply_webhook(
         if automation:
             automation.last_run_at = datetime.utcnow()
             automation.total_processed = (automation.total_processed or 0) + 1
-        
+
+        # Increment campaign's sl_reply_count so polling knows this reply
+        # was already caught by webhook and won't trigger redundant pagination.
+        if campaign_id:
+            try:
+                from app.models.campaign import Campaign as CampaignModel
+                camp_result = await session.execute(
+                    select(CampaignModel).where(
+                        CampaignModel.external_id == str(campaign_id),
+                        CampaignModel.platform == "smartlead",
+                    ).limit(1)
+                )
+                camp = camp_result.scalar_one_or_none()
+                if camp:
+                    camp.sl_reply_count = (camp.sl_reply_count or 0) + 1
+                    logger.info(f"[PROCESSOR] Incremented campaign {campaign_id} sl_reply_count → {camp.sl_reply_count}")
+            except Exception as camp_err:
+                logger.warning(f"[PROCESSOR] Failed to increment sl_reply_count (non-fatal): {camp_err}")
+
         await session.commit()
         logger.info(f"Processed reply {processed_reply.id} - category: {classification['category']}")
         

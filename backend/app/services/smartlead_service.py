@@ -473,11 +473,9 @@ class SmartleadService:
             logger.error(f"Error fetching email thread for lead {lead_id}: {e}")
             return []
 
-    # {campaign_id: reply_count} from /analytics — 1 lightweight call per campaign
-    _reply_count_cache: dict = {}
-
     async def get_campaign_reply_count(self, campaign_id: str) -> int:
-        """Single API call to /analytics to get total reply count for a campaign."""
+        """Single API call to /analytics to get total reply count for a campaign.
+        Returns -1 on failure."""
         try:
             response = await smartlead_request(
                 "GET", f"{self.base_url}/campaigns/{campaign_id}/analytics",
@@ -497,27 +495,13 @@ class SmartleadService:
         campaign_id: str,
         max_pages: int = 40
     ) -> List[Dict[str, Any]]:
-        """Fetch replied leads from a campaign.
+        """Paginate /statistics to find all replied leads in a campaign.
 
-        Optimization: calls /analytics first (1 API call) to get reply_count.
-        If reply_count matches cached value from last cycle → returns empty
-        (no new replies). Only paginates /statistics when delta detected.
-        Cuts ~351 API calls/cycle down to ~13 for steady-state campaigns.
+        Pure API call — no caching logic here. The caller (sync_smartlead_replies)
+        handles the analytics count check using the campaigns DB table.
         """
         if not self._api_key:
             raise ValueError("API key not set")
-
-        cid = str(campaign_id)
-        current_count = await self.get_campaign_reply_count(cid)
-
-        if current_count >= 0:
-            prev_count = self._reply_count_cache.get(cid, -1)
-            if prev_count >= 0 and current_count == prev_count:
-                logger.debug(f"Campaign {cid}: reply_count unchanged ({current_count}), skipping pagination")
-                return []
-            if current_count != prev_count:
-                delta = current_count - prev_count if prev_count >= 0 else "first scan"
-                logger.info(f"Campaign {cid}: reply_count changed {prev_count} → {current_count} (delta: {delta}), paginating")
 
         replied_by_email: Dict[str, Dict[str, Any]] = {}
         offset = 0
@@ -580,11 +564,6 @@ class SmartleadService:
                 else:
                     logger.error(f"Persistent error on page {page} after {max_page_retries} retries: {e}")
                     break
-
-        if current_count >= 0:
-            self._reply_count_cache[cid] = current_count
-        else:
-            self._reply_count_cache[cid] = len(replied_by_email)
 
         return list(replied_by_email.values())
 

@@ -43,6 +43,11 @@ class Campaign(Base, TimestampMixin):
     leads_count = Column(Integer, default=0)
     replied_count = Column(Integer, default=0)
 
+    # SmartLead analytics reply_count — shared between webhook & polling paths.
+    # Polling reads /analytics, compares with this value; webhook increments it.
+    # Prevents redundant pagination when webhook already caught the reply.
+    sl_reply_count = Column(Integer, default=0, nullable=False, server_default="0")
+
     # Platform-specific config (sequence, schedule, tracking settings)
     config = Column(JSON, nullable=True)
 

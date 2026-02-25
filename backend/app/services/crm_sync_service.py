@@ -1189,12 +1189,13 @@ class CRMSyncService:
             raise ValueError("Smartlead API key not configured")
 
         from app.models.reply import ProcessedReply
+        from app.models.campaign import Campaign as CampaignModel
         from app.services.smartlead_service import smartlead_service
 
         skip_campaigns = skip_campaigns or set()
         stats = {
             "new_replies": 0, "existing": 0, "cached": 0,
-            "campaigns_checked": 0, "errors": 0,
+            "campaigns_checked": 0, "errors": 0, "skipped_unchanged": 0,
             "lead_id_from_db": 0, "lead_id_from_stats": 0, "lead_id_from_api": 0,
         }
         new_cache_keys = []
@@ -1221,18 +1222,58 @@ class CRMSyncService:
                         continue
 
                     stats["campaigns_checked"] += 1
+                    cid_str = str(campaign_id)
 
-                    try:
-                        # Fetch ALL replied leads via statistics endpoint
-                        replied_leads = await smartlead_service.get_all_campaign_replied_leads(
-                            str(campaign_id)
-                        )
+                    # --- Analytics guard: 1 API call to check reply_count ---
+                    sl_count = await smartlead_service.get_campaign_reply_count(cid_str)
 
-                        if not replied_leads:
-                            await asyncio.sleep(0.1)
+                    if sl_count >= 0:
+                        # Read DB counter (shared with webhook path)
+                        db_campaign = (await session.execute(
+                            select(CampaignModel).where(
+                                CampaignModel.external_id == cid_str,
+                                CampaignModel.platform == "smartlead",
+                            ).limit(1)
+                        )).scalar_one_or_none()
+
+                        db_count = db_campaign.sl_reply_count if db_campaign else 0
+
+                        if db_count > 0 and sl_count == db_count:
+                            logger.debug(f"Reply sync: campaign '{campaign_name}' reply_count={sl_count} unchanged, skipping")
+                            stats["skipped_unchanged"] += 1
                             continue
 
-                        logger.info(f"Reply sync: campaign '{campaign_name}' has {len(replied_leads)} replied leads")
+                        if db_count > 0:
+                            logger.info(f"Reply sync: campaign '{campaign_name}' reply_count {db_count} → {sl_count} (delta: {sl_count - db_count})")
+
+                    try:
+                        replied_leads = await smartlead_service.get_all_campaign_replied_leads(
+                            cid_str
+                        )
+
+                        # Update DB counter after successful pagination
+                        if sl_count >= 0:
+                            if db_campaign:
+                                db_campaign.sl_reply_count = sl_count
+                            else:
+                                # Auto-register campaign if missing
+                                db_campaign = CampaignModel(
+                                    company_id=1,
+                                    platform="smartlead",
+                                    channel="email",
+                                    external_id=cid_str,
+                                    name=campaign_name,
+                                    status=status.lower(),
+                                    sl_reply_count=sl_count,
+                                )
+                                session.add(db_campaign)
+                            await session.flush()
+
+                        if not replied_leads:
+                            await asyncio.sleep(0.05)
+                            continue
+
+                        logger.info(f"Reply sync: campaign '{campaign_name}' — {len(replied_leads)} replied leads")
 
                         # Bulk check Redis cache using email+campaign as key
                         cache_keys = [f"{rl['lead_email']}_{campaign_id}" for rl in replied_leads]
