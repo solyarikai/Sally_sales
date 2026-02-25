@@ -1468,10 +1468,10 @@ export function ContactsPage() {
             const p = new URLSearchParams(searchParams);
             p.delete('contact_id');
             p.delete('campaign');
-            if (viewedEmail) {
-              setSearch(viewedEmail);
-              setDebouncedSearch(viewedEmail);
-              p.set('search', viewedEmail);
+            if (selectedContact?.email) {
+              setSearch(selectedContact.email);
+              setDebouncedSearch(selectedContact.email);
+              p.set('search', selectedContact.email);
             }
             setSearchParams(p, { replace: true });
           }}

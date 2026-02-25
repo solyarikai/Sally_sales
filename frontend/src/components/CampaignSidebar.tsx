@@ -63,17 +63,6 @@ export function CampaignSidebar({
     ? 'w-[180px] flex-shrink-0 border-r border-[#333] overflow-y-auto bg-[#252526]'
     : 'w-[180px] flex-shrink-0 border-r border-gray-100 overflow-y-auto bg-gray-50/30';
 
-  const allBtnCls = (active: boolean) =>
-    isDark
-      ? cn(
-          'w-full text-left px-2.5 py-2 rounded-lg text-[12px] font-semibold transition-colors mb-1',
-          active ? 'bg-[#37373d] text-[#d4d4d4]' : 'text-[#969696] hover:bg-[#2d2d2d]'
-        )
-      : cn(
-          'w-full text-left px-2.5 py-2 rounded-lg text-[12px] font-semibold transition-colors mb-1',
-          active ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-        );
-
   const sectionLabelCls = isDark
     ? 'flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#6e6e6e]'
     : 'flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400';

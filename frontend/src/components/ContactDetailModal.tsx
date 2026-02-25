@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles, ExternalLink, Link2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { cn } from '../lib/utils';
 import type { Contact } from '../api/contacts';
 import { contactsApi } from '../api/contacts';
 import { ConversationThread, adaptContactHistory } from './ConversationThread';
