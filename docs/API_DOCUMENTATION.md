@@ -20,7 +20,8 @@ This document describes all known APIs for Smartlead (email outreach) and GetSal
             ┌─────────────────┴────┐      ┌────┴─────────────────┐
             │      SMARTLEAD       │      │      GETSALES        │
             │   (Email Outreach)   │      │  (LinkedIn Outreach) │
-            │   1,676 campaigns    │      │   20 flows/510K leads│
+            │   ~1,791 campaigns   │      │   20 flows/510K leads│
+            │   (~854 polled)      │      │                      │
             └──────────────────────┘      └──────────────────────┘
                     │                              │
         ┌───────────┼───────────┐      ┌───────────┼───────────┐

@@ -52,11 +52,15 @@ Both feed into `ProcessedReply` (classification, draft, notifications) and `Cont
 7. Send Telegram notification
 8. Log to Google Sheets
 
-### API Polling (every 30 minutes)
+### API Polling (every 3-10 min, adaptive)
 
 **Scheduler:** `crm_scheduler._check_replies()` -> `crm_sync_service.sync_smartlead_replies()`
 
 **Purpose:** Catches replies that webhooks might miss (downtime, network issues, delayed processing).
+
+**Scoping:** Only polls campaigns belonging to enabled projects (`only_campaigns` whitelist from `_get_enabled_campaign_names()`). Disabled projects (e.g. Rizzult) are skipped entirely. Currently ~854 project campaigns out of ~1791 total.
+
+**Caching:** Campaign list is cached for 30 min on `SmartleadClient` (class-level cache). One `GET /campaigns` API call per 30 min instead of per poll cycle.
 
 ### Smartlead API Endpoints Used
 
@@ -127,9 +131,12 @@ These are custom per Smartlead account:
 ### Smartlead Polling Flow
 
 ```
-crm_scheduler._check_replies() (every 30 min)
-  -> crm_sync_service.sync_smartlead_replies()
-    -> For each campaign (ACTIVE/PAUSED/COMPLETED):
+crm_scheduler._check_replies() (every 3-10 min, adaptive)
+  -> _get_enabled_campaign_names() (whitelist from enabled projects)
+  -> crm_sync_service.sync_smartlead_replies(only_campaigns=whitelist)
+    -> smartlead.get_campaigns() [30-min cache]
+    -> Filter to only_campaigns ∩ {ACTIVE, PAUSED, COMPLETED}
+    -> For each matched campaign:
       -> smartlead_service.get_all_campaign_replied_leads()
         -> GET /campaigns/{id}/statistics (paginated, 500/page)
         -> Filter: reply_time != null AND is_bounced == false
@@ -318,33 +325,35 @@ Resolution priority: `automation_name` from webhook -> `flow_name` -> UUID looku
 
 **File:** `backend/app/services/crm_scheduler.py`
 
-| Task | Interval | Method | SmartLead Endpoints | GetSales Endpoints |
-|------|----------|--------|--------------------|--------------------|
-| **Reply polling** | 3-10 min (adaptive) | `_run_reply_loop()` | `GET /campaigns/{id}/statistics` (paginated), `GET /leads/?email=`, `GET /campaigns/{id}/leads/{id}/message-history` | `GET /flows/api/linkedin-messages` (inbox, paginated) |
-| Full CRM sync | 30 min | `_run_loop()` | `GET /campaigns`, `GET /campaigns/{id}/leads` | `GET /leads/api/lists`, `POST /leads/api/leads/search`, `GET /flows/api/flows` |
-| Webhook registration | 5 min | `_run_webhook_loop()` | `GET /campaigns/{id}/webhooks`, `POST /campaigns/{id}/webhooks` | `GET /integrations/api/webhooks`, `POST /integrations/api/webhooks` |
-| Conversation sync | 3 min | `_run_conversation_sync_loop()` | `GET /campaigns/{id}/leads/{id}/message-history` | — |
-| Sheet sync | 5 min | `_run_sheet_sync_loop()` | `POST /campaigns/{id}/leads/{id}/category` (qualification) | — |
-| Event recovery | 5 min | `_run_event_recovery_loop()` | — (internal DB only) | — |
-| Telegram polling | 30s long-poll | `_run_telegram_poll_loop()` | — | — |
-| Reports | 4 hours | `_run_report_loop()` | — | — |
-| Prompt refresh | Weekly | `_run_prompt_refresh_loop()` | — | — |
-| Watchdog | 30s | `_run_watchdog()` | — | — |
+| Task | Interval | Method | SmartLead Endpoints | GetSales Endpoints | Optimization |
+|------|----------|--------|--------------------|--------------------|--------------|
+| **Reply polling** | 3-10 min (adaptive) | `_run_reply_loop()` | `GET /campaigns` [30-min cache], `GET /campaigns/{id}/statistics` (paginated), `GET /leads/?email=`, `GET /campaigns/{id}/leads/{id}/message-history` | `GET /flows/api/linkedin-messages` (inbox, paginated) | Scoped to `only_campaigns` from enabled projects (~854 vs ~1791 total) |
+| Full CRM sync | 30 min | `_run_loop()` | `GET /campaigns` [cached], `GET /campaigns/{id}/leads` | `GET /leads/api/lists`, `POST /leads/api/leads/search`, `GET /flows/api/flows` | — |
+| Webhook registration | 5 min | `_run_webhook_loop()` | `GET /campaigns` [cached], `GET /campaigns/{id}/webhooks`, `POST /campaigns/{id}/webhooks` | `GET /integrations/api/webhooks`, `POST /integrations/api/webhooks` | `_verified_webhooks` in-memory set — skips already-confirmed campaigns on subsequent runs |
+| Conversation sync | 3 min | `_run_conversation_sync_loop()` | `GET /campaigns/{id}/leads/{id}/message-history` | — | DB-driven: only checks pending replies (~5-10 API calls/run) |
+| Sheet sync | 5 min | `_run_sheet_sync_loop()` | `POST /campaigns/{id}/leads/{id}/category` (qualification) | — | — |
+| Event recovery | 5 min | `_run_event_recovery_loop()` | — (internal DB only) | — | Max 20 events/run, exponential backoff per event |
+| Telegram polling | 30s long-poll | `_run_telegram_poll_loop()` | — | — | — |
+| Reports | 4 hours | `_run_report_loop()` | — | — | — |
+| Prompt refresh | Weekly | `_run_prompt_refresh_loop()` | — | — | Skips disabled projects |
+| Watchdog | 30s | `_run_watchdog()` | — | — | — |
 
 **Adaptive reply polling:** First 3 polls at 3 min (startup catch-up), then 3 min when webhooks unhealthy (>15 min since last webhook), 10 min steady state.
+
+**Per-task timing:** Each task tracks `last_run`, `interval_seconds`, and computed `next_run`. Exposed via monitoring API and displayed in the project page UI with overdue highlighting.
 
 ### Per-Project Enable/Disable
 
 Projects have a `webhooks_enabled` boolean field. When `False`:
 - Webhook registration skips all campaigns linked to the project
-- Reply polling skips those campaign names
+- Reply polling uses a whitelist approach: `_get_enabled_campaign_names()` returns only campaign names from enabled projects. Disabled project campaigns are excluded entirely (not fetched, not checked)
 - Webhook handler returns `{"status": "skipped"}` for incoming events
 - Prompt refresh skips the project
 - SmartLead does NOT support webhook deletion via API; existing webhooks remain but are ignored
 
 Toggle via UI (project page Enable/Disable button) or API: `PATCH /api/contacts/projects/{id}` with `{"webhooks_enabled": false}`.
 
-The `_check_replies()` method calls both `sync_smartlead_replies()` and `sync_getsales_replies()` in sequence.
+The `_check_replies()` method calls both `sync_smartlead_replies(only_campaigns=...)` and `sync_getsales_replies()` in sequence.
 
 ### Conversation History Sync (every 3 min)
 
@@ -466,8 +475,8 @@ Uses `get_all_campaign_replied_leads()` (bulk statistics endpoint).
 | File | Purpose |
 |------|---------|
 | `backend/app/services/smartlead_service.py` | Smartlead API client (statistics, global lead search, message history) |
-| `backend/app/services/crm_sync_service.py` | Reply sync logic (polling) + conversation sync + GetSalesClient class |
-| `backend/app/services/crm_scheduler.py` | Scheduler (adaptive polling, 10-min conversation sync, watchdog) |
+| `backend/app/services/crm_sync_service.py` | Reply sync logic (polling, `only_campaigns` scoping) + conversation sync + GetSalesClient + SmartleadClient (30-min campaign cache, webhook verified-cache) |
+| `backend/app/services/crm_scheduler.py` | Scheduler (adaptive polling, 3-min conversation sync, watchdog, per-task timing, campaign cache) |
 | `backend/app/services/reply_processor.py` | Reply classification + processing pipeline |
 | `backend/app/api/replies.py` | API endpoints: sync-outbound-status, analytics-summary, GPT classify |
 | `backend/app/api/crm_sync.py` | Webhook endpoints for Smartlead + GetSales |
@@ -539,12 +548,14 @@ Returns real-time operational status for a project, displayed on the project pag
 
 | Section | Data |
 |---------|------|
-| **Polling interval** | Current adaptive reply polling interval + check count |
+| **Polling intervals** | Per-task: `interval_seconds`, `last_run` (ISO datetime), `next_run` (computed). UI shows actual times + amber "overdue" indicator for late tasks |
 | **Webhook health** | Last webhook received time, healthy/unhealthy status |
 | **Reply stats** | 24h/7d reply counts, total contacts/replied, failed events |
 | **Campaign tracking** | Per-campaign: platform, status, contacts, replied (active campaigns only — inactive shown as dimmed with no queries) |
 | **Scheduler tasks** | Status of each background task (running/dead/not_started) |
 | **Latest events** | Last 5 webhook events + last 5 processed replies (debug panel) |
+
+**Task timing source:** `CRMScheduler._task_timing` dict tracks `last_run` and `interval` per task. Updated after each task completion. `next_run = last_run + interval`.
 
 ---
 

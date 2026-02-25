@@ -332,18 +332,20 @@ Located in `reply_processor.py`. Called:
 
 `CRMScheduler` in `crm_scheduler.py` manages 9 supervised asyncio tasks with a watchdog:
 
-| Task | Interval | Purpose |
-|------|----------|---------|
-| **CRM sync** | 30 min | Full sync — Smartlead + GetSales contacts & replies |
-| **Reply polling** | 3 min (startup/unhealthy) → 10 min (steady) | Backup reply fetching + auto-assign new campaigns to projects by name prefix |
-| **Webhook registration** | 5 min (1 min retry on failure) | Ensures all campaigns have webhooks pointing to `/api/smartlead/webhook` |
-| **Event recovery** | 5 min (2 min initial delay) | Reprocesses failed `webhook_events` (up to 5 retries, exponential backoff: 5m→15m→45m→2h→6h) |
-| **Conversation sync** | 3 min (1 min initial delay) | Fetches Smartlead thread history for pending replies, auto-marks `replied_externally` |
-| **Telegram polling** | Continuous (30s long-poll) | Bot commands: `/start`, `/status`, project deep links |
-| **Reports** | 4 hours | Telegram digest — warm leads + negative replies per campaign/project |
-| **Prompt refresh** | Weekly (1h initial delay) | Regenerates AI reply prompt templates for all configured projects |
-| **Sheet sync** | 5 min (90s initial delay) | Google Sheet bidirectional sync — push replies/leads, pull qualification changes every 15 min |
-| **Watchdog** | 60 sec | Restarts dead tasks, monitors webhook health (>15 min since last webhook → fast polling) |
+| Task | Interval | Purpose | Optimization |
+|------|----------|---------|--------------|
+| **CRM sync** | 30 min | Full sync — Smartlead + GetSales contacts & replies | Campaign list cached 30 min |
+| **Reply polling** | 3 min (startup/unhealthy) → 10 min (steady) | Backup reply fetching + auto-assign new campaigns to projects by name prefix | Scoped to enabled project campaigns only (~854 vs ~1791 total) |
+| **Webhook registration** | 5 min (1 min retry on failure) | Ensures all campaigns have webhooks pointing to `/api/smartlead/webhook` | In-memory `_verified_webhooks` cache — skips confirmed campaigns |
+| **Event recovery** | 5 min (2 min initial delay) | Reprocesses failed `webhook_events` (up to 5 retries, exponential backoff: 5m→15m→45m→2h→6h) | Max 20 events/run |
+| **Conversation sync** | 3 min (1 min initial delay) | Fetches Smartlead thread history for pending replies, auto-marks `replied_externally` | DB-driven: only checks pending replies (~5-10 API calls/run) |
+| **Telegram polling** | Continuous (30s long-poll) | Bot commands: `/start`, `/status`, project deep links | — |
+| **Reports** | 4 hours | Telegram digest — warm leads + negative replies per campaign/project | — |
+| **Prompt refresh** | Weekly (1h initial delay) | Regenerates AI reply prompt templates for enabled projects only | Skips disabled projects |
+| **Sheet sync** | 5 min (90s initial delay) | Google Sheet bidirectional sync — push replies/leads, pull qualification changes every 15 min | — |
+| **Watchdog** | 60 sec | Restarts dead tasks, monitors webhook health (>15 min since last webhook → fast polling) | — |
+
+**Per-task timing:** Each task records `last_run` and `interval_seconds` in `CRMScheduler._task_timing`. The monitoring API computes `next_run = last_run + interval` and the UI displays actual timestamps with amber overdue highlighting.
 
 ---
 
