@@ -252,16 +252,11 @@ async def receive_webhook(
     request: Request,
     session: AsyncSession = Depends(get_session)
 ):
-    """Receive ALL webhook events from Smartlead.
+    """Receive webhook events from Smartlead.
     
-    Handles: EMAIL_REPLY, EMAIL_SENT, EMAIL_OPENED, EMAIL_CLICKED,
-    EMAIL_BOUNCED, LEAD_CATEGORY_UPDATED.
-    
-    ALL events are stored in DB (webhook_events + contact_activities) for analytics.
-    ONLY EMAIL_REPLY events trigger the reply pipeline (AI classification + Telegram).
-    
-    Phase 1 (within request session): Store event + create ContactActivity
-    Phase 2 (async, own session): Process reply pipeline for EMAIL_REPLY only
+    ALL events are logged to webhook_events table (raw payload) for debugging.
+    Only EMAIL_REPLY events create ContactActivity and trigger the reply pipeline.
+    Conversation history for non-reply events is loaded on demand.
     """
     from app.models.reply import WebhookEventModel
     from app.models.contact import Contact, ContactActivity
@@ -341,13 +336,8 @@ async def receive_webhook(
         session.add(contact)
         await session.flush()
     
-    # 1c. Create ContactActivity for ALL event types (analytics!)
-    activity_type = ACTIVITY_TYPE_MAP.get(actual_event_type, actual_event_type or "unknown")
+    # 1c. Only create ContactActivity for reply events (conversation history loaded on demand)
     is_reply = actual_event_type in REPLY_EVENT_TYPES
-    
-    # Extract reply content if available
-    reply_text = _extract_reply_text(data)
-    subject = _extract_subject(data)
     
     # Parse event timestamp
     event_time = datetime.utcnow()
@@ -361,46 +351,36 @@ async def receive_webhook(
             break
     
     if contact:
-        activity = ContactActivity(
-            contact_id=contact.id,
-            company_id=contact.company_id,
-            activity_type=activity_type,
-            channel="email",
-            direction=(
-                "inbound" if is_reply
-                else "outbound" if actual_event_type in ("EMAIL_SENT", "sent")
-                else None  # category_updated, bounced, opened, clicked — not a message direction
-            ),
-            source="smartlead",
-            source_id=str(lead_id) if lead_id else None,
-            subject=subject,
-            body=reply_text,
-            snippet=(reply_text or "")[:200] if reply_text else None,
-            extra_data={
-                "campaign_id": campaign_id,
-                "campaign_name": campaign_name,
-                "raw_event": actual_event_type,
-                "category": lead_data.get("category"),
-                "webhook_event_id": event_id,
-            },
-            activity_at=event_time
-        )
-        session.add(activity)
-        
-        # 1d. Update contact status based on event type
         if is_reply:
+            reply_text = _extract_reply_text(data)
+            subject = _extract_subject(data)
+            activity = ContactActivity(
+                contact_id=contact.id,
+                company_id=contact.company_id,
+                activity_type="email_replied",
+                channel="email",
+                direction="inbound",
+                source="smartlead",
+                source_id=str(lead_id) if lead_id else None,
+                subject=subject,
+                body=reply_text,
+                snippet=(reply_text or "")[:200] if reply_text else None,
+                extra_data={
+                    "campaign_id": campaign_id,
+                    "campaign_name": campaign_name,
+                    "webhook_event_id": event_id,
+                },
+                activity_at=event_time
+            )
+            session.add(activity)
             contact.last_reply_at = event_time
             contact.mark_replied("email", at=event_time)
             if contact.status in (None, "", "new", "contacted", "lead"):
                 contact.status = "warm"
         
-        if actual_event_type == "LEAD_CATEGORY_UPDATED":
-            _update_contact_from_category(contact, lead_data)
-        
         if actual_event_type == "EMAIL_BOUNCED":
             contact.status = "bounced"
         
-        # Update smartlead_id if not set
         if lead_id and not contact.smartlead_id:
             contact.smartlead_id = str(lead_id)
     

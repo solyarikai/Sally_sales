@@ -1002,123 +1002,81 @@ async def smartlead_webhook(
         await session.flush()  # Get contact.id
     
     
-    # Map event type to activity type (Smartlead uses uppercase)
-    activity_map = {
-        "EMAIL_REPLY": "email_replied",
-        "lead.replied": "email_replied",
-        "email.replied": "email_replied",
-        "reply": "email_replied",
-        "EMAIL_SENT": "email_sent",
-        "email.sent": "email_sent",
-        "sent": "email_sent",
-        "EMAIL_OPENED": "email_opened",
-        "email.opened": "email_opened",
-        "open": "email_opened",
-        "EMAIL_CLICKED": "email_clicked",
-        "email.clicked": "email_clicked",
-        "click": "email_clicked",
-        "EMAIL_BOUNCED": "email_bounced",
-        "email.bounced": "email_bounced",
-        "bounce": "email_bounced",
-        "LEAD_CATEGORY_UPDATED": "category_updated",
-    }
-    
-    activity_type = activity_map.get(event_type, event_type or "unknown")
-    
-    # Extract reply content
-    reply_text = None
-    reply_body = None
-    if body.get("reply_message"):
-        reply_text = body["reply_message"].get("text")
-    if body.get("last_reply"):
-        reply_body = body["last_reply"].get("email_body")
-    
-    # Get subject from history if available
-    subject = None
-    history = body.get("history", [])
-    for entry in history:
-        if entry.get("subject"):
-            subject = entry.get("subject")
-            break
-    
+    # Only process reply events — non-reply events stored in webhook_events for debugging
+    REPLY_TYPES = {"EMAIL_REPLY", "lead.replied", "email.replied", "reply"}
+    is_reply = event_type in REPLY_TYPES
+
     # Parse event timestamp
     event_time = datetime.utcnow()
     if body.get("event_timestamp"):
         try:
             parsed = datetime.fromisoformat(body["event_timestamp"].replace("Z", "+00:00"))
-            event_time = parsed.replace(tzinfo=None)  # Store as naive UTC
+            event_time = parsed.replace(tzinfo=None)
         except:
             pass
-    
-    # Create activity
-    activity = ContactActivity(
-        contact_id=contact.id,
-        company_id=contact.company_id,
-        activity_type=activity_type,
-        channel="email",
-        direction="inbound" if "replied" in activity_type else "outbound",
-        source="smartlead",
-        source_id=str(lead_id) if lead_id else None,
-        subject=subject,
-        body=reply_body or reply_text,
-        snippet=(reply_text or reply_body or "")[:200] if (reply_text or reply_body) else None,
-        extra_data={
-            "campaign_id": campaign_id,
-            "campaign_name": campaign_name,
-            "raw_event": event_type,
-            "category": lead_data.get("category"),
-            "history_count": len(history),
-            "from_email": body.get("from_email"),
-            "to_email": body.get("to_email"),
-        },
-        activity_at=event_time
-    )
-    session.add(activity)
-    
-    # Update contact if replied — use status machine for forward-only transitions
-    from app.services.status_machine import transition_status, status_from_ai_category
-    if "replied" in activity_type:
+
+    if is_reply:
+        reply_text = None
+        reply_body = None
+        if body.get("reply_message"):
+            reply_text = body["reply_message"].get("text")
+        if body.get("last_reply"):
+            reply_body = body["last_reply"].get("email_body")
+
+        subject = None
+        for entry in (body.get("history") or []):
+            if entry.get("subject"):
+                subject = entry.get("subject")
+                break
+
+        activity = ContactActivity(
+            contact_id=contact.id,
+            company_id=contact.company_id,
+            activity_type="email_replied",
+            channel="email",
+            direction="inbound",
+            source="smartlead",
+            source_id=str(lead_id) if lead_id else None,
+            subject=subject,
+            body=reply_body or reply_text,
+            snippet=(reply_text or reply_body or "")[:200] if (reply_text or reply_body) else None,
+            extra_data={
+                "campaign_id": campaign_id,
+                "campaign_name": campaign_name,
+            },
+            activity_at=event_time
+        )
+        session.add(activity)
+
         contact.mark_replied("email", at=event_time)
         contact.last_reply_at = event_time
 
-    # Map Smartlead category → 13-status via state machine
-    if lead_data.get("category"):
-        category = lead_data["category"]
-        cat_name = category.get("name", "").lower()
-        contact.update_platform_status("smartlead", category.get("name"))
-        # Map Smartlead category names to AI categories for status machine
-        sl_to_ai = {
-            "interested": "interested",
-            "meeting booked": "meeting_request",
-            "out of office": "out_of_office",
-            "not interested": "not_interested",
-            "wrong person": "wrong_person",
-            "do not contact": "not_interested",
-            "auto reply": "out_of_office",
-        }
-        ai_cat = sl_to_ai.get(cat_name)
-        if ai_cat:
-            target = status_from_ai_category(ai_cat)
-            new_st, ok, msg = transition_status(contact.status, target)
-            if ok:
-                contact.status = new_st
-                logger.info(f"SmartLead webhook: {contact.email} → {new_st} (from {cat_name})")
-    elif "replied" in activity_type:
-        # No category yet — default to "interested" if allowed
+        from app.services.status_machine import transition_status
         new_st, ok, _msg = transition_status(contact.status, "interested")
         if ok:
             contact.status = new_st
-    
-    # Update smartlead_id if not set
+
+    if event_type == "EMAIL_BOUNCED":
+        contact.status = "bounced"
+
     if lead_id and not contact.smartlead_id:
         contact.smartlead_id = str(lead_id)
     
     await session.commit()
 
-    # H1 FIX: Route EMAIL_REPLY events through the reply processor so replies
-    # arriving at this endpoint also get classified, drafted, and notified —
-    # prevents silent data loss when SmartLead is configured to the wrong URL.
-    if "replied" in activity_type and lead_email:
+    if is_reply and lead_email:
+        reply_text = None
+        reply_body = None
+        if body.get("reply_message"):
+            reply_text = body["reply_message"].get("text")
+        if body.get("last_reply"):
+            reply_body = body["last_reply"].get("email_body")
+        subject = None
+        for entry in (body.get("history") or []):
+            if entry.get("subject"):
+                subject = entry.get("subject")
+                break
+
         full_payload = {
             "event_type": event_type or "EMAIL_REPLY",
             "campaign_id": str(campaign_id) if campaign_id else None,
@@ -1139,8 +1097,10 @@ async def smartlead_webhook(
         }
         asyncio.create_task(_process_smartlead_reply_safe(full_payload))
         logger.info(f"[CRM-SYNC] Queued reply processing for {lead_email}")
+    else:
+        logger.info(f"[CRM-SYNC] Non-reply event {event_type} logged for {lead_email}")
 
-    return {"status": "processed", "activity_id": activity.id}
+    return {"status": "processed"}
 
 
 async def _process_smartlead_reply_safe(payload: dict):
