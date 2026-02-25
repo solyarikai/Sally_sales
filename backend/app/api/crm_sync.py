@@ -1560,21 +1560,7 @@ async def getsales_webhook(
             contact.getsales_raw = {"webhooks": [webhook_entry]}
         contact.update_platform_raw("getsales", contact.getsales_raw)
         
-        # Send Telegram notification for LinkedIn reply (with per-project routing)
-        try:
-            from app.services.notification_service import notify_linkedin_reply
-            flow_name = automation_data.get("name") or get_getsales_flow_name(None, contact.campaigns)
-            contact_name = f"{contact_data.get('first_name', '')} {contact_data.get('last_name', '')}".strip() or "Unknown"
-            
-            await notify_linkedin_reply(
-                contact_name=contact_name,
-                contact_email=contact.email or "N/A",
-                flow_name=flow_name,
-                message_text=message_text or "",
-                campaign_name=flow_name  # Use flow name for project routing
-            )
-        except Exception as e:
-            logger.warning(f"Telegram notification failed (non-fatal): {e}")
+        # Telegram notification is now handled by process_getsales_reply() with dedup
     
     # Enrich contact with flow/automation info if not already present
     if automation_data.get("name") or automation_data.get("uuid"):

@@ -1344,12 +1344,14 @@ async def process_getsales_reply(
     # --- Telegram notification (dedup via telegram_sent_at) ---
     if processed_reply and not processed_reply.telegram_sent_at:
         try:
-            from app.services.notification_service import notify_reply_needs_attention
-            campaign_name = flow_name or processed_reply.campaign_name
-            sent = await notify_reply_needs_attention(
-                processed_reply,
-                classification["category"],
-                campaign_name=campaign_name,
+            from app.services.notification_service import notify_linkedin_reply
+            contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Unknown"
+            sent = await notify_linkedin_reply(
+                contact_name=contact_name,
+                contact_email=contact.email or "N/A",
+                flow_name=flow_name or processed_reply.campaign_name or "",
+                message_text=message_text,
+                campaign_name=flow_name or processed_reply.campaign_name,
             )
             if sent:
                 processed_reply.telegram_sent_at = datetime.utcnow()
