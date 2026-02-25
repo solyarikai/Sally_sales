@@ -150,35 +150,18 @@ export interface ProjectMonitoring {
   }[];
   active_campaigns_count: number;
   latest_events: {
-    webhook_events: {
-      id: number;
-      event_type: string;
-      campaign_id: string | null;
-      lead_email: string | null;
-      processed: boolean;
-      error: string | null;
-      retry_count: number;
-      created_at: string | null;
-      processed_at: string | null;
-      payload_preview: string;
-    }[];
-    processed_replies: {
-      id: number;
+    events: {
+      id: string;
+      type: string;
       source: string | null;
       channel: string | null;
       campaign_name: string | null;
-      lead_email: string;
-      lead_name: string;
+      lead_email: string | null;
+      lead_name: string | null;
       category: string | null;
       approval_status: string | null;
-      received_at: string | null;
-    }[];
-    activities: {
-      id: number;
-      activity_type: string;
-      channel: string | null;
-      contact_id: number;
-      activity_at: string | null;
+      at: string | null;
+      error?: string | null;
     }[];
   };
 }
