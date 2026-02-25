@@ -473,36 +473,55 @@ class SmartleadService:
             logger.error(f"Error fetching email thread for lead {lead_id}: {e}")
             return []
 
+    # {campaign_id: reply_count} from /analytics — 1 lightweight call per campaign
+    _reply_count_cache: dict = {}
+
+    async def get_campaign_reply_count(self, campaign_id: str) -> int:
+        """Single API call to /analytics to get total reply count for a campaign."""
+        try:
+            response = await smartlead_request(
+                "GET", f"{self.base_url}/campaigns/{campaign_id}/analytics",
+                params={"api_key": self._api_key},
+                timeout=30.0,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return int(data.get("reply_count", 0))
+            logger.warning(f"Analytics API returned {response.status_code} for campaign {campaign_id}")
+        except Exception as e:
+            logger.warning(f"Failed to fetch analytics for campaign {campaign_id}: {e}")
+        return -1
+
     async def get_all_campaign_replied_leads(
         self,
         campaign_id: str,
-        max_pages: int = 20
+        max_pages: int = 40
     ) -> List[Dict[str, Any]]:
-        """Fetch ALL replied leads from a campaign using the statistics endpoint.
+        """Fetch replied leads from a campaign.
 
-        Uses GET /campaigns/{id}/statistics with pagination, filtering for
-        entries with reply_time set and is_bounced=false.
-
-        Returns unique (by email) replied leads with their reply metadata.
-        For each, also fetches full lead data via global search.
-
-        Args:
-            campaign_id: Campaign ID
-            max_pages: Safety limit on pages (500 entries per page)
-
-        Returns:
-            List of dicts with keys: lead_email, lead_name, reply_time,
-            lead_category, stats_id, email_subject, plus full lead data
-            from global search (company_name, website, linkedin_profile, etc.)
+        Optimization: calls /analytics first (1 API call) to get reply_count.
+        If reply_count matches cached value from last cycle → returns empty
+        (no new replies). Only paginates /statistics when delta detected.
+        Cuts ~351 API calls/cycle down to ~13 for steady-state campaigns.
         """
         if not self._api_key:
             raise ValueError("API key not set")
 
-        import asyncio
-        replied_by_email = {}
+        cid = str(campaign_id)
+        current_count = await self.get_campaign_reply_count(cid)
+
+        if current_count >= 0:
+            prev_count = self._reply_count_cache.get(cid, -1)
+            if prev_count >= 0 and current_count == prev_count:
+                logger.debug(f"Campaign {cid}: reply_count unchanged ({current_count}), skipping pagination")
+                return []
+            if current_count != prev_count:
+                delta = current_count - prev_count if prev_count >= 0 else "first scan"
+                logger.info(f"Campaign {cid}: reply_count changed {prev_count} → {current_count} (delta: {delta}), paginating")
+
+        replied_by_email: Dict[str, Dict[str, Any]] = {}
         offset = 0
         page_size = 500
-
         page_retries = 0
         max_page_retries = 3
 
@@ -515,22 +534,21 @@ class SmartleadService:
                 )
 
                 if response.status_code == 429:
-                    # Rate limited — wait and retry this page
                     page_retries += 1
                     if page_retries <= max_page_retries:
                         wait = 5 * page_retries
                         logger.warning(f"429 on statistics page {page} for campaign {campaign_id}, retry {page_retries} in {wait}s")
                         await asyncio.sleep(wait)
-                        continue  # retry same offset
+                        continue
                     else:
-                        logger.error(f"429 persisted after {max_page_retries} retries on page {page}, stopping (got {len(replied_by_email)} leads so far)")
+                        logger.error(f"429 persisted after {max_page_retries} retries, stopping (got {len(replied_by_email)} so far)")
                         break
 
                 if response.status_code != 200:
                     logger.error(f"Statistics API error for campaign {campaign_id}: {response.status_code}")
                     break
 
-                page_retries = 0  # reset on success
+                page_retries = 0
                 data = response.json()
                 entries = data.get("data", [])
                 if not entries:
@@ -551,17 +569,22 @@ class SmartleadService:
                             }
 
                 offset += page_size
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.15)
 
             except Exception as e:
                 page_retries += 1
                 if page_retries <= max_page_retries:
                     logger.warning(f"Error on statistics page {page} for campaign {campaign_id} (retry {page_retries}): {e}")
                     await asyncio.sleep(3 * page_retries)
-                    continue  # retry same offset
+                    continue
                 else:
                     logger.error(f"Persistent error on page {page} after {max_page_retries} retries: {e}")
                     break
+
+        if current_count >= 0:
+            self._reply_count_cache[cid] = current_count
+        else:
+            self._reply_count_cache[cid] = len(replied_by_email)
 
         return list(replied_by_email.values())
 
