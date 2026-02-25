@@ -155,6 +155,14 @@ GETSALES_FLOW_NAMES = {
     "d67e1028-cf06-4ae8-bcc3-16e41710f19c": "EasyStaff RU - Alexandra",
     "b3b69a39-6b46-4043-85b1-ef4ce22239d5": "EasyStaff RU - Alexandra 2",
     "cf73001d-f893-4396-b301-0691ffdccd12": "EasyStaff RU - Unnamed",
+    # Mifort GetSales automations
+    "cc73c018-510d-4edc-b41c-59f4dccff6bb": "Mifort Partners BizDevs",
+    "a8d7562b-fdea-4394-8a39-b40910f5a8af": "Mifort Partners Clutch",
+    "d793c3dc-78db-46a7-9916-13346d66ce97": "Mifort Partners Salesforce",
+    "b7930e29-9247-4586-aeb3-eccc6841d18d": "Mifort Partners Java Enterprise",
+    "04d46b71-9d62-44bd-9c22-0a4cd6cdfc97": "Mifort Partners PHP",
+    "89961bab-733e-4857-956e-810231c1448c": "Mifort iGaming Providers",
+    "02469dd6-a727-4ef7-86e7-d85ac2729ed9": "Mifort iGaming Marketing",
 }
 
 def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: list = None) -> str:
