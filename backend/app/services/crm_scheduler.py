@@ -943,6 +943,7 @@ class CRMScheduler:
                 result = await session.execute(
                     select(Project).where(
                         Project.reply_prompt_template_id.isnot(None),
+                        Project.webhooks_enabled == True,
                         Project.deleted_at.is_(None),
                     )
                 )
