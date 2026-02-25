@@ -522,6 +522,12 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
                       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
                     };
                     const isOverdue = p.next_run && new Date(p.next_run).getTime() < Date.now();
+                    const overdueMin = isOverdue && p.next_run
+                      ? Math.round((Date.now() - new Date(p.next_run).getTime()) / 60000)
+                      : 0;
+                    const lastRunAgo = p.last_run
+                      ? Math.round((Date.now() - new Date(p.last_run).getTime()) / 60000)
+                      : null;
                     return (
                       <tr key={i} className={cn("border-t", isDark ? "border-[#333]" : "border-neutral-100")}>
                         <td className={cn("px-3 py-1.5 font-medium", isDark ? "text-[#d4d4d4]" : "text-neutral-700")}>{p.task}</td>
@@ -530,9 +536,16 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
                             {fmtInterval(p.interval_seconds)}
                           </span>
                         </td>
-                        <td className={cn("px-3 py-1.5 font-mono", isDark ? "text-[#858585]" : "text-neutral-500")}>{fmtTime(p.last_run)}</td>
+                        <td className={cn("px-3 py-1.5 font-mono", isDark ? "text-[#858585]" : "text-neutral-500")}>
+                          {fmtTime(p.last_run)}
+                          {lastRunAgo !== null && <span className={cn("ml-1 text-[10px]", isDark ? "text-[#555]" : "text-neutral-400")}>({lastRunAgo}m ago)</span>}
+                        </td>
                         <td className={cn("px-3 py-1.5 font-mono", isOverdue ? "text-amber-500" : isDark ? "text-[#858585]" : "text-neutral-500")}>
-                          {p.next_run ? (isOverdue ? `⏳ running...` : fmtTime(p.next_run)) : '—'}
+                          {p.next_run
+                            ? isOverdue
+                              ? `⏳ in progress (${overdueMin}m)`
+                              : fmtTime(p.next_run)
+                            : '—'}
                         </td>
                       </tr>
                     );
