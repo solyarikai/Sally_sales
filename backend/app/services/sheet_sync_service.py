@@ -601,12 +601,15 @@ class SheetSyncService:
             if not api_key:
                 return
 
-            # Get campaign ID from platform_state
+            # Get campaign ID from platform_state (handles legacy int format)
             campaign_id = None
             sl_campaigns = contact.get_platform("smartlead").get("campaigns", [])
             for c in sl_campaigns:
                 if isinstance(c, dict):
                     campaign_id = c.get("id")
+                    break
+                elif isinstance(c, (int, str)):
+                    campaign_id = c
                     break
 
             if not campaign_id:

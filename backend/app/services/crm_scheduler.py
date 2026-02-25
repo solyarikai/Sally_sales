@@ -575,6 +575,30 @@ class CRMScheduler:
                         )
                         return
 
+                    # Upsert into telegram_subscriptions
+                    from app.models.reply import TelegramSubscription
+                    existing_sub = await session.execute(
+                        select(TelegramSubscription).where(
+                            and_(
+                                TelegramSubscription.project_id == project_id,
+                                TelegramSubscription.chat_id == chat_id,
+                            )
+                        )
+                    )
+                    sub = existing_sub.scalar_one_or_none()
+                    if sub:
+                        sub.first_name = first_name
+                        if username:
+                            sub.username = username
+                    else:
+                        session.add(TelegramSubscription(
+                            project_id=project_id,
+                            chat_id=chat_id,
+                            username=username or None,
+                            first_name=first_name or None,
+                        ))
+
+                    # Keep legacy field in sync for backward compat
                     project.telegram_chat_id = chat_id
                     project.telegram_first_name = first_name
                     if username:
@@ -583,11 +607,11 @@ class CRMScheduler:
 
                     await send_telegram_notification(
                         f"Connected to <b>{project.name}</b>!\n\n"
-                        f"You'll receive notifications for new replies in this project.",
+                        f"You'll receive reply notifications for this project.",
                         chat_id=chat_id,
                     )
                     logger.info(
-                        f"Telegram deep link: project {project_id} ({project.name}) "
+                        f"Telegram subscription: project {project_id} ({project.name}) "
                         f"-> chat_id={chat_id} ({first_name})"
                     )
                     return
@@ -621,20 +645,23 @@ class CRMScheduler:
                 )
 
             elif text.startswith("/status"):
-                projects_result = await session.execute(
-                    select(Project.name).where(
+                from app.models.reply import TelegramSubscription
+                subs_result = await session.execute(
+                    select(TelegramSubscription, Project.name).join(
+                        Project, TelegramSubscription.project_id == Project.id
+                    ).where(
                         and_(
-                            Project.telegram_chat_id == chat_id,
+                            TelegramSubscription.chat_id == chat_id,
                             Project.deleted_at.is_(None),
                         )
                     )
                 )
-                project_names = [r[0] for r in projects_result.all()]
+                subs = subs_result.all()
 
-                if project_names:
-                    project_list = "\n".join(f"  - {name}" for name in project_names)
+                if subs:
+                    project_list = "\n".join(f"  - {name}" for _, name in subs)
                     await send_telegram_notification(
-                        f"Receiving notifications for:\n{project_list}",
+                        f"Receiving reply notifications for:\n{project_list}",
                         chat_id=chat_id,
                     )
                 else:

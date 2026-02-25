@@ -108,6 +108,21 @@ export interface AISDRGenerationResult {
   pitch_templates?: string;
 }
 
+export interface TelegramSubscriber {
+  id: number;
+  chat_id: string;
+  username: string | null;
+  first_name: string | null;
+  subscribed_at: string | null;
+}
+
+export interface TelegramStatus {
+  connected: boolean;
+  first_name?: string;
+  username?: string;
+  subscribers: TelegramSubscriber[];
+}
+
 export interface ProjectMonitoring {
   project: { id: number; name: string; webhooks_enabled: boolean };
   scheduler: { running: boolean; task_health: Record<string, string> };
@@ -433,15 +448,15 @@ export const contactsApi = {
     await api.delete(`/contacts/projects/${id}`);
   },
 
-  // Telegram: check if project has notifications connected
-  async getTelegramStatus(projectId: number): Promise<{ connected: boolean; first_name?: string; username?: string }> {
+  async getTelegramStatus(projectId: number): Promise<TelegramStatus> {
     const response = await api.get(`/replies/telegram/project-status`, { params: { project_id: projectId } });
     return response.data;
   },
 
-  // Telegram: disconnect notifications from project
-  async disconnectTelegram(projectId: number): Promise<void> {
-    await api.post(`/replies/telegram/disconnect`, null, { params: { project_id: projectId } });
+  async disconnectTelegram(projectId: number, chatId?: string): Promise<void> {
+    const params: Record<string, string | number> = { project_id: projectId };
+    if (chatId) params.chat_id = chatId;
+    await api.post(`/replies/telegram/disconnect`, null, { params });
   },
 
   // Project monitoring data

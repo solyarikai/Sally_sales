@@ -712,10 +712,11 @@ async def _get_project_for_campaign(campaign_name: str):
 
 
 async def _refresh_project_cache():
-    """Refresh the in-memory project-campaign mapping cache."""
+    """Refresh the in-memory project-campaign mapping cache, including subscribers."""
     from datetime import datetime
     from app.db import async_session_maker
     from app.models.contact import Project
+    from app.models.reply import TelegramSubscription
     from sqlalchemy import select
     
     async with async_session_maker() as session:
@@ -724,12 +725,20 @@ async def _refresh_project_cache():
         )
         projects = result.scalars().all()
         
+        # Load all subscriptions in one query
+        subs_result = await session.execute(select(TelegramSubscription))
+        all_subs = subs_result.scalars().all()
+        subs_by_project: dict[int, list[str]] = {}
+        for s in all_subs:
+            subs_by_project.setdefault(s.project_id, []).append(s.chat_id)
+        
         cache = {}
         for p in projects:
             cache[p.id] = {
                 "id": p.id,
                 "name": p.name,
                 "telegram_chat_id": p.telegram_chat_id,
+                "telegram_subscribers": subs_by_project.get(p.id, []),
                 "campaign_filters": p.campaign_filters or [],
             }
         
@@ -766,18 +775,21 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
 
 <a href="{reply.inbox_link or 'https://app.smartlead.ai/app/master-inbox'}">Open in Smartlead</a>"""
     
-    # 1. Always send to admin chat (you get ALL replies)
+    # 1. Always send to admin chat
     admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)
+    sent_chats = {TELEGRAM_CHAT_ID}
     
-    # 2. Route to project operator if campaign is linked to a project with telegram_chat_id
+    # 2. Route to all project subscribers
     if campaign_name:
         try:
             project = await _get_project_for_campaign(campaign_name)
-            if project and project.get("telegram_chat_id"):
-                operator_chat = project["telegram_chat_id"]
-                if operator_chat != TELEGRAM_CHAT_ID:  # Don't send twice to admin
-                    await send_telegram_notification(message.strip(), chat_id=operator_chat)
-                    logger.info(f"Telegram sent to operator chat {operator_chat} for project '{project.get('name')}'")
+            if project:
+                for subscriber_chat in project.get("telegram_subscribers", []):
+                    if subscriber_chat not in sent_chats:
+                        await send_telegram_notification(message.strip(), chat_id=subscriber_chat)
+                        sent_chats.add(subscriber_chat)
+                if len(sent_chats) > 1:
+                    logger.info(f"Reply notification sent to {len(sent_chats)} chats for project '{project.get('name')}'")
         except Exception as e:
             logger.warning(f"Project routing failed (non-fatal): {e}")
     
@@ -808,16 +820,18 @@ async def notify_linkedin_reply(
     
     # 1. Always send to admin
     admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)
+    sent_chats = {TELEGRAM_CHAT_ID}
     
-    # 2. Route to project operator
+    # 2. Route to all project subscribers
     lookup_name = campaign_name or flow_name
     if lookup_name:
         try:
             project = await _get_project_for_campaign(lookup_name)
-            if project and project.get("telegram_chat_id"):
-                operator_chat = project["telegram_chat_id"]
-                if operator_chat != TELEGRAM_CHAT_ID:
-                    await send_telegram_notification(message.strip(), chat_id=operator_chat)
+            if project:
+                for subscriber_chat in project.get("telegram_subscribers", []):
+                    if subscriber_chat not in sent_chats:
+                        await send_telegram_notification(message.strip(), chat_id=subscriber_chat)
+                        sent_chats.add(subscriber_chat)
         except Exception as e:
             logger.warning(f"LinkedIn project routing failed (non-fatal): {e}")
     

@@ -868,10 +868,11 @@ class CRMSyncService:
                 }
                 for c in campaigns if c.get("campaign_name")
             ]
-            campaign_ids = {c.get("id") for c in existing_campaigns}
+            campaign_ids = {c.get("id") if isinstance(c, dict) else c for c in existing_campaigns}
             for nc in new_campaigns:
                 if nc.get("id") not in campaign_ids:
                     existing_campaigns.append(nc)
+            existing_campaigns = [c for c in existing_campaigns if isinstance(c, dict)]
             if existing_campaigns:
                 existing.set_platform("smartlead", {"campaigns": existing_campaigns})
             existing.mark_synced("smartlead")
@@ -1003,10 +1004,11 @@ class CRMSyncService:
                     "source": "getsales",
                     "status": getsales_status
                 })
-            campaign_ids = {c.get("id") for c in existing_campaigns}
+            campaign_ids = {c.get("id") if isinstance(c, dict) else c for c in existing_campaigns}
             for nc in new_campaigns:
                 if nc.get("id") not in campaign_ids:
                     existing_campaigns.append(nc)
+            existing_campaigns = [c for c in existing_campaigns if isinstance(c, dict)]
             if existing_campaigns:
                 existing.set_platform("getsales", {"campaigns": existing_campaigns})
             existing.mark_synced("getsales")

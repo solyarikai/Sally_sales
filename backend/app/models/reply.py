@@ -1,5 +1,5 @@
 """Models for Reply Automation feature."""
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Index
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -220,6 +220,26 @@ class TelegramRegistration(Base):
     telegram_first_name = Column(String(100), nullable=True)
     registered_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TelegramSubscription(Base):
+    """Multi-operator Telegram subscriptions per project.
+
+    Each row = one operator receiving reply notifications for one project.
+    An operator can subscribe to multiple projects; a project can have
+    multiple subscribers.
+    """
+    __tablename__ = "telegram_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("project_id", "chat_id", name="uq_tg_sub_project_chat"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    chat_id = Column(String(100), nullable=False, index=True)
+    username = Column(String(100), nullable=True)
+    first_name = Column(String(100), nullable=True)
+    subscribed_at = Column(DateTime, default=datetime.utcnow)
 
 
 class WebhookEventModel(Base):

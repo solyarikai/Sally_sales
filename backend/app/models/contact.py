@@ -193,8 +193,10 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
         self.platform_state = {**self.platform_state, platform: existing}
 
     def mark_replied(self, channel: str = "email", at: Optional[datetime] = None):
-        """Mark contact as replied. Channel stored in platform_state."""
-        self.last_reply_at = self.last_reply_at or (at or datetime.utcnow())
+        """Mark contact as replied with the latest timestamp."""
+        reply_time = at or datetime.utcnow()
+        if self.last_reply_at is None or reply_time > self.last_reply_at:
+            self.last_reply_at = reply_time
 
     def update_platform_status(self, platform: str, status: str):
         """Update platform status + bump sync timestamp."""

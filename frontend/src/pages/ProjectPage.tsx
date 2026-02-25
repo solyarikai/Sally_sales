@@ -1004,98 +1004,90 @@ function SheetSyncSection({ project, onUpdate, isDark }: { project: Project; onU
 
 /* One-click Telegram connect component */
 function TelegramConnect({ projectId, onUpdate, isDark }: { projectId: number; onUpdate: () => void; isDark: boolean }) {
-  const [status, setStatus] = useState<'idle' | 'waiting' | 'connected'>('idle');
-  const [firstName, setFirstName] = useState('');
-  const [username, setUsername] = useState('');
+  const [status, setStatus] = useState<'idle' | 'waiting'>('idle');
+  const [subscribers, setSubscribers] = useState<{ id: number; chat_id: string; username: string | null; first_name: string | null; subscribed_at: string | null }[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevCountRef = useRef(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    contactsApi.getTelegramStatus(projectId).then(data => {
-      if (cancelled) return;
-      if (data.connected) {
-        setStatus('connected');
-        setFirstName(data.first_name || '');
-        setUsername(data.username || '');
-      }
-    }).catch(() => {});
-    return () => { cancelled = true; };
+  const loadStatus = useCallback(async () => {
+    try {
+      const data = await contactsApi.getTelegramStatus(projectId);
+      setSubscribers(data.subscribers || []);
+      return data.subscribers?.length || 0;
+    } catch { return 0; }
   }, [projectId]);
 
   useEffect(() => {
+    loadStatus().then(count => { prevCountRef.current = count; });
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, []);
+  }, [loadStatus]);
 
   const handleConnect = () => {
+    prevCountRef.current = subscribers.length;
     window.open(`https://t.me/ImpecableBot?start=project_${projectId}`, '_blank');
     setStatus('waiting');
     pollRef.current = setInterval(async () => {
-      try {
-        const data = await contactsApi.getTelegramStatus(projectId);
-        if (data.connected) {
-          setStatus('connected');
-          setFirstName(data.first_name || '');
-          setUsername(data.username || '');
-          if (pollRef.current) clearInterval(pollRef.current);
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          onUpdate();
-        }
-      } catch {}
+      const newCount = await loadStatus();
+      if (newCount > prevCountRef.current) {
+        setStatus('idle');
+        if (pollRef.current) clearInterval(pollRef.current);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        onUpdate();
+      }
     }, 2000);
     timeoutRef.current = setTimeout(() => {
       if (pollRef.current) clearInterval(pollRef.current);
-      setStatus(prev => prev === 'waiting' ? 'idle' : prev);
+      setStatus('idle');
     }, 60000);
   };
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = async (chatId: string) => {
     try {
-      await contactsApi.disconnectTelegram(projectId);
-      setStatus('idle');
-      setFirstName('');
-      setUsername('');
+      await contactsApi.disconnectTelegram(projectId, chatId);
+      setSubscribers(prev => prev.filter(s => s.chat_id !== chatId));
       onUpdate();
     } catch {}
   };
 
-  if (status === 'connected') {
-    return (
-      <div className={cn("flex items-center justify-between py-2 px-3 rounded-lg", isDark ? "bg-green-900/20" : "bg-green-50")}>
-        <div className={cn("flex items-center gap-2 text-sm", isDark ? "text-green-400" : "text-green-700")}>
-          <Check className="w-4 h-4" />
-          <span>Connected{firstName ? ` as ${firstName}` : ''}{username ? ` (@${username})` : ''}</span>
-        </div>
-        <button onClick={handleDisconnect} className={cn("flex items-center gap-1 text-xs transition-colors", isDark ? "text-[#6e6e6e] hover:text-red-400" : "text-neutral-400 hover:text-red-500")}>
-          <Unlink className="w-3.5 h-3.5" />
-          Disconnect
-        </button>
-      </div>
-    );
-  }
-
-  if (status === 'waiting') {
-    return (
-      <div className={cn("flex items-center gap-3 py-2 px-3 rounded-lg", isDark ? "bg-blue-900/20" : "bg-blue-50")}>
-        <Loader2 className={cn("w-4 h-4 animate-spin", isDark ? "text-blue-400" : "text-blue-600")} />
-        <div className={cn("text-sm", isDark ? "text-blue-300" : "text-blue-700")}>Tap <b>Start</b> in Telegram to connect...</div>
-        <button onClick={() => { if (pollRef.current) clearInterval(pollRef.current); if (timeoutRef.current) clearTimeout(timeoutRef.current); setStatus('idle'); }} className={cn("ml-auto text-xs", isDark ? "text-[#6e6e6e] hover:text-[#b0b0b0]" : "text-neutral-400 hover:text-neutral-600")}>
-          Cancel
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex items-center gap-3">
-      <button onClick={handleConnect} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors", isDark ? "bg-blue-900/20 text-blue-400 hover:bg-blue-900/30" : "bg-blue-50 text-blue-700 hover:bg-blue-100")}>
-        <MessageCircle className="w-4 h-4" />
-        Connect Telegram
-      </button>
-      <span className={cn("text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>Get reply notifications in Telegram</span>
+    <div className="space-y-2">
+      {subscribers.length > 0 && (
+        <div className="space-y-1.5">
+          {subscribers.map((s) => (
+            <div key={s.id} className={cn("flex items-center justify-between py-1.5 px-3 rounded-lg", isDark ? "bg-green-900/20" : "bg-green-50")}>
+              <div className={cn("flex items-center gap-2 text-sm", isDark ? "text-green-400" : "text-green-700")}>
+                <Check className="w-4 h-4" />
+                <span>{s.first_name || 'User'}{s.username ? ` (@${s.username})` : ''}</span>
+                <span className={cn("text-[10px]", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>replies only</span>
+              </div>
+              <button onClick={() => handleDisconnect(s.chat_id)} className={cn("flex items-center gap-1 text-xs transition-colors", isDark ? "text-[#6e6e6e] hover:text-red-400" : "text-neutral-400 hover:text-red-500")}>
+                <Unlink className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {status === 'waiting' ? (
+        <div className={cn("flex items-center gap-3 py-2 px-3 rounded-lg", isDark ? "bg-blue-900/20" : "bg-blue-50")}>
+          <Loader2 className={cn("w-4 h-4 animate-spin", isDark ? "text-blue-400" : "text-blue-600")} />
+          <div className={cn("text-sm", isDark ? "text-blue-300" : "text-blue-700")}>Tap <b>Start</b> in Telegram to connect...</div>
+          <button onClick={() => { if (pollRef.current) clearInterval(pollRef.current); if (timeoutRef.current) clearTimeout(timeoutRef.current); setStatus('idle'); }} className={cn("ml-auto text-xs", isDark ? "text-[#6e6e6e] hover:text-[#b0b0b0]" : "text-neutral-400 hover:text-neutral-600")}>
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <button onClick={handleConnect} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors", isDark ? "bg-blue-900/20 text-blue-400 hover:bg-blue-900/30" : "bg-blue-50 text-blue-700 hover:bg-blue-100")}>
+            <MessageCircle className="w-4 h-4" />
+            {subscribers.length > 0 ? 'Connect Another' : 'Connect Telegram'}
+          </button>
+          <span className={cn("text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>Get reply notifications in Telegram</span>
+        </div>
+      )}
     </div>
   );
 }

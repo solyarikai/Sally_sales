@@ -3896,12 +3896,13 @@ async def telegram_project_status(
     project_id: int = Query(...),
     db: AsyncSession = Depends(get_session),
 ):
-    """Check if a project has Telegram notifications connected.
+    """Return all Telegram subscribers for a project.
 
     Used by the frontend to poll after the operator clicks 'Connect Telegram'
-    and opens the deep link to the bot.
+    and to show the connected accounts list.
     """
     from app.models.contact import Project
+    from app.models.reply import TelegramSubscription
 
     result = await db.execute(
         select(Project).where(
@@ -3912,20 +3913,39 @@ async def telegram_project_status(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    subs_result = await db.execute(
+        select(TelegramSubscription).where(
+            TelegramSubscription.project_id == project_id
+        ).order_by(TelegramSubscription.subscribed_at)
+    )
+    subs = subs_result.scalars().all()
+
     return {
-        "connected": bool(project.telegram_chat_id),
-        "first_name": project.telegram_first_name,
-        "username": project.telegram_username,
+        "connected": len(subs) > 0,
+        "first_name": subs[0].first_name if subs else project.telegram_first_name,
+        "username": subs[0].username if subs else project.telegram_username,
+        "subscribers": [
+            {
+                "id": s.id,
+                "chat_id": s.chat_id,
+                "username": s.username,
+                "first_name": s.first_name,
+                "subscribed_at": s.subscribed_at.isoformat() if s.subscribed_at else None,
+            }
+            for s in subs
+        ],
     }
 
 
 @router.post("/telegram/disconnect")
 async def telegram_disconnect(
     project_id: int = Query(...),
+    chat_id: str = Query(None),
     db: AsyncSession = Depends(get_session),
 ):
-    """Disconnect Telegram notifications from a project."""
+    """Disconnect a specific subscriber or all from a project."""
     from app.models.contact import Project
+    from app.models.reply import TelegramSubscription
 
     result = await db.execute(
         select(Project).where(
@@ -3936,9 +3956,32 @@ async def telegram_disconnect(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    project.telegram_chat_id = None
-    project.telegram_username = None
-    project.telegram_first_name = None
+    if chat_id:
+        await db.execute(
+            TelegramSubscription.__table__.delete().where(
+                and_(
+                    TelegramSubscription.project_id == project_id,
+                    TelegramSubscription.chat_id == chat_id,
+                )
+            )
+        )
+    else:
+        await db.execute(
+            TelegramSubscription.__table__.delete().where(
+                TelegramSubscription.project_id == project_id
+            )
+        )
+
+    remaining = await db.execute(
+        select(func.count(TelegramSubscription.id)).where(
+            TelegramSubscription.project_id == project_id
+        )
+    )
+    if remaining.scalar() == 0:
+        project.telegram_chat_id = None
+        project.telegram_username = None
+        project.telegram_first_name = None
+
     await db.commit()
 
     return {"ok": True}
