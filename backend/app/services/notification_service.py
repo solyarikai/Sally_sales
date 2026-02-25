@@ -615,9 +615,10 @@ async def send_test_notification(channel_id: str = "C09REGUQWTG", webhook_url: O
 
 # ============= Telegram Notifications =============
 
-# Telegram configuration
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "57344339")  # Admin chat (receives ALL)
+# Telegram configuration — single source of truth is config.py / .env
+from app.core.config import settings as _tg_settings
+TELEGRAM_BOT_TOKEN = _tg_settings.TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID = _tg_settings.TELEGRAM_CHAT_ID
 
 # In-memory cache for project-campaign mapping (refreshed every 5 min)
 _project_cache = {"data": {}, "last_refresh": None}

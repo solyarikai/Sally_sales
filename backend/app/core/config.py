@@ -112,8 +112,9 @@ class Settings(BaseSettings):
     # Webhook URLs — used for SmartLead webhook registration
     WEBHOOK_BASE_URL: str = "http://46.62.210.24:8000"
 
-    # Telegram Bot
-    TELEGRAM_BOT_TOKEN: Optional[str] = None
+    # Telegram Bot (@ImpecableBot)
+    TELEGRAM_BOT_TOKEN: Optional[str] = "8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss"
+    TELEGRAM_CHAT_ID: str = "57344339"
 
     # Test recipient for test_mode sends
     TEST_RECIPIENT_EMAIL: str = "pn@getsally.io"
