@@ -21,7 +21,6 @@ import {
   type DomainCampaignInfo,
   type ProjectPipelineSummary,
 } from '../api/dataSearch';
-import { contactsApi } from '../api/contacts';
 import { pipelineApi, type FullPipelineStatus } from '../api/pipeline';
 import { CampaignPushRules } from '../components/CampaignPushRules';
 import { TargetCompaniesViewer } from '../components/TargetCompaniesViewer';
@@ -51,15 +50,14 @@ type TabId = 'jobs' | 'targets' | 'push-rules' | 'push-tracker';
 
 function JobHistoryView() {
   const navigate = useNavigate();
-  const { currentCompany } = useAppStore();
+  const { currentCompany, currentProject } = useAppStore();
+  const selectedProject = currentProject?.id ?? undefined;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<{ items: SearchHistoryItem[]; total: number } | null>(null);
   const [page, setPage] = useState(1);
   const [exportingTargets, setExportingTargets] = useState(false);
   const [summary, setSummary] = useState<ProjectPipelineSummary | null>(null);
-  const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
-  const [selectedProject, setSelectedProject] = useState<number | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<TabId>('jobs');
   const [pipelineStatus, setPipelineStatus] = useState<FullPipelineStatus | null>(null);
   const [startingPipeline, setStartingPipeline] = useState(false);
@@ -81,12 +79,6 @@ function JobHistoryView() {
       setExportingTargets(false);
     }
   };
-
-  // Load project list on mount
-  useEffect(() => {
-    if (!currentCompany) return;
-    contactsApi.listProjectNames().then(p => setProjects(p)).catch(() => {});
-  }, [currentCompany]);
 
   const load = useCallback(async () => {
     if (!currentCompany) return;
@@ -114,15 +106,14 @@ function JobHistoryView() {
 
   // Load full pipeline status
   const loadPipelineStatus = useCallback(async () => {
-    const pid = selectedProject || projects[0]?.id;
-    if (!pid) return;
+    if (!selectedProject) return;
     try {
-      const status = await pipelineApi.getFullPipelineStatus(pid);
+      const status = await pipelineApi.getFullPipelineStatus(selectedProject);
       setPipelineStatus(status);
     } catch {
       setPipelineStatus(null);
     }
-  }, [selectedProject, projects]);
+  }, [selectedProject]);
 
   // Auto-refresh every 30s when pipeline is running
   useEffect(() => { load(); }, [load]);
@@ -134,7 +125,7 @@ function JobHistoryView() {
   }, [summary?.pipeline?.running, pipelineStatus?.running, load, loadPipelineStatus]);
 
   const handleStartPipeline = async () => {
-    const pid = selectedProject || projects[0]?.id;
+    const pid = selectedProject;
     if (!pid) return;
     setStartingPipeline(true);
     try {
@@ -152,7 +143,7 @@ function JobHistoryView() {
   };
 
   const handleStopPipeline = async () => {
-    const pid = selectedProject || projects[0]?.id;
+    const pid = selectedProject;
     if (!pid) return;
     setStoppingPipeline(true);
     try {
@@ -230,7 +221,7 @@ function JobHistoryView() {
     { id: 'push-tracker' as TabId, label: 'Push Tracker', icon: TrendingUp },
   ];
 
-  const effectiveProjectId = selectedProject || projects[0]?.id;
+  const effectiveProjectId = selectedProject;
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
@@ -239,24 +230,10 @@ function JobHistoryView() {
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-neutral-900">Pipeline Dashboard</h1>
-            <p className="text-neutral-500 text-sm mt-1">Search, targets, contacts, and SmartLead campaigns</p>
+            <p className="text-neutral-500 text-sm mt-1">
+              {currentProject ? currentProject.name : 'Select a project in the top-left to filter'}
+            </p>
           </div>
-          {/* Project filter */}
-          {projects.length > 0 && (
-            <select
-              value={selectedProject ?? ''}
-              onChange={e => {
-                setSelectedProject(e.target.value ? Number(e.target.value) : undefined);
-                setPage(1);
-              }}
-              className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 bg-white text-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Projects</option>
-              {projects.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          )}
           {effectiveProjectId && (
             <Link
               to={`/projects/${effectiveProjectId}/knowledge`}

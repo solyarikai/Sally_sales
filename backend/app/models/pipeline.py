@@ -95,6 +95,11 @@ class DiscoveredCompany(Base):
     apollo_enriched_at = Column(DateTime(timezone=True), nullable=True)
     apollo_credits_used = Column(Integer, default=0)  # Actual credits spent on this domain
 
+    # Apollo organization enrichment (FREE call — /organizations/enrich)
+    # Stores: industry, keywords, country, city, estimated_num_employees,
+    # annual_revenue, founded_year, linkedin_url, languages, technologies, etc.
+    apollo_org_data = Column(JSONB, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -134,6 +139,10 @@ class ExtractedContact(Base):
     # Source tracking
     source = Column(SQLEnum(ContactSource), nullable=False, default=ContactSource.WEBSITE_SCRAPE)
     raw_data = Column(JSON, nullable=True)
+
+    # Apollo search context — which filters/titles were used to find this contact
+    # Stores: {titles: [...], max_people: N, domain: "...", ...}
+    apollo_search_context = Column(JSONB, nullable=True)
 
     # Verification
     is_verified = Column(Boolean, default=False)

@@ -471,12 +471,56 @@ class PipelineService:
 
             credits_before_company = apollo_service.credits_used
 
+            # Free org enrichment — get company classification data before spending credits
+            if not dc.apollo_org_data:
+                try:
+                    org_data = await apollo_service.enrich_organization(dc.domain)
+                    if org_data:
+                        dc.apollo_org_data = {
+                            "name": org_data.get("name"),
+                            "industry": org_data.get("industry"),
+                            "keywords": org_data.get("keywords", []),
+                            "estimated_num_employees": org_data.get("estimated_num_employees"),
+                            "annual_revenue": org_data.get("annual_revenue"),
+                            "annual_revenue_printed": org_data.get("annual_revenue_printed"),
+                            "founded_year": org_data.get("founded_year"),
+                            "linkedin_url": org_data.get("linkedin_url"),
+                            "website_url": org_data.get("website_url"),
+                            "country": org_data.get("country"),
+                            "city": org_data.get("city"),
+                            "state": org_data.get("state"),
+                            "languages": org_data.get("languages", []),
+                            "technologies": org_data.get("technologies", []),
+                            "phone": org_data.get("phone"),
+                            "primary_domain": org_data.get("primary_domain"),
+                            "logo_url": org_data.get("logo_url"),
+                            "raw_address": org_data.get("raw_address"),
+                            "seo_description": org_data.get("seo_description"),
+                            "short_description": org_data.get("short_description"),
+                            "suborganizations": [
+                                {"name": s.get("name"), "domain": s.get("website_url")}
+                                for s in (org_data.get("suborganizations") or [])[:10]
+                            ],
+                            "num_suborganizations": org_data.get("num_suborganizations"),
+                            "departmental_head_count": org_data.get("departmental_head_count"),
+                        }
+                        logger.info(f"Apollo org enrichment for {dc.domain}: industry={org_data.get('industry')}, employees={org_data.get('estimated_num_employees')}")
+                except Exception as e:
+                    logger.warning(f"Apollo org enrichment failed for {dc.domain}: {e}")
+
             # Log attempt
             attempt_id = await enrichment_intelligence_service.log_attempt(
                 session, dc.id, "APOLLO_PEOPLE",
                 method=f"apollo_titles_{'_'.join(titles[:3])}" if titles else "apollo_default",
                 config={"max_people": max_people, "titles": titles, "force_retry": force_retry},
             )
+
+            search_context = {
+                "titles": titles,
+                "max_people": max_people,
+                "domain": dc.domain,
+                "force_retry": force_retry,
+            }
 
             try:
                 people = await apollo_service.enrich_by_domain(dc.domain, limit=max_people, titles=titles)
@@ -507,6 +551,7 @@ class PipelineService:
                         is_verified=person.get("is_verified", False),
                         verification_method="apollo" if person.get("is_verified") else None,
                         raw_data=person.get("raw_data"),
+                        apollo_search_context=search_context,
                     )
                     session.add(ec)
 
