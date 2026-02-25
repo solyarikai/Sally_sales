@@ -18,6 +18,7 @@ from app.models import (
     Document, DocumentType, DocumentFolder, CompanyProfile,
     Product, Segment, SegmentColumn, Competitor, CaseStudy, VoiceTone, Blocklist, BookingLink,
     Prospect, ProspectActivity,
+    Campaign, ChannelAccount,
     Domain, SearchJob, SearchQuery, SearchResult, ProjectSearchKnowledge,
     DiscoveredCompany, ExtractedContact, PipelineEvent,
     EnrichmentAttempt, EnrichmentEffectiveness, EmailVerification,

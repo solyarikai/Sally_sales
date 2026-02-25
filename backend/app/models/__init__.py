@@ -8,6 +8,7 @@ from .knowledge_base import (
 from .prospect import Prospect, ProspectActivity
 from .reply import ReplyAutomation, ProcessedReply, ReplyCategory, ThreadMessage
 from .contact import Contact, Project, ContactActivity
+from .campaign import Campaign, ChannelAccount
 from .domain import (
     Domain, DomainStatus, DomainSource,
     SearchJob, SearchJobStatus, SearchEngine,
@@ -48,6 +49,8 @@ __all__ = [
     "ReplyAutomation", "ProcessedReply", "ReplyCategory", "ThreadMessage",
     # CRM
     "Contact", "Project", "ContactActivity",
+    # Campaigns & Channels
+    "Campaign", "ChannelAccount",
     # Domain & Search
     "Domain", "DomainStatus", "DomainSource",
     "SearchJob", "SearchJobStatus", "SearchEngine",
