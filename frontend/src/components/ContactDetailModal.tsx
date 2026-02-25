@@ -386,7 +386,7 @@ export function ContactDetailModal({
       fetchSequence();
 
       // In reply mode, fetch AI draft
-      if (replyMode && contact.has_replied) {
+      if (replyMode && contact.last_reply_at) {
         fetchAiDraft(contact.id);
       }
 
@@ -755,8 +755,8 @@ export function ContactDetailModal({
                     <div className="flex items-center gap-2">
                       <span className="text-sm" style={{ color: t.text4 }}>Has Replied:</span>
                       <span className="px-2 py-1 rounded-full text-xs font-medium"
-                        style={{ background: contact.has_replied ? (isDark ? '#1a3a2a' : '#f0fdf4') : t.badgeBg, color: contact.has_replied ? (isDark ? '#6ee7b7' : '#16a34a') : t.badgeText }}>
-                        {contact.has_replied ? 'Yes' : 'No'}
+                        style={{ background: contact.last_reply_at ? (isDark ? '#1a3a2a' : '#f0fdf4') : t.badgeBg, color: contact.last_reply_at ? (isDark ? '#6ee7b7' : '#16a34a') : t.badgeText }}>
+                        {contact.last_reply_at ? 'Yes' : 'No'}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">

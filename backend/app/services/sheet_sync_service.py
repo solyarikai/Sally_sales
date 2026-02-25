@@ -309,7 +309,7 @@ class SheetSyncService:
                         Contact.deleted_at.is_(None),
                         or_(
                             and_(
-                                Contact.has_replied == True,
+                                Contact.last_reply_at.isnot(None),
                                 Contact.reply_sentiment.in_(["warm", "positive"]),
                             ),
                             Contact.status.in_(warm_statuses),
@@ -354,8 +354,9 @@ class SheetSyncService:
                 prospect_comment = ""
                 # Company info from gathering_details
                 company_info = ""
-                if contact.gathering_details and isinstance(contact.gathering_details, dict):
-                    company_info = contact.gathering_details.get("description", "")[:500]
+                prov = contact.provenance or contact.gathering_details
+                if prov and isinstance(prov, dict):
+                    company_info = prov.get("description", "")[:500]
 
                 system_cols = [
                     name,                                     # A: Name

@@ -94,6 +94,7 @@ class ContactUpdate(BaseModel):
 
 
 class ContactResponse(BaseModel):
+    """Clean API contract. No deprecated DB internals leak here."""
     id: int
     email: str
     first_name: Optional[str] = None
@@ -114,12 +115,24 @@ class ContactResponse(BaseModel):
     notes: Optional[str] = None
     smartlead_id: Optional[str] = None
     getsales_id: Optional[str] = None
+    # Canonical funnel
+    last_reply_at: Optional[datetime] = None
     has_replied: Optional[bool] = None
     needs_followup: Optional[bool] = None
+    # Canonical data
+    provenance: Optional[Dict[str, Any]] = None
+    platform_state: Optional[Dict[str, Any]] = None
     campaigns: Optional[List[Dict[str, Any]]] = None
-    gathering_details: Optional[Dict[str, Any]] = None
+    # Timestamps
     created_at: datetime
     updated_at: datetime
+
+    @field_validator('has_replied', mode='before')
+    @classmethod
+    def compute_has_replied(cls, v, info):
+        if info.data.get('last_reply_at') is not None:
+            return True
+        return bool(v)
 
     @field_validator('campaigns', mode='before')
     @classmethod
@@ -330,7 +343,10 @@ async def _build_filtered_query(
     if source:
         query = query.where(Contact.source == source)
     if has_replied is not None:
-        query = query.where(Contact.has_replied == has_replied)
+        if has_replied:
+            query = query.where(Contact.last_reply_at.isnot(None))
+        else:
+            query = query.where(Contact.last_reply_at.is_(None))
     if has_smartlead is True:
         query = query.where(Contact.smartlead_id.isnot(None))
     elif has_smartlead is False:
@@ -366,7 +382,7 @@ async def _build_filtered_query(
         three_days_ago = datetime.utcnow() - timedelta(days=3)
         query = query.where(
             and_(
-                Contact.has_replied == False,
+                Contact.last_reply_at.is_(None),
                 Contact.last_synced_at < three_days_ago
             )
         )

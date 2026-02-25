@@ -709,7 +709,8 @@ export interface DomainCampaignContact {
   name: string | null;
   email: string | null;
   status: string;
-  has_replied: boolean;
+  has_replied: boolean;      // computed by backend
+  last_reply_at?: string;
   match_type?: 'email_domain' | 'website_domain';
 }
 

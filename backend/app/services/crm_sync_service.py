@@ -838,7 +838,7 @@ class CRMSyncService:
         if existing:
             # Update existing contact
             existing.smartlead_id = smartlead_id
-            existing.smartlead_status = smartlead_status
+            existing.update_platform_status("smartlead", smartlead_status)
             if not existing.domain and email and '@' in email:
                 existing.domain = email.split('@')[1].lower()
             # Upgrade placeholder email with real email from Smartlead
@@ -849,9 +849,8 @@ class CRMSyncService:
                 existing.email = email
                 if '@' in email:
                     existing.domain = email.split('@')[1].lower()
-            if has_replied and not existing.has_replied:
-                existing.has_replied = True
-                existing.reply_channel = "email"
+            if has_replied and not existing.last_reply_at:
+                existing.mark_replied("email")
                 existing.status = "replied"
             if "smartlead" not in (existing.source or ""):
                 if existing.source:
@@ -875,7 +874,7 @@ class CRMSyncService:
                 if (nc.get("id"), nc.get("source")) not in campaign_ids:
                     existing_campaigns.append(nc)
             existing.campaigns = existing_campaigns if existing_campaigns else None
-            existing.last_synced_at = datetime.utcnow()
+            existing.mark_synced("smartlead")
             return "updated"
         else:
             # Create new contact
@@ -905,6 +904,7 @@ class CRMSyncService:
                 smartlead_id=smartlead_id,
                 smartlead_status=smartlead_status,
                 has_replied=has_replied,
+                last_reply_at=datetime.utcnow() if has_replied else None,
                 status="replied" if has_replied else "lead",
                 campaigns=campaign_data if campaign_data else None,
                 last_synced_at=datetime.utcnow()
@@ -984,7 +984,7 @@ class CRMSyncService:
         if existing:
             # Update existing contact
             existing.getsales_id = getsales_id
-            existing.getsales_status = getsales_status
+            existing.update_platform_status("getsales", getsales_status)
             if not existing.domain and email and '@' in email:
                 existing.domain = email.split('@')[1].lower()
             if not existing.linkedin_url and linkedin_raw:
@@ -1010,7 +1010,7 @@ class CRMSyncService:
                 if (nc.get("id"), nc.get("source")) not in campaign_ids:
                     existing_campaigns.append(nc)
             existing.campaigns = existing_campaigns if existing_campaigns else None
-            existing.last_synced_at = datetime.utcnow()
+            existing.mark_synced("getsales")
             return "updated"
         else:
             # Create new contact
@@ -1048,6 +1048,8 @@ class CRMSyncService:
                 campaigns=campaign_data,
                 last_synced_at=datetime.utcnow()
             )
+            contact.update_platform_status("getsales", getsales_status)
+            contact.mark_synced("getsales")
             session.add(contact)
             return "created"
     
@@ -1550,9 +1552,7 @@ class CRMSyncService:
                     session.add(activity)
 
                     # Update contact — use status machine for forward-only transition
-                    contact.has_replied = True
-                    contact.reply_channel = "linkedin"
-                    contact.last_reply_at = activity.activity_at
+                    contact.mark_replied("linkedin", at=activity.activity_at)
                     from app.services.status_machine import transition_status
                     new_st, ok, _msg = transition_status(contact.status, "interested")
                     if ok:

@@ -755,7 +755,7 @@ export function ContactsPage() {
   // Reply contacts (contacts with replies, not yet processed)
   const replyContacts = useMemo(() => {
     if (!replyMode) return [];
-    return contacts.filter(c => c.has_replied && !processedContacts.has(c.id));
+    return contacts.filter(c => !!c.last_reply_at && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
   const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilters.length > 0 || geoFilter || campaignFilters.length > 0 || campaignIdFilter || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode || domainFilter;

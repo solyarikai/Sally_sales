@@ -646,9 +646,9 @@ class PipelineService:
                 source=source_str,
                 status="lead",
                 gathering_details=gathering_details,
-                # Propagate verification status from extracted contact
+                provenance=gathering_details,
                 is_email_verified=ec.is_verified or False,
-                email_verification_result=ec.verification_method if ec.is_verified else None,
+                email_verification_result='valid' if ec.is_verified else None,
             )
             session.add(contact)
             await session.flush()

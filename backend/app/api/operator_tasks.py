@@ -42,13 +42,12 @@ class TaskContact(BaseModel):
     job_title: Optional[str] = None
     linkedin_url: Optional[str] = None
     status: str
-    reply_channel: Optional[str] = None
     last_reply_at: Optional[datetime] = None
+    platform_state: Optional[dict] = None
     project_id: Optional[int] = None
-    # Extra context per tab
-    category: Optional[str] = None  # AI classification for replies tab
-    days_since: Optional[int] = None  # Days since last activity
-    last_message: Optional[str] = None  # Snippet of last message
+    category: Optional[str] = None
+    days_since: Optional[int] = None
+    last_message: Optional[str] = None
     campaign_name: Optional[str] = None
 
     class Config:
@@ -139,10 +138,10 @@ async def get_operator_tasks(
             job_title=contact.job_title,
             linkedin_url=contact.linkedin_url,
             status=contact.status or "",
-            reply_channel=contact.reply_channel,
             last_reply_at=contact.last_reply_at,
+            platform_state=contact.platform_state,
             project_id=contact.project_id,
-            category=row[1],  # AI classification
+            category=row[1],
             last_message=(row[2] or "")[:200],
             campaign_name=row[3],
         ))
@@ -195,8 +194,8 @@ async def get_operator_tasks(
             job_title=contact.job_title,
             linkedin_url=contact.linkedin_url,
             status=contact.status or "",
-            reply_channel=contact.reply_channel,
             last_reply_at=contact.last_reply_at,
+            platform_state=contact.platform_state,
             project_id=contact.project_id,
             days_since=days,
         ))
@@ -237,8 +236,8 @@ async def get_operator_tasks(
             job_title=contact.job_title,
             linkedin_url=contact.linkedin_url,
             status=contact.status or "",
-            reply_channel=contact.reply_channel,
             last_reply_at=contact.last_reply_at,
+            platform_state=contact.platform_state,
             project_id=contact.project_id,
             days_since=days,
         ))

@@ -93,7 +93,7 @@ function ContactCard({
           </div>
           <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             {contact.email}
-            {contact.reply_channel && <span className="ml-2">via {contact.reply_channel}</span>}
+            {contact.last_reply_at && <span className="ml-2">replied {new Date(contact.last_reply_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
             {contact.campaign_name && <span className="ml-2">• {contact.campaign_name}</span>}
           </div>
         </div>

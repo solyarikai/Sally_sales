@@ -1130,6 +1130,7 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                                     company_name = COALESCE(company_name, :company_name),
                                     job_title = COALESCE(job_title, :job_title),
                                     gathering_details = COALESCE(gathering_details, CAST(:gathering AS jsonb)),
+                                    provenance = COALESCE(provenance, CAST(:gathering AS jsonb)),
                                     updated_at = NOW()
                                 WHERE id = :id
                             """), {
@@ -1148,10 +1149,11 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                             INSERT INTO contacts (company_id, email, first_name, last_name, domain,
                                                   company_name, job_title, project_id, segment,
                                                   source, status, is_active, gathering_details,
-                                                  created_at, updated_at)
+                                                  provenance, created_at, updated_at)
                             VALUES (:cid, :email, :fname, :lname, :domain,
                                     :company_name, :job_title, :project_id, :segment,
-                                    'pipeline', 'lead', true, CAST(:gathering AS jsonb), NOW(), NOW())
+                                    'pipeline', 'lead', true, CAST(:gathering AS jsonb),
+                                    CAST(:gathering AS jsonb), NOW(), NOW())
                         """), {
                             "cid": company_id, "email": contact.email,
                             "fname": contact.first_name or "", "lname": contact.last_name or "",

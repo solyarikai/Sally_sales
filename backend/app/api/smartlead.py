@@ -389,6 +389,7 @@ async def receive_webhook(
             contact.has_replied = True
             contact.reply_channel = "email"
             contact.last_reply_at = event_time
+            contact.mark_replied("email", at=event_time)
             if contact.status in (None, "", "new", "contacted", "lead"):
                 contact.status = "warm"
         
@@ -550,6 +551,7 @@ def _update_contact_from_category(contact, lead_data: dict):
         return
     cat_name = category.get("name", "").lower()
     contact.smartlead_status = category.get("name")
+    contact.update_platform_status("smartlead", category.get("name"))
     status_map = {
         "interested": "warm",
         "meeting booked": "warm",

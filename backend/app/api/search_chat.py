@@ -1608,7 +1608,7 @@ async def _handle_show_segments(
         SELECT
             COALESCE(c.segment, 'unclassified') as segment,
             COUNT(*) as contacts,
-            COUNT(*) FILTER (WHERE c.has_replied) as replied,
+            COUNT(*) FILTER (WHERE c.last_reply_at IS NOT NULL) as replied,
             COUNT(*) FILTER (WHERE c.is_email_verified) as verified
         FROM contacts c
         WHERE c.project_id = :pid AND c.deleted_at IS NULL
@@ -1705,9 +1705,9 @@ async def _handle_show_contacts(
     if source:
         filters.append(Contact.source == source)
     if replied is True:
-        filters.append(Contact.has_replied == True)
+        filters.append(Contact.last_reply_at.isnot(None))
     if replied is False:
-        filters.append(Contact.has_replied == False)
+        filters.append(Contact.last_reply_at.is_(None))
     if campaign:
         from sqlalchemy import text as sql_text
         filters.append(sql_text("contacts.campaigns::text ILIKE :camp_filter").bindparams(camp_filter=f"%{campaign}%"))
@@ -1738,7 +1738,7 @@ async def _handle_show_contacts(
 
     # Replied count
     replied_result = await db.execute(
-        select(func.count()).select_from(Contact).where(and_(where_clause, Contact.has_replied == True))
+        select(func.count()).select_from(Contact).where(and_(where_clause, Contact.last_reply_at.isnot(None)))
     )
     replied_count = replied_result.scalar() or 0
 

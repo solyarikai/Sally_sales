@@ -9,8 +9,8 @@ export interface TaskContact {
   job_title?: string;
   linkedin_url?: string;
   status: string;
-  reply_channel?: string;
   last_reply_at?: string;
+  platform_state?: Record<string, any>;
   project_id?: number;
   category?: string;
   days_since?: number;

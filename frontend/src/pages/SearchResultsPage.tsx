@@ -1595,7 +1595,7 @@ function OutreachDetail({ campaign }: { campaign: DomainCampaignInfo }) {
               'px-1.5 py-0.5 rounded text-[10px] font-medium',
               c.has_replied ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-500'
             )}>
-              {c.has_replied ? 'replied' : c.status}
+              {c.last_reply_at ? 'replied' : c.status}
             </span>
           </div>
         ))}

@@ -187,15 +187,34 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     project = relationship("Project", back_populates="contacts")
     activities = relationship("ContactActivity", back_populates="contact", order_by="desc(ContactActivity.created_at)")
 
-    # ── Helper methods for new fields ──
+    # ── Helper methods ──
 
     @property
     def needs_followup(self) -> bool:
-        if self.has_replied:
+        if self.last_reply_at is not None:
             return False
-        if self.last_synced_at is None:
+        synced = self._get_latest_sync()
+        if synced is None:
             return False
-        return self.last_synced_at < datetime.utcnow() - timedelta(days=3)
+        return synced < datetime.utcnow() - timedelta(days=3)
+
+    def _get_latest_sync(self) -> Optional[datetime]:
+        """Most recent sync timestamp across all platforms."""
+        if not self.platform_state:
+            return self.last_synced_at
+        latest = None
+        for p_data in self.platform_state.values():
+            if not isinstance(p_data, dict):
+                continue
+            ts = p_data.get("last_synced")
+            if ts:
+                try:
+                    dt = datetime.fromisoformat(ts)
+                    if latest is None or dt > latest:
+                        latest = dt
+                except (ValueError, TypeError):
+                    pass
+        return latest or self.last_synced_at
 
     def get_platform(self, platform: str) -> dict:
         """Get state for a specific platform, or empty dict."""
@@ -210,6 +229,45 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
         existing = self.platform_state.get(platform, {})
         existing.update(data)
         self.platform_state = {**self.platform_state, platform: existing}
+
+    # ── Dual-write helpers (keep canonical + deprecated in sync) ──
+
+    def mark_replied(self, channel: str = "email", at: Optional[datetime] = None):
+        """Mark contact as replied — canonical + deprecated fields."""
+        now = at or datetime.utcnow()
+        self.last_reply_at = self.last_reply_at or now
+        self.has_replied = True
+        self.reply_channel = self.reply_channel or channel
+
+    def update_platform_status(self, platform: str, status: str):
+        """Update platform status — canonical + deprecated fields."""
+        now = datetime.utcnow()
+        self.set_platform(platform, {"status": status, "last_synced": now.isoformat()})
+        if platform == "smartlead":
+            self.smartlead_status = status
+        elif platform == "getsales":
+            self.getsales_status = status
+        self.last_synced_at = now
+
+    def update_platform_raw(self, platform: str, raw_data):
+        """Store raw webhook/API data — canonical + deprecated fields."""
+        self.set_platform(platform, {"raw": raw_data})
+        if platform == "smartlead":
+            self.smartlead_raw = raw_data
+        elif platform == "getsales":
+            self.getsales_raw = raw_data
+
+    def mark_synced(self, platform: Optional[str] = None):
+        """Bump the sync timestamp — canonical + deprecated fields."""
+        now = datetime.utcnow()
+        self.last_synced_at = now
+        if platform:
+            self.set_platform(platform, {"last_synced": now.isoformat()})
+
+    def set_provenance_data(self, data: dict):
+        """Set contact provenance — canonical + deprecated fields."""
+        self.provenance = data
+        self.gathering_details = data
 
     # ── Indexes ──
     __table_args__ = (

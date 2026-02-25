@@ -103,15 +103,23 @@ info:
     │                           OUR CRM DATABASE                               │
     ├─────────────────────────────────────────────────────────────────────────┤
     │                                                                          │
-    │  contacts ─────────────┐                                                │
-    │  (merged leads)        │                                                │
-    │                        ├──── contact_activities (all touches)           │
-    │                        │                                                │
-    │                        └──── processed_replies (Smartlead emails)       │
+    │  projects ──────────── campaigns (first-class registry)                 │
+    │      │                     ├ platform (smartlead/getsales)              │
+    │      │                     └ channel_accounts (sender identities)       │
+    │      │                                                                  │
+    │      └── contacts ───────┐                                              │
+    │          (single pool)   ├── contact_activities (all touches)           │
+    │                          ├── processed_replies (emails)                 │
+    │                          │                                              │
+    │  Contact fields:         │                                              │
+    │    status (13-state)     │                                              │
+    │    provenance (JSON)     │  how contact was gathered                    │
+    │    platform_state (JSON) │  per-platform data                          │
+    │    last_reply_at         │  canonical reply check                      │
     │                                                                          │
     │  Status Flow:                                                            │
-    │  touched → warm/not_interested/out_of_office/wrong_person/other         │
-    │         → scheduled → qualified/not_qualified                           │
+    │  to_be_sent → sent → interested → negotiating_meeting → scheduled      │
+    │         → meeting_held → qualified/not_qualified                        │
     │                                                                          │
     └─────────────────────────────────────────────────────────────────────────┘
     ```
@@ -124,8 +132,11 @@ components:
     # ========================================
     Contact:
       type: object
-      description: Unified contact from Smartlead and/or GetSales
+      description: |
+        Unified contact from Smartlead and/or GetSales.
+        Single pool — one row per person, platform data consolidated into platform_state JSON.
       properties:
+        # Identity
         id:
           type: integer
           description: Internal CRM ID
@@ -139,6 +150,8 @@ components:
           type: string
         company_name:
           type: string
+        domain:
+          type: string
         job_title:
           type: string
         linkedin_url:
@@ -148,62 +161,80 @@ components:
           type: string
         location:
           type: string
-        
-        # Source identifiers
+
+        # Classification
+        segment:
+          type: string
+          description: Business segment (iGaming, B2B SaaS, etc.)
+        geo:
+          type: string
+          description: Geographic region code (RU, US, etc.)
+        source:
+          type: string
+          enum: [smartlead, getsales, both, manual, pipeline]
+          description: Where this contact came from
+        source_id:
+          type: string
+
+        # Platform lookup IDs (indexed for webhook matching)
         smartlead_id:
           type: string
           description: Lead ID in Smartlead (null if only in GetSales)
         getsales_id:
           type: string
           description: Lead UUID in GetSales (null if only in Smartlead)
-        source:
-          type: string
-          enum: [smartlead, getsales, both]
-          description: Where this contact came from
-        
-        # Status fields
+
+        # ── CANONICAL FIELDS (use these in new code) ──
+
         status:
           type: string
-          enum: [touched, warm, not_interested, out_of_office, wrong_person, other, scheduled, qualified, not_qualified]
+          enum: [lead, to_be_sent, sent, interested, negotiating_meeting, scheduled, meeting_held, qualified, not_qualified, not_interested, out_of_office, wrong_person, other]
           description: |
-            CRM funnel status:
-            - touched: Contacted, no reply yet (has_replied=false)
-            - warm: Positive reply (interested/meeting_request/question)
-            - not_interested: Explicit rejection
-            - out_of_office: Vacation/auto-reply
-            - wrong_person: Left company, wrong contact
-            - other: Replied but content unknown
-            - scheduled: Meeting scheduled (has scheduled_at)
-            - qualified: Meeting held, qualified (has qualified_at)
-            - not_qualified: Meeting held, rejected (has disqualified_at)
-        smartlead_status:
-          type: string
-          enum: [INPROGRESS, STARTED, COMPLETED, BLOCKED, PAUSED, STOPPED]
-          description: Raw status from Smartlead API
-        getsales_status:
-          type: string
-          enum: [ok, Approaching, Engaging, Replied, Opportunity]
-          description: Pipeline stage from GetSales
-        
-        # Reply tracking
-        has_replied:
-          type: boolean
-          description: True if contact has replied (from any channel)
-        reply_channel:
-          type: string
-          enum: [email, linkedin]
-        reply_category:
-          type: string
-          enum: [interested, meeting_request, question, not_interested, out_of_office, wrong_person, unsubscribe, other, unknown]
-          description: AI-classified reply category
-        reply_sentiment:
-          type: string
-          enum: [warm, neutral, cold]
+            13-status funnel machine (single source of truth):
+            - lead: New, not yet outreached
+            - to_be_sent: Queued for campaign
+            - sent: Outreach sent, awaiting reply
+            - interested: Positive reply
+            - negotiating_meeting: Working toward meeting
+            - scheduled: Meeting booked
+            - meeting_held: Meeting completed
+            - qualified/not_qualified: Post-meeting outcome
+            - not_interested/out_of_office/wrong_person/other: Negative outcomes
         last_reply_at:
           type: string
           format: date-time
-        
-        # Meeting tracking
+          description: "Canonical reply check: IS NOT NULL = has replied"
+        provenance:
+          type: object
+          description: |
+            How this contact was gathered (pipeline story). NULL for manual/CSV imports.
+            Schema: {gathered_at, source, extracted_contact_id, discovered_company_id,
+                     domain, company_name, confidence, search_job_id, query,
+                     search_engine, segment, geo, description}
+        platform_state:
+          type: object
+          description: |
+            Per-platform consolidated data, keyed by platform name.
+            Schema: {
+              "smartlead": {"status": "...", "category": 1, "last_synced": "...", "campaigns": [...], "raw": {...}},
+              "getsales": {"status": "...", "flow_name": "...", "last_synced": "...", "raw": {...}}
+            }
+        email_verification_result:
+          type: string
+          enum: [valid, invalid, unknown, catch_all]
+          description: Result from email verification service
+
+        # Client-facing sync
+        sheet_qualification:
+          type: string
+        sheet_client_comment:
+          type: string
+        sheet_row:
+          type: integer
+        notes:
+          type: string
+
+        # Meeting tracking (on OperatorTask)
         scheduled_at:
           type: string
           format: date-time
@@ -217,54 +248,7 @@ components:
         disqualified_at:
           type: string
           format: date-time
-        disqualified_reason:
-          type: string
-        
-        # Activity tracking
-        touch_count:
-          type: integer
-          description: Number of outreach touches
-        campaign_count:
-          type: integer
-          description: Number of campaigns this contact is in
-        first_touch_at:
-          type: string
-          format: date-time
-        
-        # Campaign data
-        campaigns:
-          type: array
-          items:
-            $ref: '#/components/schemas/CampaignInfo'
-          description: All campaigns this contact is enrolled in
-        
-        # Raw data for debugging
-        smartlead_raw:
-          type: object
-          description: Raw webhook/API data from Smartlead
-          properties:
-            webhooks:
-              type: array
-              items:
-                type: object
-                properties:
-                  received_at:
-                    type: string
-                  type:
-                    type: string
-                  payload:
-                    type: object
-            api_data:
-              type: object
-        getsales_raw:
-          type: object
-          description: Raw webhook/API data from GetSales
-        touches:
-          type: array
-          description: Detailed touch history
-          items:
-            $ref: '#/components/schemas/Touch'
-        
+
         # Timestamps
         created_at:
           type: string
@@ -272,9 +256,110 @@ components:
         updated_at:
           type: string
           format: date-time
+
+        # ── DEPRECATED FIELDS (kept for backward compat) ──
+        has_replied:
+          type: boolean
+          description: "DEPRECATED → use last_reply_at IS NOT NULL"
+        reply_channel:
+          type: string
+          description: "DEPRECATED → use latest ContactActivity.channel"
+        reply_category:
+          type: string
+          description: "DEPRECATED → use ProcessedReply.category"
+        reply_sentiment:
+          type: string
+          description: "DEPRECATED → use status funnel"
+        funnel_stage:
+          type: string
+          description: "DEPRECATED → use status"
+        smartlead_status:
+          type: string
+          description: "DEPRECATED → use platform_state.smartlead.status"
+        getsales_status:
+          type: string
+          description: "DEPRECATED → use platform_state.getsales.status"
         last_synced_at:
           type: string
           format: date-time
+          description: "DEPRECATED → use platform_state[p].last_synced"
+        gathering_details:
+          type: object
+          description: "DEPRECATED → use provenance (renamed)"
+    
+    # ========================================
+    # CAMPAIGN (first-class registry)
+    # ========================================
+    Campaign:
+      type: object
+      description: |
+        First-class registry of outreach campaigns per project.
+        Replaces the old Project.campaign_filters JSON list with proper FK relationships.
+        Each campaign maps to an external campaign/flow in SmartLead or GetSales.
+      properties:
+        id:
+          type: integer
+        company_id:
+          type: integer
+        project_id:
+          type: integer
+          description: FK to projects table (nullable)
+        platform:
+          type: string
+          enum: [smartlead, getsales]
+        channel:
+          type: string
+          enum: [email, linkedin]
+        external_id:
+          type: string
+          description: Platform-specific campaign/flow ID
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, paused, completed, archived]
+        push_rule_id:
+          type: integer
+          description: FK to campaign_push_rules for auto-push config
+        leads_count:
+          type: integer
+        replied_count:
+          type: integer
+        config:
+          type: object
+          description: Platform-specific config (schedule, limits, etc.)
+    
+    # ========================================
+    # CHANNEL ACCOUNT (sender identities)
+    # ========================================
+    ChannelAccount:
+      type: object
+      description: |
+        Sender identities per platform per project.
+        Tracks GetSales sender profiles (Алекс, Катя) and SmartLead email accounts.
+      properties:
+        id:
+          type: integer
+        company_id:
+          type: integer
+        project_id:
+          type: integer
+        platform:
+          type: string
+          enum: [smartlead, getsales]
+        channel:
+          type: string
+          enum: [email, linkedin]
+        external_id:
+          type: string
+        display_name:
+          type: string
+        email:
+          type: string
+        profile_url:
+          type: string
+        is_active:
+          type: boolean
     
     # ========================================
     # CAMPAIGN INFO

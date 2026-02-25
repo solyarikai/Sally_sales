@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Body, Qu
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc, String
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import datetime
 import logging
 import json
@@ -147,6 +147,7 @@ class ActivityResponse(BaseModel):
 
 
 class ContactWithActivitiesResponse(BaseModel):
+    """Clean API contract — no deprecated DB fields exposed."""
     id: int
     email: str
     first_name: Optional[str] = None
@@ -156,13 +157,18 @@ class ContactWithActivitiesResponse(BaseModel):
     linkedin_url: Optional[str] = None
     source: str
     status: str
-    has_replied: bool
     last_reply_at: Optional[datetime] = None
-    reply_channel: Optional[str] = None
-    smartlead_status: Optional[str] = None
-    getsales_status: Optional[str] = None
-    last_synced_at: Optional[datetime] = None
+    has_replied: bool = False
+    provenance: Optional[dict] = None
+    platform_state: Optional[dict] = None
     activities: List[ActivityResponse] = []
+
+    @field_validator('has_replied', mode='before')
+    @classmethod
+    def compute_has_replied(cls, v, info):
+        if info.data.get('last_reply_at') is not None:
+            return True
+        return bool(v)
     
     class Config:
         from_attributes = True
@@ -337,6 +343,7 @@ async def fetch_smartlead_replies(
                                     status="replied",
                                     has_replied=True,
                                     reply_channel="email",
+                                    last_reply_at=datetime.utcnow(),
                                     last_synced_at=datetime.utcnow(),
                                     campaigns=[{
                                         "name": campaign.get("name"),
@@ -355,12 +362,11 @@ async def fetch_smartlead_replies(
                                 contacts_updated += 1
                                 logger.info(f"Reply sync: created contact {email} from reply data")
                             elif not contact.has_replied:
-                                contact.has_replied = True
+                                contact.mark_replied("email")
                                 from app.services.status_machine import transition_status
                                 new_st, ok, _msg = transition_status(contact.status, "interested")
                                 if ok:
                                     contact.status = new_st
-                                # Parse reply_time string to datetime
                                 reply_time_str = reply.get("reply_time")
                                 if reply_time_str:
                                     try:
@@ -368,7 +374,6 @@ async def fetch_smartlead_replies(
                                         contact.last_reply_at = datetime.fromisoformat(reply_time_str.replace("Z", ""))
                                     except:
                                         contact.last_reply_at = None
-                                contact.reply_channel = "email"
                                 contacts_updated += 1
                                 
                             total_replies += 1
@@ -552,7 +557,7 @@ async def get_sync_status(
         .where(and_(
             Contact.company_id == company.id,
             Contact.deleted_at.is_(None),
-            Contact.has_replied == True
+            Contact.last_reply_at.isnot(None)
         ))
     )
     
@@ -805,15 +810,14 @@ async def smartlead_webhook(
     # Update contact if replied — use status machine for forward-only transitions
     from app.services.status_machine import transition_status, status_from_ai_category
     if "replied" in activity_type:
-        contact.has_replied = True
-        contact.reply_channel = "email"
+        contact.mark_replied("email", at=event_time)
         contact.last_reply_at = event_time
 
     # Map Smartlead category → 13-status via state machine
     if lead_data.get("category"):
         category = lead_data["category"]
         cat_name = category.get("name", "").lower()
-        contact.smartlead_status = category.get("name")
+        contact.update_platform_status("smartlead", category.get("name"))
         # Map Smartlead category names to AI categories for status machine
         sl_to_ai = {
             "interested": "interested",
@@ -1124,6 +1128,7 @@ async def getsales_webhook(
             getsales_status=contact_data.get("pipeline_stage_name"),
             status="replied" if is_reply else "contacted",
             has_replied=is_reply,
+            last_reply_at=datetime.utcnow() if is_reply else None,
             last_synced_at=datetime.utcnow(),
             # Add flow/automation info from webhook
             campaigns=[{
@@ -1206,8 +1211,7 @@ async def getsales_webhook(
     
     # Update contact if this is a reply
     if is_reply:
-        contact.has_replied = True
-        contact.reply_channel = "linkedin"
+        contact.mark_replied("linkedin", at=activity_at)
         contact.last_reply_at = activity_at
         contact.getsales_status = contact_data.get("pipeline_stage_name")
 
@@ -1290,6 +1294,7 @@ async def getsales_webhook(
                 contact.getsales_raw = {"webhooks": [webhook_entry]}
         else:
             contact.getsales_raw = {"webhooks": [webhook_entry]}
+        contact.update_platform_raw("getsales", contact.getsales_raw)
         
         # Send Telegram notification for LinkedIn reply (with per-project routing)
         try:
@@ -1415,12 +1420,9 @@ async def get_contact_with_activities(
         linkedin_url=contact.linkedin_url,
         source=contact.source,
         status=contact.status,
-        has_replied=contact.has_replied or False,
         last_reply_at=contact.last_reply_at,
-        reply_channel=contact.reply_channel,
-        smartlead_status=contact.smartlead_status,
-        getsales_status=contact.getsales_status,
-        last_synced_at=contact.last_synced_at,
+        provenance=contact.provenance,
+        platform_state=contact.platform_state,
         activities=[ActivityResponse.model_validate(a) for a in activities]
     )
 
@@ -1439,7 +1441,7 @@ async def get_recent_replies(
         .where(and_(
             Contact.company_id == company.id,
             Contact.deleted_at.is_(None),
-            Contact.has_replied == True
+            Contact.last_reply_at.isnot(None)
         ))
         .order_by(desc(Contact.last_reply_at))
         .limit(limit)
@@ -1467,12 +1469,9 @@ async def get_recent_replies(
             linkedin_url=contact.linkedin_url,
             source=contact.source,
             status=contact.status,
-            has_replied=contact.has_replied or False,
             last_reply_at=contact.last_reply_at,
-            reply_channel=contact.reply_channel,
-            smartlead_status=contact.smartlead_status,
-            getsales_status=contact.getsales_status,
-            last_synced_at=contact.last_synced_at,
+            provenance=contact.provenance,
+            platform_state=contact.platform_state,
             activities=[ActivityResponse.model_validate(a) for a in activities]
         ))
     

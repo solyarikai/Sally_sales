@@ -911,10 +911,8 @@ async def process_reply_webhook(
                 logger.info(f"[PROCESSOR] Created contact id={contact.id} for {lead_email}")
             else:
                 # Update reply tracking on existing contact
-                contact.has_replied = True
-                contact.last_reply_at = datetime.utcnow()
-                contact.reply_channel = contact.reply_channel or "email"
-                contact.last_synced_at = datetime.utcnow()
+                contact.mark_replied("email")
+                contact.mark_synced("smartlead")
 
                 # Merge new campaign into campaigns list (dedup by name+id)
                 if new_campaign_entry:
@@ -944,12 +942,12 @@ async def process_reply_webhook(
                     if "webhooks" not in raw:
                         raw["webhooks"] = []
                     raw["webhooks"].append(webhook_entry)
-                    contact.smartlead_raw = raw
+                    contact.update_platform_raw("smartlead", raw)
                 except (json.JSONDecodeError, TypeError, ValueError) as e:
                     logger.warning(f"[PROCESSOR] Failed to parse smartlead_raw, resetting: {e}")
-                    contact.smartlead_raw = {"webhooks": [webhook_entry]}
+                    contact.update_platform_raw("smartlead", {"webhooks": [webhook_entry]})
             else:
-                contact.smartlead_raw = {"webhooks": [webhook_entry]}
+                contact.update_platform_raw("smartlead", {"webhooks": [webhook_entry]})
             
             # Create activity record for this reply (with dedup check)
             snippet = body[:200] if body else None
@@ -993,9 +991,7 @@ async def process_reply_webhook(
                 logger.info(f"[SMARTLEAD] Skipping duplicate activity for contact {contact.id}")
             
             # Update contact reply status and funnel fields
-            contact.has_replied = True
-            contact.reply_channel = "email"
-            contact.last_reply_at = datetime.utcnow()
+            contact.mark_replied("email")
 
             # Use status machine for forward-only transition
             category = classification.get("category", "other")

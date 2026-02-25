@@ -170,7 +170,7 @@ export function ContactDetailPage() {
           </span>
           <span className={cn(
             'px-2 py-0.5 rounded-full text-xs font-medium',
-            contact.has_replied ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-600'
+            contact.last_reply_at ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-600'
           )}>
             {contact.status}
           </span>
@@ -235,9 +235,9 @@ export function ContactDetailPage() {
               <div className="flex flex-wrap gap-1.5">
                 <span className={cn(
                   'px-2 py-0.5 rounded-full text-xs font-medium',
-                  contact.has_replied ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-600'
+                  contact.last_reply_at ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-600'
                 )}>
-                  {contact.has_replied ? 'Replied' : 'No reply'}
+                  {contact.last_reply_at ? 'Replied' : 'No reply'}
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                   {contact.status}

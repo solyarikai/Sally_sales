@@ -76,7 +76,7 @@ async def get_project_conversations(
             .where(
                 and_(
                     or_(*campaign_conditions),
-                    Contact.has_replied == True,
+                    Contact.last_reply_at.isnot(None),
                     Contact.deleted_at.is_(None),
                     has_activities,
                 )
@@ -90,7 +90,7 @@ async def get_project_conversations(
             .where(
                 and_(
                     Contact.project_id == project_id,
-                    Contact.has_replied == True,
+                    Contact.last_reply_at.isnot(None),
                     Contact.deleted_at.is_(None),
                     has_activities,
                 )

@@ -19,17 +19,19 @@ export interface Contact {
   linkedin_url?: string;
   location?: string;
   notes?: string;
-  created_at: string;
-  updated_at: string;
-  has_replied?: boolean;
-  has_smartlead?: boolean;
-  has_getsales?: boolean;
-  campaign?: string;
-  campaigns?: Array<{ id: string; name: string; source: string; status?: string }>;
-  gathering_details?: Record<string, any>;
-  needs_followup?: boolean;
   smartlead_id?: string;
   getsales_id?: string;
+  // Canonical funnel
+  last_reply_at?: string;
+  has_replied?: boolean;       // computed by backend from last_reply_at
+  needs_followup?: boolean;
+  // Canonical data
+  provenance?: Record<string, any>;
+  platform_state?: Record<string, any>;
+  campaigns?: Array<{ id: string; name: string; source: string; status?: string }>;
+  // Timestamps
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ContactListResponse {
@@ -147,12 +149,6 @@ export interface ContactActivity {
 }
 
 export interface ContactWithActivities extends Contact {
-  has_replied: boolean;
-  last_reply_at?: string;
-  reply_channel?: string;
-  smartlead_status?: string;
-  getsales_status?: string;
-  last_synced_at?: string;
   activities: ContactActivity[];
 }
 
@@ -161,7 +157,6 @@ export interface SyncStatus {
   by_source: Record<string, number>;
   replied_contacts: number;
   total_activities: number;
-  last_synced_at?: string;
 }
 
 export interface ContactFilters {
