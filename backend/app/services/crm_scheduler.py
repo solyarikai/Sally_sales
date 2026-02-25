@@ -43,6 +43,27 @@ async def _get_disabled_campaign_names() -> set:
                 names.update(filters)
         return names
 
+
+async def _get_enabled_campaign_names() -> set:
+    """Get campaign names from projects with webhooks_enabled=True.
+    Only these campaigns should be polled/registered — avoids iterating all 1700+ SmartLead campaigns.
+    """
+    from app.models.contact import Project
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Project.campaign_filters).where(
+                Project.webhooks_enabled == True,
+                Project.campaign_filters.isnot(None),
+                Project.deleted_at.is_(None),
+            )
+        )
+        names = set()
+        for (filters,) in result.all():
+            if isinstance(filters, list):
+                names.update(filters)
+        return names
+
+
 # Shared webhook health state (updated by webhook handlers)
 _last_webhook_received_at: Optional[datetime] = None
 
@@ -85,7 +106,17 @@ class CRMScheduler:
         self._sheet_sync_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         
-        # Tracking
+        # Per-task tracking: last_run, interval_seconds, next_run
+        self._task_timing: dict[str, dict] = {
+            "reply_check": {"last_run": None, "interval": 180, "label": "Reply polling"},
+            "sync": {"last_run": None, "interval": sync_interval_minutes * 60, "label": "Full CRM sync"},
+            "webhook_setup": {"last_run": None, "interval": 300, "label": "Webhook registration"},
+            "conversation_sync": {"last_run": None, "interval": 180, "label": "Conversation sync"},
+            "sheet_sync": {"last_run": None, "interval": 300, "label": "Sheet sync"},
+            "event_recovery": {"last_run": None, "interval": 300, "label": "Event recovery"},
+            "prompt_refresh": {"last_run": None, "interval": prompt_refresh_interval_hours * 3600, "label": "Prompt refresh"},
+            "report": {"last_run": None, "interval": report_interval_hours * 3600, "label": "Reports"},
+        }
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
         self._last_webhook_check: Optional[datetime] = None
@@ -93,7 +124,37 @@ class CRMScheduler:
         self._sync_count = 0
         self._reply_count = 0
         self._webhook_healthy = True
+        
+        # Campaign list cache (avoid fetching all 1700 campaigns every 3 min)
+        self._campaign_cache: Optional[list] = None
+        self._campaign_cache_at: Optional[datetime] = None
+        self._CAMPAIGN_CACHE_TTL = 1800  # 30 min
     
+    def _mark_task_run(self, task_name: str, interval: int = None):
+        """Record that a task just completed. Optionally update its interval."""
+        now = datetime.utcnow()
+        if task_name in self._task_timing:
+            self._task_timing[task_name]["last_run"] = now
+            if interval is not None:
+                self._task_timing[task_name]["interval"] = interval
+
+    async def _get_campaigns_cached(self) -> list:
+        """Get SmartLead campaigns with 30-min cache. One API call instead of per-cycle."""
+        now = datetime.utcnow()
+        if (self._campaign_cache is not None
+                and self._campaign_cache_at
+                and (now - self._campaign_cache_at).total_seconds() < self._CAMPAIGN_CACHE_TTL):
+            return self._campaign_cache
+        
+        sync_service = get_crm_sync_service()
+        if not sync_service.smartlead:
+            return []
+        campaigns = await sync_service.smartlead.get_campaigns()
+        self._campaign_cache = campaigns
+        self._campaign_cache_at = now
+        logger.info(f"Campaign cache refreshed: {len(campaigns)} campaigns")
+        return campaigns
+
     async def start(self):
         """Start all scheduler tasks + watchdog."""
         if self._running:
@@ -176,6 +237,7 @@ class CRMScheduler:
                 await self._run_sync()
                 self._sync_count += 1
                 self._last_sync = datetime.utcnow()
+                self._mark_task_run("sync")
             except Exception as e:
                 logger.error(f"CRM sync error: {e}")
             await asyncio.sleep(self.sync_interval)
@@ -233,6 +295,7 @@ class CRMScheduler:
             else:
                 interval = 600  # 10 min: steady state, webhooks are working
             
+            self._mark_task_run("reply_check", interval=interval)
             await asyncio.sleep(interval)
     
     async def _auto_assign_new_campaigns(self):
@@ -240,14 +303,12 @@ class CRMScheduler:
         from app.models.contact import Project
         from sqlalchemy import select, and_
 
-        sync_service = get_crm_sync_service()
-        if not sync_service.smartlead:
-            return
-
         try:
-            all_campaigns = await sync_service.smartlead.get_campaigns()
+            all_campaigns = await self._get_campaigns_cached()
         except Exception as e:
             logger.warning(f"Failed to fetch campaigns for auto-assign: {e}")
+            return
+        if not all_campaigns:
             return
 
         async with async_session_maker() as session:
@@ -310,22 +371,23 @@ class CRMScheduler:
                 logger.error(f"Auto-assign campaigns failed: {e}")
     
     async def _check_replies(self):
-        """Check for new replies via API polling (backup to webhooks)."""
+        """Check for new replies — scoped to enabled project campaigns only."""
         logger.info(f"Checking replies via API (run #{self._reply_count + 1})")
         sync_service = get_crm_sync_service()
 
-        # Get campaigns to skip from disabled projects
+        # Scope to only campaigns linked to enabled projects
         try:
-            skip_campaigns = await _get_disabled_campaign_names()
+            enabled_campaigns = await _get_enabled_campaign_names()
         except Exception as e:
-            logger.warning(f"Failed to load disabled campaigns: {e}")
-            skip_campaigns = set()
+            logger.warning(f"Failed to load enabled campaigns, falling back to all: {e}")
+            enabled_campaigns = None
 
         async with async_session_maker() as session:
             try:
                 if sync_service.smartlead:
                     results = await sync_service.sync_smartlead_replies(
-                        session, self.company_id, skip_campaigns=skip_campaigns
+                        session, self.company_id,
+                        only_campaigns=enabled_campaigns,
                     )
                     new_replies = results.get('new_replies', 0)
                     campaigns_checked = results.get('campaigns_checked', 0)
@@ -353,10 +415,12 @@ class CRMScheduler:
             try:
                 await self._setup_webhooks()
                 self._last_webhook_check = datetime.utcnow()
-                retry_delay = 300  # 5 min on success
+                retry_delay = 300
+                self._mark_task_run("webhook_setup", interval=retry_delay)
             except Exception as e:
                 logger.error(f"Webhook setup error: {e}")
-                retry_delay = 60  # 1 min on failure
+                retry_delay = 60
+                self._mark_task_run("webhook_setup", interval=retry_delay)
             await asyncio.sleep(retry_delay)
     
     async def _setup_webhooks(self):
@@ -372,9 +436,10 @@ class CRMScheduler:
         while self._running:
             try:
                 await self._recover_events()
+                self._mark_task_run("event_recovery")
             except Exception as e:
                 logger.error(f"Event recovery error: {e}")
-            await asyncio.sleep(300)  # Check every 5 min
+            await asyncio.sleep(300)
     
     async def _recover_events(self):
         """Find and reprocess failed webhook events with exponential backoff."""
@@ -461,6 +526,7 @@ class CRMScheduler:
                             f"activities_created={stats['activities_created']} "
                             f"errors={stats['errors']}"
                         )
+                self._mark_task_run("conversation_sync")
             except Exception as e:
                 logger.error(f"Conversation sync error: {e}")
             await asyncio.sleep(interval)
@@ -685,9 +751,10 @@ class CRMScheduler:
             cycle += 1
             try:
                 await self._run_sheet_sync(poll_qualification=(cycle % 3 == 0))
+                self._mark_task_run("sheet_sync")
             except Exception as e:
                 logger.error(f"Sheet sync error: {e}")
-            await asyncio.sleep(300)  # 5 minutes
+            await asyncio.sleep(300)
 
     async def _run_sheet_sync(self, poll_qualification: bool = False):
         """Run sheet sync for all projects with enabled sheet_sync_config."""
@@ -769,6 +836,7 @@ class CRMScheduler:
         while self._running:
             try:
                 await self._send_reply_report()
+                self._mark_task_run("report")
             except Exception as e:
                 logger.error(f"Report generation failed: {e}")
             await asyncio.sleep(self.report_interval)
@@ -936,6 +1004,7 @@ class CRMScheduler:
             try:
                 await self._refresh_project_prompts()
                 self._last_prompt_refresh = datetime.utcnow()
+                self._mark_task_run("prompt_refresh")
             except Exception as e:
                 logger.error(f"Prompt refresh error: {e}")
             await asyncio.sleep(self.prompt_refresh_interval)
@@ -1005,10 +1074,23 @@ class CRMScheduler:
             else:
                 task_health[name] = "running"
         
+        # Build task_timing with next_run estimates
+        task_timing_out = {}
+        for key, t in self._task_timing.items():
+            last = t["last_run"]
+            interval = t["interval"]
+            task_timing_out[key] = {
+                "label": t["label"],
+                "last_run": last.isoformat() if last else None,
+                "interval_seconds": interval,
+                "next_run": (last + timedelta(seconds=interval)).isoformat() if last else None,
+            }
+
         return {
             "running": self._running,
             "webhook_healthy": self._webhook_healthy,
             "task_health": task_health,
+            "task_timing": task_timing_out,
             "sync_interval_minutes": self.sync_interval // 60,
             "company_id": self.company_id,
             "last_sync": self._last_sync.isoformat() if self._last_sync else None,

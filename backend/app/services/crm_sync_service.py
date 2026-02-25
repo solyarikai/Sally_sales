@@ -264,10 +264,21 @@ class SmartleadClient:
         resp.raise_for_status()
         return resp.json()
     
-    async def get_campaigns(self) -> List[dict]:
-        """Get all campaigns. Smartlead returns all campaigns in one call (no pagination)."""
+    _campaigns_cache: list | None = None
+    _campaigns_cache_at: float = 0
+    _CAMPAIGNS_CACHE_TTL = 1800  # 30 min
+
+    async def get_campaigns(self, force_refresh: bool = False) -> List[dict]:
+        """Get all campaigns with 30-min cache. SmartLead returns all in one call."""
+        import time
+        now = time.time()
+        if not force_refresh and self._campaigns_cache and (now - self._campaigns_cache_at) < self._CAMPAIGNS_CACHE_TTL:
+            return self._campaigns_cache
         data = await self._get("/campaigns")
-        return data if isinstance(data, list) else data.get("data", [])
+        result = data if isinstance(data, list) else data.get("data", [])
+        SmartleadClient._campaigns_cache = result
+        SmartleadClient._campaigns_cache_at = now
+        return result
     
     async def get_campaign_leads(self, campaign_id: int, limit: int = 100, offset: int = 0, lead_category_id: int = None) -> List[dict]:
         """Get leads from a campaign.
@@ -390,16 +401,18 @@ class SmartleadClient:
         
         return await self._post(f"/campaigns/{campaign_id}/webhooks", webhook_data)
     
+    _verified_webhooks: set = set()
+
     async def setup_crm_webhooks(self, webhook_url: str, skip_campaigns: set = None) -> Dict[str, Any]:
         """
-        Set up CRM webhooks for all active Smartlead campaigns.
-        Runs up to 10 checks concurrently with a shared HTTP client.
-        Filters out campaigns with non-numeric IDs (test entries).
-        skip_campaigns: set of campaign names to skip (from disabled projects).
+        Set up CRM webhooks for active Smartlead campaigns.
+        Skips campaigns already verified to have the webhook (in-memory cache).
+        Only checks NEW campaigns on subsequent runs — avoids re-querying
+        webhooks for all 1700 campaigns every 5 minutes.
         """
         import asyncio
 
-        results = {"created": [], "existing": [], "failed": [], "skipped": []}
+        results = {"created": [], "existing": [], "failed": [], "skipped": [], "cached": []}
         skip_campaigns = skip_campaigns or set()
 
         try:
@@ -410,22 +423,22 @@ class SmartleadClient:
                 cid = c.get("id")
                 cname = c.get("name", "Unknown")
                 status = (c.get("status") or "").upper()
-                # Skip inactive campaigns
                 if status != "ACTIVE":
                     results["skipped"].append({"id": cid, "name": cname, "status": c.get("status")})
                     continue
-                # Skip non-numeric IDs (test entries like "test-123")
                 if not str(cid).isdigit():
                     results["skipped"].append({"id": cid, "name": cname, "reason": "non-numeric ID"})
                     continue
-                # Skip campaigns from projects with webhooks disabled
                 if cname in skip_campaigns:
                     results["skipped"].append({"id": cid, "name": cname, "reason": "webhooks disabled for project"})
-                    logger.info(f"Skipping webhook for '{cname}' (project webhooks disabled)")
+                    continue
+                if cid in self._verified_webhooks:
+                    results["cached"].append({"id": cid, "name": cname})
+                    results["existing"].append({"id": cid, "name": cname})
                     continue
                 active.append(c)
 
-            logger.info(f"Found {len(campaigns)} Smartlead campaigns, {len(active)} active (skipped {len(results['skipped'])})")
+            logger.info(f"Webhook check: {len(active)} new campaigns to verify, {len(results['cached'])} already verified")
 
             sem = asyncio.Semaphore(10)
 
@@ -438,6 +451,7 @@ class SmartleadClient:
                         for wh in existing_webhooks:
                             if wh.get("webhook_url") == webhook_url:
                                 results["existing"].append({"id": campaign_id, "name": campaign_name})
+                                self._verified_webhooks.add(campaign_id)
                                 return
                         await self.create_campaign_webhook(
                             campaign_id=campaign_id,
@@ -445,6 +459,7 @@ class SmartleadClient:
                             webhook_name=f"CRM Sync - {campaign_name[:30]}"
                         )
                         results["created"].append({"id": campaign_id, "name": campaign_name})
+                        self._verified_webhooks.add(campaign_id)
                     except Exception as e:
                         results["failed"].append({"id": campaign_id, "name": campaign_name, "error": str(e)})
 
@@ -1154,22 +1169,16 @@ class CRMSyncService:
         company_id: int,
         since: datetime = None,
         skip_campaigns: set = None,
+        only_campaigns: set = None,
     ) -> Dict[str, int]:
         """
-        Sync reply activities from Smartlead using per-campaign polling.
+        Sync reply activities from Smartlead — scoped to project campaigns only.
 
-        Uses the statistics endpoint (GET /campaigns/{id}/statistics) to find
-        ALL leads with reply_time set (regardless of category). This catches
-        replies that webhooks missed. For each new reply:
-        1. Look up lead_id from local DB (contacts.smartlead_id) — no API call
-        2. Fall back to statistics lead_id, then API call as last resort
-        3. Fetch message history using lead_id for actual reply text
-        4. Strip HTML and extract clean reply body
-        5. Run through the full reply pipeline (classify, draft, notify)
+        When only_campaigns is provided, ONLY polls campaigns in that set
+        (from enabled projects). This avoids iterating all 1700+ SmartLead
+        campaigns and instead checks only the ~15-50 that matter.
 
-        Uses Redis cache for fast dedup, falls back to DB check.
-        Reuses a single httpx client for all message-history fetches.
-        skip_campaigns: set of campaign names to skip (from disabled projects).
+        Falls back to skip_campaigns (old behavior) if only_campaigns is None.
         """
         if not self.smartlead:
             raise ValueError("Smartlead API key not configured")
@@ -1187,9 +1196,13 @@ class CRMSyncService:
 
         try:
             campaigns = await self.smartlead.get_campaigns()
-            logger.info(f"Reply sync: checking {len(campaigns)} campaigns")
 
-            # Reuse a single httpx client for all message-history fetches
+            if only_campaigns:
+                campaigns = [c for c in campaigns if c.get("name") in only_campaigns]
+                logger.info(f"Reply sync: {len(campaigns)} project campaigns (scoped)")
+            else:
+                logger.info(f"Reply sync: checking {len(campaigns)} campaigns (unscoped)")
+
             async with httpx.AsyncClient(timeout=30.0) as http_client:
                 for campaign in campaigns:
                     status = campaign.get("status", "").upper()
@@ -1199,7 +1212,6 @@ class CRMSyncService:
                     if status not in ("ACTIVE", "PAUSED", "COMPLETED"):
                         continue
 
-                    # Skip campaigns from projects with webhooks disabled
                     if campaign_name in skip_campaigns:
                         continue
 
@@ -1643,7 +1655,9 @@ class CRMSyncService:
                 results["smartlead"]["contacts"] = await self.sync_smartlead_contacts(session, company_id)
                 
                 logger.info("Syncing Smartlead replies...")
-                results["smartlead"]["replies"] = await self.sync_smartlead_replies(session, company_id)
+                results["smartlead"]["replies"] = await self.sync_smartlead_replies(
+                    session, company_id
+                )
             
             if self.getsales:
                 logger.info("Syncing GetSales contacts...")

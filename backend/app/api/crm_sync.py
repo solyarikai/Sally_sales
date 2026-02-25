@@ -714,15 +714,22 @@ async def get_project_monitoring(
         )
     )
 
-    # Determine current polling interval
+    # Task timing from scheduler
+    task_timing = scheduler_status.get("task_timing", {})
     reply_count = scheduler_status.get("reply_check_count", 0)
     webhook_healthy = scheduler_status.get("webhook_healthy", True)
-    if reply_count <= 3:
-        current_reply_interval = "3 min (startup catch-up)"
-    elif not webhook_healthy:
-        current_reply_interval = "3 min (webhooks unhealthy)"
-    else:
-        current_reply_interval = "10 min (steady state)"
+
+    # Build intervals from live task_timing (accurate last_run + next_run)
+    polling_tasks = []
+    display_order = ["reply_check", "sync", "webhook_setup", "conversation_sync", "sheet_sync", "event_recovery"]
+    for key in display_order:
+        t = task_timing.get(key, {})
+        polling_tasks.append({
+            "task": t.get("label", key),
+            "interval_seconds": t.get("interval_seconds"),
+            "last_run": t.get("last_run"),
+            "next_run": t.get("next_run"),
+        })
 
     return {
         "project": {
@@ -740,14 +747,7 @@ async def get_project_monitoring(
             "last_check": scheduler_status.get("last_webhook_check"),
         },
         "polling": {
-            "intervals": [
-                {"task": "Reply polling", "interval": current_reply_interval, "last_run": scheduler_status.get("last_reply_check")},
-                {"task": "Full CRM sync", "interval": "30 min", "last_run": scheduler_status.get("last_sync")},
-                {"task": "Webhook registration", "interval": "5 min", "last_run": scheduler_status.get("last_webhook_check")},
-                {"task": "Conversation sync", "interval": "3 min", "last_run": None},
-                {"task": "Sheet sync", "interval": "5 min", "last_run": None},
-                {"task": "Event recovery", "interval": "5 min", "last_run": None},
-            ],
+            "intervals": polling_tasks,
             "reply_checks_count": reply_count,
             "sync_count": scheduler_status.get("sync_count", 0),
         },

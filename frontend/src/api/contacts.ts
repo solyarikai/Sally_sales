@@ -128,7 +128,7 @@ export interface ProjectMonitoring {
   scheduler: { running: boolean; task_health: Record<string, string> };
   webhooks: { healthy: boolean; last_received: string | null; last_check: string | null };
   polling: {
-    intervals: { task: string; interval: string; last_run: string | null }[];
+    intervals: { task: string; interval_seconds: number | null; last_run: string | null; next_run: string | null }[];
     reply_checks_count: number;
     sync_count: number;
   };

@@ -504,23 +504,34 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
                     <th className="text-left px-3 py-1.5 font-medium">Task</th>
                     <th className="text-left px-3 py-1.5 font-medium">Interval</th>
                     <th className="text-left px-3 py-1.5 font-medium">Last Run</th>
-                    <th className="text-center px-3 py-1.5 font-medium">Status</th>
+                    <th className="text-left px-3 py-1.5 font-medium">Next Run</th>
                   </tr>
                 </thead>
                 <tbody>
                   {monitoring.polling.intervals.map((p, i) => {
-                    const taskKey = p.task.toLowerCase().replace(/\s+/g, '_');
-                    const health = monitoring.scheduler.task_health[taskKey] || monitoring.scheduler.task_health[taskKey.replace('_polling', '_check')] || 'unknown';
+                    const fmtInterval = (s: number | null) => {
+                      if (!s) return '—';
+                      if (s >= 3600) return `${Math.round(s / 3600)}h`;
+                      return `${Math.round(s / 60)} min`;
+                    };
+                    const fmtTime = (iso: string | null) => {
+                      if (!iso) return '—';
+                      const d = new Date(iso);
+                      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    };
+                    const isOverdue = p.next_run && new Date(p.next_run).getTime() < Date.now();
                     return (
                       <tr key={i} className={cn("border-t", isDark ? "border-[#333]" : "border-neutral-100")}>
                         <td className={cn("px-3 py-1.5 font-medium", isDark ? "text-[#d4d4d4]" : "text-neutral-700")}>{p.task}</td>
                         <td className={cn("px-3 py-1.5", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
                           <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-mono", isDark ? "bg-[#2d2d2d]" : "bg-neutral-100")}>
-                            {p.interval}
+                            {fmtInterval(p.interval_seconds)}
                           </span>
                         </td>
-                        <td className={cn("px-3 py-1.5", isDark ? "text-[#858585]" : "text-neutral-400")}>{timeAgo(p.last_run)}</td>
-                        <td className="px-3 py-1.5 text-center">{taskStatusIcon(health)}</td>
+                        <td className={cn("px-3 py-1.5 font-mono", isDark ? "text-[#858585]" : "text-neutral-500")}>{fmtTime(p.last_run)}</td>
+                        <td className={cn("px-3 py-1.5 font-mono", isOverdue ? "text-amber-500" : isDark ? "text-[#858585]" : "text-neutral-500")}>
+                          {p.next_run ? (isOverdue ? `${timeAgo(p.next_run)} overdue` : fmtTime(p.next_run)) : '—'}
+                        </td>
                       </tr>
                     );
                   })}
