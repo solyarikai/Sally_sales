@@ -65,6 +65,10 @@ def upgrade() -> None:
         # Make external_id nullable (model allows NULL)
         op.alter_column('campaigns', 'external_id', nullable=True)
 
+        # Add server defaults to timestamp columns if missing
+        op.alter_column('campaigns', 'created_at', server_default=sa.func.now())
+        op.alter_column('campaigns', 'updated_at', server_default=sa.func.now())
+
         # Add missing indexes (idempotent via IF NOT EXISTS)
         op.execute("CREATE INDEX IF NOT EXISTS ix_campaigns_project ON campaigns (project_id)")
         op.execute("CREATE INDEX IF NOT EXISTS ix_campaigns_company ON campaigns (company_id)")
@@ -232,9 +236,8 @@ def upgrade() -> None:
     """)
 
     # ── 7. Backfill campaigns table from Contact.campaigns JSON ──
-    # Extract unique (platform, external_id, name) from all contacts
     op.execute("""
-        INSERT INTO campaigns (company_id, project_id, platform, channel, external_id, name, status)
+        INSERT INTO campaigns (company_id, project_id, platform, channel, external_id, name, status, created_at, updated_at)
         SELECT DISTINCT ON (c_data->>'source', c_data->>'id')
             COALESCE(ct.company_id, 1) as company_id,
             ct.project_id,
@@ -242,7 +245,9 @@ def upgrade() -> None:
             CASE WHEN c_data->>'source' = 'getsales' THEN 'linkedin' ELSE 'email' END as channel,
             c_data->>'id' as external_id,
             c_data->>'name' as name,
-            COALESCE(c_data->>'status', 'active') as status
+            COALESCE(c_data->>'status', 'active') as status,
+            NOW(),
+            NOW()
         FROM contacts ct,
              jsonb_array_elements(
                  CASE WHEN ct.campaigns IS NOT NULL AND ct.campaigns::text != 'null'
