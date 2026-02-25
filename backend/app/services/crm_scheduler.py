@@ -809,7 +809,7 @@ class CRMScheduler:
                 ]
                 project_linkedin = [
                     (a, c) for a, c in getsales_replies
-                    if get_getsales_flow_name(a.extra_data, c.campaigns).lower() in campaign_names
+                    if get_getsales_flow_name(a.extra_data, c.get_platform("getsales").get("campaigns", [])).lower() in campaign_names
                 ]
                 
                 if not project_warm and not project_linkedin:
@@ -842,7 +842,7 @@ class CRMScheduler:
         linkedin_by_flow = {}
         seen_linkedin_contacts = set()
         for activity, contact in getsales_replies:
-            flow_name = get_getsales_flow_name(activity.extra_data, contact.campaigns)
+            flow_name = get_getsales_flow_name(activity.extra_data, contact.get_platform("getsales").get("campaigns", []))
             contact_key = (flow_name, contact.id)
             if contact_key in seen_linkedin_contacts:
                 continue

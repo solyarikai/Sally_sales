@@ -121,8 +121,6 @@ class EmailVerificationService:
             )
             contact = contact_result.scalar_one_or_none()
             if contact:
-                contact.is_email_verified = True
-                contact.email_verified_at = now
                 contact.email_verification_result = result
 
         # 6. Update ExtractedContact if linked

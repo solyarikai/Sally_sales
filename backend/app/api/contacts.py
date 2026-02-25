@@ -62,9 +62,6 @@ class ContactBase(BaseModel):
     notes: Optional[str] = None
     smartlead_id: Optional[str] = None
     getsales_id: Optional[str] = None
-    has_replied: Optional[bool] = None
-    needs_followup: Optional[bool] = None
-    campaigns: Optional[List[Dict[str, Any]]] = None
 
 
 class ContactCreate(ContactBase):
@@ -88,9 +85,6 @@ class ContactUpdate(BaseModel):
     notes: Optional[str] = None
     smartlead_id: Optional[str] = None
     getsales_id: Optional[str] = None
-    has_replied: Optional[bool] = None
-    needs_followup: Optional[bool] = None
-    campaigns: Optional[List[Dict[str, Any]]] = None
 
 
 class ContactResponse(BaseModel):
@@ -136,14 +130,22 @@ class ContactResponse(BaseModel):
 
     @field_validator('campaigns', mode='before')
     @classmethod
-    def parse_campaigns_json(cls, v):
-        if isinstance(v, str):
-            import json
-            try:
-                return json.loads(v)
-            except (json.JSONDecodeError, TypeError):
-                return None
-        return v
+    def derive_campaigns(cls, v, info):
+        """Derive campaigns list from platform_state since the campaigns column was dropped."""
+        if isinstance(v, list):
+            return v
+        ps = info.data.get('platform_state')
+        if not isinstance(ps, dict):
+            return None
+        result = []
+        for plat_name, plat_data in ps.items():
+            if isinstance(plat_data, dict):
+                for camp in plat_data.get("campaigns", []):
+                    if isinstance(camp, dict):
+                        camp_copy = dict(camp)
+                        camp_copy.setdefault("source", plat_name)
+                        result.append(camp_copy)
+        return result or None
 
     class Config:
         from_attributes = True
@@ -293,12 +295,12 @@ async def _build_filtered_query(
 
             if len(common) >= 3:
                 campaign_clause = sql_text(
-                    "(contacts.project_id = :fk_pid OR contacts.campaigns::text ILIKE :cf_prefix)"
+                    "(contacts.project_id = :fk_pid OR contacts.platform_state::text ILIKE :cf_prefix)"
                 ).bindparams(fk_pid=project_id, cf_prefix=f"%{common}%")
             else:
                 prefixes = list(set(cf[:15] for cf in proj_campaign_filters))[:10]
                 parts = " OR ".join(
-                    f"contacts.campaigns::text ILIKE :cfp_{i}"
+                    f"contacts.platform_state::text ILIKE :cfp_{i}"
                     for i in range(len(prefixes))
                 )
                 params = {f"cfp_{i}": f"%{p}%" for i, p in enumerate(prefixes)}
@@ -359,22 +361,22 @@ async def _build_filtered_query(
         ids = [i.strip() for i in campaign_id.split(',') if i.strip()]
         if len(ids) == 1:
             query = query.where(
-                sql_text("contacts.campaigns::text LIKE :cid_0")
+                sql_text("contacts.platform_state::text LIKE :cid_0")
                 .bindparams(cid_0=f"%{ids[0]}%")
             )
         else:
-            cid_parts = " OR ".join(f"contacts.campaigns::text LIKE :cid_{i}" for i in range(len(ids)))
+            cid_parts = " OR ".join(f"contacts.platform_state::text LIKE :cid_{i}" for i in range(len(ids)))
             cid_params = {f"cid_{i}": f"%{v}%" for i, v in enumerate(ids)}
             query = query.where(sql_text(f"({cid_parts})").bindparams(**cid_params))
     elif campaign:
         names = [n.strip() for n in campaign.split(',') if n.strip()]
         if len(names) == 1:
             query = query.where(
-                sql_text("contacts.campaigns::text ILIKE :camp_0")
+                sql_text("contacts.platform_state::text ILIKE :camp_0")
                 .bindparams(camp_0=f"%{names[0]}%")
             )
         elif len(names) > 1:
-            camp_parts = " OR ".join(f"contacts.campaigns::text ILIKE :camp_{i}" for i in range(len(names)))
+            camp_parts = " OR ".join(f"contacts.platform_state::text ILIKE :camp_{i}" for i in range(len(names)))
             camp_params = {f"camp_{i}": f"%{n}%" for i, n in enumerate(names)}
             query = query.where(sql_text(f"({camp_parts})").bindparams(**camp_params))
     if needs_followup is True:
@@ -383,7 +385,7 @@ async def _build_filtered_query(
         query = query.where(
             and_(
                 Contact.last_reply_at.is_(None),
-                Contact.last_synced_at < three_days_ago
+                Contact.created_at < three_days_ago
             )
         )
     if created_after:
@@ -613,26 +615,31 @@ async def get_campaigns_list(
     """
     Get list of unique campaign names for autocomplete.
     """
-    # Query all contacts with campaigns
+    # Query all contacts with platform_state containing campaigns
     result = await session.execute(
-        select(Contact.campaigns).where(
+        select(Contact.platform_state).where(
             and_(
-                Contact.campaigns.isnot(None),
+                Contact.platform_state.isnot(None),
                 Contact.deleted_at.is_(None)
             )
         )
     )
     
-    # Extract unique campaign names
+    # Extract unique campaign names from platform_state
     campaigns_set = set()
-    for row in result.scalars():
-        if row:
-            for camp in parse_campaigns(row):
+    for ps in result.scalars():
+        if not isinstance(ps, dict):
+            continue
+        for plat_name, plat_data in ps.items():
+            if not isinstance(plat_data, dict):
+                continue
+            for camp in plat_data.get("campaigns", []):
+                if not isinstance(camp, dict):
+                    continue
                 name = camp.get("name")
-                camp_source = camp.get("source")
                 if name:
-                    if source is None or camp_source == source:
-                        campaigns_set.add((name, camp_source))
+                    if source is None or plat_name == source:
+                        campaigns_set.add((name, plat_name))
     
     # Sort and return
     campaigns = [
@@ -666,7 +673,7 @@ async def create_contact(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Contact with this email already exists")
     
-    data = contact.model_dump(exclude={"needs_followup"}, exclude_none=False)
+    data = contact.model_dump(exclude_none=False)
     db_contact = Contact(
         company_id=company_id or 1,
         **data
@@ -725,7 +732,7 @@ async def verify_campaigns(
                 select(func.count()).select_from(Contact).where(
                     and_(
                         Contact.deleted_at.is_(None),
-                        sql_text("contacts.campaigns::text ILIKE :cid").bindparams(cid=f"%{cid}%"),
+                        sql_text("contacts.platform_state::text ILIKE :cid").bindparams(cid=f"%{cid}%"),
                     )
                 )
             )
@@ -1256,6 +1263,24 @@ def _format_campaigns(campaigns_raw) -> str:
     return ", ".join(n for n in names if n)
 
 
+def _format_platform_campaigns(platform_state) -> str:
+    """Extract and format campaign names from platform_state JSON."""
+    if not isinstance(platform_state, dict):
+        return ""
+    names = []
+    for plat_data in platform_state.values():
+        if not isinstance(plat_data, dict):
+            continue
+        for camp in plat_data.get("campaigns", []):
+            if isinstance(camp, dict):
+                name = camp.get("name", "")
+                if name:
+                    names.append(name)
+            elif isinstance(camp, str) and camp:
+                names.append(camp)
+    return ", ".join(names)
+
+
 EXPORT_COLUMNS = [
     "email", "first_name", "last_name", "company_name", "domain",
     "job_title", "segment", "source", "status", "campaigns",
@@ -1350,7 +1375,7 @@ async def export_contacts_csv(
         row = {}
         for col in EXPORT_COLUMNS:
             if col == "campaigns":
-                row[col] = _format_campaigns(c.campaigns)
+                row[col] = _format_platform_campaigns(c.platform_state)
             elif col == "project_name":
                 row[col] = project_names.get(c.project_id, "") if c.project_id else ""
             elif col == "created_at":
@@ -1394,7 +1419,7 @@ async def export_contacts_google_sheet(
         row = []
         for col in EXPORT_COLUMNS:
             if col == "campaigns":
-                row.append(_format_campaigns(c.campaigns))
+                row.append(_format_platform_campaigns(c.platform_state))
             elif col == "project_name":
                 row.append(project_names.get(c.project_id, "") if c.project_id else "")
             elif col == "created_at":
@@ -1481,7 +1506,7 @@ async def list_projects(
         if project.campaign_filters and len(project.campaign_filters) > 0:
             # Dynamic count based on FK OR campaign_filters
             cf_parts = " OR ".join(
-                f"contacts.campaigns::text ILIKE :pcf_{i}" for i in range(len(project.campaign_filters))
+                f"contacts.platform_state::text ILIKE :pcf_{i}" for i in range(len(project.campaign_filters))
             )
             cf_params = {f"pcf_{i}": f"%{cf}%" for i, cf in enumerate(project.campaign_filters)}
             count_result = await session.execute(
@@ -1583,7 +1608,7 @@ async def get_project(
     # Contact count
     if project.campaign_filters and len(project.campaign_filters) > 0:
         cf_parts = " OR ".join(
-            f"contacts.campaigns::text ILIKE :pcf_{i}" for i in range(len(project.campaign_filters))
+            f"contacts.platform_state::text ILIKE :pcf_{i}" for i in range(len(project.campaign_filters))
         )
         cf_params = {f"pcf_{i}": f"%{cf}%" for i, cf in enumerate(project.campaign_filters)}
         count_result = await session.execute(
@@ -2506,14 +2531,18 @@ async def get_contact_sequence_plan(
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
 
-    # Parse campaigns from contact
-    campaigns_raw = contact.campaigns
-    if isinstance(campaigns_raw, str):
-        try:
-            campaigns_raw = _json.loads(campaigns_raw)
-        except Exception:
-            campaigns_raw = []
-    if not campaigns_raw or not isinstance(campaigns_raw, list):
+    # Extract campaigns from platform_state
+    campaigns_raw = []
+    ps = contact.platform_state or {}
+    for plat_name, plat_data in ps.items():
+        if isinstance(plat_data, dict):
+            for camp in plat_data.get("campaigns", []):
+                if isinstance(camp, dict):
+                    camp_copy = dict(camp)
+                    camp_copy.setdefault("source", plat_name)
+                    campaigns_raw.append(camp_copy)
+
+    if not campaigns_raw:
         return {"contact_id": contact_id, "campaigns": [], "message": "No campaigns found"}
 
     # Dedupe campaign IDs
@@ -2666,7 +2695,7 @@ async def get_contact_history(
                 "snippet": a.snippet,
                 "channel": "linkedin",
                 "source": a.source,
-                "automation": get_getsales_flow_name(a.extra_data, contact.campaigns if contact else None),
+                "automation": get_getsales_flow_name(a.extra_data, None),
                 "timestamp": a.activity_at.isoformat(),
             }
             for a in linkedin_activities
@@ -2861,13 +2890,13 @@ async def update_contact_status(
             category_id = SMARTLEAD_STATUS_MAPPING[request.status]
             pause_lead = request.status in SMARTLEAD_PAUSE_ON_STATUS
             
-            # Get campaign ID from contact's campaigns
+            # Get campaign ID from contact's platform_state
             campaign_id = None
-            if contact.campaigns:
-                for c in parse_campaigns(contact.campaigns):
-                    if isinstance(c, dict) and c.get("source") == "smartlead":
-                        campaign_id = c.get("id")
-                        break
+            sl_campaigns = contact.get_platform("smartlead").get("campaigns", [])
+            for c in sl_campaigns:
+                if isinstance(c, dict):
+                    campaign_id = c.get("id")
+                    break
             
             if campaign_id:
                 try:

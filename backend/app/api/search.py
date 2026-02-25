@@ -37,7 +37,7 @@ from app.schemas.domain import (
 )
 from app.services.search_service import search_service
 from app.services.company_search_service import company_search_service
-from app.services.crm_sync_service import parse_campaigns
+
 from app.core.config import settings
 from pydantic import BaseModel, Field
 
@@ -1829,7 +1829,7 @@ async def get_domain_campaigns(
             if c.id in seen_ids:
                 continue
             entry["contacts_count"] += 1
-            if c.has_replied:
+            if c.last_reply_at is not None:
                 entry["has_replies"] = True
 
             if c.created_at:
@@ -1837,17 +1837,22 @@ async def get_domain_campaigns(
                 if entry["first_contacted_at"] is None or created_str < entry["first_contacted_at"]:
                     entry["first_contacted_at"] = created_str
 
-            if c.campaigns:
+            if c.platform_state:
                 seen_campaigns = {(cp.get("name"), cp.get("source")) for cp in entry["campaigns"]}
-                for cp in parse_campaigns(c.campaigns):
-                    key = (cp.get("name"), cp.get("source"))
-                    if key not in seen_campaigns:
-                        entry["campaigns"].append({
-                            "name": cp.get("name"),
-                            "source": cp.get("source"),
-                            "status": cp.get("status"),
-                        })
-                        seen_campaigns.add(key)
+                for plat_name, plat_data in (c.platform_state or {}).items():
+                    if not isinstance(plat_data, dict):
+                        continue
+                    for cp in plat_data.get("campaigns", []):
+                        if not isinstance(cp, dict):
+                            continue
+                        key = (cp.get("name"), plat_name)
+                        if key not in seen_campaigns:
+                            entry["campaigns"].append({
+                                "name": cp.get("name"),
+                                "source": plat_name,
+                                "status": cp.get("status"),
+                            })
+                            seen_campaigns.add(key)
 
             name_parts = [c.first_name or "", c.last_name or ""]
             name = " ".join(p for p in name_parts if p).strip() or None
@@ -1856,7 +1861,7 @@ async def get_domain_campaigns(
                 "name": name,
                 "email": c.email if c.email and "@placeholder" not in c.email else None,
                 "status": c.status,
-                "has_replied": c.has_replied or False,
+                "has_replied": c.last_reply_at is not None,
                 "match_type": match_type,
             })
             seen_ids.add(c.id)

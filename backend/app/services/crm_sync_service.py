@@ -164,7 +164,7 @@ def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: 
     Priority:
     1. activity.extra_data.automation_name
     2. activity.extra_data.flow_name  
-    3. Most recent active GetSales campaign from contact.campaigns (with valid name)
+    3. Most recent active GetSales campaign from contact_campaigns (with valid name)
     4. 'Unknown Flow' as last resort
     """
     import re
@@ -857,8 +857,8 @@ class CRMSyncService:
                     existing.source = f"{existing.source}+smartlead"
                 else:
                     existing.source = "smartlead"
-            # Merge campaign data
-            existing_campaigns = parse_campaigns(existing.campaigns)
+            # Merge campaign data into platform_state
+            existing_campaigns = existing.get_platform("smartlead").get("campaigns", [])
             new_campaigns = [
                 {
                     "name": c.get("campaign_name"),
@@ -868,12 +868,12 @@ class CRMSyncService:
                 }
                 for c in campaigns if c.get("campaign_name")
             ]
-            # Merge without duplicates
-            campaign_ids = {(c.get("id"), c.get("source")) for c in existing_campaigns}
+            campaign_ids = {c.get("id") for c in existing_campaigns}
             for nc in new_campaigns:
-                if (nc.get("id"), nc.get("source")) not in campaign_ids:
+                if nc.get("id") not in campaign_ids:
                     existing_campaigns.append(nc)
-            existing.campaigns = existing_campaigns if existing_campaigns else None
+            if existing_campaigns:
+                existing.set_platform("smartlead", {"campaigns": existing_campaigns})
             existing.mark_synced("smartlead")
             return "updated"
         else:
@@ -902,14 +902,13 @@ class CRMSyncService:
                 location=_truncate(lead.get("location"), 500),
                 source="smartlead",
                 smartlead_id=smartlead_id,
-                smartlead_status=smartlead_status,
-                has_replied=has_replied,
                 last_reply_at=datetime.utcnow() if has_replied else None,
                 status="replied" if has_replied else "lead",
-                campaigns=campaign_data if campaign_data else None,
-                last_synced_at=datetime.utcnow()
             )
             session.add(contact)
+            contact.update_platform_status("smartlead", smartlead_status)
+            if campaign_data:
+                contact.set_platform("smartlead", {"campaigns": campaign_data})
             return "created"
     
     async def sync_getsales_contacts(
@@ -994,8 +993,8 @@ class CRMSyncService:
                     existing.source = f"{existing.source}+getsales"
                 else:
                     existing.source = "getsales"
-            # Merge campaign data from GetSales list
-            existing_campaigns = parse_campaigns(existing.campaigns)
+            # Merge campaign data into platform_state
+            existing_campaigns = existing.get_platform("getsales").get("campaigns", [])
             new_campaigns = []
             if list_name:
                 new_campaigns.append({
@@ -1004,12 +1003,12 @@ class CRMSyncService:
                     "source": "getsales",
                     "status": getsales_status
                 })
-            # Merge without duplicates
-            campaign_ids = {(c.get("id"), c.get("source")) for c in existing_campaigns}
+            campaign_ids = {c.get("id") for c in existing_campaigns}
             for nc in new_campaigns:
-                if (nc.get("id"), nc.get("source")) not in campaign_ids:
+                if nc.get("id") not in campaign_ids:
                     existing_campaigns.append(nc)
-            existing.campaigns = existing_campaigns if existing_campaigns else None
+            if existing_campaigns:
+                existing.set_platform("getsales", {"campaigns": existing_campaigns})
             existing.mark_synced("getsales")
             return "updated"
         else:
@@ -1043,12 +1042,11 @@ class CRMSyncService:
                 location=location,
                 source="getsales",
                 getsales_id=getsales_id,
-                getsales_status=getsales_status,
                 status="lead",
-                campaigns=campaign_data,
-                last_synced_at=datetime.utcnow()
             )
             contact.update_platform_status("getsales", getsales_status)
+            if campaign_data:
+                contact.set_platform("getsales", {"campaigns": campaign_data})
             contact.mark_synced("getsales")
             session.add(contact)
             return "created"

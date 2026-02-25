@@ -327,8 +327,8 @@ async def _build_project_context(db: AsyncSession, project: Project, company: Co
 
     contacts_stats = await db.execute(sql_text("""
         SELECT
-            COUNT(*) FILTER (WHERE campaigns IS NOT NULL AND campaigns::text NOT IN ('null', '[]', '{}', '')) as in_campaigns,
-            COUNT(*) FILTER (WHERE (campaigns IS NULL OR campaigns::text IN ('null', '[]', '{}', '')) AND source IN ('pipeline', 'smartlead_pipeline_push')) as unpushed
+            COUNT(*) FILTER (WHERE platform_state IS NOT NULL AND platform_state::text NOT IN ('null', '{}', '') AND platform_state::text ILIKE '%campaigns%') as in_campaigns,
+            COUNT(*) FILTER (WHERE (platform_state IS NULL OR platform_state::text IN ('null', '{}', '') OR platform_state::text NOT ILIKE '%campaigns%') AND source IN ('pipeline', 'smartlead_pipeline_push')) as unpushed
         FROM contacts
         WHERE project_id = :pid AND deleted_at IS NULL
     """), {"pid": pid})
@@ -1129,7 +1129,7 @@ async def _handle_stats(
                  WHERE dc.project_id = :pid AND dc.is_target = true AND ec.email IS NOT NULL) as total_email_contacts,
                 (SELECT COUNT(*) FROM contacts WHERE project_id = :pid AND deleted_at IS NULL) as crm_contacts,
                 (SELECT COUNT(*) FROM contacts WHERE project_id = :pid AND deleted_at IS NULL
-                 AND campaigns IS NOT NULL AND campaigns::text NOT IN ('null', '[]', '{}', '')) as in_campaigns
+                 AND platform_state IS NOT NULL AND platform_state::text ILIKE '%campaigns%') as in_campaigns
         """), {"pid": project_id})
         f = funnel.fetchone()
         reply = (
@@ -1609,7 +1609,7 @@ async def _handle_show_segments(
             COALESCE(c.segment, 'unclassified') as segment,
             COUNT(*) as contacts,
             COUNT(*) FILTER (WHERE c.last_reply_at IS NOT NULL) as replied,
-            COUNT(*) FILTER (WHERE c.is_email_verified) as verified
+            COUNT(*) FILTER (WHERE c.email_verification_result = 'valid') as verified
         FROM contacts c
         WHERE c.project_id = :pid AND c.deleted_at IS NULL
         GROUP BY COALESCE(c.segment, 'unclassified')
@@ -1710,7 +1710,7 @@ async def _handle_show_contacts(
         filters.append(Contact.last_reply_at.is_(None))
     if campaign:
         from sqlalchemy import text as sql_text
-        filters.append(sql_text("contacts.campaigns::text ILIKE :camp_filter").bindparams(camp_filter=f"%{campaign}%"))
+        filters.append(sql_text("contacts.platform_state::text ILIKE :camp_filter").bindparams(camp_filter=f"%{campaign}%"))
 
     where_clause = and_(*filters)
 

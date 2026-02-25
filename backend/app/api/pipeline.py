@@ -738,8 +738,8 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
             AND lower(ec.email) NOT IN (
                 SELECT DISTINCT lower(c.email) FROM contacts c
                 WHERE c.email IS NOT NULL
-                AND c.campaigns IS NOT NULL
-                AND c.campaigns::text NOT IN ('null', '[]', '')
+                AND c.platform_state IS NOT NULL
+                AND c.platform_state::text NOT IN ('null', '[]', '')
             )
             ORDER BY ec.id
         """), {"pid": project_id, "cid": company_id})
@@ -958,15 +958,14 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                         seg = getattr(contact, "matched_segment", None) or None
                         # Check if contact already exists
                         existing = await session.execute(sql_text("""
-                            SELECT id, campaigns FROM contacts
+                            SELECT id, platform_state FROM contacts
                             WHERE company_id = :cid AND lower(email) = lower(:email)
                             AND deleted_at IS NULL
                             LIMIT 1
                         """), {"cid": company_id, "email": contact.email})
                         row = existing.fetchone()
                         if row:
-                            # Update existing contact with pipeline data
-                            old_campaigns = row.campaigns or []
+                            old_campaigns = row.platform_state or []
                             if isinstance(old_campaigns, str):
                                 try:
                                     old_campaigns = json.loads(old_campaigns)
@@ -979,7 +978,7 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                                     segment = COALESCE(segment, :segment),
                                     company_name = COALESCE(company_name, :company_name),
                                     job_title = COALESCE(job_title, :job_title),
-                                    campaigns = CAST(:campaigns AS jsonb),
+                                    platform_state = CAST(:platform_state AS jsonb),
                                     updated_at = NOW()
                                 WHERE id = :id
                             """), {
@@ -988,18 +987,17 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                                 "segment": seg,
                                 "company_name": contact.company_name or None,
                                 "job_title": contact.job_title or None,
-                                "campaigns": json.dumps(merged_campaigns),
+                                "platform_state": json.dumps(merged_campaigns),
                             })
                         else:
-                            # Insert new contact
                             await session.execute(sql_text("""
                                 INSERT INTO contacts (company_id, email, first_name, last_name, domain,
                                                       company_name, job_title, project_id, segment,
-                                                      source, status, campaigns, is_active,
+                                                      source, status, platform_state, is_active,
                                                       created_at, updated_at)
                                 VALUES (:cid, :email, :fname, :lname, :domain,
                                         :company_name, :job_title, :project_id, :segment,
-                                        'smartlead_pipeline_push', 'contacted', CAST(:campaigns AS jsonb), true,
+                                        'smartlead_pipeline_push', 'contacted', CAST(:platform_state AS jsonb), true,
                                         NOW(), NOW())
                             """), {
                                 "cid": company_id, "email": contact.email,
@@ -1009,7 +1007,7 @@ async def _bg_phase_smartlead_push(project_id: int, company_id: int, progress: d
                                 "job_title": contact.job_title or "",
                                 "project_id": project_id,
                                 "segment": seg,
-                                "campaigns": json.dumps(campaign_entry),
+                                "platform_state": json.dumps(campaign_entry),
                             })
                     await session.commit()
 
@@ -1035,7 +1033,7 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
     """Phase 5: Auto-promote ALL target extracted contacts to CRM contacts table.
 
     Ensures every extracted contact from a target company appears in the CRM,
-    with project_id, segment, company_name, job_title, gathering_details populated.
+    with project_id, segment, company_name, job_title, provenance populated.
     Contacts already in CRM are updated (fill NULLs), new ones are inserted.
     """
     import json as _json
@@ -1080,7 +1078,7 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                 continue
 
             try:
-                # Build gathering_details JSON
+                # Build provenance JSON
                 gathering = {}
                 if getattr(contact, "extracted_at", None):
                     gathering["gathered_at"] = contact.extracted_at.isoformat() if hasattr(contact.extracted_at, 'isoformat') else str(contact.extracted_at)
@@ -1107,7 +1105,7 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                 async with async_session_maker() as session:
                     # Check if contact already exists in CRM
                     existing = await session.execute(sql_text("""
-                        SELECT id, project_id, segment, company_name, job_title, gathering_details
+                        SELECT id, project_id, segment, company_name, job_title, provenance
                         FROM contacts
                         WHERE company_id = :cid AND lower(email) = lower(:email)
                         AND deleted_at IS NULL
@@ -1120,7 +1118,7 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                         needs_update = (
                             row.project_id is None or row.segment is None
                             or row.company_name is None or row.job_title is None
-                            or row.gathering_details is None
+                            or row.provenance is None
                         )
                         if needs_update:
                             await session.execute(sql_text("""
@@ -1129,7 +1127,6 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                                     segment = COALESCE(segment, :segment),
                                     company_name = COALESCE(company_name, :company_name),
                                     job_title = COALESCE(job_title, :job_title),
-                                    gathering_details = COALESCE(gathering_details, CAST(:gathering AS jsonb)),
                                     provenance = COALESCE(provenance, CAST(:gathering AS jsonb)),
                                     updated_at = NOW()
                                 WHERE id = :id
@@ -1148,11 +1145,11 @@ async def _bg_phase_crm_promote(project_id: int, company_id: int, progress: dict
                         await session.execute(sql_text("""
                             INSERT INTO contacts (company_id, email, first_name, last_name, domain,
                                                   company_name, job_title, project_id, segment,
-                                                  source, status, is_active, gathering_details,
+                                                  source, status, is_active,
                                                   provenance, created_at, updated_at)
                             VALUES (:cid, :email, :fname, :lname, :domain,
                                     :company_name, :job_title, :project_id, :segment,
-                                    'pipeline', 'lead', true, CAST(:gathering AS jsonb),
+                                    'pipeline', 'lead', true,
                                     CAST(:gathering AS jsonb), NOW(), NOW())
                         """), {
                             "cid": company_id, "email": contact.email,
@@ -1590,16 +1587,16 @@ async def get_push_history_detail(
         # that were created around the same time as the push event
         breakdown = await db.execute(sql_text("""
             SELECT
-                c.gathering_details->>'segment' as segment,
-                c.gathering_details->>'geo' as geo,
-                c.gathering_details->>'query' as sample_query,
-                c.gathering_details->>'source' as extraction_source,
+                c.provenance->>'segment' as segment,
+                c.provenance->>'geo' as geo,
+                c.provenance->>'query' as sample_query,
+                c.provenance->>'source' as extraction_source,
                 COUNT(*) as contact_count
             FROM contacts c
             WHERE c.company_id = :cid
             AND c.project_id = :pid
-            AND c.campaigns::text ILIKE :camp_pattern
-            AND c.gathering_details IS NOT NULL
+            AND c.platform_state::text ILIKE :camp_pattern
+            AND c.provenance IS NOT NULL
             GROUP BY 1, 2, 3, 4
             ORDER BY COUNT(*) DESC
             LIMIT 20
@@ -1620,10 +1617,10 @@ async def get_push_history_detail(
 
         # Get campaign name from contacts
         camp_name_row = await db.execute(sql_text("""
-            SELECT c.campaigns::text
+            SELECT c.platform_state::text
             FROM contacts c
             WHERE c.company_id = :cid
-            AND c.campaigns::text ILIKE :camp_pattern
+            AND c.platform_state::text ILIKE :camp_pattern
             LIMIT 1
         """), {"cid": company.id, "camp_pattern": f"%{campaign_id}%"})
         camp_name_raw = camp_name_row.scalar()
@@ -1730,7 +1727,7 @@ async def verify_smartlead_push(
             email_rows = await db.execute(sql_text("""
                 SELECT email FROM contacts
                 WHERE project_id = :pid AND company_id = :cid
-                AND campaigns::text ILIKE :campaign_pattern
+                AND platform_state::text ILIKE :campaign_pattern
                 AND email IS NOT NULL
                 LIMIT 50
             """), {
@@ -1760,7 +1757,7 @@ async def verify_smartlead_push(
             db_count_row = await db.execute(sql_text("""
                 SELECT COUNT(*) FROM contacts
                 WHERE project_id = :pid AND company_id = :cid
-                AND campaigns::text ILIKE :campaign_pattern
+                AND platform_state::text ILIKE :campaign_pattern
             """), {
                 "pid": project_id,
                 "cid": company.id,
@@ -2679,16 +2676,16 @@ async def _query_contacts(db: AsyncSession, company_id: int, project_id: Optiona
             SELECT
                 'ADDED_TO_SMARTLEAD' as campaign_status,
                 jsonb_build_object(
-                    'smartlead_status', c.smartlead_status,
-                    'campaigns', c.campaigns,
+                    'platform_status', (c.platform_state->'smartlead'->>'status'),
+                    'campaigns', c.platform_state,
                     'added_at', c.created_at,
-                    'last_synced_at', c.last_synced_at,
+                    'last_synced', (c.platform_state->'smartlead'->>'last_synced'),
                     'contact_status', c.status
                 )::text as smartlead_json
             FROM contacts c
             WHERE lower(c.domain) = lower(dc.domain)
               AND c.domain IS NOT NULL AND c.domain != ''
-            ORDER BY c.last_synced_at DESC NULLS LAST
+            ORDER BY c.updated_at DESC NULLS LAST
             LIMIT 1
         ) sl_info ON true
         WHERE {' AND '.join(where_clauses)}

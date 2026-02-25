@@ -155,11 +155,10 @@ class DomainLookupService:
         # 5. CRM contacts (by domain match)
         crm_rows = (await session.execute(sql_text("""
             SELECT id, email, first_name, last_name, company_name,
-                   job_title, status, has_replied, campaigns, source,
-                   last_reply_at, reply_category
+                   job_title, status, last_reply_at, platform_state, source
             FROM contacts
             WHERE company_id = :cid AND domain = :d AND deleted_at IS NULL
-            ORDER BY has_replied DESC, created_at DESC
+            ORDER BY last_reply_at DESC NULLS LAST, created_at DESC
             LIMIT 20
         """), {"cid": company_id, "d": domain})).fetchall()
         if crm_rows:
@@ -170,9 +169,7 @@ class DomainLookupService:
                     "name": " ".join(filter(None, [r.first_name, r.last_name])),
                     "job_title": r.job_title,
                     "status": r.status,
-                    "has_replied": r.has_replied,
-                    "reply_category": r.reply_category,
-                    "campaigns": r.campaigns,
+                    "has_replied": r.last_reply_at is not None,
                     "source": r.source,
                 }
                 for r in crm_rows
@@ -290,12 +287,8 @@ class DomainLookupService:
                     name_str = c["name"] or c.get("email", "?")
                     status_str = c["status"]
                     if c.get("has_replied"):
-                        status_str = f"REPLIED"
-                        if c.get("reply_category"):
-                            status_str += f" ({c['reply_category']})"
-                    camp_names = self._extract_campaign_names(c.get("campaigns"))
-                    camp_str = f" — campaigns: {', '.join(camp_names)}" if camp_names else ""
-                    lines.append(f"- **{name_str}** ({status_str}){camp_str}")
+                        status_str = "REPLIED"
+                    lines.append(f"- **{name_str}** ({status_str})")
 
             # Activities
             if p.get("activities"):

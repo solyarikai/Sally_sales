@@ -4,13 +4,6 @@ CRM Contact and Project Models.
 Contact: single pool of all contacts from all sources.
 Project: top-level organizer — groups contacts, campaigns, pipeline, knowledge base.
 ContactActivity: multi-channel interaction timeline.
-
-Architecture evolution (in progress):
-  NEW fields: provenance (JSON), platform_state (JSON)
-  DEPRECATED fields (kept for backward compat, migrate gradually):
-    has_replied, reply_channel, reply_category, reply_sentiment, funnel_stage,
-    is_email_verified, email_verified_at, smartlead_status, getsales_status,
-    smartlead_raw, getsales_raw, last_synced_at, campaigns, gathering_details
 """
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Index, Boolean, JSON, text
 from sqlalchemy.orm import relationship
@@ -87,27 +80,13 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     """
     Contact — single pool of all contacts from all sources.
 
-    CANONICAL fields (use these in new code):
-      - status: 13-status funnel machine (single source of truth)
-      - last_reply_at: also serves as has_replied (IS NOT NULL)
-      - provenance: JSON — how this contact was gathered (pipeline story)
-      - platform_state: JSON — each platform's own data, keyed by platform name
-
-    DEPRECATED fields (still work, migrate away gradually):
-      - has_replied → use last_reply_at IS NOT NULL
-      - reply_category → use ProcessedReply.category
-      - reply_sentiment → use status_machine.is_warm()
-      - reply_channel → use latest ContactActivity.channel
-      - funnel_stage → use status (duplicate)
-      - is_email_verified → use email_verification_result = 'valid'
-      - email_verified_at → use email_verifications table
-      - smartlead_status → use platform_state["smartlead"]["status"]
-      - getsales_status → use platform_state["getsales"]["status"]
-      - smartlead_raw → use webhook_events table
-      - getsales_raw → use webhook_events table
-      - last_synced_at → use platform_state[platform]["last_synced"]
-      - campaigns (JSON) → use campaigns table + platform_state
-      - gathering_details → use provenance (same data, renamed)
+    Key fields:
+      status          13-state funnel (lead → qualified)
+      last_reply_at   NULL = no reply, set = replied (replaces has_replied bool)
+      provenance      JSON — how this contact was gathered (pipeline story)
+      platform_state  JSON — per-platform data keyed by name
+                      {"smartlead": {"status": "...", "last_synced": "...", "campaigns": [...]},
+                       "getsales":  {"status": "...", "last_synced": "..."}}
     """
     __tablename__ = "contacts"
 
@@ -115,7 +94,7 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    # ── Identity ──
+    # Identity
     email = Column(String(255), nullable=False, index=True)
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
@@ -126,68 +105,51 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     linkedin_url = Column(String(500), nullable=True)
     location = Column(String(500), nullable=True)
 
-    # ── Classification ──
+    # Classification
     segment = Column(String(255), nullable=True, index=True)
     geo = Column(String(50), nullable=True, index=True)
     source = Column(String(50), nullable=False, default="manual", index=True)
     source_id = Column(String(255), nullable=True)
 
-    # ── Funnel (single source of truth) ──
+    # Funnel
     status = Column(String(50), nullable=False, default="lead", index=True)
     last_reply_at = Column(DateTime, nullable=True)
 
-    # ── NEW: Provenance (how this contact was gathered) ──
-    # NULL for manual/CSV/SmartLead-synced. Rich JSON for pipeline contacts:
-    # {gathered_at, source, extracted_contact_id, discovered_company_id,
-    #  domain, company_name, confidence, search_job_id, query, search_engine,
-    #  segment, geo, description}
+    # Provenance — NULL for manual/CSV, rich JSON for pipeline contacts
     provenance = Column(JSON, nullable=True)
 
-    # ── Platform lookup IDs (indexed for webhook matching) ──
+    # Platform lookup IDs (indexed for webhook matching)
     smartlead_id = Column(String(100), nullable=True, index=True)
     getsales_id = Column(String(100), nullable=True, index=True)
 
-    # ── NEW: Platform state (each platform's own data model) ──
-    # {"smartlead": {"status": "...", "category": 1, "last_synced": "...", "campaigns": [...]},
-    #  "getsales": {"status": "...", "flow_name": "...", "last_synced": "..."}}
+    # Platform state — per-platform consolidated data
     platform_state = Column(JSON, nullable=True)
 
-    # ── Email verification ──
+    # Email verification
     email_verification_result = Column(String(30), nullable=True)
 
-    # ── Client-facing sync ──
+    # Raw debug data (kept until webhook_events table is created)
+    smartlead_raw = Column(JSON, nullable=True)
+    getsales_raw = Column(JSON, nullable=True)
+
+    # Client-facing sync
     sheet_qualification = Column(String(100), nullable=True)
     sheet_client_comment = Column(String(2000), nullable=True)
     sheet_row = Column(Integer, nullable=True)
 
-    # ── Operator ──
+    # Operator
     notes = Column(Text, nullable=True)
 
-    # ══════════════════════════════════════════════════════════════
-    # DEPRECATED columns — kept for backward compat, migrate away.
-    # New code should NOT use these. Use the canonical fields above.
-    # ══════════════════════════════════════════════════════════════
-    has_replied = Column(Boolean, default=False, index=True)               # → last_reply_at IS NOT NULL
-    reply_channel = Column(String(50), nullable=True)                      # → ContactActivity.channel
-    reply_category = Column(String(50), nullable=True)                     # → ProcessedReply.category
-    reply_sentiment = Column(String(20), nullable=True)                    # → status_machine.is_warm()
-    funnel_stage = Column(String(50), nullable=True)                       # → status (duplicate)
-    is_email_verified = Column(Boolean, default=False, index=True)         # → email_verification_result='valid'
-    email_verified_at = Column(DateTime(timezone=True), nullable=True)     # → email_verifications table
-    smartlead_status = Column(String(50), nullable=True)                   # → platform_state["smartlead"]["status"]
-    getsales_status = Column(String(50), nullable=True)                    # → platform_state["getsales"]["status"]
-    smartlead_raw = Column(JSON, nullable=True)                            # → webhook_events table
-    getsales_raw = Column(JSON, nullable=True)                             # → webhook_events table
-    last_synced_at = Column(DateTime, nullable=True)                       # → platform_state[p]["last_synced"]
-    campaigns = Column(JSON, nullable=True)                                # → campaigns table + platform_state
-    gathering_details = Column(JSON, nullable=True)                        # → provenance (renamed)
-
-    # ── Relationships ──
+    # Relationships
     company = relationship("Company", back_populates="contacts")
     project = relationship("Project", back_populates="contacts")
     activities = relationship("ContactActivity", back_populates="contact", order_by="desc(ContactActivity.created_at)")
 
-    # ── Helper methods ──
+    # ── Helpers ──
+
+    @property
+    def has_replied(self) -> bool:
+        return self.last_reply_at is not None
 
     @property
     def needs_followup(self) -> bool:
@@ -201,7 +163,7 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     def _get_latest_sync(self) -> Optional[datetime]:
         """Most recent sync timestamp across all platforms."""
         if not self.platform_state:
-            return self.last_synced_at
+            return None
         latest = None
         for p_data in self.platform_state.values():
             if not isinstance(p_data, dict):
@@ -214,7 +176,7 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
                         latest = dt
                 except (ValueError, TypeError):
                     pass
-        return latest or self.last_synced_at
+        return latest
 
     def get_platform(self, platform: str) -> dict:
         """Get state for a specific platform, or empty dict."""
@@ -230,46 +192,31 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
         existing.update(data)
         self.platform_state = {**self.platform_state, platform: existing}
 
-    # ── Dual-write helpers (keep canonical + deprecated in sync) ──
-
     def mark_replied(self, channel: str = "email", at: Optional[datetime] = None):
-        """Mark contact as replied — canonical + deprecated fields."""
-        now = at or datetime.utcnow()
-        self.last_reply_at = self.last_reply_at or now
-        self.has_replied = True
-        self.reply_channel = self.reply_channel or channel
+        """Mark contact as replied. Channel stored in platform_state."""
+        self.last_reply_at = self.last_reply_at or (at or datetime.utcnow())
 
     def update_platform_status(self, platform: str, status: str):
-        """Update platform status — canonical + deprecated fields."""
-        now = datetime.utcnow()
-        self.set_platform(platform, {"status": status, "last_synced": now.isoformat()})
-        if platform == "smartlead":
-            self.smartlead_status = status
-        elif platform == "getsales":
-            self.getsales_status = status
-        self.last_synced_at = now
+        """Update platform status + bump sync timestamp."""
+        self.set_platform(platform, {"status": status, "last_synced": datetime.utcnow().isoformat()})
 
     def update_platform_raw(self, platform: str, raw_data):
-        """Store raw webhook/API data — canonical + deprecated fields."""
+        """Store raw webhook/API data in platform_state."""
         self.set_platform(platform, {"raw": raw_data})
         if platform == "smartlead":
             self.smartlead_raw = raw_data
         elif platform == "getsales":
             self.getsales_raw = raw_data
 
-    def mark_synced(self, platform: Optional[str] = None):
-        """Bump the sync timestamp — canonical + deprecated fields."""
-        now = datetime.utcnow()
-        self.last_synced_at = now
-        if platform:
-            self.set_platform(platform, {"last_synced": now.isoformat()})
+    def mark_synced(self, platform: str):
+        """Bump the sync timestamp for a platform."""
+        self.set_platform(platform, {"last_synced": datetime.utcnow().isoformat()})
 
     def set_provenance_data(self, data: dict):
-        """Set contact provenance — canonical + deprecated fields."""
+        """Set contact provenance."""
         self.provenance = data
-        self.gathering_details = data
 
-    # ── Indexes ──
+    # Indexes
     __table_args__ = (
         Index('ix_contacts_company_email', 'company_id', 'email'),
         Index('ix_contacts_company_status', 'company_id', 'status'),
@@ -280,6 +227,8 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
         Index('ix_contacts_smartlead', 'smartlead_id'),
         Index('ix_contacts_getsales', 'getsales_id'),
         Index('ix_contacts_linkedin', 'linkedin_url'),
+        Index('ix_contacts_replied', 'last_reply_at',
+              postgresql_where=text("last_reply_at IS NOT NULL")),
     )
 
 

@@ -900,32 +900,28 @@ async def process_reply_webhook(
                     company_name=payload.get("company_name") or None,
                     source="smartlead",
                     status="replied",
-                    has_replied=True,
                     last_reply_at=datetime.utcnow(),
-                    reply_channel="email",
-                    last_synced_at=datetime.utcnow(),
-                    campaigns=[new_campaign_entry] if new_campaign_entry else None,
                 )
                 session.add(contact)
                 await session.flush()  # Get contact.id
+                if new_campaign_entry:
+                    contact.set_platform("smartlead", {"campaigns": [new_campaign_entry]})
                 logger.info(f"[PROCESSOR] Created contact id={contact.id} for {lead_email}")
             else:
                 # Update reply tracking on existing contact
                 contact.mark_replied("email")
                 contact.mark_synced("smartlead")
 
-                # Merge new campaign into campaigns list (dedup by name+id)
+                # Merge new campaign into platform_state (dedup by name+id)
                 if new_campaign_entry:
-                    existing_campaigns = contact.campaigns or []
-                    if not isinstance(existing_campaigns, list):
-                        existing_campaigns = []
+                    existing_campaigns = contact.get_platform("smartlead").get("campaigns", [])
                     already_listed = any(
                         isinstance(c, dict) and c.get("id") == new_campaign_entry["id"] and c.get("name") == new_campaign_entry["name"]
                         for c in existing_campaigns
                     )
                     if not already_listed:
-                        contact.campaigns = existing_campaigns + [new_campaign_entry]
-                        logger.info(f"[PROCESSOR] Added campaign '{campaign_name}' to contact {contact.id} (now {len(contact.campaigns)} campaigns)")
+                        contact.set_platform("smartlead", {"campaigns": existing_campaigns + [new_campaign_entry]})
+                        logger.info(f"[PROCESSOR] Added campaign '{campaign_name}' to contact {contact.id}")
 
             # Append webhook payload to smartlead_raw for debugging
             import json
@@ -1000,19 +996,6 @@ async def process_reply_webhook(
             new_st, ok, _msg = transition_status(contact.status, target)
             if ok:
                 contact.status = new_st
-            contact.funnel_stage = new_st if ok else (contact.funnel_stage or "replied")
-
-            # Sync reply category and sentiment
-            contact.reply_category = category
-            
-            # Determine sentiment from category
-            if category in ("interested", "meeting_request", "question"):
-                contact.reply_sentiment = "warm"
-            elif category in ("not_interested", "unsubscribe", "wrong_person"):
-                contact.reply_sentiment = "cold"
-            else:
-                contact.reply_sentiment = "neutral"
-            
             logger.info(f"[PROCESSOR] Updated contact {contact.id} with reply data from {lead_email}")
         except Exception as activity_err:
             logger.warning(f"[PROCESSOR] Failed to create ContactActivity (non-fatal): {activity_err}")

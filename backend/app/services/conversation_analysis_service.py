@@ -68,7 +68,7 @@ async def get_project_conversations(
     # Build query for contacts matching campaign filters
     if project.campaign_filters and len(project.campaign_filters) > 0:
         campaign_conditions = [
-            Contact.campaigns.cast(String).ilike(f'%{cf}%')
+            Contact.platform_state.cast(String).ilike(f'%{cf}%')
             for cf in project.campaign_filters
         ]
         contact_query = (
@@ -134,7 +134,6 @@ async def get_project_conversations(
             "name": f"{contact.first_name or ''} {contact.last_name or ''}".strip(),
             "company": contact.company_name,
             "job_title": contact.job_title,
-            "reply_channel": contact.reply_channel,
             "messages": messages,
         })
 
@@ -161,7 +160,6 @@ def format_conversations_debug(conversations: List[Dict[str, Any]]) -> str:
         parts.append(f"=== Conversation #{i} ===")
         parts.append(f"Contact: {conv['name']} | {conv['email']}")
         parts.append(f"Company: {conv.get('company', 'N/A')} | Title: {conv.get('job_title', 'N/A')}")
-        parts.append(f"Reply channel: {conv.get('reply_channel', 'N/A')}")
         parts.append(f"Messages ({len(conv['messages'])}):")
         for msg in conv["messages"]:
             parts.append(f"  [{msg['sender']}] ({msg['channel']}, {msg['at'][:10]})")

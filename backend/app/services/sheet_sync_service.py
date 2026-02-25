@@ -308,10 +308,7 @@ class SheetSyncService:
                         Contact.project_id == project_id,
                         Contact.deleted_at.is_(None),
                         or_(
-                            and_(
-                                Contact.last_reply_at.isnot(None),
-                                Contact.reply_sentiment.in_(["warm", "positive"]),
-                            ),
+                            Contact.last_reply_at.isnot(None),
                             Contact.status.in_(warm_statuses),
                         ),
                     )
@@ -341,10 +338,14 @@ class SheetSyncService:
                 if contact.last_reply_at:
                     reply_date = contact.last_reply_at.strftime("%d.%m.%Y")
 
-                # Hypothesis / campaign name
+                # Hypothesis / campaign name (from platform_state)
                 hypothesis = ""
-                if contact.campaigns:
-                    first_campaign = contact.campaigns[0] if isinstance(contact.campaigns, list) else None
+                all_campaigns = (
+                    contact.get_platform("smartlead").get("campaigns", [])
+                    + contact.get_platform("getsales").get("campaigns", [])
+                )
+                if all_campaigns:
+                    first_campaign = all_campaigns[0]
                     if isinstance(first_campaign, dict):
                         hypothesis = first_campaign.get("name", "")
                     elif isinstance(first_campaign, str):
@@ -352,9 +353,9 @@ class SheetSyncService:
 
                 # Prospect comment (first reply snippet)
                 prospect_comment = ""
-                # Company info from gathering_details
+                # Company info from provenance
                 company_info = ""
-                prov = contact.provenance or contact.gathering_details
+                prov = contact.provenance
                 if prov and isinstance(prov, dict):
                     company_info = prov.get("description", "")[:500]
 
@@ -369,7 +370,7 @@ class SheetSyncService:
                     "",                                        # H: Employees
                     contact.email or "",                       # I: Email #1
                     sheet_status_label,                        # J: Status
-                    contact.reply_channel or "",               # K: Канал
+                    "",                                        # K: Канал
                     reply_date,                                # L: Дата ответа
                     hypothesis,                                # M: Hypothesis
                     prospect_comment,                          # N: Prospect Comment
@@ -600,14 +601,13 @@ class SheetSyncService:
             if not api_key:
                 return
 
-            # Get campaign ID
+            # Get campaign ID from platform_state
             campaign_id = None
-            if contact.campaigns:
-                campaigns = contact.campaigns if isinstance(contact.campaigns, list) else []
-                for c in campaigns:
-                    if isinstance(c, dict) and c.get("source") == "smartlead":
-                        campaign_id = c.get("id")
-                        break
+            sl_campaigns = contact.get_platform("smartlead").get("campaigns", [])
+            for c in sl_campaigns:
+                if isinstance(c, dict):
+                    campaign_id = c.get("id")
+                    break
 
             if not campaign_id:
                 return

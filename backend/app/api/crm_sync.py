@@ -341,16 +341,14 @@ async def fetch_smartlead_replies(
                                     company_name=reply.get("company_name"),
                                     source="smartlead",
                                     status="replied",
-                                    has_replied=True,
-                                    reply_channel="email",
                                     last_reply_at=datetime.utcnow(),
-                                    last_synced_at=datetime.utcnow(),
-                                    campaigns=[{
-                                        "name": campaign.get("name"),
-                                        "id": campaign_id,
-                                        "source": "smartlead"
-                                    }]
                                 )
+                                contact.mark_synced("smartlead")
+                                contact.set_platform("smartlead", {"campaigns": [{
+                                    "name": campaign.get("name"),
+                                    "id": campaign_id,
+                                    "source": "smartlead"
+                                }]})
                                 # Parse reply_time
                                 reply_time_str = reply.get("reply_time")
                                 if reply_time_str:
@@ -361,7 +359,7 @@ async def fetch_smartlead_replies(
                                 bg_session.add(contact)
                                 contacts_updated += 1
                                 logger.info(f"Reply sync: created contact {email} from reply data")
-                            elif not contact.has_replied:
+                            elif contact.last_reply_at is None:
                                 contact.mark_replied("email")
                                 from app.services.status_machine import transition_status
                                 new_st, ok, _msg = transition_status(contact.status, "interested")
@@ -441,28 +439,24 @@ async def backfill_reply_contacts(
                         company_name=company,
                         source="smartlead",
                         status="replied",
-                        has_replied=True,
-                        reply_channel="email",
                         last_reply_at=received_at,
-                        last_synced_at=datetime.utcnow(),
-                        campaigns=[{
+                    )
+                    contact.mark_synced("smartlead")
+                    if campaign_name or campaign_id:
+                        contact.set_platform("smartlead", {"campaigns": [{
                             "name": campaign_name,
                             "id": str(campaign_id) if campaign_id else None,
                             "source": "smartlead"
-                        }] if campaign_name or campaign_id else None
-                    )
+                        }]})
                     
                     bg_session.add(contact)
                     created += 1
                 
                 await bg_session.flush()
                 
-                # Step 2: Fix existing contacts with has_replied=false that have replies
                 fix_result = await bg_session.execute(text("""
                     UPDATE contacts c
-                    SET has_replied = true,
-                        reply_channel = COALESCE(c.reply_channel, 'email'),
-                        status = CASE WHEN c.status IN ('new', 'lead', 'contacted') THEN 'replied' ELSE c.status END,
+                    SET status = CASE WHEN c.status IN ('new', 'lead', 'contacted') THEN 'replied' ELSE c.status END,
                         last_reply_at = COALESCE(c.last_reply_at, (
                             SELECT MAX(pr.received_at) FROM processed_replies pr 
                             WHERE LOWER(pr.lead_email) = LOWER(c.email)
@@ -470,7 +464,7 @@ async def backfill_reply_contacts(
                     FROM processed_replies pr
                     WHERE LOWER(c.email) = LOWER(pr.lead_email)
                       AND c.deleted_at IS NULL
-                      AND c.has_replied = false
+                      AND c.last_reply_at IS NULL
                 """))
                 fixed = fix_result.rowcount
                 
@@ -498,7 +492,12 @@ async def backfill_reply_contacts(
                     )
                     c = cq.scalar_one_or_none()
                     if c:
-                        c.campaigns = all_campaigns
+                        sl = [x for x in (all_campaigns or []) if x.get("source") == "smartlead"]
+                        gs = [x for x in (all_campaigns or []) if x.get("source") == "getsales"]
+                        if sl:
+                            c.set_platform("smartlead", {"campaigns": sl})
+                        if gs:
+                            c.set_platform("getsales", {"campaigns": gs})
                 merged = multi_result.rowcount if hasattr(multi_result, 'rowcount') else 0
 
                 await bg_session.commit()
@@ -561,12 +560,6 @@ async def get_sync_status(
         ))
     )
     
-    # Get last synced time
-    last_sync = await session.execute(
-        select(func.max(Contact.last_synced_at))
-        .where(Contact.company_id == company.id)
-    )
-    
     # Count activities
     activity_count = await session.execute(
         select(func.count(ContactActivity.id))
@@ -578,7 +571,6 @@ async def get_sync_status(
         "by_source": by_source,
         "replied_contacts": replied_count.scalar() or 0,
         "total_activities": activity_count.scalar() or 0,
-        "last_synced_at": last_sync.scalar()
     }
 
 
@@ -723,13 +715,14 @@ async def smartlead_webhook(
             source="smartlead",
             smartlead_id=str(lead_id) if lead_id else None,
             status="new",
-            last_synced_at=datetime.utcnow(),
-            campaigns=[{
+        )
+        contact.mark_synced("smartlead")
+        if campaign_name or campaign_id:
+            contact.set_platform("smartlead", {"campaigns": [{
                 "name": campaign_name,
                 "id": str(campaign_id) if campaign_id else None,
                 "source": "smartlead"
-            }] if campaign_name or campaign_id else None
-        )
+            }]})
         session.add(contact)
         await session.flush()  # Get contact.id
     
@@ -946,9 +939,9 @@ async def getsales_bulk_import_webhook(
     if contact:
         # Update existing contact with GetSales data
         contact.getsales_id = str(getsales_uuid) if getsales_uuid else contact.getsales_id
-        contact.last_synced_at = datetime.utcnow()
+        contact.mark_synced("getsales")
         if contact_data.get("pipeline_stage"):
-            contact.getsales_status = contact_data.get("pipeline_stage")
+            contact.update_platform_status("getsales", contact_data.get("pipeline_stage"))
         action = "updated"
     else:
         # Create new contact
@@ -971,10 +964,9 @@ async def getsales_bulk_import_webhook(
             phone=_truncate(contact_data.get("phone") or contact_data.get("phone_number"), 100),
             source="getsales",
             getsales_id=str(getsales_uuid) if getsales_uuid else None,
-            getsales_status=contact_data.get("pipeline_stage"),
-            last_synced_at=datetime.utcnow(),
             status="lead",
         )
+        contact.update_platform_status("getsales", contact_data.get("pipeline_stage") or "")
         session.add(contact)
         action = "created"
     
@@ -1085,7 +1077,7 @@ async def getsales_webhook(
     if is_existing_contact and not contact.getsales_id:
         logger.info(f"Merging GetSales data into existing contact: {contact.email}")
         contact.getsales_id = lead_uuid
-        contact.getsales_status = contact_data.get("pipeline_stage_name")
+        contact.update_platform_status("getsales", contact_data.get("pipeline_stage_name") or "")
         if linkedin_url and not contact.linkedin_url:
             contact.linkedin_url = linkedin_url
     
@@ -1125,19 +1117,17 @@ async def getsales_webhook(
             location=location_str,
             source="getsales",
             getsales_id=lead_uuid,
-            getsales_status=contact_data.get("pipeline_stage_name"),
             status="replied" if is_reply else "contacted",
-            has_replied=is_reply,
             last_reply_at=datetime.utcnow() if is_reply else None,
-            last_synced_at=datetime.utcnow(),
-            # Add flow/automation info from webhook
-            campaigns=[{
+        )
+        contact.update_platform_status("getsales", contact_data.get("pipeline_stage_name") or "")
+        if automation_data.get("name") or automation_data.get("uuid"):
+            contact.set_platform("getsales", {"campaigns": [{
                 "name": automation_data.get("name"),
                 "id": automation_data.get("uuid"),
                 "source": "getsales",
                 "status": "active"
-            }] if automation_data.get("name") or automation_data.get("uuid") else None
-        )
+            }]})
         session.add(contact)
         await session.flush()
     
@@ -1213,7 +1203,7 @@ async def getsales_webhook(
     if is_reply:
         contact.mark_replied("linkedin", at=activity_at)
         contact.last_reply_at = activity_at
-        contact.getsales_status = contact_data.get("pipeline_stage_name")
+        contact.update_platform_status("getsales", contact_data.get("pipeline_stage_name") or "")
 
         # M9 FIX: Use process_getsales_reply as the single source of classification.
         # Previously we did a lightweight classify_reply here (redundant) and then called
@@ -1252,8 +1242,7 @@ async def getsales_webhook(
             logger.info(f"[GETSALES] {contact.email} → {new_st} (category={category})")
         else:
             logger.warning(f"[GETSALES] Blocked transition for {contact.email}: {msg}")
-        contact.reply_category = category
-        contact.reply_sentiment = get_sentiment_from_category(category)
+        contact.set_platform("getsales", {"reply_category": category})
 
         # Append to touches JSON
         from datetime import datetime as dt

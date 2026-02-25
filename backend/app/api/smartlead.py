@@ -328,12 +328,15 @@ async def receive_webhook(
             source="smartlead",
             smartlead_id=str(lead_id) if lead_id else None,
             status="new",
-            last_synced_at=datetime.utcnow(),
-            campaigns=[{
-                "name": campaign_name,
-                "id": str(campaign_id) if campaign_id else None,
-                "source": "smartlead"
-            }] if campaign_name or campaign_id else None
+            platform_state={
+                "smartlead": {
+                    "last_synced": datetime.utcnow().isoformat(),
+                    "campaigns": [{
+                        "name": campaign_name,
+                        "id": str(campaign_id) if campaign_id else None,
+                    }] if campaign_name or campaign_id else [],
+                }
+            },
         )
         session.add(contact)
         await session.flush()
@@ -386,8 +389,6 @@ async def receive_webhook(
         
         # 1d. Update contact status based on event type
         if is_reply:
-            contact.has_replied = True
-            contact.reply_channel = "email"
             contact.last_reply_at = event_time
             contact.mark_replied("email", at=event_time)
             if contact.status in (None, "", "new", "contacted", "lead"):
@@ -550,7 +551,6 @@ def _update_contact_from_category(contact, lead_data: dict):
     if not isinstance(category, dict):
         return
     cat_name = category.get("name", "").lower()
-    contact.smartlead_status = category.get("name")
     contact.update_platform_status("smartlead", category.get("name"))
     status_map = {
         "interested": "warm",
