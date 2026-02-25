@@ -519,7 +519,7 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
                     const fmtTime = (iso: string | null) => {
                       if (!iso) return '—';
                       const d = new Date(iso);
-                      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
                     };
                     const isOverdue = p.next_run && new Date(p.next_run).getTime() < Date.now();
                     return (
@@ -532,7 +532,7 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
                         </td>
                         <td className={cn("px-3 py-1.5 font-mono", isDark ? "text-[#858585]" : "text-neutral-500")}>{fmtTime(p.last_run)}</td>
                         <td className={cn("px-3 py-1.5 font-mono", isOverdue ? "text-amber-500" : isDark ? "text-[#858585]" : "text-neutral-500")}>
-                          {p.next_run ? (isOverdue ? `${timeAgo(p.next_run)} overdue` : fmtTime(p.next_run)) : '—'}
+                          {p.next_run ? (isOverdue ? `⏳ running...` : fmtTime(p.next_run)) : '—'}
                         </td>
                       </tr>
                     );
@@ -572,71 +572,37 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
             </div>
           </div>
 
-          {/* Latest Events (Debug) */}
-          {monitoring.latest_events && (
+          {/* Latest Events (this project only) */}
+          {monitoring.latest_events?.events?.length > 0 && (
             <div>
               <h3 className={cn("text-xs font-semibold mb-2 flex items-center gap-1.5", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
                 <Clock className="w-3.5 h-3.5" />
                 Latest Events
               </h3>
-
-              {/* Latest webhook events */}
-              {monitoring.latest_events.webhook_events.length > 0 && (
-                <div className="mb-3">
-                  <div className={cn("text-[10px] uppercase tracking-wider mb-1 font-medium", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
-                    Webhook Events
+              <div className={cn("rounded-lg border overflow-hidden", isDark ? "border-[#333]" : "border-neutral-200")}>
+                {monitoring.latest_events.events.map((ev: any) => (
+                  <div key={ev.id} className={cn("flex items-center gap-2 px-3 py-2 text-[11px] border-b last:border-b-0", isDark ? "border-[#333]" : "border-neutral-100")}>
+                    <span className={`shrink-0 text-[9px] font-bold px-1 py-0.5 rounded ${
+                      ev.type === 'reply' ? 'bg-orange-100 text-orange-700' :
+                      ev.type === 'email_sent' ? 'bg-blue-100 text-blue-700' :
+                      isDark ? 'bg-[#3c3c3c] text-[#858585]' : 'bg-neutral-100 text-neutral-500'
+                    }`}>{ev.type === 'reply' ? 'reply' : ev.type === 'email_sent' ? 'sent' : ev.type}</span>
+                    <span className={cn("font-medium truncate max-w-[140px]", isDark ? "text-[#d4d4d4]" : "text-neutral-800")} title={ev.lead_email}>
+                      {ev.lead_name || ev.lead_email}
+                    </span>
+                    {ev.category && (
+                      <span className={cn(
+                        "shrink-0 text-[9px] px-1.5 py-0.5 rounded",
+                        ev.category === 'interested' || ev.category === 'meeting_request' ? 'bg-green-100 text-green-700' :
+                        ev.category === 'not_interested' ? 'bg-red-100 text-red-700' :
+                        isDark ? 'bg-[#3c3c3c] text-[#858585]' : 'bg-neutral-100 text-neutral-500'
+                      )}>{ev.category}</span>
+                    )}
+                    {ev.error && <span className="text-red-400 text-[9px]" title={ev.error}>err</span>}
+                    <span className={cn("ml-auto shrink-0", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>{timeAgo(ev.at)}</span>
                   </div>
-                  <div className={cn("rounded-lg border overflow-hidden", isDark ? "border-[#333]" : "border-neutral-200")}>
-                    {monitoring.latest_events.webhook_events.map((ev) => (
-                      <div key={ev.id} className={cn("flex items-start gap-2 px-3 py-2 text-[11px] border-b last:border-b-0", isDark ? "border-[#333]" : "border-neutral-100")}>
-                        <span className={cn("shrink-0 w-2 h-2 rounded-full mt-1", ev.processed ? "bg-green-500" : ev.error ? "bg-red-500" : "bg-yellow-500")} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={cn("font-mono font-semibold", isDark ? "text-[#d4d4d4]" : "text-neutral-800")}>{ev.event_type}</span>
-                            {ev.lead_email && <span className={cn(isDark ? "text-[#858585]" : "text-neutral-500")}>{ev.lead_email}</span>}
-                            <span className={cn("ml-auto shrink-0", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>{timeAgo(ev.created_at)}</span>
-                          </div>
-                          {ev.error && (
-                            <div className="text-red-400 text-[10px] mt-0.5 truncate" title={ev.error}>{ev.error}</div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Latest processed replies */}
-              {monitoring.latest_events.processed_replies.length > 0 && (
-                <div>
-                  <div className={cn("text-[10px] uppercase tracking-wider mb-1 font-medium", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
-                    Latest Replies (this project)
-                  </div>
-                  <div className={cn("rounded-lg border overflow-hidden", isDark ? "border-[#333]" : "border-neutral-200")}>
-                    {monitoring.latest_events.processed_replies.map((r) => (
-                      <div key={r.id} className={cn("flex items-center gap-2 px-3 py-2 text-[11px] border-b last:border-b-0", isDark ? "border-[#333]" : "border-neutral-100")}>
-                        <span className={`shrink-0 text-[9px] font-bold px-1 py-0.5 rounded ${
-                          r.channel === 'email' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                        }`}>{r.channel === 'email' ? 'SL' : 'GS'}</span>
-                        <span className={cn("font-medium truncate max-w-[120px]", isDark ? "text-[#d4d4d4]" : "text-neutral-800")} title={r.lead_name}>{r.lead_name || r.lead_email}</span>
-                        <span className={cn("truncate max-w-[140px]", isDark ? "text-[#858585]" : "text-neutral-500")} title={r.campaign_name || ''}>{r.campaign_name}</span>
-                        {r.category && (
-                          <span className={cn(
-                            "shrink-0 text-[9px] px-1.5 py-0.5 rounded",
-                            r.category === 'interested' || r.category === 'meeting_request' ? 'bg-green-100 text-green-700' :
-                            r.category === 'not_interested' ? 'bg-red-100 text-red-700' :
-                            isDark ? 'bg-[#3c3c3c] text-[#858585]' : 'bg-neutral-100 text-neutral-500'
-                          )}>{r.category}</span>
-                        )}
-                        {r.approval_status && (
-                          <span className={cn("shrink-0 text-[9px] px-1.5 py-0.5 rounded", isDark ? "bg-[#2d2d2d] text-[#858585]" : "bg-neutral-100 text-neutral-500")}>{r.approval_status}</span>
-                        )}
-                        <span className={cn("ml-auto shrink-0", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>{timeAgo(r.received_at)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )}
 
@@ -644,7 +610,7 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
           {monitoring.campaigns.length > 0 && (
             <div>
               <h3 className={cn("text-xs font-semibold mb-2", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
-                Campaign Tracking ({monitoring.active_campaigns_count} active / {monitoring.campaigns.length} total)
+                Campaign Tracking ({monitoring.campaigns.length} active)
               </h3>
               <div className={cn("rounded-lg border overflow-hidden", isDark ? "border-[#333]" : "border-neutral-200")}>
                 <table className="w-full text-xs">
@@ -662,7 +628,6 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
                       <tr key={i} className={cn(
                         "border-t",
                         isDark ? "border-[#333]" : "border-neutral-100",
-                        !c.active && (isDark ? "opacity-40" : "opacity-50"),
                       )}>
                         <td className={cn("px-3 py-1.5 max-w-[240px] truncate font-medium", isDark ? "text-[#d4d4d4]" : "text-neutral-700")} title={c.name}>{c.name}</td>
                         <td className="px-3 py-1.5 text-center">
@@ -687,10 +652,10 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
                           </span>
                         </td>
                         <td className={cn("px-3 py-1.5 text-right tabular-nums", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
-                          {c.active ? c.contacts.toLocaleString() : '—'}
+                          {c.contacts.toLocaleString()}
                         </td>
                         <td className={cn("px-3 py-1.5 text-right tabular-nums", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
-                          {c.active ? c.replied.toLocaleString() : '—'}
+                          {c.replied.toLocaleString()}
                         </td>
                       </tr>
                     ))}

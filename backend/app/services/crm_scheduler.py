@@ -243,13 +243,23 @@ class CRMScheduler:
             await asyncio.sleep(self.sync_interval)
     
     async def _run_sync(self):
-        """Run a single sync cycle."""
+        """Run a single sync cycle — scoped to enabled project campaigns."""
         logger.info(f"Starting scheduled CRM sync (run #{self._sync_count + 1})")
         sync_service = get_crm_sync_service()
+
+        try:
+            enabled_campaigns = await _get_enabled_campaign_names()
+            logger.info(f"CRM sync scoped to {len(enabled_campaigns)} campaigns from enabled projects")
+        except Exception as e:
+            logger.warning(f"Failed to load enabled campaigns, running unscoped: {e}")
+            enabled_campaigns = None
         
         async with async_session_maker() as session:
             try:
-                results = await sync_service.full_sync(session, self.company_id)
+                results = await sync_service.full_sync(
+                    session, self.company_id,
+                    only_campaigns=enabled_campaigns,
+                )
                 
                 if results.get("smartlead", {}).get("contacts"):
                     sl = results["smartlead"]["contacts"]
@@ -1074,16 +1084,16 @@ class CRMScheduler:
             else:
                 task_health[name] = "running"
         
-        # Build task_timing with next_run estimates
+        # Build task_timing with next_run estimates (all UTC with Z suffix)
         task_timing_out = {}
         for key, t in self._task_timing.items():
             last = t["last_run"]
             interval = t["interval"]
             task_timing_out[key] = {
                 "label": t["label"],
-                "last_run": last.isoformat() if last else None,
+                "last_run": last.isoformat() + "Z" if last else None,
                 "interval_seconds": interval,
-                "next_run": (last + timedelta(seconds=interval)).isoformat() if last else None,
+                "next_run": (last + timedelta(seconds=interval)).isoformat() + "Z" if last else None,
             }
 
         return {
@@ -1093,11 +1103,11 @@ class CRMScheduler:
             "task_timing": task_timing_out,
             "sync_interval_minutes": self.sync_interval // 60,
             "company_id": self.company_id,
-            "last_sync": self._last_sync.isoformat() if self._last_sync else None,
-            "last_reply_check": self._last_reply_check.isoformat() if self._last_reply_check else None,
-            "last_webhook_check": self._last_webhook_check.isoformat() if self._last_webhook_check else None,
-            "last_prompt_refresh": self._last_prompt_refresh.isoformat() if self._last_prompt_refresh else None,
-            "last_webhook_received": _last_webhook_received_at.isoformat() if _last_webhook_received_at else None,
+            "last_sync": self._last_sync.isoformat() + "Z" if self._last_sync else None,
+            "last_reply_check": self._last_reply_check.isoformat() + "Z" if self._last_reply_check else None,
+            "last_webhook_check": self._last_webhook_check.isoformat() + "Z" if self._last_webhook_check else None,
+            "last_prompt_refresh": self._last_prompt_refresh.isoformat() + "Z" if self._last_prompt_refresh else None,
+            "last_webhook_received": _last_webhook_received_at.isoformat() + "Z" if _last_webhook_received_at else None,
             "sync_count": self._sync_count,
             "reply_check_count": self._reply_count
         }

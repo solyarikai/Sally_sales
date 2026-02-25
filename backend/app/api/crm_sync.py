@@ -602,12 +602,16 @@ async def get_project_monitoring(
     campaign_names_lower = {n.lower() for n in campaign_names}
 
     ACTIVE_STATUSES = {'active', 'STARTED', 'in_progress', 'INPROGRESS', 'ready', 'linked'}
+    STATUS_NORMALIZE = {
+        'INPROGRESS': 'active', 'STARTED': 'active', 'in_progress': 'active',
+        'ready': 'active', 'linked': 'active',
+        'COMPLETED': 'completed', 'BLOCKED': 'blocked',
+    }
 
-    # Per-campaign stats — only run expensive queries for active campaigns
+    # Per-campaign stats — only show active campaigns
     campaign_stats = []
     active_campaign_names = []
     if campaign_names:
-        # First pass: resolve status from campaigns table
         db_campaigns_q = await session.execute(
             select(Campaign).where(
                 and_(
@@ -620,44 +624,49 @@ async def get_project_monitoring(
 
         for name in sorted(campaign_names):
             db_camp = db_campaigns_map.get(name)
-            status = db_camp.status if db_camp else "linked"
-            is_active = status in ACTIVE_STATUSES
+            raw_status = db_camp.status if db_camp else "linked"
+            is_active = raw_status in ACTIVE_STATUSES
+            display_status = STATUS_NORMALIZE.get(raw_status, raw_status)
+            platform = db_camp.platform if db_camp else "unknown"
 
-            if is_active:
-                active_campaign_names.append(name)
+            # Try to infer platform from campaign name for unregistered GetSales flows
+            if platform == "unknown":
+                name_lower = name.lower()
+                if "dm" in name_lower or "connect" in name_lower or "linkedin" in name_lower:
+                    platform = "getsales"
 
-            contacts = 0
-            replied = 0
-            if is_active:
-                contact_count_q = await session.execute(
-                    select(func.count(Contact.id)).where(
-                        and_(
-                            Contact.company_id == company_id,
-                            Contact.deleted_at.is_(None),
-                            Contact.platform_state.cast(String).ilike(f'%{name}%'),
-                        )
+            if not is_active:
+                continue
+
+            active_campaign_names.append(name)
+
+            contact_count_q = await session.execute(
+                select(func.count(Contact.id)).where(
+                    and_(
+                        Contact.company_id == company_id,
+                        Contact.deleted_at.is_(None),
+                        Contact.platform_state.cast(String).ilike(f'%{name}%'),
                     )
                 )
-                replied_q = await session.execute(
-                    select(func.count(Contact.id)).where(
-                        and_(
-                            Contact.company_id == company_id,
-                            Contact.deleted_at.is_(None),
-                            Contact.last_reply_at.isnot(None),
-                            Contact.platform_state.cast(String).ilike(f'%{name}%'),
-                        )
+            )
+            replied_q = await session.execute(
+                select(func.count(Contact.id)).where(
+                    and_(
+                        Contact.company_id == company_id,
+                        Contact.deleted_at.is_(None),
+                        Contact.last_reply_at.isnot(None),
+                        Contact.platform_state.cast(String).ilike(f'%{name}%'),
                     )
                 )
-                contacts = contact_count_q.scalar() or 0
-                replied = replied_q.scalar() or 0
+            )
 
             campaign_stats.append({
                 "name": name,
-                "platform": db_camp.platform if db_camp else "unknown",
-                "status": status,
-                "active": is_active,
-                "contacts": contacts,
-                "replied": replied,
+                "platform": platform,
+                "status": display_status,
+                "active": True,
+                "contacts": contact_count_q.scalar() or 0,
+                "replied": replied_q.scalar() or 0,
                 "external_id": db_camp.external_id if db_camp else None,
             })
 
@@ -758,58 +767,33 @@ async def get_project_monitoring(
             "replies_7d": replies_7d_q.scalar() or 0,
             "failed_events_24h": failed_events_q.scalar() or 0,
         },
-        "campaigns": sorted(campaign_stats, key=lambda c: (not c["active"], c["name"])),
+        "campaigns": sorted(campaign_stats, key=lambda c: c["name"]),
         "active_campaigns_count": len(active_campaign_names),
         "latest_events": await _get_latest_events(session, campaign_names),
     }
 
 
 async def _get_latest_events(session: AsyncSession, campaign_names: list) -> dict:
-    """Fetch latest webhook events and processed replies for debugging."""
+    """Fetch latest events for THIS project only. Merges replies + sent into one timeline."""
     from app.models.reply import WebhookEventModel, ProcessedReply
-    from app.models.contact import ContactActivity
-    from sqlalchemy import func, desc
+    from sqlalchemy import desc
 
-    result: dict = {"webhook_events": [], "processed_replies": [], "activities": []}
+    result: dict = {"events": []}
 
-    # Latest 5 webhook events (any type)
-    events_q = await session.execute(
-        select(WebhookEventModel)
-        .order_by(desc(WebhookEventModel.created_at))
-        .limit(5)
+    if not campaign_names:
+        return result
+
+    # Latest processed replies for this project's campaigns
+    replies_q = await session.execute(
+        select(ProcessedReply)
+        .where(ProcessedReply.campaign_name.in_(campaign_names))
+        .order_by(desc(ProcessedReply.received_at))
+        .limit(10)
     )
-    for ev in events_q.scalars().all():
-        payload_preview = (ev.payload or "")[:200]
-        result["webhook_events"].append({
-            "id": ev.id,
-            "event_type": ev.event_type,
-            "campaign_id": ev.campaign_id,
-            "lead_email": ev.lead_email,
-            "processed": ev.processed,
-            "error": ev.error[:150] if ev.error else None,
-            "retry_count": ev.retry_count or 0,
-            "created_at": ev.created_at.isoformat() if ev.created_at else None,
-            "processed_at": ev.processed_at.isoformat() if ev.processed_at else None,
-            "payload_preview": payload_preview,
-        })
-
-    # Latest 5 processed replies for this project's campaigns
-    if campaign_names:
-        replies_q = await session.execute(
-            select(ProcessedReply)
-            .where(ProcessedReply.campaign_name.in_(campaign_names))
-            .order_by(desc(ProcessedReply.received_at))
-            .limit(5)
-        )
-    else:
-        replies_q = await session.execute(
-            select(ProcessedReply)
-            .order_by(desc(ProcessedReply.received_at))
-            .limit(5)
-        )
     for r in replies_q.scalars().all():
-        result["processed_replies"].append({
-            "id": r.id,
+        result["events"].append({
+            "id": f"reply_{r.id}",
+            "type": "reply",
             "source": r.source,
             "channel": r.channel,
             "campaign_name": r.campaign_name,
@@ -817,23 +801,50 @@ async def _get_latest_events(session: AsyncSession, campaign_names: list) -> dic
             "lead_name": f"{r.lead_first_name or ''} {r.lead_last_name or ''}".strip(),
             "category": r.category,
             "approval_status": r.approval_status,
-            "received_at": r.received_at.isoformat() if r.received_at else None,
+            "at": r.received_at.isoformat() + "Z" if r.received_at else None,
         })
 
-    # Latest 5 contact activities for this project
-    activities_q = await session.execute(
-        select(ContactActivity)
-        .order_by(desc(ContactActivity.activity_at))
-        .limit(5)
+    # Latest webhook events — scope via campaign_ids from campaigns table
+    from app.models.campaign import Campaign as CampaignModel
+    camp_ids_q = await session.execute(
+        select(CampaignModel.external_id).where(
+            CampaignModel.name.in_(campaign_names),
+            CampaignModel.external_id.isnot(None),
+        )
     )
-    for a in activities_q.scalars().all():
-        result["activities"].append({
-            "id": a.id,
-            "activity_type": a.activity_type,
-            "channel": a.channel,
-            "contact_id": a.contact_id,
-            "activity_at": a.activity_at.isoformat() if a.activity_at else None,
-        })
+    project_campaign_ids = [r[0] for r in camp_ids_q.all()]
+
+    if project_campaign_ids:
+        events_q = await session.execute(
+            select(WebhookEventModel)
+            .where(WebhookEventModel.campaign_id.in_(project_campaign_ids))
+            .order_by(desc(WebhookEventModel.created_at))
+            .limit(10)
+        )
+        for ev in events_q.scalars().all():
+            if ev.event_type == "EMAIL_REPLY":
+                continue
+            result["events"].append({
+                "id": f"wh_{ev.id}",
+                "type": ev.event_type.lower() if ev.event_type else "unknown",
+                "source": "smartlead",
+                "channel": "email",
+                "campaign_name": None,
+                "lead_email": ev.lead_email,
+                "lead_name": None,
+                "category": None,
+                "approval_status": None,
+                "at": ev.created_at.isoformat() + "Z" if ev.created_at else None,
+                "error": ev.error[:150] if ev.error else None,
+            })
+
+    # Sort merged list by time descending, replies first at same time
+    def sort_key(e):
+        priority = 0 if e["type"] == "reply" else 1
+        return (e.get("at") or "", priority)
+
+    result["events"].sort(key=sort_key, reverse=True)
+    result["events"] = result["events"][:10]
 
     return result
 

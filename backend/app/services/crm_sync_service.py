@@ -777,16 +777,21 @@ class CRMSyncService:
         self,
         session: AsyncSession,
         company_id: int,
-        limit: int = 50000
+        limit: int = 50000,
+        only_campaigns: set = None,
     ) -> Dict[str, int]:
         """
         Sync contacts from Smartlead.
-        
-        Returns dict with created, updated, skipped counts.
+        When only_campaigns is set, skips the expensive global lead sync
+        (contacts are created during reply processing instead).
         """
         if not self.smartlead:
             raise ValueError("Smartlead API key not configured")
         
+        if only_campaigns:
+            logger.info(f"Smartlead contact sync skipped (scoped mode: {len(only_campaigns)} campaigns)")
+            return {"created": 0, "updated": 0, "skipped": 0, "scoped": True}
+
         stats = {"created": 0, "updated": 0, "skipped": 0, "activities": 0}
         offset = 0
         
@@ -1623,16 +1628,14 @@ class CRMSyncService:
     async def full_sync(
         self,
         session: AsyncSession,
-        company_id: int
+        company_id: int,
+        only_campaigns: set = None,
     ) -> Dict[str, Any]:
         """
         Perform full sync from all sources.
         
         Uses Redis lock to prevent concurrent syncs.
-        
-        1. Sync all Smartlead contacts
-        2. Sync all GetSales contacts  
-        3. Sync Smartlead replies
+        When only_campaigns is provided, scopes contact sync to those campaigns only.
         """
         results = {
             "smartlead": {"contacts": None, "replies": None},
@@ -1641,7 +1644,6 @@ class CRMSyncService:
             "completed_at": None
         }
         
-        # Try to acquire sync lock
         if not await acquire_sync_lock():
             results["error"] = "Sync already in progress"
             results["success"] = False
@@ -1651,12 +1653,14 @@ class CRMSyncService:
         
         try:
             if self.smartlead:
-                logger.info("Syncing Smartlead contacts...")
-                results["smartlead"]["contacts"] = await self.sync_smartlead_contacts(session, company_id)
+                logger.info(f"Syncing Smartlead contacts{f' (scoped to {len(only_campaigns)} campaigns)' if only_campaigns else ''}...")
+                results["smartlead"]["contacts"] = await self.sync_smartlead_contacts(
+                    session, company_id, only_campaigns=only_campaigns,
+                )
                 
                 logger.info("Syncing Smartlead replies...")
                 results["smartlead"]["replies"] = await self.sync_smartlead_replies(
-                    session, company_id
+                    session, company_id, only_campaigns=only_campaigns,
                 )
             
             if self.getsales:
@@ -1674,7 +1678,6 @@ class CRMSyncService:
             results["error"] = str(e)
             results["success"] = False
         finally:
-            # Always release the lock
             await release_sync_lock()
         
         return results
