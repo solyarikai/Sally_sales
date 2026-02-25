@@ -743,7 +743,82 @@ async def get_project_monitoring(
             "failed_events_24h": failed_events_q.scalar() or 0,
         },
         "campaigns": campaign_stats,
+        "latest_events": await _get_latest_events(session, campaign_names),
     }
+
+
+async def _get_latest_events(session: AsyncSession, campaign_names: list) -> dict:
+    """Fetch latest webhook events and processed replies for debugging."""
+    from app.models.reply import WebhookEventModel, ProcessedReply
+    from app.models.contact import ContactActivity
+    from sqlalchemy import func, desc
+
+    result: dict = {"webhook_events": [], "processed_replies": [], "activities": []}
+
+    # Latest 5 webhook events (any type)
+    events_q = await session.execute(
+        select(WebhookEventModel)
+        .order_by(desc(WebhookEventModel.created_at))
+        .limit(5)
+    )
+    for ev in events_q.scalars().all():
+        payload_preview = (ev.payload or "")[:200]
+        result["webhook_events"].append({
+            "id": ev.id,
+            "event_type": ev.event_type,
+            "campaign_id": ev.campaign_id,
+            "lead_email": ev.lead_email,
+            "processed": ev.processed,
+            "error": ev.error[:150] if ev.error else None,
+            "retry_count": ev.retry_count or 0,
+            "created_at": ev.created_at.isoformat() if ev.created_at else None,
+            "processed_at": ev.processed_at.isoformat() if ev.processed_at else None,
+            "payload_preview": payload_preview,
+        })
+
+    # Latest 5 processed replies for this project's campaigns
+    if campaign_names:
+        replies_q = await session.execute(
+            select(ProcessedReply)
+            .where(ProcessedReply.campaign_name.in_(campaign_names))
+            .order_by(desc(ProcessedReply.received_at))
+            .limit(5)
+        )
+    else:
+        replies_q = await session.execute(
+            select(ProcessedReply)
+            .order_by(desc(ProcessedReply.received_at))
+            .limit(5)
+        )
+    for r in replies_q.scalars().all():
+        result["processed_replies"].append({
+            "id": r.id,
+            "source": r.source,
+            "channel": r.channel,
+            "campaign_name": r.campaign_name,
+            "lead_email": r.lead_email,
+            "lead_name": f"{r.lead_first_name or ''} {r.lead_last_name or ''}".strip(),
+            "category": r.category,
+            "approval_status": r.approval_status,
+            "received_at": r.received_at.isoformat() if r.received_at else None,
+        })
+
+    # Latest 5 contact activities for this project
+    activities_q = await session.execute(
+        select(ContactActivity)
+        .order_by(desc(ContactActivity.activity_at))
+        .limit(5)
+    )
+    for a in activities_q.scalars().all():
+        result["activities"].append({
+            "id": a.id,
+            "activity_type": a.activity_type,
+            "channel": a.channel,
+            "contact_id": a.contact_id,
+            "activity_at": a.activity_at.isoformat() if a.activity_at else None,
+        })
+
+    return result
 
 
 # ============= Webhook Endpoints =============

@@ -132,6 +132,38 @@ export interface ProjectMonitoring {
     replied: number;
     external_id: string | null;
   }[];
+  latest_events: {
+    webhook_events: {
+      id: number;
+      event_type: string;
+      campaign_id: string | null;
+      lead_email: string | null;
+      processed: boolean;
+      error: string | null;
+      retry_count: number;
+      created_at: string | null;
+      processed_at: string | null;
+      payload_preview: string;
+    }[];
+    processed_replies: {
+      id: number;
+      source: string | null;
+      channel: string | null;
+      campaign_name: string | null;
+      lead_email: string;
+      lead_name: string;
+      category: string | null;
+      approval_status: string | null;
+      received_at: string | null;
+    }[];
+    activities: {
+      id: number;
+      activity_type: string;
+      channel: string | null;
+      contact_id: number;
+      activity_at: string | null;
+    }[];
+  };
 }
 
 export interface ImportResult {
