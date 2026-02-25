@@ -13,7 +13,6 @@ import {
   type ProcessedReply,
   type ReplyCategory,
   type ContactInfo,
-  type ContactCampaignEntry,
   type FullHistoryResponse,
 } from '../api/replies';
 import { cn } from '../lib/utils';
@@ -112,8 +111,6 @@ export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueue
   const [selectedHistoryCampaign, setSelectedHistoryCampaign] = useState<Record<number, string | null>>({});
   const [confirmSendId, setConfirmSendId] = useState<number | null>(null);
 
-  const [contactCampaigns, setContactCampaigns] = useState<Record<string, ContactCampaignEntry[]>>({});
-  const [loadingCampaigns, setLoadingCampaigns] = useState<Set<string>>(new Set());
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -337,54 +334,6 @@ export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueue
     }
   };
 
-  /* ---- Campaign selector ---- */
-  const loadContactCampaigns = async (email: string) => {
-    if (contactCampaigns[email] || loadingCampaigns.has(email)) return;
-    setLoadingCampaigns(prev => new Set(prev).add(email));
-    try {
-      const data = await repliesApi.getContactCampaigns(email, currentProject?.id);
-      setContactCampaigns(prev => ({ ...prev, [email]: data.campaigns }));
-    } catch {
-      setContactCampaigns(prev => ({ ...prev, [email]: [] }));
-    } finally {
-      setLoadingCampaigns(prev => { const s = new Set(prev); s.delete(email); return s; });
-    }
-  };
-
-  const toggleCampaignSelector = (email: string) => {
-    setExpandedCampaigns(prev => {
-      const s = new Set(prev);
-      if (s.has(email)) { s.delete(email); } else { s.add(email); loadContactCampaigns(email); }
-      return s;
-    });
-  };
-
-  const switchCampaign = (reply: ProcessedReply, entry: ContactCampaignEntry) => {
-    if (entry.reply_id === reply.id) return;
-    setReplies(prev => prev.map(r => {
-      if (r.id !== reply.id) return r;
-      return {
-        ...r,
-        id: entry.reply_id,
-        campaign_id: entry.campaign_id,
-        campaign_name: entry.campaign_name,
-        category: entry.category as ReplyCategory | null,
-        classification_reasoning: entry.classification_reasoning,
-        received_at: entry.received_at,
-        email_subject: entry.email_subject,
-        email_body: entry.email_body,
-        reply_text: entry.reply_text,
-        draft_reply: entry.draft_reply,
-        draft_subject: entry.draft_subject,
-        approval_status: entry.approval_status,
-        inbox_link: entry.inbox_link,
-        channel: entry.channel,
-      };
-    }));
-    setEditingDrafts(prev => { const d = { ...prev }; delete d[reply.id]; return d; });
-    setExpandedThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
-  };
-
   useEffect(() => {
     if (expandedCampaigns.size === 0) return;
     const handler = (e: MouseEvent) => {
@@ -570,7 +519,7 @@ export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueue
                               const selCampName = selKey ? selKey.split('::').slice(1).join('::') : null;
                               const inboxUrl = (selCampName && history?.inbox_links?.[selCampName])
                                 || reply.inbox_link
-                                || history?.inbox_links?.[reply.campaign_name]
+                                || (reply.campaign_name && history?.inbox_links?.[reply.campaign_name])
                                 || (history?.inbox_links && Object.values(history.inbox_links)[0])
                                 || null;
                               return inboxUrl ? (
