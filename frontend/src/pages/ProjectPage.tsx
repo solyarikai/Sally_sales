@@ -3,8 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Check, X, Search, Trash2,
   MessageCircle, Loader2, Unlink, FolderOpen, Zap, FileSpreadsheet, RefreshCw,
+  Activity, Radio, Clock, AlertTriangle, CheckCircle2, XCircle,
 } from 'lucide-react';
-import { contactsApi, type Project, type SheetSyncConfig } from '../api/contacts';
+import { contactsApi, type Project, type SheetSyncConfig, type ProjectMonitoring } from '../api/contacts';
 import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../store/appStore';
 import { cn } from '../lib/utils';
@@ -41,6 +42,20 @@ export function ProjectPage() {
   // Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Monitoring
+  const [monitoring, setMonitoring] = useState<ProjectMonitoring | null>(null);
+  const [monitoringLoading, setMonitoringLoading] = useState(false);
+
+  const loadMonitoring = useCallback(async () => {
+    if (!projectId) return;
+    setMonitoringLoading(true);
+    try {
+      const data = await contactsApi.getProjectMonitoring(projectId);
+      setMonitoring(data);
+    } catch { /* silently fail */ }
+    setMonitoringLoading(false);
+  }, [projectId]);
+
   const loadProject = useCallback(async () => {
     if (!projectId) return;
     try {
@@ -65,7 +80,8 @@ export function ProjectPage() {
   useEffect(() => {
     loadProject();
     loadCampaigns();
-  }, [loadProject, loadCampaigns]);
+    loadMonitoring();
+  }, [loadProject, loadCampaigns, loadMonitoring]);
 
   // Sync loaded project to the global store (project selector in header)
   useEffect(() => {
@@ -345,6 +361,9 @@ export function ProjectPage() {
         </p>
       </div>
 
+      {/* Data Monitoring Section */}
+      <MonitoringSection monitoring={monitoring} loading={monitoringLoading} onRefresh={loadMonitoring} isDark={isDark} />
+
       {/* Telegram Section */}
       <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
         <h2 className={cn("text-sm font-semibold mb-3 flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
@@ -356,6 +375,222 @@ export function ProjectPage() {
 
       {/* Google Sheet Sync Section */}
       <SheetSyncSection project={project} onUpdate={loadProject} isDark={isDark} />
+    </div>
+  );
+}
+
+
+/* Data Monitoring section */
+function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitoring: ProjectMonitoring | null; loading: boolean; onRefresh: () => void; isDark: boolean }) {
+  const timeAgo = (iso: string | null) => {
+    if (!iso) return 'never';
+    const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (diff < 60) return `${Math.round(diff)}s ago`;
+    if (diff < 3600) return `${Math.round(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.round(diff / 3600)}h ago`;
+    return `${Math.round(diff / 86400)}d ago`;
+  };
+
+  const StatusDot = ({ ok }: { ok: boolean }) => (
+    <span className={cn("inline-block w-2 h-2 rounded-full", ok ? "bg-green-500" : "bg-red-500")} />
+  );
+
+  const taskStatusIcon = (status: string) => {
+    if (status === 'running') return <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />;
+    if (status === 'dead') return <XCircle className="w-3.5 h-3.5 text-red-500" />;
+    return <Clock className="w-3.5 h-3.5 text-yellow-500" />;
+  };
+
+  return (
+    <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className={cn("text-sm font-semibold flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+          <Activity className="w-4 h-4" />
+          Data Monitoring
+        </h2>
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          className={cn("p-1.5 rounded-lg transition-colors", isDark ? "hover:bg-[#3c3c3c] text-[#858585]" : "hover:bg-neutral-100 text-neutral-400")}
+        >
+          <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+        </button>
+      </div>
+
+      {!monitoring ? (
+        <div className={cn("text-xs text-center py-4", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+          {loading ? 'Loading monitoring data...' : 'No monitoring data available'}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Health Overview */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className={cn("rounded-lg p-3 border", isDark ? "bg-[#1e1e1e] border-[#333]" : "bg-neutral-50 border-neutral-100")}>
+              <div className={cn("text-[10px] uppercase tracking-wider mb-1", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>Webhooks</div>
+              <div className="flex items-center gap-1.5">
+                <StatusDot ok={monitoring.webhooks.healthy} />
+                <span className={cn("text-sm font-semibold", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+                  {monitoring.webhooks.healthy ? 'Healthy' : 'Unhealthy'}
+                </span>
+              </div>
+              <div className={cn("text-[10px] mt-1", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+                Last: {timeAgo(monitoring.webhooks.last_received)}
+              </div>
+            </div>
+
+            <div className={cn("rounded-lg p-3 border", isDark ? "bg-[#1e1e1e] border-[#333]" : "bg-neutral-50 border-neutral-100")}>
+              <div className={cn("text-[10px] uppercase tracking-wider mb-1", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>Replies 24h</div>
+              <div className={cn("text-sm font-semibold", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+                {monitoring.reply_stats.replies_24h}
+              </div>
+              <div className={cn("text-[10px] mt-1", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+                7d: {monitoring.reply_stats.replies_7d}
+              </div>
+            </div>
+
+            <div className={cn("rounded-lg p-3 border", isDark ? "bg-[#1e1e1e] border-[#333]" : "bg-neutral-50 border-neutral-100")}>
+              <div className={cn("text-[10px] uppercase tracking-wider mb-1", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>Contacts</div>
+              <div className={cn("text-sm font-semibold", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+                {monitoring.reply_stats.total_contacts.toLocaleString()}
+              </div>
+              <div className={cn("text-[10px] mt-1", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+                Replied: {monitoring.reply_stats.total_replied.toLocaleString()}
+              </div>
+            </div>
+
+            <div className={cn("rounded-lg p-3 border", isDark ? "bg-[#1e1e1e] border-[#333]" : "bg-neutral-50 border-neutral-100")}>
+              <div className={cn("text-[10px] uppercase tracking-wider mb-1", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>Failed Events</div>
+              <div className="flex items-center gap-1.5">
+                {monitoring.reply_stats.failed_events_24h > 0 && <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}
+                <span className={cn("text-sm font-semibold", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+                  {monitoring.reply_stats.failed_events_24h}
+                </span>
+              </div>
+              <div className={cn("text-[10px] mt-1", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>in last 24h</div>
+            </div>
+          </div>
+
+          {/* Polling Intervals */}
+          <div>
+            <h3 className={cn("text-xs font-semibold mb-2 flex items-center gap-1.5", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
+              <Radio className="w-3.5 h-3.5" />
+              Polling & Sync Intervals
+            </h3>
+            <div className={cn("rounded-lg border overflow-hidden", isDark ? "border-[#333]" : "border-neutral-200")}>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className={cn(isDark ? "bg-[#1e1e1e] text-[#858585]" : "bg-neutral-50 text-neutral-500")}>
+                    <th className="text-left px-3 py-1.5 font-medium">Task</th>
+                    <th className="text-left px-3 py-1.5 font-medium">Interval</th>
+                    <th className="text-left px-3 py-1.5 font-medium">Last Run</th>
+                    <th className="text-center px-3 py-1.5 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monitoring.polling.intervals.map((p, i) => {
+                    const taskKey = p.task.toLowerCase().replace(/\s+/g, '_');
+                    const health = monitoring.scheduler.task_health[taskKey] || monitoring.scheduler.task_health[taskKey.replace('_polling', '_check')] || 'unknown';
+                    return (
+                      <tr key={i} className={cn("border-t", isDark ? "border-[#333]" : "border-neutral-100")}>
+                        <td className={cn("px-3 py-1.5 font-medium", isDark ? "text-[#d4d4d4]" : "text-neutral-700")}>{p.task}</td>
+                        <td className={cn("px-3 py-1.5", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
+                          <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-mono", isDark ? "bg-[#2d2d2d]" : "bg-neutral-100")}>
+                            {p.interval}
+                          </span>
+                        </td>
+                        <td className={cn("px-3 py-1.5", isDark ? "text-[#858585]" : "text-neutral-400")}>{timeAgo(p.last_run)}</td>
+                        <td className="px-3 py-1.5 text-center">{taskStatusIcon(health)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className={cn("flex gap-4 mt-2 text-[10px]", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+              <span>Reply checks: {monitoring.polling.reply_checks_count}</span>
+              <span>Full syncs: {monitoring.polling.sync_count}</span>
+            </div>
+          </div>
+
+          {/* Scheduler Tasks Health */}
+          <div>
+            <h3 className={cn("text-xs font-semibold mb-2 flex items-center gap-1.5", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
+              <Zap className="w-3.5 h-3.5" />
+              Scheduler Tasks
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(monitoring.scheduler.task_health).map(([task, status]) => (
+                <span
+                  key={task}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] border",
+                    status === 'running'
+                      ? isDark ? "bg-green-900/20 border-green-800/30 text-green-400" : "bg-green-50 border-green-200 text-green-700"
+                      : status === 'dead'
+                        ? isDark ? "bg-red-900/20 border-red-800/30 text-red-400" : "bg-red-50 border-red-200 text-red-700"
+                        : isDark ? "bg-yellow-900/20 border-yellow-800/30 text-yellow-400" : "bg-yellow-50 border-yellow-200 text-yellow-700"
+                  )}
+                >
+                  {taskStatusIcon(status)}
+                  {task.replace(/_/g, ' ')}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Campaign Stats */}
+          {monitoring.campaigns.length > 0 && (
+            <div>
+              <h3 className={cn("text-xs font-semibold mb-2", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
+                Campaign Tracking ({monitoring.campaigns.length})
+              </h3>
+              <div className={cn("rounded-lg border overflow-hidden", isDark ? "border-[#333]" : "border-neutral-200")}>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className={cn(isDark ? "bg-[#1e1e1e] text-[#858585]" : "bg-neutral-50 text-neutral-500")}>
+                      <th className="text-left px-3 py-1.5 font-medium">Campaign</th>
+                      <th className="text-center px-3 py-1.5 font-medium">Platform</th>
+                      <th className="text-center px-3 py-1.5 font-medium">Status</th>
+                      <th className="text-right px-3 py-1.5 font-medium">Contacts</th>
+                      <th className="text-right px-3 py-1.5 font-medium">Replied</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monitoring.campaigns.map((c, i) => (
+                      <tr key={i} className={cn("border-t", isDark ? "border-[#333]" : "border-neutral-100")}>
+                        <td className={cn("px-3 py-1.5 max-w-[240px] truncate font-medium", isDark ? "text-[#d4d4d4]" : "text-neutral-700")} title={c.name}>{c.name}</td>
+                        <td className="px-3 py-1.5 text-center">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            c.platform === 'smartlead' ? 'bg-blue-100 text-blue-700' :
+                            c.platform === 'getsales' ? 'bg-green-100 text-green-700' :
+                            isDark ? 'bg-[#3c3c3c] text-[#858585]' : 'bg-neutral-100 text-neutral-500'
+                          }`}>
+                            {c.platform === 'smartlead' ? 'SL' : c.platform === 'getsales' ? 'GS' : c.platform}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5 text-center">
+                          <span className={cn(
+                            "text-[10px] px-1.5 py-0.5 rounded",
+                            c.status === 'active' || c.status === 'STARTED' || c.status === 'in_progress'
+                              ? 'bg-green-100 text-green-700'
+                              : c.status === 'completed' || c.status === 'COMPLETED' || c.status === 'finished'
+                                ? isDark ? 'bg-[#3c3c3c] text-[#858585]' : 'bg-neutral-100 text-neutral-500'
+                                : 'bg-yellow-100 text-yellow-700'
+                          )}>
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className={cn("px-3 py-1.5 text-right tabular-nums", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>{c.contacts.toLocaleString()}</td>
+                        <td className={cn("px-3 py-1.5 text-right tabular-nums", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>{c.replied.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

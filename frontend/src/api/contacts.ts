@@ -108,6 +108,32 @@ export interface AISDRGenerationResult {
   pitch_templates?: string;
 }
 
+export interface ProjectMonitoring {
+  project: { id: number; name: string; webhooks_enabled: boolean };
+  scheduler: { running: boolean; task_health: Record<string, string> };
+  webhooks: { healthy: boolean; last_received: string | null; last_check: string | null };
+  polling: {
+    intervals: { task: string; interval: string; last_run: string | null }[];
+    reply_checks_count: number;
+    sync_count: number;
+  };
+  reply_stats: {
+    total_contacts: number;
+    total_replied: number;
+    replies_24h: number;
+    replies_7d: number;
+    failed_events_24h: number;
+  };
+  campaigns: {
+    name: string;
+    platform: string;
+    status: string;
+    contacts: number;
+    replied: number;
+    external_id: string | null;
+  }[];
+}
+
 export interface ImportResult {
   success: boolean;
   total_rows: number;
@@ -382,6 +408,12 @@ export const contactsApi = {
   // Telegram: disconnect notifications from project
   async disconnectTelegram(projectId: number): Promise<void> {
     await api.post(`/replies/telegram/disconnect`, null, { params: { project_id: projectId } });
+  },
+
+  // Project monitoring data
+  async getProjectMonitoring(projectId: number): Promise<ProjectMonitoring> {
+    const response = await api.get(`/crm-sync/project/${projectId}/monitoring`);
+    return response.data;
   },
 
   // AI SDR - Get project with generated content

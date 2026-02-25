@@ -574,6 +574,178 @@ async def get_sync_status(
     }
 
 
+@router.get("/project/{project_id}/monitoring")
+async def get_project_monitoring(
+    project_id: int,
+    session: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """
+    Project-level monitoring dashboard data.
+    Returns webhook health, polling intervals, per-campaign status, reply stats.
+    """
+    from app.models.contact import Project
+    from app.models.campaign import Campaign
+    from app.models.reply import ProcessedReply, WebhookEventModel
+    from app.services.crm_scheduler import get_crm_scheduler
+    from sqlalchemy import func
+
+    project = await session.get(Project, project_id)
+    if not project or project.company_id != company.id:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    scheduler = get_crm_scheduler()
+    scheduler_status = scheduler.get_status()
+
+    campaign_names = project.campaign_filters or []
+    campaign_names_lower = {n.lower() for n in campaign_names}
+
+    # Per-campaign stats from contacts
+    campaign_stats = []
+    if campaign_names:
+        for name in sorted(campaign_names):
+            # Determine source from allCampaigns or from contacts data
+            contact_count_q = await session.execute(
+                select(func.count(Contact.id)).where(
+                    and_(
+                        Contact.company_id == company.id,
+                        Contact.deleted_at.is_(None),
+                        Contact.platform_state.cast(String).ilike(f'%{name}%'),
+                    )
+                )
+            )
+            replied_q = await session.execute(
+                select(func.count(Contact.id)).where(
+                    and_(
+                        Contact.company_id == company.id,
+                        Contact.deleted_at.is_(None),
+                        Contact.last_reply_at.isnot(None),
+                        Contact.platform_state.cast(String).ilike(f'%{name}%'),
+                    )
+                )
+            )
+
+            # Check if this campaign exists in campaigns table
+            db_campaign = await session.execute(
+                select(Campaign).where(
+                    and_(
+                        Campaign.company_id == company.id,
+                        Campaign.name == name,
+                    )
+                )
+            )
+            db_camp = db_campaign.scalar_one_or_none()
+
+            campaign_stats.append({
+                "name": name,
+                "platform": db_camp.platform if db_camp else ("smartlead" if any(c.lower().startswith("easystaff") or c.lower().startswith("inxy") or c.lower().startswith("squarefi") or c.lower().startswith("deliryo") or c.lower().startswith("abeta") or c.lower().startswith("palark") for c in [name]) else "unknown"),
+                "status": db_camp.status if db_camp else "linked",
+                "contacts": contact_count_q.scalar() or 0,
+                "replied": replied_q.scalar() or 0,
+                "external_id": db_camp.external_id if db_camp else None,
+            })
+
+    # Project-level reply stats (last 24h and 7d)
+    since_24h = datetime.utcnow() - __import__('datetime').timedelta(hours=24)
+    since_7d = datetime.utcnow() - __import__('datetime').timedelta(days=7)
+
+    # Recent processed replies for this project's campaigns
+    replies_24h_q = await session.execute(
+        select(func.count(ProcessedReply.id)).where(
+            and_(
+                ProcessedReply.received_at >= since_24h,
+                ProcessedReply.campaign_name.in_(campaign_names) if campaign_names else ProcessedReply.id < 0,
+            )
+        )
+    )
+    replies_7d_q = await session.execute(
+        select(func.count(ProcessedReply.id)).where(
+            and_(
+                ProcessedReply.received_at >= since_7d,
+                ProcessedReply.campaign_name.in_(campaign_names) if campaign_names else ProcessedReply.id < 0,
+            )
+        )
+    )
+
+    # Failed webhook events in last 24h
+    failed_events_q = await session.execute(
+        select(func.count(WebhookEventModel.id)).where(
+            and_(
+                WebhookEventModel.processed == False,
+                WebhookEventModel.created_at >= since_24h,
+            )
+        )
+    )
+
+    # Total project contacts
+    total_contacts_q = await session.execute(
+        select(func.count(Contact.id)).where(
+            and_(
+                Contact.company_id == company.id,
+                Contact.project_id == project_id,
+                Contact.deleted_at.is_(None),
+            )
+        )
+    )
+    total_replied_q = await session.execute(
+        select(func.count(Contact.id)).where(
+            and_(
+                Contact.company_id == company.id,
+                Contact.project_id == project_id,
+                Contact.deleted_at.is_(None),
+                Contact.last_reply_at.isnot(None),
+            )
+        )
+    )
+
+    # Determine current polling interval
+    reply_count = scheduler_status.get("reply_check_count", 0)
+    webhook_healthy = scheduler_status.get("webhook_healthy", True)
+    if reply_count <= 3:
+        current_reply_interval = "3 min (startup catch-up)"
+    elif not webhook_healthy:
+        current_reply_interval = "3 min (webhooks unhealthy)"
+    else:
+        current_reply_interval = "10 min (steady state)"
+
+    return {
+        "project": {
+            "id": project.id,
+            "name": project.name,
+            "webhooks_enabled": project.webhooks_enabled,
+        },
+        "scheduler": {
+            "running": scheduler_status.get("running", False),
+            "task_health": scheduler_status.get("task_health", {}),
+        },
+        "webhooks": {
+            "healthy": webhook_healthy,
+            "last_received": scheduler_status.get("last_webhook_received"),
+            "last_check": scheduler_status.get("last_webhook_check"),
+        },
+        "polling": {
+            "intervals": [
+                {"task": "Reply polling", "interval": current_reply_interval, "last_run": scheduler_status.get("last_reply_check")},
+                {"task": "Full CRM sync", "interval": "30 min", "last_run": scheduler_status.get("last_sync")},
+                {"task": "Webhook registration", "interval": "5 min", "last_run": scheduler_status.get("last_webhook_check")},
+                {"task": "Conversation sync", "interval": "3 min", "last_run": None},
+                {"task": "Sheet sync", "interval": "5 min", "last_run": None},
+                {"task": "Event recovery", "interval": "5 min", "last_run": None},
+            ],
+            "reply_checks_count": reply_count,
+            "sync_count": scheduler_status.get("sync_count", 0),
+        },
+        "reply_stats": {
+            "total_contacts": total_contacts_q.scalar() or 0,
+            "total_replied": total_replied_q.scalar() or 0,
+            "replies_24h": replies_24h_q.scalar() or 0,
+            "replies_7d": replies_7d_q.scalar() or 0,
+            "failed_events_24h": failed_events_q.scalar() or 0,
+        },
+        "campaigns": campaign_stats,
+    }
+
+
 # ============= Webhook Endpoints =============
 
 @router.post("/webhook/smartlead")
