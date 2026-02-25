@@ -41,10 +41,8 @@ export function Layout({ children }: LayoutProps) {
     { path: `${companyPrefix}/knowledge-base`, icon: BookOpen, label: 'Knowledge Base', needsCompany: true },
     { path: '/projects', icon: FolderOpen, label: 'Projects', global: true },
     ...(currentProject ? [{ path: `/projects/${currentProject.id}/chat`, icon: MessageCircle, label: 'Project Chat', global: true }] : []),
-    { path: '/replies', icon: MessageSquare, label: 'Replies', global: true },
-    { path: '/operator-tasks', icon: ListTodo, label: 'Operator Tasks', global: true },
+    { path: '/tasks/replies', icon: ListTodo, label: 'Tasks', global: true },
     { path: '/prompt-debug', icon: Zap, label: 'Prompt Debug', global: true },
-    { path: '/tasks', icon: ListTodo, label: 'Tasks', global: true },
     { path: '/templates', icon: FileText, label: 'Prompt Templates', global: true },
     { path: '/settings', icon: Settings, label: 'Settings', global: true },
   ];
@@ -105,6 +103,9 @@ export function Layout({ children }: LayoutProps) {
     }
     if (path === '/search-results') {
       return location.pathname.startsWith('/search-results');
+    }
+    if (path.startsWith('/tasks/')) {
+      return location.pathname.startsWith('/tasks');
     }
     return location.pathname.startsWith(path);
   };

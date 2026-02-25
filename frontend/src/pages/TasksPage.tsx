@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -15,18 +15,18 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'qualified', label: 'Qualified' },
 ];
 
+const VALID_TABS = new Set<string>(TABS.map(t => t.key));
+
 export function TasksPage() {
   const { currentProject, setCurrentProject, projects } = useAppStore();
   const { isDark } = useTheme();
   const t = themeColors(isDark);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { tab: tabParam } = useParams<{ tab?: string }>();
+  const [searchParams] = useSearchParams();
 
-  const tabParam = (searchParams.get('tab') as Tab) || 'replies';
-  const [activeTab, setActiveTab] = useState<Tab>(
-    TABS.some(t => t.key === tabParam) ? tabParam : 'replies'
-  );
+  const activeTab: Tab = VALID_TABS.has(tabParam || '') ? (tabParam as Tab) : 'replies';
 
-  // Badge counts
   const [repliesCount, setRepliesCount] = useState(0);
   const [meetingsCount, setMeetingsCount] = useState(0);
   const [qualifiedCount, setQualifiedCount] = useState(0);
@@ -47,23 +47,12 @@ export function TasksPage() {
     urlApplied.current = true;
   }, [projects, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync tab + project to URL
-  useEffect(() => {
-    if (!urlApplied.current) return;
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      // Tab
-      if (activeTab !== 'replies') next.set('tab', activeTab);
-      else next.delete('tab');
-      // Project
-      const targetProject = currentProject
-        ? currentProject.name.toLowerCase().replace(/\s+/g, '-')
-        : null;
-      if (targetProject) next.set('project', targetProject);
-      else next.delete('project');
-      return next;
-    }, { replace: true });
-  }, [activeTab, currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
+  const switchTab = (tab: Tab) => {
+    const projectSlug = currentProject
+      ? `?project=${currentProject.name.toLowerCase().replace(/\s+/g, '-')}`
+      : '';
+    navigate(`/tasks/${tab}${projectSlug}`, { replace: true });
+  };
 
   const handleRepliesCounts = useCallback((_counts: Record<string, number>, total: number) => {
     setRepliesCount(total);
@@ -100,7 +89,6 @@ export function TasksPage() {
         className="border-b px-5 py-2 flex items-center gap-4"
         style={{ background: t.headerBg, borderColor: t.cardBorder }}
       >
-        {/* Project name */}
         {currentProject && (
           <>
             <span className="text-[13px] font-medium" style={{ color: t.text2 }}>
@@ -110,7 +98,6 @@ export function TasksPage() {
           </>
         )}
 
-        {/* Pill tabs */}
         <div
           className="flex items-center gap-0.5 p-0.5 rounded-lg"
           style={{ background: isDark ? '#2a2a2a' : '#e8e8e8' }}
@@ -121,7 +108,7 @@ export function TasksPage() {
             return (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => switchTab(tab.key)}
                 className="relative px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-all cursor-pointer"
                 style={{
                   background: isActive

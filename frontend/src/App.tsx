@@ -65,12 +65,8 @@ function App() {
           </Layout>
         } />
         
-        {/* Global replies page (not company-scoped) */}
-        <Route path="/replies" element={
-          <Layout>
-            <RepliesPage />
-          </Layout>
-        } />
+        {/* Redirect standalone /replies to unified /tasks/replies */}
+        <Route path="/replies" element={<Navigate to="/tasks/replies" replace />} />
 
         {/* Automations page - disabled, replies are tracked automatically now */}
         {/* <Route path="/automations" element={<Layout><AutomationsPage /></Layout>} /> */}
@@ -92,8 +88,9 @@ function App() {
           </Layout>
         } />
         
-        {/* Tasks page */}
-        <Route path="/tasks" element={
+        {/* Tasks page — route-based tabs */}
+        <Route path="/tasks" element={<Navigate to="/tasks/replies" replace />} />
+        <Route path="/tasks/:tab" element={
           <Layout>
             <TasksPage />
           </Layout>
@@ -157,12 +154,8 @@ function App() {
           </Layout>
         } />
 
-        {/* Operator Tasks (3-tab daily operations) */}
-        <Route path="/operator-tasks" element={
-          <Layout>
-            <OperatorTasksPage />
-          </Layout>
-        } />
+        {/* Legacy routes — redirect to unified tasks page */}
+        <Route path="/operator-tasks" element={<Navigate to="/tasks/replies" replace />} />
 
         {/* Global CRM contacts page (not company-scoped) */}
         <Route path="/contacts" element={
