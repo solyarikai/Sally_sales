@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import {
-  Calendar, CheckCircle2, Clock, User, Building2, Mail,
+  Calendar, CheckCircle2, Building2, Mail,
   RefreshCw, ChevronRight, AlertTriangle, XCircle,
 } from 'lucide-react';
 import { contactsApi, type Contact } from '../api/contacts';
@@ -117,8 +117,8 @@ export function MeetingsPanel({ isDark, onCountChange }: MeetingsPanelProps) {
                   <Mail className="w-3 h-3" />{contact.email}
                 </span>
               )}
-              {contact.campaign && (
-                <span className="truncate">{contact.campaign}</span>
+              {contact.campaigns?.[0]?.name && (
+                <span className="truncate">{contact.campaigns[0].name}</span>
               )}
             </div>
             {contact.notes && (

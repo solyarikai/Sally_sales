@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import {
-  Star, CheckCircle2, Clock, User, Building2, Mail,
+  Star, CheckCircle2, Clock, Building2, Mail,
   RefreshCw, AlertTriangle, XCircle,
 } from 'lucide-react';
 import { contactsApi, type Contact } from '../api/contacts';

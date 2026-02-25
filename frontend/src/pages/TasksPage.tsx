@@ -65,7 +65,7 @@ export function TasksPage() {
     }, { replace: true });
   }, [activeTab, currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleRepliesCounts = useCallback((counts: Record<string, number>, total: number) => {
+  const handleRepliesCounts = useCallback((_counts: Record<string, number>, total: number) => {
     setRepliesCount(total);
   }, []);
 
