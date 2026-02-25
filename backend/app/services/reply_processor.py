@@ -1341,4 +1341,20 @@ async def process_getsales_reply(
         await session.flush()
         logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email}")
 
+    # --- Telegram notification (dedup via telegram_sent_at) ---
+    if processed_reply and not processed_reply.telegram_sent_at:
+        try:
+            from app.services.notification_service import notify_reply_needs_attention
+            campaign_name = flow_name or processed_reply.campaign_name
+            sent = await notify_reply_needs_attention(
+                processed_reply,
+                classification["category"],
+                campaign_name=campaign_name,
+            )
+            if sent:
+                processed_reply.telegram_sent_at = datetime.utcnow()
+                logger.info(f"[GETSALES] Telegram notification sent for reply {processed_reply.id}")
+        except Exception as tg_err:
+            logger.warning(f"[GETSALES] Telegram notification failed (non-fatal): {tg_err}")
+
     return processed_reply

@@ -162,6 +162,32 @@ export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueue
 
   useEffect(() => { loadReplies(true); }, [loadReplies]);
 
+  /* ---- Auto-refresh: poll for new replies every 30s ---- */
+  const [newCount, setNewCount] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const resp = await repliesApi.getReplies({
+          project_id: currentProject?.id,
+          campaign_names: campaignNames,
+          needs_reply: true,
+          category: (categoryFilter as ReplyCategory) || undefined,
+          group_by_contact: true,
+          page: 1,
+          page_size: 1,
+        });
+        const serverTotal = resp.total || 0;
+        setCategoryCounts(resp.category_counts || {});
+        if (serverTotal > total && total > 0) {
+          setNewCount(serverTotal - total);
+        } else if (serverTotal !== total) {
+          setTotal(serverTotal);
+        }
+      } catch { /* silent */ }
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [currentProject, categoryFilter, campaignNames, total]);
+
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -439,6 +465,18 @@ export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueue
           <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} style={{ color: t.text4 }} />
         </button>
       </div>
+
+      {/* New replies banner */}
+      {newCount > 0 && (
+        <div
+          className="mx-4 mt-1 mb-0 flex items-center justify-between px-3 py-1.5 rounded-md cursor-pointer text-[12px] font-medium"
+          style={{ background: isDark ? '#1a3a2a' : '#dcfce7', color: isDark ? '#4ade80' : '#166534', border: `1px solid ${isDark ? '#22543d' : '#bbf7d0'}` }}
+          onClick={() => { setNewCount(0); loadReplies(true); }}
+        >
+          <span>{newCount} new {newCount === 1 ? 'reply' : 'replies'} — click to load</span>
+          <RefreshCw className="w-3 h-3" />
+        </div>
+      )}
 
       {/* Reply queue — infinite scroll */}
       <div ref={scrollRef} className="flex-1 overflow-auto">
