@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type {
@@ -57,30 +57,17 @@ const statusLabels: Record<string, string> = {
   rejected: 'Rejected',
 };
 
-interface ProjectOption {
-  id: number;
-  name: string;
-}
-
 export function PipelinePage() {
   const gridRef = useRef<AgGridReact>(null);
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
-  const [searchParams] = useSearchParams();
-  const { currentCompany } = useAppStore();
+  const { currentCompany, currentProject } = useAppStore();
+  const projectId = currentProject?.id;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [companies, setCompanies] = useState<DiscoveredCompany[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [stats, setStats] = useState<PipelineStats | null>(null);
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
-
-  // Filters — initialize from URL query params if present
-  const urlProjectId = searchParams.get('project_id');
-  const [projectId, setProjectId] = useState<number | undefined>(
-    urlProjectId ? Number(urlProjectId) : undefined
-  );
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [targetFilter, setTargetFilter] = useState<'all' | 'targets' | 'non-targets'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,22 +100,8 @@ export function PipelinePage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
-  // Sync project_id from URL query param (e.g., navigated from Data Search page)
-  useEffect(() => {
-    const urlPid = searchParams.get('project_id');
-    if (urlPid) {
-      const num = Number(urlPid);
-      if (num && num !== projectId) setProjectId(num);
-    }
-  }, [searchParams]);
-
-  // Load projects for filter dropdown (fast endpoint from pipeline API)
-  useEffect(() => {
-    setProjectsLoading(true);
-    pipelineApi.listProjects().then(data => {
-      setProjects(data);
-    }).catch(() => {}).finally(() => setProjectsLoading(false));
-  }, []);
+  // Reset page when project changes
+  useEffect(() => { setPage(1); }, [projectId]);
 
   // Load auto-enrich config when project changes (needs currentCompany for X-Company-ID header)
   useEffect(() => {
@@ -449,7 +422,7 @@ export function PipelinePage() {
   };
 
   const buildFilename = (suffix: string) => {
-    const projName = projects.find(p => p.id === projectId)?.name || 'all';
+    const projName = currentProject?.name || 'all';
     const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
     return `${projName}_${suffix}_${ts}.csv`;
   };
@@ -525,25 +498,10 @@ export function PipelinePage() {
             <p className="text-neutral-500 text-sm mt-1">Manage discovered companies through the outreach pipeline</p>
           </div>
         </div>
-        {/* Project dropdown when no project selected */}
-        <div className="mb-4">
-          <select
-            value=""
-            onChange={(e) => setProjectId(Number(e.target.value))}
-            className="px-3 py-2 rounded-lg border border-neutral-200 text-sm bg-white min-w-[220px]"
-          >
-            <option value="" disabled>Select a project...</option>
-            {projectsLoading ? (
-              <option disabled>Loading...</option>
-            ) : projects.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
         <div className="flex flex-col items-center justify-center min-h-[300px] text-neutral-400">
           <Layers className="w-12 h-12 mb-3 opacity-40" />
           <p className="text-lg font-medium">Select a project to view pipeline</p>
-          <p className="text-sm mt-1">Choose a project from the dropdown above to see discovered companies</p>
+          <p className="text-sm mt-1">Choose a project from the selector in the top-left corner</p>
         </div>
       </div>
     );
@@ -790,28 +748,8 @@ export function PipelinePage() {
           </div>
         )}
 
-        {/* Top bar: Project filter + Search */}
+        {/* Top bar: Search + Filters */}
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Project filter */}
-          <select
-            value={projectId || ''}
-            onChange={e => { setProjectId(e.target.value ? parseInt(e.target.value) : undefined); setPage(1); }}
-            className={cn(
-              "px-3 py-1.5 text-sm rounded-lg border bg-white min-w-[160px]",
-              projectsLoading ? "border-neutral-100 text-neutral-400 animate-pulse" : "border-neutral-200"
-            )}
-            disabled={projectsLoading}
-          >
-            {projectsLoading ? (
-              <option value="">Loading...</option>
-            ) : (
-              <>
-                <option value="">All Projects</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </>
-            )}
-          </select>
-
           {/* Search */}
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
