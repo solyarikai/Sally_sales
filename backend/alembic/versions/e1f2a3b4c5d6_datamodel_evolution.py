@@ -35,73 +35,128 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # ── 1. Create campaigns table ──
-    op.create_table(
-        'campaigns',
-        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('company_id', sa.Integer(), sa.ForeignKey('companies.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('project_id', sa.Integer(), sa.ForeignKey('projects.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('platform', sa.String(50), nullable=False),
-        sa.Column('channel', sa.String(50), nullable=False),
-        sa.Column('external_id', sa.String(255), nullable=True),
-        sa.Column('name', sa.String(500), nullable=False),
-        sa.Column('status', sa.String(50), server_default='active'),
-        sa.Column('push_rule_id', sa.Integer(), sa.ForeignKey('campaign_push_rules.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('leads_count', sa.Integer(), server_default='0'),
-        sa.Column('replied_count', sa.Integer(), server_default='0'),
-        sa.Column('config', JSON, nullable=True),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
-    )
-    op.create_index('ix_campaigns_project', 'campaigns', ['project_id'])
-    op.create_index('ix_campaigns_company', 'campaigns', ['company_id'])
-    op.create_index('ix_campaigns_name', 'campaigns', ['name'])
-    op.execute("""
-        CREATE UNIQUE INDEX uq_campaign_platform_ext
-        ON campaigns (platform, external_id)
-        WHERE external_id IS NOT NULL
-    """)
+    conn = op.get_bind()
+    campaigns_exists = conn.execute(sa.text(
+        "SELECT 1 FROM information_schema.tables WHERE table_name='campaigns'"
+    )).scalar()
 
-    # ── 2. Create channel_accounts table ──
-    op.create_table(
-        'channel_accounts',
-        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('company_id', sa.Integer(), sa.ForeignKey('companies.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('project_id', sa.Integer(), sa.ForeignKey('projects.id', ondelete='SET NULL'), nullable=True),
-        sa.Column('platform', sa.String(50), nullable=False),
-        sa.Column('channel', sa.String(50), nullable=False),
-        sa.Column('external_id', sa.String(255), nullable=False),
-        sa.Column('display_name', sa.String(255), nullable=False),
-        sa.Column('email', sa.String(255), nullable=True),
-        sa.Column('profile_url', sa.String(500), nullable=True),
-        sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
-        sa.Column('metadata', JSON, nullable=True),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
-    )
-    op.create_index('ix_ca_project', 'channel_accounts', ['project_id'])
-    op.execute("""
-        CREATE UNIQUE INDEX uq_channel_account
-        ON channel_accounts (platform, external_id)
-    """)
+    if campaigns_exists:
+        # ── 1a. ALTER existing campaigns table to match new schema ──
+        cols = {r[0] for r in conn.execute(sa.text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='campaigns'"
+        )).fetchall()}
 
-    # ── 3. Add new columns to contacts ──
-    op.add_column('contacts', sa.Column('provenance', JSON, nullable=True))
-    op.add_column('contacts', sa.Column('platform_state', JSON, nullable=True))
+        if 'source' in cols and 'platform' not in cols:
+            op.alter_column('campaigns', 'source', new_column_name='platform')
+        if 'lead_count' in cols and 'leads_count' not in cols:
+            op.alter_column('campaigns', 'lead_count', new_column_name='leads_count')
 
-    # Partial index for replied contacts
+        if 'project_id' not in cols:
+            op.add_column('campaigns', sa.Column('project_id', sa.Integer(),
+                          sa.ForeignKey('projects.id', ondelete='SET NULL'), nullable=True))
+        if 'push_rule_id' not in cols:
+            op.add_column('campaigns', sa.Column('push_rule_id', sa.Integer(),
+                          sa.ForeignKey('campaign_push_rules.id', ondelete='SET NULL'), nullable=True))
+        if 'config' not in cols:
+            op.add_column('campaigns', sa.Column('config', JSON, nullable=True))
+        if 'leads_count' not in cols and 'lead_count' not in cols:
+            op.add_column('campaigns', sa.Column('leads_count', sa.Integer(), server_default='0'))
+
+        # Make external_id nullable (model allows NULL)
+        op.alter_column('campaigns', 'external_id', nullable=True)
+
+        # Add missing indexes (idempotent via IF NOT EXISTS)
+        op.execute("CREATE INDEX IF NOT EXISTS ix_campaigns_project ON campaigns (project_id)")
+        op.execute("CREATE INDEX IF NOT EXISTS ix_campaigns_company ON campaigns (company_id)")
+        op.execute("CREATE INDEX IF NOT EXISTS ix_campaigns_name ON campaigns (name)")
+        op.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_campaign_platform_ext
+            ON campaigns (platform, external_id)
+            WHERE external_id IS NOT NULL
+        """)
+    else:
+        # ── 1b. Create campaigns table from scratch ──
+        op.create_table(
+            'campaigns',
+            sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
+            sa.Column('company_id', sa.Integer(), sa.ForeignKey('companies.id', ondelete='CASCADE'), nullable=False),
+            sa.Column('project_id', sa.Integer(), sa.ForeignKey('projects.id', ondelete='SET NULL'), nullable=True),
+            sa.Column('platform', sa.String(50), nullable=False),
+            sa.Column('channel', sa.String(50), nullable=False),
+            sa.Column('external_id', sa.String(255), nullable=True),
+            sa.Column('name', sa.String(500), nullable=False),
+            sa.Column('status', sa.String(50), server_default='active'),
+            sa.Column('push_rule_id', sa.Integer(), sa.ForeignKey('campaign_push_rules.id', ondelete='SET NULL'), nullable=True),
+            sa.Column('leads_count', sa.Integer(), server_default='0'),
+            sa.Column('replied_count', sa.Integer(), server_default='0'),
+            sa.Column('config', JSON, nullable=True),
+            sa.Column('created_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
+            sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        )
+        op.create_index('ix_campaigns_project', 'campaigns', ['project_id'])
+        op.create_index('ix_campaigns_company', 'campaigns', ['company_id'])
+        op.create_index('ix_campaigns_name', 'campaigns', ['name'])
+        op.execute("""
+            CREATE UNIQUE INDEX uq_campaign_platform_ext
+            ON campaigns (platform, external_id)
+            WHERE external_id IS NOT NULL
+        """)
+
+    # ── 2. Create channel_accounts table (if not exists) ──
+    ca_exists = conn.execute(sa.text(
+        "SELECT 1 FROM information_schema.tables WHERE table_name='channel_accounts'"
+    )).scalar()
+    if not ca_exists:
+        op.create_table(
+            'channel_accounts',
+            sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
+            sa.Column('company_id', sa.Integer(), sa.ForeignKey('companies.id', ondelete='CASCADE'), nullable=False),
+            sa.Column('project_id', sa.Integer(), sa.ForeignKey('projects.id', ondelete='SET NULL'), nullable=True),
+            sa.Column('platform', sa.String(50), nullable=False),
+            sa.Column('channel', sa.String(50), nullable=False),
+            sa.Column('external_id', sa.String(255), nullable=False),
+            sa.Column('display_name', sa.String(255), nullable=False),
+            sa.Column('email', sa.String(255), nullable=True),
+            sa.Column('profile_url', sa.String(500), nullable=True),
+            sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
+            sa.Column('metadata', JSON, nullable=True),
+            sa.Column('created_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
+            sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        )
+        op.create_index('ix_ca_project', 'channel_accounts', ['project_id'])
+        op.execute("""
+            CREATE UNIQUE INDEX uq_channel_account
+            ON channel_accounts (platform, external_id)
+        """)
+
+    # ── 3. Add new columns to contacts (idempotent) ──
+    contact_cols = {r[0] for r in conn.execute(sa.text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='contacts'"
+    )).fetchall()}
+    if 'provenance' not in contact_cols:
+        op.add_column('contacts', sa.Column('provenance', JSON, nullable=True))
+    if 'platform_state' not in contact_cols:
+        op.add_column('contacts', sa.Column('platform_state', JSON, nullable=True))
+
     op.execute("""
         CREATE INDEX IF NOT EXISTS ix_contacts_replied
         ON contacts (last_reply_at)
         WHERE last_reply_at IS NOT NULL
     """)
 
-    # ── 4. Add meeting fields to operator_tasks ──
-    op.add_column('operator_tasks', sa.Column('meeting_at', sa.DateTime(timezone=True), nullable=True))
-    op.add_column('operator_tasks', sa.Column('meeting_link', sa.String(500), nullable=True))
-    op.add_column('operator_tasks', sa.Column('meeting_outcome', sa.Text(), nullable=True))
-    op.add_column('operator_tasks', sa.Column('booking_link_id', sa.Integer(),
-                  sa.ForeignKey('kb_booking_links.id', ondelete='SET NULL'), nullable=True))
+    # ── 4. Add meeting fields to operator_tasks (idempotent) ──
+    task_cols = {r[0] for r in conn.execute(sa.text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='operator_tasks'"
+    )).fetchall()}
+    if 'meeting_at' not in task_cols:
+        op.add_column('operator_tasks', sa.Column('meeting_at', sa.DateTime(timezone=True), nullable=True))
+    if 'meeting_link' not in task_cols:
+        op.add_column('operator_tasks', sa.Column('meeting_link', sa.String(500), nullable=True))
+    if 'meeting_outcome' not in task_cols:
+        op.add_column('operator_tasks', sa.Column('meeting_outcome', sa.Text(), nullable=True))
+    if 'booking_link_id' not in task_cols:
+        op.add_column('operator_tasks', sa.Column('booking_link_id', sa.Integer(),
+                      sa.ForeignKey('kb_booking_links.id', ondelete='SET NULL'), nullable=True))
 
     # ── 5. Data migration: gathering_details → provenance ──
     op.execute("""
