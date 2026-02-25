@@ -335,7 +335,7 @@ Located in `reply_processor.py`. Called:
 | Task | Interval | Purpose | Optimization |
 |------|----------|---------|--------------|
 | **CRM sync** | 30 min | Full sync — Smartlead + GetSales contacts & replies | Campaign list cached 30 min |
-| **Reply polling** | 3 min (startup/unhealthy) → 10 min (steady) | Backup reply fetching + auto-assign new campaigns to projects by name prefix | Scoped to enabled project campaigns only (~854 vs ~1791 total) |
+| **Reply polling** | 3 min (startup/unhealthy) → 10 min (steady) | Backup reply fetching + auto-assign new campaigns to projects by name prefix | **Analytics guard**: 1 call to `/analytics` per campaign → compare `sl_reply_count` in DB → skip if unchanged (~96% API call reduction). Webhook path increments DB counter so polling skips already-caught replies. |
 | **Webhook registration** | 5 min (1 min retry on failure) | Ensures all campaigns have webhooks pointing to `/api/smartlead/webhook` | In-memory `_verified_webhooks` cache — skips confirmed campaigns |
 | **Event recovery** | 5 min (2 min initial delay) | Reprocesses failed `webhook_events` (up to 5 retries, exponential backoff: 5m→15m→45m→2h→6h) | Max 20 events/run |
 | **Conversation sync** | 3 min (1 min initial delay) | Fetches Smartlead thread history for pending replies, auto-marks `replied_externally` | DB-driven: only checks pending replies (~5-10 API calls/run) |

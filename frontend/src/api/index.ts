@@ -13,8 +13,7 @@ export { repliesApi } from './replies';
 export { contactsApi } from './contacts';
 export { dashboardApi } from './dashboard';
 export type { DashboardResponse, DashboardStats, ActivityItem, QuickStats } from './dashboard';
-export { tasksApi } from './tasks';
-export type { Task, SubTask, TasksResponse } from './tasks';
+// Old tasksApi removed — task functionality now uses contactsApi.listTasks/updateTask
 export { dataSearchApi } from './dataSearch';
 export type { SearchFilter, CompanyResult, SearchResponse, ParsedQuery, ChatMessage } from './dataSearch';
 export type { Contact, ContactListResponse, ContactStats, Project, FilterOptions, AISDRProject, AISDRGenerationResult, ImportResult, ContactActivity, ContactWithActivities, SyncStatus, OperatorTask, TasksListResponse } from './contacts';

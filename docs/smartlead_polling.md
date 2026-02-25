@@ -62,17 +62,31 @@ Both feed into `ProcessedReply` (classification, draft, notifications) and `Cont
 
 **Caching:** Campaign list is cached for 30 min on `SmartleadClient` (class-level cache). One `GET /campaigns` API call per 30 min instead of per poll cycle.
 
+**Analytics guard (sl_reply_count):** Before paginating `/statistics`, polling calls `GET /campaigns/{id}/analytics` (1 lightweight API call) to get `reply_count`. This is compared to `campaigns.sl_reply_count` in the DB:
+- **Match** → campaign skipped entirely (0 additional API calls)
+- **Delta** → full `/statistics` pagination, then DB updated with new count
+- **Webhook path** increments `sl_reply_count += 1` when processing a reply, so the next poll sees the match and skips
+
+This reduces polling from ~351 API calls/cycle (13 campaigns × 27 pages) to ~13 calls/cycle (1 analytics call per campaign). The DB-backed counter survives restarts and self-corrects: any webhook/count drift is fixed when polling detects a mismatch and writes back the authoritative SmartLead count.
+
 ### Smartlead API Endpoints Used
 
 | Endpoint | Purpose | Key Parameters |
 |----------|---------|----------------|
 | `GET /api/v1/campaigns` | List all campaigns | `api_key` |
-| `GET /api/v1/campaigns/{id}/statistics` | **Primary:** Find all replied leads | `api_key`, `limit=500`, `offset` |
+| `GET /api/v1/campaigns/{id}/analytics` | **Analytics guard:** get `reply_count` for skip check | `api_key` |
+| `GET /api/v1/campaigns/{id}/statistics` | **Fallback:** Find all replied leads (only when delta detected) | `api_key`, `limit=500`, `offset` |
 | `GET /api/v1/leads/?email={email}` | Global lead enrichment | `api_key`, `email` |
 | `GET /api/v1/campaigns/{id}/leads/{lead_id}/message-history` | Get reply content | `api_key` |
 | `GET /api/v1/campaigns/{id}/leads` | Get leads by category | `api_key`, `lead_category_id`, `offset`, `limit` |
 
-### Statistics Endpoint (Primary Polling Method)
+### Analytics Endpoint (Guard — 1 Call per Campaign)
+
+`GET /api/v1/campaigns/{campaign_id}/analytics?api_key=...`
+
+Returns campaign-level stats including `reply_count` (total replies ever received). Used as a cheap guard to decide whether to paginate `/statistics`. The count is stored in `campaigns.sl_reply_count` and shared between webhook and polling paths.
+
+### Statistics Endpoint (Full Pagination — Only on Delta)
 
 `GET /api/v1/campaigns/{campaign_id}/statistics?api_key=...&limit=500&offset=0`
 
@@ -466,7 +480,7 @@ Returns the same stats as Smartlead's analytics page:
 }
 ```
 
-Uses `get_all_campaign_replied_leads()` (bulk statistics endpoint).
+Uses `get_all_campaign_replied_leads()` (analytics guard → statistics pagination on delta).
 
 ---
 
@@ -474,8 +488,10 @@ Uses `get_all_campaign_replied_leads()` (bulk statistics endpoint).
 
 | File | Purpose |
 |------|---------|
-| `backend/app/services/smartlead_service.py` | Smartlead API client (statistics, global lead search, message history) |
-| `backend/app/services/crm_sync_service.py` | Reply sync logic (polling, `only_campaigns` scoping) + conversation sync + GetSalesClient + SmartleadClient (30-min campaign cache, webhook verified-cache) |
+| `backend/app/services/smartlead_service.py` | Smartlead API client: `get_campaign_reply_count()` (analytics guard), `get_all_campaign_replied_leads()` (statistics pagination), global lead search, message history |
+| `backend/app/services/crm_sync_service.py` | Reply sync logic: analytics guard → DB `sl_reply_count` comparison → skip/paginate, `only_campaigns` scoping, conversation sync, GetSalesClient, SmartleadClient (30-min campaign cache, webhook verified-cache) |
+| `backend/app/services/reply_processor.py` | Webhook reply processing: classifies, drafts, stores ProcessedReply, increments `campaign.sl_reply_count` (webhook path only) |
+| `backend/app/models/campaign.py` | Campaign model with `sl_reply_count` — shared counter between webhook and polling paths |
 | `backend/app/services/crm_scheduler.py` | Scheduler (adaptive polling, 3-min conversation sync, watchdog, per-task timing, campaign cache) |
 | `backend/app/services/reply_processor.py` | Reply classification + processing pipeline |
 | `backend/app/api/replies.py` | API endpoints: sync-outbound-status, analytics-summary, GPT classify |
