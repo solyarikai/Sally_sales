@@ -3,8 +3,8 @@
 ## Overview
 
 The system tracks lead replies from two sources:
-- **Smartlead** (email campaigns) - via webhooks + API polling every 30 minutes
-- **GetSales** (LinkedIn outreach) - via webhooks + API polling every 30 minutes
+- **Smartlead** (email campaigns) - via webhooks + adaptive API polling (3-10 min)
+- **GetSales** (LinkedIn outreach) - via webhooks + adaptive API polling (3-10 min)
 
 Both feed into `ProcessedReply` (classification, draft, notifications) and `ContactActivity` (conversation history) tables.
 
@@ -12,10 +12,10 @@ Both feed into `ProcessedReply` (classification, draft, notifications) and `Cont
 
 | Layer | Smartlead (Email) | GetSales (LinkedIn) |
 |-------|-------------------|---------------------|
-| **Real-time** | Webhook: `POST /api/smartlead/webhook` | Webhook: `POST /api/crm-sync/webhook/getsales` |
-| **Backup polling** | Every 30 min via Statistics API | Every 30 min via Inbox API |
+| **Real-time** | Webhook: `POST /api/crm-sync/webhook/smartlead` | Webhook: `POST /api/crm-sync/webhook/getsales` |
+| **Backup polling** | Every 3-10 min (adaptive) via Statistics API | Every 3-10 min (adaptive) via Inbox API |
 | **Deduplication** | Redis cache + ProcessedReply DB | Redis cache + ContactActivity DB |
-| **Processing** | Classify -> Draft -> Slack/Telegram -> Google Sheets | Classify -> Draft -> Telegram |
+| **Processing** | Classify → Draft → Telegram → Google Sheets | Classify → Draft → Telegram |
 
 ---
 
@@ -23,8 +23,8 @@ Both feed into `ProcessedReply` (classification, draft, notifications) and `Cont
 
 ### Webhooks (Real-time)
 
-**Endpoint:** `POST /api/smartlead/webhook`
-**Handler:** `reply_processor.process_reply_webhook()`
+**Endpoint:** `POST /api/crm-sync/webhook/smartlead`
+**Handler:** `crm_sync.py` → `reply_processor.process_reply_webhook()`
 
 **Events received:**
 | Event | Description |
@@ -219,8 +219,8 @@ crm_scheduler._check_replies() (every 30 min)
 4. Dedup check (same source + activity type + time window + snippet)
 5. Create `ContactActivity` record
 6. If reply: classify via AI, generate draft, create `ProcessedReply`, send Telegram notification
-7. Update contact status (`has_replied`, `reply_channel`, `last_reply_at`)
-8. Add flow to contact's campaign list
+7. Update contact status (`last_reply_at` via `mark_replied()`)
+8. Add flow to contact's `platform_state` campaigns
 
 **Webhook auto-setup:** `crm_scheduler` calls `getsales.setup_crm_webhooks()` every 6 hours, pointing to `http://46.62.210.24:8000/api/crm-sync/webhook/getsales`. Checks existing webhooks before creating to avoid duplicates.
 
@@ -293,10 +293,8 @@ crm_scheduler._check_replies() (every 30 min)
           -> body: message text
           -> extra_data: sender_profile_uuid, conversation_uuid, linkedin_type, automation
         -> Update Contact:
-          -> has_replied = True
-          -> reply_channel = "linkedin"
-          -> last_reply_at = message time
-          -> status = "replied"
+          -> last_reply_at = message time (via mark_replied("linkedin", at=time))
+          -> platform_state.getsales.status = "replied"
       -> Bulk add all new message IDs to Redis cache
     -> Return stats: {new_replies, existing, cached, no_contact, pages}
 ```
@@ -320,23 +318,35 @@ Resolution priority: `automation_name` from webhook -> `flow_name` -> UUID looku
 
 **File:** `backend/app/services/crm_scheduler.py`
 
-| Task | Interval | Method |
-|------|----------|--------|
-| Full Contact Sync | 30 min | `_sync_contacts()` |
-| **Reply Check (Smartlead + GetSales)** | **3-10 min (adaptive)** | `_check_replies()` |
-| **Conversation History Sync** | **10 min** | `_run_conversation_sync_loop()` |
-| Webhook Setup | 5 min (1 min on failure) | `_setup_webhooks()` |
-| Event Recovery | 5 min | `_run_event_recovery_loop()` |
-| Telegram Polling | 30s long-poll | `_run_telegram_poll_loop()` |
-| Reports | 4 hours | `_send_reports()` |
-| Prompt Refresh | Weekly (168h) | `_refresh_prompts()` |
-| Task Watchdog | 30s | `_run_watchdog()` |
+| Task | Interval | Method | SmartLead Endpoints | GetSales Endpoints |
+|------|----------|--------|--------------------|--------------------|
+| **Reply polling** | 3-10 min (adaptive) | `_run_reply_loop()` | `GET /campaigns/{id}/statistics` (paginated), `GET /leads/?email=`, `GET /campaigns/{id}/leads/{id}/message-history` | `GET /flows/api/linkedin-messages` (inbox, paginated) |
+| Full CRM sync | 30 min | `_run_loop()` | `GET /campaigns`, `GET /campaigns/{id}/leads` | `GET /leads/api/lists`, `POST /leads/api/leads/search`, `GET /flows/api/flows` |
+| Webhook registration | 5 min | `_run_webhook_loop()` | `GET /campaigns/{id}/webhooks`, `POST /campaigns/{id}/webhooks` | `GET /integrations/api/webhooks`, `POST /integrations/api/webhooks` |
+| Conversation sync | 3 min | `_run_conversation_sync_loop()` | `GET /campaigns/{id}/leads/{id}/message-history` | — |
+| Sheet sync | 5 min | `_run_sheet_sync_loop()` | `POST /campaigns/{id}/leads/{id}/category` (qualification) | — |
+| Event recovery | 5 min | `_run_event_recovery_loop()` | — (internal DB only) | — |
+| Telegram polling | 30s long-poll | `_run_telegram_poll_loop()` | — | — |
+| Reports | 4 hours | `_run_report_loop()` | — | — |
+| Prompt refresh | Weekly | `_run_prompt_refresh_loop()` | — | — |
+| Watchdog | 30s | `_run_watchdog()` | — | — |
 
 **Adaptive reply polling:** First 3 polls at 3 min (startup catch-up), then 3 min when webhooks unhealthy (>15 min since last webhook), 10 min steady state.
 
+### Per-Project Enable/Disable
+
+Projects have a `webhooks_enabled` boolean field. When `False`:
+- Webhook registration skips all campaigns linked to the project
+- Reply polling skips those campaign names
+- Webhook handler returns `{"status": "skipped"}` for incoming events
+- Prompt refresh skips the project
+- SmartLead does NOT support webhook deletion via API; existing webhooks remain but are ignored
+
+Toggle via UI (project page Enable/Disable button) or API: `PATCH /api/contacts/projects/{id}` with `{"webhooks_enabled": false}`.
+
 The `_check_replies()` method calls both `sync_smartlead_replies()` and `sync_getsales_replies()` in sequence.
 
-### Conversation History Sync (every 10 min)
+### Conversation History Sync (every 3 min)
 
 Detects operator replies made from Smartlead UI (which don't trigger webhooks).
 
@@ -490,3 +500,79 @@ Reply bodies from Smartlead come as HTML. The `_strip_html()` method in `crm_syn
 2. **Global lead search** enriches each replied lead with company/LinkedIn/website data and provides the numeric lead_id needed for message-history
 3. **Full reply pipeline** now runs for polled replies (same as webhooks): classify -> draft -> notify -> log
 4. **Proper HTML stripping** handles CSS blocks, script tags, inline styles, and quoted content
+
+---
+
+## Telegram Notifications (2026-02-25)
+
+### Multi-Operator Subscriptions
+
+**Table:** `telegram_subscriptions` (project_id, chat_id, username, first_name)
+
+Each project can have multiple Telegram subscribers. Each subscriber receives **only reply notifications** (email replies + LinkedIn replies). Outbound email sends are tracked in the DB for status management but never trigger Telegram notifications.
+
+**Connection flow:**
+1. Operator clicks "Connect Telegram" on project page → deep link opens `https://t.me/ImpecableBot?start=project_{id}`
+2. Operator taps "Start" in Telegram → bot upserts into `telegram_subscriptions`
+3. Frontend polls `GET /api/replies/telegram/project-status?project_id={id}` to detect connection
+
+**Notification routing (`notification_service.py`):**
+- Admin (`TELEGRAM_CHAT_ID` env var) always receives ALL notifications
+- Project subscribers loaded into cache (`_refresh_project_cache()`, 5 min TTL)
+- Each subscriber receives notification once (deduplication via `sent_chats` set)
+
+**API endpoints:**
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/replies/telegram/project-status?project_id=` | List all subscribers for a project |
+| `POST /api/replies/telegram/disconnect?project_id=&chat_id=` | Remove specific subscriber (or all if no chat_id) |
+
+**Bot commands:** `/start` (register or link via deep link), `/status` (show connected projects)
+
+---
+
+## Project Monitoring Dashboard (2026-02-25)
+
+**Endpoint:** `GET /api/crm-sync/project/{project_id}/monitoring`
+
+Returns real-time operational status for a project, displayed on the project page UI:
+
+| Section | Data |
+|---------|------|
+| **Polling interval** | Current adaptive reply polling interval + check count |
+| **Webhook health** | Last webhook received time, healthy/unhealthy status |
+| **Reply stats** | 24h/7d reply counts, total contacts/replied, failed events |
+| **Campaign tracking** | Per-campaign: platform, status, contacts, replied (active campaigns only — inactive shown as dimmed with no queries) |
+| **Scheduler tasks** | Status of each background task (running/dead/not_started) |
+| **Latest events** | Last 5 webhook events + last 5 processed replies (debug panel) |
+
+---
+
+## Contact Data Model (2026-02-25)
+
+### Canonical Fields
+| Field | Type | Description |
+|-------|------|-------------|
+| `email` | String(255) | Primary identifier, unique, case-insensitive |
+| `first_name`, `last_name` | String | Contact name |
+| `company_name` | String | From enrichment |
+| `last_reply_at` | DateTime | Latest reply timestamp (`has_replied` = `last_reply_at IS NOT NULL`) |
+| `platform_state` | JSONB | Per-platform data: `{smartlead: {campaigns: [...], status}, getsales: {...}}` |
+| `provenance` | JSONB | Origin tracking: `{source, list_name, campaign_name, gathered_at}` |
+| `smartlead_id`, `getsales_id` | String | External platform IDs |
+
+### Removed Fields (deprecated in datamodel evolution)
+`has_replied`, `reply_channel`, `campaigns` (JSON), `source`, `gathering_details`, `gathering_source`, `gathering_campaign`, `gathering_list`, `gathering_date`, `gathering_batch_id`, `gathering_raw`
+
+### Campaign Data Location
+Campaigns are stored in `platform_state` per platform:
+```json
+{
+  "smartlead": {
+    "campaigns": [{"name": "Campaign X", "id": "12345", "source": "smartlead", "status": "active"}],
+    "status": "replied"
+  }
+}
+```
+
+A dedicated `campaigns` table also exists for centralized campaign registry with `project_id` FK.

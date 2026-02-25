@@ -76,10 +76,11 @@ This document describes all known APIs for Smartlead (email outreach) and GetSal
                     ├──────────────────────────────────────┤
                     │  contacts (51K+)                     │
                     │    - email (unique, case-insensitive)│
-                    │    - has_replied ✅                  │
-                    │    - reply_channel (email/linkedin)  │
-                    │    - last_reply_at                   │
-                    │    - campaigns (JSON) ✅ enriched    │
+                    │    - last_reply_at (→ has_replied)   │
+                    │    - platform_state (JSONB)          │
+                    │      └ smartlead: {campaigns, status}│
+                    │      └ getsales: {campaigns, status} │
+                    │    - provenance (JSONB, origin data) │
                     │    - smartlead_id / getsales_id      │
                     │                                      │
                     │  contact_activities (500+)           │
@@ -678,24 +679,27 @@ async def full_sync(...):
 | GetSales Inbox | ~1,300 | 19,551 | Run `sync_historical_messages.py` |
 | GetSales Outbox | ~7,000 | 168,679 | Run `sync_historical_messages.py` |
 
-### Recent Fixes (2026-02-03 to 2026-02-04)
+### Recent Fixes
 
-| Issue | Fix Applied | Result |
-|-------|-------------|--------|
-| **Duplicate contacts** | Redis sync lock + unique email index | Prevented future duplicates |
-| **Low merge count (819)** | Case-insensitive email matching | Merged: 819 → 3,679 (4.5x) |
-| **Missing smartlead_id** | Backfill script queried Smartlead API | 2,808 contacts fixed |
-| **Concurrent sync race** | Disabled cron, use in-app scheduler only | No more duplicate creation |
-| **Smartlead webhook "No body"** | Added `categories` field to webhook creation | Now receives full reply content |
-| **Smartlead API polling ineffective** | Changed to use `lead_category_id=9` | Correctly identifies replied leads |
+| Date | Issue | Fix Applied | Result |
+|------|-------|-------------|--------|
+| **2026-02-25** | `mark_replied()` never updates | Compare timestamps, keep latest | `last_reply_at` always reflects most recent reply |
+| **2026-02-25** | Sheet sync `'int' object has no attribute 'id'` | Handle legacy int campaign IDs in `platform_state` | Sheet sync no longer crashes on old data |
+| **2026-02-25** | `has_replied`, `reply_channel` columns redundant | Removed columns, `has_replied` derived from `last_reply_at` | Clean datamodel with no duplication |
+| **2026-02-25** | Prompt refresh runs for disabled projects | Filter by `webhooks_enabled=True` | Disabled projects fully silent |
+| 2026-02-03 | Duplicate contacts | Redis sync lock + unique email index | Prevented future duplicates |
+| 2026-02-03 | Low merge count (819) | Case-insensitive email matching | Merged: 819 → 3,679 (4.5x) |
+| 2026-02-03 | Missing smartlead_id | Backfill script queried Smartlead API | 2,808 contacts fixed |
+| 2026-02-03 | Concurrent sync race | Disabled cron, use in-app scheduler only | No more duplicate creation |
+| 2026-02-04 | Smartlead webhook "No body" | Added `categories` field to webhook creation | Now receives full reply content |
 
 ### Known Issues & Limitations
 
 | Issue | Cause | Workaround |
 |-------|-------|------------|
-| **Smartlead: Can't delete webhooks** | API doesn't support DELETE | Create new webhook with correct config; old one remains but is redundant |
+| **Smartlead: Can't delete webhooks** | API returns 404 on DELETE for campaign-level webhooks | Delete manually via SmartLead Settings UI; our system ignores events from disabled projects |
 | **Smartlead: Can't update webhooks** | API doesn't support PATCH/PUT | Same as above - create new webhook |
-| **Smartlead: No reply content via API** | API `get_campaign_leads` has no message fields | Rely on webhooks for reply content; API only marks `has_replied` |
+| **Smartlead: No reply content via API** | API `get_campaign_leads` has no message fields | Use Statistics API + message-history endpoint; webhooks provide content directly |
 | **"Company: Unknown" in notifications** | Contact lacks `company_name` in DB | Data enrichment issue - not all contacts have company data |
 | **GetSales "Unknown Flow"** | API messages lack `automation_name` | Use `get_getsales_flow_name()` helper with UUID-to-name mapping |
 
@@ -910,7 +914,7 @@ ssh hetzner "docker exec leadgen-backend python3 /app/scripts/check_stats.py"
 ```bash
 ssh hetzner "docker exec leadgen-postgres psql -U leadgen -d leadgen -c \"
 SELECT 
-  (SELECT COUNT(*) FROM contacts WHERE has_replied = true) as replied,
+  (SELECT COUNT(*) FROM contacts WHERE last_reply_at IS NOT NULL) as replied,
   (SELECT COUNT(*) FROM contacts WHERE status IN ('warm','not_interested','out_of_office','wrong_person','other')) as reply_statuses
 \""
 ```

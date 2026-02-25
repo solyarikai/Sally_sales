@@ -735,6 +735,16 @@ class CRMScheduler:
                             f"{qual_stats['statuses_advanced']} statuses advanced"
                         )
 
+                # Clear previous error on success
+                async with async_session_maker() as ok_session:
+                    proj = await ok_session.get(Project, project_id)
+                    if proj and proj.sheet_sync_config and proj.sheet_sync_config.get("last_error"):
+                        new_config = dict(proj.sheet_sync_config)
+                        new_config.pop("last_error", None)
+                        new_config.pop("last_error_at", None)
+                        proj.sheet_sync_config = new_config
+                        await ok_session.commit()
+
             except Exception as e:
                 import traceback
                 logger.error(f"[SheetSync] Project {project_id} failed: {e}\n{traceback.format_exc()}")
