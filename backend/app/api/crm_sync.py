@@ -578,11 +578,11 @@ async def get_sync_status(
 async def get_project_monitoring(
     project_id: int,
     session: AsyncSession = Depends(get_session),
-    company: Company = Depends(get_required_company),
 ):
     """
     Project-level monitoring dashboard data.
     Returns webhook health, polling intervals, per-campaign status, reply stats.
+    No X-Company-ID header required (frontend skips it for /crm-sync routes).
     """
     from app.models.contact import Project
     from app.models.campaign import Campaign
@@ -591,8 +591,9 @@ async def get_project_monitoring(
     from sqlalchemy import func
 
     project = await session.get(Project, project_id)
-    if not project or project.company_id != company.id:
+    if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    company_id = project.company_id
 
     scheduler = get_crm_scheduler()
     scheduler_status = scheduler.get_status()
@@ -608,7 +609,7 @@ async def get_project_monitoring(
             contact_count_q = await session.execute(
                 select(func.count(Contact.id)).where(
                     and_(
-                        Contact.company_id == company.id,
+                        Contact.company_id == company_id,
                         Contact.deleted_at.is_(None),
                         Contact.platform_state.cast(String).ilike(f'%{name}%'),
                     )
@@ -617,7 +618,7 @@ async def get_project_monitoring(
             replied_q = await session.execute(
                 select(func.count(Contact.id)).where(
                     and_(
-                        Contact.company_id == company.id,
+                        Contact.company_id == company_id,
                         Contact.deleted_at.is_(None),
                         Contact.last_reply_at.isnot(None),
                         Contact.platform_state.cast(String).ilike(f'%{name}%'),
@@ -625,11 +626,10 @@ async def get_project_monitoring(
                 )
             )
 
-            # Check if this campaign exists in campaigns table
             db_campaign = await session.execute(
                 select(Campaign).where(
                     and_(
-                        Campaign.company_id == company.id,
+                        Campaign.company_id == company_id,
                         Campaign.name == name,
                     )
                 )
@@ -681,7 +681,7 @@ async def get_project_monitoring(
     total_contacts_q = await session.execute(
         select(func.count(Contact.id)).where(
             and_(
-                Contact.company_id == company.id,
+                Contact.company_id == company_id,
                 Contact.project_id == project_id,
                 Contact.deleted_at.is_(None),
             )
@@ -690,7 +690,7 @@ async def get_project_monitoring(
     total_replied_q = await session.execute(
         select(func.count(Contact.id)).where(
             and_(
-                Contact.company_id == company.id,
+                Contact.company_id == company_id,
                 Contact.project_id == project_id,
                 Contact.deleted_at.is_(None),
                 Contact.last_reply_at.isnot(None),
