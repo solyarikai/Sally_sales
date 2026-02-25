@@ -1143,7 +1143,9 @@ async def process_reply_webhook(
 
         # Increment campaign's sl_reply_count so polling knows this reply
         # was already caught by webhook and won't trigger redundant pagination.
-        if campaign_id:
+        # Only for real webhooks — polling writes the definitive count directly.
+        is_from_polling = payload.get("_source") == "api_polling"
+        if campaign_id and not is_from_polling:
             try:
                 from app.models.campaign import Campaign as CampaignModel
                 camp_result = await session.execute(
@@ -1155,7 +1157,7 @@ async def process_reply_webhook(
                 camp = camp_result.scalar_one_or_none()
                 if camp:
                     camp.sl_reply_count = (camp.sl_reply_count or 0) + 1
-                    logger.info(f"[PROCESSOR] Incremented campaign {campaign_id} sl_reply_count → {camp.sl_reply_count}")
+                    logger.info(f"[PROCESSOR] Webhook incremented campaign {campaign_id} sl_reply_count → {camp.sl_reply_count}")
             except Exception as camp_err:
                 logger.warning(f"[PROCESSOR] Failed to increment sl_reply_count (non-fatal): {camp_err}")
 
