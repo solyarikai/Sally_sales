@@ -436,7 +436,9 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
               <span className={cn("text-xs font-bold font-mono px-2 py-0.5 rounded",
                 isDark ? "bg-[#1e1e1e] text-[#d4d4d4]" : "bg-white text-neutral-900"
               )}>
-                {monitoring.polling.intervals[0]?.interval}
+                {monitoring.polling.intervals[0]?.interval_seconds
+                  ? `${Math.round(monitoring.polling.intervals[0].interval_seconds / 60)} min`
+                  : '—'}
               </span>
             </div>
             <div className={cn("text-[10px]", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
