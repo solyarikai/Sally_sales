@@ -601,47 +601,63 @@ async def get_project_monitoring(
     campaign_names = project.campaign_filters or []
     campaign_names_lower = {n.lower() for n in campaign_names}
 
-    # Per-campaign stats from contacts
-    campaign_stats = []
-    if campaign_names:
-        for name in sorted(campaign_names):
-            # Determine source from allCampaigns or from contacts data
-            contact_count_q = await session.execute(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.company_id == company_id,
-                        Contact.deleted_at.is_(None),
-                        Contact.platform_state.cast(String).ilike(f'%{name}%'),
-                    )
-                )
-            )
-            replied_q = await session.execute(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.company_id == company_id,
-                        Contact.deleted_at.is_(None),
-                        Contact.last_reply_at.isnot(None),
-                        Contact.platform_state.cast(String).ilike(f'%{name}%'),
-                    )
-                )
-            )
+    ACTIVE_STATUSES = {'active', 'STARTED', 'in_progress', 'INPROGRESS', 'ready', 'linked'}
 
-            db_campaign = await session.execute(
-                select(Campaign).where(
-                    and_(
-                        Campaign.company_id == company_id,
-                        Campaign.name == name,
-                    )
+    # Per-campaign stats — only run expensive queries for active campaigns
+    campaign_stats = []
+    active_campaign_names = []
+    if campaign_names:
+        # First pass: resolve status from campaigns table
+        db_campaigns_q = await session.execute(
+            select(Campaign).where(
+                and_(
+                    Campaign.company_id == company_id,
+                    Campaign.name.in_(campaign_names),
                 )
             )
-            db_camp = db_campaign.scalar_one_or_none()
+        )
+        db_campaigns_map = {c.name: c for c in db_campaigns_q.scalars().all()}
+
+        for name in sorted(campaign_names):
+            db_camp = db_campaigns_map.get(name)
+            status = db_camp.status if db_camp else "linked"
+            is_active = status in ACTIVE_STATUSES
+
+            if is_active:
+                active_campaign_names.append(name)
+
+            contacts = 0
+            replied = 0
+            if is_active:
+                contact_count_q = await session.execute(
+                    select(func.count(Contact.id)).where(
+                        and_(
+                            Contact.company_id == company_id,
+                            Contact.deleted_at.is_(None),
+                            Contact.platform_state.cast(String).ilike(f'%{name}%'),
+                        )
+                    )
+                )
+                replied_q = await session.execute(
+                    select(func.count(Contact.id)).where(
+                        and_(
+                            Contact.company_id == company_id,
+                            Contact.deleted_at.is_(None),
+                            Contact.last_reply_at.isnot(None),
+                            Contact.platform_state.cast(String).ilike(f'%{name}%'),
+                        )
+                    )
+                )
+                contacts = contact_count_q.scalar() or 0
+                replied = replied_q.scalar() or 0
 
             campaign_stats.append({
                 "name": name,
-                "platform": db_camp.platform if db_camp else ("smartlead" if any(c.lower().startswith("easystaff") or c.lower().startswith("inxy") or c.lower().startswith("squarefi") or c.lower().startswith("deliryo") or c.lower().startswith("abeta") or c.lower().startswith("palark") for c in [name]) else "unknown"),
-                "status": db_camp.status if db_camp else "linked",
-                "contacts": contact_count_q.scalar() or 0,
-                "replied": replied_q.scalar() or 0,
+                "platform": db_camp.platform if db_camp else "unknown",
+                "status": status,
+                "active": is_active,
+                "contacts": contacts,
+                "replied": replied,
                 "external_id": db_camp.external_id if db_camp else None,
             })
 
@@ -649,7 +665,7 @@ async def get_project_monitoring(
     since_24h = datetime.utcnow() - __import__('datetime').timedelta(hours=24)
     since_7d = datetime.utcnow() - __import__('datetime').timedelta(days=7)
 
-    # Recent processed replies for this project's campaigns
+    # Recent processed replies — count from all project campaigns (active and inactive can still receive late replies)
     replies_24h_q = await session.execute(
         select(func.count(ProcessedReply.id)).where(
             and_(
@@ -742,7 +758,8 @@ async def get_project_monitoring(
             "replies_7d": replies_7d_q.scalar() or 0,
             "failed_events_24h": failed_events_q.scalar() or 0,
         },
-        "campaigns": campaign_stats,
+        "campaigns": sorted(campaign_stats, key=lambda c: (not c["active"], c["name"])),
+        "active_campaigns_count": len(active_campaign_names),
         "latest_events": await _get_latest_events(session, campaign_names),
     }
 

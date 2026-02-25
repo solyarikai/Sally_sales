@@ -631,7 +631,7 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
           {monitoring.campaigns.length > 0 && (
             <div>
               <h3 className={cn("text-xs font-semibold mb-2", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
-                Campaign Tracking ({monitoring.campaigns.length})
+                Campaign Tracking ({monitoring.active_campaigns_count} active / {monitoring.campaigns.length} total)
               </h3>
               <div className={cn("rounded-lg border overflow-hidden", isDark ? "border-[#333]" : "border-neutral-200")}>
                 <table className="w-full text-xs">
@@ -646,7 +646,11 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
                   </thead>
                   <tbody>
                     {monitoring.campaigns.map((c, i) => (
-                      <tr key={i} className={cn("border-t", isDark ? "border-[#333]" : "border-neutral-100")}>
+                      <tr key={i} className={cn(
+                        "border-t",
+                        isDark ? "border-[#333]" : "border-neutral-100",
+                        !c.active && (isDark ? "opacity-40" : "opacity-50"),
+                      )}>
                         <td className={cn("px-3 py-1.5 max-w-[240px] truncate font-medium", isDark ? "text-[#d4d4d4]" : "text-neutral-700")} title={c.name}>{c.name}</td>
                         <td className="px-3 py-1.5 text-center">
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
@@ -660,7 +664,7 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
                         <td className="px-3 py-1.5 text-center">
                           <span className={cn(
                             "text-[10px] px-1.5 py-0.5 rounded",
-                            c.status === 'active' || c.status === 'STARTED' || c.status === 'in_progress'
+                            c.active
                               ? 'bg-green-100 text-green-700'
                               : c.status === 'completed' || c.status === 'COMPLETED' || c.status === 'finished'
                                 ? isDark ? 'bg-[#3c3c3c] text-[#858585]' : 'bg-neutral-100 text-neutral-500'
@@ -669,8 +673,12 @@ function MonitoringSection({ monitoring, loading, onRefresh, isDark }: { monitor
                             {c.status}
                           </span>
                         </td>
-                        <td className={cn("px-3 py-1.5 text-right tabular-nums", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>{c.contacts.toLocaleString()}</td>
-                        <td className={cn("px-3 py-1.5 text-right tabular-nums", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>{c.replied.toLocaleString()}</td>
+                        <td className={cn("px-3 py-1.5 text-right tabular-nums", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
+                          {c.active ? c.contacts.toLocaleString() : '—'}
+                        </td>
+                        <td className={cn("px-3 py-1.5 text-right tabular-nums", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>
+                          {c.active ? c.replied.toLocaleString() : '—'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -128,10 +128,12 @@ export interface ProjectMonitoring {
     name: string;
     platform: string;
     status: string;
+    active: boolean;
     contacts: number;
     replied: number;
     external_id: string | null;
   }[];
+  active_campaigns_count: number;
   latest_events: {
     webhook_events: {
       id: number;
