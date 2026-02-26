@@ -2035,10 +2035,36 @@ async def approve_and_send_reply(
     if reply.approval_status in ("approved", "approved_dry_run"):
         raise HTTPException(status_code=400, detail="Reply already approved")
 
-    # --- LinkedIn replies: mark approved but don't try to send via SmartLead ---
+    # --- LinkedIn replies: send via GetSales API ---
     if reply.channel == "linkedin" or reply.source == "getsales":
-        reply.approval_status = "approved"
         reply.approved_at = datetime.utcnow()
+
+        # Extract GetSales identifiers from raw webhook data
+        raw = reply.raw_webhook_data or {}
+        lead_uuid = raw.get("lead_uuid") or raw.get("lead", {}).get("uuid")
+        sender_profile_uuid = raw.get("sender_profile_uuid")
+
+        send_result = None
+        send_error = None
+
+        if lead_uuid and sender_profile_uuid and not test_mode:
+            try:
+                from app.services.crm_sync_service import GetSalesClient
+                gs = GetSalesClient(settings.GETSALES_API_KEY)
+                try:
+                    send_result = await gs.send_linkedin_message(
+                        sender_profile_uuid=sender_profile_uuid,
+                        lead_uuid=lead_uuid,
+                        text=reply.draft_reply,
+                    )
+                    logger.info(f"GetSales message sent for reply {reply_id}: {send_result.get('uuid', 'ok')}")
+                finally:
+                    await gs.close()
+            except Exception as gs_err:
+                send_error = str(gs_err)
+                logger.error(f"GetSales send failed for reply {reply_id}: {gs_err}")
+
+        reply.approval_status = "approved"
 
         # Look up Contact for outbound activity tracking
         contact = None
@@ -2061,7 +2087,12 @@ async def approve_and_send_reply(
                     source="getsales",
                     body=reply.draft_reply,
                     snippet=(reply.draft_reply or "")[:200],
-                    extra_data={"processed_reply_id": reply.id, "approved_via": "approve-and-send"},
+                    extra_data={
+                        "processed_reply_id": reply.id,
+                        "approved_via": "approve-and-send",
+                        "getsales_sent": send_result is not None,
+                        "getsales_message_uuid": (send_result or {}).get("uuid"),
+                    },
                     activity_at=datetime.utcnow(),
                 )
                 db.add(outbound)
@@ -2071,13 +2102,20 @@ async def approve_and_send_reply(
         db.add(reply)
         await db.commit()
         await db.refresh(reply)
+
+        status_msg = "Sent via LinkedIn" if send_result else "Approved — copy draft to LinkedIn"
+        if send_error:
+            status_msg = f"Approved (send failed: {send_error[:100]})"
+
         return {
             "status": "approved",
             "channel": "linkedin",
             "reply_id": reply_id,
             "lead_email": reply.lead_email,
-            "message": "Approved. Copy draft to LinkedIn conversation.",
+            "message": status_msg,
             "contact_id": contact.id if contact else None,
+            "getsales_sent": send_result is not None,
+            "send_error": send_error,
         }
 
     # --- Find contact and campaign ---

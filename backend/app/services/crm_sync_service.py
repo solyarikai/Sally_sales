@@ -654,6 +654,35 @@ class GetSalesClient:
         """Get leads from a specific list."""
         return await self.search_leads({"list_uuid": list_uuid}, limit, offset)
     
+    # ============= Sending Messages =============
+
+    async def send_linkedin_message(
+        self,
+        sender_profile_uuid: str,
+        lead_uuid: str,
+        text: str,
+    ) -> dict:
+        """Send a LinkedIn message via GetSales API.
+
+        Args:
+            sender_profile_uuid: UUID of the sender profile (LinkedIn account)
+            lead_uuid: UUID of the lead/contact to message
+            text: Message text to send
+
+        Returns:
+            API response dict with message details
+        """
+        return await self._post("/flows/api/linkedin-messages", {
+            "sender_profile_uuid": sender_profile_uuid,
+            "lead_uuid": lead_uuid,
+            "text": text,
+        })
+
+    @staticmethod
+    def build_inbox_url(lead_uuid: str) -> str:
+        """Construct GetSales unibox URL for a specific lead."""
+        return f"https://amazing.getsales.io/unibox?lead={lead_uuid}"
+
     # ============= Webhook Management =============
     
     async def get_webhooks(self) -> List[dict]:

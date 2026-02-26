@@ -1298,6 +1298,13 @@ async def process_getsales_reply(
         sender_company=proj_sender_company,
     )
 
+    # --- Build GetSales inbox link ---
+    lead_uuid = raw_data.get("lead_uuid") or raw_data.get("lead", {}).get("uuid")
+    inbox_link = None
+    if lead_uuid:
+        from app.services.crm_sync_service import GetSalesClient
+        inbox_link = GetSalesClient.build_inbox_url(lead_uuid)
+
     # --- Create or update ProcessedReply ---
     if existing_pr:
         existing_pr.received_at = activity_at
@@ -1312,6 +1319,8 @@ async def process_getsales_reply(
         existing_pr.raw_webhook_data = raw_data
         existing_pr.updated_at = datetime.utcnow()
         existing_pr.campaign_name = flow_name or existing_pr.campaign_name
+        if inbox_link:
+            existing_pr.inbox_link = inbox_link
         processed_reply = existing_pr
         await session.flush()
         logger.info(f"[GETSALES] Updated ProcessedReply {existing_pr.id} for {lead_email}")
@@ -1335,6 +1344,7 @@ async def process_getsales_reply(
             draft_reply=draft.get("body"),
             draft_subject=draft.get("subject"),
             raw_webhook_data=raw_data,
+            inbox_link=inbox_link,
         )
         session.add(processed_reply)
         await session.flush()

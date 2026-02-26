@@ -263,7 +263,7 @@ export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueue
       }
       const contactId = result.contact_id;
       const toastMsg = result.channel === 'linkedin'
-        ? 'Approved — copy draft to LinkedIn'
+        ? (result.getsales_sent ? 'Sent via LinkedIn' : (result.send_error ? `Approved (send failed)` : 'Approved — copy draft to LinkedIn'))
         : 'Reply sent';
       toast(
         (tInstance) => (
@@ -560,13 +560,15 @@ export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueue
                                 || (reply.campaign_name && history?.inbox_links?.[reply.campaign_name])
                                 || (history?.inbox_links && Object.values(history.inbox_links)[0])
                                 || null;
+                              const isLinkedin = reply.channel === 'linkedin';
+                              const platform = isLinkedin ? 'GetSales' : 'SmartLead';
                               return inboxUrl ? (
                                 <a
                                   href={inboxUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="transition-colors"
-                                  title={selCampName ? `Open ${selCampName} in Smartlead` : 'Open in Smartlead'}
+                                  title={selCampName ? `Open ${selCampName} in ${platform}` : `Open in ${platform}`}
                                   onClick={e => e.stopPropagation()}
                                   style={{ color: t.text5 }}
                                 >
@@ -799,11 +801,9 @@ export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueue
                           }}
                         >
                           {isSending ? (
-                            <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> {reply.channel === 'linkedin' ? 'Approving...' : 'Sending...'}</>
+                            <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Sending...</>
                           ) : (
-                            <><ArrowRight className="w-3.5 h-3.5" /> {reply.channel === 'linkedin'
-                              ? (isEditing ? 'Approve edited' : 'Approve')
-                              : (isEditing ? 'Send edited' : 'Send')
+                            <><ArrowRight className="w-3.5 h-3.5" /> {isEditing ? 'Send edited' : 'Send'
                             }{reply.campaign_name
                               ? ` via ${displayCampaignName(reply.campaign_name)}`
                               : ''
