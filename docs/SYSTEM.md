@@ -35,20 +35,23 @@ Combined reference for the lead generation and outreach automation platform.
 - Saved views: any filter combination saved as project for instant recall
 - AI-powered: analytics on any contact slice, self-learning from reply patterns
 
-### Status Lifecycle
+### Reply Categories (13 categories, GPT-classified)
 
-```
-lead -> contacted -> replied -> qualified -> customer
-                        \          /
-                         -> lost (at any stage)
-```
+| Category | Meaning |
+|----------|---------|
+| interested | Lead expressed interest |
+| meeting_request | Wants to schedule a call/meeting |
+| question | Has questions, needs more info |
+| not_interested | Declined |
+| out_of_office | OOO auto-reply |
+| referral | Redirected to another person |
+| unsubscribe | Explicit opt-out |
+| already_using | Already has a similar solution |
+| wrong_person | Not the right contact |
+| pricing_request | Asking about pricing |
+| other | Doesn't fit other categories |
 
-- `lead`: imported, no outreach sent
-- `contacted`: in active campaign, messages sent (auto-detected)
-- `replied`: prospect responded (auto-detected)
-- `qualified`: BDM manually marks (manual)
-- `customer`: deal closed (manual)
-- `lost`: not interested, unsubscribed, bounced (manual)
+Reply approval flow: `NULL → pending → approved/dismissed/replied_externally`
 
 ### Smart Projects (Saved Filter Presets)
 
@@ -308,79 +311,26 @@ Ensure the data update setup (polling + webhooks) on the server is robust and wo
 
 - **SSH**: `ssh hetzner`, user `leadokol`, path `~/magnum-opus-project/repo`
 - **Docker**: v1 (`docker-compose`, not v2)
-- **Server IP**: `46.62.210.24`
 
-### Database
+### Credentials
 
-```
-POSTGRES_USER=leadgen
-POSTGRES_PASSWORD=leadgen_secret
-POSTGRES_DB=leadgen
-DATABASE_URL=postgresql+asyncpg://leadgen:leadgen_secret@postgres:5432/leadgen
-```
+All API keys and secrets are in `backend/.env` on the server. **Never commit credentials to docs or code.**
 
-Docker container: `leadgen-postgres`
+Key integrations (all configured via `backend/app/core/config.py` → Pydantic `BaseSettings`):
+- OpenAI (GPT scoring, classification, draft generation)
+- SmartLead (email outreach campaigns)
+- GetSales (LinkedIn outreach)
+- Apollo (people enrichment)
+- FindyMail (email verification)
+- Yandex Search API (company discovery)
+- Crona (JS-rendered website scraping)
+- Telegram Bot (notifications)
+- Google Service Account (Google Sheets sync)
 
-### Redis
-
-```
-REDIS_URL=redis://redis:6379
-```
-
-### API Keys
-
-```
-# OpenAI
-OPENAI_API_KEY=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
-
-# SmartLead (email outreach)
-SMARTLEAD_API_KEY=eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5
-
-# GetSales (LinkedIn outreach)
-GETSALES_API_KEY=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vYW1hemluZy5nZXRzYWxlcy5pby9hcGkvand0LXRva2Vucy9jcmVhdGUtYXBpLWtleSIsImlhdCI6MTc3MDA3MDE0OCwiZXhwIjoxODY0Njc4MTQ4LCJuYmYiOjE3NzAwNzAxNDgsImp0aSI6IjFpYlF4TW5ueFJhVGxlREMiLCJzdWIiOiI3OTg4IiwidXNyIjp7ImlkIjo3OTg4LCJ1dWlkIjoiZTBiZDgzMTgtNGEwZC0xMWYwLThiYWItYThhMTU5YzBiZmJjIiwiZmlyc3RfbmFtZSI6IlNlcmdlIiwibGFzdF9uYW1lIjoiS3V6bmV0c292IiwiZW1haWwiOiJzZXJnZUBpbnh5ZGlnaXRhbC5jb20iLCJnYV90cmFja2luZ19pZCI6IjQ1OTY0OTcyMS4xNzQyNTY1Mzc4LiIsImZiX2NsaWNrX2lkIjpudWxsLCJmYl9icm93c2VyX2lkIjoiZmIuMS4xNzQyNTY1Mzc4NjIxLjI4ODI0NDQ5MjUzMzQ2NTgwNSIsIndoaXRlbGFiZWxfdXVpZCI6bnVsbCwiY3JlYXRlZF9hdCI6IjIwMjUtMDMtMjFUMTM6NTY6NTkuMDAwMDAwWiJ9LCJzcGVjaWZpY190ZWFtX2lkIjo3NDMwLCJ1c2VyX3RlYW1zIjp7Ijc0MzAiOjN9LCJ0b2tlbl90eXBlIjoiYXBpIn0.22W-xynV9M92S4gz1B0DohAEMpz26DrmU0KDXnz8qZc
-
-# Yandex Search API
-YANDEX_SEARCH_API_KEY=AQVNyM68azFp-ua5Gx9UKCi2kjd9ceASfYLYLYhd
-YANDEX_SEARCH_FOLDER_ID=b1ghcrnch8s4l0saftba
-
-# Crona (website scraping)
-CRONA_EMAIL=pn@getsally.io
-CRONA_PASSWORD=Qweqweqwe1
-
-# Apollo (people enrichment) — account: danila@getsally.io (paid plan)
-APOLLO_API_KEY=9yIx2mZegixXHeDf6mWVqA
-
-# Slack
-SLACK_BOT_TOKEN=xoxb-5059703821363-10410114252597-Vm4M95iovQPBhzdFBuGalj7m
-```
-
-### Google Services
-
-```
-GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json
-GOOGLE_IMPERSONATE_EMAIL=services@getsally.io
-SHARED_DRIVE_ID=0AEvTjlJFlWnZUk9PVA
-```
-
-### Docker Run Template (for scripts)
+### Docker Run Template (for one-off scripts)
 
 ```bash
-docker run -d --name <SCRIPT_NAME> \
-  --network repo_default \
-  -v ~/magnum-opus-project/repo/backend:/app \
-  -v ~/magnum-opus-project/repo/scripts:/scripts \
-  -v ~/magnum-opus-project/repo/google-credentials.json:/app/google-credentials.json:ro \
-  -e DATABASE_URL=postgresql+asyncpg://leadgen:leadgen_secret@postgres:5432/leadgen \
-  -e OPENAI_API_KEY=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 \
-  -e YANDEX_SEARCH_API_KEY=AQVNyM68azFp-ua5Gx9UKCi2kjd9ceASfYLYLYhd \
-  -e YANDEX_SEARCH_FOLDER_ID=b1ghcrnch8s4l0saftba \
-  -e CRONA_EMAIL=pn@getsally.io \
-  -e CRONA_PASSWORD=Qweqweqwe1 \
-  -e APOLLO_API_KEY=9yIx2mZegixXHeDf6mWVqA \
-  -e GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json \
-  -e GOOGLE_IMPERSONATE_EMAIL=services@getsally.io \
-  -e SHARED_DRIVE_ID=0AEvTjlJFlWnZUk9PVA \
-  python:3.11 bash -c 'pip install -q -r /app/requirements.txt && python /scripts/<SCRIPT_NAME>.py'
+docker exec -w /app -e PYTHONPATH=/app leadgen-backend python3 scripts/<SCRIPT_NAME>.py
 ```
 
 ### Config File Reference

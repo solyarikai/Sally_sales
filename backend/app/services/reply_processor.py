@@ -688,8 +688,8 @@ async def process_reply_webhook(
         classification = await classify_reply(subject, body, custom_prompt=custom_classification_prompt)
         logger.info(f"[PROCESSOR] Classification: category={classification['category']}, confidence={classification['confidence']}")
 
-        # Look up project for sender identity + prompt template
         custom_reply_prompt = automation.reply_prompt if automation else None
+        project = None
         proj_sender_name = None
         proj_sender_position = None
         proj_sender_company = None
@@ -737,14 +737,14 @@ async def process_reply_webhook(
 
         # Track classification cost (non-fatal)
         try:
-            if 'project' in dir() and project:
+            if project:
                 from app.services.cost_service import cost_service
                 await cost_service.record_cost(
                     session, project.id, "openai_4o_mini_1k",
                     units=1, description="reply classification",
                 )
-        except Exception:
-            pass
+        except Exception as cost_err:
+            logger.debug(f"[PROCESSOR] Cost tracking failed: {cost_err}")
 
         # Generate draft reply
         draft = await generate_draft_reply(
@@ -924,9 +924,8 @@ async def process_reply_webhook(
 
             # Append webhook payload to smartlead_raw for debugging
             import json
-            from datetime import datetime as dt
             webhook_entry = {
-                "received_at": dt.utcnow().isoformat(),
+                "received_at": datetime.utcnow().isoformat(),
                 "type": "email_reply",
                 "category": classification["category"],
                 "payload": payload
@@ -937,6 +936,7 @@ async def process_reply_webhook(
                     if "webhooks" not in raw:
                         raw["webhooks"] = []
                     raw["webhooks"].append(webhook_entry)
+                    raw["webhooks"] = raw["webhooks"][-20:]
                     contact.update_platform_raw("smartlead", raw)
                 except (json.JSONDecodeError, TypeError, ValueError) as e:
                     logger.warning(f"[PROCESSOR] Failed to parse smartlead_raw, resetting: {e}")
@@ -1131,7 +1131,6 @@ async def process_reply_webhook(
                 if row_number:
                     processed_reply.google_sheet_row = row_number
                     session.add(processed_reply)
-                    await session.commit()
                 logger.info(f"Logged reply {processed_reply.id} to Google Sheet {automation.google_sheet_id} at row {row_number}")
             except Exception as e:
                 logger.error(f"Failed to log reply to Google Sheets: {e}")

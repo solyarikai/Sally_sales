@@ -4,7 +4,7 @@ CRM Sync Scheduler - Robust background job system.
 Features:
 - Full CRM sync every 30 minutes
 - Adaptive reply polling: 3 min fast (startup/degraded), 10 min steady state
-- Webhook registration every 5 min (1 min retry on failure)
+- Webhook registration every 60 min (5 min retry on failure)
 - Webhook health monitoring
 - Event recovery loop: reprocesses failed webhook events with exponential backoff
 - Task watchdog: resurrects dead scheduler tasks within 60 seconds
@@ -26,33 +26,13 @@ from app.services.cache_service import backfill_reply_cache_from_db
 logger = logging.getLogger(__name__)
 
 
-async def _get_disabled_campaign_names() -> set:
-    """Query campaign names from projects with webhooks_enabled=False."""
+async def _get_campaign_names_by_status(enabled: bool) -> set:
+    """Query campaign names from projects by webhooks_enabled status."""
     from app.models.contact import Project
     async with async_session_maker() as session:
         result = await session.execute(
             select(Project.campaign_filters).where(
-                Project.webhooks_enabled == False,
-                Project.campaign_filters.isnot(None),
-                Project.deleted_at.is_(None),
-            )
-        )
-        names = set()
-        for (filters,) in result.all():
-            if isinstance(filters, list):
-                names.update(filters)
-        return names
-
-
-async def _get_enabled_campaign_names() -> set:
-    """Get campaign names from projects with webhooks_enabled=True.
-    Only these campaigns should be polled/registered — avoids iterating all 1700+ SmartLead campaigns.
-    """
-    from app.models.contact import Project
-    async with async_session_maker() as session:
-        result = await session.execute(
-            select(Project.campaign_filters).where(
-                Project.webhooks_enabled == True,
+                Project.webhooks_enabled == enabled,
                 Project.campaign_filters.isnot(None),
                 Project.deleted_at.is_(None),
             )
@@ -164,7 +144,7 @@ class CRMScheduler:
         self._running = True
         self._start_all_tasks()
         self._watchdog_task = asyncio.create_task(self._run_watchdog())
-        logger.info("CRM scheduler started (sync: 30min, replies: adaptive 3-10min, webhooks: 5min, reports: 4h, recovery: 5min)")
+        logger.info("CRM scheduler started (sync: 30min, replies: adaptive 3-10min, webhooks: 1h, reports: 4h, recovery: 5min)")
     
     async def stop(self):
         """Stop all scheduler tasks."""
@@ -248,7 +228,7 @@ class CRMScheduler:
         sync_service = get_crm_sync_service()
 
         try:
-            enabled_campaigns = await _get_enabled_campaign_names()
+            enabled_campaigns = await _get_campaign_names_by_status(True)
             logger.info(f"CRM sync scoped to {len(enabled_campaigns)} campaigns from enabled projects")
         except Exception as e:
             logger.warning(f"Failed to load enabled campaigns, running unscoped: {e}")
@@ -390,7 +370,7 @@ class CRMScheduler:
 
         # Scope to only campaigns linked to enabled projects
         try:
-            enabled_campaigns = await _get_enabled_campaign_names()
+            enabled_campaigns = await _get_campaign_names_by_status(True)
         except Exception as e:
             logger.warning(f"Failed to load enabled campaigns, falling back to all: {e}")
             enabled_campaigns = None
@@ -1109,14 +1089,6 @@ async def start_crm_scheduler():
     except Exception as e:
         logger.warning(f"Reply cache backfill failed (non-fatal): {e}")
     
-    async def _webhook_startup():
-        await asyncio.sleep(2)
-        try:
-            await setup_crm_webhooks_on_startup()
-        except Exception as e:
-            logger.error(f"Background webhook setup failed: {e}")
-
-    asyncio.create_task(_webhook_startup())
 
 
 # Prevents concurrent webhook registration runs.
@@ -1150,7 +1122,7 @@ async def _do_webhook_setup():
     sync_service = get_crm_sync_service()
 
     try:
-        skip_campaigns = await _get_disabled_campaign_names()
+        skip_campaigns = await _get_campaign_names_by_status(False)
         if skip_campaigns:
             logger.info(f"Skipping webhooks for {len(skip_campaigns)} campaigns (disabled projects)")
     except Exception as e:
