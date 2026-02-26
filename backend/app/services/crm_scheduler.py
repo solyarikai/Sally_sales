@@ -434,8 +434,8 @@ class CRMScheduler:
             await asyncio.sleep(retry_delay)
     
     async def _setup_webhooks(self):
-        """Set up webhooks for any new campaigns."""
-        logger.info("Checking for new campaigns to configure webhooks...")
+        """Set up webhooks for any new campaigns. Delegates to the single
+        lock-protected entry point — safe to call from multiple places."""
         await setup_crm_webhooks_on_startup()
     
     # ===== Event Recovery Loop (every 5 min) =====
@@ -1118,8 +1118,28 @@ async def _setup_webhooks_background():
         logger.error(f"Background webhook setup failed: {e}")
 
 
+# Prevents concurrent webhook registration runs (startup, 5-min loop,
+# and post-auto-assign can overlap without this).
+_webhook_setup_lock = asyncio.Lock()
+
+
 async def setup_crm_webhooks_on_startup():
-    """Set up CRM webhooks in external systems."""
+    """Set up CRM webhooks in external systems.
+
+    Single entry point for ALL webhook registration. Protected by an
+    asyncio.Lock so concurrent callers (startup background task, periodic
+    5-min loop, post-auto-assign trigger) never race each other.
+    """
+    if _webhook_setup_lock.locked():
+        logger.info("Webhook setup already running, skipping")
+        return
+
+    async with _webhook_setup_lock:
+        await _do_webhook_setup()
+
+
+async def _do_webhook_setup():
+    """Internal: actual webhook registration logic."""
     from app.services.crm_sync_service import get_crm_sync_service
 
     logger.info("Setting up CRM webhooks for all campaigns (background)...")

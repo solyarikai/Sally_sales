@@ -727,73 +727,14 @@ class SmartleadService:
             logger.error(f"Error fetching campaign sequences: {e}")
             return cached[1] if cached else []
 
-    async def configure_campaign_webhook(
-        self,
-        campaign_id: str,
-        webhook_url: str,
-        webhook_name: str = "Auto-Replies Webhook",
-        client: httpx.AsyncClient | None = None,
-    ) -> bool:
-        """Configure a webhook for a Smartlead campaign.
-
-        Checks if ANY webhook pointing to our server already exists (by host match,
-        not exact URL). This prevents duplicates across the two registration systems
-        (smartlead_service + crm_sync_service) that previously accumulated 7-14
-        webhooks per campaign and caused SmartLead to silently stop delivery.
-        """
-        if not self.api_key:
-            logger.warning("Smartlead API key not configured")
-            return False
-
-        from urllib.parse import urlparse
-        our_host = urlparse(webhook_url).netloc
-
-        try:
-            resp = await smartlead_request(
-                "GET", f"{self.base_url}/campaigns/{campaign_id}/webhooks",
-                params={"api_key": self.api_key},
-                client=client,
-            )
-
-            if resp.status_code == 200:
-                existing = resp.json()
-                for wh in existing:
-                    wh_host = urlparse(wh.get("webhook_url", "")).netloc
-                    if wh_host == our_host:
-                        return True
-
-            resp = await smartlead_request(
-                "POST", f"{self.base_url}/campaigns/{campaign_id}/webhooks",
-                params={"api_key": self.api_key},
-                json={
-                    "name": webhook_name,
-                    "webhook_url": webhook_url,
-                    "event_types": ["EMAIL_REPLY"],
-                },
-                client=client,
-            )
-
-            if resp.status_code == 200:
-                logger.info(f"Webhook configured for campaign {campaign_id}")
-                return True
-            else:
-                logger.error(f"Failed to configure webhook: {resp.status_code} - {resp.text}")
-                return False
-
-        except Exception as e:
-            logger.error(f"Error configuring webhook for campaign {campaign_id}: {e}")
-            return False
+    # configure_campaign_webhook was removed — it was one of three independent
+    # webhook registration paths that caused 360+ duplicates across 102 campaigns.
+    # Webhook registration now lives EXCLUSIVELY in crm_scheduler.py →
+    # setup_crm_webhooks_on_startup() → SmartleadClient.setup_crm_webhooks().
 
 
 # Global instance
 smartlead_service = SmartleadService()
-
-
-# Webhook registration is handled EXCLUSIVELY by the CRM scheduler
-# (crm_scheduler.py → setup_crm_webhooks_on_startup). No other code path
-# should ever create SmartLead webhooks. The previous dual-registration
-# system (this file + crm_scheduler + inline in replies.py) caused 360+
-# duplicate webhooks across 102 campaigns, breaking SmartLead delivery.
 
 
 async def fetch_all_campaign_replies(campaign_id: str, api_key: str, max_pages: int = 20) -> list:
