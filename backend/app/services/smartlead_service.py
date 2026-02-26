@@ -734,13 +734,21 @@ class SmartleadService:
         webhook_name: str = "Auto-Replies Webhook",
         client: httpx.AsyncClient | None = None,
     ) -> bool:
-        """Configure a webhook for a Smartlead campaign."""
+        """Configure a webhook for a Smartlead campaign.
+
+        Checks if ANY webhook pointing to our server already exists (by host match,
+        not exact URL). This prevents duplicates across the two registration systems
+        (smartlead_service + crm_sync_service) that previously accumulated 7-14
+        webhooks per campaign and caused SmartLead to silently stop delivery.
+        """
         if not self.api_key:
             logger.warning("Smartlead API key not configured")
             return False
 
+        from urllib.parse import urlparse
+        our_host = urlparse(webhook_url).netloc
+
         try:
-            # Check if webhook already exists
             resp = await smartlead_request(
                 "GET", f"{self.base_url}/campaigns/{campaign_id}/webhooks",
                 params={"api_key": self.api_key},
@@ -750,10 +758,10 @@ class SmartleadService:
             if resp.status_code == 200:
                 existing = resp.json()
                 for wh in existing:
-                    if wh.get("webhook_url") == webhook_url:
+                    wh_host = urlparse(wh.get("webhook_url", "")).netloc
+                    if wh_host == our_host:
                         return True
 
-            # Add new webhook
             resp = await smartlead_request(
                 "POST", f"{self.base_url}/campaigns/{campaign_id}/webhooks",
                 params={"api_key": self.api_key},

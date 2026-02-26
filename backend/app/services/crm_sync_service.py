@@ -463,6 +463,14 @@ class SmartleadClient:
 
             sem = asyncio.Semaphore(10)
 
+            # Extract our server's base URL to detect ANY webhook pointing to us,
+            # regardless of path suffix. This prevents duplicate registrations
+            # across the two independent webhook systems (smartlead_service +
+            # crm_sync_service) that previously created 7-14 webhooks per campaign
+            # and caused SmartLead to silently stop delivering events.
+            from urllib.parse import urlparse
+            our_host = urlparse(webhook_url).netloc
+
             async def _check_one(campaign: dict):
                 campaign_id = campaign.get("id")
                 campaign_name = campaign.get("name", "Unknown")
@@ -470,7 +478,8 @@ class SmartleadClient:
                     try:
                         existing_webhooks = await self.get_campaign_webhooks(campaign_id)
                         for wh in existing_webhooks:
-                            if wh.get("webhook_url") == webhook_url:
+                            wh_url = wh.get("webhook_url", "")
+                            if urlparse(wh_url).netloc == our_host:
                                 results["existing"].append({"id": campaign_id, "name": campaign_name})
                                 self._verified_webhooks.add(campaign_id)
                                 return
