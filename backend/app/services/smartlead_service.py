@@ -788,85 +788,12 @@ class SmartleadService:
 # Global instance
 smartlead_service = SmartleadService()
 
-# Track synced campaigns across calls within one process lifetime
-_synced_campaign_ids: set[str] = set()
 
-
-async def sync_webhooks_on_startup():
-    """Verify and re-register webhooks for all active automations on startup.
-
-    Optimizations vs naive approach:
-    - Deduplicates campaign IDs across all automations
-    - Skips campaigns already confirmed this process lifetime
-    - Runs up to 10 checks concurrently with shared HTTP client
-    """
-    import asyncio
-    from app.db import async_session_maker
-    from app.models.reply import ReplyAutomation
-    from sqlalchemy import select
-
-    global _synced_campaign_ids
-
-    from app.core.config import settings
-    webhook_url = f"{settings.WEBHOOK_BASE_URL}/api/smartlead/webhook"
-
-    # Collect unique campaign IDs across all active automations
-    async with async_session_maker() as session:
-        result = await session.execute(
-            select(ReplyAutomation).where(
-                ReplyAutomation.is_active == True,
-                ReplyAutomation.active == True
-            )
-        )
-        automations = result.scalars().all()
-
-    all_campaign_ids: set[str] = set()
-    skipped_invalid = 0
-    for automation in automations:
-        for cid in (automation.campaign_ids or []):
-            cid_str = str(cid)
-            # Skip non-numeric IDs (test entries like "test-123", "test-campaign")
-            if not cid_str.isdigit():
-                skipped_invalid += 1
-                continue
-            all_campaign_ids.add(cid_str)
-    
-    if skipped_invalid:
-        logger.info(f"Webhook sync: skipped {skipped_invalid} non-numeric campaign IDs")
-
-    # Skip campaigns already confirmed this process lifetime
-    to_sync = all_campaign_ids - _synced_campaign_ids
-    if not to_sync:
-        logger.info(f"Webhook sync: all {len(all_campaign_ids)} campaigns already confirmed, skipping")
-        return {"synced": 0, "failed": 0, "skipped": len(all_campaign_ids)}
-
-    logger.info(f"Syncing webhooks: {len(to_sync)} campaigns to check ({len(_synced_campaign_ids)} already confirmed)")
-
-    synced = 0
-    failed = 0
-    sem = asyncio.Semaphore(10)
-
-    async def _sync_one(cid: str, client: httpx.AsyncClient):
-        nonlocal synced, failed
-        async with sem:
-            try:
-                ok = await smartlead_service.configure_campaign_webhook(
-                    campaign_id=cid, webhook_url=webhook_url, client=client
-                )
-                if ok:
-                    _synced_campaign_ids.add(cid)
-                    synced += 1
-                else:
-                    failed += 1
-            except Exception as e:
-                logger.warning(f"Failed to sync webhook for campaign {cid}: {e}")
-                failed += 1
-
-    async with httpx.AsyncClient() as client:
-        await asyncio.gather(*[_sync_one(cid, client) for cid in to_sync])
-
-    logger.info(f"Webhook sync complete: {synced} ok, {failed} failed, {len(_synced_campaign_ids)} total confirmed")
-    return {"synced": synced, "failed": failed}
+# Webhook registration is handled EXCLUSIVELY by the CRM scheduler
+# (crm_scheduler.py → setup_crm_webhooks_on_startup). No other code path
+# should ever create SmartLead webhooks. The previous dual-registration
+# system (this file + crm_scheduler + inline in replies.py) caused 360+
+# duplicate webhooks across 102 campaigns, breaking SmartLead delivery.
 
 
 async def fetch_all_campaign_replies(campaign_id: str, api_key: str, max_pages: int = 20) -> list:

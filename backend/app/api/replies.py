@@ -306,17 +306,8 @@ async def create_automation(
     await session.flush()
     await session.refresh(automation)
     
-    # Auto-configure Smartlead webhooks for all campaigns
-    webhook_url = f"{settings.WEBHOOK_BASE_URL}/api/smartlead/webhook"
-    for campaign_id in data.campaign_ids:
-        try:
-            await smartlead_service.configure_campaign_webhook(
-                campaign_id=campaign_id,
-                webhook_url=webhook_url
-            )
-        except Exception as e:
-            logger.warning(f"Failed to configure webhook for campaign {campaign_id}: {e}")
-    
+    # Webhooks are managed exclusively by the CRM scheduler (setup_crm_webhooks_on_startup).
+    # Never register webhooks inline — that caused 360+ duplicates across 102 campaigns.
     logger.info(f"Created reply automation: {automation.id} - {automation.name}")
     
     # Auto-sync historical replies in background (non-blocking)
@@ -560,21 +551,7 @@ async def add_campaigns_to_automation(
     await session.flush()
     await session.refresh(automation)
     
-    # Configure webhooks for new campaigns
-    from app.services.smartlead_service import smartlead_service
-    webhook_url = f"{settings.WEBHOOK_BASE_URL}/api/smartlead/webhook"
-    
-    for cid in campaign_ids:
-        if cid not in existing:  # Only configure new ones
-            try:
-                await smartlead_service.configure_campaign_webhook(
-                    campaign_id=cid,
-                    webhook_url=webhook_url,
-                )
-                logger.info(f"Configured webhook for campaign {cid}")
-            except Exception as e:
-                logger.warning(f"Failed to configure webhook for campaign {cid}: {e}")
-    
+    # Webhooks are managed exclusively by the CRM scheduler — never inline.
     logger.info(f"Added {len(campaign_ids)} campaigns to automation {automation_id}")
     return {"automation_id": automation_id, "campaign_ids": updated, "added": campaign_ids}
 
