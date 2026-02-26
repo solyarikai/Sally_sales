@@ -533,16 +533,11 @@ async def send_slack_via_webhook(webhook_url: str, reply) -> bool:
         return False
 
 
-async def send_test_notification(channel_id: str = "C09REGUQWTG", webhook_url: Optional[str] = None) -> Dict[str, Any]:
-    """Send a test notification to verify Slack integration is working.
-    
-    Args:
-        channel_id: Slack channel ID (default: #c-replies-test)
-        webhook_url: Optional fallback webhook URL
-        
-    Returns:
-        Result dict with success status and message
-    """
+async def send_test_notification(channel_id: str = None, webhook_url: Optional[str] = None) -> Dict[str, Any]:
+    """Send a test notification to verify Slack integration is working."""
+    if not channel_id:
+        from app.core.config import settings as _cfg
+        channel_id = _cfg.SLACK_DEFAULT_CHANNEL
     message = {
         "blocks": [
             {

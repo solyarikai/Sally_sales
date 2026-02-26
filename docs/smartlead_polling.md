@@ -12,7 +12,7 @@ Both feed into `ProcessedReply` (classification, draft, notifications) and `Cont
 
 | Layer | Smartlead (Email) | GetSales (LinkedIn) |
 |-------|-------------------|---------------------|
-| **Real-time** | Webhook: `POST /api/crm-sync/webhook/smartlead` | Webhook: `POST /api/crm-sync/webhook/getsales` |
+| **Real-time** | Webhook: `POST /api/smartlead/webhook` | Webhook: `POST /api/crm-sync/webhook/getsales` |
 | **Backup polling** | Every 3-10 min (adaptive) via Statistics API | Every 3-10 min (adaptive) via Inbox API |
 | **Deduplication** | Redis cache + ProcessedReply DB | Redis cache + ContactActivity DB |
 | **Processing** | Classify → Draft → Telegram → Google Sheets | Classify → Draft → Telegram |
@@ -23,8 +23,8 @@ Both feed into `ProcessedReply` (classification, draft, notifications) and `Cont
 
 ### Webhooks (Real-time)
 
-**Endpoint:** `POST /api/crm-sync/webhook/smartlead`
-**Handler:** `crm_sync.py` → `reply_processor.process_reply_webhook()`
+**Endpoint:** `POST /api/smartlead/webhook`
+**Handler:** `smartlead.py` → `reply_processor.process_reply_webhook()`
 
 **Events received:**
 | Event | Description |

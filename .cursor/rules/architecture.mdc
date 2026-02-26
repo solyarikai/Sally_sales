@@ -1,0 +1,92 @@
+---
+description: Core architecture rules for the LeadGen backend. MUST be read before making any backend changes.
+globs: backend/**/*.py
+alwaysApply: true
+---
+
+# Architecture Rules — LeadGen Backend
+
+## 1. Single Source of Truth (NO DUPLICATION)
+
+**NEVER create a second implementation of something that already exists.**
+
+- **Webhook handlers**: SmartLead → `backend/app/api/smartlead.py` ONLY. GetSales → `backend/app/api/crm_sync.py` ONLY.
+- **Webhook registration**: `backend/app/services/crm_scheduler.py` → `setup_crm_webhooks_on_startup()` is the ONLY place that registers webhooks. Never register webhooks from API endpoints or inline code.
+- **Normalization functions**: `backend/app/utils/normalization.py` has `normalize_email()`, `normalize_linkedin_url()`, `calculate_name_similarity()`, `truncate()`. Import from there. NEVER copy-paste these.
+- **Campaign launch**: `backend/app/api/smartlead.py` has `/campaigns/{id}/launch`. Don't duplicate in other routers.
+
+Before creating any new function, **search the codebase first** to check if it already exists.
+
+## 2. Config & Secrets
+
+- **NEVER hardcode secrets** (API keys, tokens, passwords) as default values in `config.py`. Use `Optional[str] = None` and require them via `.env`.
+- **NEVER hardcode IPs or URLs** in service code. Use `settings.WEBHOOK_BASE_URL` or similar config values.
+- **Slack channel IDs**: Use `settings.SLACK_DEFAULT_CHANNEL`, never hardcode `"C09REGUQWTG"`.
+- All configurable values belong in `backend/app/core/config.py` as `Settings` fields.
+
+## 3. Webhook Architecture
+
+```
+SmartLead campaigns → POST /api/smartlead/webhook → smartlead.py
+GetSales automations → POST /api/crm-sync/webhook/getsales → crm_sync.py
+```
+
+- Registration happens in `crm_scheduler.py` → `setup_crm_webhooks_on_startup()` only.
+- The scheduler loop runs webhook checks **hourly** (not every 5 min).
+- After auto-assign of new campaigns, `setup_crm_webhooks_on_startup()` is called once.
+- A `_webhook_setup_lock` (asyncio.Lock) prevents concurrent runs.
+- The `_verified_webhooks` cache is bounded (1h TTL, 2000 max entries).
+
+## 4. Background Tasks
+
+- Every `asyncio.create_task()` MUST have error handling inside the coroutine.
+- Never fire-and-forget without logging exceptions.
+- Background loops MUST have reasonable intervals:
+  - Reply polling: adaptive 3-10 min
+  - Webhook setup: 1 hour (300s on error)
+  - Auto-assign: every 6th reply poll cycle (~30 min)
+  - Event recovery: 5 min
+  - Sheet sync: 5 min
+
+## 5. Caches
+
+All in-memory caches MUST have:
+- **TTL** (time-to-live) — entries expire after N seconds
+- **Max size** — bounded to prevent memory leaks
+- **Thread safety** — use asyncio.Lock when cache can be refreshed by concurrent coroutines
+
+Examples:
+- `_verified_webhooks` in SmartleadClient: dict with 1h TTL, 2000 max
+- `_project_cache` in notification_service: dict with 5m TTL, protected by `_project_cache_lock`
+- `_campaigns_cache` in SmartleadClient: list with 30m TTL
+
+## 6. Database Sessions
+
+- Use `async with async_session_maker() as session:` for background tasks.
+- Request-scoped sessions come from `Depends(get_session)` — they auto-commit on return.
+- Never open multiple sessions for the same request unless necessary.
+- Always handle exceptions to prevent connection pool exhaustion.
+
+## 7. Status Machine
+
+Contact statuses follow `backend/app/services/status_machine.py`. Valid statuses:
+`to_be_sent, sent, interested, not_interested, ooo, unsubscribed, negotiating_meeting, scheduled, meeting_held, meeting_no_show, meeting_rescheduled, qualified, not_qualified`
+
+Legacy mappings (auto-normalized):
+- `warm` → `interested`
+- `lead` → `to_be_sent`
+- `out_of_office` → `ooo`
+- `bounced` → `not_interested`
+
+Always use `transition_status()` from the status machine, never set `contact.status` directly to arbitrary values.
+
+## 8. API Router Organization
+
+Each router lives in `backend/app/api/<module>.py` with its own prefix:
+- `/smartlead` — SmartLead campaigns, leads, webhooks
+- `/crm-sync` — CRM sync, GetSales webhooks, contact management
+- `/replies` — Reply automations, approve/send, draft management
+- `/contacts` — Contact CRUD, activities
+- `/search` — Search jobs, search chat, streaming (3 files share this prefix — that's OK, routes are distinct)
+
+Never create overlapping endpoints across routers.

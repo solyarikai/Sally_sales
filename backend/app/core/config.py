@@ -115,12 +115,15 @@ class Settings(BaseSettings):
     # When set, incoming webhooks must include this token or be rejected.
     WEBHOOK_SECRET: Optional[str] = None
 
-    # Telegram Bot (@ImpecableBot)
-    TELEGRAM_BOT_TOKEN: Optional[str] = "8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss"
-    TELEGRAM_CHAT_ID: str = "57344339"
+    # Telegram Bot — MUST be set via .env
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
+    TELEGRAM_CHAT_ID: Optional[str] = None
 
     # Test recipient for test_mode sends
-    TEST_RECIPIENT_EMAIL: str = "pn@getsally.io"
+    TEST_RECIPIENT_EMAIL: Optional[str] = None
+
+    # Default Slack channel for reply notifications
+    SLACK_DEFAULT_CHANNEL: str = "C09REGUQWTG"
 
     # CORS - comma-separated list of allowed origins
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,http://46.62.210.24,http://46.62.210.24:80,http://46.62.210.24:8000"

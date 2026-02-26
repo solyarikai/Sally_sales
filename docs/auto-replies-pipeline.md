@@ -12,7 +12,7 @@ The auto-replies pipeline classifies incoming email replies from Smartlead campa
 Smartlead Campaign
        │
        ▼ (webhook: EMAIL_REPLY)
-POST /api/crm-sync/webhook/smartlead ← backend/app/api/crm_sync.py
+POST /api/smartlead/webhook           ← backend/app/api/smartlead.py
        │
        ▼
 process_reply_webhook()              ← backend/app/services/reply_processor.py

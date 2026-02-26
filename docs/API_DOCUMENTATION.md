@@ -156,7 +156,7 @@ Expected response:
 
 Test Smartlead webhook:
 ```bash
-curl -X POST "http://46.62.210.24:8000/api/crm-sync/webhook/smartlead" \
+curl -X POST "http://46.62.210.24:8000/api/smartlead/webhook" \
   -H "Content-Type: application/json" \
   -d '{"body":{"event_type":"EMAIL_REPLY","lead_email":"test@example.com","campaign_id":123,"lead_data":{"first_name":"Test"}}}'
 ```
@@ -284,7 +284,7 @@ GET /campaigns/{campaign_id}/analytics?api_key={key}
 POST /campaigns/{campaign_id}/webhooks?api_key={key}
 {
   "name": "Reply Webhook",
-  "webhook_url": "http://46.62.210.24:8000/api/crm-sync/webhook/smartlead",
+  "webhook_url": "http://46.62.210.24:8000/api/smartlead/webhook",
   "event_types": ["EMAIL_REPLY", "LEAD_CATEGORY_UPDATED", "EMAIL_SENT"],
   "categories": [
     "Interested", "Meeting Request", "Not Interested", "Do Not Contact",
@@ -647,7 +647,7 @@ async def full_sync(...):
 |---------|-----|--------|
 | GetSales Bulk Export | `http://46.62.210.24:8000/api/crm-sync/webhook/getsales/bulk-import` | ✅ |
 | GetSales Reply | `http://46.62.210.24:8000/api/crm-sync/webhook/getsales` | ✅ |
-| Smartlead Reply | `http://46.62.210.24:8000/api/crm-sync/webhook/smartlead` | ✅ |
+| Smartlead Reply | `http://46.62.210.24:8000/api/smartlead/webhook` | ✅ |
 
 ---
 

@@ -1,0 +1,59 @@
+---
+description: Common mistakes that have caused production issues. READ THIS before making changes.
+globs: backend/**/*.py
+alwaysApply: true
+---
+
+# Common Mistakes — DO NOT REPEAT
+
+## 1. Duplicate Webhook Handlers (caused 360+ duplicate registrations)
+
+**What happened**: Three independent systems registered SmartLead webhooks:
+1. `crm_scheduler.py` → `setup_crm_webhooks_on_startup()`
+2. `smartlead_service.py` → `configure_campaign_webhook()` (deleted)
+3. `replies.py` → inline webhook registration in create/add endpoints (deleted)
+
+**Result**: 7-14 webhooks per campaign, SmartLead silently stopped delivering events.
+
+**Rule**: Webhook registration lives EXCLUSIVELY in `crm_scheduler.py`. If you need webhooks set up, call `setup_crm_webhooks_on_startup()`. Never create a new registration path.
+
+## 2. Wrong SmartLead Inbox Links (sl_email_lead_id ≠ leadMap)
+
+**What happened**: `sl_email_lead_id` (per-campaign lead ID) was used to build master inbox URLs. The correct field is `sl_email_lead_map_id` (global lead map ID).
+
+**Result**: "Open in SmartLead" links led to empty pages.
+
+**Rule**: In `reply_processor.py`, inbox links use `ui_master_inbox_link` or `sl_email_lead_map_id` ONLY. Never fall back to `sl_email_lead_id`.
+
+## 3. Undefined Variables in reply_processor.py
+
+**What happened**: Code referenced `project` before it was defined in scope.
+
+**Rule**: Always check variable scope. Don't reference a variable before the block that defines it.
+
+## 4. Hardcoded Secrets in Config Defaults
+
+**What happened**: Telegram bot token, chat ID, and other secrets were committed as default values in `config.py`.
+
+**Rule**: Secrets use `Optional[str] = None`. They MUST come from `.env`. If a secret is missing, the feature should degrade gracefully, not expose credentials in git.
+
+## 5. Unbounded In-Memory Caches
+
+**What happened**: `_verified_webhooks` was a `set()` that grew forever — one entry per campaign, never evicted.
+
+**Rule**: Every cache needs TTL + max size. Use the pattern from `SmartleadClient._verified_webhooks` (dict with timestamps, max 2000 entries, 1h TTL).
+
+## 6. Overly Frequent Background Loops
+
+**What happened**: Webhook setup ran every 5 minutes (288 API round-trips/day) when hourly would suffice.
+
+**Rule**: Choose loop intervals based on how often the data actually changes:
+- Campaigns appear: rarely → hourly webhook check
+- Replies arrive: frequently → 3-10 min adaptive polling
+- New campaigns to assign: rarely → every ~30 min
+
+## 7. Copy-Pasted Utility Functions
+
+**What happened**: `normalize_email()`, `normalize_linkedin_url()`, `calculate_name_similarity()` were copy-pasted identically into 3 different service files.
+
+**Rule**: Shared logic goes in `backend/app/utils/`. Import from there. Never copy-paste functions between files.

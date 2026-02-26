@@ -688,17 +688,6 @@ async def process_reply_webhook(
         classification = await classify_reply(subject, body, custom_prompt=custom_classification_prompt)
         logger.info(f"[PROCESSOR] Classification: category={classification['category']}, confidence={classification['confidence']}")
 
-        # Track classification cost (non-fatal)
-        try:
-            if project:
-                from app.services.cost_service import cost_service
-                await cost_service.record_cost(
-                    session, project.id, "openai_4o_mini_1k",
-                    units=1, description="reply classification",
-                )
-        except Exception:
-            pass  # cost tracking is non-fatal
-
         # Look up project for sender identity + prompt template
         custom_reply_prompt = automation.reply_prompt if automation else None
         proj_sender_name = None
@@ -745,6 +734,17 @@ async def process_reply_webhook(
                             logger.info(f"[PROCESSOR] Using project prompt from '{project.name}' (template: {template.name})")
             except Exception as proj_err:
                 logger.warning(f"[PROCESSOR] Project prompt lookup failed (non-fatal): {proj_err}")
+
+        # Track classification cost (non-fatal)
+        try:
+            if 'project' in dir() and project:
+                from app.services.cost_service import cost_service
+                await cost_service.record_cost(
+                    session, project.id, "openai_4o_mini_1k",
+                    units=1, description="reply classification",
+                )
+        except Exception:
+            pass
 
         # Generate draft reply
         draft = await generate_draft_reply(
@@ -1003,7 +1003,8 @@ async def process_reply_webhook(
         from app.services.notification_service import send_slack_notification
         
         # Determine channel - use automation config or default test channel
-        channel_id = "C09REGUQWTG"  # Default: #c-replies-test
+        from app.core.config import settings as _cfg
+        channel_id = _cfg.SLACK_DEFAULT_CHANNEL
         webhook_url = None
         
         if automation_id and automation:

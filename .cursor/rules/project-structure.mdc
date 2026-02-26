@@ -1,0 +1,69 @@
+---
+description: Project structure and file organization reference. Read this to understand where code lives.
+globs: "**"
+alwaysApply: false
+---
+
+# Project Structure
+
+```
+magnum-opus/
+├── backend/
+│   ├── app/
+│   │   ├── api/                    # FastAPI route handlers
+│   │   │   ├── __init__.py         # Router registration (api_router)
+│   │   │   ├── smartlead.py        # SmartLead: campaigns, leads, THE webhook handler
+│   │   │   ├── crm_sync.py         # CRM sync: GetSales webhooks, contacts, sync triggers
+│   │   │   ├── replies.py          # Reply automations: CRUD, approve/send, drafts
+│   │   │   ├── contacts.py         # Contact CRUD, activities, status transitions
+│   │   │   ├── search.py           # Search pipeline: jobs, queries, results
+│   │   │   ├── search_chat.py      # Chat-based search interface (shares /search prefix)
+│   │   │   ├── chat_stream.py      # SSE streaming for search chat (shares /search prefix)
+│   │   │   ├── operator_tasks.py   # Operator tasks API (3-tab view)
+│   │   │   ├── pipeline.py         # Outreach pipeline processing
+│   │   │   └── ...                 # Other API modules
+│   │   ├── core/
+│   │   │   └── config.py           # ALL config lives here. Secrets via .env, NEVER hardcoded.
+│   │   ├── models/                 # SQLAlchemy models
+│   │   ├── schemas/                # Pydantic schemas
+│   │   ├── services/
+│   │   │   ├── crm_scheduler.py    # Background loops: polling, webhook setup, reports, recovery
+│   │   │   ├── crm_sync_service.py # SmartleadClient + GetSalesClient API wrappers
+│   │   │   ├── reply_processor.py  # Reply classification, draft generation, notifications
+│   │   │   ├── notification_service.py # Slack + Telegram notification dispatch
+│   │   │   ├── smartlead_service.py    # Low-level SmartLead API (rate limiting, retries)
+│   │   │   ├── status_machine.py   # Contact status transitions (source of truth)
+│   │   │   └── ...
+│   │   ├── utils/
+│   │   │   └── normalization.py    # Shared: normalize_email, normalize_linkedin_url, etc.
+│   │   ├── db/                     # Database engine, session, migrations
+│   │   └── main.py                 # FastAPI app, startup/shutdown hooks
+│   └── alembic/                    # Database migrations
+├── frontend/
+│   └── src/
+│       ├── api/                    # API client functions (one file per domain)
+│       ├── components/             # Reusable React components
+│       ├── pages/                  # Page-level components (one per route)
+│       ├── lib/                    # Utilities, theme
+│       └── App.tsx                 # Route definitions
+├── docs/                           # Architecture docs, API docs, data model
+├── .cursor/rules/                  # Rules for AI agents (YOU ARE HERE)
+└── .env.example                    # Template for environment variables
+```
+
+## Key Architectural Decisions
+
+1. **One webhook handler per platform** — SmartLead in smartlead.py, GetSales in crm_sync.py
+2. **Centralized webhook registration** — only in crm_scheduler.py
+3. **Shared utilities** — normalization in utils/normalization.py, not copy-pasted
+4. **Config-driven** — all tunables in config.py, secrets in .env
+5. **Status machine** — all status transitions go through status_machine.py
+
+## Deployment
+
+- Server: Hetzner (ssh hetzner)
+- Backend: Docker container `leadgen-backend`
+- Frontend: Docker container `leadgen-frontend` (nginx serving static dist/)
+- DB: Docker container `leadgen-postgres`
+- Build frontend: `cd frontend && npm run build`, then `docker cp dist/. leadgen-frontend:/usr/share/nginx/html/`
+- Restart backend: `docker restart leadgen-backend`

@@ -110,7 +110,7 @@ class CRMScheduler:
         self._task_timing: dict[str, dict] = {
             "reply_check": {"last_run": None, "interval": 180, "label": "Reply polling"},
             "sync": {"last_run": None, "interval": sync_interval_minutes * 60, "label": "Full CRM sync"},
-            "webhook_setup": {"last_run": None, "interval": 300, "label": "Webhook registration"},
+            "webhook_setup": {"last_run": None, "interval": 3600, "label": "Webhook registration"},
             "conversation_sync": {"last_run": None, "interval": 180, "label": "Conversation sync"},
             "sheet_sync": {"last_run": None, "interval": 300, "label": "Sheet sync"},
             "event_recovery": {"last_run": None, "interval": 300, "label": "Event recovery"},
@@ -280,15 +280,18 @@ class CRMScheduler:
     
     async def _run_reply_loop(self):
         """Adaptive reply polling — fast after startup, slow when webhooks are healthy."""
-        await asyncio.sleep(30)  # Small initial delay
-        fast_polls = 3  # First 3 polls are fast (catch up after restart)
+        await asyncio.sleep(30)
+        fast_polls = 3
         poll_count = 0
-        
+        _auto_assign_counter = 0
+
         while self._running:
-            try:
-                await self._auto_assign_new_campaigns()
-            except Exception as e:
-                logger.error(f"Auto-assign campaigns error: {e}")
+            _auto_assign_counter += 1
+            if _auto_assign_counter % 6 == 1:
+                try:
+                    await self._auto_assign_new_campaigns()
+                except Exception as e:
+                    logger.error(f"Auto-assign campaigns error: {e}")
             try:
                 await self._check_replies()
                 self._reply_count += 1
@@ -417,27 +420,28 @@ class CRMScheduler:
     # ===== Webhook Registration (5 min, 1 min on failure) =====
     
     async def _run_webhook_loop(self):
-        """Webhook registration — every 5 min, fast retry on failure."""
-        await asyncio.sleep(10)  # Quick start
-        retry_delay = 300  # 5 min default
-        
+        """Webhook registration — hourly safety net.
+
+        Webhooks are also set up on startup and after auto-assign.
+        The hourly loop only catches campaigns that appeared between
+        auto-assign runs (rare). Previously ran every 5 min, which
+        was 288 unnecessary SmartLead API round-trips per day.
+        """
+        await asyncio.sleep(10)
+        interval = 3600
+
         while self._running:
             try:
-                await self._setup_webhooks()
+                await setup_crm_webhooks_on_startup()
                 self._last_webhook_check = datetime.utcnow()
-                retry_delay = 300
-                self._mark_task_run("webhook_setup", interval=retry_delay)
+                self._mark_task_run("webhook_setup", interval=interval)
             except Exception as e:
                 logger.error(f"Webhook setup error: {e}")
-                retry_delay = 60
-                self._mark_task_run("webhook_setup", interval=retry_delay)
-            await asyncio.sleep(retry_delay)
-    
-    async def _setup_webhooks(self):
-        """Set up webhooks for any new campaigns. Delegates to the single
-        lock-protected entry point — safe to call from multiple places."""
-        await setup_crm_webhooks_on_startup()
-    
+                interval = 300
+                self._mark_task_run("webhook_setup", interval=interval)
+            await asyncio.sleep(interval)
+            interval = 3600
+
     # ===== Event Recovery Loop (every 5 min) =====
     
     async def _run_event_recovery_loop(self):
@@ -1105,21 +1109,17 @@ async def start_crm_scheduler():
     except Exception as e:
         logger.warning(f"Reply cache backfill failed (non-fatal): {e}")
     
-    # Set up webhooks in background — don't block app startup
-    asyncio.create_task(_setup_webhooks_background())
+    async def _webhook_startup():
+        await asyncio.sleep(2)
+        try:
+            await setup_crm_webhooks_on_startup()
+        except Exception as e:
+            logger.error(f"Background webhook setup failed: {e}")
+
+    asyncio.create_task(_webhook_startup())
 
 
-async def _setup_webhooks_background():
-    """Set up webhooks in background — doesn't block app startup."""
-    await asyncio.sleep(2)
-    try:
-        await setup_crm_webhooks_on_startup()
-    except Exception as e:
-        logger.error(f"Background webhook setup failed: {e}")
-
-
-# Prevents concurrent webhook registration runs (startup, 5-min loop,
-# and post-auto-assign can overlap without this).
+# Prevents concurrent webhook registration runs.
 _webhook_setup_lock = asyncio.Lock()
 
 
