@@ -452,7 +452,7 @@ function CompanyCard({ company, onSelect, onEdit, onDelete }: CompanyCardProps) 
 export function HomePage() {
   const navigate = useNavigate();
   const { 
-    companies, setCompanies, setCurrentCompany, addCompany, updateCompany, removeCompany, resetCompanyData,
+    companies, setCurrentCompany, addCompany, updateCompany, removeCompany, resetCompanyData,
     environments, setEnvironments, currentEnvironment, setCurrentEnvironment, addEnvironment, updateEnvironment, removeEnvironment
   } = useAppStore();
   
