@@ -14,7 +14,8 @@ with engine.connect() as conn:
     all_filters = []
     for r in rows:
         name = r[0]
-        filters = json.loads(r[1]) if r[1] else []
+        raw = r[1]
+        filters = json.loads(raw) if isinstance(raw, str) else (raw if isinstance(raw, list) else [])
         all_filters.extend([f.lower() for f in filters if isinstance(f, str)])
         print(f"Project: {name} -> {len(filters)} campaign filters")
 
