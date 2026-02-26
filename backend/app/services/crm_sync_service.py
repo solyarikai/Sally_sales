@@ -163,6 +163,8 @@ GETSALES_FLOW_NAMES = {
     "04d46b71-9d62-44bd-9c22-0a4cd6cdfc97": "Mifort Partners PHP",
     "89961bab-733e-4857-956e-810231c1448c": "Mifort iGaming Providers",
     "02469dd6-a727-4ef7-86e7-d85ac2729ed9": "Mifort iGaming Marketing",
+    # TFP GetSales automations
+    "99eab5dd-3abb-4387-8757-7b908a0d7bb2": "TFP - Apparel&fashion--only Dias",
 }
 
 def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: list = None) -> str:

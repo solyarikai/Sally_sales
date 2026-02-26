@@ -1258,13 +1258,30 @@ async def getsales_webhook(
     is_reply = message_type == "inbox"
     
     automation_name = automation_data.get("name", "")
+    automation_uuid = automation_data.get("uuid", "")
     logger.info(f"GetSales webhook: contact={contact_data.get('name')}, message_type={message_type}, automation={automation_name}")
+
+    # Log raw event to webhook_events table for debugging/replay
+    from app.models.reply import WebhookEventModel
+    event_type = f"linkedin_{message_type}" if message_type else "getsales_unknown"
+    webhook_event = WebhookEventModel(
+        event_type=event_type,
+        campaign_id=automation_uuid or automation_name,
+        lead_email=lead_email or contact_data.get("name", ""),
+        payload=json.dumps(payload, default=str),
+        processed=False
+    )
+    session.add(webhook_event)
+    await session.flush()
+    gs_event_id = webhook_event.id
 
     # Skip events from automations belonging to disabled projects (startswith matching)
     disabled = await _get_disabled_project_info(session)
     if automation_name and disabled["projects"]:
         auto_lower = automation_name.lower()
         if any(auto_lower.startswith(pname) for pname in disabled["projects"]):
+            webhook_event.processed = True
+            webhook_event.processed_at = datetime.utcnow()
             logger.info(f"GetSales webhook skipped: automation '{automation_name}' (webhooks disabled)")
             return {"status": "skipped", "reason": "webhooks disabled for project"}
 
@@ -1539,11 +1556,15 @@ async def getsales_webhook(
             existing_campaigns.append(flow_entry)
             contact.campaigns = existing_campaigns
     
+    # Mark webhook event as processed
+    webhook_event.processed = True
+    webhook_event.processed_at = datetime.utcnow()
+
     await session.commit()
     
     return {
         "status": "processed",
-        "activity_id": activity.id if not is_duplicate else None,
+        "event_id": gs_event_id,
         "contact_id": contact.id,
         "is_reply": is_reply,
         "is_duplicate": is_duplicate,
