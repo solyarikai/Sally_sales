@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun } from 'lucide-react';
+import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -27,6 +27,10 @@ export function Layout({ children }: LayoutProps) {
   const { isDark, toggle: toggleTheme } = useTheme();
 
   const navItems = [
+    { path: '/', icon: Search, label: 'Data Search', global: true },
+    { path: '/search-results', icon: Target, label: 'Query Investigation', global: true },
+    { path: '/pipeline', icon: Layers, label: 'Pipeline', global: true },
+    { path: '/dashboard/queries', icon: BarChart2, label: 'Query Dashboard', global: true },
     { path: '/projects', icon: FolderOpen, label: 'Projects', global: true },
     { path: '/tasks/replies', icon: ListTodo, label: 'Tasks', global: true },
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },
@@ -156,7 +160,15 @@ export function Layout({ children }: LayoutProps) {
                   </div>
                   <div className="max-h-60 overflow-y-auto py-0.5">
                     <button
-                      onClick={() => { setCurrentProject(null); setShowProjectDropdown(false); setProjectSearch(''); }}
+                      onClick={() => {
+                        setCurrentProject(null);
+                        setShowProjectDropdown(false);
+                        setProjectSearch('');
+                        if (location.pathname.startsWith('/tasks')) {
+                          const tab = location.pathname.split('/')[2] || 'replies';
+                          navigate(`/tasks/${tab}`, { replace: true });
+                        }
+                      }}
                       className={cn(
                         'w-full px-3 py-1.5 text-left text-[13px] transition-colors',
                         !currentProject
@@ -169,7 +181,16 @@ export function Layout({ children }: LayoutProps) {
                     {filteredProjects.map((project) => (
                       <button
                         key={project.id}
-                        onClick={() => { setCurrentProject(project); setShowProjectDropdown(false); setProjectSearch(''); }}
+                        onClick={() => {
+                          setCurrentProject(project);
+                          setShowProjectDropdown(false);
+                          setProjectSearch('');
+                          if (location.pathname.startsWith('/tasks')) {
+                            const tab = location.pathname.split('/')[2] || 'replies';
+                            const slug = project.name.toLowerCase().replace(/\s+/g, '-');
+                            navigate(`/tasks/${tab}?project=${slug}`, { replace: true });
+                          }
+                        }}
                         className={cn(
                           'w-full px-3 py-1.5 text-left text-[13px] truncate transition-colors',
                           currentProject?.id === project.id

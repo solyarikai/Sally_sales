@@ -32,10 +32,7 @@ export function TasksPage() {
   const [meetingsCount, setMeetingsCount] = useState(0);
   const [qualifiedCount, setQualifiedCount] = useState(0);
 
-  /* ---- URL ↔ project sync ---- */
-  const initialUrlParam = useRef(searchParams.get('project'));
-  const urlApplied = useRef(!initialUrlParam.current);
-
+  /* ---- URL → project (on load / link share) ---- */
   useEffect(() => {
     const projectParam = searchParams.get('project');
     if (!projectParam || !projects.length) return;
@@ -45,8 +42,20 @@ export function TasksPage() {
     if (match && (!currentProject || currentProject.id !== match.id)) {
       setCurrentProject(match);
     }
-    urlApplied.current = true;
   }, [projects, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ---- project → URL (keep query param in sync when project changes) ---- */
+  useEffect(() => {
+    const currentParam = searchParams.get('project');
+    const expectedSlug = currentProject
+      ? currentProject.name.toLowerCase().replace(/\s+/g, '-')
+      : null;
+    if (expectedSlug && currentParam !== expectedSlug) {
+      navigate(`/tasks/${activeTab}?project=${expectedSlug}`, { replace: true });
+    } else if (!expectedSlug && currentParam) {
+      navigate(`/tasks/${activeTab}`, { replace: true });
+    }
+  }, [currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchTab = (tab: Tab) => {
     const projectSlug = currentProject
