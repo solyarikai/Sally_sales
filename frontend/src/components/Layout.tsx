@@ -26,10 +26,6 @@ export function Layout({ children }: LayoutProps) {
   const projectDropdownRef = useRef<HTMLDivElement>(null);
   const { isDark, toggle: toggleTheme } = useTheme();
 
-  // Auto-resolve company prefix from currentCompany (not URL)
-  const resolvedCompanyId = currentCompany?.id;
-  const companyPrefix = resolvedCompanyId ? `/company/${resolvedCompanyId}` : '';
-
   const navItems = [
     { path: '/projects', icon: FolderOpen, label: 'Projects', global: true },
     { path: '/tasks/replies', icon: ListTodo, label: 'Tasks', global: true },
@@ -199,10 +195,6 @@ export function Layout({ children }: LayoutProps) {
         {/* Navigation */}
         <nav className="flex items-center gap-0.5 overflow-x-auto">
           {navItems.map((item) => {
-            if (item.needsCompany && !resolvedCompanyId) {
-              return null;
-            }
-
             const isActive = isPathActive(item.path);
             return (
               <Link
