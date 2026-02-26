@@ -57,6 +57,20 @@ CRM Scheduler
    - Webhook: `POST /api/crm-sync/webhook/getsales` → `crm_sync.py:getsales_webhook()`
    - Polling fallback: `crm_sync_service.sync_getsales_replies()`
    - Source="getsales", channel="linkedin"
+   - Operator can send reply directly via GetSales API (`send_linkedin_message()`)
+   - Sender profile UUID → project mapping in `GETSALES_UUID_TO_PROJECT` (auto-populated from `GETSALES_FLOW_NAMES`)
+
+### Telegram notification routing
+
+Notifications are sent via `notification_service.py` with per-project subscriber routing:
+
+1. **Admin** always receives all notifications (via `TELEGRAM_CHAT_ID` env var)
+2. **Project subscribers** receive notifications for their projects (via `telegram_subscriptions` table)
+3. **Routing priority**:
+   - `campaign_name` → match against project `campaign_filters` (exact, case-insensitive)
+   - `project_id` fallback → direct project lookup via `GETSALES_UUID_TO_PROJECT` mapping (for LinkedIn replies without flow names)
+4. Operators subscribe to projects via Telegram bot commands (`/connect <project>`)
+5. Cache refreshes every 5 min (`_project_cache`)
 
 ### Webhook endpoints (canonical, single source of truth)
 
@@ -174,6 +188,10 @@ docker exec -w /app -e PYTHONPATH=/app leadgen-backend python3 scripts/<script>.
 5. **Event recovery** — Raw webhook payloads are stored in `webhook_events` table. A recovery loop retries failed events with exponential backoff. No data loss even if processing fails.
 
 6. **Project-campaign mapping** — Projects define campaign name prefixes in `campaign_filters`. The scheduler auto-discovers new campaigns matching these prefixes and assigns them.
+
+7. **Multi-operator notifications** — `telegram_subscriptions` table (many-to-many between projects and Telegram chats). Operators self-subscribe via bot. Notification routing uses campaign_name match first, then `project_id` fallback for GetSales replies.
+
+8. **GetSales sender profile mapping** — `GETSALES_FLOW_NAMES` maps sender profile UUIDs and automation UUIDs to human-readable names. `GETSALES_UUID_TO_PROJECT` (auto-populated) maps these to project IDs for notification routing when polled replies lack flow names.
 
 ---
 
