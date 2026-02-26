@@ -683,13 +683,12 @@ async def send_telegram_notification(
     return False
 
 
-async def _get_project_for_campaign(campaign_name: str):
-    """Find the project that owns a campaign. Uses in-memory cache."""
-    from datetime import datetime, timedelta
-    
+async def _ensure_cache_fresh():
+    """Refresh the project cache if stale."""
+    from datetime import datetime
+
     now = datetime.utcnow()
-    
-    if (not _project_cache["last_refresh"] or 
+    if (not _project_cache["last_refresh"] or
         (now - _project_cache["last_refresh"]).total_seconds() > _PROJECT_CACHE_TTL):
         if not _project_cache_lock.locked():
             async with _project_cache_lock:
@@ -697,16 +696,26 @@ async def _get_project_for_campaign(campaign_name: str):
                     await _refresh_project_cache()
                 except Exception as e:
                     logger.warning(f"Failed to refresh project cache: {e}")
-    
-    # Look up campaign in cache
+
+
+async def _get_project_for_campaign(campaign_name: str):
+    """Find the project that owns a campaign. Uses in-memory cache."""
+    await _ensure_cache_fresh()
+
     campaign_lower = campaign_name.lower()
     for project_data in _project_cache["data"].values():
         filters = project_data.get("campaign_filters") or []
         for f in filters:
             if isinstance(f, str) and f.lower() == campaign_lower:
                 return project_data
-    
+
     return None
+
+
+async def _get_project_by_id(project_id: int):
+    """Get project data (with subscribers) by project ID. Uses in-memory cache."""
+    await _ensure_cache_fresh()
+    return _project_cache["data"].get(project_id)
 
 
 async def _refresh_project_cache():
@@ -799,14 +808,17 @@ async def notify_linkedin_reply(
     contact_email: str,
     flow_name: str,
     message_text: str,
-    campaign_name: str = None
+    campaign_name: str = None,
+    project_id: int = None,
 ) -> bool:
     """Send Telegram notification for LinkedIn replies with per-project routing.
-    
-    Used by GetSales webhook handler.
+
+    Routing priority:
+      1. campaign_name / flow_name → campaign_filters match
+      2. project_id direct lookup (fallback for polled replies without flow info)
     """
     message_preview = (message_text or "")[:300]
-    
+
     message = f"""💬 <b>New LinkedIn Reply!</b>
 
 <b>From:</b> {contact_name}
@@ -815,22 +827,34 @@ async def notify_linkedin_reply(
 
 <b>Message:</b>
 <code>{message_preview}</code>"""
-    
+
     # 1. Always send to admin
     admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)
     sent_chats = {TELEGRAM_CHAT_ID}
-    
-    # 2. Route to all project subscribers
+
+    # 2. Route to project subscribers (campaign match, then project_id fallback)
+    project = None
     lookup_name = campaign_name or flow_name
     if lookup_name:
         try:
             project = await _get_project_for_campaign(lookup_name)
-            if project:
-                for subscriber_chat in project.get("telegram_subscribers", []):
-                    if subscriber_chat not in sent_chats:
-                        await send_telegram_notification(message.strip(), chat_id=subscriber_chat)
-                        sent_chats.add(subscriber_chat)
         except Exception as e:
-            logger.warning(f"LinkedIn project routing failed (non-fatal): {e}")
-    
+            logger.warning(f"LinkedIn campaign routing failed (non-fatal): {e}")
+
+    if not project and project_id:
+        try:
+            project = await _get_project_by_id(project_id)
+            if project:
+                logger.info(f"LinkedIn reply routed via project_id={project_id} ({project.get('name')})")
+        except Exception as e:
+            logger.warning(f"LinkedIn project_id routing failed (non-fatal): {e}")
+
+    if project:
+        for subscriber_chat in project.get("telegram_subscribers", []):
+            if subscriber_chat not in sent_chats:
+                await send_telegram_notification(message.strip(), chat_id=subscriber_chat)
+                sent_chats.add(subscriber_chat)
+        if len(sent_chats) > 1:
+            logger.info(f"LinkedIn reply sent to {len(sent_chats)} chats for project '{project.get('name')}'")
+
     return admin_sent

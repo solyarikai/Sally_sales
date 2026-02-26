@@ -1354,17 +1354,25 @@ async def process_getsales_reply(
     if processed_reply and not processed_reply.telegram_sent_at:
         try:
             from app.services.notification_service import notify_linkedin_reply
+            from app.services.crm_sync_service import GETSALES_UUID_TO_PROJECT
+
             contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Unknown"
+            resolved_project_id = (
+                getattr(contact, "project_id", None)
+                or GETSALES_UUID_TO_PROJECT.get(flow_uuid)
+                or GETSALES_UUID_TO_PROJECT.get(raw_data.get("sender_profile_uuid", ""))
+            )
             sent = await notify_linkedin_reply(
                 contact_name=contact_name,
                 contact_email=contact.email or "N/A",
                 flow_name=flow_name or processed_reply.campaign_name or "",
                 message_text=message_text,
                 campaign_name=flow_name or processed_reply.campaign_name,
+                project_id=resolved_project_id,
             )
             if sent:
                 processed_reply.telegram_sent_at = datetime.utcnow()
-                logger.info(f"[GETSALES] Telegram notification sent for reply {processed_reply.id}")
+                logger.info(f"[GETSALES] Telegram notification sent for reply {processed_reply.id} (project_id={resolved_project_id})")
         except Exception as tg_err:
             logger.warning(f"[GETSALES] Telegram notification failed (non-fatal): {tg_err}")
 
