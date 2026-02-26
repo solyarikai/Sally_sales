@@ -623,20 +623,19 @@ async def process_reply_webhook(
         # Campaign name
         campaign_name = payload.get("campaign_name", "")
         
-        # Inbox link — prefer the webhook-provided URL (most reliable),
-        # fall back to constructing one from leadMap ID
+        # Inbox link — only use trusted sources:
+        # 1. ui_master_inbox_link from webhook (SmartLead provides the correct URL)
+        # 2. sl_email_lead_map_id (the leadMap identifier, NOT the per-campaign lead ID)
+        # NEVER use sl_email_lead_id — it's the per-campaign lead ID and produces
+        # broken master inbox links (wrong leadMap= value).
         inbox_link = (
             payload.get("ui_master_inbox_link")
             or (payload.get("body") or {}).get("ui_master_inbox_link")
         )
         if not inbox_link:
-            lead_map_id = (
-                payload.get("sl_email_lead_map_id")
-                or payload.get("sl_email_lead_id")
-                or (payload.get("body") or {}).get("lead_id")
-            )
-            if lead_map_id:
-                inbox_link = f"https://app.smartlead.ai/app/master-inbox?action=INBOX&leadMap={lead_map_id}"
+            lead_map_id = payload.get("sl_email_lead_map_id") or ""
+            if lead_map_id and lead_map_id != "":
+                inbox_link = f"https://app.smartlead.ai/app/master-inbox?action&leadMap={lead_map_id}"
         logger.info(f"[PROCESSOR] Inbox link: {inbox_link}")
         
         # Conversation history

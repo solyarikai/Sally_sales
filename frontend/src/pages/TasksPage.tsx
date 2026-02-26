@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { ExternalLink } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -91,9 +92,16 @@ export function TasksPage() {
       >
         {currentProject && (
           <>
-            <span className="text-[13px] font-medium" style={{ color: t.text2 }}>
+            <a
+              href={`/projects/${currentProject.id}`}
+              onClick={(e) => { e.preventDefault(); navigate(`/projects/${currentProject.id}`); }}
+              className="flex items-center gap-1 text-[13px] font-medium hover:underline cursor-pointer"
+              style={{ color: t.text2 }}
+              title="Go to project page"
+            >
+              <ExternalLink className="w-3 h-3 opacity-50" />
               {currentProject.name}
-            </span>
+            </a>
             <div className="w-px h-4" style={{ background: t.cardBorder }} />
           </>
         )}
@@ -135,17 +143,17 @@ export function TasksPage() {
         </div>
       </div>
 
-      {/* Tab content */}
-      <div className="flex-1 min-h-0">
-        {activeTab === 'replies' && (
+      {/* Tab content — all panels stay mounted so counters persist across tab switches */}
+      <div className="flex-1 min-h-0 relative">
+        <div className={`absolute inset-0 ${activeTab === 'replies' ? '' : 'invisible pointer-events-none'}`}>
           <ReplyQueue isDark={isDark} onCountsChange={handleRepliesCounts} />
-        )}
-        {activeTab === 'meetings' && (
+        </div>
+        <div className={`absolute inset-0 ${activeTab === 'meetings' ? '' : 'invisible pointer-events-none'}`}>
           <MeetingsPanel isDark={isDark} onCountChange={handleMeetingsCount} />
-        )}
-        {activeTab === 'qualified' && (
+        </div>
+        <div className={`absolute inset-0 ${activeTab === 'qualified' ? '' : 'invisible pointer-events-none'}`}>
           <QualifiedPanel isDark={isDark} onCountChange={handleQualifiedCount} />
-        )}
+        </div>
       </div>
     </div>
   );

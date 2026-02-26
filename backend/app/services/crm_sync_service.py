@@ -1381,31 +1381,34 @@ class CRMSyncService:
                                     lead_id = str(stats_lead_id)
                                     stats["lead_id_from_stats"] += 1
 
-                            # 3) SmartLead API as last resort (only if DB + stats both failed)
-                            if not lead_id:
-                                try:
-                                    global_lead = await smartlead_service.get_lead_by_email_global(email)
-                                    if global_lead:
+                            # 3) SmartLead global API — always called to resolve
+                            # campaign_lead_map_id (the correct leadMap for inbox URLs).
+                            # sl_email_lead_id != leadMap; using the wrong one produces
+                            # broken "Open in Smartlead" links in Telegram notifications.
+                            try:
+                                global_lead = await smartlead_service.get_lead_by_email_global(email)
+                                if global_lead:
+                                    if not lead_id:
                                         lead_id = str(global_lead.get("id", ""))
-                                        if not first_name:
-                                            first_name = global_lead.get("first_name", "")
-                                        if not last_name:
-                                            last_name = global_lead.get("last_name", "")
-                                        if not company_name:
-                                            company_name = global_lead.get("company_name", "")
-                                        custom_fields = global_lead.get("custom_fields") or {}
-                                        website = global_lead.get("website", "")
-                                        if not linkedin_profile:
-                                            linkedin_profile = global_lead.get("linkedin_profile", "")
-                                        if not location:
-                                            location = global_lead.get("location", "")
-                                        for cd in global_lead.get("lead_campaign_data", []):
-                                            if str(cd.get("campaign_id")) == str(campaign_id):
-                                                campaign_lead_map_id = str(cd.get("campaign_lead_map_id", ""))
-                                                break
                                         stats["lead_id_from_api"] += 1
-                                except Exception as enrich_err:
-                                    logger.warning(f"API lead lookup failed for {email}: {enrich_err}")
+                                    if not first_name:
+                                        first_name = global_lead.get("first_name", "")
+                                    if not last_name:
+                                        last_name = global_lead.get("last_name", "")
+                                    if not company_name:
+                                        company_name = global_lead.get("company_name", "")
+                                    custom_fields = global_lead.get("custom_fields") or {}
+                                    website = global_lead.get("website", "")
+                                    if not linkedin_profile:
+                                        linkedin_profile = global_lead.get("linkedin_profile", "")
+                                    if not location:
+                                        location = global_lead.get("location", "")
+                                    for cd in global_lead.get("lead_campaign_data", []):
+                                        if str(cd.get("campaign_id")) == str(campaign_id):
+                                            campaign_lead_map_id = str(cd.get("campaign_lead_map_id", ""))
+                                            break
+                            except Exception as enrich_err:
+                                logger.warning(f"API lead lookup failed for {email}: {enrich_err}")
 
                             # Fallback: parse name from statistics data
                             if not first_name:

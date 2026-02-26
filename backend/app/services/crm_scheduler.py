@@ -894,46 +894,13 @@ class CRMScheduler:
             )
             getsales_replies = getsales_query.all()
             
-            # Build full report for admin
+            # 24h summary goes ONLY to admin (@impecableme).
+            # Operators get real-time per-reply notifications — they don't need
+            # periodic digests that duplicate what they already see instantly.
             message = self._build_report_message(
                 smartlead_warm, negative_total, getsales_replies, title="All Projects"
             )
             await send_telegram_notification(message, chat_id=TELEGRAM_CHAT_ID)
-            
-            # Build per-project reports for operators
-            projects_query = await session.execute(
-                select(Project).where(
-                    and_(
-                        Project.telegram_chat_id.isnot(None),
-                        Project.deleted_at.is_(None),
-                    )
-                )
-            )
-            projects = projects_query.scalars().all()
-            
-            for project in projects:
-                if not project.campaign_filters or project.telegram_chat_id == TELEGRAM_CHAT_ID:
-                    continue
-                
-                # Filter replies for this project's campaigns
-                campaign_names = {c.lower() for c in (project.campaign_filters or []) if isinstance(c, str)}
-                
-                project_warm = [
-                    r for r in smartlead_warm 
-                    if (r.campaign_name or "").lower() in campaign_names
-                ]
-                project_linkedin = [
-                    (a, c) for a, c in getsales_replies
-                    if get_getsales_flow_name(a.extra_data, c.get_platform("getsales").get("campaigns", [])).lower() in campaign_names
-                ]
-                
-                if not project_warm and not project_linkedin:
-                    continue
-                
-                project_msg = self._build_report_message(
-                    project_warm, 0, project_linkedin, title=project.name
-                )
-                await send_telegram_notification(project_msg, chat_id=project.telegram_chat_id)
             
             warm_email = len(smartlead_warm)
             warm_linkedin = len(getsales_replies)
