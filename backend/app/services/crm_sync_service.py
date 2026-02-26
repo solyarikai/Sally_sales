@@ -163,8 +163,19 @@ GETSALES_FLOW_NAMES = {
     "04d46b71-9d62-44bd-9c22-0a4cd6cdfc97": "Mifort Partners PHP",
     "89961bab-733e-4857-956e-810231c1448c": "Mifort iGaming Providers",
     "02469dd6-a727-4ef7-86e7-d85ac2729ed9": "Mifort iGaming Marketing",
+    "81ed1274-1d39-455f-be37-8548cbc9ae42": "MFT. Marketing New vacs",
+    "7895a776-a21d-4d3a-9b8a-4b32a03fc857": "MFT. Marketing",
+    "107ee83a-3259-4ece-a7b7-5319c0605568": "Mifort iGaming Operators",
     # TFP GetSales automations
     "99eab5dd-3abb-4387-8757-7b908a0d7bb2": "TFP - Apparel&fashion--only Dias",
+    "ce0035f2-0f22-42c9-b84c-d1a71852e3ef": "TFP - France Explee",
+    "90acfa5f-3ed8-4f23-a7ff-cc494ac0d004": "TFP - UK contacts",
+    "5bf9a955-e404-4f94-8aa2-904fafc1f98a": "TFP - Who is Next",
+    "a576670f-2ce6-4810-9918-4753dd4a4e51": "TFP - Zalando contacts",
+    "2ccbefdb-c1a7-4665-bcc1-630306281b60": "TFP - UK Directories",
+    "5723168d-15de-486d-a0bb-306d924231c3": "TFP - Fashion brands Italy 3",
+    "c5ac34f7-cd68-4d4b-abdf-c540d65219a4": "TFP - Li groups contacts",
+    "bd1f5ffb-2dbe-429a-b0f3-dcab147e4f99": "TFP - Apparel&fashion",
 }
 
 def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: list = None) -> str:
