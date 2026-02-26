@@ -10,6 +10,7 @@ import json
 import logging
 
 from app.db import get_session, async_session_maker
+from app.core.config import settings
 from app.services.smartlead_service import smartlead_service
 
 logger = logging.getLogger(__name__)
@@ -217,36 +218,6 @@ async def get_lead_email_thread(campaign_id: str, email: str):
 
 
 
-@router.post("/webhook-raw")
-async def receive_webhook_raw(request: Request):
-    """Debug endpoint to log raw webhook payload."""
-    import json
-    from datetime import datetime
-    
-    # Log request details
-    logger.info("="*60)
-    logger.info(f"[WEBHOOK-RAW] Received at {datetime.now().isoformat()}")
-    logger.info(f"[WEBHOOK-RAW] Headers: {dict(request.headers)}")
-    logger.info(f"[WEBHOOK-RAW] Client: {request.client}")
-    
-    # Get raw body
-    body = await request.body()
-    body_str = body.decode() if body else "<empty>"
-    logger.info(f"[WEBHOOK-RAW] Body length: {len(body_str)} chars")
-    logger.info(f"[WEBHOOK-RAW] Raw body: {body_str[:2000]}")  # First 2000 chars
-    
-    # Try to parse as JSON
-    try:
-        data = await request.json()
-        logger.info(f"[WEBHOOK-RAW] Parsed JSON keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
-        logger.info(f"[WEBHOOK-RAW] Full JSON: " + json.dumps(data, indent=2, default=str)[:3000])
-    except Exception as e:
-        logger.error(f"[WEBHOOK-RAW] JSON parse error: {e}")
-    
-    logger.info("="*60)
-    return {"status": "logged", "received_at": datetime.now().isoformat()}
-
-
 @router.post("/webhook")
 async def receive_webhook(
     request: Request,
@@ -258,10 +229,15 @@ async def receive_webhook(
     Only EMAIL_REPLY events create ContactActivity and trigger the reply pipeline.
     Conversation history for non-reply events is loaded on demand.
     """
+    from app.core.config import settings as _cfg
+    if _cfg.WEBHOOK_SECRET:
+        token = request.query_params.get("token")
+        if token != _cfg.WEBHOOK_SECRET:
+            raise HTTPException(status_code=403, detail="Invalid webhook token")
+
     from app.models.reply import WebhookEventModel
     from app.models.contact import Contact, ContactActivity
     
-    # Parse JSON
     try:
         data = await request.json()
     except Exception as e:
@@ -523,27 +499,6 @@ def _extract_subject(data: dict) -> Optional[str]:
                 subject = entry["subject"]
                 break
     return subject
-
-
-def _update_contact_from_category(contact, lead_data: dict):
-    """Update contact status from Smartlead category change event."""
-    category = lead_data.get("category", {})
-    if not isinstance(category, dict):
-        return
-    cat_name = category.get("name", "").lower()
-    contact.update_platform_status("smartlead", category.get("name"))
-    status_map = {
-        "interested": "warm",
-        "meeting booked": "warm",
-        "out of office": "out_of_office",
-        "not interested": "not_interested",
-        "wrong person": "not_interested",
-        "do not contact": "not_interested",
-        "auto reply": "out_of_office",
-    }
-    mapped = status_map.get(cat_name)
-    if mapped:
-        contact.status = mapped
 
 
 def _build_reply_payload(data: dict) -> dict:

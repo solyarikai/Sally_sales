@@ -245,21 +245,7 @@ def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: 
 
 
 
-def normalize_linkedin_url(url: str) -> str:
-    """Normalize LinkedIn URL for matching (strip protocol, www, lowercase)."""
-    if not url or url == '--':
-        return None
-    import re
-    # Remove protocol and www
-    normalized = re.sub(r'^https?://(www\.)?', '', url.lower())
-    # Remove trailing slash
-    normalized = normalized.rstrip('/')
-    return normalized if normalized else None
-def _truncate(value: str | None, max_len: int = 500) -> str | None:
-    """Truncate string to max length to prevent varchar overflow."""
-    if value is None:
-        return None
-    return str(value)[:max_len] if len(str(value)) > max_len else value
+from app.utils.normalization import normalize_linkedin_url, truncate as _truncate
 
 
 
@@ -422,14 +408,33 @@ class SmartleadClient:
         
         return await self._post(f"/campaigns/{campaign_id}/webhooks", webhook_data)
     
-    _verified_webhooks: set = set()
+    _verified_webhooks: dict = {}
+    _VERIFIED_CACHE_TTL = 3600
+    _VERIFIED_CACHE_MAX = 2000
+
+    def _cache_verified(self, campaign_id):
+        import time
+        if len(self._verified_webhooks) >= self._VERIFIED_CACHE_MAX:
+            oldest_key = min(self._verified_webhooks, key=self._verified_webhooks.get)
+            del self._verified_webhooks[oldest_key]
+        self._verified_webhooks[campaign_id] = time.time()
+
+    def _is_verified(self, campaign_id) -> bool:
+        import time
+        ts = self._verified_webhooks.get(campaign_id)
+        if ts is None:
+            return False
+        if (time.time() - ts) > self._VERIFIED_CACHE_TTL:
+            del self._verified_webhooks[campaign_id]
+            return False
+        return True
 
     async def setup_crm_webhooks(self, webhook_url: str, skip_campaigns: set = None) -> Dict[str, Any]:
         """
         Set up CRM webhooks for active Smartlead campaigns.
-        Skips campaigns already verified to have the webhook (in-memory cache).
-        Only checks NEW campaigns on subsequent runs — avoids re-querying
-        webhooks for all 1700 campaigns every 5 minutes.
+        
+        Uses a bounded TTL cache (max 2000 entries, 1h TTL) to skip
+        re-verifying campaigns that already have a webhook.
         """
         import asyncio
 
@@ -453,7 +458,7 @@ class SmartleadClient:
                 if cname in skip_campaigns:
                     results["skipped"].append({"id": cid, "name": cname, "reason": "webhooks disabled for project"})
                     continue
-                if cid in self._verified_webhooks:
+                if self._is_verified(cid):
                     results["cached"].append({"id": cid, "name": cname})
                     results["existing"].append({"id": cid, "name": cname})
                     continue
@@ -463,11 +468,6 @@ class SmartleadClient:
 
             sem = asyncio.Semaphore(10)
 
-            # Extract our server's base URL to detect ANY webhook pointing to us,
-            # regardless of path suffix. This prevents duplicate registrations
-            # across the two independent webhook systems (smartlead_service +
-            # crm_sync_service) that previously created 7-14 webhooks per campaign
-            # and caused SmartLead to silently stop delivering events.
             from urllib.parse import urlparse
             our_host = urlparse(webhook_url).netloc
 
@@ -481,7 +481,7 @@ class SmartleadClient:
                             wh_url = wh.get("webhook_url", "")
                             if urlparse(wh_url).netloc == our_host:
                                 results["existing"].append({"id": campaign_id, "name": campaign_name})
-                                self._verified_webhooks.add(campaign_id)
+                                self._cache_verified(campaign_id)
                                 return
                         await self.create_campaign_webhook(
                             campaign_id=campaign_id,
@@ -489,7 +489,7 @@ class SmartleadClient:
                             webhook_name=f"CRM Sync - {campaign_name[:30]}"
                         )
                         results["created"].append({"id": campaign_id, "name": campaign_name})
-                        self._verified_webhooks.add(campaign_id)
+                        self._cache_verified(campaign_id)
                     except Exception as e:
                         results["failed"].append({"id": campaign_id, "name": campaign_name, "error": str(e)})
 
@@ -786,10 +786,8 @@ class CRMSyncService:
     
     @staticmethod
     def normalize_email(email: str) -> Optional[str]:
-        """Normalize email for matching."""
-        if not email:
-            return None
-        return email.lower().strip()
+        from app.utils.normalization import normalize_email
+        return normalize_email(email)
     
     @staticmethod
     def normalize_linkedin(url: str) -> Optional[str]:

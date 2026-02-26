@@ -9,8 +9,6 @@ import { SettingsPage } from './pages/SettingsPage';
 import KnowledgeBasePage from './pages/KnowledgeBasePage';
 import { AllProspectsPage } from './pages/AllProspectsPage';
 import { RepliesPage } from './pages/RepliesPage';
-// Automations page removed - replies are tracked automatically now
-// import { AutomationsPage } from './pages/AutomationsPage';
 import PromptDebugPage from './pages/PromptDebugPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { ContactDetailPage } from './pages/ContactDetailPage';
@@ -67,9 +65,6 @@ function App() {
         {/* Redirect standalone /replies to unified /tasks/replies */}
         <Route path="/replies" element={<Navigate to="/tasks/replies" replace />} />
 
-        {/* Automations page - disabled, replies are tracked automatically now */}
-        {/* <Route path="/automations" element={<Layout><AutomationsPage /></Layout>} /> */}
-        
         {/* Shared routes (templates and settings) - not company-scoped */}
         <Route path="/prompt-debug" element={
           <Layout>

@@ -237,51 +237,23 @@ async def sync_now(
 
 @router.post("/setup-webhooks")
 async def setup_webhooks(
-    webhook_base_url: str = Body(None, embed=True),
     session: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
     """
-    Set up webhooks in Smartlead and GetSales to send events to our CRM.
+    Trigger webhook setup via the centralized scheduler function.
     
-    If webhook_base_url is not provided, uses the default based on settings.
-    
-    This will:
-    - For Smartlead: Configure webhooks on all active campaigns for EMAIL_REPLY, LEAD_CATEGORY_UPDATED
-    - For GetSales: Configure webhooks for contact_replied_linkedin_message, connection_accepted
+    All webhook registration goes through setup_crm_webhooks_on_startup()
+    which uses the correct URLs (/api/smartlead/webhook, /api/crm-sync/webhook/getsales)
+    and prevents duplicate registrations.
     """
-    sync_service = get_crm_sync_service()
-    
-    # Default webhook base URL
-    if not webhook_base_url:
-        from app.core.config import settings as _s
-        webhook_base_url = f"{_s.WEBHOOK_BASE_URL}/api/crm-sync/webhook"
-    
-    results = {"getsales": None, "smartlead": None}
-    
-    # Set up GetSales webhooks
-    if sync_service.getsales:
-        try:
-            getsales_url = f"{webhook_base_url}/getsales"
-            results["getsales"] = await sync_service.getsales.setup_crm_webhooks(getsales_url)
-        except Exception as e:
-            logger.error(f"Failed to set up GetSales webhooks: {e}")
-            results["getsales"] = {"error": str(e)}
-    
-    # Set up Smartlead webhooks
-    if sync_service.smartlead:
-        try:
-            smartlead_url = f"{webhook_base_url}/smartlead"
-            results["smartlead"] = await sync_service.smartlead.setup_crm_webhooks(smartlead_url)
-        except Exception as e:
-            logger.error(f"Failed to set up Smartlead webhooks: {e}")
-            results["smartlead"] = {"error": str(e)}
-    
-    return {
-        "success": True,
-        "message": "Webhook setup complete",
-        "results": results
-    }
+    from app.services.crm_scheduler import setup_crm_webhooks_on_startup
+    try:
+        await setup_crm_webhooks_on_startup()
+        return {"success": True, "message": "Webhook setup triggered via scheduler"}
+    except Exception as e:
+        logger.error(f"Webhook setup failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
@@ -850,270 +822,9 @@ async def _get_latest_events(session: AsyncSession, campaign_names: list) -> dic
 
 
 # ============= Webhook Endpoints =============
-
-@router.post("/webhook/smartlead")
-async def smartlead_webhook(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    session: AsyncSession = Depends(get_session),
-):
-    """
-    Webhook endpoint for Smartlead events.
-    
-    Smartlead webhook payload structure (from n8n reference):
-    {
-      "body": {
-        "event_type": "EMAIL_REPLY" | "LEAD_CATEGORY_UPDATED" | "EMAIL_SENT",
-        "lead_email": "...",
-        "lead_id": 123,
-        "campaign_id": 456,
-        "campaign_name": "...",
-        "from_email": "...",
-        "to_email": "...",
-        "event_timestamp": "2025-...",
-        "lead_data": {
-          "first_name": "...",
-          "last_name": "...",
-          "company_name": "...",
-          "linkedin_profile": "...",
-          "category": { "name": "Positive Reply", "sentiment_type": "positive" }
-        },
-        "reply_message": { "text": "..." },
-        "last_reply": { "email_body": "...", "time": "..." },
-        "history": [ { "type": "SENT"|"REPLY", "email_body": "...", "time": "..." } ]
-      }
-    }
-    """
-    try:
-        payload = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
-    
-    # Handle both direct payload and nested body (n8n style)
-    body = payload.get("body", payload)
-    
-    event_type = body.get("event_type") or body.get("event")
-    lead_email = (
-        body.get("lead_email") or 
-        body.get("to_email") or 
-        body.get("sl_lead_email") or
-        body.get("email")
-    )
-    campaign_id = body.get("campaign_id")
-    campaign_name = body.get("campaign_name")
-    lead_id = body.get("lead_id")
-    lead_data = body.get("lead_data", {})
-    
-    logger.info(f"Smartlead webhook received: {event_type} for {lead_email}")
-
-    # Skip events from campaigns belonging to disabled projects
-    if campaign_name:
-        disabled = await _get_disabled_project_info(session)
-        if campaign_name in disabled["campaigns"]:
-            logger.info(f"Smartlead webhook skipped: campaign '{campaign_name}' (webhooks disabled)")
-            return {"status": "skipped", "reason": "webhooks disabled for project"}
-
-    if not lead_email:
-        return {"status": "ignored", "reason": "no email"}
-    
-    # Find contact by email or smartlead_id
-    contact = None
-    if lead_id:
-        result = await session.execute(
-            select(Contact).where(
-                and_(Contact.smartlead_id == str(lead_id), Contact.deleted_at.is_(None))
-            )
-        )
-        contact = result.scalar_one_or_none()
-    
-    if not contact:
-        result = await session.execute(
-            select(Contact).where(
-                and_(Contact.email == lead_email.lower(), Contact.deleted_at.is_(None))
-            )
-        )
-        contact = result.scalar_one_or_none()
-    
-    # Also try to match by LinkedIn URL (for contacts from GetSales)
-    linkedin_profile = lead_data.get("linkedin_profile") or lead_data.get("linkedin_url")
-    if not contact and linkedin_profile:
-        normalized_linkedin = linkedin_profile.lower().rstrip("/")
-        if "linkedin.com/in/" in normalized_linkedin:
-            linkedin_handle = _extract_linkedin_handle(linkedin_profile)
-            result = await session.execute(
-                select(Contact).where(
-                    and_(
-                        Contact.linkedin_url.ilike(f"%/in/{linkedin_handle}%"),
-                        Contact.deleted_at.is_(None)
-                    )
-                )
-            )
-            contact = result.scalar_one_or_none()
-    
-    # If we found an existing contact (from GetSales), merge Smartlead data
-    if contact and not contact.smartlead_id:
-        logger.info(f"Merging Smartlead data into existing contact: {contact.email}")
-        contact.smartlead_id = str(lead_id) if lead_id else None
-        if linkedin_profile and not contact.linkedin_url:
-            contact.linkedin_url = _normalize_linkedin(linkedin_profile)
-        # Upgrade placeholder email with real email from Smartlead
-        if lead_email and contact.email and any(
-            p in contact.email for p in ("@linkedin.placeholder", "@getsales.local", "@placeholder.local")
-        ):
-            logger.info(f"Upgrading placeholder email {contact.email} -> {lead_email}")
-            contact.email = lead_email.lower().strip()
-            if '@' in lead_email:
-                contact.domain = lead_email.split('@')[1].lower()
-        # Add campaign to existing campaigns if not already there
-        if campaign_name or campaign_id:
-            campaign_entry = {
-                "name": campaign_name,
-                "id": str(campaign_id) if campaign_id else None,
-                "source": "smartlead"
-            }
-            existing_campaigns = parse_campaigns(contact.campaigns)
-            existing_ids = {c.get("id") for c in existing_campaigns if isinstance(c, dict)}
-            if str(campaign_id) not in existing_ids:
-                existing_campaigns.append(campaign_entry)
-                contact.campaigns = existing_campaigns
-    
-    if not contact:
-        # Create new contact from webhook data
-        logger.info(f"Creating new contact from Smartlead webhook: {lead_email}")
-        contact = Contact(
-            company_id=1,  # Default company
-            email=lead_email.lower().strip(),
-            first_name=lead_data.get("first_name"),
-            last_name=lead_data.get("last_name"),
-            company_name=lead_data.get("company_name"),
-            linkedin_url=_normalize_linkedin(lead_data.get("linkedin_profile")),
-            source="smartlead",
-            smartlead_id=str(lead_id) if lead_id else None,
-            status="new",
-        )
-        contact.mark_synced("smartlead")
-        if campaign_name or campaign_id:
-            contact.set_platform("smartlead", {"campaigns": [{
-                "name": campaign_name,
-                "id": str(campaign_id) if campaign_id else None,
-                "source": "smartlead"
-            }]})
-        session.add(contact)
-        await session.flush()  # Get contact.id
-    
-    
-    # Only process reply events — non-reply events stored in webhook_events for debugging
-    REPLY_TYPES = {"EMAIL_REPLY", "lead.replied", "email.replied", "reply"}
-    is_reply = event_type in REPLY_TYPES
-
-    # Parse event timestamp
-    event_time = datetime.utcnow()
-    if body.get("event_timestamp"):
-        try:
-            parsed = datetime.fromisoformat(body["event_timestamp"].replace("Z", "+00:00"))
-            event_time = parsed.replace(tzinfo=None)
-        except:
-            pass
-
-    if is_reply:
-        reply_text = None
-        reply_body = None
-        if body.get("reply_message"):
-            reply_text = body["reply_message"].get("text")
-        if body.get("last_reply"):
-            reply_body = body["last_reply"].get("email_body")
-
-        subject = None
-        for entry in (body.get("history") or []):
-            if entry.get("subject"):
-                subject = entry.get("subject")
-                break
-
-        activity = ContactActivity(
-            contact_id=contact.id,
-            company_id=contact.company_id,
-            activity_type="email_replied",
-            channel="email",
-            direction="inbound",
-            source="smartlead",
-            source_id=str(lead_id) if lead_id else None,
-            subject=subject,
-            body=reply_body or reply_text,
-            snippet=(reply_text or reply_body or "")[:200] if (reply_text or reply_body) else None,
-            extra_data={
-                "campaign_id": campaign_id,
-                "campaign_name": campaign_name,
-            },
-            activity_at=event_time
-        )
-        session.add(activity)
-
-        contact.mark_replied("email", at=event_time)
-        contact.last_reply_at = event_time
-
-        from app.services.status_machine import transition_status
-        new_st, ok, _msg = transition_status(contact.status, "interested")
-        if ok:
-            contact.status = new_st
-
-    if event_type == "EMAIL_BOUNCED":
-        contact.status = "bounced"
-
-    if lead_id and not contact.smartlead_id:
-        contact.smartlead_id = str(lead_id)
-    
-    await session.commit()
-
-    if is_reply and lead_email:
-        reply_text = None
-        reply_body = None
-        if body.get("reply_message"):
-            reply_text = body["reply_message"].get("text")
-        if body.get("last_reply"):
-            reply_body = body["last_reply"].get("email_body")
-        subject = None
-        for entry in (body.get("history") or []):
-            if entry.get("subject"):
-                subject = entry.get("subject")
-                break
-
-        full_payload = {
-            "event_type": event_type or "EMAIL_REPLY",
-            "campaign_id": str(campaign_id) if campaign_id else None,
-            "campaign_name": campaign_name,
-            "lead_email": lead_email,
-            "to_email": lead_email,
-            "to_name": f"{lead_data.get('first_name', '')} {lead_data.get('last_name', '')}".strip(),
-            "first_name": lead_data.get("first_name", ""),
-            "last_name": lead_data.get("last_name", ""),
-            "company_name": lead_data.get("company_name", ""),
-            "email_subject": subject,
-            "email_body": reply_body or reply_text or "",
-            "preview_text": reply_text or reply_body or "",
-            "sl_email_lead_id": str(lead_id) if lead_id else "",
-            "linkedin_profile": lead_data.get("linkedin_profile", ""),
-            "time_replied": body.get("event_timestamp"),
-            "_source": "crm_sync_webhook",
-        }
-        asyncio.create_task(_process_smartlead_reply_safe(full_payload))
-        logger.info(f"[CRM-SYNC] Queued reply processing for {lead_email}")
-    else:
-        logger.info(f"[CRM-SYNC] Non-reply event {event_type} logged for {lead_email}")
-
-    return {"status": "processed"}
-
-
-async def _process_smartlead_reply_safe(payload: dict):
-    """Process a SmartLead reply via the shared reply processor. Fire-and-forget."""
-    from app.services.reply_processor import process_reply_webhook
-
-    try:
-        async with async_session_maker() as session:
-            await process_reply_webhook(payload, session)
-            await session.commit()
-    except Exception as e:
-        logger.error(f"[CRM-SYNC] Reply processing failed (non-fatal): {e}")
-
+# SmartLead webhooks are handled EXCLUSIVELY by /api/smartlead/webhook
+# (in smartlead.py). Never duplicate webhook handlers — that's how we
+# ended up with 360+ duplicate registrations and lost events.
 
 @router.post("/webhook/getsales/bulk-import")
 async def getsales_bulk_import_webhook(
@@ -1122,14 +833,12 @@ async def getsales_bulk_import_webhook(
 ):
     """
     Webhook endpoint for GetSales bulk contact export.
-    
-    This is triggered when you use GetSales UI:
-    1. Select all contacts
-    2. Export > Webhook
-    3. Select this webhook
-    
-    GetSales will send each contact one by one to this endpoint.
     """
+    from app.core.config import settings as _cfg
+    if _cfg.WEBHOOK_SECRET:
+        token = request.query_params.get("token")
+        if token != _cfg.WEBHOOK_SECRET:
+            raise HTTPException(status_code=403, detail="Invalid webhook token")
     try:
         payload = await request.json()
     except Exception:
@@ -1218,23 +927,12 @@ async def getsales_webhook(
 ):
     """
     Webhook endpoint for GetSales events.
-    
-    GetSales sends webhooks with this structure:
-    {
-      "body": {
-        "contact": { uuid, first_name, last_name, linkedin_url, work_email, ... },
-        "account": { name, website, ... },
-        "automation": { uuid, name, ... },
-        "linkedin_message": { text, type, sent_at, ... },
-        "contact_markers": { ... },
-        "latest_linkedin_conversation_thread": { messaging_thread, ... }
-      }
-    }
-    
-    The linkedin_message.type can be:
-    - "inbox" = received reply from contact
-    - "outbox" = message we sent
     """
+    from app.core.config import settings as _cfg
+    if _cfg.WEBHOOK_SECRET:
+        token = request.query_params.get("token")
+        if token != _cfg.WEBHOOK_SECRET:
+            raise HTTPException(status_code=403, detail="Invalid webhook token")
     try:
         payload = await request.json()
     except Exception:

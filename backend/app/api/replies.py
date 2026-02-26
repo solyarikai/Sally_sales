@@ -2815,47 +2815,6 @@ async def get_campaign_status(campaign_id: str):
     }
 
 
-@router.post("/campaign/{campaign_id}/launch")
-async def launch_campaign(campaign_id: str):
-    """Start/launch a Smartlead campaign. Sets schedule if missing."""
-    import os
-
-    api_key = os.environ.get('SMARTLEAD_API_KEY') or smartlead_service.api_key
-    if not api_key:
-        raise HTTPException(status_code=400, detail="Smartlead not configured")
-
-    # First ensure schedule is set
-    await smartlead_request(
-        "POST",
-        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/schedule",
-        params={"api_key": api_key},
-        json={
-            "timezone": "UTC",
-            "days_of_the_week": [0, 1, 2, 3, 4, 5, 6],
-            "start_hour": "00:00",
-            "end_hour": "23:59",
-            "min_time_btw_emails": 3,
-            "max_new_leads_per_day": 100
-        },
-        timeout=60.0,
-    )
-
-    # Now launch
-    resp = await smartlead_request(
-        "POST",
-        f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/status",
-        params={"api_key": api_key},
-        json={"status": "START"},
-        timeout=60.0,
-    )
-    data = resp.json()
-
-    if data.get("error"):
-        return {"success": False, "message": data.get("error"), "response": data}
-
-    return {"success": True, "message": f"Campaign {campaign_id} launched!", "response": data}
-
-
 @router.post("/campaign/{campaign_id}/pause")
 async def pause_campaign(campaign_id: str):
     """Pause a Smartlead campaign."""

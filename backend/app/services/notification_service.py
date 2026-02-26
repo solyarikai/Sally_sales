@@ -620,9 +620,10 @@ from app.core.config import settings as _tg_settings
 TELEGRAM_BOT_TOKEN = _tg_settings.TELEGRAM_BOT_TOKEN
 TELEGRAM_CHAT_ID = _tg_settings.TELEGRAM_CHAT_ID
 
-# In-memory cache for project-campaign mapping (refreshed every 5 min)
+import asyncio as _asyncio
 _project_cache = {"data": {}, "last_refresh": None}
-_PROJECT_CACHE_TTL = 300  # 5 minutes
+_PROJECT_CACHE_TTL = 300
+_project_cache_lock = _asyncio.Lock()
 
 
 async def send_telegram_notification(
@@ -693,13 +694,14 @@ async def _get_project_for_campaign(campaign_name: str):
     
     now = datetime.utcnow()
     
-    # Refresh cache if stale
     if (not _project_cache["last_refresh"] or 
         (now - _project_cache["last_refresh"]).total_seconds() > _PROJECT_CACHE_TTL):
-        try:
-            await _refresh_project_cache()
-        except Exception as e:
-            logger.warning(f"Failed to refresh project cache: {e}")
+        if not _project_cache_lock.locked():
+            async with _project_cache_lock:
+                try:
+                    await _refresh_project_cache()
+                except Exception as e:
+                    logger.warning(f"Failed to refresh project cache: {e}")
     
     # Look up campaign in cache
     campaign_lower = campaign_name.lower()

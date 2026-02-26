@@ -4,7 +4,6 @@ Handles deduplication, merging, and CRUD operations for the master leads databas
 """
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
-from difflib import SequenceMatcher
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_, func, delete as sql_delete
 import logging
@@ -19,31 +18,7 @@ from app.services.field_mapper import field_mapper_service
 logger = logging.getLogger(__name__)
 
 
-def normalize_linkedin_url(url: str) -> Optional[str]:
-    """Normalize LinkedIn URL for comparison"""
-    if not url:
-        return None
-    url = url.lower().strip()
-    url = url.split('?')[0].rstrip('/')
-    if '/in/' in url:
-        parts = url.split('/in/')
-        if len(parts) > 1:
-            return f"linkedin.com/in/{parts[1].split('/')[0]}"
-    return url
-
-
-def normalize_email(email: str) -> Optional[str]:
-    """Normalize email for comparison"""
-    if not email:
-        return None
-    return email.lower().strip()
-
-
-def calculate_name_similarity(name1: str, name2: str) -> float:
-    """Calculate similarity between two names"""
-    if not name1 or not name2:
-        return 0.0
-    return SequenceMatcher(None, name1.lower().strip(), name2.lower().strip()).ratio()
+from app.utils.normalization import normalize_linkedin_url, normalize_email, calculate_name_similarity
 
 
 class MasterLeadsService:

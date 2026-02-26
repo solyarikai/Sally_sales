@@ -474,22 +474,15 @@ export function HomePage() {
 
   const loadData = async () => {
     try {
-      const [companiesData, environmentsData] = await Promise.all([
-        companiesApi.listCompanies(),
-        environmentsApi.listEnvironments(),
-      ]);
-      setCompanies(companiesData);
+      const environmentsData = await environmentsApi.listEnvironments();
       setEnvironments(environmentsData);
       
-      // Validate currentEnvironment still exists (handles case when DB was reset)
       if (currentEnvironment) {
         const envExists = environmentsData.some(e => e.id === currentEnvironment.id);
         if (!envExists) {
-          // Reset to first available or null
           setCurrentEnvironment(environmentsData.length > 0 ? environmentsData[0] : null);
         }
       } else if (environmentsData.length > 0) {
-        // Auto-select first environment if none selected
         setCurrentEnvironment(environmentsData[0]);
       }
     } catch (error) {

@@ -1145,10 +1145,10 @@ async def _do_webhook_setup():
     logger.info("Setting up CRM webhooks for all campaigns (background)...")
 
     webhook_base_url = f"{settings.WEBHOOK_BASE_URL}/api"
+    token_suffix = f"?token={settings.WEBHOOK_SECRET}" if settings.WEBHOOK_SECRET else ""
 
     sync_service = get_crm_sync_service()
 
-    # Get campaigns to skip from disabled projects
     try:
         skip_campaigns = await _get_disabled_campaign_names()
         if skip_campaigns:
@@ -1157,19 +1157,17 @@ async def _do_webhook_setup():
         logger.warning(f"Failed to load disabled campaigns: {e}")
         skip_campaigns = set()
 
-    # Set up GetSales webhooks
     if sync_service.getsales:
         try:
-            getsales_url = f"{webhook_base_url}/crm-sync/webhook/getsales"
+            getsales_url = f"{webhook_base_url}/crm-sync/webhook/getsales{token_suffix}"
             results = await sync_service.getsales.setup_crm_webhooks(getsales_url)
             logger.info(f"GetSales webhooks: {len(results.get('created', []))} created, {len(results.get('existing', []))} existing")
         except Exception as e:
             logger.warning(f"Failed to set up GetSales webhooks: {e}")
 
-    # Set up Smartlead webhooks
     if sync_service.smartlead:
         try:
-            smartlead_url = f"{webhook_base_url}/smartlead/webhook"
+            smartlead_url = f"{webhook_base_url}/smartlead/webhook{token_suffix}"
             results = await sync_service.smartlead.setup_crm_webhooks(smartlead_url, skip_campaigns=skip_campaigns)
             created = len(results.get('created', []))
             existing = len(results.get('existing', []))

@@ -111,6 +111,9 @@ class Settings(BaseSettings):
 
     # Webhook URLs — used for SmartLead webhook registration
     WEBHOOK_BASE_URL: str = "http://46.62.210.24:8000"
+    # Optional shared secret appended as ?token=<secret> to webhook URLs.
+    # When set, incoming webhooks must include this token or be rejected.
+    WEBHOOK_SECRET: Optional[str] = None
 
     # Telegram Bot (@ImpecableBot)
     TELEGRAM_BOT_TOKEN: Optional[str] = "8543996153:AAHnqBM52tK2zUUMUEM4fLUA4tozufXoOss"
