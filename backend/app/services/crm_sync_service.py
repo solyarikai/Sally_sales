@@ -143,53 +143,18 @@ def get_sentiment_from_category(category: str) -> str:
 # Used for Telegram notification routing when campaign_name lookup fails
 GETSALES_UUID_TO_PROJECT: dict[str, int] = {}
 
-# Known GetSales flow UUIDs -> names mapping (from webhook data)
-GETSALES_FLOW_NAMES = {
+# GetSales AUTOMATION UUIDs -> campaign names.
+# IMPORTANT: ONLY automation UUIDs go here (from webhook data).
+# NEVER put sender_profile UUIDs here — a sender can work across
+# multiple projects, so sender != campaign.
+GETSALES_FLOW_NAMES: Dict[str, str] = {
+    # EasyStaff automations
     "b4188b80-4e23-47df-83cf-29d2654fc943": "EasyStaff - Russian DM [>500 connects]",
     "f62647b1-c054-4434-8402-7adac1c26e64": "Inxy - Russian DM's",
+    # Rizzult automations
     "4bbd26d3-706b-4168-9262-d70fe09a5b25": "RIzzult_Wellness apps 10 01 26",
     "6bfeca8c-23a6-49da-a8e8-b0dacae88857": "Rizzult_shopping_apps",
-    # EasyStaff RU sender profiles (project 40)
-    "b10a34f2-e7d0-490e-bc67-012b7ccd35b8": "EasyStaff RU - Aliaksei Paretski",
-    "4d1effeb-34fc-4999-bada-4a3651021adb": "EasyStaff RU - Ekaterina Khoroshilova",
-    "7f829fca-20b8-4f0d-a19e-ec1b3f76704e": "EasyStaff RU - Eleonora Andreevna",
-    "07d392a8-13bb-4a30-a86f-9fe692b7055a": "EasyStaff RU - Andriy Kovalenko",
-    "5ecc3a67-75f4-413d-96e7-ca256e3113e0": "EasyStaff RU - Aliaksandr Blank",
-    "774af09b-8158-4150-835d-6cf1ee00819a": "EasyStaff RU - Sergey Lebedev",
-    "d67e1028-cf06-4ae8-bcc3-16e41710f19c": "EasyStaff RU - Alexandra Trifonova",
-    "b3b69a39-6b46-4043-85b1-ef4ce22239d5": "EasyStaff RU - Aliaksandra Vailunova",
-    "cf73001d-f893-4396-b301-0691ffdccd12": "EasyStaff RU - Andrei Paliaukou",
-    "d4d17541-2b69-4cc3-acd5-cb39ce9df4b6": "EasyStaff RU - Valeriia Mutalava",
-    "4419a283-4c5f-4e2b-87cd-f892ef8a47be": "EasyStaff RU - Marina Mikhaylova",
-    "c58462db-beda-44a5-ba32-12e436d55bba": "EasyStaff RU - Sophia Powell",
-    "430e90e2-adfb-47d6-a986-3b8a75f4c80e": "EasyStaff RU - Lera Yurkoits",
-    "789eba43-d87f-4412-8f2a-20557f5bf5e2": "EasyStaff RU - Eugene Sukhoi",
-    "961b646e-c66b-44f4-b362-2c206669f4f4": "EasyStaff RU - Ilia Andreev",
-    "0d22a72e-5e30-4f72-bac7-0fac29fe8121": "EasyStaff RU - Anna Reisberg",
-    "4cbc70b5-4fb6-4a76-9088-f50a4ef096e7": "EasyStaff RU - Robert Hershberger",
-    "cdeb709c-17c6-4b31-ad6b-271354cdd3a9": "EasyStaff RU - Dias Nurlanov",
-    "29fd2e4e-d218-4ddc-b733-630e68a98124": "EasyStaff RU - Pavel Medvedev",
-    "448339f7-07c4-4766-b9e5-c09474196fe9": "EasyStaff RU - Sergei Gvianidze",
-    "94aeceb5-12ca-4ed6-92ac-18ed4b3d937f": "EasyStaff RU - Lisa Woodard",
-    "aab81b67-61c7-4cb9-b642-ad8584f69550": "EasyStaff RU - Ruslan Zholik",
-    "765a68b2-99ce-4279-b1ed-5ccdbecff83e": "EasyStaff RU - Theodore Ulianov",
-    "e6aaa00c-bf52-42b5-8c0e-40df920934b6": "EasyStaff RU - Roman Ulyanov",
-    "d5c18723-aca1-4ca4-84b8-60fdee894d67": "EasyStaff RU - Albina Yanchanka",
-    "2529a3dd-0dd1-4fc5-b4f3-7fdae203e454": "EasyStaff RU - Elena Pugovishnikova",
-    "25598cb7-f9d7-40e8-88f3-c8654759a8ab": "EasyStaff RU - Tamara Bustamante",
-    "fb194e54-d8c0-41ed-88e9-4acc0ef393b3": "EasyStaff RU - Anna Reisberg 2",
-    "d15d89ff-b985-4f2a-b222-dbf3b69601fe": "EasyStaff RU - Petro Shevchenko",
-    "b970588c-22ac-4393-934e-bd6dadf6a62c": "EasyStaff RU - Daulet Issatayev",
-    "e7cd7b0f-3683-4412-b7d7-0f9a22f0cc50": "EasyStaff RU - Arina Kozlova",
-    "abf28dba-0834-432b-a57d-b7fc03bb0db7": "EasyStaff RU - Pavel Tikhonov",
-    "d16d6837-4156-4022-bd38-51945de1bf4a": "EasyStaff RU - Max Ionin",
-    "de480494-6125-4f48-9cf0-fb05d0544c6f": "EasyStaff RU - Maksim Anisimov",
-    "8c7d77fa-5d07-4c7a-844d-8e833488eaa1": "EasyStaff RU - Dmitry Isaev",
-    "09f85665-1e7d-482c-9e8f-1c74d5d1ea15": "EasyStaff RU - Nikita Melnikov",
-    "7c58101c-675d-4ed3-9463-c39b03399d45": "EasyStaff RU - Maxim Savichev",
-    "91fb80ab-4430-4b07-bc19-330d3f4ac8fd": "EasyStaff RU - Elena Shamaeva",
-    "450eafe7-96da-458a-84a1-75469c035c42": "EasyStaff RU - Sender 450E (archived)",
-    # Mifort GetSales automations
+    # Mifort automations
     "cc73c018-510d-4edc-b41c-59f4dccff6bb": "Mifort Partners BizDevs",
     "a8d7562b-fdea-4394-8a39-b40910f5a8af": "Mifort Partners Clutch",
     "d793c3dc-78db-46a7-9916-13346d66ce97": "Mifort Partners Salesforce",
@@ -200,7 +165,7 @@ GETSALES_FLOW_NAMES = {
     "81ed1274-1d39-455f-be37-8548cbc9ae42": "MFT. Marketing New vacs",
     "7895a776-a21d-4d3a-9b8a-4b32a03fc857": "MFT. Marketing",
     "107ee83a-3259-4ece-a7b7-5319c0605568": "Mifort iGaming Operators",
-    # TFP GetSales automations
+    # TFP automations
     "99eab5dd-3abb-4387-8757-7b908a0d7bb2": "TFP - Apparel&fashion--only Dias",
     "ce0035f2-0f22-42c9-b84c-d1a71852e3ef": "TFP - France Explee",
     "90acfa5f-3ed8-4f23-a7ff-cc494ac0d004": "TFP - UK contacts",
@@ -213,9 +178,9 @@ GETSALES_FLOW_NAMES = {
 }
 
 # Sender profile UUID → human name (LinkedIn account owner).
-# This is SEPARATE from GETSALES_FLOW_NAMES which mixes automation UUIDs
-# and sender profile UUIDs. A sender profile can be used across multiple
-# automations/projects, so sender_name != campaign_name.
+# DISPLAY ONLY — never use for campaign routing or project classification.
+# A sender can work across multiple projects (e.g. Pavel Medvedev sends
+# for both EasyStaff RU and Rizzult).
 GETSALES_SENDER_PROFILES: Dict[str, str] = {
     "b10a34f2-e7d0-490e-bc67-012b7ccd35b8": "Aliaksei Paretski",
     "4d1effeb-34fc-4999-bada-4a3651021adb": "Ekaterina Khoroshilova",
@@ -258,9 +223,11 @@ GETSALES_SENDER_PROFILES: Dict[str, str] = {
 }
 
 
-# Auto-populate UUID -> project_id mapping from flow names
+# Auto-populate automation_uuid -> project_id mapping from flow names
 _PROJECT_PREFIXES = {
     "easystaff": 40,
+    "inxy": 40,
+    "rizzult": None,  # Rizzult project ID — set to actual ID when tracked
     "mifort": 21,
     "mft": 21,
     "tfp": 13,
@@ -268,7 +235,7 @@ _PROJECT_PREFIXES = {
 for _uuid, _name in GETSALES_FLOW_NAMES.items():
     _name_lower = _name.lower()
     for _prefix, _pid in _PROJECT_PREFIXES.items():
-        if _name_lower.startswith(_prefix):
+        if _name_lower.startswith(_prefix) and _pid is not None:
             GETSALES_UUID_TO_PROJECT[_uuid] = _pid
             break
 
@@ -483,7 +450,7 @@ class SmartleadClient:
             Created webhook data
         """
         if event_types is None:
-            event_types = ["EMAIL_REPLY", "LEAD_CATEGORY_UPDATED", "EMAIL_SENT"]
+            event_types = ["EMAIL_REPLY", "LEAD_CATEGORY_UPDATED"]
         
         # Categories required for Smartlead to include reply body in webhook payload
         categories = [
@@ -1665,21 +1632,33 @@ class CRMSyncService:
         new_reply_ids = []
         
         try:
+            # --- Total-count guard: skip if inbox total unchanged (like SmartLead analytics guard) ---
+            GS_TOTAL_KEY = "leadgen:getsales_inbox_total"
+            from app.services.cache_service import cache_service
+            redis = cache_service._redis if cache_service.is_connected else None
+
+            # Fetch first page (always needed to get the total)
             offset = 0
             stop_pagination = False
+            messages, has_more, total = await self.getsales.get_inbox_messages(
+                limit=page_size, offset=offset
+            )
+            stats["pages"] = 1
+            logger.info(f"GetSales reply sync: {total} total inbox messages")
+
+            if redis and total > 0:
+                prev_total = await redis.get(GS_TOTAL_KEY)
+                if prev_total is not None and int(prev_total) == total:
+                    stats["skipped_unchanged"] = True
+                    logger.info(f"GetSales reply sync: total unchanged ({total}), skipping")
+                    return stats
+
+            if not messages:
+                if redis:
+                    await redis.set(GS_TOTAL_KEY, str(total), ex=7200)
+                return stats
             
-            while not stop_pagination and stats["pages"] < max_pages:
-                # Fetch inbox messages (replies) sorted by newest first
-                messages, has_more, total = await self.getsales.get_inbox_messages(
-                    limit=page_size, offset=offset
-                )
-                stats["pages"] += 1
-                
-                if stats["pages"] == 1:
-                    logger.info(f"GetSales reply sync: {total} total inbox messages")
-                
-                if not messages:
-                    break
+            while not stop_pagination and stats["pages"] <= max_pages:
                 
                 # Bulk check which messages are already cached
                 message_ids = [msg.get("uuid") or msg.get("id") for msg in messages if msg.get("uuid") or msg.get("id")]
@@ -1779,15 +1758,28 @@ class CRMSyncService:
                     try:
                         from app.services.reply_processor import process_getsales_reply
                         automation_info = msg.get("automation") or {}
-                        flow_uuid = (
-                            (automation_info.get("uuid") if isinstance(automation_info, dict) else None)
-                            or msg.get("sender_profile_uuid")
-                            or ""
-                        )
-                        flow_name = (
-                            (automation_info.get("name") if isinstance(automation_info, dict) else None)
-                            or GETSALES_FLOW_NAMES.get(flow_uuid, "")
-                        )
+                        flow_uuid = ""
+                        flow_name = ""
+
+                        if isinstance(automation_info, dict) and automation_info.get("uuid"):
+                            flow_uuid = automation_info["uuid"]
+                            flow_name = automation_info.get("name", GETSALES_FLOW_NAMES.get(flow_uuid, ""))
+                        else:
+                            # automation: "synced" — try to resolve from contact's known campaigns
+                            gs_campaigns = (contact.get_platform("getsales") or {}).get("campaigns", [])
+                            if gs_campaigns and isinstance(gs_campaigns, list):
+                                for gc in gs_campaigns:
+                                    gc_name = gc.get("name", "")
+                                    if gc_name and gc_name != "Unknown":
+                                        flow_name = gc_name
+                                        flow_uuid = gc.get("id", "")
+                                        break
+                            # NEVER fall back to sender_profile_uuid for campaign routing.
+                            # A sender can work across multiple projects; using sender UUID
+                            # as campaign ID causes misrouting (e.g. Pavel Medvedev → EasyStaff RU
+                            # when reply was actually for Rizzult). Leave as empty — the webhook
+                            # path will correct it with the real automation UUID, or it stays
+                            # unclassified (better than misclassified).
                         await process_getsales_reply(
                             message_text=message_text,
                             contact=contact,
@@ -1804,14 +1796,24 @@ class CRMSyncService:
                     stats["new_replies"] += 1
                     new_reply_ids.append(message_id)
                 
-                # Pagination
+                # Pagination — fetch next page for next iteration
                 if not has_more:
                     stop_pagination = True
                 else:
                     offset += page_size
-                    await asyncio.sleep(0.1)  # Rate limiting
+                    await asyncio.sleep(0.1)
+                    messages, has_more, total = await self.getsales.get_inbox_messages(
+                        limit=page_size, offset=offset
+                    )
+                    stats["pages"] += 1
+                    if not messages:
+                        break
             
             await session.commit()
+            
+            # Update total count in Redis after successful sync
+            if redis:
+                await redis.set(GS_TOTAL_KEY, str(total), ex=7200)
             
             # Bulk add new reply IDs to cache
             if new_reply_ids:

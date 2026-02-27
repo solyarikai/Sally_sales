@@ -391,6 +391,11 @@ export async function getFullHistory(replyId: number): Promise<FullHistoryRespon
   return response.data;
 }
 
+export async function getCampaignThread(replyId: number, campaignName: string): Promise<{ activities: FullHistoryActivity[] }> {
+  const response = await api.get(`/replies/${replyId}/campaign-thread`, { params: { campaign_name: campaignName } });
+  return response.data;
+}
+
 export async function getReply(id: number): Promise<ProcessedReply> {
   const response = await api.get(`/replies/${id}`);
   return response.data;
@@ -580,6 +585,7 @@ export const repliesApi = {
   getReplyStats,
   getConversation,
   getFullHistory,
+  getCampaignThread,
   resendNotification,
   getCampaignAnalyticsSummary,
   // Approval / Moderation

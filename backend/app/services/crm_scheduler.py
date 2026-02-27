@@ -366,10 +366,10 @@ class CRMScheduler:
     
     async def _check_replies(self):
         """Check for new replies — scoped to enabled project campaigns only."""
+        import time as _time
         logger.info(f"Checking replies via API (run #{self._reply_count + 1})")
         sync_service = get_crm_sync_service()
 
-        # Scope to only campaigns linked to enabled projects
         try:
             enabled_campaigns = await _get_campaign_names_by_status(True)
         except Exception as e:
@@ -379,22 +379,25 @@ class CRMScheduler:
         async with async_session_maker() as session:
             try:
                 if sync_service.smartlead:
+                    t0 = _time.monotonic()
                     results = await sync_service.sync_smartlead_replies(
                         session, self.company_id,
                         only_campaigns=enabled_campaigns,
                     )
+                    sl_ms = int((_time.monotonic() - t0) * 1000)
                     new_replies = results.get('new_replies', 0)
                     campaigns_checked = results.get('campaigns_checked', 0)
-                    logger.info(f"Smartlead reply check: {new_replies} new, {campaigns_checked} campaigns checked")
+                    logger.info(f"SmartLead poll: {sl_ms}ms, {new_replies} new, {campaigns_checked} campaigns")
             except Exception as e:
                 logger.error(f"Smartlead reply check failed: {e}")
-            
+
             try:
                 if sync_service.getsales:
+                    t0 = _time.monotonic()
                     results = await sync_service.sync_getsales_replies(session, self.company_id)
+                    gs_ms = int((_time.monotonic() - t0) * 1000)
                     new_replies = results.get('new_replies', 0)
-                    if new_replies > 0:
-                        logger.info(f"GetSales reply check: {new_replies} new replies found")
+                    logger.info(f"GetSales poll: {gs_ms}ms, {new_replies} new")
             except Exception as e:
                 logger.error(f"GetSales reply check failed: {e}")
     

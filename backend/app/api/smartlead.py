@@ -254,7 +254,11 @@ async def receive_webhook(
     lead_data = data.get("lead_data", {})
     
     logger.info(f"[WEBHOOK] {actual_event_type} for {lead_email} (campaign: {campaign_name or campaign_id})")
-    
+
+    # Drop EMAIL_SENT — outbound sends are not tracked; conversation history loads on demand
+    if actual_event_type == "EMAIL_SENT":
+        return {"status": "skipped", "reason": "EMAIL_SENT events not tracked"}
+
     # ===== PHASE 1: Store everything in DB (within request session) =====
     
     # 1a. Store raw webhook event for replay/recovery

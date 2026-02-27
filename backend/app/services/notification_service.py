@@ -699,14 +699,44 @@ async def _ensure_cache_fresh():
 
 
 async def _get_project_for_campaign(campaign_name: str):
-    """Find the project that owns a campaign. Uses in-memory cache."""
+    """Find the project that owns a campaign. Uses in-memory cache.
+
+    Matching strategy:
+      1. Exact match against campaign_filters
+      2. Prefix match: campaign name starts with a project's known prefix
+         (e.g. "rizzult recommended 27 02" matches Rizzult project that has "Rizzult" campaigns)
+    """
     await _ensure_cache_fresh()
 
     campaign_lower = campaign_name.lower()
+
+    # 1. Exact match
     for project_data in _project_cache["data"].values():
         filters = project_data.get("campaign_filters") or []
         for f in filters:
             if isinstance(f, str) and f.lower() == campaign_lower:
+                return project_data
+
+    # 2. Prefix match: extract common prefix from each project's campaigns
+    for project_data in _project_cache["data"].values():
+        filters = project_data.get("campaign_filters") or []
+        if not filters:
+            continue
+        project_name = (project_data.get("name") or "").lower()
+        if not project_name:
+            continue
+        # Check if campaign_name starts with the project name (case-insensitive)
+        if campaign_lower.startswith(project_name) or campaign_lower.startswith(project_name.replace(" ", "_")):
+            return project_data
+        # Also check first word of each filter for common prefix
+        prefixes = set()
+        for f in filters:
+            if isinstance(f, str):
+                first_word = f.split()[0].lower() if f.strip() else ""
+                if first_word and len(first_word) > 3:
+                    prefixes.add(first_word)
+        for prefix in prefixes:
+            if campaign_lower.startswith(prefix):
                 return project_data
 
     return None

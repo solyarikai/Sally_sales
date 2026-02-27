@@ -794,7 +794,7 @@ async def _get_latest_events(session: AsyncSession, campaign_names: list) -> dic
             .limit(10)
         )
         for ev in events_q.scalars().all():
-            if ev.event_type == "EMAIL_REPLY":
+            if ev.event_type in ("EMAIL_REPLY", "EMAIL_SENT"):
                 continue
             result["events"].append({
                 "id": f"wh_{ev.id}",

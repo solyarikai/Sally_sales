@@ -651,7 +651,31 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                               <CampaignDropdown
                                 campaigns={history.campaigns}
                                 selectedCampaign={selectedHistoryCampaign[reply.id] ?? null}
-                                onSelect={(c) => setSelectedHistoryCampaign(prev => ({ ...prev, [reply.id]: c }))}
+                                onSelect={(c) => {
+                                  setSelectedHistoryCampaign(prev => ({ ...prev, [reply.id]: c }));
+                                  if (c) {
+                                    const campName = c.split('::').slice(1).join('::');
+                                    const alreadyLoaded = history.activities.some(a => a.campaign === campName);
+                                    if (!alreadyLoaded) {
+                                      setLoadingThreads(prev => new Set(prev).add(reply.id));
+                                      repliesApi.getCampaignThread(reply.id, campName).then(data => {
+                                        if (data.activities.length > 0) {
+                                          setHistoryData(prev => {
+                                            const existing = prev[reply.id];
+                                            if (!existing) return prev;
+                                            return { ...prev, [reply.id]: {
+                                              ...existing,
+                                              activities: [...existing.activities, ...data.activities]
+                                                .sort((a, b) => a.timestamp.localeCompare(b.timestamp)),
+                                            }};
+                                          });
+                                        }
+                                      }).catch(() => {}).finally(() => {
+                                        setLoadingThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+                                      });
+                                    }
+                                  }
+                                }}
                                 isDark={isDark}
                               />
                             )}

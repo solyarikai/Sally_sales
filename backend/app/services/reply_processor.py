@@ -1208,21 +1208,22 @@ async def process_getsales_reply(
         return None
 
     # --- Dedup: check for existing ProcessedReply ---
-    # First try exact match (source + email + campaign_id)
-    existing_result = await session.execute(
-        select(ProcessedReply).where(
-            and_(
-                ProcessedReply.source == "getsales",
-                sa_func.lower(ProcessedReply.lead_email) == lead_email,
-                ProcessedReply.campaign_id == flow_uuid,
-            )
-        ).limit(1)
-    )
-    existing_pr = existing_result.scalar_one_or_none()
+    existing_pr = None
+    # Step 1: if we have a real automation UUID, try exact match
+    if flow_uuid:
+        exact_result = await session.execute(
+            select(ProcessedReply).where(
+                and_(
+                    ProcessedReply.source == "getsales",
+                    sa_func.lower(ProcessedReply.lead_email) == lead_email,
+                    ProcessedReply.campaign_id == flow_uuid,
+                )
+            ).limit(1)
+        )
+        existing_pr = exact_result.scalar_one_or_none()
 
-    # If not found by exact campaign_id, try broader match by lead_email only.
-    # This prevents duplicate records when webhook uses automation_uuid
-    # but polling uses sender_profile_uuid for the same reply.
+    # Step 2: broader match by lead_email only.
+    # Catches: polling without automation → webhook with automation, or vice versa.
     if not existing_pr:
         broader_result = await session.execute(
             select(ProcessedReply).where(
@@ -1252,6 +1253,7 @@ async def process_getsales_reply(
             from app.models.reply import ReplyPromptTemplateModel
             from sqlalchemy import text as sa_text
 
+            # Try exact match first
             project_result = await session.execute(
                 select(Project).where(
                     and_(
@@ -1265,7 +1267,30 @@ async def process_getsales_reply(
                 ).params(cname=flow_name).limit(1)
             )
             project = project_result.scalar()
+
+            # Prefix match: campaign name starts with project name
+            matched_via_prefix = False
+            if not project:
+                proj_result = await session.execute(
+                    select(Project).where(
+                        and_(
+                            Project.deleted_at.is_(None),
+                            sa_text("LOWER(:cname) LIKE LOWER(projects.name) || '%'"),
+                        )
+                    ).params(cname=flow_name).limit(1)
+                )
+                project = proj_result.scalar()
+                if project:
+                    matched_via_prefix = True
+
             if project:
+                # Auto-register new campaign name so future exact matches work
+                if matched_via_prefix and project.campaign_filters is not None:
+                    existing_lower = {c.lower() for c in project.campaign_filters if isinstance(c, str)}
+                    if flow_name.lower() not in existing_lower:
+                        project.campaign_filters = project.campaign_filters + [flow_name]
+                        logger.info(f"[GETSALES] Auto-registered campaign '{flow_name}' to project '{project.name}'")
+
                 proj_sender_name = project.sender_name
                 proj_sender_position = project.sender_position
                 proj_sender_company = project.sender_company
@@ -1340,15 +1365,12 @@ async def process_getsales_reply(
         existing_pr.approval_status = None  # Re-surface for operator
         existing_pr.raw_webhook_data = raw_data
         existing_pr.updated_at = datetime.utcnow()
-        # Only overwrite campaign_name if the new flow_name comes from a
-        # webhook (automation dict) — not from polling's sender_profile fallback.
-        # A webhook-derived name is authoritative; polling's GETSALES_FLOW_NAMES
-        # lookup by sender_profile_uuid can misclassify cross-project senders.
-        if flow_name and flow_uuid != raw_data.get("sender_profile_uuid", ""):
+        # Only overwrite campaign info if we have a real automation-derived flow_name.
+        # Empty flow_name means we couldn't determine the automation (e.g. "synced") —
+        # never overwrite a known campaign with empty/unknown values.
+        if flow_name:
             existing_pr.campaign_name = flow_name
             existing_pr.campaign_id = flow_uuid
-        elif not existing_pr.campaign_name:
-            existing_pr.campaign_name = flow_name
         if inbox_link:
             existing_pr.inbox_link = inbox_link
         processed_reply = existing_pr
@@ -1384,13 +1406,12 @@ async def process_getsales_reply(
     if processed_reply and not processed_reply.telegram_sent_at:
         try:
             from app.services.notification_service import notify_linkedin_reply
-            from app.services.crm_sync_service import GETSALES_UUID_TO_PROJECT, GETSALES_FLOW_NAMES
+            from app.services.crm_sync_service import GETSALES_UUID_TO_PROJECT
 
             contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Unknown"
             resolved_project_id = (
                 getattr(contact, "project_id", None)
                 or GETSALES_UUID_TO_PROJECT.get(flow_uuid)
-                or GETSALES_UUID_TO_PROJECT.get(raw_data.get("sender_profile_uuid", ""))
             )
             from app.services.crm_sync_service import GETSALES_SENDER_PROFILES
             resolved_sender_name = GETSALES_SENDER_PROFILES.get(sender_profile_uuid or "")

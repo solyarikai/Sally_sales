@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime, timedelta
 import logging
+import asyncio
 
 from app.db import get_session
 from app.models.reply import ReplyAutomation, ProcessedReply, ReplyPromptTemplateModel, WebhookEventModel
@@ -36,6 +37,22 @@ from app.services.smartlead_service import smartlead_service, smartlead_request
 from app.services.crm_sync_service import parse_campaigns
 
 logger = logging.getLogger(__name__)
+
+
+def _build_project_campaign_filter(project) -> list:
+    """Build SQLAlchemy OR conditions for matching replies to a project.
+
+    Returns list of conditions: exact match on campaign_filters + prefix match on project name.
+    """
+    parts = []
+    project_campaigns = [c.lower() for c in (project.campaign_filters or []) if isinstance(c, str)]
+    if project_campaigns:
+        parts.append(func.lower(ProcessedReply.campaign_name).in_(project_campaigns))
+    project_name_lower = (project.name or "").lower()
+    if project_name_lower and len(project_name_lower) > 2:
+        parts.append(func.lower(ProcessedReply.campaign_name).like(f"{project_name_lower}%"))
+    return parts
+
 
 router = APIRouter(prefix="/replies", tags=["replies"])
 
@@ -682,7 +699,7 @@ async def list_replies(
     if campaign_id:
         conditions.append(ProcessedReply.campaign_id == campaign_id)
 
-    # Filter by project's campaign_filters (case-insensitive)
+    # Filter by project's campaign_filters (case-insensitive) + prefix match
     if project_id:
         from app.models.contact import Project
         project_result = await session.execute(
@@ -692,10 +709,10 @@ async def list_replies(
             )
         )
         project = project_result.scalar_one_or_none()
-        if project and project.campaign_filters:
-            project_campaigns = [c.lower() for c in project.campaign_filters if isinstance(c, str)]
-            if project_campaigns:
-                conditions.append(func.lower(ProcessedReply.campaign_name).in_(project_campaigns))
+        if project:
+            filter_parts = _build_project_campaign_filter(project)
+            if filter_parts:
+                conditions.append(or_(*filter_parts))
 
     if campaign_names:
         names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
@@ -931,10 +948,10 @@ async def get_contact_campaigns(
             )
         )
         project = project_result.scalar_one_or_none()
-        if project and project.campaign_filters:
-            project_campaigns = [c.lower() for c in project.campaign_filters if isinstance(c, str)]
-            if project_campaigns:
-                conditions.append(func.lower(ProcessedReply.campaign_name).in_(project_campaigns))
+        if project:
+            filter_parts = _build_project_campaign_filter(project)
+            if filter_parts:
+                conditions.append(or_(*filter_parts))
 
     query = (
         select(ProcessedReply)
@@ -987,7 +1004,8 @@ async def get_reply_stats(
     if campaign_id:
         base_query = base_query.where(ProcessedReply.campaign_id == campaign_id)
 
-    # Filter by project's campaign_filters
+    # Filter by project's campaign_filters + prefix match
+    _project_filter_condition = None
     _campaign_name_list = None
     if project_id:
         from app.models.contact import Project
@@ -998,10 +1016,11 @@ async def get_reply_stats(
             )
         )
         project = project_result.scalar_one_or_none()
-        if project and project.campaign_filters:
-            _campaign_name_list = [c for c in project.campaign_filters if isinstance(c, str)]
-            if _campaign_name_list:
-                base_query = base_query.where(ProcessedReply.campaign_name.in_(_campaign_name_list))
+        if project:
+            filter_parts = _build_project_campaign_filter(project)
+            if filter_parts:
+                _project_filter_condition = or_(*filter_parts)
+                base_query = base_query.where(_project_filter_condition)
 
     # Multi-campaign name filter (from global project selector)
     if campaign_names:
@@ -1625,11 +1644,10 @@ async def get_reply_full_history(
     reply_id: int,
     session: AsyncSession = Depends(get_session)
 ):
-    """Get cross-campaign conversation history for a reply's lead.
+    """Fast: campaign list (pure DB) + only default campaign's thread.
 
-    Finds ALL ProcessedReply records with the same lead_email, collects all
-    ThreadMessage rows, and merges with ContactActivity (LinkedIn history).
-    Returns a unified activity stream + campaign summary.
+    No SmartLead API calls for non-default campaigns.
+    Other campaigns' threads are loaded on demand via /campaign-thread.
     """
     from app.models.reply import ThreadMessage
     from app.models.contact import Contact, ContactActivity
@@ -1644,123 +1662,101 @@ async def get_reply_full_history(
     if not reply.lead_email:
         return {"campaigns": [], "activities": [], "approval_status": reply.approval_status}
 
-    # 1. Find ALL replies for this lead
+    # 1. Find ALL replies for this lead (cheap DB query — no API calls)
     all_replies_result = await session.execute(
         select(ProcessedReply).where(
             func.lower(ProcessedReply.lead_email) == reply.lead_email.lower()
-        )
+        ).order_by(desc(ProcessedReply.received_at))
     )
     all_replies = all_replies_result.scalars().all()
-    reply_ids = [r.id for r in all_replies]
 
-    # 2. Fetch threads only for replies that have NEVER been fetched (not stale refresh).
-    #    This keeps full-history fast — stale caches are fine for immediate display.
-    unfetched = [r for r in all_replies if r.thread_fetched_at is None and r.campaign_id and (not r.source or r.source == "smartlead")]
-    for r in unfetched:
+    # 2. Build campaign summary from ProcessedReply records (pure DB, instant)
+    campaign_map: dict[str, dict] = {}
+    for r in all_replies:
+        cname = r.campaign_name or f"Campaign {r.campaign_id}"
+        ch = r.channel or ("linkedin" if r.source == "getsales" else "email")
+        key = f"{ch}::{cname}"
+        ts = r.received_at.isoformat() if r.received_at else ""
+        if key not in campaign_map:
+            campaign_map[key] = {
+                "campaign_name": cname,
+                "channel": ch,
+                "message_count": 1,
+                "latest_at": ts,
+                "earliest_at": ts,
+                "reply_id": r.id,
+            }
+        else:
+            campaign_map[key]["message_count"] += 1
+            if ts and ts > campaign_map[key]["latest_at"]:
+                campaign_map[key]["latest_at"] = ts
+            if ts and (not campaign_map[key]["earliest_at"] or ts < campaign_map[key]["earliest_at"]):
+                campaign_map[key]["earliest_at"] = ts
+
+    campaigns_sorted = sorted(campaign_map.values(), key=lambda c: c.get("latest_at", ""), reverse=True)
+
+    # 3. Fetch thread ONLY for the default (most recent) campaign's reply
+    default_reply = reply
+    activities = []
+    if default_reply.thread_fetched_at is None and default_reply.campaign_id and (not default_reply.source or default_reply.source == "smartlead"):
         try:
-            ok = await _fetch_and_cache_thread(r, session)
+            ok = await _fetch_and_cache_thread(default_reply, session)
             if ok:
                 await session.commit()
         except Exception as e:
-            logger.warning(f"full-history: fetch failed for reply {r.id}: {e}")
+            logger.warning(f"full-history: default thread fetch failed: {e}")
             await session.rollback()
 
-    # 3. Query all ThreadMessages across all reply IDs
-    tm_result = await session.execute(
-        select(ThreadMessage)
-        .where(ThreadMessage.reply_id.in_(reply_ids))
-        .order_by(ThreadMessage.activity_at)
-    )
-    thread_msgs = tm_result.scalars().all()
+    if default_reply.thread_fetched_at is not None:
+        tm_result = await session.execute(
+            select(ThreadMessage)
+            .where(ThreadMessage.reply_id == default_reply.id)
+            .order_by(ThreadMessage.activity_at)
+        )
+        default_campaign = default_reply.campaign_name or f"Campaign {default_reply.campaign_id}"
+        for tm in tm_result.scalars().all():
+            activities.append({
+                "direction": tm.direction,
+                "content": tm.body or "",
+                "timestamp": tm.activity_at.isoformat() if tm.activity_at else "",
+                "channel": tm.channel or "email",
+                "campaign": default_campaign,
+            })
 
-    # Build reply_id → campaign_name map
-    reply_campaign = {r.id: (r.campaign_name or f"Campaign {r.campaign_id}") for r in all_replies}
-
-    # 4. Find contact + LinkedIn activities
+    # 4. LinkedIn activities (if getsales contact)
     contact = None
     contact_result = await session.execute(
         select(Contact).where(
-            and_(
-                func.lower(Contact.email) == reply.lead_email.lower(),
-                Contact.deleted_at.is_(None),
-            )
+            and_(func.lower(Contact.email) == reply.lead_email.lower(), Contact.deleted_at.is_(None))
         )
     )
     contact = contact_result.scalar_one_or_none()
 
-    linkedin_activities = []
     if contact:
         ca_result = await session.execute(
-            select(ContactActivity)
-            .where(
-                and_(
-                    ContactActivity.contact_id == contact.id,
-                    ContactActivity.channel == "linkedin",
-                )
-            )
-            .order_by(ContactActivity.activity_at)
+            select(ContactActivity).where(
+                and_(ContactActivity.contact_id == contact.id, ContactActivity.channel == "linkedin")
+            ).order_by(ContactActivity.activity_at)
         )
-        linkedin_activities = ca_result.scalars().all()
+        for ca in ca_result.scalars().all():
+            direction = ca.direction or ("outbound" if ca.activity_type in ("linkedin_sent",) else "inbound")
+            cname = "Unknown"
+            if ca.extra_data and isinstance(ca.extra_data, dict):
+                cname = ca.extra_data.get("automation_name") or ca.extra_data.get("campaign_name") or "LinkedIn"
+            activities.append({
+                "direction": direction,
+                "content": ca.body or ca.snippet or "",
+                "timestamp": ca.activity_at.isoformat() if ca.activity_at else "",
+                "channel": "linkedin",
+                "campaign": cname,
+            })
 
-    # 5. Build unified activity list
-    activities = []
-    for tm in thread_msgs:
-        activities.append({
-            "direction": tm.direction,
-            "content": tm.body or "",
-            "timestamp": tm.activity_at.isoformat() if tm.activity_at else "",
-            "channel": tm.channel or "email",
-            "campaign": reply_campaign.get(tm.reply_id, "Unknown"),
-        })
-
-    for ca in linkedin_activities:
-        direction = ca.direction or ("outbound" if ca.activity_type in ("linkedin_sent",) else "inbound")
-        campaign_name = "Unknown"
-        if ca.extra_data and isinstance(ca.extra_data, dict):
-            campaign_name = ca.extra_data.get("automation_name") or ca.extra_data.get("campaign_name") or "LinkedIn"
-        activities.append({
-            "direction": direction,
-            "content": ca.body or ca.snippet or "",
-            "timestamp": ca.activity_at.isoformat() if ca.activity_at else "",
-            "channel": "linkedin",
-            "campaign": campaign_name,
-        })
-
-    # Sort all activities chronologically
     activities.sort(key=lambda a: a["timestamp"])
 
-    # 6. Build campaign summary with dates
-    campaign_counts: dict[str, dict] = {}
-    for a in activities:
-        key = f"{a['channel']}::{a['campaign']}"
-        ts = a["timestamp"]
-        if key not in campaign_counts:
-            campaign_counts[key] = {
-                "campaign_name": a["campaign"],
-                "channel": a["channel"],
-                "message_count": 0,
-                "latest_at": ts,
-                "earliest_at": ts,
-            }
-        campaign_counts[key]["message_count"] += 1
-        if ts and ts > campaign_counts[key]["latest_at"]:
-            campaign_counts[key]["latest_at"] = ts
-        if ts and (not campaign_counts[key]["earliest_at"] or ts < campaign_counts[key]["earliest_at"]):
-            campaign_counts[key]["earliest_at"] = ts
-
-    # Sort campaigns by latest_at descending (most recent first)
-    campaigns_sorted = sorted(
-        campaign_counts.values(),
-        key=lambda c: c.get("latest_at", ""),
-        reverse=True,
-    )
-
-    # Collect inbox links from all replies
     inbox_links = {
         (r.campaign_name or f"Campaign {r.campaign_id}"): r.inbox_link
         for r in all_replies if r.inbox_link
     }
-
     contact_info = _build_contact_info(contact) if contact else None
 
     return {
@@ -1771,6 +1767,71 @@ async def get_reply_full_history(
         "approval_status": reply.approval_status,
         "inbox_links": inbox_links,
     }
+
+
+@router.get("/{reply_id}/campaign-thread")
+async def get_campaign_thread(
+    reply_id: int,
+    campaign_name: str = Query(..., description="Campaign name to load thread for"),
+    session: AsyncSession = Depends(get_session)
+):
+    """On-demand: fetch a single campaign's conversation thread.
+
+    Called when user clicks a different campaign in the dropdown.
+    Only fetches from SmartLead API if thread was never cached.
+    """
+    from app.models.reply import ThreadMessage
+    from app.services.reply_processor import _fetch_and_cache_thread
+
+    result = await session.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    source_reply = result.scalar_one_or_none()
+    if not source_reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+    if not source_reply.lead_email:
+        return {"activities": []}
+
+    # Find the ProcessedReply for the requested campaign
+    target_result = await session.execute(
+        select(ProcessedReply).where(
+            and_(
+                func.lower(ProcessedReply.lead_email) == source_reply.lead_email.lower(),
+                ProcessedReply.campaign_name == campaign_name,
+            )
+        ).order_by(desc(ProcessedReply.received_at)).limit(1)
+    )
+    target_reply = target_result.scalar_one_or_none()
+    if not target_reply:
+        return {"activities": []}
+
+    # Fetch thread if never cached
+    if target_reply.thread_fetched_at is None and target_reply.campaign_id and (not target_reply.source or target_reply.source == "smartlead"):
+        try:
+            ok = await _fetch_and_cache_thread(target_reply, session)
+            if ok:
+                await session.commit()
+        except Exception as e:
+            logger.warning(f"campaign-thread: fetch failed for {campaign_name}: {e}")
+            await session.rollback()
+
+    activities = []
+    if target_reply.thread_fetched_at is not None:
+        tm_result = await session.execute(
+            select(ThreadMessage)
+            .where(ThreadMessage.reply_id == target_reply.id)
+            .order_by(ThreadMessage.activity_at)
+        )
+        for tm in tm_result.scalars().all():
+            activities.append({
+                "direction": tm.direction,
+                "content": tm.body or "",
+                "timestamp": tm.activity_at.isoformat() if tm.activity_at else "",
+                "channel": tm.channel or "email",
+                "campaign": campaign_name,
+            })
+
+    return {"activities": activities}
 
 
 @router.get("/{reply_id}", response_model=ProcessedReplyResponse)
