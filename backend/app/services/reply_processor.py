@@ -1207,7 +1207,8 @@ async def process_getsales_reply(
         logger.warning(f"[GETSALES] Skipping reply — contact {contact.id} has no email")
         return None
 
-    # --- Dedup: check for existing ProcessedReply (same source + email + flow) ---
+    # --- Dedup: check for existing ProcessedReply ---
+    # First try exact match (source + email + campaign_id)
     existing_result = await session.execute(
         select(ProcessedReply).where(
             and_(
@@ -1218,6 +1219,22 @@ async def process_getsales_reply(
         ).limit(1)
     )
     existing_pr = existing_result.scalar_one_or_none()
+
+    # If not found by exact campaign_id, try broader match by lead_email only.
+    # This prevents duplicate records when webhook uses automation_uuid
+    # but polling uses sender_profile_uuid for the same reply.
+    if not existing_pr:
+        broader_result = await session.execute(
+            select(ProcessedReply).where(
+                and_(
+                    ProcessedReply.source == "getsales",
+                    sa_func.lower(ProcessedReply.lead_email) == lead_email,
+                )
+            ).order_by(ProcessedReply.created_at.desc()).limit(1)
+        )
+        existing_pr = broader_result.scalar_one_or_none()
+        if existing_pr:
+            logger.info(f"[GETSALES] Found existing reply {existing_pr.id} via broader match (campaign_id {existing_pr.campaign_id} != {flow_uuid})")
 
     if existing_pr and existing_pr.received_at and activity_at <= existing_pr.received_at:
         logger.info(f"[GETSALES] Skipping older/duplicate reply for {lead_email} (existing received_at={existing_pr.received_at})")
@@ -1323,7 +1340,15 @@ async def process_getsales_reply(
         existing_pr.approval_status = None  # Re-surface for operator
         existing_pr.raw_webhook_data = raw_data
         existing_pr.updated_at = datetime.utcnow()
-        existing_pr.campaign_name = flow_name or existing_pr.campaign_name
+        # Only overwrite campaign_name if the new flow_name comes from a
+        # webhook (automation dict) — not from polling's sender_profile fallback.
+        # A webhook-derived name is authoritative; polling's GETSALES_FLOW_NAMES
+        # lookup by sender_profile_uuid can misclassify cross-project senders.
+        if flow_name and flow_uuid != raw_data.get("sender_profile_uuid", ""):
+            existing_pr.campaign_name = flow_name
+            existing_pr.campaign_id = flow_uuid
+        elif not existing_pr.campaign_name:
+            existing_pr.campaign_name = flow_name
         if inbox_link:
             existing_pr.inbox_link = inbox_link
         processed_reply = existing_pr
@@ -1367,11 +1392,8 @@ async def process_getsales_reply(
                 or GETSALES_UUID_TO_PROJECT.get(flow_uuid)
                 or GETSALES_UUID_TO_PROJECT.get(raw_data.get("sender_profile_uuid", ""))
             )
-            resolved_sender_name = None
-            sp_uuid = sender_profile_uuid or flow_uuid
-            if sp_uuid and sp_uuid in GETSALES_FLOW_NAMES:
-                full = GETSALES_FLOW_NAMES[sp_uuid]
-                resolved_sender_name = full.split(" - ", 1)[1] if " - " in full else full
+            from app.services.crm_sync_service import GETSALES_SENDER_PROFILES
+            resolved_sender_name = GETSALES_SENDER_PROFILES.get(sender_profile_uuid or "")
 
             sent = await notify_linkedin_reply(
                 contact_name=contact_name,

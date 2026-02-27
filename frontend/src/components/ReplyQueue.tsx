@@ -601,9 +601,13 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
 
                         {(reply.sender_name || reply.campaign_name) && (
                           <div className="px-4 text-[11px] pb-1 truncate" style={{ color: t.text6 }}>
-                            {reply.sender_name
-                              ? `via ${reply.sender_name}`
-                              : displayCampaignName(reply.campaign_name!)}
+                            {reply.campaign_name && displayCampaignName(reply.campaign_name)}
+                            {reply.sender_name && reply.campaign_name && ' · '}
+                            {reply.sender_name && (
+                              <span style={{ color: t.text5 }}>
+                                {reply.channel === 'email' ? reply.sender_name : `via ${reply.sender_name}`}
+                              </span>
+                            )}
                           </div>
                         )}
                         <div style={{ borderBottom: `1px solid ${t.divider}` }} />

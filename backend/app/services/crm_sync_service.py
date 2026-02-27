@@ -212,6 +212,52 @@ GETSALES_FLOW_NAMES = {
     "bd1f5ffb-2dbe-429a-b0f3-dcab147e4f99": "TFP - Apparel&fashion",
 }
 
+# Sender profile UUID → human name (LinkedIn account owner).
+# This is SEPARATE from GETSALES_FLOW_NAMES which mixes automation UUIDs
+# and sender profile UUIDs. A sender profile can be used across multiple
+# automations/projects, so sender_name != campaign_name.
+GETSALES_SENDER_PROFILES: Dict[str, str] = {
+    "b10a34f2-e7d0-490e-bc67-012b7ccd35b8": "Aliaksei Paretski",
+    "4d1effeb-34fc-4999-bada-4a3651021adb": "Ekaterina Khoroshilova",
+    "7f829fca-20b8-4f0d-a19e-ec1b3f76704e": "Eleonora Andreevna",
+    "07d392a8-13bb-4a30-a86f-9fe692b7055a": "Andriy Kovalenko",
+    "5ecc3a67-75f4-413d-96e7-ca256e3113e0": "Aliaksandr Blank",
+    "774af09b-8158-4150-835d-6cf1ee00819a": "Sergey Lebedev",
+    "d67e1028-cf06-4ae8-bcc3-16e41710f19c": "Alexandra Trifonova",
+    "b3b69a39-6b46-4043-85b1-ef4ce22239d5": "Aliaksandra Vailunova",
+    "cf73001d-f893-4396-b301-0691ffdccd12": "Andrei Paliaukou",
+    "d4d17541-2b69-4cc3-acd5-cb39ce9df4b6": "Valeriia Mutalava",
+    "4419a283-4c5f-4e2b-87cd-f892ef8a47be": "Marina Mikhaylova",
+    "c58462db-beda-44a5-ba32-12e436d55bba": "Sophia Powell",
+    "430e90e2-adfb-47d6-a986-3b8a75f4c80e": "Lera Yurkoits",
+    "789eba43-d87f-4412-8f2a-20557f5bf5e2": "Eugene Sukhoi",
+    "961b646e-c66b-44f4-b362-2c206669f4f4": "Ilia Andreev",
+    "0d22a72e-5e30-4f72-bac7-0fac29fe8121": "Anna Reisberg",
+    "4cbc70b5-4fb6-4a76-9088-f50a4ef096e7": "Robert Hershberger",
+    "cdeb709c-17c6-4b31-ad6b-271354cdd3a9": "Dias Nurlanov",
+    "29fd2e4e-d218-4ddc-b733-630e68a98124": "Pavel Medvedev",
+    "448339f7-07c4-4766-b9e5-c09474196fe9": "Sergei Gvianidze",
+    "94aeceb5-12ca-4ed6-92ac-18ed4b3d937f": "Lisa Woodard",
+    "aab81b67-61c7-4cb9-b642-ad8584f69550": "Ruslan Zholik",
+    "765a68b2-99ce-4279-b1ed-5ccdbecff83e": "Theodore Ulianov",
+    "e6aaa00c-bf52-42b5-8c0e-40df920934b6": "Roman Ulyanov",
+    "d5c18723-aca1-4ca4-84b8-60fdee894d67": "Albina Yanchanka",
+    "2529a3dd-0dd1-4fc5-b4f3-7fdae203e454": "Elena Pugovishnikova",
+    "25598cb7-f9d7-40e8-88f3-c8654759a8ab": "Tamara Bustamante",
+    "fb194e54-d8c0-41ed-88e9-4acc0ef393b3": "Anna Reisberg",
+    "d15d89ff-b985-4f2a-b222-dbf3b69601fe": "Petro Shevchenko",
+    "b970588c-22ac-4393-934e-bd6dadf6a62c": "Daulet Issatayev",
+    "e7cd7b0f-3683-4412-b7d7-0f9a22f0cc50": "Arina Kozlova",
+    "de480494-6125-4f48-9cf0-fb05d0544c6f": "Maksim Anisimov",
+    "8c7d77fa-5d07-4c7a-844d-8e833488eaa1": "Dmitry Isaev",
+    "09f85665-1e7d-482c-9e8f-1c74d5d1ea15": "Nikita Melnikov",
+    "7c58101c-675d-4ed3-9463-c39b03399d45": "Maxim Savichev",
+    "91fb80ab-4430-4b07-bc19-330d3f4ac8fd": "Elena Shamaeva",
+    "abf28dba-0834-432b-a57d-b7fc03bb0db7": "Pavel Tikhonov",
+    "d16d6837-4156-4022-bd38-51945de1bf4a": "Max Ionin",
+}
+
+
 # Auto-populate UUID -> project_id mapping from flow names
 _PROJECT_PREFIXES = {
     "easystaff": 40,

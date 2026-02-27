@@ -764,12 +764,23 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     from app.core.config import settings
     from urllib.parse import quote
     replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(reply.lead_email)}"
+    # Extract inbox email from raw_webhook_data (SmartLead's from_email)
+    inbox_email = ""
+    raw = reply.raw_webhook_data or {}
+    if isinstance(raw, str):
+        import json
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            raw = {}
+    from_email = raw.get("from_email") or ""
+    inbox_line_email = f"\n<b>Inbox:</b> {from_email}" if from_email else ""
     message = f"""📧 <b>New Email Reply!</b>
 
 <b>From:</b> {reply.lead_email}
 <b>Subject:</b> {reply.email_subject or 'No subject'}
 <b>Company:</b> {reply.lead_company or 'Unknown'}
-<b>Campaign:</b> {campaign_name or 'Unknown'}
+<b>Campaign:</b> {campaign_name or 'Unknown'}{inbox_line_email}
 
 <b>Message:</b>
 <code>{(reply.email_body or reply.reply_text or 'No body')[:500]}</code>
@@ -824,11 +835,11 @@ async def notify_linkedin_reply(
     replies_line = f'\n<a href="{replies_ui_url}">📋 Open in Replies UI</a>' if replies_ui_url else ""
 
     sender_line = f"\n<b>Sender:</b> {sender_name}" if sender_name else ""
+    campaign_line = f"\n<b>Campaign:</b> {flow_name}" if flow_name else ""
     message = f"""🔗 <b>New LinkedIn Reply!</b>
 
 <b>From:</b> {contact_name}
-<b>Email:</b> {contact_email or 'N/A'}
-<b>Flow:</b> {flow_name}{sender_line}
+<b>Email:</b> {contact_email or 'N/A'}{campaign_line}{sender_line}
 
 <b>Message:</b>
 <code>{message_preview}</code>

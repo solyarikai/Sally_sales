@@ -10,7 +10,7 @@ import logging
 
 from app.db import get_session
 from app.models.reply import ReplyAutomation, ProcessedReply, ReplyPromptTemplateModel, WebhookEventModel
-from app.services.crm_sync_service import GETSALES_FLOW_NAMES
+from app.services.crm_sync_service import GETSALES_SENDER_PROFILES
 from app.schemas.reply import (
     ReplyAutomationCreate,
     ReplyAutomationUpdate,
@@ -54,16 +54,8 @@ def _text_to_html(text: str) -> str:
     return ''.join(parts) or '<p></p>'
 
 
-def _extract_sender_name(reply) -> Optional[str]:
-    """Extract human sender name from a GetSales LinkedIn reply.
-
-    Sources (in priority order):
-    1. GETSALES_FLOW_NAMES mapping via sender_profile_uuid in raw_webhook_data
-    2. campaign_name with "ProjectName - SenderName" format
-    """
-    if reply.channel != "linkedin":
-        return None
-
+def _parse_raw_webhook_data(reply) -> dict:
+    """Parse raw_webhook_data from a ProcessedReply, handling str or dict."""
     raw = reply.raw_webhook_data or {}
     if isinstance(raw, str):
         import json
@@ -71,17 +63,30 @@ def _extract_sender_name(reply) -> Optional[str]:
             raw = json.loads(raw)
         except Exception:
             raw = {}
+    return raw
 
-    sp_uuid = raw.get("sender_profile_uuid") or (raw.get("automation", {}) or {}).get("sender_profile_uuid")
 
-    if sp_uuid and sp_uuid in GETSALES_FLOW_NAMES:
-        full_name = GETSALES_FLOW_NAMES[sp_uuid]
-        if " - " in full_name:
-            return full_name.split(" - ", 1)[1]
-        return full_name
+def _extract_sender_name(reply) -> Optional[str]:
+    """Extract human sender name (the person, not the campaign).
 
-    if reply.campaign_name and " - " in reply.campaign_name:
-        return reply.campaign_name.split(" - ", 1)[1]
+    LinkedIn: person name from GETSALES_SENDER_PROFILES (sender_profile_uuid)
+    Email: from_email (the inbox/mailbox email address)
+    """
+    raw = _parse_raw_webhook_data(reply)
+
+    if reply.channel == "linkedin" or reply.source == "getsales":
+        sp_uuid = raw.get("sender_profile_uuid") or (
+            (raw.get("automation", {}) or {}).get("sender_profile_uuid")
+            if isinstance(raw.get("automation"), dict) else None
+        )
+        if sp_uuid and sp_uuid in GETSALES_SENDER_PROFILES:
+            return GETSALES_SENDER_PROFILES[sp_uuid]
+        if reply.campaign_name and " - " in reply.campaign_name:
+            return reply.campaign_name.split(" - ", 1)[1]
+        return None
+
+    if reply.channel == "email" or reply.source == "smartlead":
+        return raw.get("from_email") or None
 
     return None
 
