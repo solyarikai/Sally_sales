@@ -187,8 +187,8 @@ GETSALES_FLOW_NAMES = {
     "8c7d77fa-5d07-4c7a-844d-8e833488eaa1": "EasyStaff RU - Dmitry Isaev",
     "09f85665-1e7d-482c-9e8f-1c74d5d1ea15": "EasyStaff RU - Nikita Melnikov",
     "7c58101c-675d-4ed3-9463-c39b03399d45": "EasyStaff RU - Maxim Savichev",
-    "91fb80ab-4430-4b07-bc19-330d3f4ac8fd": "EasyStaff RU - Sender 91FB",
-    "450eafe7-96da-458a-84a1-75469c035c42": "EasyStaff RU - Sender 450E",
+    "91fb80ab-4430-4b07-bc19-330d3f4ac8fd": "EasyStaff RU - Elena Shamaeva",
+    "450eafe7-96da-458a-84a1-75469c035c42": "EasyStaff RU - Sender 450E (archived)",
     # Mifort GetSales automations
     "cc73c018-510d-4edc-b41c-59f4dccff6bb": "Mifort Partners BizDevs",
     "a8d7562b-fdea-4394-8a39-b40910f5a8af": "Mifort Partners Clutch",

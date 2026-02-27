@@ -1359,7 +1359,7 @@ async def process_getsales_reply(
     if processed_reply and not processed_reply.telegram_sent_at:
         try:
             from app.services.notification_service import notify_linkedin_reply
-            from app.services.crm_sync_service import GETSALES_UUID_TO_PROJECT
+            from app.services.crm_sync_service import GETSALES_UUID_TO_PROJECT, GETSALES_FLOW_NAMES
 
             contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Unknown"
             resolved_project_id = (
@@ -1367,6 +1367,12 @@ async def process_getsales_reply(
                 or GETSALES_UUID_TO_PROJECT.get(flow_uuid)
                 or GETSALES_UUID_TO_PROJECT.get(raw_data.get("sender_profile_uuid", ""))
             )
+            resolved_sender_name = None
+            sp_uuid = sender_profile_uuid or flow_uuid
+            if sp_uuid and sp_uuid in GETSALES_FLOW_NAMES:
+                full = GETSALES_FLOW_NAMES[sp_uuid]
+                resolved_sender_name = full.split(" - ", 1)[1] if " - " in full else full
+
             sent = await notify_linkedin_reply(
                 contact_name=contact_name,
                 contact_email=contact.email or "N/A",
@@ -1375,6 +1381,7 @@ async def process_getsales_reply(
                 campaign_name=flow_name or processed_reply.campaign_name,
                 project_id=resolved_project_id,
                 inbox_link=inbox_link,
+                sender_name=resolved_sender_name,
             )
             if sent:
                 processed_reply.telegram_sent_at = datetime.utcnow()

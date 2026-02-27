@@ -141,6 +141,7 @@ export interface ProcessedReply {
   draft_reply: string | null;
   draft_subject: string | null;
   inbox_link: string | null;
+  sender_name: string | null;
   processed_at: string;
   sent_to_slack: boolean;
   slack_sent_at: string | null;

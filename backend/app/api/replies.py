@@ -10,6 +10,7 @@ import logging
 
 from app.db import get_session
 from app.models.reply import ReplyAutomation, ProcessedReply, ReplyPromptTemplateModel, WebhookEventModel
+from app.services.crm_sync_service import GETSALES_FLOW_NAMES
 from app.schemas.reply import (
     ReplyAutomationCreate,
     ReplyAutomationUpdate,
@@ -51,6 +52,38 @@ def _text_to_html(text: str) -> str:
             p = p.replace('\n', '<br>')
             parts.append(f'<p>{p}</p>')
     return ''.join(parts) or '<p></p>'
+
+
+def _extract_sender_name(reply) -> Optional[str]:
+    """Extract human sender name from a GetSales LinkedIn reply.
+
+    Sources (in priority order):
+    1. GETSALES_FLOW_NAMES mapping via sender_profile_uuid in raw_webhook_data
+    2. campaign_name with "ProjectName - SenderName" format
+    """
+    if reply.channel != "linkedin":
+        return None
+
+    raw = reply.raw_webhook_data or {}
+    if isinstance(raw, str):
+        import json
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            raw = {}
+
+    sp_uuid = raw.get("sender_profile_uuid") or (raw.get("automation", {}) or {}).get("sender_profile_uuid")
+
+    if sp_uuid and sp_uuid in GETSALES_FLOW_NAMES:
+        full_name = GETSALES_FLOW_NAMES[sp_uuid]
+        if " - " in full_name:
+            return full_name.split(" - ", 1)[1]
+        return full_name
+
+    if reply.campaign_name and " - " in reply.campaign_name:
+        return reply.campaign_name.split(" - ", 1)[1]
+
+    return None
 
 
 # ============= Test Endpoints =============
@@ -760,6 +793,7 @@ async def list_replies(
         for r in replies:
             resp = ProcessedReplyResponse.model_validate(r)
             resp.contact_campaign_count = campaign_count_map.get(r.lead_email, 1)
+            resp.sender_name = _extract_sender_name(r)
             reply_responses.append(resp)
 
         # Category counts — deduped, using base_conditions (without category filter) for global tab counts
@@ -840,8 +874,14 @@ async def list_replies(
     result = await session.execute(query)
     replies = result.scalars().all()
 
+    reply_responses = []
+    for r in replies:
+        resp = ProcessedReplyResponse.model_validate(r)
+        resp.sender_name = _extract_sender_name(r)
+        reply_responses.append(resp)
+
     return ProcessedReplyListResponse(
-        replies=[ProcessedReplyResponse.model_validate(r) for r in replies],
+        replies=reply_responses,
         total=total,
         meeting_count=meeting_count,
         category_counts=category_counts,

@@ -170,6 +170,9 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     # Smartlead inbox link
     inbox_link: Optional[str] = None
 
+    # Sender identity (computed from campaign_name for LinkedIn replies)
+    sender_name: Optional[str] = None
+
     # Cohort tracking
     last_touched_at: Optional[datetime] = None
 

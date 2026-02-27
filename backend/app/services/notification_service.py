@@ -805,6 +805,7 @@ async def notify_linkedin_reply(
     campaign_name: str = None,
     project_id: int = None,
     inbox_link: str = None,
+    sender_name: str = None,
 ) -> bool:
     """Send Telegram notification for LinkedIn replies with per-project routing.
 
@@ -822,11 +823,12 @@ async def notify_linkedin_reply(
     replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(contact_email)}" if contact_email else None
     replies_line = f'\n<a href="{replies_ui_url}">📋 Open in Replies UI</a>' if replies_ui_url else ""
 
+    sender_line = f"\n<b>Sender:</b> {sender_name}" if sender_name else ""
     message = f"""🔗 <b>New LinkedIn Reply!</b>
 
 <b>From:</b> {contact_name}
 <b>Email:</b> {contact_email or 'N/A'}
-<b>Flow:</b> {flow_name}
+<b>Flow:</b> {flow_name}{sender_line}
 
 <b>Message:</b>
 <code>{message_preview}</code>

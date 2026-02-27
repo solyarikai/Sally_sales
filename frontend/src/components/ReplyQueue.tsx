@@ -587,9 +587,11 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                           </div>
                         </div>
 
-                        {reply.campaign_name && (
+                        {(reply.sender_name || reply.campaign_name) && (
                           <div className="px-4 text-[11px] pb-1 truncate" style={{ color: t.text6 }}>
-                            {displayCampaignName(reply.campaign_name)}
+                            {reply.sender_name
+                              ? `via ${reply.sender_name}`
+                              : displayCampaignName(reply.campaign_name!)}
                           </div>
                         )}
                         <div style={{ borderBottom: `1px solid ${t.divider}` }} />
