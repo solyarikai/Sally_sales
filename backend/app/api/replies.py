@@ -1558,6 +1558,10 @@ async def get_reply_conversation(
 
 def _build_contact_info(contact) -> dict:
     """Extract display-safe contact info dict."""
+    all_campaigns = (
+        contact.get_platform("smartlead").get("campaigns", [])
+        + contact.get_platform("getsales").get("campaigns", [])
+    )
     return {
         "linkedin_url": contact.linkedin_url,
         "phone": contact.phone,
@@ -1567,7 +1571,7 @@ def _build_contact_info(contact) -> dict:
         "location": contact.location,
         "segment": contact.segment,
         "source": contact.source,
-        "campaigns": contact.campaigns,
+        "campaigns": all_campaigns,
     }
 
 
