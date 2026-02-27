@@ -11,6 +11,7 @@ Column ownership rules:
 - Client owns R-S (feedback, qualification)
 - Status (J) is shared: forward-only writes, bidirectional reads
 """
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -380,37 +381,31 @@ class SheetSyncService:
                 existing_row = email_to_row.get(email_key)
 
                 if existing_row and contact.sheet_row:
-                    # Update existing row — system columns A-O only
-                    # Status column: forward-only rule
                     current_sheet_status = sheet_statuses.get(email_key, "")
                     current_rank = SHEET_STATUS_RANK.get(current_sheet_status, 0)
                     new_rank = SHEET_STATUS_RANK.get(sheet_status_label, 0)
 
                     if new_rank < current_rank:
-                        # Don't downgrade — keep sheet status
                         system_cols[9] = current_sheet_status
 
-                    # Build updates for columns A-O (first 15 columns)
-                    for col_idx, value in enumerate(system_cols):
-                        updates.append({
-                            "range": f"{_col_letter(col_idx)}{existing_row}",
-                            "values": [[value]],
-                        })
+                    updates.append({
+                        "range": f"A{existing_row}:O{existing_row}",
+                        "values": [system_cols],
+                    })
                     stats["updated_rows"] += 1
 
                 elif not existing_row:
-                    # New lead — append full row (A-O, leave P-S empty)
-                    full_row = system_cols + ["", "", "", ""]  # P, Q, R, S empty
+                    full_row = system_cols + ["", "", "", ""]
                     new_rows.append(full_row)
                     contacts_with_new_rows.append(contact)
 
-            # Batch update existing rows
             if updates:
-                # Process in chunks of 500 to avoid API limits
                 chunk_size = 500
                 for i in range(0, len(updates), chunk_size):
                     chunk = updates[i:i + chunk_size]
                     google_sheets_service.update_cells(sheet_id, leads_tab, chunk)
+                    if i + chunk_size < len(updates):
+                        await asyncio.sleep(1.5)
 
             # Batch append new rows
             if new_rows:
