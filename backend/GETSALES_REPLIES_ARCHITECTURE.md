@@ -143,9 +143,13 @@ When a new automation/campaign is created in GetSales:
 
 **If an automation UUID is missing from `GETSALES_FLOW_NAMES`:**
 - Webhook path still works (uses automation name from payload directly)
-- Polling path: if `automation: "synced"`, reply gets empty campaign_name (unclassified)
+- Polling path: `automation: "synced"` always → reply gets empty campaign_name (unclassified)
 - Unclassified replies appear in "All" view but not in any project
-- Once webhook arrives with real automation data, campaign_name is corrected
+- Once webhook arrives with real automation data, campaign_name is corrected (FIXED 2026-02-27: timestamp guard bypassed for unclassified records)
+
+**`_PROJECT_PREFIXES` mapping (project name prefix → project ID):**
+- Used to auto-populate `GETSALES_UUID_TO_PROJECT` for Telegram notification routing
+- Covers: easystaff(40), squarefi(40), inxy(40), rizzult(22), mifort(21), mft(21), tfp(13), archistruct(24), gwc(17), onsocial(42), palark(16)
 
 ---
 
@@ -313,6 +317,14 @@ Since the app runs on `http://46.62.210.24` (plain HTTP), `navigator.clipboard` 
 
 Redis cache in polling path provides additional fast-path dedup.
 
+### Polling always returns `automation: "synced"` (KNOWN LIMITATION)
+
+**Root cause:** The GetSales inbox API (`/flows/api/inbox-messages`) ALWAYS returns `"automation": "synced"` as a string, never the actual automation object. This is a GetSales API limitation, not a bug in our code.
+
+**Impact:** Polling can never determine the automation/campaign for a reply. All polling-created records start with empty `campaign_name`.
+
+**Mitigation:** Webhook-driven correction (see below).
+
 ### Cross-project sender profiles (FIXED 2026-02-25)
 
 **Root cause:** `GETSALES_FLOW_NAMES` mixed sender_profile UUIDs with automation UUIDs. When polling returned `automation: "synced"`, it fell back to `sender_profile_uuid` as campaign ID → looked up "EasyStaff RU - Pavel Medvedev" → routed to EasyStaff RU even when the actual automation was Rizzult/Mifort.
@@ -323,6 +335,14 @@ Redis cache in polling path provides additional fast-path dedup.
 3. **Empty campaign = unclassified** (visible in "All" view, not in any project) — this is correct behavior, better than misclassified
 4. **Webhook auto-corrects** — when the real webhook arrives with proper automation data, `campaign_name` and `campaign_id` get updated on the existing record
 5. **Update logic protects existing data** — `campaign_name` is only overwritten when the new `flow_name` is non-empty
+
+### Webhook not updating polling-created records (FIXED 2026-02-27)
+
+**Root cause:** `process_getsales_reply()` dedup checked `activity_at <= existing_pr.received_at` and skipped the update if true. Polling sets `received_at = datetime.utcnow()`. Webhook's `activity_at` comes from `linkedin_message.sent_at` (actual message time, BEFORE polling picked it up). So `activity_at < received_at` → webhook skipped → campaign_name never updated.
+
+**Fix:** When existing record has empty `campaign_name` and the incoming call has a non-empty `flow_name`, the timestamp guard is bypassed, allowing the webhook to fill in the correct automation/campaign data.
+
+**Code:** `reply_processor.py:1240-1247` — `has_new_campaign_info` check.
 
 ### Missing sender_profile_uuid
 

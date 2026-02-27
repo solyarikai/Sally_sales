@@ -1238,8 +1238,14 @@ async def process_getsales_reply(
             logger.info(f"[GETSALES] Found existing reply {existing_pr.id} via broader match (campaign_id {existing_pr.campaign_id} != {flow_uuid})")
 
     if existing_pr and existing_pr.received_at and activity_at <= existing_pr.received_at:
-        logger.info(f"[GETSALES] Skipping older/duplicate reply for {lead_email} (existing received_at={existing_pr.received_at})")
-        return existing_pr
+        # Still allow update if we have new campaign info for an unclassified record.
+        # Polling creates records with empty campaign_name; the webhook arrives later
+        # with the real automation but older activity_at (from linkedin_message.sent_at).
+        has_new_campaign_info = flow_name and (not existing_pr.campaign_name)
+        if not has_new_campaign_info:
+            logger.info(f"[GETSALES] Skipping older/duplicate reply for {lead_email} (existing received_at={existing_pr.received_at})")
+            return existing_pr
+        logger.info(f"[GETSALES] Allowing update for {lead_email}: existing has no campaign, webhook has '{flow_name}'")
 
     # --- Find project for sender identity + prompt template ---
     custom_reply_prompt = None

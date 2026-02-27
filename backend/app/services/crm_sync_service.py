@@ -151,9 +151,19 @@ GETSALES_FLOW_NAMES: Dict[str, str] = {
     # EasyStaff automations
     "b4188b80-4e23-47df-83cf-29d2654fc943": "EasyStaff - Russian DM [>500 connects]",
     "f62647b1-c054-4434-8402-7adac1c26e64": "Inxy - Russian DM's",
+    "073fbf20-a196-45f2-8f10-d6fde419ee64": "EasyStaff - Qatar - South Africa",
+    "e98903f7-5617-4e63-a907-618bb7433dd0": "EasyStaff - UAE - India",
+    "cbf94285-cf1e-4f86-b6bc-9910f9d18ca7": "SquareFi - ES - RUS DMs",
     # Rizzult automations
     "4bbd26d3-706b-4168-9262-d70fe09a5b25": "RIzzult_Wellness apps 10 01 26",
     "6bfeca8c-23a6-49da-a8e8-b0dacae88857": "Rizzult_shopping_apps",
+    "df157019-c1fb-4562-b136-b92c9a9c99ab": "RIzzult Cleaning 14 02 26",
+    "0089aa05-f8a3-4a0b-ab94-00db9603dd7d": "RIzzult Farmacies 14 02 26",
+    "60b1ab51-5139-4256-a2fa-92bd88252d7d": "RIzzult Streaming 14 02 26",
+    "779377b5-4856-4f0e-b028-19ebff994dce": "RIzzult Telemed 20 02 26",
+    "3323b4f3-d0e9-427e-9540-191e10b8d4d7": "RIzzult partner agencies Miami 20 02 26 networking msg",
+    "8c164da8-d63c-42b9-9a83-1c5e7194d5ba": "RIzzult_Food&Drink apps 02 02 26",
+    "f917f58a-2b77-4613-9adb-63ca94183dac": "RIzzult_QSR_LPR_20.11.25",
     # Mifort automations
     "cc73c018-510d-4edc-b41c-59f4dccff6bb": "Mifort Partners BizDevs",
     "a8d7562b-fdea-4394-8a39-b40910f5a8af": "Mifort Partners Clutch",
@@ -175,6 +185,20 @@ GETSALES_FLOW_NAMES: Dict[str, str] = {
     "5723168d-15de-486d-a0bb-306d924231c3": "TFP - Fashion brands Italy 3",
     "c5ac34f7-cd68-4d4b-abdf-c540d65219a4": "TFP - Li groups contacts",
     "bd1f5ffb-2dbe-429a-b0f3-dcab147e4f99": "TFP - Apparel&fashion",
+    # Archistruct automations
+    "1c05ddab-2d69-4735-a3c8-1eb6a9a91dfe": "Archistruct Devs Dubai",
+    "a8c636e9-c5c1-4426-bd16-35066c112ecb": "Archistruct Devs Dubai NEW",
+    # GWC automations
+    "33c589e4-0fc4-4c05-a711-e6196d0cf010": "GWC - ICE Orchestrations Nataliya",
+    "2cf4a1da-310c-4b24-8c5b-78c688041b09": "GWC - ICE Platforms Post Conf Hugo",
+    # Inxy automations
+    "b7a31e91-9166-41f8-9d16-4c2f8823ba5b": "Inxy - Crypto Payments",
+    "f9c239c3-313f-4c02-9a4c-0550f9d08118": "Inxy - Tokenization [Personalization] 2",
+    # OnSocial automations
+    "c7465183-9bc3-4bb7-8cb1-854b6b54f37e": "OnSocial | Generic",
+    "b5307c82-c997-4cc5-84c7-8340b1428fb8": "OnSocial | Marketing agencies",
+    # Palark automations
+    "3df443f1-1e7c-4ac9-9636-c95bbc52bb04": "Palark - After ICE 19/02 - Nikita",
 }
 
 # Sender profile UUID → human name (LinkedIn account owner).
@@ -226,11 +250,16 @@ GETSALES_SENDER_PROFILES: Dict[str, str] = {
 # Auto-populate automation_uuid -> project_id mapping from flow names
 _PROJECT_PREFIXES = {
     "easystaff": 40,
+    "squarefi": 40,
     "inxy": 40,
-    "rizzult": None,  # Rizzult project ID — set to actual ID when tracked
+    "rizzult": 22,
     "mifort": 21,
     "mft": 21,
     "tfp": 13,
+    "archistruct": 24,
+    "gwc": 17,
+    "onsocial": 42,
+    "palark": 16,
 }
 for _uuid, _name in GETSALES_FLOW_NAMES.items():
     _name_lower = _name.lower()
