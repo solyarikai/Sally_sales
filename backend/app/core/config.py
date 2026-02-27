@@ -125,6 +125,9 @@ class Settings(BaseSettings):
     # Default Slack channel for reply notifications
     SLACK_DEFAULT_CHANNEL: str = "C09REGUQWTG"
 
+    # Frontend URL for building links in notifications
+    FRONTEND_URL: str = "http://46.62.210.24"
+
     # CORS - comma-separated list of allowed origins
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,http://46.62.210.24,http://46.62.210.24:80,http://46.62.210.24:8000"
     

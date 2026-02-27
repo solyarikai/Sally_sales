@@ -761,6 +761,9 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     - If the campaign belongs to a project with telegram_chat_id, 
       the operator's chat receives it too
     """
+    from app.core.config import settings
+    from urllib.parse import quote
+    replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(reply.lead_email)}"
     message = f"""📧 <b>New Email Reply!</b>
 
 <b>From:</b> {reply.lead_email}
@@ -771,7 +774,7 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
 <b>Message:</b>
 <code>{(reply.email_body or reply.reply_text or 'No body')[:500]}</code>
 
-<a href="{reply.inbox_link or 'https://app.smartlead.ai/app/master-inbox'}">📬 Open in SmartLead</a>"""
+<a href="{replies_ui_url}">📋 Open in Replies UI</a>  ·  <a href="{reply.inbox_link or 'https://app.smartlead.ai/app/master-inbox'}">📬 Open in SmartLead</a>"""
     
     # 1. Always send to admin chat
     admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)
@@ -809,10 +812,15 @@ async def notify_linkedin_reply(
       1. campaign_name / flow_name → campaign_filters match
       2. project_id direct lookup (fallback for polled replies without flow info)
     """
+    from app.core.config import settings
+    from urllib.parse import quote
     message_preview = (message_text or "")[:300]
     inbox_line = ""
     if inbox_link:
-        inbox_line = f'\n\n<a href="{inbox_link}">💼 Open in GetSales</a>'
+        inbox_line = f'\n<a href="{inbox_link}">💼 Open in GetSales</a>'
+
+    replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(contact_email)}" if contact_email else None
+    replies_line = f'\n<a href="{replies_ui_url}">📋 Open in Replies UI</a>' if replies_ui_url else ""
 
     message = f"""🔗 <b>New LinkedIn Reply!</b>
 
@@ -821,7 +829,8 @@ async def notify_linkedin_reply(
 <b>Flow:</b> {flow_name}
 
 <b>Message:</b>
-<code>{message_preview}</code>{inbox_line}"""
+<code>{message_preview}</code>
+{replies_line}{inbox_line}"""
 
     # 1. Always send to admin
     admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)

@@ -11,6 +11,7 @@ export function RepliesPage() {
   const t = themeColors(isDark);
   const [searchParams, setSearchParams] = useSearchParams();
   const campaignNamesParam = searchParams.get('campaigns') || undefined;
+  const leadParam = searchParams.get('lead') || undefined;
 
   /* ---- URL ↔ project sync ---- */
   const initialUrlParam = useRef(searchParams.get('project'));
@@ -60,7 +61,7 @@ export function RepliesPage() {
         </div>
       )}
       <div className="flex-1 min-h-0">
-        <ReplyQueue isDark={isDark} campaignNames={campaignNamesParam} />
+        <ReplyQueue isDark={isDark} campaignNames={campaignNamesParam} initialSearch={leadParam} />
       </div>
     </div>
   );

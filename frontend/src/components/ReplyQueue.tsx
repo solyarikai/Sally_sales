@@ -72,6 +72,7 @@ function isDraftFailed(draft: string | null | undefined): boolean {
 export interface ReplyQueueProps {
   isDark: boolean;
   campaignNames?: string;
+  initialSearch?: string;
   onCountsChange?: (categoryCounts: Record<string, number>, total: number) => void;
 }
 
@@ -83,7 +84,7 @@ const CATEGORY_FILTERS = [
   { key: 'other', label: 'Other', countKey: 'other' },
 ] as const;
 
-export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueueProps) {
+export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChange }: ReplyQueueProps) {
   const { currentProject } = useAppStore();
   const t = themeColors(isDark);
   const navigate = useNavigate();
@@ -97,8 +98,8 @@ export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueue
   const pageRef = useRef(1);
   const PAGE_SIZE = 30;
 
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string | null>('meeting_request');
+  const [search, setSearch] = useState(initialSearch || '');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(initialSearch ? null : 'meeting_request');
 
   const [editingDrafts, setEditingDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
   const [sendingIds, setSendingIds] = useState<Set<number>>(new Set());
@@ -530,12 +531,19 @@ export function ReplyQueue({ isDark, campaignNames, onCountsChange }: ReplyQueue
                                 <Building2 className="w-3 h-3" />{reply.lead_company}
                               </span>
                             )}
-                            {reply.channel === 'linkedin' && (
+                            {reply.channel === 'linkedin' ? (
                               <span
                                 className="text-[11px] px-1.5 py-0.5 rounded font-medium"
                                 style={{ background: '#e7f0fe', color: '#0a66c2' }}
                               >
                                 LinkedIn
+                              </span>
+                            ) : (
+                              <span
+                                className="text-[11px] px-1.5 py-0.5 rounded font-medium"
+                                style={{ background: '#fef3e2', color: '#b45309' }}
+                              >
+                                Email
                               </span>
                             )}
                             {catLabel && (

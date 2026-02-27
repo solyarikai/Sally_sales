@@ -155,7 +155,7 @@ export function TasksPage() {
       {/* Tab content — all panels stay mounted so counters persist across tab switches */}
       <div className="flex-1 min-h-0 relative">
         <div className={`absolute inset-0 ${activeTab === 'replies' ? '' : 'invisible pointer-events-none'}`}>
-          <ReplyQueue isDark={isDark} onCountsChange={handleRepliesCounts} />
+          <ReplyQueue isDark={isDark} onCountsChange={handleRepliesCounts} initialSearch={searchParams.get('lead') || undefined} />
         </div>
         <div className={`absolute inset-0 ${activeTab === 'meetings' ? '' : 'invisible pointer-events-none'}`}>
           <MeetingsPanel isDark={isDark} onCountChange={handleMeetingsCount} />

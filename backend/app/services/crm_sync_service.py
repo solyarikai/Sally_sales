@@ -728,9 +728,13 @@ class GetSalesClient:
         })
 
     @staticmethod
-    def build_inbox_url(lead_uuid: str) -> str:
-        """Construct GetSales unibox URL for a specific lead."""
-        return f"https://amazing.getsales.io/unibox?lead={lead_uuid}"
+    def build_inbox_url(lead_uuid: str, sender_profile_uuid: str = "") -> str:
+        """Construct GetSales messenger URL for a specific lead conversation."""
+        base = f"https://amazing.getsales.io/messenger/{lead_uuid}"
+        if sender_profile_uuid:
+            from urllib.parse import quote
+            base += f'?senderProfileId={quote(chr(34) + sender_profile_uuid + chr(34))}'
+        return base
 
     # ============= Webhook Management =============
     

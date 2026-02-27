@@ -1299,11 +1299,16 @@ async def process_getsales_reply(
     )
 
     # --- Build GetSales inbox link ---
-    lead_uuid = raw_data.get("lead_uuid") or raw_data.get("lead", {}).get("uuid")
+    lead_uuid = raw_data.get("lead_uuid") or raw_data.get("lead", {}).get("uuid") or raw_data.get("contact", {}).get("uuid")
+    sender_profile_uuid = (
+        raw_data.get("sender_profile_uuid")
+        or (raw_data.get("automation", {}) or {}).get("sender_profile_uuid")
+        or ""
+    )
     inbox_link = None
     if lead_uuid:
         from app.services.crm_sync_service import GetSalesClient
-        inbox_link = GetSalesClient.build_inbox_url(lead_uuid)
+        inbox_link = GetSalesClient.build_inbox_url(lead_uuid, sender_profile_uuid)
 
     # --- Create or update ProcessedReply ---
     if existing_pr:
