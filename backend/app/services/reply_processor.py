@@ -1369,6 +1369,7 @@ async def process_getsales_reply(
                 message_text=message_text,
                 campaign_name=flow_name or processed_reply.campaign_name,
                 project_id=resolved_project_id,
+                inbox_link=inbox_link,
             )
             if sent:
                 processed_reply.telegram_sent_at = datetime.utcnow()
