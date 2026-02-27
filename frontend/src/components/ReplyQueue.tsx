@@ -22,6 +22,18 @@ import { ConversationThread, adaptContactHistory } from './ConversationThread';
 import { CampaignDropdown } from './CampaignDropdown';
 import { useAppStore } from '../store/appStore';
 
+/* ---------- Clipboard fallback for non-HTTPS ---------- */
+function fallbackCopy(text: string) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
+
 /* ---------- Category labels ---------- */
 const CATEGORY_LABEL: Record<string, string> = {
   interested: 'Interested',
@@ -933,8 +945,16 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                               </a>
                               <button
                                 onClick={() => {
-                                  navigator.clipboard.writeText(contactInfo!.linkedin_url!);
-                                  toast.success('LinkedIn URL copied', { style: toastOk });
+                                  const url = contactInfo!.linkedin_url!;
+                                  if (navigator.clipboard?.writeText) {
+                                    navigator.clipboard.writeText(url).then(
+                                      () => toast.success('LinkedIn URL copied', { style: toastOk }),
+                                      () => { fallbackCopy(url); toast.success('LinkedIn URL copied', { style: toastOk }); }
+                                    );
+                                  } else {
+                                    fallbackCopy(url);
+                                    toast.success('LinkedIn URL copied', { style: toastOk });
+                                  }
                                 }}
                                 className="p-0.5 rounded transition-colors"
                                 style={{ color: t.text5 }}
