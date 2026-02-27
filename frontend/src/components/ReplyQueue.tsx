@@ -612,26 +612,47 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
 
                       {/* History */}
                       <div className="px-4">
-                        <button
-                          onClick={() => loadHistory(reply)}
-                          className="text-[11px] flex items-center gap-1 py-0.5 transition-colors cursor-pointer"
-                          style={{ color: t.text5 }}
-                        >
-                          <MessageCircle className="w-3 h-3" />
-                          {isThreadOpen ? 'Hide history' : 'History'}
-                        </button>
+                        {isThreadOpen && (
+                          <div
+                            className="flex items-center gap-2 py-1.5 -mx-4 px-4"
+                            style={{
+                              position: 'sticky',
+                              top: 56,
+                              zIndex: 9,
+                              background: t.cardBg,
+                              borderBottom: `1px solid ${t.divider}`,
+                            }}
+                          >
+                            <button
+                              onClick={() => loadHistory(reply)}
+                              className="text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                              style={{ color: t.text5 }}
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                              Hide history
+                            </button>
+                            {history && history.campaigns.length > 1 && (
+                              <CampaignDropdown
+                                campaigns={history.campaigns}
+                                selectedCampaign={selectedHistoryCampaign[reply.id] ?? null}
+                                onSelect={(c) => setSelectedHistoryCampaign(prev => ({ ...prev, [reply.id]: c }))}
+                                isDark={isDark}
+                              />
+                            )}
+                          </div>
+                        )}
+                        {!isThreadOpen && (
+                          <button
+                            onClick={() => loadHistory(reply)}
+                            className="text-[11px] flex items-center gap-1 py-0.5 transition-colors cursor-pointer"
+                            style={{ color: t.text5 }}
+                          >
+                            <MessageCircle className="w-3 h-3" />
+                            History
+                          </button>
+                        )}
                         {isThreadOpen && (
                           <div className="mt-1.5 mb-2">
-                            {history && history.campaigns.length > 1 && (
-                              <div className="mb-1.5">
-                                <CampaignDropdown
-                                  campaigns={history.campaigns}
-                                  selectedCampaign={selectedHistoryCampaign[reply.id] ?? null}
-                                  onSelect={(c) => setSelectedHistoryCampaign(prev => ({ ...prev, [reply.id]: c }))}
-                                  isDark={isDark}
-                                />
-                              </div>
-                            )}
                             <ConversationThread
                               messages={history ? adaptContactHistory(history.activities) : []}
                               compact
