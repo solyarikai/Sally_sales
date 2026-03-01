@@ -915,7 +915,8 @@ async def notify_linkedin_reply(
     project_param = ""
     if project:
         project_param = f"&project={quote(project['name'].lower().replace(' ', '-'))}"
-    if is_real_email:
+    # Always include lead email in URL (even placeholder) for direct linking
+    if contact_email:
         replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(contact_email)}{project_param}"
     elif project_param:
         replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?{project_param.lstrip('&')}"

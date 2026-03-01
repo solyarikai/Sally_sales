@@ -909,10 +909,24 @@ async def list_replies(
     result = await session.execute(query)
     replies = result.scalars().all()
 
+    # Batch-load contact info for all replies on this page
+    from app.models.contact import Contact
+    page_emails = list({r.lead_email.lower() for r in replies if r.lead_email})
+    contact_map: dict = {}
+    if page_emails:
+        contact_result = await session.execute(
+            select(Contact).where(
+                and_(func.lower(Contact.email).in_(page_emails), Contact.deleted_at.is_(None))
+            )
+        )
+        for c in contact_result.scalars().all():
+            contact_map[c.email.lower()] = _build_contact_info(c)
+
     reply_responses = []
     for r in replies:
         resp = ProcessedReplyResponse.model_validate(r)
         resp.sender_name = _extract_sender_name(r)
+        resp.contact_info = contact_map.get(r.lead_email.lower()) if r.lead_email else None
         reply_responses.append(resp)
 
     return ProcessedReplyListResponse(
@@ -970,6 +984,31 @@ async def get_reply_counts(
     category_counts = {row[0] or "other": row[1] for row in cat_r.all()}
 
     return {"total": total, "category_counts": category_counts}
+
+
+@router.post("/contact-info-batch")
+async def get_contact_info_batch(
+    emails: List[str],
+    session: AsyncSession = Depends(get_session)
+):
+    """Lightweight batch endpoint: returns contact info for multiple emails.
+    Used to eagerly load LinkedIn, job title, company, etc. without full history.
+    """
+    from app.models.contact import Contact
+    if not emails or len(emails) > 50:
+        return {"contacts": {}}
+
+    results = {}
+    for email in emails:
+        result = await session.execute(
+            select(Contact).where(
+                and_(func.lower(Contact.email) == email.lower(), Contact.deleted_at.is_(None))
+            ).limit(1)
+        )
+        contact = result.scalar_one_or_none()
+        if contact:
+            results[email] = _build_contact_info(contact)
+    return {"contacts": results}
 
 
 @router.get("/contact-campaigns/{lead_email}", response_model=ContactCampaignsResponse)
@@ -1680,6 +1719,107 @@ async def get_reply_conversation(
     }
 
 
+async def _fetch_getsales_conversation(contact, reply, session) -> None:
+    """On-demand: fetch full LinkedIn conversation from GetSales API and cache as ContactActivity.
+
+    Called when a GetSales reply has no outbound activities (messages we sent).
+    Uses linkedin_conversation_uuid from the inbound activity or raw_webhook_data.
+    """
+    from app.models.contact import ContactActivity
+    from app.services.crm_sync_service import GetSalesClient
+    from app.core.config import settings
+
+    try:
+        if not settings.GETSALES_API_KEY:
+            return
+
+        # Find conversation UUID from existing activity or reply's raw data
+        conv_uuid = None
+        existing_activity = await session.execute(
+            select(ContactActivity).where(
+                and_(
+                    ContactActivity.contact_id == contact.id,
+                    ContactActivity.channel == "linkedin",
+                )
+            ).limit(1)
+        )
+        ca = existing_activity.scalar_one_or_none()
+        if ca and ca.extra_data and isinstance(ca.extra_data, dict):
+            conv_uuid = ca.extra_data.get("linkedin_conversation_uuid")
+
+        if not conv_uuid and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+            conv_uuid = (
+                reply.raw_webhook_data.get("linkedin_conversation_uuid")
+                or (reply.raw_webhook_data.get("linkedin_message") or {}).get("linkedin_conversation_uuid")
+            )
+
+        if not conv_uuid:
+            logger.info(f"[GETSALES] No conversation UUID for contact {contact.id}, skipping on-demand fetch")
+            return
+
+        gs = GetSalesClient(settings.GETSALES_API_KEY)
+        messages = await gs.get_conversation_messages(conv_uuid, limit=100)
+        if not messages:
+            return
+
+        new_count = 0
+        for msg in messages:
+            message_id = msg.get("uuid")
+            if not message_id:
+                continue
+
+            existing_check = await session.execute(
+                select(ContactActivity.id).where(
+                    and_(
+                        ContactActivity.source == "getsales",
+                        ContactActivity.source_id == str(message_id),
+                    )
+                )
+            )
+            if existing_check.scalar_one_or_none():
+                continue
+
+            msg_type = msg.get("type", "")
+            is_inbound = msg_type == "inbox"
+            activity_type = "linkedin_replied" if is_inbound else "linkedin_sent"
+            direction = "inbound" if is_inbound else "outbound"
+
+            created_at_str = msg.get("created_at")
+            activity_at = datetime.utcnow()
+            if created_at_str:
+                try:
+                    activity_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                except (ValueError, TypeError):
+                    pass
+
+            activity = ContactActivity(
+                contact_id=contact.id,
+                company_id=contact.company_id or 1,
+                activity_type=activity_type,
+                channel="linkedin",
+                direction=direction,
+                source="getsales",
+                source_id=str(message_id),
+                body=msg.get("text"),
+                snippet=(msg.get("text") or "")[:200],
+                extra_data={
+                    "linkedin_conversation_uuid": conv_uuid,
+                    "sender_profile_uuid": msg.get("sender_profile_uuid"),
+                },
+                activity_at=activity_at,
+            )
+            session.add(activity)
+            new_count += 1
+
+        if new_count:
+            await session.flush()
+            logger.info(f"[GETSALES] On-demand fetch: created {new_count} activities for contact {contact.id}")
+
+    except Exception as e:
+        logger.warning(f"[GETSALES] On-demand conversation fetch failed (non-fatal): {e}")
+        await session.rollback()
+
+
 def _build_contact_info(contact) -> dict:
     """Extract display-safe contact info dict."""
     all_campaigns = (
@@ -1810,16 +1950,32 @@ async def get_reply_full_history(
     contact = contact_result.scalar_one_or_none()
 
     if contact:
+        # On-demand fetch: if no outbound activities exist, pull conversation from GetSales API
+        outbound_check = await session.execute(
+            select(func.count()).select_from(ContactActivity).where(
+                and_(
+                    ContactActivity.contact_id == contact.id,
+                    ContactActivity.channel == "linkedin",
+                    ContactActivity.direction == "outbound",
+                )
+            )
+        )
+        has_outbound = (outbound_check.scalar() or 0) > 0
+
+        if not has_outbound and (reply.source == "getsales" or reply.channel == "linkedin"):
+            await _fetch_getsales_conversation(contact, reply, session)
+
         ca_result = await session.execute(
             select(ContactActivity).where(
                 and_(ContactActivity.contact_id == contact.id, ContactActivity.channel == "linkedin")
             ).order_by(ContactActivity.activity_at)
         )
+        linkedin_fallback_campaign = reply.campaign_name or "LinkedIn"
         for ca in ca_result.scalars().all():
             direction = ca.direction or ("outbound" if ca.activity_type in ("linkedin_sent",) else "inbound")
-            cname = "Unknown"
+            cname = linkedin_fallback_campaign
             if ca.extra_data and isinstance(ca.extra_data, dict):
-                cname = ca.extra_data.get("automation_name") or ca.extra_data.get("campaign_name") or "LinkedIn"
+                cname = ca.extra_data.get("automation_name") or ca.extra_data.get("campaign_name") or linkedin_fallback_campaign
             activities.append({
                 "direction": direction,
                 "content": ca.body or ca.snippet or "",
@@ -1893,6 +2049,8 @@ async def get_campaign_thread(
             await session.rollback()
 
     activities = []
+
+    # SmartLead email threads
     if target_reply.thread_fetched_at is not None:
         tm_result = await session.execute(
             select(ThreadMessage)
@@ -1908,6 +2066,32 @@ async def get_campaign_thread(
                 "campaign": campaign_name,
             })
 
+    # LinkedIn activities from ContactActivity
+    if target_reply.source == "getsales" or target_reply.channel == "linkedin":
+        from app.models.contact import Contact, ContactActivity
+        contact_result = await session.execute(
+            select(Contact).where(
+                and_(func.lower(Contact.email) == source_reply.lead_email.lower(), Contact.deleted_at.is_(None))
+            )
+        )
+        contact = contact_result.scalar_one_or_none()
+        if contact:
+            ca_result = await session.execute(
+                select(ContactActivity).where(
+                    and_(ContactActivity.contact_id == contact.id, ContactActivity.channel == "linkedin")
+                ).order_by(ContactActivity.activity_at)
+            )
+            for ca in ca_result.scalars().all():
+                direction = ca.direction or ("outbound" if ca.activity_type in ("linkedin_sent",) else "inbound")
+                activities.append({
+                    "direction": direction,
+                    "content": ca.body or ca.snippet or "",
+                    "timestamp": ca.activity_at.isoformat() if ca.activity_at else "",
+                    "channel": "linkedin",
+                    "campaign": campaign_name,
+                })
+
+    activities.sort(key=lambda a: a["timestamp"])
     return {"activities": activities}
 
 
@@ -2210,6 +2394,10 @@ async def approve_and_send_reply(
     if not reply:
         raise HTTPException(status_code=404, detail="Reply not found")
 
+    # Capture AI draft before any edits for learning system
+    _original_ai_draft = reply.draft_reply
+    _original_ai_subject = reply.draft_subject
+
     # If caller provided an edited draft, persist it first
     if body and body.draft_reply is not None:
         reply.draft_reply = body.draft_reply
@@ -2289,6 +2477,17 @@ async def approve_and_send_reply(
         db.add(reply)
         await db.commit()
         await db.refresh(reply)
+
+        # Record operator correction for learning system
+        try:
+            from app.services.learning_service import learning_service
+            await learning_service.record_correction(
+                db, reply, _original_ai_draft, _original_ai_subject,
+                reply.draft_reply, reply.draft_subject,
+            )
+            await db.commit()
+        except Exception as _lrn_err:
+            logger.warning(f"Learning correction recording failed (non-fatal): {_lrn_err}")
 
         status_msg = "Sent via LinkedIn" if send_result else "Approved — copy draft to LinkedIn"
         if send_error:
@@ -2423,6 +2622,17 @@ async def approve_and_send_reply(
 
     await db.commit()
     await db.refresh(reply)
+
+    # Record operator correction for learning system
+    try:
+        from app.services.learning_service import learning_service
+        await learning_service.record_correction(
+            db, reply, _original_ai_draft, _original_ai_subject,
+            reply.draft_reply, reply.draft_subject,
+        )
+        await db.commit()
+    except Exception as _lrn_err:
+        logger.warning(f"Learning correction recording failed (non-fatal): {_lrn_err}")
 
     # Sync to Google Sheets
     await _sync_approval_to_sheet(db, reply, status, google_sheets_service)

@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2 } from 'lucide-react';
+import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
 import { companiesApi } from '../api';
 import { contactsApi } from '../api/contacts';
 import { SectionErrorBoundary } from './ErrorBoundary';
+import { SpotlightFeedback } from './SpotlightFeedback';
 import { useTheme } from '../hooks/useTheme';
 
 interface LayoutProps {
@@ -23,6 +24,7 @@ export function Layout({ children }: LayoutProps) {
   } = useAppStore();
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [projectSearch, setProjectSearch] = useState('');
+  const [showSpotlight, setShowSpotlight] = useState(false);
   const projectDropdownRef = useRef<HTMLDivElement>(null);
   const { isDark, toggle: toggleTheme } = useTheme();
 
@@ -33,6 +35,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/dashboard/queries', icon: BarChart2, label: 'Query Dashboard', global: true },
     { path: '/projects', icon: FolderOpen, label: 'Projects', global: true },
     { path: '/tasks/replies', icon: ListTodo, label: 'Tasks', global: true },
+    { path: '/knowledge/icp', icon: BookOpen, label: 'Knowledge', global: true },
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },
     { path: '/settings', icon: Settings, label: 'Settings', global: true },
   ];
@@ -84,6 +87,18 @@ export function Layout({ children }: LayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Cmd+K spotlight feedback
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.metaKey && e.key === 'k') {
+        e.preventDefault();
+        setShowSpotlight(prev => !prev);
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const isPathActive = (path: string) => {
     if (path === '/') {
       return location.pathname === '/' || location.pathname === '/data-search';
@@ -96,6 +111,9 @@ export function Layout({ children }: LayoutProps) {
     }
     if (path.startsWith('/tasks/')) {
       return location.pathname.startsWith('/tasks');
+    }
+    if (path.startsWith('/knowledge/')) {
+      return location.pathname.startsWith('/knowledge');
     }
     return location.pathname.startsWith(path);
   };
@@ -168,6 +186,10 @@ export function Layout({ children }: LayoutProps) {
                           const tab = location.pathname.split('/')[2] || 'replies';
                           navigate(`/tasks/${tab}`, { replace: true });
                         }
+                        if (location.pathname.startsWith('/knowledge')) {
+                          const tab = location.pathname.split('/')[2] || 'icp';
+                          navigate(`/knowledge/${tab}`, { replace: true });
+                        }
                       }}
                       className={cn(
                         'w-full px-3 py-1.5 text-left text-[13px] transition-colors',
@@ -189,6 +211,11 @@ export function Layout({ children }: LayoutProps) {
                             const tab = location.pathname.split('/')[2] || 'replies';
                             const slug = project.name.toLowerCase().replace(/\s+/g, '-');
                             navigate(`/tasks/${tab}?project=${slug}`, { replace: true });
+                          }
+                          if (location.pathname.startsWith('/knowledge')) {
+                            const tab = location.pathname.split('/')[2] || 'icp';
+                            const slug = project.name.toLowerCase().replace(/\s+/g, '-');
+                            navigate(`/knowledge/${tab}?project=${slug}`, { replace: true });
                           }
                         }}
                         className={cn(
@@ -254,6 +281,9 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </SectionErrorBoundary>
       </main>
+
+      {/* Cmd+K Spotlight Feedback */}
+      <SpotlightFeedback open={showSpotlight} onClose={() => setShowSpotlight(false)} />
     </div>
   );
 }

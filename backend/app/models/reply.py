@@ -201,6 +201,9 @@ class ReplyPromptTemplateModel(Base):
     prompt_type = Column(String(50), nullable=True)  # Optional tag  # classification or reply
     prompt_text = Column(Text, nullable=False)
     is_default = Column(Boolean, default=False)
+    usage_count = Column(Integer, default=0, nullable=False)
+    last_used_at = Column(DateTime, nullable=True)
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

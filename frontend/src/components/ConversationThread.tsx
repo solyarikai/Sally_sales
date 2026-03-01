@@ -53,10 +53,13 @@ export function ConversationThread({
     if (!filterCampaign) return messages;
     const [channel, ...nameParts] = filterCampaign.split('::');
     const name = nameParts.join('::');
+    const genericNames = new Set(['unknown', 'linkedin', 'email', '']);
     return messages.filter((m) => {
       const mChannel = m.channel || 'email';
       const mName = m.campaign || 'Unknown';
-      return mChannel === channel && mName === name;
+      if (mChannel !== channel) return false;
+      if (mName === name) return true;
+      return genericNames.has(mName.toLowerCase());
     });
   }, [messages, filterCampaign]);
 

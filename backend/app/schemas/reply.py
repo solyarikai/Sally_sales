@@ -179,6 +179,9 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     # Contact dedup: how many campaigns this contact has (only set with group_by_contact)
     contact_campaign_count: Optional[int] = None
 
+    # Eagerly loaded contact info (from contacts table)
+    contact_info: Optional[dict] = None
+
     created_at: datetime
 
     class Config:

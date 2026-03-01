@@ -28,6 +28,7 @@ from .pipeline import (
 from .task import OperatorTask
 from .chat import ProjectChatMessage
 from .project_knowledge import ProjectKnowledge
+from .learning import LearningLog, OperatorCorrection
 from .pipeline_run import (
     PipelineRun, PipelineRunStatus, PipelinePhase,
     PipelinePhaseLog, PipelinePhaseStatus,
@@ -71,6 +72,8 @@ __all__ = [
     "ProjectChatMessage",
     # Project Knowledge
     "ProjectKnowledge",
+    # Learning System
+    "LearningLog", "OperatorCorrection",
     # Pipeline Runs & Cost
     "PipelineRun", "PipelineRunStatus", "PipelinePhase",
     "PipelinePhaseLog", "PipelinePhaseStatus",

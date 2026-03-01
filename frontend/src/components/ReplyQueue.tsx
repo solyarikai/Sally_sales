@@ -168,6 +168,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       setTotal(response.total || 0);
       setCategoryCounts(response.category_counts || {});
       setHasMore(newReplies.length >= PAGE_SIZE);
+      if (reset) {
+        const allTotal = Object.values(response.category_counts || {}).reduce((s: number, v: number) => s + v, 0);
+        allTotalRef.current = allTotal || (response.total || 0);
+      }
     } catch (err) {
       console.error('Failed to load replies:', err);
     } finally {
@@ -178,8 +182,29 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
 
   useEffect(() => { loadReplies(true); }, [loadReplies]);
 
+  /* ---- Eagerly load contact info for visible replies ---- */
+  useEffect(() => {
+    if (!replies.length) return;
+    const needInfo = replies.filter(r => !(r.id in contactInfoMap));
+    if (!needInfo.length) return;
+    const emails = [...new Set(needInfo.map(r => r.lead_email).filter(Boolean))];
+    if (!emails.length) return;
+    repliesApi.getContactInfoBatch(emails).then(byEmail => {
+      setContactInfoMap(prev => {
+        const next = { ...prev };
+        for (const r of needInfo) {
+          if (!(r.id in next) && byEmail[r.lead_email]) {
+            next[r.id] = byEmail[r.lead_email];
+          }
+        }
+        return next;
+      });
+    }).catch(() => { /* silent */ });
+  }, [replies]);
+
   /* ---- Auto-refresh: lightweight count poll every 30s (disabled for deep links) ---- */
   const [newCount, setNewCount] = useState(0);
+  const allTotalRef = useRef(0);
   useEffect(() => {
     if (isDeepLink) return;
     const interval = setInterval(async () => {
@@ -190,15 +215,15 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         });
         const serverTotal = resp.total || 0;
         setCategoryCounts(resp.category_counts || {});
-        if (serverTotal > total && total > 0) {
-          setNewCount(serverTotal - total);
-        } else if (serverTotal !== total) {
-          setTotal(serverTotal);
+        const prevAll = allTotalRef.current;
+        allTotalRef.current = serverTotal;
+        if (prevAll > 0 && serverTotal > prevAll) {
+          setNewCount(serverTotal - prevAll);
         }
       } catch { /* silent */ }
     }, 30_000);
     return () => clearInterval(interval);
-  }, [currentProject, campaignNames, total, isDeepLink]);
+  }, [currentProject, campaignNames, isDeepLink]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -699,7 +724,15 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                               isDark={isDark}
                               showDateSeparators
                               showCampaignMarkers={false}
-                              filterCampaign={selectedHistoryCampaign[reply.id] ?? null}
+                              filterCampaign={
+                                (() => {
+                                  const sel = selectedHistoryCampaign[reply.id];
+                                  if (!sel) return null;
+                                  const selName = sel.split('::').slice(1).join('::');
+                                  const isOwnCampaign = selName === (reply.campaign_name || '');
+                                  return isOwnCampaign ? null : sel;
+                                })()
+                              }
                               loading={isThreadLoading}
                             />
                           </div>

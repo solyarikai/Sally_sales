@@ -737,6 +737,12 @@ async def process_reply_webhook(
                         if template:
                             custom_reply_prompt = template.prompt_text
                             logger.info(f"[PROCESSOR] Using project prompt from '{project.name}' (template: {template.name})")
+                            # Track template usage for learning system
+                            try:
+                                template.usage_count = (template.usage_count or 0) + 1
+                                template.last_used_at = datetime.utcnow()
+                            except Exception:
+                                pass
             except Exception as proj_err:
                 logger.warning(f"[PROCESSOR] Project prompt lookup failed (non-fatal): {proj_err}")
 

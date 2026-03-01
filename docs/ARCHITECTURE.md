@@ -1,6 +1,6 @@
 # Architecture Reference
 
-Single source of truth for system architecture. Updated Feb 2026.
+Single source of truth for system architecture. Updated Mar 2026.
 
 ---
 
@@ -99,13 +99,14 @@ Managed centrally by `setup_crm_webhooks_on_startup()` in `crm_scheduler.py`. Ca
 
 | Field | Type | Notes |
 |-------|------|-------|
-| lead_email | str | Unique with campaign_id |
-| campaign_id | int | SmartLead campaign |
-| category | str | GPT classification (13 categories) |
-| approval_status | str | NULL → pending → approved/dismissed/replied_externally |
+| lead_email | str | Unique with campaign_id via `uq_processed_reply_email_campaign` |
+| campaign_id | str | SmartLead campaign ID or GetSales automation UUID |
+| category | str | GPT classification (8 categories: interested, meeting_request, not_interested, out_of_office, wrong_person, unsubscribe, question, other) |
+| approval_status | str | NULL/pending → approved/dismissed/edited |
 | source | str | smartlead / getsales |
 | channel | str | email / linkedin |
 | draft_reply | text | AI-generated draft |
+| contact_info | dict | Eagerly loaded from contacts table (company, domain, job_title, etc.) |
 
 ### WebhookEventModel (event log + recovery)
 
@@ -175,6 +176,78 @@ docker exec -w /app -e PYTHONPATH=/app leadgen-backend python3 scripts/<script>.
 
 ---
 
+## Conversation History
+
+### How history is loaded
+
+1. **SmartLead (email)**: `_fetch_and_cache_thread()` calls SmartLead's thread API on-demand (first History click). Cached in `thread_messages` table via `thread_fetched_at` flag.
+
+2. **GetSales (LinkedIn)**: On-demand fetch via `_fetch_getsales_conversation()` in `replies.py`. Uses `get_conversation_messages()` (filters by `linkedin_conversation_uuid`). Creates `ContactActivity` records (both outbound + inbound) and caches them. Only fetches when no outbound activities exist for the contact.
+
+3. **Campaign switching**: `/replies/{id}/campaign-thread` loads thread for a different campaign on-demand. Supports both SmartLead threads and LinkedIn ContactActivity records.
+
+4. **Default campaign**: Reply's own campaign is pinned first in the dropdown, rest sorted by recency.
+
+### Deduplication layers
+
+1. **Redis**: Atomic `SADD` via `try_claim_reply()` — first writer wins
+2. **DB unique constraint**: `uq_processed_reply_email_campaign` on `(LOWER(lead_email), campaign_id)` 
+3. **IntegrityError handling**: Graceful catch-and-skip on concurrent inserts
+4. **Outbound rejection**: `reply_processor.py` rejects SmartLead outbound sends masquerading as EMAIL_REPLY events at the gate
+
+### Empty body filtering
+
+Replies with empty/meaningless bodies (`(empty)`, `(no content)`, etc.) are excluded from:
+- `GET /replies/` when `needs_reply=true`
+- `GET /replies/counts` endpoint
+- Category count calculations
+
+---
+
+## Telegram Notifications
+
+### Format
+- Color-coded emoji prefix: 🟢 interested/meeting/question, 🔴 not_interested/unsubscribe, 🟡 OOO, 📧 default
+- Message preview: max 8 non-empty lines, max 200 chars
+- Placeholder emails (`gs_*@linkedin.placeholder`) hidden from message body but included in Replies UI link
+
+### Deep links
+- All Telegram notifications include `?lead=<email>&project=<slug>` in the Replies UI link
+- Even placeholder LinkedIn emails are included in the `lead=` parameter for direct filtering
+- Frontend handles deep links by: disabling auto-refresh polling, skipping `needs_reply`/`category` filters, using server-side `lead_email` filter
+
+---
+
+## Learning System
+
+### Architecture
+
+```
+Operator sends reply → record_correction() stores AI draft vs actual sent text
+                     ↓
+Knowledge page → "Learn" button → run_learning_cycle()
+                     ↓
+Fetch prioritized conversations (qualified leads first) + operator corrections
+                     ↓
+GPT-4o-mini analyzes patterns → updates reply prompt template + ICP knowledge
+                     ↓
+LearningLog records before/after snapshots + reasoning
+```
+
+### Components
+- **OperatorCorrection**: Stores AI draft vs operator's actual sent text per reply
+- **LearningLog**: Audit trail of learning cycles with before/after snapshots
+- **ProjectKnowledge**: ICP insights, objection patterns, qualification criteria
+- **ReplyPromptTemplateModel**: Versioned prompt templates with usage tracking
+- **SpotlightFeedback (Cmd+K)**: Operator feedback → processed by GPT → updates template/ICP
+
+### API endpoints
+- `GET /projects/{id}/learning/overview` — Full knowledge page data
+- `POST /projects/{id}/learning/analyze` — Trigger learning cycle (background)
+- `POST /projects/{id}/learning/feedback` — Submit Cmd+K feedback
+
+---
+
 ## Architecture Decisions (why things are this way)
 
 1. **Single webhook handler per service** — SmartLead webhooks go to `smartlead.py`, GetSales to `crm_sync.py`. No duplicates.
@@ -203,27 +276,42 @@ backend/
     api/
       smartlead.py         — SmartLead webhook handler + API endpoints
       crm_sync.py          — GetSales webhooks + CRM sync API
-      replies.py           — Reply management API (list, approve, send)
+      replies.py           — Reply management API (list, approve, send, history)
+      learning.py          — Learning system API (analyze, feedback, logs)
     services/
       crm_scheduler.py     — Background scheduler (all loops)
       crm_sync_service.py  — SmartLead/GetSales API clients + sync logic
       notification_service.py — Telegram notifications + project routing
       reply_processor.py   — GPT classification + draft generation
+      learning_service.py  — AI learning cycles + operator correction tracking
+      cache_service.py     — Redis utilities (dedup via atomic SADD)
     models/
-      contact.py           — Contact, Project, ProcessedReply, etc.
+      contact.py           — Contact, Project, ContactActivity
+      reply.py             — ProcessedReply, ThreadMessage, ReplyPromptTemplateModel
+      learning.py          — LearningLog, OperatorCorrection
+      project_knowledge.py — ProjectKnowledge (ICP, patterns)
     utils/
       normalization.py     — Shared email/LinkedIn/name normalization
     core/
       config.py            — All settings (Pydantic BaseSettings)
+    scripts/
+      sync_historical_messages.py — One-time GetSales message history sync
 
 frontend/
   src/
     pages/
-      TasksPage.tsx        — Main reply management UI
-      HomePage.tsx          — Dashboard
+      TasksPage.tsx        — Main reply management UI (tabs: Replies, Meetings, Qualified)
+      KnowledgePage.tsx    — Knowledge page (tabs: ICP, Templates, Logs)
+    components/
+      ReplyQueue.tsx       — Reply queue with deep link support
+      ConversationThread.tsx — Chat-style conversation display
+      CampaignDropdown.tsx — Campaign selector in history
+      SpotlightFeedback.tsx — Cmd+K feedback interface
+      knowledge/           — ICPPanel, TemplatesPanel, LearningLogsPanel
     api/
       index.ts             — API client
-      tasks.ts             — Reply/task API calls
+      replies.ts           — Reply/task API calls
+      learning.ts          — Learning system API calls
 ```
 
 ---

@@ -405,6 +405,11 @@ export async function getReplyCounts(params: {
   return response.data;
 }
 
+export async function getContactInfoBatch(emails: string[]): Promise<Record<string, ContactInfo>> {
+  const response = await api.post('/replies/contact-info-batch', emails);
+  return response.data.contacts || {};
+}
+
 export async function getReply(id: number): Promise<ProcessedReply> {
   const response = await api.get(`/replies/${id}`);
   return response.data;
@@ -591,6 +596,7 @@ export const repliesApi = {
   getReplies,
   getReplyCounts,
   getContactCampaigns,
+  getContactInfoBatch,
   getReply,
   getReplyStats,
   getConversation,

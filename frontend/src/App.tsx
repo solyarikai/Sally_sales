@@ -13,6 +13,7 @@ import PromptDebugPage from './pages/PromptDebugPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { ContactDetailPage } from './pages/ContactDetailPage';
 import { TasksPage } from './pages/TasksPage';
+import { KnowledgePage } from './pages/KnowledgePage';
 import { SearchResultsPage } from './pages/SearchResultsPage';
 import { PipelinePage } from './pages/PipelinePage';
 import { ProjectsPage } from './pages/ProjectsPage';
@@ -87,6 +88,14 @@ function App() {
         <Route path="/tasks/:tab" element={
           <Layout>
             <TasksPage />
+          </Layout>
+        } />
+
+        {/* Knowledge page — ICP, templates, learning logs */}
+        <Route path="/knowledge" element={<Navigate to="/knowledge/icp" replace />} />
+        <Route path="/knowledge/:tab" element={
+          <Layout>
+            <KnowledgePage />
           </Layout>
         } />
         
