@@ -14,6 +14,39 @@ from app.services.smartlead_service import smartlead_request
 logger = logging.getLogger(__name__)
 
 
+def _parse_source_timestamp(payload: dict) -> Optional[datetime]:
+    """Extract the ORIGINAL reply timestamp from the source platform data.
+    
+    Tries multiple fields in priority order. Returns None if no valid timestamp found.
+    """
+    candidates = [
+        payload.get("time_replied"),
+        payload.get("event_timestamp"),
+        payload.get("reply_time"),
+        payload.get("time"),
+    ]
+    for raw in candidates:
+        if not raw:
+            continue
+        ts = str(raw).strip()
+        if not ts:
+            continue
+        try:
+            parsed = datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
+            if parsed.year >= 2020:
+                return parsed
+        except (ValueError, TypeError):
+            pass
+        try:
+            from dateutil.parser import parse as parse_dt
+            parsed = parse_dt(ts).replace(tzinfo=None)
+            if parsed.year >= 2020:
+                return parsed
+        except Exception:
+            pass
+    return None
+
+
 # Regex for placeholder brackets GPT sometimes generates despite instructions.
 # Matches patterns like [Your Name], [Ваше имя], [Tu Nombre], [Your Contact Information], etc.
 _PLACEHOLDER_RE = re.compile(
@@ -771,15 +804,8 @@ async def process_reply_webhook(
             sender_company=proj_sender_company,
         )
         
-        # Determine received_at: use actual reply timestamp from Smartlead if available
-        received_at = datetime.utcnow()
-        time_replied = payload.get("time_replied") or payload.get("event_timestamp")
-        if time_replied and isinstance(time_replied, str):
-            try:
-                from dateutil.parser import parse as parse_dt
-                received_at = parse_dt(time_replied).replace(tzinfo=None)
-            except Exception:
-                pass  # Fall back to utcnow
+        # Determine received_at: use actual reply timestamp from source platform
+        received_at = _parse_source_timestamp(payload) or datetime.utcnow()
 
         # Check for existing ProcessedReply (same email + campaign).
         # If the lead replied again after operator responded, UPDATE the record
