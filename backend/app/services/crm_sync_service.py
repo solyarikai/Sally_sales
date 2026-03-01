@@ -269,6 +269,20 @@ for _uuid, _name in GETSALES_FLOW_NAMES.items():
             break
 
 
+def _is_valid_campaign_name(name: str) -> bool:
+    """Reject placeholders, timestamps, and export automation names."""
+    import re
+    if not name or name == "Unknown":
+        return False
+    if name.startswith("Unknown ("):
+        return False
+    if re.match(r'^\d{1,2} \w{3,9} \d{4}', name):
+        return False
+    if re.match(r'^\d{4}-\d{2}-\d{2}', name):
+        return False
+    return True
+
+
 def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: list = None) -> str:
     """
     Get the GetSales flow/automation name with fallback logic.
@@ -279,28 +293,12 @@ def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: 
     3. Most recent active GetSales campaign from contact_campaigns (with valid name)
     4. 'Unknown Flow' as last resort
     """
-    import re
-    
-    def is_valid_flow_name(name: str) -> bool:
-        """Check if flow name is a real campaign, not a placeholder, timestamp, or export automation."""
-        if not name:
-            return False
-        if name.startswith("Unknown ("):
-            return False
-        # Filter out date/timestamp patterns (export automations like "3 Feb 2026, 02:42")
-        if re.match(r'^\d{1,2} \w{3} \d{4},? \d{2}:\d{2}', name):
-            return False
-        # Filter out other export automation patterns
-        if re.match(r'^\d{1,2} \w+ \d{4}', name):  # e.g. "3 February 2026"
-            return False
-        return True
-    
     flow_name = None
     
     # Try activity extra_data first
     if activity_extra_data:
         candidate = activity_extra_data.get("automation_name") or activity_extra_data.get("flow_name")
-        if is_valid_flow_name(candidate):
+        if _is_valid_campaign_name(candidate):
             flow_name = candidate
     
     # Fallback 1: Try to look up UUID in known flow names mapping
@@ -326,7 +324,7 @@ def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: 
                 for camp in contact_campaigns:
                     if camp.get("source") == "getsales" and camp.get("status") == status_priority:
                         name_candidate = camp.get("name", "")
-                        if is_valid_flow_name(name_candidate):
+                        if _is_valid_campaign_name(name_candidate):
                             flow_name = name_candidate
                             break
                 if flow_name:
@@ -1350,8 +1348,6 @@ class CRMSyncService:
             "campaigns_checked": 0, "errors": 0, "skipped_unchanged": 0,
             "lead_id_from_db": 0, "lead_id_from_stats": 0, "lead_id_from_api": 0,
         }
-        new_cache_keys = []
-
         try:
             campaigns = await self.smartlead.get_campaigns()
 
@@ -1427,19 +1423,16 @@ class CRMSyncService:
 
                         logger.info(f"Reply sync: campaign '{campaign_name}' — {len(replied_leads)} replied leads")
 
-                        # Bulk check Redis cache using email+campaign as key
-                        cache_keys = [f"{rl['lead_email']}_{campaign_id}" for rl in replied_leads]
-                        cached_keys = await bulk_check_replies("smartlead_replies", cache_keys)
-
                         for reply_data in replied_leads:
                             email = self.normalize_email(reply_data.get("lead_email"))
+                            if not email:
+                                continue
                             cache_key = f"{email}_{campaign_id}"
 
-                            if cache_key in cached_keys:
+                            # Atomic Redis claim — if another process already claimed, skip
+                            from app.services.cache_service import try_claim_reply
+                            if not await try_claim_reply("smartlead", cache_key):
                                 stats["cached"] += 1
-                                continue
-
-                            if not email:
                                 continue
 
                             # Check if ProcessedReply already exists
@@ -1469,7 +1462,6 @@ class CRMSyncService:
                                     except Exception as dt_err:
                                         logger.debug(f"Could not parse reply_time '{raw_reply_time}': {dt_err}")
                                 stats["existing"] += 1
-                                new_cache_keys.append(cache_key)
                                 continue
 
                             # --- Resolve lead data: DB first, then stats, then API ---
@@ -1609,7 +1601,6 @@ class CRMSyncService:
                                 stats["errors"] += 1
                                 logger.warning(f"Reply sync: failed to process {email}: {proc_err}")
 
-                            new_cache_keys.append(cache_key)
                             await asyncio.sleep(0.3)  # Rate limit per lead
 
                         await asyncio.sleep(0.2)  # Rate limit per campaign
@@ -1619,9 +1610,6 @@ class CRMSyncService:
                         logger.warning(f"Error checking campaign '{campaign_name}': {e}")
 
             await session.commit()
-
-            if new_cache_keys:
-                await bulk_add_replies("smartlead_replies", new_cache_keys)
 
             logger.info(f"Reply sync complete: {stats}")
 
@@ -1792,16 +1780,23 @@ class CRMSyncService:
 
                         if isinstance(automation_info, dict) and automation_info.get("uuid"):
                             flow_uuid = automation_info["uuid"]
-                            flow_name = automation_info.get("name", GETSALES_FLOW_NAMES.get(flow_uuid, ""))
+                            mapped = GETSALES_FLOW_NAMES.get(flow_uuid)
+                            raw_name = automation_info.get("name", "")
+                            flow_name = mapped or (raw_name if _is_valid_campaign_name(raw_name) else "")
                         else:
                             # automation: "synced" — try to resolve from contact's known campaigns
                             gs_campaigns = (contact.get_platform("getsales") or {}).get("campaigns", [])
                             if gs_campaigns and isinstance(gs_campaigns, list):
                                 for gc in gs_campaigns:
                                     gc_name = gc.get("name", "")
-                                    if gc_name and gc_name != "Unknown":
+                                    gc_id = gc.get("id", "")
+                                    if gc_id and gc_id in GETSALES_FLOW_NAMES:
+                                        flow_name = GETSALES_FLOW_NAMES[gc_id]
+                                        flow_uuid = gc_id
+                                        break
+                                    if gc_name and _is_valid_campaign_name(gc_name):
                                         flow_name = gc_name
-                                        flow_uuid = gc.get("id", "")
+                                        flow_uuid = gc_id
                                         break
                             # NEVER fall back to sender_profile_uuid for campaign routing.
                             # A sender can work across multiple projects; using sender UUID
@@ -2091,16 +2086,9 @@ async def sync_conversation_histories(
             last_type = last_msg.get("type", "")
 
             if last_type != "REPLY":
-                # Operator already replied — mark all pending replies for this lead
                 stats["replied_externally"] += 1
 
-                for r in reply_groups.get(group_key, []):
-                    if r.approval_status in (None, "pending"):
-                        r.approval_status = "replied_externally"
-                        r.approved_at = datetime.utcnow()
-                        session.add(r)
-
-                # Create missing outbound ContactActivity so we don't re-check
+                # Create missing outbound ContactActivity records (CRM data)
                 reply_received = reply.received_at
                 contact_result = await session.execute(
                     select(Contact).where(

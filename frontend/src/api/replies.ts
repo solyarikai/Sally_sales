@@ -314,6 +314,7 @@ export async function getReplies(params: {
   needs_reply?: boolean;
   channel?: string;
   source?: string;
+  lead_email?: string;
   group_by_contact?: boolean;
   page?: number;
   page_size?: number;
@@ -393,6 +394,14 @@ export async function getFullHistory(replyId: number): Promise<FullHistoryRespon
 
 export async function getCampaignThread(replyId: number, campaignName: string): Promise<{ activities: FullHistoryActivity[] }> {
   const response = await api.get(`/replies/${replyId}/campaign-thread`, { params: { campaign_name: campaignName } });
+  return response.data;
+}
+
+export async function getReplyCounts(params: {
+  project_id?: number;
+  campaign_names?: string;
+}): Promise<{ total: number; category_counts: Record<string, number> }> {
+  const response = await api.get('/replies/counts', { params });
   return response.data;
 }
 
@@ -580,6 +589,7 @@ export const repliesApi = {
   getSingleAutomationMonitoring,
   // Replies
   getReplies,
+  getReplyCounts,
   getContactCampaigns,
   getReply,
   getReplyStats,

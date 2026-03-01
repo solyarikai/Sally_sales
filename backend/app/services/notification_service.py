@@ -784,6 +784,18 @@ async def _refresh_project_cache():
         logger.info(f"Project cache refreshed: {len(cache)} projects")
 
 
+def _category_indicator(category: str) -> str:
+    """Color-coded emoji indicator for Telegram notifications."""
+    cat = (category or "").lower()
+    if cat in ("interested", "meeting_request", "question"):
+        return "🟢"
+    if cat in ("not_interested", "unsubscribe", "wrong_person"):
+        return "🔴"
+    if cat in ("out_of_office",):
+        return "🟡"
+    return "📧"
+
+
 async def notify_reply_needs_attention(reply, category: str, campaign_name: str = None) -> bool:
     """Send Telegram notification for new replies with per-project routing.
     
@@ -793,9 +805,6 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     """
     from app.core.config import settings
     from urllib.parse import quote
-    replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(reply.lead_email)}"
-    # Extract inbox email from raw_webhook_data (SmartLead's from_email)
-    inbox_email = ""
     raw = reply.raw_webhook_data or {}
     if isinstance(raw, str):
         import json
@@ -805,15 +814,37 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
             raw = {}
     from_email = raw.get("from_email") or ""
     inbox_line_email = f"\n<b>Inbox:</b> {from_email}" if from_email else ""
-    message = f"""📧 <b>New Email Reply!</b>
+
+    project = None
+    if campaign_name:
+        try:
+            project = await _get_project_for_campaign(campaign_name)
+        except Exception as e:
+            logger.warning(f"Project routing failed (non-fatal): {e}")
+
+    project_param = ""
+    if project:
+        project_param = f"&project={quote(project['name'].lower().replace(' ', '-'))}"
+    replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(reply.lead_email)}{project_param}"
+
+    indicator = _category_indicator(category)
+    project_line = f"\n<b>Project:</b> {project['name']}" if project else ""
+
+    body_raw = (reply.email_body or reply.reply_text or "No body").strip()
+    body_lines = body_raw.split("\n")
+    body_trimmed = "\n".join(l for l in body_lines[:8] if l.strip())
+    if len(body_trimmed) > 200:
+        body_trimmed = body_trimmed[:200] + "…"
+
+    message = f"""{indicator} <b>New Email Reply!</b>
 
 <b>From:</b> {reply.lead_email}
 <b>Subject:</b> {reply.email_subject or 'No subject'}
 <b>Company:</b> {reply.lead_company or 'Unknown'}
-<b>Campaign:</b> {campaign_name or 'Unknown'}{inbox_line_email}
+<b>Campaign:</b> {campaign_name or 'Unknown'}{project_line}{inbox_line_email}
 
 <b>Message:</b>
-<code>{(reply.email_body or reply.reply_text or 'No body')[:500]}</code>
+<code>{body_trimmed}</code>
 
 <a href="{replies_ui_url}">📋 Open in Replies UI</a>  ·  <a href="{reply.inbox_link or 'https://app.smartlead.ai/app/master-inbox'}">📬 Open in SmartLead</a>"""
     
@@ -822,18 +853,14 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     sent_chats = {TELEGRAM_CHAT_ID}
     
     # 2. Route to all project subscribers
-    if campaign_name:
-        try:
-            project = await _get_project_for_campaign(campaign_name)
-            if project:
-                for subscriber_chat in project.get("telegram_subscribers", []):
-                    if subscriber_chat not in sent_chats:
-                        await send_telegram_notification(message.strip(), chat_id=subscriber_chat)
-                        sent_chats.add(subscriber_chat)
-                if len(sent_chats) > 1:
-                    logger.info(f"Reply notification sent to {len(sent_chats)} chats for project '{project.get('name')}'")
-        except Exception as e:
-            logger.warning(f"Project routing failed (non-fatal): {e}")
+    if project:
+        for subscriber_chat in project.get("telegram_subscribers", []):
+            if subscriber_chat not in sent_chats:
+                await send_telegram_notification(message.strip(), chat_id=subscriber_chat)
+                sent_chats.add(subscriber_chat)
+        if len(sent_chats) > 1:
+            logger.info(f"Reply notification sent to {len(sent_chats)} chats for project '{project.get('name')}'")
+
     
     return admin_sent
 
@@ -847,6 +874,7 @@ async def notify_linkedin_reply(
     project_id: int = None,
     inbox_link: str = None,
     sender_name: str = None,
+    category: str = None,
 ) -> bool:
     """Send Telegram notification for LinkedIn replies with per-project routing.
 
@@ -856,30 +884,16 @@ async def notify_linkedin_reply(
     """
     from app.core.config import settings
     from urllib.parse import quote
-    message_preview = (message_text or "")[:300]
+    raw_text = (message_text or "").strip()
+    msg_lines = raw_text.split("\n")
+    message_preview = "\n".join(l for l in msg_lines[:8] if l.strip())
+    if len(message_preview) > 200:
+        message_preview = message_preview[:200] + "…"
     inbox_line = ""
     if inbox_link:
         inbox_line = f'\n<a href="{inbox_link}">💼 Open in GetSales</a>'
 
-    replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(contact_email)}" if contact_email else None
-    replies_line = f'\n<a href="{replies_ui_url}">📋 Open in Replies UI</a>' if replies_ui_url else ""
-
-    sender_line = f"\n<b>Sender:</b> {sender_name}" if sender_name else ""
-    campaign_line = f"\n<b>Campaign:</b> {flow_name}" if flow_name else ""
-    message = f"""🔗 <b>New LinkedIn Reply!</b>
-
-<b>From:</b> {contact_name}
-<b>Email:</b> {contact_email or 'N/A'}{campaign_line}{sender_line}
-
-<b>Message:</b>
-<code>{message_preview}</code>
-{replies_line}{inbox_line}"""
-
-    # 1. Always send to admin
-    admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)
-    sent_chats = {TELEGRAM_CHAT_ID}
-
-    # 2. Route to project subscribers (campaign match, then project_id fallback)
+    # Find project first so we can include it in the Replies UI link
     project = None
     lookup_name = campaign_name or flow_name
     if lookup_name:
@@ -896,6 +910,38 @@ async def notify_linkedin_reply(
         except Exception as e:
             logger.warning(f"LinkedIn project_id routing failed (non-fatal): {e}")
 
+    is_real_email = contact_email and "@linkedin.placeholder" not in contact_email and not contact_email.startswith("gs_")
+
+    project_param = ""
+    if project:
+        project_param = f"&project={quote(project['name'].lower().replace(' ', '-'))}"
+    if is_real_email:
+        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(contact_email)}{project_param}"
+    elif project_param:
+        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?{project_param.lstrip('&')}"
+    else:
+        replies_ui_url = None
+    replies_line = f'\n<a href="{replies_ui_url}">📋 Open in Replies UI</a>' if replies_ui_url else ""
+
+    indicator = _category_indicator(category) if category else "🔗"
+    sender_line = f"\n<b>Sender:</b> {sender_name}" if sender_name else ""
+    campaign_display = campaign_name or flow_name
+    campaign_line = f"\n<b>Campaign:</b> {campaign_display}" if campaign_display else ""
+    project_line = f"\n<b>Project:</b> {project['name']}" if project else ""
+    email_line = f"\n<b>Email:</b> {contact_email}" if is_real_email else ""
+    message = f"""{indicator} <b>New LinkedIn Reply!</b>
+
+<b>From:</b> {contact_name}{email_line}{campaign_line}{project_line}{sender_line}
+
+<b>Message:</b>
+<code>{message_preview}</code>
+{replies_line}{inbox_line}"""
+
+    # 1. Always send to admin
+    admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)
+    sent_chats = {TELEGRAM_CHAT_ID}
+
+    # 2. Route to project subscribers
     if project:
         for subscriber_chat in project.get("telegram_subscribers", []):
             if subscriber_chat not in sent_chats:

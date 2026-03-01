@@ -358,6 +358,26 @@ async def bulk_add_replies(source: str, reply_ids: list) -> bool:
         return False
 
 
+async def try_claim_reply(source: str, reply_key: str, ttl: int = REPLIES_TTL) -> bool:
+    """Atomic claim: returns True if this caller won the race (key was new).
+
+    Uses SADD which is atomic — if the member already exists, returns 0.
+    This replaces the check-then-set pattern that had a race window.
+    """
+    if not cache_service.is_connected or not cache_service._redis:
+        return True  # If Redis is down, proceed (DB constraint is backup)
+
+    try:
+        key = SMARTLEAD_REPLIES_KEY if source == "smartlead" else GETSALES_REPLIES_KEY
+        added = await cache_service._redis.sadd(key, str(reply_key))
+        if added:
+            await cache_service._redis.expire(key, ttl)
+        return bool(added)
+    except Exception as e:
+        logger.warning(f"try_claim_reply failed: {e}")
+        return True  # Proceed on Redis failure, DB constraint is backup
+
+
 async def get_replies_cache_stats() -> dict:
     """Get stats about the reply cache."""
     if not cache_service.is_connected or not cache_service._redis:

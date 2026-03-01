@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
@@ -32,28 +32,39 @@ export function TasksPage() {
   const [meetingsCount, setMeetingsCount] = useState(0);
   const [qualifiedCount, setQualifiedCount] = useState(0);
 
+  // Skip the first project→URL sync so the URL→project effect runs first
+  const urlSynced = useRef(false);
+
   /* ---- URL → project (on load / link share) ---- */
   useEffect(() => {
+    if (!projects.length) return;
     const projectParam = searchParams.get('project');
-    if (!projectParam || !projects.length) return;
-    const normalized = projectParam.toLowerCase().replace(/-/g, ' ');
-    const match = projects.find(p => p.name.toLowerCase() === normalized)
-      || projects.find(p => p.id === Number(projectParam));
-    if (match && (!currentProject || currentProject.id !== match.id)) {
-      setCurrentProject(match);
+    if (projectParam) {
+      const normalized = projectParam.toLowerCase().replace(/-/g, ' ');
+      const match = projects.find(p => p.name.toLowerCase() === normalized)
+        || projects.find(p => p.id === Number(projectParam));
+      if (match && (!currentProject || currentProject.id !== match.id)) {
+        setCurrentProject(match);
+      }
     }
+    urlSynced.current = true;
   }, [projects, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- project → URL (keep query param in sync when project changes) ---- */
   useEffect(() => {
+    if (!urlSynced.current) return;
     const currentParam = searchParams.get('project');
+    const leadParam = searchParams.get('lead');
     const expectedSlug = currentProject
       ? currentProject.name.toLowerCase().replace(/\s+/g, '-')
       : null;
+
+    const leadSuffix = leadParam ? `&lead=${encodeURIComponent(leadParam)}` : '';
+
     if (expectedSlug && currentParam !== expectedSlug) {
-      navigate(`/tasks/${activeTab}?project=${expectedSlug}`, { replace: true });
+      navigate(`/tasks/${activeTab}?project=${expectedSlug}${leadSuffix}`, { replace: true });
     } else if (!expectedSlug && currentParam) {
-      navigate(`/tasks/${activeTab}`, { replace: true });
+      navigate(`/tasks/${activeTab}${leadSuffix ? `?${leadSuffix.slice(1)}` : ''}`, { replace: true });
     }
   }, [currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
 

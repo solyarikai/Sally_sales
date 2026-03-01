@@ -544,11 +544,6 @@ async def _fetch_and_cache_thread(
                 except Exception:
                     pass
 
-        # Detect replied_externally: last message is outbound
-        if last_direction == "outbound" and reply.approval_status in (None, "pending"):
-            reply.approval_status = "replied_externally"
-            reply.approved_at = datetime.utcnow()
-
         logger.info(
             f"[THREAD_CACHE] Cached {len(history_entries)} messages for reply {reply.id}"
         )
@@ -636,7 +631,8 @@ async def process_reply_webhook(
             lead_map_id = payload.get("sl_email_lead_map_id") or ""
             if lead_map_id and lead_map_id != "":
                 inbox_link = f"https://app.smartlead.ai/app/master-inbox?action&leadMap={lead_map_id}"
-        logger.info(f"[PROCESSOR] Inbox link: {inbox_link}")
+        if not inbox_link:
+            inbox_link = "https://app.smartlead.ai/app/master-inbox"
         
         # Conversation history
         lead_correspondence = payload.get("leadCorrespondence", [])
@@ -654,7 +650,16 @@ async def process_reply_webhook(
         # Skip empty/meaningless reply bodies — no point classifying or drafting
         _body_stripped = (body or "").strip().lower()
         if not _body_stripped or _body_stripped in ("(no content)", "(empty)", "no content", "empty"):
-            logger.info(f"[PROCESSOR] Skipping empty reply body for {lead_email}")
+            campaign_name = payload.get("campaign_name") or payload.get("flow_name") or "unknown"
+            source = payload.get("_source", "webhook")
+            logger.warning(f"[PROCESSOR] Skipping empty reply body: lead={lead_email} campaign={campaign_name} source={source}")
+            return None
+
+        # Reject outbound sends masquerading as EMAIL_REPLY events
+        import re
+        outbound_pattern = r"^Email \d+ sent to .+ for campaign"
+        if re.match(outbound_pattern, body.strip()):
+            logger.info(f"[PROCESSOR] Rejecting outbound send masquerading as reply: {body[:120]}")
             return None
 
         # Find matching automation (if any)
@@ -837,7 +842,6 @@ async def process_reply_webhook(
                 existing_pr.inbox_link = inbox_link
             processed_reply = existing_pr
             await session.flush()
-            await _fetch_and_cache_thread(processed_reply, session)
             logger.info(f"[PROCESSOR] Updated existing ProcessedReply {existing_pr.id} for {lead_email} with new reply")
         else:
             # Create new processed reply record
@@ -865,8 +869,14 @@ async def process_reply_webhook(
                 smartlead_lead_id=payload.get("sl_email_lead_id") or None,
             )
             session.add(processed_reply)
-            await session.flush()
-            await _fetch_and_cache_thread(processed_reply, session)
+            try:
+                await session.flush()
+            except Exception as flush_err:
+                if "uq_processed_reply_email_campaign" in str(flush_err):
+                    logger.info(f"[PROCESSOR] Concurrent insert caught by unique constraint for {lead_email}, campaign {campaign_id}")
+                    await session.rollback()
+                    return None
+                raise
             logger.info(f"[PROCESSOR] Created new ProcessedReply {processed_reply.id} for {lead_email}")
         
         # Create ContactActivity for conversation history
@@ -1028,16 +1038,8 @@ async def process_reply_webhook(
         
         # Send Telegram notification only for actual inbound replies
         # Uses DB-backed dedup (telegram_sent_at) to prevent duplicates even after Redis flush
-        import re
         event_type = payload.get("event_type", "EMAIL_REPLY")
         should_notify = event_type == "EMAIL_REPLY"
-
-        # Detect outbound sends masquerading as EMAIL_REPLY
-        if should_notify and body:
-            outbound_pattern = r"^Email \d+ sent to .+ for campaign"
-            if re.match(outbound_pattern, body.strip()):
-                should_notify = False
-                logger.info(f"[PROCESSOR] Skipping Telegram for outbound send: {body[:120]}")
 
         if should_notify and payload.get("_source") == "api_polling":
             # Only notify for recent polled replies (< 2 hours old)
@@ -1237,7 +1239,7 @@ async def process_getsales_reply(
         if existing_pr:
             logger.info(f"[GETSALES] Found existing reply {existing_pr.id} via broader match (campaign_id {existing_pr.campaign_id} != {flow_uuid})")
 
-    if existing_pr and existing_pr.received_at and activity_at <= existing_pr.received_at:
+    if existing_pr and existing_pr.received_at and activity_at and activity_at <= existing_pr.received_at:
         # Still allow update if we have new campaign info for an unclassified record.
         # Polling creates records with empty campaign_name; the webhook arrives later
         # with the real automation but older activity_at (from linkedin_message.sent_at).
@@ -1405,7 +1407,14 @@ async def process_getsales_reply(
             inbox_link=inbox_link,
         )
         session.add(processed_reply)
-        await session.flush()
+        try:
+            await session.flush()
+        except Exception as flush_err:
+            if "uq_processed_reply_email_campaign" in str(flush_err):
+                logger.info(f"[GETSALES] Concurrent insert caught by unique constraint for {lead_email}")
+                await session.rollback()
+                return None
+            raise
         logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email}")
 
     # --- Telegram notification (dedup via telegram_sent_at) ---
@@ -1431,6 +1440,7 @@ async def process_getsales_reply(
                 project_id=resolved_project_id,
                 inbox_link=inbox_link,
                 sender_name=resolved_sender_name,
+                category=processed_reply.category,
             )
             if sent:
                 processed_reply.telegram_sent_at = datetime.utcnow()

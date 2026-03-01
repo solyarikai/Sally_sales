@@ -122,7 +122,7 @@ class ProcessedReply(Base, TimestampMixin):
     telegram_sent_at = Column(DateTime, nullable=True)  # When Telegram notification was sent
     
     # Approval workflow
-    approval_status = Column(String(50), nullable=True, index=True)  # pending, approved, dismissed, edited, replied_externally
+    approval_status = Column(String(50), nullable=True, index=True)  # pending, approved, dismissed, edited
     approved_by = Column(String(100), nullable=True)
     approved_at = Column(DateTime, nullable=True)
 

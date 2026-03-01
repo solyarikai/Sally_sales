@@ -99,7 +99,7 @@ export function CampaignDropdown({
         {selectedInfo ? (
           <>
             {selectedInfo.channel === 'linkedin' ? <Linkedin className="w-3 h-3" /> : <Mail className="w-3 h-3" />}
-            <span className="truncate max-w-[140px]">{selectedInfo.campaign_name}</span>
+            <span className="truncate max-w-[280px]">{selectedInfo.campaign_name}</span>
             <span style={{ color: text3 }}>({selectedInfo.message_count})</span>
           </>
         ) : (

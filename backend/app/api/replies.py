@@ -677,6 +677,7 @@ async def list_replies(
     needs_reply: Optional[bool] = Query(None, description="Filter to replies with no outbound activity after received_at"),
     channel: Optional[str] = Query(None, description="Filter by channel: email, linkedin"),
     source: Optional[str] = Query(None, description="Filter by source: smartlead, getsales"),
+    lead_email: Optional[str] = Query(None, description="Filter by lead email (exact match)"),
     group_by_contact: bool = Query(False, description="Dedup by lead_email, one card per unique contact"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
@@ -692,6 +693,9 @@ async def list_replies(
 
     # --- Build reusable filter conditions ---
     conditions = []
+
+    if lead_email:
+        conditions.append(ProcessedReply.lead_email == lead_email)
 
     if automation_id:
         conditions.append(ProcessedReply.automation_id == automation_id)
@@ -746,6 +750,13 @@ async def list_replies(
             ProcessedReply.category == None,
             ~ProcessedReply.category.in_(no_reply_categories),
         ))
+        # Exclude replies with empty/meaningless bodies
+        empty_bodies = ("(empty)", "(no content)", "no content", "empty", "")
+        conditions.append(
+            ~func.coalesce(func.trim(func.lower(
+                func.coalesce(ProcessedReply.email_body, ProcessedReply.reply_text)
+            )), '').in_(empty_bodies)
+        )
 
     # Snapshot conditions BEFORE adding category filter — used for global tab counts
     base_conditions = list(conditions)
@@ -865,6 +876,8 @@ async def list_replies(
         cat_conditions.append(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
         no_reply_cats = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
         cat_conditions.append(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))
+        empty_bodies_cat = ("(empty)", "(no content)", "no content", "empty", "")
+        cat_conditions.append(~func.coalesce(func.trim(func.lower(ProcessedReply.reply_text)), '').in_(empty_bodies_cat))
         # Apply project/campaign filter if present
         if project_id:
             from app.models.contact import Project
@@ -910,6 +923,53 @@ async def list_replies(
         page=page,
         page_size=page_size
     )
+
+
+@router.get("/counts")
+async def get_reply_counts(
+    project_id: Optional[int] = Query(None),
+    campaign_names: Optional[str] = Query(None),
+    session: AsyncSession = Depends(get_session)
+):
+    """Lightweight endpoint for polling: returns total + category counts only.
+    No reply data, no group_by_contact dedup, no joins.
+    """
+    base = []
+    base.append(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
+    no_reply_cats = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
+    base.append(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))
+    empty_bodies = ("(empty)", "(no content)", "no content", "empty", "")
+    base.append(~func.coalesce(func.trim(func.lower(
+        func.coalesce(ProcessedReply.email_body, ProcessedReply.reply_text)
+    )), '').in_(empty_bodies))
+
+    if project_id:
+        from app.models.contact import Project
+        proj_r = await session.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
+        proj = proj_r.scalar_one_or_none()
+        if proj and proj.campaign_filters:
+            pc = [c.lower() for c in proj.campaign_filters if isinstance(c, str)]
+            if pc:
+                base.append(func.lower(ProcessedReply.campaign_name).in_(pc))
+    elif campaign_names:
+        names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
+        if names:
+            base.append(func.lower(ProcessedReply.campaign_name).in_(names))
+
+    # Single query: total + category counts via COUNT with FILTER
+    total_q = select(func.count(func.distinct(ProcessedReply.lead_email))).where(*base)
+    total_r = await session.execute(total_q)
+    total = total_r.scalar() or 0
+
+    cat_q = (
+        select(ProcessedReply.category, func.count(func.distinct(ProcessedReply.lead_email)))
+        .where(*base)
+        .group_by(ProcessedReply.category)
+    )
+    cat_r = await session.execute(cat_q)
+    category_counts = {row[0] or "other": row[1] for row in cat_r.all()}
+
+    return {"total": total, "category_counts": category_counts}
 
 
 @router.get("/contact-campaigns/{lead_email}", response_model=ContactCampaignsResponse)
@@ -1693,7 +1753,24 @@ async def get_reply_full_history(
             if ts and (not campaign_map[key]["earliest_at"] or ts < campaign_map[key]["earliest_at"]):
                 campaign_map[key]["earliest_at"] = ts
 
-    campaigns_sorted = sorted(campaign_map.values(), key=lambda c: c.get("latest_at", ""), reverse=True)
+    # Pin the reply's own campaign first, then sort rest by recency
+    reply_campaign_key = f"{reply.channel or 'email'}::{reply.campaign_name or ''}"
+    campaigns_sorted = sorted(
+        campaign_map.values(),
+        key=lambda c: (
+            0 if f"{c['channel']}::{c['campaign_name']}" == reply_campaign_key else 1,
+            c.get("latest_at", ""),
+        ),
+        reverse=False,
+    )
+    # Re-sort: first item is reply's campaign (sort key 0), rest by latest_at DESC
+    own = [c for c in campaigns_sorted if f"{c['channel']}::{c['campaign_name']}" == reply_campaign_key]
+    rest = sorted(
+        [c for c in campaigns_sorted if f"{c['channel']}::{c['campaign_name']}" != reply_campaign_key],
+        key=lambda c: c.get("latest_at", ""),
+        reverse=True,
+    )
+    campaigns_sorted = own + rest
 
     # 3. Fetch thread ONLY for the default (most recent) campaign's reply
     default_reply = reply
@@ -3878,13 +3955,6 @@ async def sync_outbound_status(
                     "last_msg_type": msg_type,
                     "messages_total": len(history),
                 })
-                if not dry_run:
-                    group_key = (r.campaign_id, email_lower)
-                    for gr in reply_groups.get(group_key, []):
-                        if gr.approval_status in (None, "pending"):
-                            gr.approval_status = "replied_externally"
-                            gr.approved_at = datetime.utcnow()
-                            db.add(gr)
             else:
                 if auto_dismiss:
                     reply_text = last_msg.get("email_body", "") or ""

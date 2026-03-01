@@ -64,11 +64,10 @@ function timeAgo(dateStr: string): string {
 /* ---------- Campaign name display ---------- */
 function displayCampaignName(name: string | null | undefined): string {
   if (!name) return 'Unknown';
-  let clean = name
+  const clean = name
     .replace(/\s+[0-9a-f]{6,}$/i, '')
     .replace(/\s+\S+@\S+\.\S+$/i, '')
     .trim();
-  if (clean.length > 30) clean = clean.slice(0, 27) + '...';
   return clean || name;
 }
 
@@ -112,6 +111,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
 
   const [search, setSearch] = useState(initialSearch || '');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(initialSearch ? null : 'meeting_request');
+  // When opened via Telegram link (?lead=...), use server-side lead_email filter
+  // and skip needs_reply/category/group_by_contact so the reply is always visible
+  const isDeepLink = Boolean(initialSearch);
 
   const [editingDrafts, setEditingDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
   const [sendingIds, setSendingIds] = useState<Set<number>>(new Set());
@@ -150,8 +152,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       const response = await repliesApi.getReplies({
         project_id: currentProject?.id,
         campaign_names: campaignNames,
-        needs_reply: true,
-        category: (categoryFilter as ReplyCategory) || undefined,
+        needs_reply: isDeepLink ? undefined : true,
+        lead_email: isDeepLink ? initialSearch : undefined,
+        category: isDeepLink ? undefined : ((categoryFilter as ReplyCategory) || undefined),
         group_by_contact: true,
         page: pg,
         page_size: PAGE_SIZE,
@@ -175,19 +178,15 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
 
   useEffect(() => { loadReplies(true); }, [loadReplies]);
 
-  /* ---- Auto-refresh: poll for new replies every 30s ---- */
+  /* ---- Auto-refresh: lightweight count poll every 30s (disabled for deep links) ---- */
   const [newCount, setNewCount] = useState(0);
   useEffect(() => {
+    if (isDeepLink) return;
     const interval = setInterval(async () => {
       try {
-        const resp = await repliesApi.getReplies({
+        const resp = await repliesApi.getReplyCounts({
           project_id: currentProject?.id,
           campaign_names: campaignNames,
-          needs_reply: true,
-          category: (categoryFilter as ReplyCategory) || undefined,
-          group_by_contact: true,
-          page: 1,
-          page_size: 1,
         });
         const serverTotal = resp.total || 0;
         setCategoryCounts(resp.category_counts || {});
@@ -199,7 +198,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       } catch { /* silent */ }
     }, 30_000);
     return () => clearInterval(interval);
-  }, [currentProject, categoryFilter, campaignNames, total]);
+  }, [currentProject, campaignNames, total, isDeepLink]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -219,13 +218,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
 
   /* ---- Actions ---- */
   const refreshCounts = () => {
-    repliesApi.getReplies({
+    if (isDeepLink) return;
+    repliesApi.getReplyCounts({
       project_id: currentProject?.id,
-      needs_reply: true,
-      category: (categoryFilter as ReplyCategory) || undefined,
-      group_by_contact: true,
-      page: 1,
-      page_size: 0,
+      campaign_names: campaignNames,
     }).then(response => {
       setCategoryCounts(response.category_counts || {});
       setTotal(response.total || 0);
@@ -352,19 +348,16 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     try {
       const data = await repliesApi.getFullHistory(reply.id);
       setHistoryData(prev => ({ ...prev, [reply.id]: data }));
-      if (data.campaigns.length > 0) {
-        const mostRecent = data.campaigns[0];
+      {
+        const replyChannel = reply.channel || (reply.source === 'getsales' ? 'linkedin' : 'email');
+        const replyCampaign = reply.campaign_name || 'Unknown';
         setSelectedHistoryCampaign(prev => ({
           ...prev,
-          [reply.id]: `${mostRecent.channel}::${mostRecent.campaign_name}`,
+          [reply.id]: `${replyChannel}::${replyCampaign}`,
         }));
       }
       if (data.contact_info !== undefined) {
         setContactInfoMap(prev => ({ ...prev, [reply.id]: data.contact_info || null }));
-      }
-      if (data.approval_status === 'replied_externally') {
-        toast.success('Operator already replied — removed from queue', { style: toastOk });
-        optimisticRemoveReply(reply);
       }
     } catch {
       setExpandedThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
@@ -600,13 +593,11 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                         </div>
 
                         {(reply.sender_name || reply.campaign_name) && (
-                          <div className="px-4 text-[11px] pb-1 truncate" style={{ color: t.text6 }}>
+                          <div className="px-4 text-[11px] pb-1" style={{ color: t.text6 }}>
                             {reply.campaign_name && displayCampaignName(reply.campaign_name)}
                             {reply.sender_name && reply.campaign_name && ' · '}
                             {reply.sender_name && (
-                              <span style={{ color: t.text5 }}>
-                                {reply.channel === 'email' ? reply.sender_name : `via ${reply.sender_name}`}
-                              </span>
+                              <span style={{ color: t.text5 }}>via {reply.sender_name}</span>
                             )}
                           </div>
                         )}
@@ -653,8 +644,17 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                                 selectedCampaign={selectedHistoryCampaign[reply.id] ?? null}
                                 onSelect={(c) => {
                                   setSelectedHistoryCampaign(prev => ({ ...prev, [reply.id]: c }));
-                                  if (c) {
-                                    const campName = c.split('::').slice(1).join('::');
+                                  const campName = c ? c.split('::').slice(1).join('::') : null;
+                                  const isDefault = campName === reply.campaign_name;
+                                  if (isDefault) {
+                                    setEditingDrafts(prev => { const n = { ...prev }; delete n[reply.id]; return n; });
+                                  } else if (campName) {
+                                    setEditingDrafts(prev => ({
+                                      ...prev,
+                                      [reply.id]: { reply: '', subject: reply.draft_subject || '' },
+                                    }));
+                                  }
+                                  if (c && campName) {
                                     const alreadyLoaded = history.activities.some(a => a.campaign === campName);
                                     if (!alreadyLoaded) {
                                       setLoadingThreads(prev => new Set(prev).add(reply.id));
@@ -999,28 +999,35 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                             </div>
                           )}
 
-                          {(contactInfo?.company_name || contactInfo?.domain) && (
-                            <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
-                              <Building2 className="w-3 h-3 flex-shrink-0" />
-                              <span>
-                                {contactInfo.company_name}
-                                {contactInfo.domain && (
-                                  <>
-                                    {contactInfo.company_name ? ' · ' : ''}
-                                    <a
-                                      href={`https://${contactInfo.domain}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="hover:underline"
-                                      style={{ color: t.text3 }}
-                                    >
-                                      {contactInfo.domain}
-                                    </a>
-                                  </>
-                                )}
-                              </span>
-                            </div>
-                          )}
+                          {(() => {
+                            const companyName = contactInfo?.company_name || reply.lead_company || null;
+                            const domain = contactInfo?.domain || (reply.lead_email?.split('@')[1] || null);
+                            const isGenericDomain = domain && /^(gmail|yahoo|hotmail|outlook|mail|icloud|aol|proton|yandex|live)\./i.test(domain);
+                            const showDomain = domain && !isGenericDomain;
+                            if (!companyName && !showDomain) return null;
+                            return (
+                              <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
+                                <Building2 className="w-3 h-3 flex-shrink-0" />
+                                <span>
+                                  {companyName}
+                                  {showDomain && (
+                                    <>
+                                      {companyName ? ' · ' : ''}
+                                      <a
+                                        href={`https://${domain}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hover:underline"
+                                        style={{ color: t.text3 }}
+                                      >
+                                        {domain}
+                                      </a>
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                            );
+                          })()}
 
                           {contactInfo?.location && (
                             <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
