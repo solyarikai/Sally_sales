@@ -1,3 +1,4 @@
+import React from 'react';
 import { Brain, Sparkles } from 'lucide-react';
 import type { ICPEntry } from '../../api/learning';
 import type { ThemeTokens } from '../../lib/themeColors';
@@ -12,7 +13,7 @@ function formatKey(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function renderValue(value: any, t: ThemeTokens, isDark: boolean): JSX.Element {
+function renderValue(value: any, t: ThemeTokens, isDark: boolean): React.ReactElement {
   if (Array.isArray(value)) {
     return (
       <div className="flex flex-wrap gap-1.5 mt-1.5">

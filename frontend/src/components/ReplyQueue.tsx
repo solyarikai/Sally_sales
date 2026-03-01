@@ -168,10 +168,6 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       setTotal(response.total || 0);
       setCategoryCounts(response.category_counts || {});
       setHasMore(newReplies.length >= PAGE_SIZE);
-      if (reset) {
-        const allTotal = Object.values(response.category_counts || {}).reduce((s: number, v: number) => s + v, 0);
-        allTotalRef.current = allTotal || (response.total || 0);
-      }
     } catch (err) {
       console.error('Failed to load replies:', err);
     } finally {
@@ -204,25 +200,32 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
 
   /* ---- Auto-refresh: lightweight count poll every 30s (disabled for deep links) ---- */
   const [newCount, setNewCount] = useState(0);
-  const allTotalRef = useRef(0);
+  const allTotalRef = useRef(-1); // -1 = not yet initialized
   useEffect(() => {
     if (isDeepLink) return;
-    const interval = setInterval(async () => {
+    let cancelled = false;
+
+    const fetchCounts = async () => {
       try {
         const resp = await repliesApi.getReplyCounts({
           project_id: currentProject?.id,
           campaign_names: campaignNames,
         });
+        if (cancelled) return;
         const serverTotal = resp.total || 0;
         setCategoryCounts(resp.category_counts || {});
-        const prevAll = allTotalRef.current;
+        const prev = allTotalRef.current;
         allTotalRef.current = serverTotal;
-        if (prevAll > 0 && serverTotal > prevAll) {
-          setNewCount(serverTotal - prevAll);
+        if (prev >= 0 && serverTotal > prev) {
+          setNewCount(serverTotal - prev);
         }
       } catch { /* silent */ }
-    }, 30_000);
-    return () => clearInterval(interval);
+    };
+
+    // Immediately establish baseline from /counts (same endpoint used for polling)
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [currentProject, campaignNames, isDeepLink]);
 
   useEffect(() => {
@@ -250,6 +253,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     }).then(response => {
       setCategoryCounts(response.category_counts || {});
       setTotal(response.total || 0);
+      allTotalRef.current = response.total || 0;
     }).catch(() => {});
   };
 
@@ -502,7 +506,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         <div
           className="mx-4 mt-1 mb-0 flex items-center justify-between px-3 py-1.5 rounded-md cursor-pointer text-[12px] font-medium"
           style={{ background: isDark ? '#1a3a2a' : '#dcfce7', color: isDark ? '#4ade80' : '#166534', border: `1px solid ${isDark ? '#22543d' : '#bbf7d0'}` }}
-          onClick={() => { setNewCount(0); loadReplies(true); }}
+          onClick={() => { setNewCount(0); allTotalRef.current = -1; loadReplies(true); }}
         >
           <span>{newCount} new {newCount === 1 ? 'reply' : 'replies'} — click to load</span>
           <RefreshCw className="w-3 h-3" />

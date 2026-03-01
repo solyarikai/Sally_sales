@@ -441,35 +441,85 @@ Built-in API endpoints for testing the pipeline without needing external scripts
 | `GET` | `/api/replies/test-flow/campaigns` | List campaigns matching "test" in name |
 | `GET` | `/api/replies/test-flow/check-setup/{campaign_id}` | Check if a `ReplyAutomation` exists for a campaign |
 
-### E2E Test Walkthrough
+### Real End-to-End Test Flow (pn@getsally.io)
 
-1. **Create campaigns** (one-time):
-   ```bash
-   cd backend && python3 create_real_campaigns.py
-   ```
-   Note the campaign IDs and Smartlead dashboard links from the output.
+Test the full pipeline — from outbound email to inbox reply to UI send — using a real SmartLead campaign. No test placeholders; the email received is identical to what any real lead would see.
 
-2. **Update seed script** with new campaign IDs and `lead_map_id` values:
-   - Look up `lead_map_id` via: `GET /campaigns/{id}/leads?api_key=<key>`
-   - Edit `TEST_CAMPAIGNS` in `seed_test_replies.py`
+**Quick setup via SmartLead API** (all steps in one go):
 
-3. **Seed test replies**:
+```bash
+API_KEY="<smartlead_api_key>"
+
+# 1. Create campaign
+CAMP=$(curl -s -X POST "https://server.smartlead.ai/api/v1/campaigns/create?api_key=${API_KEY}" \
+  -H "Content-Type: application/json" -d '{"name": "PN Reply Flow Check 2"}')
+CAMP_ID=$(echo $CAMP | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+# 2. Attach email account (use any available sender, e.g. danila@maincard-global.com = 15616570)
+curl -s -X POST "https://server.smartlead.ai/api/v1/campaigns/${CAMP_ID}/email-accounts?api_key=${API_KEY}" \
+  -H "Content-Type: application/json" -d '{"email_account_ids": [15616570]}'
+
+# 3. Add outbound sequence (realistic content, no test markers)
+curl -s -X POST "https://server.smartlead.ai/api/v1/campaigns/${CAMP_ID}/sequences?api_key=${API_KEY}" \
+  -H "Content-Type: application/json" -d '{
+  "sequences": [{"seq_number": 1, "seq_delay_details": {"delay_in_days": 0},
+    "subject": "Quick follow-up on our partnership proposal",
+    "email_body": "<p>Hi {{first_name}},</p><p>I wanted to follow up on the partnership opportunity. Would you have 15 minutes this week for a quick call?</p><p>Best regards,<br>Danila Sokolov</p>"}]}'
+
+# 4. Add lead
+curl -s -X POST "https://server.smartlead.ai/api/v1/campaigns/${CAMP_ID}/leads?api_key=${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"lead_list": [{"email": "pn@getsally.io", "first_name": "Petr", "last_name": "Nikolaev", "company_name": "GetSally"}]}'
+
+# 5. Set schedule — use a timezone where it's currently daytime to force immediate send
+#    IMPORTANT: SmartLead won't send if the "day" is almost over in the campaign's timezone.
+#    Pick a TZ where it's mid-day (e.g. America/Los_Angeles if UTC is evening, Asia/Tokyo if UTC is morning).
+curl -s -X POST "https://server.smartlead.ai/api/v1/campaigns/${CAMP_ID}/schedule?api_key=${API_KEY}" \
+  -H "Content-Type: application/json" -d '{
+  "timezone": "America/Los_Angeles",
+  "days_of_the_week": [0,1,2,3,4,5,6],
+  "start_hour": "08:00", "end_hour": "23:59",
+  "min_time_btw_emails": 3, "max_new_leads_per_day": 50}'
+
+# 6. Start campaign
+curl -s -X POST "https://server.smartlead.ai/api/v1/campaigns/${CAMP_ID}/status?api_key=${API_KEY}" \
+  -H "Content-Type: application/json" -d '{"status": "START"}'
+```
+
+**Database setup** (run after campaign creation):
+
+```sql
+-- Add campaign name to TEST_LORD_TEST project filters
+UPDATE projects SET campaign_filters = campaign_filters || '["PN Reply Flow Check 2"]'::jsonb WHERE id = 43;
+
+-- Create ReplyAutomation so webhook/polling processes replies
+INSERT INTO reply_automations (name, campaign_ids, is_active, auto_classify, auto_generate_reply, active, created_at, updated_at)
+VALUES ('PN Reply Flow Check 2', '["<CAMP_ID>"]', true, true, true, true, NOW(), NOW());
+```
+
+**Test walkthrough:**
+
+1. Wait for SmartLead to send the outbound email to `pn@getsally.io` (check SmartLead dashboard — should send within minutes if timezone is set correctly)
+2. Reply to the email from your inbox (any content — question, interest, OOO, etc.)
+3. Webhook fires → reply is classified + draft generated → appears in Replies UI
+4. Open production UI: `http://46.62.210.24/tasks/replies?project=test_lord_test`
+5. Find the reply, edit draft if needed, click **Send**
+6. Check `pn@getsally.io` inbox — the email should be clean HTML with just the draft text, no `[TEST]` prefix
+
+**Key detail**: On production (`46.62.210.24`), `test_mode` is never set. The `approve-and-send` endpoint sends `_text_to_html(draft_reply)` directly to the lead. The `[TEST — original recipient: ...]` prefix only appears when `test_mode=true` (auto-enabled on `localhost` only).
+
+### Legacy E2E Test Walkthrough (seeded data)
+
+For quick local testing without waiting for SmartLead sends:
+
+1. **Seed test replies**:
    ```bash
    cd backend && python seed_test_replies.py
    ```
 
-4. **Verify in UI**: Open `http://localhost:5179/replies`, select TEST_LORD_TEST project. Should see 6 test replies with various categories.
+2. **Verify in UI**: Open `http://localhost:5179/replies`, select TEST_LORD_TEST project.
 
-5. **Test inbox link**: Click the inbox icon on any reply → should open Smartlead master inbox for that lead.
-
-6. **Test send flow**: Click "Send" on a reply → `test_mode=true` (auto on localhost) redirects to `pn@getsally.io` → check inbox for the received test email.
-
-7. **Verify via API**:
-   ```bash
-   # Check reply status after send
-   curl -s http://localhost:8001/api/replies/?project_id=43 \
-     -H "X-Company-ID: 1" | python3 -m json.tool | head -20
-   ```
+3. **Test send flow**: On localhost, `test_mode=true` auto-activates → email redirects to `pn@getsally.io` with `[TEST]` prefix.
 
 ---
 

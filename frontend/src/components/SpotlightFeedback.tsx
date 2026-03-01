@@ -15,7 +15,7 @@ export function SpotlightFeedback({ open, onClose }: Props) {
   const { currentProject } = useAppStore();
   const { isDark } = useTheme();
   const t = themeColors(isDark);
-  const { toast } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -32,10 +32,10 @@ export function SpotlightFeedback({ open, onClose }: Props) {
     setSubmitting(true);
     try {
       await submitFeedback(currentProject.id, text.trim());
-      toast('Feedback submitted — learning in progress', 'success');
+      toastSuccess('Feedback submitted — learning in progress');
       onClose();
     } catch (e) {
-      toast('Failed to submit feedback', 'error');
+      toastError('Failed to submit feedback');
     } finally {
       setSubmitting(false);
     }

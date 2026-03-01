@@ -15,11 +15,11 @@ interface Props {
 export function TemplatesPanel({ projectId, isDark, t, onLearningComplete }: Props) {
   const [data, setData] = useState<TemplatesResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [learningLogId, setLearningLogId] = useState<number | null>(null);
+  const [_learningLogId, setLearningLogId] = useState<number | null>(null);
   const [learningStatus, setLearningStatus] = useState<AnalyzeStatusResponse | null>(null);
   const [maxConvos, setMaxConvos] = useState(100);
   const pollRef = useRef<number | null>(null);
-  const { toast } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   useEffect(() => {
     loadTemplates();
@@ -45,7 +45,7 @@ export function TemplatesPanel({ projectId, isDark, t, onLearningComplete }: Pro
       setLearningStatus({ id: result.learning_log_id, status: 'processing', change_summary: null, conversations_analyzed: null, error_message: null });
       startPolling(result.learning_log_id);
     } catch (e) {
-      toast('Failed to start learning', 'error');
+      toastError('Failed to start learning');
     }
   }
 
@@ -59,11 +59,11 @@ export function TemplatesPanel({ projectId, isDark, t, onLearningComplete }: Pro
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
           if (status.status === 'completed') {
-            toast('Learning cycle completed', 'success');
+            toastSuccess('Learning cycle completed');
             loadTemplates();
             onLearningComplete?.();
           } else if (status.status === 'failed') {
-            toast(status.error_message || 'Learning failed', 'error');
+            toastError(status.error_message || 'Learning failed');
           }
         }
       } catch {

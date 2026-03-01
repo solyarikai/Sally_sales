@@ -877,7 +877,9 @@ async def list_replies(
         no_reply_cats = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
         cat_conditions.append(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))
         empty_bodies_cat = ("(empty)", "(no content)", "no content", "empty", "")
-        cat_conditions.append(~func.coalesce(func.trim(func.lower(ProcessedReply.reply_text)), '').in_(empty_bodies_cat))
+        cat_conditions.append(~func.coalesce(func.trim(func.lower(
+            func.coalesce(ProcessedReply.email_body, ProcessedReply.reply_text)
+        )), '').in_(empty_bodies_cat))
         # Apply project/campaign filter if present
         if project_id:
             from app.models.contact import Project
@@ -892,7 +894,7 @@ async def list_replies(
             if names:
                 cat_conditions.append(func.lower(ProcessedReply.campaign_name).in_(names))
         cat_q = (
-            select(ProcessedReply.category, func.count(ProcessedReply.id))
+            select(ProcessedReply.category, func.count(func.distinct(ProcessedReply.lead_email)))
             .where(*cat_conditions)
             .group_by(ProcessedReply.category)
         )
