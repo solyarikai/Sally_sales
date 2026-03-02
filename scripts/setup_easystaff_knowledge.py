@@ -76,12 +76,55 @@ REPLY RULES (based on real operator patterns — follow these strictly):
    - Offer comparison or savings calculation
    - "Можем рассчитать экономию на вашем примере"
 
-7. NEVER:
+7. FOR "not_interested" leads (OBJECTION HANDLING):
+   a) Flat rejection ("не актуально", "не интересует", "нет"):
+      - Keep it SHORT (2-3 sentences max)
+      - Thank them for the response
+      - Leave the door open: "Если в будущем появится интерес — буду рад помочь"
+      - Do NOT pitch or list advantages — they said no
+   b) Small volume ("маленькие объемы", "всего 2 человека"):
+      - Acknowledge their situation empathetically
+      - Mention that EasyStaff works with any volume, even 1-2 contractors
+      - Highlight the fixed $39/task option for small volumes
+      - "Можем начать с малого, без минимального объёма"
+   c) Already using another solution ("используем другое", "уже клиент"):
+      - Thank them and don't push
+      - Briefly offer a savings comparison if appropriate
+      - "Если захотите сравнить условия — всегда открыты"
+   d) Rude/aggressive ("отстань", "перестань писать"):
+      - Short, professional, graceful exit
+      - "Приношу извинения за беспокойство. Удалю ваш контакт из рассылки."
+      - Do NOT engage further or argue
+
+8. FOR "question" leads:
+   a) Pricing questions ("цены", "тарифы", "условия"):
+      - Give specific numbers: 3-5% or $39/task fixed
+      - Mention 0% conversion fee
+      - Offer to send detailed presentation or schedule a call
+   b) Legal/compliance questions ("юрлицо", "документы", "резидент"):
+      - EasyStaff is a legal entity providing full closing documents
+      - One contract covers all contractors
+      - Invoicing and reporting handled by EasyStaff
+   c) Capability questions ("работаете с...", "можете..."):
+      - Answer directly based on EasyStaff capabilities
+      - 180+ countries, CIS focus, bank/crypto/local payments
+      - If unclear, suggest a call for detailed discussion
+   d) Request for presentation with pricing:
+      - "Прикрепил презентацию с тарифами."
+      - Briefly list key highlights relevant to their question
+
+9. FOR "wrong_person" leads (referrals):
+   - Thank them for letting you know
+   - Ask politely for the right contact: "Не подскажете, кто в вашей компании отвечает за расчёты с подрядчиками?"
+   - Keep it one sentence, don't over-explain
+
+10. NEVER:
    - Use placeholder brackets like [Your Name], [Ваше имя]
    - Promise to send a presentation without being asked (let the operator handle attachments)
    - Invent details about the lead's company not present in the data
    - Sign as "CFO" or use the lead's info in the signature
    - Respond in English unless the lead wrote in English
+   - Send long pitches to people who said "no" — respect their decision
 
 Respond with ONLY a JSON object:
 {{"subject": "Re: {subject}", "body": "<reply text>", "tone": "<professional|friendly|formal>"}}"""
@@ -112,7 +155,7 @@ KNOWLEDGE_ENTRIES = [
     ("gtm", "campaign_naming", "EasyStaff - Russian DM [geo/segment], EasyStaff - HQ in Russia, EasyStaff RU - [sender name]"),
     ("gtm", "pricing", "Percentage: 3-5% depending on monthly volume. Fixed: $39/task. No conversion fees. Free withdrawal for freelancers."),
     ("gtm", "competitors", "Deel, Payoneer, Mellow (subsidiary for specific cases), local banks"),
-    ("gtm", "objection_handling", "Already have solution → offer savings comparison. Too expensive → explain transparent pricing vs hidden fees. Not relevant → suggest presentation for future reference."),
+    ("gtm", "objection_handling", "Already have solution → offer savings comparison. Too expensive → explain transparent pricing vs hidden fees. Not relevant → suggest presentation for future reference. Small volumes → $39/task fixed, no minimum. Rude rejection → apologize and unsubscribe gracefully. Wrong person → ask for referral to finance/payments team."),
 
     # Notes
     ("notes", "operator_reply_style", "Short, professional, friendly. Always in Russian. Attaches presentation when asked. Mentions key advantages for engaged leads. Signs off as 'Danila Sokolov, Partner @ easystaff.io'. Follow-up after 3-5 days."),
