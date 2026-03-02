@@ -28,6 +28,9 @@ google-auth>=2.27.0
 google-auth-httplib2>=0.2.0
 google-auth-oauthlib>=1.0.0
 
+# Google Gemini AI
+google-genai>=1.0.0
+
 # Validation
 pydantic>=2.5.3
 pydantic-settings>=2.1.0
