@@ -654,7 +654,7 @@ async def generate_draft_reply(
                     system_prompt="You are an AI assistant generating email reply drafts. Respond with ONLY a valid JSON object, no extra text.",
                     user_prompt=prompt,
                     temperature=0.4,
-                    max_tokens=2000,
+                    max_tokens=8000,  # Gemini 2.5 Pro uses thinking tokens, needs headroom
                     model=draft_model,
                 )
                 content = result_raw["content"]
