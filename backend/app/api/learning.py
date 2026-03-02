@@ -370,7 +370,7 @@ async def submit_feedback(
         async with async_session_maker() as session:
             try:
                 await learning_service.process_feedback(
-                    session, project_id, body.feedback_text
+                    session, project_id, body.feedback_text, log_id=log_id
                 )
                 await session.commit()
             except Exception as e:

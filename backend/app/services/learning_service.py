@@ -155,16 +155,33 @@ class LearningService:
         session: AsyncSession,
         project_id: int,
         feedback_text: str,
+        log_id: int | None = None,
     ) -> LearningLog:
         """Process operator feedback via Cmd+K and update template/ICP."""
-        log = LearningLog(
-            project_id=project_id,
-            trigger="feedback",
-            feedback_text=feedback_text,
-            status="processing",
-        )
-        session.add(log)
-        await session.flush()
+        if log_id:
+            # Reuse existing log created by the endpoint
+            result = await session.execute(
+                select(LearningLog).where(LearningLog.id == log_id)
+            )
+            log = result.scalar_one_or_none()
+            if not log:
+                log = LearningLog(
+                    project_id=project_id,
+                    trigger="feedback",
+                    feedback_text=feedback_text,
+                    status="processing",
+                )
+                session.add(log)
+                await session.flush()
+        else:
+            log = LearningLog(
+                project_id=project_id,
+                trigger="feedback",
+                feedback_text=feedback_text,
+                status="processing",
+            )
+            session.add(log)
+            await session.flush()
 
         try:
             proj_result = await session.execute(
