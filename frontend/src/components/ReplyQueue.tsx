@@ -152,6 +152,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const [justUpdatedIds, setJustUpdatedIds] = useState<Set<number>>(new Set());
   const regenQueueRef = useRef<number[]>([]);
   const activeRegensRef = useRef(0);
+  const everQueuedRef = useRef(new Set<number>());
+  const lastKnowledgeTsRef = useRef<string | null>(null);
   const MAX_CONCURRENT_REGENS = 2;
   const visibilityObserverRef = useRef<IntersectionObserver | null>(null);
 
@@ -287,16 +289,22 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
 
   useEffect(() => {
     if (!knowledgeUpdatedAt) return;
+    // Reset tracking when knowledge timestamp changes (new feedback applied)
+    if (lastKnowledgeTsRef.current !== knowledgeUpdatedAt) {
+      everQueuedRef.current.clear();
+      lastKnowledgeTsRef.current = knowledgeUpdatedAt;
+    }
     const staleVisible = [...visibleReplyIds].filter(id => {
+      if (everQueuedRef.current.has(id)) return false; // Already queued/processed — sync ref, no race
       const reply = replies.find(r => r.id === id);
       if (!reply) return false;
-      if (regeneratingIds.has(id) || autoRegeneratingIds.has(id)) return false;
+      if (regeneratingIds.has(id)) return false;
       if (id in editingDrafts) return false;
       if (reply.approval_status === 'approved' || reply.approval_status === 'dismissed') return false;
-      if (regenQueueRef.current.includes(id)) return false;
       return isReplyStale(reply, knowledgeUpdatedAt);
     });
     if (staleVisible.length === 0) return;
+    staleVisible.forEach(id => everQueuedRef.current.add(id));
     regenQueueRef.current.push(...staleVisible);
     processRegenQueue();
   }, [visibleReplyIds, knowledgeUpdatedAt, replies]); // eslint-disable-line react-hooks/exhaustive-deps
