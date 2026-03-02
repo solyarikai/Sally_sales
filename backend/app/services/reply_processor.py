@@ -36,18 +36,20 @@ def _format_knowledge_context(knowledge_entries) -> str:
         parts.append("\n".join(regular))
     if files:
         parts.append(
-            "\n\n=== IMPORTANT: DOCUMENT SHARING RULES ===\n"
-            "Available documents:\n"
+            "\n\n=== IMPORTANT: FILE ATTACHMENT RULES ===\n"
+            "Project files available to send:\n"
             + "\n".join(files)
             + "\n\nRULES (follow strictly):\n"
             "1. If the prospect asks for a presentation, materials, pricing, "
-            "conditions, documents, or any info — you MUST include the relevant "
-            "document link from the list above directly in your reply text.\n"
-            "2. Format the link naturally in the reply, e.g.: "
-            "\"Вот наша презентация: <URL>\" or \"Here's our presentation: <URL>\".\n"
-            "3. If the prospect did NOT ask for any documents or materials, "
-            "do NOT include any document links.\n"
-            "=== END DOCUMENT RULES ==="
+            "conditions, documents, or any info — ATTACH the relevant file. "
+            "Write as if you are sending/attaching the file (e.g. "
+            "\"Прикрепляю презентацию\", \"Sending you the presentation\", "
+            "\"Вот наша презентация\") and include the URL so they can access it.\n"
+            "2. These are real files (PDFs, documents), not just links. "
+            "Refer to them as files/documents, not as links.\n"
+            "3. If the prospect did NOT ask for any files or materials, "
+            "do NOT mention or attach any files.\n"
+            "=== END FILE RULES ==="
         )
     return "\n".join(parts)
 
