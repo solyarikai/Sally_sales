@@ -125,6 +125,41 @@ def _strip_placeholder_brackets(text: str) -> str:
     return cleaned.strip()
 
 
+async def detect_and_translate(text: str) -> dict:
+    """Detect language and translate to English if not en/ru.
+
+    Returns {"language": "xx", "translation": "..." or None}.
+    Uses a single GPT-4o-mini call for both detection and translation.
+    """
+    if not text or len(text.strip()) < 10:
+        return {"language": None, "translation": None}
+    try:
+        prompt = (
+            "Analyze this text. Return JSON: {\"language\": \"<ISO 639-1 code>\", \"translation\": <English translation string or null>}\n"
+            "Rules:\n"
+            "- If language is English (en) or Russian (ru), set translation to null\n"
+            "- Otherwise, provide an accurate English translation preserving formatting\n"
+            "- Keep line breaks, bullet points, and structure intact\n\n"
+            f"Text:\n{text[:3000]}"
+        )
+        response = await openai_service.complete(
+            prompt=prompt,
+            model="gpt-4o-mini",
+            temperature=0.1,
+            max_tokens=2000,
+            response_format={"type": "json_object"},
+        )
+        import json
+        parsed = json.loads(response)
+        return {
+            "language": parsed.get("language"),
+            "translation": parsed.get("translation"),
+        }
+    except Exception as e:
+        logger.warning(f"[TRANSLATE] Language detection failed (non-fatal): {e}")
+        return {"language": None, "translation": None}
+
+
 # Classification prompt template
 CLASSIFICATION_PROMPT = """Classify the following email reply into one of these categories:
 
@@ -881,6 +916,16 @@ async def process_reply_webhook(
             sender_company=proj_sender_company,
         )
         
+        # Detect language & translate if needed (non-blocking)
+        lang_info = await detect_and_translate(body)
+        detected_lang = lang_info.get("language")
+        translated_body = lang_info.get("translation")
+        translated_draft = None
+        if detected_lang and detected_lang not in ("en", "ru") and draft.get("body"):
+            draft_lang = await detect_and_translate(draft["body"])
+            if draft_lang.get("translation"):
+                translated_draft = draft_lang["translation"]
+
         # Determine received_at: use actual reply timestamp from source platform
         received_at = _parse_source_timestamp(payload) or datetime.utcnow()
 
@@ -933,6 +978,9 @@ async def process_reply_webhook(
             existing_pr.draft_subject = draft["subject"]
             existing_pr.draft_generated_at = datetime.utcnow()
             existing_pr.approval_status = None  # Re-surface for operator
+            existing_pr.detected_language = detected_lang
+            existing_pr.translated_body = translated_body
+            existing_pr.translated_draft = translated_draft
             new_raw = dict(payload) if isinstance(payload, dict) else {}
             new_raw["_previous_versions"] = versions
             existing_pr.raw_webhook_data = new_raw
@@ -975,6 +1023,9 @@ async def process_reply_webhook(
                 draft_reply=draft["body"],
                 draft_subject=draft["subject"],
                 draft_generated_at=datetime.utcnow(),
+                detected_language=detected_lang,
+                translated_body=translated_body,
+                translated_draft=translated_draft,
                 inbox_link=inbox_link,  # Smartlead master inbox link
                 raw_webhook_data=payload,
                 smartlead_lead_id=payload.get("sl_email_lead_id") or None,
@@ -1495,6 +1546,16 @@ async def process_getsales_reply(
         from app.services.crm_sync_service import GetSalesClient
         inbox_link = GetSalesClient.build_inbox_url(lead_uuid, sender_profile_uuid)
 
+    # --- Detect language & translate ---
+    lang_info = await detect_and_translate(message_text)
+    detected_lang = lang_info.get("language")
+    translated_body = lang_info.get("translation")
+    translated_draft = None
+    if detected_lang and detected_lang not in ("en", "ru") and draft.get("body"):
+        draft_lang = await detect_and_translate(draft["body"])
+        if draft_lang.get("translation"):
+            translated_draft = draft_lang["translation"]
+
     # --- Create or update ProcessedReply ---
     if existing_pr:
         existing_pr.received_at = activity_at
@@ -1506,6 +1567,9 @@ async def process_getsales_reply(
         existing_pr.draft_reply = draft.get("body")
         existing_pr.draft_subject = draft.get("subject")
         existing_pr.draft_generated_at = datetime.utcnow()
+        existing_pr.detected_language = detected_lang
+        existing_pr.translated_body = translated_body
+        existing_pr.translated_draft = translated_draft
         existing_pr.approval_status = None  # Re-surface for operator
         existing_pr.raw_webhook_data = raw_data
         existing_pr.updated_at = datetime.utcnow()
@@ -1540,6 +1604,9 @@ async def process_getsales_reply(
             draft_reply=draft.get("body"),
             draft_subject=draft.get("subject"),
             draft_generated_at=datetime.utcnow(),
+            detected_language=detected_lang,
+            translated_body=translated_body,
+            translated_draft=translated_draft,
             raw_webhook_data=raw_data,
             inbox_link=inbox_link,
         )

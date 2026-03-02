@@ -184,6 +184,11 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     # Sender identity (computed from campaign_name for LinkedIn replies)
     sender_name: Optional[str] = None
 
+    # Translation
+    detected_language: Optional[str] = None
+    translated_body: Optional[str] = None
+    translated_draft: Optional[str] = None
+
     # Cohort tracking
     last_touched_at: Optional[datetime] = None
 

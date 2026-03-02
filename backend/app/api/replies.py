@@ -2432,6 +2432,14 @@ async def regenerate_draft(
     reply.draft_reply = draft.get("body", "")
     reply.draft_subject = draft.get("subject", reply.draft_subject)
     reply.draft_generated_at = datetime.utcnow()
+
+    # Re-translate if the reply is in a foreign language
+    if reply.detected_language and reply.detected_language not in ("en", "ru") and reply.draft_reply:
+        from app.services.reply_processor import detect_and_translate
+        draft_lang = await detect_and_translate(reply.draft_reply)
+        if draft_lang.get("translation"):
+            reply.translated_draft = draft_lang["translation"]
+
     db.add(reply)
     await db.commit()
     await db.refresh(reply)
@@ -2452,6 +2460,7 @@ async def regenerate_draft(
         "draft_reply": reply.draft_reply,
         "draft_subject": reply.draft_subject,
         "draft_generated_at": _utc_iso(reply.draft_generated_at),
+        "translated_draft": reply.translated_draft,
         "category": reply.category,
         "classification_reasoning": reply.classification_reasoning,
     }

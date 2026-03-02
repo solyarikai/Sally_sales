@@ -137,6 +137,11 @@ class ProcessedReply(Base, TimestampMixin):
     # Google Sheets tracking
     google_sheet_row = Column(Integer, nullable=True)  # Row number in the sheet for updates
     
+    # Translation — for messages not in English or Russian
+    detected_language = Column(String(10), nullable=True)  # ISO 639-1: en, ru, de, fr, etc.
+    translated_body = Column(Text, nullable=True)  # English translation of email_body/reply_text
+    translated_draft = Column(Text, nullable=True)  # English translation of draft_reply (if draft is not en/ru)
+
     # Full webhook payload for debugging
     raw_webhook_data = Column(JSON, nullable=True)
 

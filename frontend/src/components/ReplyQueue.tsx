@@ -6,7 +6,7 @@ import {
   Building2, ExternalLink,
   XCircle, Edit3, AlertTriangle,
   Clock, MessageCircle, ArrowRight, Brain, Command, Loader2,
-  Linkedin, Phone, MapPin, Tag, User, Copy, Mail, Download, FileText,
+  Linkedin, Phone, MapPin, Tag, User, Copy, Mail, Download, FileText, Languages,
 } from 'lucide-react';
 import {
   repliesApi,
@@ -141,6 +141,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const [historyData, setHistoryData] = useState<Record<number, FullHistoryResponse>>({});
   const [selectedHistoryCampaign, setSelectedHistoryCampaign] = useState<Record<number, string | null>>({});
   const [confirmSendId, setConfirmSendId] = useState<number | null>(null);
+  const [showTranslation, setShowTranslation] = useState<Set<number>>(new Set());
 
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [projectDocs, setProjectDocs] = useState<KnowledgeEntry[]>([]);
@@ -264,6 +265,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
             draft_reply: result.draft_reply,
             draft_subject: result.draft_subject,
             draft_generated_at: result.draft_generated_at,
+            translated_draft: result.translated_draft ?? r.translated_draft,
             category: result.category as ProcessedReply['category'],
             classification_reasoning: result.classification_reasoning,
           };
@@ -588,6 +590,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
           draft_reply: result.draft_reply,
           draft_subject: result.draft_subject,
           draft_generated_at: result.draft_generated_at,
+          translated_draft: result.translated_draft ?? r.translated_draft,
           category: result.category as ProcessedReply['category'],
           classification_reasoning: result.classification_reasoning,
         };
@@ -873,11 +876,31 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                         {reply.email_subject && (
                           <div className="text-[13px] mb-1" style={{ color: t.text2 }}>{reply.email_subject}</div>
                         )}
+                        {reply.translated_body && (
+                          <button
+                            className="flex items-center gap-1 text-[11px] mb-1 px-1.5 py-0.5 rounded"
+                            style={{
+                              background: showTranslation.has(reply.id) ? t.badgeBg : 'transparent',
+                              color: t.text4,
+                              border: `1px solid ${t.badgeBg}`,
+                            }}
+                            onClick={() => setShowTranslation(prev => {
+                              const next = new Set(prev);
+                              next.has(reply.id) ? next.delete(reply.id) : next.add(reply.id);
+                              return next;
+                            })}
+                          >
+                            <Languages className="w-3 h-3" />
+                            {showTranslation.has(reply.id) ? 'Show original' : `Translate (${reply.detected_language})`}
+                          </button>
+                        )}
                         <div
                           className="text-[13px] leading-relaxed whitespace-pre-wrap break-words"
                           style={{ color: t.text3 }}
                         >
-                          {stripHtml(reply.email_body || reply.reply_text || '') || '(empty)'}
+                          {showTranslation.has(reply.id) && reply.translated_body
+                            ? reply.translated_body
+                            : stripHtml(reply.email_body || reply.reply_text || '') || '(empty)'}
                         </div>
                       </div>
 
@@ -1072,12 +1095,25 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                             </button>
                           </div>
                         ) : (
-                          <div
-                            className="text-[13px] whitespace-pre-wrap leading-relaxed rounded p-2.5"
-                            style={{ background: t.draftBg, color: t.text2 }}
-                          >
-                            {draftText || '(no draft)'}
-                          </div>
+                          <>
+                            {showTranslation.has(reply.id) && reply.translated_draft && (
+                              <div
+                                className="text-[11px] mb-1 px-1 flex items-center gap-1"
+                                style={{ color: t.text4 }}
+                              >
+                                <Languages className="w-3 h-3" />
+                                English translation:
+                              </div>
+                            )}
+                            <div
+                              className="text-[13px] whitespace-pre-wrap leading-relaxed rounded p-2.5"
+                              style={{ background: t.draftBg, color: t.text2 }}
+                            >
+                              {showTranslation.has(reply.id) && reply.translated_draft
+                                ? reply.translated_draft
+                                : draftText || '(no draft)'}
+                            </div>
+                          </>
                         )}
                       </div>
 
