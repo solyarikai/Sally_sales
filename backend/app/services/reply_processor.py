@@ -17,16 +17,17 @@ logger = logging.getLogger(__name__)
 def _format_knowledge_context(knowledge_entries) -> str:
     """Format knowledge entries into a prompt-friendly context string.
 
-    Files are separated and presented as actionable resources so the AI
-    knows *when* and *how* to reference them depending on operator preferences
-    (set via Spotlight feedback — e.g. 'attach PDF' vs 'include shareable link').
+    Files are separated with a CRITICAL instruction block so the AI reliably
+    includes document links when the prospect requests materials.
+    Operators control the style via Spotlight feedback (e.g. 'attach PDF files'
+    or 'include shareable links in the reply body').
     """
     regular = []
     files = []
     for entry in knowledge_entries:
         if entry.category == "files":
             label = entry.title or entry.key
-            files.append(f"  - {label}: {entry.value}")
+            files.append(f"  {label}: {entry.value}")
         else:
             regular.append(f"- [{entry.category}] {entry.key}: {entry.value}")
 
@@ -35,12 +36,18 @@ def _format_knowledge_context(knowledge_entries) -> str:
         parts.append("\n".join(regular))
     if files:
         parts.append(
-            "\nAvailable documents to share with prospects:\n"
+            "\n\n=== IMPORTANT: DOCUMENT SHARING RULES ===\n"
+            "Available documents:\n"
             + "\n".join(files)
-            + "\n\nDocument rules: When the prospect asks for a presentation, "
-            "price list, or any materials, include the relevant document link "
-            "in your reply. Use the exact URL from above. If the prospect did "
-            "NOT ask for documents, do NOT include document links."
+            + "\n\nRULES (follow strictly):\n"
+            "1. If the prospect asks for a presentation, materials, pricing, "
+            "conditions, documents, or any info — you MUST include the relevant "
+            "document link from the list above directly in your reply text.\n"
+            "2. Format the link naturally in the reply, e.g.: "
+            "\"Вот наша презентация: <URL>\" or \"Here's our presentation: <URL>\".\n"
+            "3. If the prospect did NOT ask for any documents or materials, "
+            "do NOT include any document links.\n"
+            "=== END DOCUMENT RULES ==="
         )
     return "\n".join(parts)
 
