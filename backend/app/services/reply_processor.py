@@ -41,14 +41,13 @@ def _format_knowledge_context(knowledge_entries) -> str:
             + "\n".join(files)
             + "\n\nRULES (follow strictly):\n"
             "1. If the prospect asks for a presentation, materials, pricing, "
-            "conditions, documents, or any info — ATTACH the relevant file. "
-            "Write as if you are sending/attaching the file AND always include "
-            "the file URL in the reply body so the prospect can download it. "
-            "Example: \"Прикрепляю презентацию: https://drive.google.com/...\"\n"
-            "2. You MUST include the full URL from the list above. "
-            "Never say you'll attach something without providing the URL.\n"
+            "conditions, documents, or any info — mention that you are attaching "
+            "the relevant file. Example: \"Прикрепляю презентацию\" or "
+            "\"Sending the presentation along with this email\".\n"
+            "2. Do NOT paste file URLs or links into the reply text. "
+            "The operator will attach files separately. Just mention the attachment.\n"
             "3. If the prospect did NOT ask for any files or materials, "
-            "do NOT mention or attach any files.\n"
+            "do NOT mention any attachments.\n"
             "=== END FILE RULES ==="
         )
     return "\n".join(parts)
