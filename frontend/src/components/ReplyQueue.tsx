@@ -81,6 +81,14 @@ function isDraftFailed(draft: string | null | undefined): boolean {
   return !!draft && FAILED_DRAFT_RE.test(draft.trim());
 }
 
+/* ---------- Document relevance detection ---------- */
+const DOC_REQUEST_RE = /презентац|presentation|прайс|price.?list|тариф|tarif|условия|condition|pdf|документ|document|материал|material|скиньте|пришлите|отправьте|send.*info|send.*detail|ознакомить|брошюр|brochure|каталог|catalog/i;
+
+function leadsAsksForDocs(reply: ProcessedReply): boolean {
+  const text = [reply.reply_text, reply.email_body].filter(Boolean).join(' ');
+  return DOC_REQUEST_RE.test(text);
+}
+
 /* ---------- Staleness detection ---------- */
 function isReplyStale(reply: ProcessedReply, knowledgeUpdatedAt: string | null): boolean {
   if (!knowledgeUpdatedAt || !reply.draft_generated_at || !reply.draft_reply) return false;
@@ -989,9 +997,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                           ) : null}
                         </div>
 
-                        {/* Quick document download */}
-                        {projectDocs.length > 0 && (
+                        {/* Quick document download — only when lead asked for materials */}
+                        {projectDocs.length > 0 && leadsAsksForDocs(reply) && (
                           <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                            <span className="text-[10px] uppercase tracking-wider" style={{ color: t.text5 }}>Attach:</span>
                             {projectDocs.map(doc => (
                               <a
                                 key={doc.id}

@@ -2334,9 +2334,8 @@ async def regenerate_draft(
                     )
                     knowledge_entries = knowledge_result.scalars().all()
                     if knowledge_entries:
-                        knowledge_context = "\n\nProject Knowledge Base:\n"
-                        for entry in knowledge_entries:
-                            knowledge_context += f"- [{entry.category}] {entry.key}: {entry.value}\n"
+                        from app.services.reply_processor import _format_knowledge_context
+                        knowledge_context = _format_knowledge_context(knowledge_entries)
                         if custom_reply_prompt:
                             custom_reply_prompt += knowledge_context
                         else:

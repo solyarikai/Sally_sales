@@ -14,6 +14,37 @@ from app.services.smartlead_service import smartlead_request
 logger = logging.getLogger(__name__)
 
 
+def _format_knowledge_context(knowledge_entries) -> str:
+    """Format knowledge entries into a prompt-friendly context string.
+
+    Files are separated and presented as actionable resources so the AI
+    knows *when* and *how* to reference them depending on operator preferences
+    (set via Spotlight feedback — e.g. 'attach PDF' vs 'include shareable link').
+    """
+    regular = []
+    files = []
+    for entry in knowledge_entries:
+        if entry.category == "files":
+            label = entry.title or entry.key
+            files.append(f"  - {label}: {entry.value}")
+        else:
+            regular.append(f"- [{entry.category}] {entry.key}: {entry.value}")
+
+    parts = ["\n\nProject Knowledge Base:"]
+    if regular:
+        parts.append("\n".join(regular))
+    if files:
+        parts.append(
+            "\nAvailable documents to share with prospects:\n"
+            + "\n".join(files)
+            + "\n\nDocument rules: When the prospect asks for a presentation, "
+            "price list, or any materials, include the relevant document link "
+            "in your reply. Use the exact URL from above. If the prospect did "
+            "NOT ask for documents, do NOT include document links."
+        )
+    return "\n".join(parts)
+
+
 def _parse_source_timestamp(payload: dict) -> Optional[datetime]:
     """Extract the ORIGINAL reply timestamp from the source platform data.
     
@@ -786,9 +817,7 @@ async def process_reply_webhook(
                         )
                         knowledge_entries = knowledge_result.scalars().all()
                         if knowledge_entries:
-                            knowledge_context = "\n\nProject Knowledge Base:\n"
-                            for entry in knowledge_entries:
-                                knowledge_context += f"- [{entry.category}] {entry.key}: {entry.value}\n"
+                            knowledge_context = _format_knowledge_context(knowledge_entries)
                             if custom_reply_prompt:
                                 custom_reply_prompt += knowledge_context
                             else:
@@ -1378,9 +1407,7 @@ async def process_getsales_reply(
                     )
                     knowledge_entries = knowledge_result.scalars().all()
                     if knowledge_entries:
-                        knowledge_context = "\n\nProject Knowledge Base:\n"
-                        for entry in knowledge_entries:
-                            knowledge_context += f"- [{entry.category}] {entry.key}: {entry.value}\n"
+                        knowledge_context = _format_knowledge_context(knowledge_entries)
                         if custom_reply_prompt:
                             custom_reply_prompt += knowledge_context
                         else:
