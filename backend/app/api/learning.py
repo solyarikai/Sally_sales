@@ -354,7 +354,7 @@ async def submit_feedback(
     """Submit operator feedback via Cmd+K."""
     project = await _get_project(db, project_id)
 
-    # Create log entry immediately
+    # Create log entry immediately and commit so background task can find it
     log = LearningLog(
         project_id=project_id,
         trigger="feedback",
@@ -362,7 +362,7 @@ async def submit_feedback(
         status="processing",
     )
     db.add(log)
-    await db.flush()
+    await db.commit()
     log_id = log.id
 
     async def _run():
