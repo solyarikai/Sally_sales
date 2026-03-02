@@ -68,6 +68,8 @@ INPUT:
 
 Your job: Incorporate the operator's feedback into the template and ICP knowledge.
 
+CRITICAL: If the feedback contains an ACTUAL REPLY EXAMPLE (a real reply the operator wrote or wants the AI to produce), you MUST extract it verbatim into "golden_examples". Golden examples are the EXACT replies operators want the AI to produce — they define the tone, structure, length, and level of detail. Each example needs a "situation" label (e.g., "interested_asks_presentation", "meeting_request", "pricing_question").
+
 OUTPUT strict JSON:
 {
   "updated_template": "The improved prompt template text incorporating feedback...",
@@ -76,6 +78,13 @@ OUTPUT strict JSON:
     "negative_signals": ["signal1"],
     "qualification_criteria": ["criterion1"]
   },
+  "golden_examples": [
+    {
+      "situation": "short_label_for_this_type_of_reply",
+      "category": "interested|meeting_request|question|etc",
+      "reply_text": "The EXACT verbatim reply text from the operator, preserving all formatting, line breaks, bullet points, pricing details, signatures — NOTHING omitted or paraphrased"
+    }
+  ],
   "change_summary": "What changed based on the feedback",
   "reasoning": "Why these changes make sense"
 }"""
@@ -282,9 +291,25 @@ Incorporate this feedback into the template and ICP knowledge."""
                 if parsed.get("updated_template"):
                     change_type = "both"
 
+            # Save golden examples — EXACT operator reply examples for draft generation
+            golden_examples = parsed.get("golden_examples") or []
+            for ex in golden_examples:
+                situation = ex.get("situation", "general")
+                cat = ex.get("category", "interested")
+                reply_text = ex.get("reply_text", "")
+                if reply_text and len(reply_text) > 20:
+                    await self._upsert_knowledge(
+                        session, project_id, "examples",
+                        f"{cat}_{situation}",
+                        reply_text,
+                        f"Golden example: {cat} — {situation}",
+                    )
+                    logger.info(f"[LEARNING] Saved golden example: {cat}_{situation} ({len(reply_text)} chars)")
+
             log.after_snapshot = {
                 "template": parsed.get("updated_template", current_template),
                 "icp_updates": parsed.get("icp_updates"),
+                "golden_examples_saved": len(golden_examples),
             }
             log.change_type = change_type
             log.change_summary = parsed.get("change_summary", "Feedback applied")

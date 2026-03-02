@@ -14,20 +14,25 @@ from app.services.smartlead_service import smartlead_request
 logger = logging.getLogger(__name__)
 
 
-def _format_knowledge_context(knowledge_entries) -> str:
+def _format_knowledge_context(knowledge_entries, category: str = None) -> str:
     """Format knowledge entries into a prompt-friendly context string.
 
     Files are separated with a CRITICAL instruction block so the AI reliably
     includes document links when the prospect requests materials.
-    Operators control the style via Spotlight feedback (e.g. 'attach PDF files'
-    or 'include shareable links in the reply body').
+    Golden examples are included with STRICT instructions to follow them exactly.
     """
     regular = []
     files = []
+    examples = []
     for entry in knowledge_entries:
         if entry.category == "files":
             label = entry.title or entry.key
             files.append(f"  {label}: {entry.value}")
+        elif entry.category == "examples":
+            # Only include examples matching the current category if specified
+            if category and not entry.key.startswith(category):
+                continue
+            examples.append(entry)
         else:
             regular.append(f"- [{entry.category}] {entry.key}: {entry.value}")
 
@@ -49,6 +54,21 @@ def _format_knowledge_context(knowledge_entries) -> str:
             "3. If the prospect did NOT ask for any files or materials, "
             "do NOT mention any attachments.\n"
             "=== END FILE RULES ==="
+        )
+    if examples:
+        example_parts = []
+        for ex in examples[:3]:  # Max 3 examples to not overflow context
+            example_parts.append(f"--- Example ({ex.title or ex.key}) ---\n{ex.value}\n--- End example ---")
+        parts.append(
+            "\n\n=== GOLDEN EXAMPLES FROM OPERATOR (FOLLOW EXACTLY) ===\n"
+            "The operator provided these PERFECT reply examples. Your draft MUST match:\n"
+            "- The EXACT same structure (greeting, body sections, bullet points, signature)\n"
+            "- The SAME level of detail (if the example has full pricing, include full pricing)\n"
+            "- The SAME tone and language style\n"
+            "- The SAME formatting (numbered lists, bullet points, line breaks)\n"
+            "Adapt for the specific lead's name/company/question, but keep the structure identical.\n\n"
+            + "\n\n".join(example_parts)
+            + "\n=== END GOLDEN EXAMPLES ==="
         )
     return "\n".join(parts)
 
@@ -431,8 +451,8 @@ async def generate_draft_reply(
             response = await openai_service.complete(
                 prompt=prompt,
                 model="gpt-4o-mini",
-                temperature=0.7,
-                max_tokens=500,
+                temperature=0.4,
+                max_tokens=1500,
                 response_format={"type": "json_object"},
             )
 
@@ -825,7 +845,7 @@ async def process_reply_webhook(
                         )
                         knowledge_entries = knowledge_result.scalars().all()
                         if knowledge_entries:
-                            knowledge_context = _format_knowledge_context(knowledge_entries)
+                            knowledge_context = _format_knowledge_context(knowledge_entries, category=classification.get("category"))
                             if custom_reply_prompt:
                                 custom_reply_prompt += knowledge_context
                             else:
@@ -1414,17 +1434,15 @@ async def process_getsales_reply(
                         )
                     )
                     knowledge_entries = knowledge_result.scalars().all()
-                    if knowledge_entries:
-                        knowledge_context = _format_knowledge_context(knowledge_entries)
-                        if custom_reply_prompt:
-                            custom_reply_prompt += knowledge_context
-                        else:
-                            custom_reply_prompt = knowledge_context
-                        logger.info(f"[GETSALES] Loaded {len(knowledge_entries)} knowledge entries")
+                    # Store entries — will be formatted after classification (to match category)
+                    _knowledge_entries = knowledge_entries
+                    logger.info(f"[GETSALES] Loaded {len(knowledge_entries)} knowledge entries")
                 except Exception as ke:
                     logger.warning(f"[GETSALES] Knowledge loading failed (non-fatal): {ke}")
         except Exception as proj_err:
             logger.warning(f"[GETSALES] Project lookup failed (non-fatal): {proj_err}")
+
+    _knowledge_entries = locals().get("_knowledge_entries", [])
 
     # --- Classify ---
     linkedin_suffix = "This is a LinkedIn DM, not an email. Classify based on the message content."
@@ -1434,6 +1452,14 @@ async def process_getsales_reply(
         custom_prompt=linkedin_suffix,
     )
     logger.info(f"[GETSALES] Classification: {classification['category']} ({classification['confidence']})")
+
+    # --- Format knowledge AFTER classification to include matching golden examples ---
+    if _knowledge_entries:
+        knowledge_context = _format_knowledge_context(_knowledge_entries, category=classification.get("category"))
+        if custom_reply_prompt:
+            custom_reply_prompt += knowledge_context
+        else:
+            custom_reply_prompt = knowledge_context
 
     # --- Generate draft ---
     linkedin_draft_suffix = (

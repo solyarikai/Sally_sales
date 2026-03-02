@@ -142,6 +142,16 @@ class ProcessedReplyBase(BaseModel):
     reply_text: Optional[str] = None
 
 
+def _serialize_utc(dt: Optional[datetime]) -> Optional[str]:
+    """Serialize datetime with Z suffix so JS interprets as UTC."""
+    if dt is None:
+        return None
+    iso = dt.isoformat()
+    if not iso.endswith("Z") and "+" not in iso:
+        return iso + "Z"
+    return iso
+
+
 class ProcessedReplyResponse(ProcessedReplyBase):
     """Schema for processed reply response."""
     id: int
@@ -187,6 +197,7 @@ class ProcessedReplyResponse(ProcessedReplyBase):
 
     class Config:
         from_attributes = True
+        json_encoders = {datetime: _serialize_utc}
 
 
 class ContactCampaignEntry(BaseModel):

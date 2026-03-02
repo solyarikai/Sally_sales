@@ -10,6 +10,16 @@ import logging
 import asyncio
 
 from app.db import get_session
+
+
+def _utc_iso(dt) -> str:
+    """Serialize datetime as ISO with Z suffix so JS interprets as UTC."""
+    if dt is None:
+        return ""
+    iso = dt.isoformat()
+    if not iso.endswith("Z") and "+" not in iso:
+        return iso + "Z"
+    return iso
 from app.models.reply import ReplyAutomation, ProcessedReply, ReplyPromptTemplateModel, WebhookEventModel
 from app.services.crm_sync_service import GETSALES_SENDER_PROFILES
 from app.schemas.reply import (
@@ -1706,7 +1716,7 @@ async def get_reply_conversation(
                 "channel": tm.channel,
                 "subject": tm.subject,
                 "body": tm.body,
-                "activity_at": tm.activity_at.isoformat() if tm.activity_at else None,
+                "activity_at": _utc_iso(tm.activity_at),
                 "source": tm.source,
                 "activity_type": tm.activity_type,
             })
@@ -1878,7 +1888,7 @@ async def get_reply_full_history(
         cname = r.campaign_name or f"Campaign {r.campaign_id}"
         ch = r.channel or ("linkedin" if r.source == "getsales" else "email")
         key = f"{ch}::{cname}"
-        ts = r.received_at.isoformat() if r.received_at else ""
+        ts = r.received_at.isoformat() + "Z" if r.received_at else ""
         if key not in campaign_map:
             campaign_map[key] = {
                 "campaign_name": cname,
@@ -1937,7 +1947,7 @@ async def get_reply_full_history(
             activities.append({
                 "direction": tm.direction,
                 "content": tm.body or "",
-                "timestamp": tm.activity_at.isoformat() if tm.activity_at else "",
+                "timestamp": tm.activity_at.isoformat() + "Z" if tm.activity_at else "",
                 "channel": tm.channel or "email",
                 "campaign": default_campaign,
             })
@@ -2000,7 +2010,7 @@ async def get_reply_full_history(
             activities.append({
                 "direction": direction,
                 "content": ca.body or ca.snippet or "",
-                "timestamp": ca.activity_at.isoformat() if ca.activity_at else "",
+                "timestamp": ca.activity_at.isoformat() + "Z" if ca.activity_at else "",
                 "channel": "linkedin",
                 "campaign": cname,
             })
@@ -2083,7 +2093,7 @@ async def get_campaign_thread(
             activities.append({
                 "direction": tm.direction,
                 "content": tm.body or "",
-                "timestamp": tm.activity_at.isoformat() if tm.activity_at else "",
+                "timestamp": tm.activity_at.isoformat() + "Z" if tm.activity_at else "",
                 "channel": tm.channel or "email",
                 "campaign": campaign_name,
             })
@@ -2117,7 +2127,7 @@ async def get_campaign_thread(
                 activities.append({
                     "direction": direction,
                     "content": ca.body or ca.snippet or "",
-                    "timestamp": ca.activity_at.isoformat() if ca.activity_at else "",
+                    "timestamp": ca.activity_at.isoformat() + "Z" if ca.activity_at else "",
                     "channel": "linkedin",
                     "campaign": campaign_name,
                 })
@@ -2387,7 +2397,7 @@ async def regenerate_draft(
                     knowledge_entries = knowledge_result.scalars().all()
                     if knowledge_entries:
                         from app.services.reply_processor import _format_knowledge_context
-                        knowledge_context = _format_knowledge_context(knowledge_entries)
+                        knowledge_context = _format_knowledge_context(knowledge_entries, category=category)
                         if custom_reply_prompt:
                             custom_reply_prompt += knowledge_context
                         else:
@@ -2441,7 +2451,7 @@ async def regenerate_draft(
         "reply_id": reply.id,
         "draft_reply": reply.draft_reply,
         "draft_subject": reply.draft_subject,
-        "draft_generated_at": reply.draft_generated_at.isoformat() if reply.draft_generated_at else None,
+        "draft_generated_at": _utc_iso(reply.draft_generated_at),
         "category": reply.category,
         "classification_reasoning": reply.classification_reasoning,
     }
@@ -3495,7 +3505,7 @@ async def get_lead_conversations(
                 "type": "REPLY",
                 "body": r.email_body or r.reply_text or "",
                 "subject": r.email_subject,
-                "timestamp": r.received_at.isoformat() if r.received_at else None,
+                "timestamp": _utc_iso(r.received_at),
                 "category": r.category
             })
             if r.draft_reply:
@@ -3503,7 +3513,7 @@ async def get_lead_conversations(
                     "type": "SENT",
                     "body": r.draft_reply,
                     "subject": f"Re: {r.email_subject}" if r.email_subject else "Draft Reply",
-                    "timestamp": r.received_at.isoformat() if r.received_at else None,
+                    "timestamp": _utc_iso(r.received_at),
                     "status": r.approval_status
                 })
 
