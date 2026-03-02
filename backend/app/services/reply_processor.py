@@ -651,14 +651,18 @@ async def generate_draft_reply(
             try:
                 logger.info(f"[PROCESSOR] Gemini draft generation attempt {attempt + 1}/{max_retries} model={draft_model}")
                 result_raw = await gemini_generate(
-                    system_prompt="You are an AI assistant generating email reply drafts. Respond ONLY with valid JSON.",
+                    system_prompt="You are an AI assistant generating email reply drafts. Respond with ONLY a valid JSON object, no extra text.",
                     user_prompt=prompt,
                     temperature=0.4,
                     max_tokens=2000,
                     model=draft_model,
                 )
                 content = result_raw["content"]
+                if not content or not content.strip():
+                    raise ValueError("Gemini returned empty content")
                 clean_json = extract_json_from_gemini(content)
+                if not clean_json.strip():
+                    raise ValueError(f"Gemini JSON extraction failed, raw: {content[:300]}")
                 result = json.loads(clean_json)
                 draft_body = result.get("body", "")
                 draft_body = _strip_placeholder_brackets(draft_body)

@@ -60,7 +60,18 @@ async def gemini_generate(
             ),
         )
 
-        content = response.text or ""
+        # Extract text — response.text can be None for thinking models
+        try:
+            content = response.text or ""
+        except Exception:
+            # Fallback: extract from candidates directly
+            content = ""
+            if response.candidates:
+                for part in (response.candidates[0].content.parts or []):
+                    if hasattr(part, 'text') and part.text and not getattr(part, 'thought', False):
+                        content += part.text
+        if not content:
+            logger.warning(f"Gemini returned empty content for model {model_name}")
         usage = response.usage_metadata
         tokens = {
             "input": usage.prompt_token_count or 0,
