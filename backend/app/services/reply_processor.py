@@ -635,7 +635,9 @@ async def generate_draft_reply(
         sender_company=sender_company,
     )
     last_error = None
-    draft_model = model or "gpt-4o-mini"
+    # Default to Gemini 2.5 Pro — best KPI (style match) at $0.05/reply
+    # Falls back to GPT-4o-mini if Gemini is unavailable
+    draft_model = model or "gemini-2.5-pro"
     use_gemini = draft_model.startswith("gemini")
 
     # --- Gemini path ---
