@@ -61,17 +61,28 @@ async def gemini_generate(
         )
 
         # Extract text — response.text can be None for thinking models
+        content = ""
         try:
             content = response.text or ""
-        except Exception:
+        except Exception as text_err:
+            logger.warning(f"Gemini response.text failed: {text_err}")
+
+        if not content and response.candidates:
             # Fallback: extract from candidates directly
-            content = ""
-            if response.candidates:
-                for part in (response.candidates[0].content.parts or []):
-                    if hasattr(part, 'text') and part.text and not getattr(part, 'thought', False):
-                        content += part.text
+            candidate = response.candidates[0]
+            logger.info(f"Gemini candidate finish_reason={getattr(candidate, 'finish_reason', '?')}")
+            for i, part in enumerate(candidate.content.parts or []):
+                is_thought = getattr(part, 'thought', False)
+                has_text = hasattr(part, 'text') and part.text
+                logger.info(f"Gemini part[{i}]: thought={is_thought}, has_text={has_text}, len={len(part.text) if has_text else 0}")
+                if has_text and not is_thought:
+                    content += part.text
+
         if not content:
-            logger.warning(f"Gemini returned empty content for model {model_name}")
+            # Log full response structure for debugging
+            cands = response.candidates or []
+            n_parts = sum(len(c.content.parts or []) for c in cands) if cands else 0
+            logger.warning(f"Gemini returned empty content for model {model_name}: candidates={len(cands)}, parts={n_parts}")
         usage = response.usage_metadata
         tokens = {
             "input": usage.prompt_token_count or 0,
