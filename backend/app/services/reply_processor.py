@@ -73,37 +73,72 @@ def _format_knowledge_context(knowledge_entries, category: str = None) -> str:
     return "\n".join(parts)
 
 
+def _strip_html_to_text(html_text: str) -> str:
+    """Strip HTML tags, preserving line breaks and list markers."""
+    import re as _re, html as _html
+    if not html_text:
+        return ""
+    text = _re.sub(r'<br\s*/?>', '\n', html_text)
+    text = _re.sub(r'</div>', '\n', text)
+    text = _re.sub(r'</li>', '\n', text)
+    text = _re.sub(r'<li[^>]*>', '• ', text)
+    text = _re.sub(r'<[^>]+>', '', text)
+    text = _html.unescape(text)
+    text = _re.sub(r'\n{3,}', '\n\n', text)
+    text = _re.sub(r'  +', ' ', text)
+    return text.strip()
+
+
 async def _load_reference_examples(session, project_id: int, category: str = None, limit: int = 15) -> str:
     """Load operator's actual sent replies as few-shot reference examples.
 
-    Queries OperatorCorrection records for this project where action_type='send',
-    joined with ProcessedReply to get the lead's original message.
-    Returns formatted string for inclusion in the draft generation prompt.
+    Primary source: thread_messages (outbound, >300 chars) — full-text operator replies
+    from SmartLead conversations. These are the REAL examples with no truncation.
+    Matched to project via ProcessedReply campaign → project campaign_filters.
     """
     try:
-        from app.models.learning import OperatorCorrection
-        from app.models.reply import ProcessedReply as PRModel
+        from app.models.reply import ProcessedReply as PRModel, ThreadMessage
+        from app.models.contact import Project
 
-        # Fetch corrections with the lead's original message
+        # Get project to determine campaign filters
+        proj_result = await session.execute(
+            select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
+        )
+        project = proj_result.scalar_one_or_none()
+        if not project:
+            return ""
+
+        # Build campaign filter conditions (same as _build_project_campaign_filter)
+        from sqlalchemy import or_, func as sa_func
+        filter_parts = []
+        campaign_names = [c.lower() for c in (project.campaign_filters or []) if isinstance(c, str)]
+        if campaign_names:
+            filter_parts.append(sa_func.lower(PRModel.campaign_name).in_(campaign_names))
+        pname = (project.name or "").lower()
+        if pname and len(pname) > 2:
+            filter_parts.append(sa_func.lower(PRModel.campaign_name).like(f"{pname}%"))
+
+        if not filter_parts:
+            return ""
+
+        # Query outbound thread messages (full text, >300 chars) for this project's replies
         query = (
             select(
-                OperatorCorrection.sent_reply,
-                OperatorCorrection.reply_category,
-                OperatorCorrection.was_edited,
-                OperatorCorrection.channel,
+                ThreadMessage.body,
                 PRModel.email_body,
-                PRModel.email_subject,
                 PRModel.lead_first_name,
                 PRModel.lead_company,
+                PRModel.category,
+                PRModel.channel,
             )
-            .join(PRModel, OperatorCorrection.processed_reply_id == PRModel.id, isouter=True)
+            .join(PRModel, ThreadMessage.reply_id == PRModel.id)
             .where(
-                OperatorCorrection.project_id == project_id,
-                OperatorCorrection.action_type == "send",
-                OperatorCorrection.sent_reply.isnot(None),
+                ThreadMessage.direction == "outbound",
+                sa_func.length(ThreadMessage.body) > 300,
+                or_(*filter_parts),
             )
-            .order_by(OperatorCorrection.created_at.desc())
-            .limit(limit)
+            .order_by(ThreadMessage.id.desc())
+            .limit(limit * 2)  # Fetch extra, then deduplicate/filter
         )
         result = await session.execute(query)
         rows = result.all()
@@ -111,29 +146,52 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
         if not rows:
             return ""
 
-        # Sort: same-category first, then others
-        same_cat = [r for r in rows if r.reply_category == category]
-        other_cat = [r for r in rows if r.reply_category != category]
-        sorted_rows = same_cat + other_cat
+        # Deduplicate by content similarity (skip near-identical replies)
+        seen_prefixes = set()
+        unique_rows = []
+        for r in rows:
+            clean_body = _strip_html_to_text(r.body)
+            if len(clean_body) < 200:
+                continue
+            prefix = clean_body[:150].lower()
+            if prefix in seen_prefixes:
+                continue
+            seen_prefixes.add(prefix)
+            unique_rows.append((r, clean_body))
+
+        if not unique_rows:
+            return ""
+
+        # Sort: same-category first, then others, cap at limit
+        same_cat = [(r, b) for r, b in unique_rows if r.category == category]
+        other_cat = [(r, b) for r, b in unique_rows if r.category != category]
+        sorted_rows = (same_cat + other_cat)[:limit]
 
         parts = []
-        for r in sorted_rows:
-            lead_msg = (r.email_body or "")[:500]
+        for r, clean_body in sorted_rows:
+            lead_msg = _strip_html_to_text(r.email_body or "")[:400]
             parts.append(
-                f"[{r.reply_category or 'unknown'}] Lead ({r.lead_first_name or 'unknown'}, "
-                f"{r.lead_company or 'unknown company'}):\n"
+                f"[{r.category or 'unknown'}] Lead ({r.lead_first_name or 'lead'}, "
+                f"{r.lead_company or ''}):\n"
                 f"\"{lead_msg}\"\n"
                 f"Operator replied:\n"
-                f"\"{r.sent_reply}\""
+                f"\"{clean_body}\""
             )
 
+        logger.info(f"[PROCESSOR] Loaded {len(parts)} reference examples from thread_messages for project {project_id}")
+
         return (
-            "\n\n=== OPERATOR'S PAST REPLIES (LEARN FROM THESE) ===\n"
-            "Below are REAL replies the operator sent to real leads. "
-            "Study the style, structure, detail level, and tone. "
-            "Your draft should match this quality.\n\n"
+            "\n\n=== OPERATOR'S REAL REPLIES (YOUR PRIMARY REFERENCE — COPY THIS STYLE) ===\n"
+            "These are ACTUAL replies the operator sent to real leads. "
+            "Your draft MUST replicate this EXACT style:\n"
+            "- Same greeting pattern\n"
+            "- Same level of detail (if they write full pricing with bullet points, you do too)\n"
+            "- Same structure (greeting → context → details → CTA → signature)\n"
+            "- Same tone and language\n"
+            "- Same length — NEVER shorten or summarize what the operator writes in detail\n"
+            "Pick the CLOSEST matching example and adapt it for the current lead.\n\n"
             + "\n\n---\n\n".join(parts)
-            + "\n=== END PAST REPLIES ==="
+            + "\n=== END OPERATOR'S REAL REPLIES ==="
         )
     except Exception as e:
         logger.warning(f"[PROCESSOR] Reference examples loading failed (non-fatal): {e}")
