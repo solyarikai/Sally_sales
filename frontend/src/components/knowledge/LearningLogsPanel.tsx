@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { History, Loader2, ChevronDown, ChevronRight, MessageSquare, Zap, Clock } from 'lucide-react';
-import { getLearningLogs, getLearningLogDetail } from '../../api/learning';
+import { getLearningLogs, getLearningLogDetail, getLearningStatus } from '../../api/learning';
 import type { LearningLogSummary, LearningLogDetail } from '../../api/learning';
 import type { ThemeTokens } from '../../lib/themeColors';
 
@@ -9,6 +9,7 @@ interface Props {
   isDark: boolean;
   t: ThemeTokens;
   refreshKey?: number;
+  highlightLogId?: number;
 }
 
 const TRIGGER_ICONS: Record<string, typeof Zap> = {
@@ -24,7 +25,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   insufficient_data: { bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b' },
 };
 
-export function LearningLogsPanel({ projectId, isDark, t, refreshKey }: Props) {
+export function LearningLogsPanel({ projectId, isDark, t, refreshKey, highlightLogId }: Props) {
   const [logs, setLogs] = useState<LearningLogSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -32,12 +33,51 @@ export function LearningLogsPanel({ projectId, isDark, t, refreshKey }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<LearningLogDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [pollingLogId, setPollingLogId] = useState<number | null>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+  const didAutoExpand = useRef(false);
 
   useEffect(() => {
     loadLogs();
   }, [projectId, page, refreshKey]);
 
-  async function loadLogs() {
+  // Auto-expand highlighted log after logs load
+  useEffect(() => {
+    if (!highlightLogId || didAutoExpand.current || loading || logs.length === 0) return;
+    const found = logs.find(l => l.id === highlightLogId);
+    if (found) {
+      didAutoExpand.current = true;
+      toggleExpand(found.id);
+      // Start polling if still processing
+      if (found.status === 'processing') {
+        setPollingLogId(found.id);
+      }
+      // Scroll into view after render
+      setTimeout(() => highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
+    }
+  }, [highlightLogId, logs, loading]);
+
+  // Poll processing status
+  useEffect(() => {
+    if (!pollingLogId) return;
+    const interval = setInterval(async () => {
+      try {
+        const status = await getLearningStatus(projectId, pollingLogId);
+        if (status.status !== 'processing') {
+          setPollingLogId(null);
+          // Refresh logs list and detail
+          loadLogs();
+          const d = await getLearningLogDetail(projectId, pollingLogId);
+          setDetail(d);
+        }
+      } catch {
+        // ignore polling errors
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [pollingLogId, projectId]);
+
+  const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getLearningLogs(projectId, page);
@@ -48,7 +88,7 @@ export function LearningLogsPanel({ projectId, isDark, t, refreshKey }: Props) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [projectId, page]);
 
   async function toggleExpand(logId: number) {
     if (expandedId === logId) {
@@ -102,12 +142,19 @@ export function LearningLogsPanel({ projectId, isDark, t, refreshKey }: Props) {
         const TriggerIcon = TRIGGER_ICONS[log.trigger] || Zap;
         const statusColor = STATUS_COLORS[log.status] || STATUS_COLORS.processing;
         const isExpanded = expandedId === log.id;
+        const isHighlighted = highlightLogId === log.id;
+        const isPolling = pollingLogId === log.id;
 
         return (
           <div
             key={log.id}
-            className="rounded-lg border overflow-hidden"
-            style={{ background: t.cardBg, borderColor: t.cardBorder }}
+            ref={isHighlighted ? highlightRef : undefined}
+            className="rounded-lg border overflow-hidden transition-all duration-500"
+            style={{
+              background: t.cardBg,
+              borderColor: isHighlighted ? '#3b82f6' : t.cardBorder,
+              boxShadow: isHighlighted ? '0 0 0 1px rgba(59,130,246,0.3), 0 4px 12px rgba(59,130,246,0.1)' : undefined,
+            }}
           >
             {/* Summary row */}
             <button
@@ -151,6 +198,15 @@ export function LearningLogsPanel({ projectId, isDark, t, refreshKey }: Props) {
             {/* Expanded detail */}
             {isExpanded && (
               <div className="border-t px-4 py-3" style={{ borderColor: t.divider }}>
+                {isPolling && (
+                  <div
+                    className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-[12px]"
+                    style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}
+                  >
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Processing feedback... This page will update automatically.
+                  </div>
+                )}
                 {detailLoading ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="w-4 h-4 animate-spin" style={{ color: t.text4 }} />

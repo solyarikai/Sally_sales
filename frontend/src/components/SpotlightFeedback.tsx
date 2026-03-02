@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Command, X, Loader2, Send } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Command, X, Loader2, Send, CheckCircle2, ExternalLink } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -15,14 +16,17 @@ export function SpotlightFeedback({ open, onClose }: Props) {
   const { currentProject } = useAppStore();
   const { isDark } = useTheme();
   const t = themeColors(isDark);
-  const { success: toastSuccess, error: toastError } = useToast();
+  const navigate = useNavigate();
+  const { error: toastError } = useToast();
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState<{ logId: number } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (open) {
       setText('');
+      setSubmitted(null);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -31,14 +35,20 @@ export function SpotlightFeedback({ open, onClose }: Props) {
     if (!currentProject || !text.trim() || text.trim().length < 5) return;
     setSubmitting(true);
     try {
-      await submitFeedback(currentProject.id, text.trim());
-      toastSuccess('Feedback submitted — learning in progress');
-      onClose();
+      const result = await submitFeedback(currentProject.id, text.trim());
+      setSubmitted({ logId: result.learning_log_id });
     } catch (e) {
       toastError('Failed to submit feedback');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleViewLog() {
+    if (!currentProject || !submitted) return;
+    const slug = currentProject.name.toLowerCase().replace(/\s+/g, '-');
+    onClose();
+    navigate(`/knowledge/logs?project=${slug}&logId=${submitted.logId}`);
   }
 
   if (!open) return null;
@@ -66,12 +76,40 @@ export function SpotlightFeedback({ open, onClose }: Props) {
           </button>
         </div>
 
-        {/* Input */}
+        {/* Content */}
         <div className="p-4">
           {!currentProject ? (
             <p className="text-[13px] text-center py-4" style={{ color: t.text4 }}>
               Select a project first to submit feedback
             </p>
+          ) : submitted ? (
+            /* Success state with link to learning log */
+            <div className="flex flex-col items-center py-4 gap-3">
+              <CheckCircle2 className="w-8 h-8" style={{ color: '#22c55e' }} />
+              <div className="text-center">
+                <p className="text-[14px] font-medium" style={{ color: t.text1 }}>
+                  Feedback submitted
+                </p>
+                <p className="text-[12px] mt-1" style={{ color: t.text4 }}>
+                  AI is processing your feedback and updating templates...
+                </p>
+              </div>
+              <button
+                onClick={handleViewLog}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 cursor-pointer"
+                style={{ background: t.btnPrimaryBg, color: t.btnPrimaryText }}
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                View in Learning Logs
+              </button>
+              <button
+                onClick={onClose}
+                className="text-[12px] transition-opacity hover:opacity-70 cursor-pointer"
+                style={{ color: t.text5 }}
+              >
+                Close
+              </button>
+            </div>
           ) : (
             <>
               <textarea

@@ -28,7 +28,13 @@ export function KnowledgePage() {
   const { tab: tabParam } = useParams<{ tab?: string }>();
   const [searchParams] = useSearchParams();
 
-  const activeTab: Tab = VALID_TABS.has(tabParam || '') ? (tabParam as Tab) : 'icp';
+  const logIdParam = searchParams.get('logId');
+  const highlightLogId = logIdParam ? Number(logIdParam) : undefined;
+
+  // Auto-switch to logs tab when logId is in URL
+  const activeTab: Tab = highlightLogId
+    ? 'logs'
+    : VALID_TABS.has(tabParam || '') ? (tabParam as Tab) : 'icp';
 
   const [overview, setOverview] = useState<LearningOverview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -179,6 +185,7 @@ export function KnowledgePage() {
                 isDark={isDark}
                 t={t}
                 refreshKey={logsRefreshKey}
+                highlightLogId={highlightLogId}
               />
             </div>
           </>

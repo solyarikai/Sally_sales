@@ -117,6 +117,10 @@ KNOWLEDGE_ENTRIES = [
     # Notes
     ("notes", "operator_reply_style", "Short, professional, friendly. Always in Russian. Attaches presentation when asked. Mentions key advantages for engaged leads. Signs off as 'Danila Sokolov, Partner @ easystaff.io'. Follow-up after 3-5 days."),
     ("notes", "follow_up_pattern", "After sending presentation: 'Подскажите, пожалуйста, было время изучить наше предложение?' after 3-5 days"),
+
+    # Files (for quick operator download in reply queue)
+    # Set the actual URL via API: PUT /api/projects/40/knowledge/files/presentation
+    # ("files", "presentation", "https://drive.google.com/file/d/YOUR_FILE_ID/view"),
 ]
 
 

@@ -6,7 +6,7 @@ import {
   Building2, ExternalLink,
   XCircle, Edit3, AlertTriangle,
   Clock, MessageCircle, ArrowRight, Brain,
-  Linkedin, Phone, MapPin, Tag, User, Copy, Mail,
+  Linkedin, Phone, MapPin, Tag, User, Copy, Mail, Download, FileText,
 } from 'lucide-react';
 import {
   repliesApi,
@@ -15,6 +15,7 @@ import {
   type ContactInfo,
   type FullHistoryResponse,
 } from '../api/replies';
+import { knowledgeApi, type KnowledgeEntry } from '../api/knowledge';
 import { cn } from '../lib/utils';
 import { stripHtml } from '../lib/htmlUtils';
 import { themeColors } from '../lib/themeColors';
@@ -127,6 +128,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const [confirmSendId, setConfirmSendId] = useState<number | null>(null);
 
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
+  const [projectDocs, setProjectDocs] = useState<KnowledgeEntry[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -138,6 +140,15 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   useEffect(() => {
     onCountsChange?.(categoryCounts, total);
   }, [categoryCounts, total]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ---- Load project documents (knowledge files category) ---- */
+  useEffect(() => {
+    if (!currentProject) { setProjectDocs([]); return; }
+    knowledgeApi.getByCategory(currentProject.id, 'files').then(
+      res => setProjectDocs(res.entries || []),
+      () => setProjectDocs([]),
+    );
+  }, [currentProject?.id]);
 
   /* ---- Data loading (infinite scroll) ---- */
   const loadReplies = useCallback(async (reset = false) => {
@@ -769,6 +780,27 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                             </button>
                           ) : null}
                         </div>
+
+                        {/* Quick document download */}
+                        {projectDocs.length > 0 && (
+                          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                            {projectDocs.map(doc => (
+                              <a
+                                key={doc.id}
+                                href={String(doc.value)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-opacity hover:opacity-80"
+                                style={{ background: isDark ? '#1e293b' : '#eff6ff', color: '#3b82f6' }}
+                                title={`Download ${doc.title || doc.key}`}
+                              >
+                                <FileText className="w-3 h-3" />
+                                {doc.title || doc.key}
+                                <Download className="w-3 h-3 opacity-60" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
 
                         {isEditing ? (
                           <textarea
