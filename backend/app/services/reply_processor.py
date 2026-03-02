@@ -89,12 +89,19 @@ def _strip_html_to_text(html_text: str) -> str:
     return text.strip()
 
 
-async def _load_reference_examples(session, project_id: int, category: str = None, limit: int = 15) -> str:
+async def _load_reference_examples(session, project_id: int, category: str = None, limit: int = 20) -> str:
     """Load operator's actual sent replies as few-shot reference examples.
 
     Primary source: thread_messages (outbound, >300 chars) — full-text operator replies
     from SmartLead conversations. These are the REAL examples with no truncation.
     Matched to project via ProcessedReply campaign → project campaign_filters.
+
+    Strategy: fetch 100 most recent outbound messages, prioritize by:
+    1. Same category as current lead (exact match)
+    2. Qualified categories (interested, meeting_request, question) — these have the
+       best detailed replies with pricing and CTAs
+    3. Longer replies first (more detail = better reference)
+    4. Skip short follow-ups and scheduling messages (<400 chars clean text)
     """
     try:
         from app.models.reply import ProcessedReply as PRModel, ThreadMessage
@@ -121,7 +128,10 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
         if not filter_parts:
             return ""
 
-        # Query outbound thread messages (full text, >300 chars) for this project's replies
+        # Qualified categories — these produce the best reference replies
+        QUALIFIED_CATS = {"interested", "meeting_request", "question"}
+
+        # Fetch a large pool, then select the best examples
         query = (
             select(
                 ThreadMessage.body,
@@ -136,9 +146,11 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
                 ThreadMessage.direction == "outbound",
                 sa_func.length(ThreadMessage.body) > 300,
                 or_(*filter_parts),
+                # Only load qualified categories — skip not_interested, unsubscribe, etc.
+                PRModel.category.in_(list(QUALIFIED_CATS)),
             )
             .order_by(ThreadMessage.id.desc())
-            .limit(limit * 2)  # Fetch extra, then deduplicate/filter
+            .limit(100)  # Large pool for dedup + selection
         )
         result = await session.execute(query)
         rows = result.all()
@@ -151,7 +163,8 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
         unique_rows = []
         for r in rows:
             clean_body = _strip_html_to_text(r.body)
-            if len(clean_body) < 200:
+            # Skip short follow-ups — only keep substantive replies
+            if len(clean_body) < 400:
                 continue
             prefix = clean_body[:150].lower()
             if prefix in seen_prefixes:
@@ -162,9 +175,17 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
         if not unique_rows:
             return ""
 
-        # Sort: same-category first, then others, cap at limit
-        same_cat = [(r, b) for r, b in unique_rows if r.category == category]
-        other_cat = [(r, b) for r, b in unique_rows if r.category != category]
+        # Priority sort:
+        # 1. Same category, longest first (most detailed)
+        # 2. Other qualified categories, longest first
+        same_cat = sorted(
+            [(r, b) for r, b in unique_rows if r.category == category],
+            key=lambda x: len(x[1]), reverse=True
+        )
+        other_cat = sorted(
+            [(r, b) for r, b in unique_rows if r.category != category],
+            key=lambda x: len(x[1]), reverse=True
+        )
         sorted_rows = (same_cat + other_cat)[:limit]
 
         parts = []
@@ -178,7 +199,11 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
                 f"\"{clean_body}\""
             )
 
-        logger.info(f"[PROCESSOR] Loaded {len(parts)} reference examples from thread_messages for project {project_id}")
+        logger.info(
+            f"[PROCESSOR] Loaded {len(parts)} reference examples from thread_messages "
+            f"for project {project_id} (category={category}, "
+            f"same_cat={len(same_cat)}, other={len(other_cat)})"
+        )
 
         return (
             "\n\n=== OPERATOR'S REAL REPLIES (YOUR PRIMARY REFERENCE — COPY THIS STYLE) ===\n"
@@ -189,6 +214,7 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
             "- Same structure (greeting → context → details → CTA → signature)\n"
             "- Same tone and language\n"
             "- Same length — NEVER shorten or summarize what the operator writes in detail\n"
+            "- If operator includes specific numbers/rates, you MUST include the SAME numbers\n"
             "Pick the CLOSEST matching example and adapt it for the current lead.\n\n"
             + "\n\n---\n\n".join(parts)
             + "\n=== END OPERATOR'S REAL REPLIES ==="
