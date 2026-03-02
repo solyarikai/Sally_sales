@@ -1967,6 +1967,25 @@ async def get_reply_full_history(
         if not has_outbound and (reply.source == "getsales" or reply.channel == "linkedin"):
             await _fetch_getsales_conversation(contact, reply, session)
 
+            # After fetching full conversation, check if operator already replied.
+            # If last message is outbound and reply is still pending, auto-dismiss.
+            last_outbound_check = await session.execute(
+                select(ContactActivity.direction).where(
+                    and_(
+                        ContactActivity.contact_id == contact.id,
+                        ContactActivity.channel == "linkedin",
+                    )
+                ).order_by(ContactActivity.activity_at.desc()).limit(1)
+            )
+            last_direction = last_outbound_check.scalar()
+            if last_direction == "outbound" and reply.approval_status in (None, "pending"):
+                reply.approval_status = "dismissed"
+                reply.approved_at = datetime.utcnow()
+                session.add(reply)
+                await session.commit()
+                await session.refresh(reply)
+                logger.info(f"[AUTO-DISMISS] Reply {reply.id} auto-dismissed — operator already replied via LinkedIn")
+
         ca_result = await session.execute(
             select(ContactActivity).where(
                 and_(ContactActivity.contact_id == contact.id, ContactActivity.channel == "linkedin")
@@ -2059,7 +2078,8 @@ async def get_campaign_thread(
             .where(ThreadMessage.reply_id == target_reply.id)
             .order_by(ThreadMessage.activity_at)
         )
-        for tm in tm_result.scalars().all():
+        thread_msgs = tm_result.scalars().all()
+        for tm in thread_msgs:
             activities.append({
                 "direction": tm.direction,
                 "content": tm.body or "",
@@ -2067,6 +2087,15 @@ async def get_campaign_thread(
                 "channel": tm.channel or "email",
                 "campaign": campaign_name,
             })
+        # Auto-dismiss if operator already replied (last message is outbound)
+        if thread_msgs and thread_msgs[-1].direction == "outbound":
+            if target_reply.approval_status in (None, "pending"):
+                target_reply.approval_status = "dismissed"
+                target_reply.approved_at = datetime.utcnow()
+                session.add(target_reply)
+                await session.commit()
+                await session.refresh(target_reply)
+                logger.info(f"[AUTO-DISMISS] Reply {target_reply.id} auto-dismissed — operator already replied via email")
 
     # LinkedIn activities from ContactActivity
     if target_reply.source == "getsales" or target_reply.channel == "linkedin":
