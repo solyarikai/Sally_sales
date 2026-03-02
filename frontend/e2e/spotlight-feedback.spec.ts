@@ -182,14 +182,16 @@ test.describe('Spotlight Feedback → Learning Logs', () => {
     // Step 5: Should navigate to knowledge/logs page with logId param
     await page.waitForURL(/\/knowledge\/logs.*logId=999/, { timeout: 10000 });
 
-    // Step 6: The log entry should be auto-expanded (look for "Feedback" trigger label)
-    // The highlighted log should have a blue border
-    const highlightedLog = page.locator('div[style*="border-color: #3b82f6"]');
-    await expect(highlightedLog.first()).toBeVisible({ timeout: 10000 });
+    // Step 6: The log entry should be auto-expanded with feedback content visible
+    // Check the feedback text appears in the expanded detail
+    const feedbackContent = page.locator('text=Always reply in Russian and be friendly');
+    await expect(feedbackContent).toBeVisible({ timeout: 10000 });
 
-    // The processing indicator should be visible
-    const processingIndicator = page.locator('text=Processing feedback');
-    await expect(processingIndicator).toBeVisible({ timeout: 5000 });
+    // The "Feedback" trigger label and "processing" badge should be visible
+    const feedbackLabel = page.locator('text=Feedback').first();
+    await expect(feedbackLabel).toBeVisible();
+    const processingBadge = page.locator('text=processing').first();
+    await expect(processingBadge).toBeVisible();
   });
 
   test('feedback modal shows project name', async ({ page }) => {
