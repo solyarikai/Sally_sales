@@ -2310,6 +2310,7 @@ async def send_reply(
 @router.post("/{reply_id}/regenerate-draft")
 async def regenerate_draft(
     reply_id: int,
+    model: Optional[str] = None,
     db: AsyncSession = Depends(get_session),
 ):
     """Re-classify and regenerate draft for a failed reply.
@@ -2425,7 +2426,10 @@ async def regenerate_draft(
     _old_draft = reply.draft_reply
     _old_subject = reply.draft_subject
 
-    # Generate draft
+    # Generate draft — allow model override (e.g. "gpt-4o" for higher quality)
+    # Validate model to prevent arbitrary model names
+    allowed_models = {"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"}
+    draft_model = model if model in allowed_models else None
     try:
         draft = await generate_draft_reply(
             subject=subject,
@@ -2438,6 +2442,7 @@ async def regenerate_draft(
             sender_name=sender_name,
             sender_position=sender_position,
             sender_company=sender_company,
+            model=draft_model,
         )
     except Exception as e:
         logger.error(f"Draft regeneration failed for reply {reply_id}: {e}")

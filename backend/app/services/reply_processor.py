@@ -578,6 +578,7 @@ async def generate_draft_reply(
     sender_name: Optional[str] = None,
     sender_position: Optional[str] = None,
     sender_company: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate a draft reply using OpenAI with retry logic.
     
@@ -635,9 +636,10 @@ async def generate_draft_reply(
             logger.debug(f"[PROMPT DEBUG] Draft generation attempt {attempt + 1}/{max_retries}")
             logger.debug(f"[PROMPT DEBUG] Draft prompt:\n{prompt[:500]}...")
             
+            draft_model = model or "gpt-4o-mini"
             response = await openai_service.complete(
                 prompt=prompt,
-                model="gpt-4o-mini",
+                model=draft_model,
                 temperature=0.4,
                 max_tokens=1500,
                 response_format={"type": "json_object"},
