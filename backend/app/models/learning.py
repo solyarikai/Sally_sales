@@ -42,7 +42,7 @@ class LearningLog(Base, TimestampMixin):
 
 
 class OperatorCorrection(Base):
-    """Captures what AI suggested vs what operator actually sent."""
+    """Captures every operator action on a reply — send, dismiss, regenerate."""
     __tablename__ = "operator_corrections"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -53,6 +53,7 @@ class OperatorCorrection(Base):
     sent_reply = Column(Text, nullable=True)
     sent_subject = Column(String(500), nullable=True)
     was_edited = Column(Boolean, default=False, nullable=False)
+    action_type = Column(String(30), default="send", nullable=False)  # send / dismiss / regenerate
     reply_category = Column(String(50), nullable=True)  # interested / meeting_request / etc
     channel = Column(String(50), nullable=True)  # email / linkedin
     lead_company = Column(String(255), nullable=True)

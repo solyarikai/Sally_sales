@@ -2144,7 +2144,19 @@ async def update_reply_status(
     db.add(reply)
     await db.commit()
     await db.refresh(reply)
-    
+
+    # Record operator action for learning system
+    if approval_status == "dismissed":
+        try:
+            from app.services.learning_service import learning_service
+            await learning_service.record_correction(
+                db, reply, reply.draft_reply, reply.draft_subject,
+                None, None, action_type="dismiss",
+            )
+            await db.commit()
+        except Exception as _lrn_err:
+            logger.warning(f"Learning correction recording failed (non-fatal): {_lrn_err}")
+
     # Sync to Google Sheets if configured
     sheet_updated = False
     if reply.automation_id and reply.google_sheet_row:
@@ -2235,6 +2247,17 @@ async def send_reply(
     reply.approval_status = "approved"
     reply.approved_at = datetime.utcnow()
     await db.commit()
+
+    # Record operator action for learning system (draft sent as-is)
+    try:
+        from app.services.learning_service import learning_service
+        await learning_service.record_correction(
+            db, reply, reply.draft_reply, reply.draft_subject,
+            reply.draft_reply, reply.draft_subject, action_type="send",
+        )
+        await db.commit()
+    except Exception as _lrn_err:
+        logger.warning(f"Learning correction recording failed (non-fatal): {_lrn_err}")
 
     return {
         "status": "sent",
@@ -2345,6 +2368,10 @@ async def regenerate_draft(
         except Exception as e:
             logger.warning(f"Project lookup failed for regenerate (non-fatal): {e}")
 
+    # Capture old draft before overwriting (for learning signal)
+    _old_draft = reply.draft_reply
+    _old_subject = reply.draft_subject
+
     # Generate draft
     try:
         draft = await generate_draft_reply(
@@ -2369,6 +2396,17 @@ async def regenerate_draft(
     db.add(reply)
     await db.commit()
     await db.refresh(reply)
+
+    # Record regeneration as learning signal (old draft was rejected)
+    try:
+        from app.services.learning_service import learning_service
+        await learning_service.record_correction(
+            db, reply, _old_draft, _old_subject,
+            None, None, action_type="regenerate",
+        )
+        await db.commit()
+    except Exception as _lrn_err:
+        logger.warning(f"Learning correction recording failed (non-fatal): {_lrn_err}")
 
     return {
         "reply_id": reply.id,

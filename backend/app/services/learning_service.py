@@ -24,17 +24,24 @@ from app.services.conversation_analysis_service import (
 
 logger = logging.getLogger(__name__)
 
-LEARNING_SYSTEM_PROMPT = """You are an expert outbound sales optimization engine. You analyze real conversations between SDRs and prospects, along with operator corrections to AI-generated drafts.
+LEARNING_SYSTEM_PROMPT = """You are an expert outbound sales optimization engine. You analyze real conversations between SDRs and prospects, along with ALL operator actions on AI-generated drafts.
 
 Your job: Update the reply prompt template and extract ICP insights based on patterns you observe.
 
 INPUT:
 1. Current reply prompt template (what the AI currently uses)
 2. Real conversation threads (with prospect responses and our replies)
-3. Operator corrections (what AI drafted vs what the human actually sent)
+3. Operator actions on AI drafts — every action is a learning signal:
+   - EDITED: operator changed draft before sending (learn what was wrong)
+   - APPROVED: operator sent draft unchanged (learn what works — reinforce these patterns)
+   - DISMISSED: operator chose not to reply (draft was bad or reply unnecessary — learn when NOT to suggest)
+   - REGENERATED: operator rejected draft and asked for a new one (draft quality was poor)
 
 ANALYSIS:
-- Identify patterns in how operators improve AI drafts (tone shifts, added context, removed fluff)
+- EDITED drafts: identify patterns in how operators improve AI drafts (tone shifts, added context, removed fluff)
+- APPROVED drafts: identify what the AI got right — reinforce these patterns in the template
+- DISMISSED drafts: identify when AI should not suggest replies (wrong lead type, unnecessary follow-up)
+- REGENERATED drafts: identify systematic quality issues (wrong tone, missing context, too long/short)
 - Detect which prospect types engage positively vs negatively
 - Find common objections and effective responses to them
 - Note language/channel-specific patterns (email vs LinkedIn, formal vs casual)
@@ -299,11 +306,15 @@ Incorporate this feedback into the template and ICP knowledge."""
         ai_subject: Optional[str],
         sent_text: Optional[str],
         sent_subject: Optional[str],
+        action_type: str = "send",
     ) -> Optional[OperatorCorrection]:
-        """Record the diff between AI draft and what operator actually sent."""
+        """Record any operator action — send (edited or not), dismiss, regenerate."""
         was_edited = (
-            (ai_draft or "").strip() != (sent_text or "").strip()
-            or (ai_subject or "").strip() != (sent_subject or "").strip()
+            action_type == "send"
+            and (
+                (ai_draft or "").strip() != (sent_text or "").strip()
+                or (ai_subject or "").strip() != (sent_subject or "").strip()
+            )
         )
 
         # Resolve project_id from contact
@@ -327,6 +338,7 @@ Incorporate this feedback into the template and ICP knowledge."""
             sent_reply=sent_text,
             sent_subject=sent_subject,
             was_edited=was_edited,
+            action_type=action_type,
             reply_category=reply.category,
             channel=reply.channel,
             lead_company=reply.lead_company,
@@ -373,19 +385,18 @@ Incorporate this feedback into the template and ICP knowledge."""
     async def _get_recent_corrections(
         self, session: AsyncSession, project_id: int, limit: int = 50
     ) -> List[Dict[str, Any]]:
-        """Get recent operator corrections for analysis."""
+        """Get ALL recent operator actions for analysis — sends, dismissals, regenerations."""
         result = await session.execute(
             select(OperatorCorrection)
-            .where(
-                OperatorCorrection.project_id == project_id,
-                OperatorCorrection.was_edited == True,
-            )
+            .where(OperatorCorrection.project_id == project_id)
             .order_by(OperatorCorrection.created_at.desc())
             .limit(limit)
         )
         corrections = result.scalars().all()
         return [
             {
+                "action": c.action_type,
+                "was_edited": c.was_edited,
                 "category": c.reply_category,
                 "channel": c.channel,
                 "ai_draft": (c.ai_draft_reply or "")[:500],
@@ -438,9 +449,22 @@ Incorporate this feedback into the template and ICP knowledge."""
         if corrections:
             parts = []
             for i, c in enumerate(corrections, 1):
-                parts.append(f"--- Correction #{i} ({c['channel']}, {c['category']}) ---")
-                parts.append(f"AI drafted: {c['ai_draft']}")
-                parts.append(f"Operator sent: {c['sent']}")
+                action = c.get("action", "send")
+                if action == "dismiss":
+                    parts.append(f"--- Action #{i}: DISMISSED ({c['channel']}, {c['category']}) ---")
+                    parts.append(f"AI drafted (rejected): {c['ai_draft']}")
+                    parts.append("Operator chose NOT to reply — draft was inadequate or reply unnecessary")
+                elif action == "regenerate":
+                    parts.append(f"--- Action #{i}: REGENERATED ({c['channel']}, {c['category']}) ---")
+                    parts.append(f"AI draft (rejected): {c['ai_draft']}")
+                    parts.append("Operator found draft unsatisfactory and requested a new one")
+                elif c.get("was_edited"):
+                    parts.append(f"--- Action #{i}: EDITED before send ({c['channel']}, {c['category']}) ---")
+                    parts.append(f"AI drafted: {c['ai_draft']}")
+                    parts.append(f"Operator sent instead: {c['sent']}")
+                else:
+                    parts.append(f"--- Action #{i}: APPROVED as-is ({c['channel']}, {c['category']}) ---")
+                    parts.append(f"AI draft (used unchanged): {c['ai_draft']}")
                 parts.append("")
             corrections_text = "\n".join(parts)
 
@@ -455,7 +479,7 @@ CURRENT ICP KNOWLEDGE:
 CONVERSATIONS ({len(conversations)} threads):
 {formatted_convos}
 
-OPERATOR CORRECTIONS ({len(corrections)} edits):
+OPERATOR ACTIONS ({len(corrections)} signals — edits, approvals, dismissals, regenerations):
 {corrections_text or '(none yet)'}
 
 Analyze these patterns and produce an improved template + ICP insights."""

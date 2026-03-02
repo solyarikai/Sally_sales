@@ -111,7 +111,7 @@ async def get_learning_overview(
         for l in logs_result.scalars().all()
     ]
 
-    # Corrections count
+    # Corrections count — broken down by action type
     corrections_count_result = await db.execute(
         select(func.count(OperatorCorrection.id)).where(
             OperatorCorrection.project_id == project_id
@@ -127,6 +127,13 @@ async def get_learning_overview(
     )
     corrections_edited = edited_count_result.scalar() or 0
 
+    action_type_result = await db.execute(
+        select(OperatorCorrection.action_type, func.count(OperatorCorrection.id))
+        .where(OperatorCorrection.project_id == project_id)
+        .group_by(OperatorCorrection.action_type)
+    )
+    action_breakdown = {row[0]: row[1] for row in action_type_result.all() if row[0]}
+
     return {
         "project_id": project_id,
         "project_name": project.name,
@@ -136,6 +143,7 @@ async def get_learning_overview(
         "corrections": {
             "total": corrections_total,
             "edited": corrections_edited,
+            "by_action": action_breakdown,
         },
     }
 
