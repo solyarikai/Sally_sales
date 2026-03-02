@@ -635,13 +635,57 @@ async def generate_draft_reply(
         sender_company=sender_company,
     )
     last_error = None
-    
+    draft_model = model or "gpt-4o-mini"
+    use_gemini = draft_model.startswith("gemini")
+
+    # --- Gemini path ---
+    if use_gemini:
+        from app.services.gemini_client import gemini_generate, extract_json_from_gemini, is_gemini_available
+        if not is_gemini_available():
+            logger.warning("[PROCESSOR] Gemini requested but not configured, falling back to gpt-4o-mini")
+            draft_model = "gpt-4o-mini"
+            use_gemini = False
+
+    if use_gemini:
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"[PROCESSOR] Gemini draft generation attempt {attempt + 1}/{max_retries} model={draft_model}")
+                result_raw = await gemini_generate(
+                    system_prompt="You are an AI assistant generating email reply drafts. Respond ONLY with valid JSON.",
+                    user_prompt=prompt,
+                    temperature=0.4,
+                    max_tokens=2000,
+                    model=draft_model,
+                )
+                content = result_raw["content"]
+                clean_json = extract_json_from_gemini(content)
+                result = json.loads(clean_json)
+                draft_body = result.get("body", "")
+                draft_body = _strip_placeholder_brackets(draft_body)
+                logger.info(f"[PROCESSOR] Gemini draft OK: {len(draft_body)} chars, tokens={result_raw.get('tokens', {})}")
+                return {
+                    "subject": result.get("subject", f"Re: {subject}"),
+                    "body": draft_body,
+                    "tone": result.get("tone", "professional"),
+                }
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"[PROCESSOR] Gemini draft attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep((attempt + 1) * 2)
+        logger.error(f"[PROCESSOR] Gemini draft failed after {max_retries} attempts: {last_error}")
+        return {
+            "subject": f"Re: {subject}",
+            "body": f"(Draft generation failed after {max_retries} attempts: {last_error})",
+            "tone": "error",
+        }
+
+    # --- OpenAI path ---
     for attempt in range(max_retries):
         try:
             logger.debug(f"[PROMPT DEBUG] Draft generation attempt {attempt + 1}/{max_retries}")
             logger.debug(f"[PROMPT DEBUG] Draft prompt:\n{prompt[:500]}...")
-            
-            draft_model = model or "gpt-4o-mini"
+
             response = await openai_service.complete(
                 prompt=prompt,
                 model=draft_model,
@@ -661,10 +705,10 @@ async def generate_draft_reply(
                 if "```" in clean_response:
                     clean_response = clean_response.rsplit("```", 1)[0]
             result = json.loads(clean_response.strip())
-            
+
             if attempt > 0:
                 logger.info(f"[PROCESSOR] Draft generation succeeded after {attempt + 1} attempts")
-            
+
             draft_body = result.get("body", "")
             # Strip GPT placeholder brackets like [Your Name], [Ваше имя], etc.
             draft_body = _strip_placeholder_brackets(draft_body)

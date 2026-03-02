@@ -2428,7 +2428,7 @@ async def regenerate_draft(
 
     # Generate draft — allow model override (e.g. "gpt-4o" for higher quality)
     # Validate model to prevent arbitrary model names
-    allowed_models = {"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"}
+    allowed_models = {"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "gemini-2.5-pro", "gemini-2.5-flash"}
     draft_model = model if model in allowed_models else None
     try:
         draft = await generate_draft_reply(
