@@ -2324,6 +2324,25 @@ async def regenerate_draft(
                     template = template_result.scalar()
                     if template:
                         custom_reply_prompt = template.prompt_text
+                # Load project knowledge to enrich the prompt
+                try:
+                    from app.models.project_knowledge import ProjectKnowledge
+                    knowledge_result = await db.execute(
+                        select(ProjectKnowledge).where(
+                            ProjectKnowledge.project_id == project.id
+                        )
+                    )
+                    knowledge_entries = knowledge_result.scalars().all()
+                    if knowledge_entries:
+                        knowledge_context = "\n\nProject Knowledge Base:\n"
+                        for entry in knowledge_entries:
+                            knowledge_context += f"- [{entry.category}] {entry.key}: {entry.value}\n"
+                        if custom_reply_prompt:
+                            custom_reply_prompt += knowledge_context
+                        else:
+                            custom_reply_prompt = knowledge_context
+                except Exception as ke:
+                    logger.warning(f"Knowledge loading failed (non-fatal): {ke}")
         except Exception as e:
             logger.warning(f"Project lookup failed for regenerate (non-fatal): {e}")
 

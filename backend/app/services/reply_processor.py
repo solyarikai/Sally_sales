@@ -776,6 +776,26 @@ async def process_reply_webhook(
                                 template.last_used_at = datetime.utcnow()
                             except Exception:
                                 pass
+                    # Load project knowledge to enrich the prompt
+                    try:
+                        from app.models.project_knowledge import ProjectKnowledge
+                        knowledge_result = await session.execute(
+                            select(ProjectKnowledge).where(
+                                ProjectKnowledge.project_id == project.id
+                            )
+                        )
+                        knowledge_entries = knowledge_result.scalars().all()
+                        if knowledge_entries:
+                            knowledge_context = "\n\nProject Knowledge Base:\n"
+                            for entry in knowledge_entries:
+                                knowledge_context += f"- [{entry.category}] {entry.key}: {entry.value}\n"
+                            if custom_reply_prompt:
+                                custom_reply_prompt += knowledge_context
+                            else:
+                                custom_reply_prompt = knowledge_context
+                            logger.info(f"[PROCESSOR] Loaded {len(knowledge_entries)} knowledge entries for project '{project.name}'")
+                    except Exception as ke:
+                        logger.warning(f"[PROCESSOR] Knowledge loading failed (non-fatal): {ke}")
             except Exception as proj_err:
                 logger.warning(f"[PROCESSOR] Project prompt lookup failed (non-fatal): {proj_err}")
 
@@ -1346,6 +1366,26 @@ async def process_getsales_reply(
                     if tmpl:
                         custom_reply_prompt = tmpl.prompt_text
                         logger.info(f"[GETSALES] Using project prompt template '{tmpl.name}'")
+                # Load project knowledge
+                try:
+                    from app.models.project_knowledge import ProjectKnowledge
+                    knowledge_result = await session.execute(
+                        select(ProjectKnowledge).where(
+                            ProjectKnowledge.project_id == project.id
+                        )
+                    )
+                    knowledge_entries = knowledge_result.scalars().all()
+                    if knowledge_entries:
+                        knowledge_context = "\n\nProject Knowledge Base:\n"
+                        for entry in knowledge_entries:
+                            knowledge_context += f"- [{entry.category}] {entry.key}: {entry.value}\n"
+                        if custom_reply_prompt:
+                            custom_reply_prompt += knowledge_context
+                        else:
+                            custom_reply_prompt = knowledge_context
+                        logger.info(f"[GETSALES] Loaded {len(knowledge_entries)} knowledge entries")
+                except Exception as ke:
+                    logger.warning(f"[GETSALES] Knowledge loading failed (non-fatal): {ke}")
         except Exception as proj_err:
             logger.warning(f"[GETSALES] Project lookup failed (non-fatal): {proj_err}")
 

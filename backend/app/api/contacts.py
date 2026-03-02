@@ -181,6 +181,10 @@ class ProjectUpdate(BaseModel):
     telegram_username: Optional[str] = None  # Operator @username for notifications
     webhooks_enabled: Optional[bool] = None
     sheet_sync_config: Optional[Dict[str, Any]] = None
+    sender_name: Optional[str] = None
+    sender_position: Optional[str] = None
+    sender_company: Optional[str] = None
+    reply_prompt_template_id: Optional[int] = None
 
 
 class ProjectResponse(BaseModel):
@@ -194,6 +198,10 @@ class ProjectResponse(BaseModel):
     telegram_username: Optional[str] = None
     webhooks_enabled: bool = True
     sheet_sync_config: Optional[Dict[str, Any]] = None
+    sender_name: Optional[str] = None
+    sender_position: Optional[str] = None
+    sender_company: Optional[str] = None
+    reply_prompt_template_id: Optional[int] = None
     contact_count: int = 0
     created_at: datetime
     updated_at: datetime
