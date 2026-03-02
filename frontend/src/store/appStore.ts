@@ -70,6 +70,10 @@ interface AppState {
   activeSearchProjectId: number | null;
   setActiveSearchProjectId: (id: number | null) => void;
 
+  // Ephemeral learning state (not persisted)
+  pendingLearning: { logId: number; projectId: number } | null;
+  setPendingLearning: (learning: { logId: number; projectId: number } | null) => void;
+
   // Reset company-scoped data when switching companies
   resetCompanyData: () => void;
 }
@@ -186,6 +190,10 @@ export const useAppStore = create<AppState>()(
       // Search state
       activeSearchProjectId: null,
       setActiveSearchProjectId: (id) => set({ activeSearchProjectId: id }),
+
+      // Ephemeral learning state
+      pendingLearning: null,
+      setPendingLearning: (learning) => set({ pendingLearning: learning }),
 
       // Reset company-scoped data
       resetCompanyData: () => set({

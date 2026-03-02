@@ -874,6 +874,7 @@ async def process_reply_webhook(
             existing_pr.classification_reasoning = classification["reasoning"]
             existing_pr.draft_reply = draft["body"]
             existing_pr.draft_subject = draft["subject"]
+            existing_pr.draft_generated_at = datetime.utcnow()
             existing_pr.approval_status = None  # Re-surface for operator
             new_raw = dict(payload) if isinstance(payload, dict) else {}
             new_raw["_previous_versions"] = versions
@@ -916,6 +917,7 @@ async def process_reply_webhook(
                 classification_reasoning=classification["reasoning"],
                 draft_reply=draft["body"],
                 draft_subject=draft["subject"],
+                draft_generated_at=datetime.utcnow(),
                 inbox_link=inbox_link,  # Smartlead master inbox link
                 raw_webhook_data=payload,
                 smartlead_lead_id=payload.get("sl_email_lead_id") or None,
@@ -1442,6 +1444,7 @@ async def process_getsales_reply(
         existing_pr.classification_reasoning = classification["reasoning"]
         existing_pr.draft_reply = draft.get("body")
         existing_pr.draft_subject = draft.get("subject")
+        existing_pr.draft_generated_at = datetime.utcnow()
         existing_pr.approval_status = None  # Re-surface for operator
         existing_pr.raw_webhook_data = raw_data
         existing_pr.updated_at = datetime.utcnow()
@@ -1475,6 +1478,7 @@ async def process_getsales_reply(
             classification_reasoning=classification["reasoning"],
             draft_reply=draft.get("body"),
             draft_subject=draft.get("subject"),
+            draft_generated_at=datetime.utcnow(),
             raw_webhook_data=raw_data,
             inbox_link=inbox_link,
         )

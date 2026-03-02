@@ -10,7 +10,7 @@ Endpoints:
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from typing import Optional, Any
 from pydantic import BaseModel, Field
 import logging
@@ -19,6 +19,7 @@ from app.db import get_session
 from app.api.companies import get_required_company
 from app.models.user import Company
 from app.models.contact import Project
+from app.models.project_knowledge import ProjectKnowledge
 from app.services.project_knowledge_service import project_knowledge_service
 
 router = APIRouter(prefix="/projects", tags=["project-knowledge"])
@@ -52,6 +53,23 @@ async def get_all_knowledge(
     await _get_project(db, project_id, company)
     grouped = await project_knowledge_service.get_all(db, project_id)
     return {"project_id": project_id, "knowledge": grouped}
+
+
+@router.get("/{project_id}/knowledge/timestamp")
+async def get_knowledge_timestamp(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Get the latest knowledge update timestamp for staleness detection."""
+    await _get_project(db, project_id, company)
+    result = await db.execute(
+        select(func.max(ProjectKnowledge.updated_at)).where(
+            ProjectKnowledge.project_id == project_id
+        )
+    )
+    ts = result.scalar()
+    return {"knowledge_updated_at": ts.isoformat() if ts else None}
 
 
 @router.get("/{project_id}/knowledge/{category}")

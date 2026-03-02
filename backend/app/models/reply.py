@@ -111,6 +111,7 @@ class ProcessedReply(Base, TimestampMixin):
     # Generated draft reply
     draft_reply = Column(Text, nullable=True)
     draft_subject = Column(String(500), nullable=True)
+    draft_generated_at = Column(DateTime, nullable=True)
     
     # Processing status
     processed_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

@@ -52,4 +52,9 @@ export const knowledgeApi = {
     const response = await api.post(`/projects/${projectId}/knowledge/sync`);
     return response.data;
   },
+
+  getKnowledgeTimestamp: async (projectId: number): Promise<{ knowledge_updated_at: string | null }> => {
+    const response = await api.get(`/projects/${projectId}/knowledge/timestamp`);
+    return response.data;
+  },
 };

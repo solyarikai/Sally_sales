@@ -37,6 +37,10 @@ export function SpotlightFeedback({ open, onClose }: Props) {
     try {
       const result = await submitFeedback(currentProject.id, text.trim());
       setSubmitted({ logId: result.learning_log_id });
+      useAppStore.getState().setPendingLearning({
+        logId: result.learning_log_id,
+        projectId: currentProject.id,
+      });
     } catch (e) {
       toastError('Failed to submit feedback');
     } finally {
@@ -95,19 +99,19 @@ export function SpotlightFeedback({ open, onClose }: Props) {
                 </p>
               </div>
               <button
-                onClick={handleViewLog}
+                onClick={onClose}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 cursor-pointer"
                 style={{ background: t.btnPrimaryBg, color: t.btnPrimaryText }}
               >
-                <ExternalLink className="w-3.5 h-3.5" />
-                View in Learning Logs
+                Stay here
               </button>
               <button
-                onClick={onClose}
-                className="text-[12px] transition-opacity hover:opacity-70 cursor-pointer"
+                onClick={handleViewLog}
+                className="flex items-center gap-1.5 text-[12px] transition-opacity hover:opacity-70 cursor-pointer"
                 style={{ color: t.text5 }}
               >
-                Close
+                <ExternalLink className="w-3.5 h-3.5" />
+                View in Learning Logs
               </button>
             </div>
           ) : (

@@ -140,6 +140,7 @@ export interface ProcessedReply {
   classification_reasoning: string | null;
   draft_reply: string | null;
   draft_subject: string | null;
+  draft_generated_at: string | null;
   inbox_link: string | null;
   sender_name: string | null;
   processed_at: string;
@@ -556,6 +557,7 @@ export async function regenerateDraft(replyId: number): Promise<{
   reply_id: number;
   draft_reply: string;
   draft_subject: string;
+  draft_generated_at: string;
   category: string;
   classification_reasoning: string;
 }> {

@@ -156,6 +156,7 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     # Draft
     draft_reply: Optional[str] = None
     draft_subject: Optional[str] = None
+    draft_generated_at: Optional[datetime] = None
 
     # Status
     processed_at: datetime

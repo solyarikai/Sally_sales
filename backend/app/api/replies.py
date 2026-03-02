@@ -2366,6 +2366,7 @@ async def regenerate_draft(
 
     reply.draft_reply = draft.get("body", "")
     reply.draft_subject = draft.get("subject", reply.draft_subject)
+    reply.draft_generated_at = datetime.utcnow()
     db.add(reply)
     await db.commit()
     await db.refresh(reply)
@@ -2374,6 +2375,7 @@ async def regenerate_draft(
         "reply_id": reply.id,
         "draft_reply": reply.draft_reply,
         "draft_subject": reply.draft_subject,
+        "draft_generated_at": reply.draft_generated_at.isoformat() if reply.draft_generated_at else None,
         "category": reply.category,
         "classification_reasoning": reply.classification_reasoning,
     }
