@@ -20,6 +20,8 @@ def _format_knowledge_context(knowledge_entries, category: str = None) -> str:
     Files are separated with a CRITICAL instruction block so the AI reliably
     includes document links when the prospect requests materials.
     Golden examples are included with STRICT instructions to follow them exactly.
+    ALL examples are included regardless of category — the operator uses the same
+    style/structure across categories.
     """
     regular = []
     files = []
@@ -29,9 +31,6 @@ def _format_knowledge_context(knowledge_entries, category: str = None) -> str:
             label = entry.title or entry.key
             files.append(f"  {label}: {entry.value}")
         elif entry.category == "examples":
-            # Only include examples matching the current category if specified
-            if category and not entry.key.startswith(category):
-                continue
             examples.append(entry)
         else:
             regular.append(f"- [{entry.category}] {entry.key}: {entry.value}")
@@ -57,20 +56,88 @@ def _format_knowledge_context(knowledge_entries, category: str = None) -> str:
         )
     if examples:
         example_parts = []
-        for ex in examples[:3]:  # Max 3 examples to not overflow context
+        for ex in examples[:10]:  # Up to 10 examples for rich context
             example_parts.append(f"--- Example ({ex.title or ex.key}) ---\n{ex.value}\n--- End example ---")
         parts.append(
-            "\n\n=== GOLDEN EXAMPLES FROM OPERATOR (FOLLOW EXACTLY) ===\n"
-            "The operator provided these PERFECT reply examples. Your draft MUST match:\n"
-            "- The EXACT same structure (greeting, body sections, bullet points, signature)\n"
-            "- The SAME level of detail (if the example has full pricing, include full pricing)\n"
-            "- The SAME tone and language style\n"
-            "- The SAME formatting (numbered lists, bullet points, line breaks)\n"
-            "Adapt for the specific lead's name/company/question, but keep the structure identical.\n\n"
+            "\n\n=== REFERENCE REPLIES FROM OPERATOR (YOUR #1 PRIORITY) ===\n"
+            "These are REAL replies the operator wrote. They define the EXACT style you must follow.\n"
+            "Your draft MUST replicate:\n"
+            "- The SAME structure (greeting, then detailed body, then call-to-action, then signature)\n"
+            "- The SAME level of detail (full pricing breakdowns, bullet point lists, specific numbers)\n"
+            "- The SAME tone, language style, and formatting\n"
+            "- The SAME length — if the example is long and detailed, yours must be too\n"
+            "Adapt names/company for the current lead, but COPY the structure and detail level.\n\n"
             + "\n\n".join(example_parts)
-            + "\n=== END GOLDEN EXAMPLES ==="
+            + "\n=== END REFERENCE REPLIES ==="
         )
     return "\n".join(parts)
+
+
+async def _load_reference_examples(session, project_id: int, category: str = None, limit: int = 15) -> str:
+    """Load operator's actual sent replies as few-shot reference examples.
+
+    Queries OperatorCorrection records for this project where action_type='send',
+    joined with ProcessedReply to get the lead's original message.
+    Returns formatted string for inclusion in the draft generation prompt.
+    """
+    try:
+        from app.models.learning import OperatorCorrection
+        from app.models.reply import ProcessedReply as PRModel
+
+        # Fetch corrections with the lead's original message
+        query = (
+            select(
+                OperatorCorrection.sent_reply,
+                OperatorCorrection.reply_category,
+                OperatorCorrection.was_edited,
+                OperatorCorrection.channel,
+                PRModel.email_body,
+                PRModel.email_subject,
+                PRModel.lead_first_name,
+                PRModel.lead_company,
+            )
+            .join(PRModel, OperatorCorrection.processed_reply_id == PRModel.id, isouter=True)
+            .where(
+                OperatorCorrection.project_id == project_id,
+                OperatorCorrection.action_type == "send",
+                OperatorCorrection.sent_reply.isnot(None),
+            )
+            .order_by(OperatorCorrection.created_at.desc())
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        rows = result.all()
+
+        if not rows:
+            return ""
+
+        # Sort: same-category first, then others
+        same_cat = [r for r in rows if r.reply_category == category]
+        other_cat = [r for r in rows if r.reply_category != category]
+        sorted_rows = same_cat + other_cat
+
+        parts = []
+        for r in sorted_rows:
+            lead_msg = (r.email_body or "")[:500]
+            parts.append(
+                f"[{r.reply_category or 'unknown'}] Lead ({r.lead_first_name or 'unknown'}, "
+                f"{r.lead_company or 'unknown company'}):\n"
+                f"\"{lead_msg}\"\n"
+                f"Operator replied:\n"
+                f"\"{r.sent_reply}\""
+            )
+
+        return (
+            "\n\n=== OPERATOR'S PAST REPLIES (LEARN FROM THESE) ===\n"
+            "Below are REAL replies the operator sent to real leads. "
+            "Study the style, structure, detail level, and tone. "
+            "Your draft should match this quality.\n\n"
+            + "\n\n---\n\n".join(parts)
+            + "\n=== END PAST REPLIES ==="
+        )
+    except Exception as e:
+        logger.warning(f"[PROCESSOR] Reference examples loading failed (non-fatal): {e}")
+        return ""
 
 
 def _parse_source_timestamp(payload: dict) -> Optional[datetime]:
@@ -195,17 +262,18 @@ Lead Company: {company}
 
 You are replying as: {sender_name}{sender_position_line}{sender_company_line}
 
-Guidelines:
-- Be professional and friendly
-- Keep it concise (2-3 paragraphs max)
-- If interested/meeting_request: suggest next steps or propose a call
-- If question: answer helpfully
-- If not_interested: thank them politely
-- If wrong_person: ask for referral
-- If unsubscribe: confirm removal
-- If out_of_office: no reply needed
-- Sign off with the sender name above — NEVER use placeholder brackets like [Your Name], [Tu Nombre], [Your Position], [Your Company], [Your Contact Information] etc.
-- If sender name is unknown, omit the sign-off entirely
+CRITICAL RULES:
+1. If REFERENCE REPLIES or GOLDEN EXAMPLES are provided below, they are your PRIMARY guide.
+   Match their structure, detail level, tone, and length EXACTLY. Do NOT shorten or simplify.
+   If the reference has full pricing breakdowns with bullet points, YOUR reply must too.
+2. If no examples are provided, use these defaults:
+   - interested/meeting_request: detailed response with next steps
+   - question: answer helpfully with specifics
+   - not_interested: thank them politely (keep short)
+   - wrong_person: ask for referral (keep short)
+   - unsubscribe: confirm removal (keep short)
+3. Sign off with the sender name above — NEVER use placeholder brackets like [Your Name] etc.
+4. If sender name is unknown, omit the sign-off entirely.
 
 Respond with ONLY a JSON object:
 {{"subject": "Re: <subject>", "body": "<reply text>", "tone": "<professional|friendly|formal>"}}
@@ -888,6 +956,20 @@ async def process_reply_webhook(
                             logger.info(f"[PROCESSOR] Loaded {len(knowledge_entries)} knowledge entries for project '{project.name}'")
                     except Exception as ke:
                         logger.warning(f"[PROCESSOR] Knowledge loading failed (non-fatal): {ke}")
+
+                    # Load reference examples from operator's past replies
+                    try:
+                        ref_examples = await _load_reference_examples(
+                            session, project.id, category=classification.get("category")
+                        )
+                        if ref_examples:
+                            if custom_reply_prompt:
+                                custom_reply_prompt += ref_examples
+                            else:
+                                custom_reply_prompt = ref_examples
+                            logger.info(f"[PROCESSOR] Loaded reference examples for project '{project.name}'")
+                    except Exception as ref_err:
+                        logger.warning(f"[PROCESSOR] Reference examples loading failed (non-fatal): {ref_err}")
             except Exception as proj_err:
                 logger.warning(f"[PROCESSOR] Project prompt lookup failed (non-fatal): {proj_err}")
 
@@ -1511,6 +1593,22 @@ async def process_getsales_reply(
             custom_reply_prompt += knowledge_context
         else:
             custom_reply_prompt = knowledge_context
+
+    # --- Load reference examples from operator's past replies ---
+    _project_for_refs = locals().get("project")
+    if _project_for_refs:
+        try:
+            ref_examples = await _load_reference_examples(
+                session, _project_for_refs.id, category=classification.get("category")
+            )
+            if ref_examples:
+                if custom_reply_prompt:
+                    custom_reply_prompt += ref_examples
+                else:
+                    custom_reply_prompt = ref_examples
+                logger.info(f"[GETSALES] Loaded reference examples for project '{_project_for_refs.name}'")
+        except Exception as ref_err:
+            logger.warning(f"[GETSALES] Reference examples loading failed (non-fatal): {ref_err}")
 
     # --- Generate draft ---
     linkedin_draft_suffix = (

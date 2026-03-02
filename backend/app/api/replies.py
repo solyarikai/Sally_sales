@@ -2404,6 +2404,20 @@ async def regenerate_draft(
                             custom_reply_prompt = knowledge_context
                 except Exception as ke:
                     logger.warning(f"Knowledge loading failed (non-fatal): {ke}")
+
+                # Load reference examples from operator's past replies
+                try:
+                    from app.services.reply_processor import _load_reference_examples
+                    ref_examples = await _load_reference_examples(
+                        db, project.id, category=category
+                    )
+                    if ref_examples:
+                        if custom_reply_prompt:
+                            custom_reply_prompt += ref_examples
+                        else:
+                            custom_reply_prompt = ref_examples
+                except Exception as ref_err:
+                    logger.warning(f"Reference examples loading failed (non-fatal): {ref_err}")
         except Exception as e:
             logger.warning(f"Project lookup failed for regenerate (non-fatal): {e}")
 
