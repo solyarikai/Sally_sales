@@ -260,8 +260,12 @@ def _parse_source_timestamp(payload: dict) -> Optional[datetime]:
 # Regex for placeholder brackets GPT sometimes generates despite instructions.
 # Matches patterns like [Your Name], [Ваше имя], [Tu Nombre], [Your Contact Information], etc.
 _PLACEHOLDER_RE = re.compile(
-    r"\[(?:Your |Ваш[аеи]? |Tu |Su |Ihr )"  # common prefixes
-    r"[^\[\]]{2,40}\]",                        # content inside brackets (2-40 chars)
+    r"\[(?:"
+    r"Your |Ваш[аеи]? |Tu |Su |Ihr |"        # common prefixes
+    r"вставьте |insert |add |укажите |"       # action verbs
+    r"имя|name|email|link|ссылк|врем"         # common nouns
+    r")"
+    r"[^\[\]]{2,60}\]",                        # content inside brackets (2-60 chars)
     re.IGNORECASE,
 )
 
@@ -356,7 +360,8 @@ CRITICAL RULES:
    - not_interested: thank them politely (keep short)
    - wrong_person: ask for referral (keep short)
    - unsubscribe: confirm removal (keep short)
-3. Sign off with the sender name above — NEVER use placeholder brackets like [Your Name] etc.
+3. Sign off with the sender name above — NEVER use placeholder brackets like [Your Name], [вставьте...], [insert...] etc.
+   NEVER generate ANY text in square brackets. If you don't know a value, omit it entirely.
 4. If sender name is unknown, omit the sign-off entirely.
 
 Respond with ONLY a JSON object:
