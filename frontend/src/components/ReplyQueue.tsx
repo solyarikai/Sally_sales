@@ -162,17 +162,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [projectDocs, setProjectDocs] = useState<KnowledgeEntry[]>([]);
 
-  // Knowledge-driven draft auto-regeneration
+  // Knowledge-driven draft staleness (auto-regen disabled — too many Gemini calls)
   const [knowledgeUpdatedAt, setKnowledgeUpdatedAt] = useState<string | null>(null);
-  const [visibleReplyIds, setVisibleReplyIds] = useState<Set<number>>(new Set());
-  const [autoRegeneratingIds, setAutoRegeneratingIds] = useState<Set<number>>(new Set());
-  const [justUpdatedIds, setJustUpdatedIds] = useState<Set<number>>(new Set());
-  const regenQueueRef = useRef<number[]>([]);
-  const activeRegensRef = useRef(0);
-  const everQueuedRef = useRef(new Set<number>());
-  const lastKnowledgeTsRef = useRef<string | null>(null);
-  const MAX_CONCURRENT_REGENS = 1;
-  const visibilityObserverRef = useRef<IntersectionObserver | null>(null);
+  const [autoRegeneratingIds] = useState<Set<number>>(new Set());
+  const [justUpdatedIds] = useState<Set<number>>(new Set());
 
   // Learning feedback polling
   const pendingLearning = useAppStore(s => s.pendingLearning);
@@ -238,72 +231,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       .catch(() => {});
   }, [currentProject?.id]);
 
-  /* ---- IntersectionObserver for reply visibility ---- */
-  useEffect(() => {
-    visibilityObserverRef.current = new IntersectionObserver(
-      (entries) => {
-        setVisibleReplyIds(prev => {
-          const next = new Set(prev);
-          for (const entry of entries) {
-            const id = Number((entry.target as HTMLElement).dataset.replyId);
-            if (!id) continue;
-            if (entry.isIntersecting) next.add(id);
-            else next.delete(id);
-          }
-          return next;
-        });
-      },
-      { root: scrollRef.current, rootMargin: '50px 0px' }
-    );
-    return () => { visibilityObserverRef.current?.disconnect(); };
-  }, []);
-
-  const observeReplyCard = useCallback((node: HTMLDivElement | null) => {
-    if (!node || !visibilityObserverRef.current) return;
-    visibilityObserverRef.current.observe(node);
-  }, []);
-
-  /* ---- Auto-regeneration queue (GPT-4o-mini for speed) ---- */
-  const processRegenQueue = useCallback(async () => {
-    while (regenQueueRef.current.length > 0 && activeRegensRef.current < MAX_CONCURRENT_REGENS) {
-      const replyId = regenQueueRef.current.shift()!;
-      activeRegensRef.current++;
-      setAutoRegeneratingIds(prev => new Set(prev).add(replyId));
-      try {
-        const result = await repliesApi.regenerateDraft(replyId);
-        setReplies(prev => prev.map(r => {
-          if (r.id !== replyId) return r;
-          return {
-            ...r,
-            draft_reply: result.draft_reply,
-            draft_subject: result.draft_subject,
-            draft_generated_at: result.draft_generated_at,
-            translated_draft: result.translated_draft ?? r.translated_draft,
-            category: result.category as ProcessedReply['category'],
-            classification_reasoning: result.classification_reasoning,
-          };
-        }));
-        setJustUpdatedIds(prev => new Set(prev).add(replyId));
-        setTimeout(() => setJustUpdatedIds(prev => {
-          const next = new Set(prev);
-          next.delete(replyId);
-          return next;
-        }), 3000);
-      } catch {
-        // silent — skip failed regeneration
-      } finally {
-        activeRegensRef.current--;
-        setAutoRegeneratingIds(prev => {
-          const next = new Set(prev);
-          next.delete(replyId);
-          return next;
-        });
-      }
-    }
-  }, []);
-
   /* ---- Auto-regen disabled: was causing mass Gemini calls on page load ---- */
   /* Stale drafts now only regenerate on manual click (regenerate button). */
+  const observeReplyCard = useCallback((_node: HTMLDivElement | null) => {}, []);
 
   /* ---- Data loading (infinite scroll) ---- */
   const loadReplies = useCallback(async (reset = false) => {
