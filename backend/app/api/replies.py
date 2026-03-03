@@ -1074,18 +1074,33 @@ async def get_reply_counts(
     if cutoff:
         base.append(ProcessedReply.received_at >= cutoff)
 
-    # Single query: total + category counts via COUNT with FILTER
-    total_q = select(func.count(func.distinct(ProcessedReply.lead_email))).where(*base)
-    total_r = await session.execute(total_q)
-    total = total_r.scalar() or 0
+    # Dedup: one category per contact (best priority, then newest)
+    # Matches list_replies group_by_contact logic exactly
+    from sqlalchemy import case
+    cat_priority = case(
+        (ProcessedReply.category == "meeting_request", 0),
+        (ProcessedReply.category == "interested", 1),
+        (ProcessedReply.category == "question", 2),
+        (ProcessedReply.category == "other", 3),
+        else_=4,
+    )
+    dedup_sub = (
+        select(
+            ProcessedReply.lead_email.label("_email"),
+            ProcessedReply.category.label("category"),
+        )
+        .distinct(ProcessedReply.lead_email)
+        .where(*base)
+        .order_by(ProcessedReply.lead_email, cat_priority, desc(ProcessedReply.received_at))
+    ).subquery()
 
     cat_q = (
-        select(ProcessedReply.category, func.count(func.distinct(ProcessedReply.lead_email)))
-        .where(*base)
-        .group_by(ProcessedReply.category)
+        select(dedup_sub.c.category, func.count())
+        .group_by(dedup_sub.c.category)
     )
     cat_r = await session.execute(cat_q)
     category_counts = {row[0] or "other": row[1] for row in cat_r.all()}
+    total = sum(category_counts.values())
 
     return {"total": total, "category_counts": category_counts}
 
