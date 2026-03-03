@@ -425,44 +425,31 @@ Incorporate this feedback into the template and ICP knowledge."""
         session: AsyncSession,
         project_id: int,
     ) -> Optional[int]:
-        """Auto-trigger learning if enough edited corrections accumulated since last cycle.
+        """Auto-trigger learning after every edited send.
+
+        Called directly from approve-and-send when an operator edits the AI draft.
+        Every diff triggers a knowledge update — Gemini is cheap.
 
         Returns learning_log_id if triggered, None otherwise.
         """
         if not project_id:
             return None
 
-        # Check last completed learning cycle
-        last_log = await session.execute(
-            select(LearningLog.created_at)
-            .where(
+        # Auto-cleanup stuck processing logs (>30 min = stuck)
+        from datetime import datetime, timedelta
+        cutoff = datetime.utcnow() - timedelta(minutes=30)
+        stuck = await session.execute(
+            select(LearningLog).where(
                 LearningLog.project_id == project_id,
-                LearningLog.status == "completed",
+                LearningLog.status == "processing",
+                LearningLog.created_at < cutoff,
             )
-            .order_by(LearningLog.created_at.desc())
-            .limit(1)
         )
-        last_cycle_at = last_log.scalar()
+        for stuck_log in stuck.scalars().all():
+            stuck_log.status = "failed"
+            logger.warning(f"Auto-cleaned stuck learning log {stuck_log.id} for project {project_id}")
 
-        # Count edited sends since last cycle (or all time if no cycle)
-        filters = [
-            OperatorCorrection.project_id == project_id,
-            OperatorCorrection.action_type == "send",
-            OperatorCorrection.was_edited == True,
-        ]
-        if last_cycle_at:
-            filters.append(OperatorCorrection.created_at > last_cycle_at)
-
-        count_result = await session.execute(
-            select(func.count(OperatorCorrection.id)).where(and_(*filters))
-        )
-        edited_count = count_result.scalar() or 0
-
-        # Trigger after every edited send
-        if edited_count < 1:
-            return None
-
-        # Check no cycle is currently processing
+        # Check no cycle is currently processing (after cleanup)
         processing = await session.execute(
             select(func.count(LearningLog.id)).where(
                 LearningLog.project_id == project_id,
@@ -470,9 +457,10 @@ Incorporate this feedback into the template and ICP knowledge."""
             )
         )
         if (processing.scalar() or 0) > 0:
+            logger.info(f"Skipping auto-learning for project {project_id}: cycle already in progress")
             return None
 
-        # Create log and trigger
+        # Create log and trigger — no threshold, every edited send triggers learning
         log = LearningLog(
             project_id=project_id,
             trigger="auto_corrections",
@@ -481,10 +469,7 @@ Incorporate this feedback into the template and ICP knowledge."""
         session.add(log)
         await session.flush()
 
-        logger.info(
-            f"Auto-triggering learning for project {project_id}: "
-            f"{edited_count} edited sends since last cycle"
-        )
+        logger.info(f"Auto-triggering learning for project {project_id} (every edited send)")
         return log.id
 
     # --- Internal methods ---

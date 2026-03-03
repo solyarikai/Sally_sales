@@ -2637,6 +2637,7 @@ async def approve_and_send_reply(
                 reply.draft_reply, reply.draft_subject,
             )
             await db.commit()
+            logger.info(f"[LEARN] LinkedIn correction recorded: edited={correction.was_edited if correction else '?'}, project={correction.project_id if correction else '?'}")
 
             if correction and correction.was_edited and correction.project_id:
                 try:
@@ -2646,6 +2647,7 @@ async def approve_and_send_reply(
                     if log_id:
                         await db.commit()
                         _project_id = correction.project_id
+                        logger.info(f"[LEARN] Auto-learning triggered for project {_project_id}, log_id={log_id}")
                         async def _run_auto_learning_li():
                             from app.db.database import async_session_maker
                             async with async_session_maker() as s:
@@ -2654,10 +2656,13 @@ async def approve_and_send_reply(
                                         s, _project_id, trigger="auto_corrections", log_id=log_id,
                                     )
                                     await s.commit()
+                                    logger.info(f"[LEARN] Auto-learning completed for project {_project_id}")
                                 except Exception as e:
                                     logger.error(f"Auto-learning failed for project {_project_id}: {e}")
                         import asyncio
                         asyncio.ensure_future(_run_auto_learning_li())
+                    else:
+                        logger.info(f"[LEARN] Auto-learning not triggered (cycle in progress?)")
                 except Exception as _at_err:
                     logger.warning(f"Auto-trigger check failed (non-fatal): {_at_err}")
         except Exception as _lrn_err:
@@ -2805,8 +2810,9 @@ async def approve_and_send_reply(
             reply.draft_reply, reply.draft_subject,
         )
         await db.commit()
+        logger.info(f"[LEARN] Email correction recorded: edited={correction.was_edited if correction else '?'}, project={correction.project_id if correction else '?'}")
 
-        # Auto-trigger learning if enough edited corrections accumulated
+        # Auto-trigger learning on every edited send
         if correction and correction.was_edited and correction.project_id:
             try:
                 log_id = await learning_service.maybe_auto_trigger_learning(
@@ -2815,6 +2821,7 @@ async def approve_and_send_reply(
                 if log_id:
                     await db.commit()
                     _project_id = correction.project_id
+                    logger.info(f"[LEARN] Auto-learning triggered for project {_project_id}, log_id={log_id}")
                     async def _run_auto_learning():
                         from app.db.database import async_session_maker
                         async with async_session_maker() as s:
@@ -2823,6 +2830,7 @@ async def approve_and_send_reply(
                                     s, _project_id, trigger="auto_corrections", log_id=log_id,
                                 )
                                 await s.commit()
+                                logger.info(f"[LEARN] Auto-learning completed for project {_project_id}")
                             except Exception as e:
                                 logger.error(f"Auto-learning failed for project {_project_id}: {e}")
                                 try:
@@ -2837,6 +2845,8 @@ async def approve_and_send_reply(
                                     pass
                     import asyncio
                     asyncio.ensure_future(_run_auto_learning())
+                else:
+                    logger.info(f"[LEARN] Auto-learning not triggered (cycle in progress?)")
             except Exception as _at_err:
                 logger.warning(f"Auto-trigger check failed (non-fatal): {_at_err}")
     except Exception as _lrn_err:
