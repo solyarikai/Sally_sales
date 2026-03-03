@@ -2041,6 +2041,8 @@ async def send_getsales_notification(
             getattr(contact, "project_id", None)
             or GETSALES_UUID_TO_PROJECT.get(flow_uuid)
         )
+        # Use campaign_name from ProcessedReply if flow_name is empty
+        effective_campaign = flow_name or processed_reply.campaign_name or ""
         sender_profile_uuid = (
             raw_data.get("sender_profile_uuid")
             or (raw_data.get("automation", {}) or {}).get("sender_profile_uuid")
@@ -2054,12 +2056,23 @@ async def send_getsales_notification(
             from app.services.crm_sync_service import GetSalesClient
             inbox_link = GetSalesClient.build_inbox_url(lead_uuid, sender_profile_uuid)
 
+        # Fallback: resolve project by sender_profile_uuid if campaign routing fails
+        if not resolved_project_id and not effective_campaign and sender_profile_uuid:
+            try:
+                from app.services.notification_service import _get_project_by_sender
+                proj = await _get_project_by_sender(sender_profile_uuid)
+                if proj:
+                    resolved_project_id = proj.get("id")
+                    logger.info(f"[GETSALES] Resolved project via sender UUID: {proj.get('name')} (id={resolved_project_id})")
+            except Exception:
+                pass
+
         sent = await notify_linkedin_reply(
             contact_name=contact_name,
             contact_email=contact.email or "N/A",
-            flow_name=flow_name or processed_reply.campaign_name or "",
+            flow_name=effective_campaign,
             message_text=message_text,
-            campaign_name=flow_name or processed_reply.campaign_name,
+            campaign_name=effective_campaign,
             project_id=resolved_project_id,
             inbox_link=inbox_link,
             sender_name=resolved_sender_name,

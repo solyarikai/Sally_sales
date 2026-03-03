@@ -736,6 +736,16 @@ async def _get_project_by_id(project_id: int):
     return _project_cache["data"].get(project_id)
 
 
+async def _get_project_by_sender(sender_uuid: str):
+    """Find project by sender_profile_uuid in getsales_senders. Returns first match."""
+    await _ensure_cache_fresh()
+    for project_data in _project_cache["data"].values():
+        senders = project_data.get("getsales_senders") or []
+        if sender_uuid in senders:
+            return project_data
+    return None
+
+
 async def _refresh_project_cache():
     """Refresh the in-memory project-campaign mapping cache, including subscribers."""
     from datetime import datetime
@@ -765,6 +775,7 @@ async def _refresh_project_cache():
                 "telegram_chat_id": p.telegram_chat_id,
                 "telegram_subscribers": subs_by_project.get(p.id, []),
                 "campaign_filters": p.campaign_filters or [],
+                "getsales_senders": p.getsales_senders or [],
             }
         
         _project_cache["data"] = cache
