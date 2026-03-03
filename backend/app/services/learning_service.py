@@ -525,19 +525,30 @@ Analyze these patterns and produce an improved template + ICP insights."""
 
         parsed = json.loads(response)
 
-        # Update template
+        # Update template (or create if project has none)
         change_type = None
-        if parsed.get("updated_template") and project.reply_prompt_template_id:
-            await session.execute(
-                update(ReplyPromptTemplateModel)
-                .where(ReplyPromptTemplateModel.id == project.reply_prompt_template_id)
-                .values(
-                    prompt_text=parsed["updated_template"],
-                    version=ReplyPromptTemplateModel.version + 1,
-                    updated_at=datetime.utcnow(),
+        if parsed.get("updated_template"):
+            if project.reply_prompt_template_id:
+                await session.execute(
+                    update(ReplyPromptTemplateModel)
+                    .where(ReplyPromptTemplateModel.id == project.reply_prompt_template_id)
+                    .values(
+                        prompt_text=parsed["updated_template"],
+                        version=ReplyPromptTemplateModel.version + 1,
+                        updated_at=datetime.utcnow(),
+                    )
                 )
-            )
-            log.template_id = project.reply_prompt_template_id
+                log.template_id = project.reply_prompt_template_id
+            else:
+                # Create new template and assign to project
+                new_tmpl = ReplyPromptTemplateModel(
+                    name=f"{project.name} - auto",
+                    prompt_text=parsed["updated_template"],
+                )
+                session.add(new_tmpl)
+                await session.flush()
+                project.reply_prompt_template_id = new_tmpl.id
+                log.template_id = new_tmpl.id
             change_type = "template_updated"
 
         # Update ICP knowledge
