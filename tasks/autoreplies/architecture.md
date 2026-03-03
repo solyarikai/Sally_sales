@@ -1,6 +1,46 @@
 # Auto-Replies Architecture
 
-## Current Flow (On-Demand, Mar 3 2026)
+## Business Use Cases
+
+### UC1: New reply arrives (webhook/polling)
+- **Trigger**: SmartLead EMAIL_REPLY webhook or GetSales LinkedIn message polling
+- **Action**: Classify → Generate draft (Gemini 2.5 Pro) → Translate if needed → Store
+- **Model**: Gemini 2.5 Pro (best quality, $0.05, ~15-20s — happens in background before operator opens page)
+- **Result**: Reply card has `draft_generated_at` = now
+
+### UC2: Operator provides knowledge feedback (Cmd+K)
+- **Trigger**: Operator opens Spotlight, types feedback about reply quality / style
+- **Action**: Learning service processes → updates ProjectKnowledge entries
+- **Effect**: All existing drafts where `draft_generated_at < knowledge_updated_at` become **stale**
+- **UX**: Visible stale replies auto-regenerate (GPT-4o-mini, ~1-2s). "Updating draft..." overlay → "Updated" flash
+
+### UC3: Operator sends reply via system (approve-and-send)
+- **Trigger**: Operator clicks Send (with or without edits)
+- **Data captured**: OperatorCorrection record (original draft vs final sent, was_edited flag)
+- **Learning signal**: If edited → system learns what operator always changes
+
+### UC4: Operator dismisses reply
+- **Data captured**: OperatorCorrection (action_type=dismissed)
+- **Learning signal**: Draft was bad or reply unnecessary
+
+### UC5: Operator clicks Regenerate (manual)
+- **Trigger**: Operator explicitly wants a fresh draft
+- **Model**: Gemini 2.5 Pro (default, best quality)
+- **Data captured**: OperatorCorrection (action_type=regenerated)
+- **Use case**: Old reply with outdated draft that wasn't auto-regenerated (not in viewport), or operator just wants another take
+
+### UC6: Learning cycle runs (from accumulated corrections)
+- **Trigger**: Manual `/learning/analyze` or future scheduled trigger
+- **Action**: Analyzes patterns across all OperatorCorrections → updates template + ICP knowledge
+- **Effect**: Same as UC2 — knowledge updated, stale drafts auto-regenerate when visible
+
+### When NOT to regenerate (avoid waste):
+- No knowledge change since draft was generated
+- Reply already approved/dismissed/sent
+- Operator is actively editing the draft
+- Same reply already queued for regeneration
+
+## Current Flow (Mar 3 2026)
 
 ```
 NEW REPLY ARRIVES (webhook: SmartLead EMAIL_REPLY / GetSales LinkedIn message)
@@ -81,28 +121,37 @@ Why NOT `OperatorCorrection`: operators reply directly in SmartLead, not through
 
 EasyStaff RU has 1,112 outbound messages, 219 from qualified categories.
 
-## What Changed: Auto-Regen → On-Demand
+## Smart Auto-Regeneration (Mar 3 2026)
 
-### BEFORE (auto-regeneration, removed Mar 3):
-- IntersectionObserver tracked which reply cards were visible in viewport
-- When knowledge updated (via Cmd+K feedback), system detected "stale" drafts
-  (draft_generated_at < MAX(knowledge.updated_at))
-- Stale visible drafts were auto-regenerated in background (max 2 concurrent)
-- Problem: with Gemini 2.5 Pro (~20s/reply), this blocked the UI and wasted API calls
-- Problem: complexity with no clear user benefit — operator didn't ask for regeneration
+### Architecture: Two-tier model split
+- **Initial draft (webhook time)**: Gemini 2.5 Pro — best quality ($0.05, ~15-20s, background)
+- **Auto-regen (knowledge stale)**: GPT-4o-mini — fast (~1-2s, $0.003), transparent to operator
 
-### NOW (on-demand):
-- No automatic regeneration. Zero background API calls.
-- Operator clicks "Regenerate" button when they want a fresh draft.
-- Page loads instantly (just DB query, no AI calls).
-- Learning still works: Cmd+K feedback updates knowledge, new replies use updated knowledge.
-- Old replies keep their existing drafts until operator explicitly refreshes them.
+### Staleness detection:
+- Each draft stores `draft_generated_at` timestamp
+- Knowledge timestamp: `MAX(ProjectKnowledge.updated_at)` for the project
+- Stale = `draft_generated_at < knowledge_updated_at`
 
-### Why on-demand is better:
-1. **Fast**: page loads in <1s, no 20s Gemini calls blocking
-2. **No wasted cost**: only regenerate what operator actually needs
-3. **Simple**: no staleness tracking, no IntersectionObserver, no queue management
-4. **Predictable**: operator controls when AI runs, not the system
+### When knowledge updates:
+1. Operator provides feedback via Cmd+K → learning service processes → ProjectKnowledge updated
+2. ReplyQueue polls learning status → detects completion → refreshes knowledge timestamp
+3. IntersectionObserver tracks which reply cards are in viewport
+4. Stale + visible → auto-queue for regeneration (GPT-4o-mini, max 2 concurrent)
+5. Card shows "Updating draft..." overlay while regenerating
+6. "Updated" flash badge for 3s after completion
+
+### Safeguards:
+- Skip replies being edited (operator's edits take priority)
+- Skip approved/dismissed replies
+- `everQueuedRef` prevents re-queueing same reply (resets when knowledge timestamp changes)
+- Manual "Regenerate" button still works → uses Gemini 2.5 Pro (default model) for best quality
+
+### Why this approach:
+1. **Zero operator friction**: stale drafts update automatically when visible
+2. **Fast**: GPT-4o-mini for auto-regen (~1-2s), not Gemini (~20s) — page stays responsive
+3. **Cost-efficient**: auto-regen only fires when knowledge actually changed, only for visible replies
+4. **Best quality on initial draft**: Gemini 2.5 Pro runs at webhook time (background, no UX impact)
+5. **Manual escape hatch**: operator can still click Regenerate for Gemini-quality refresh
 
 ## Translation UX
 

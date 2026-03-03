@@ -89,6 +89,12 @@ function leadsAsksForDocs(reply: ProcessedReply): boolean {
   return DOC_REQUEST_RE.test(text);
 }
 
+/* ---------- Staleness detection ---------- */
+function isReplyStale(reply: ProcessedReply, knowledgeUpdatedAt: string | null): boolean {
+  if (!knowledgeUpdatedAt || !reply.draft_generated_at || !reply.draft_reply) return false;
+  return new Date(reply.draft_generated_at) < new Date(knowledgeUpdatedAt);
+}
+
 /* ---------- Props ---------- */
 export interface ReplyQueueProps {
   isDark: boolean;
@@ -139,6 +145,17 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [projectDocs, setProjectDocs] = useState<KnowledgeEntry[]>([]);
 
+  // Knowledge-driven draft auto-regeneration
+  const [knowledgeUpdatedAt, setKnowledgeUpdatedAt] = useState<string | null>(null);
+  const [visibleReplyIds, setVisibleReplyIds] = useState<Set<number>>(new Set());
+  const [autoRegeneratingIds, setAutoRegeneratingIds] = useState<Set<number>>(new Set());
+  const [justUpdatedIds, setJustUpdatedIds] = useState<Set<number>>(new Set());
+  const regenQueueRef = useRef<number[]>([]);
+  const activeRegensRef = useRef(0);
+  const everQueuedRef = useRef(new Set<number>());
+  const lastKnowledgeTsRef = useRef<string | null>(null);
+  const MAX_CONCURRENT_REGENS = 2;
+  const visibilityObserverRef = useRef<IntersectionObserver | null>(null);
 
   // Learning feedback polling
   const pendingLearning = useAppStore(s => s.pendingLearning);
@@ -176,7 +193,11 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         if (cancelled) return;
         if (status.status === 'completed') {
           clearInterval(poll);
-          setLearningBanner('Knowledge updated!');
+          setLearningBanner('Knowledge updated! Refreshing stale drafts...');
+          // Refresh knowledge timestamp to trigger staleness detection → auto-regen
+          knowledgeApi.getKnowledgeTimestamp(currentProject.id)
+            .then(res => setKnowledgeUpdatedAt(res.knowledge_updated_at))
+            .catch(() => {});
           setPendingLearning(null);
           setTimeout(() => setLearningBanner(null), 3000);
         } else if (status.status === 'failed') {
@@ -191,6 +212,100 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     }, 2000);
     return () => { cancelled = true; clearInterval(poll); };
   }, [pendingLearning?.logId, currentProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ---- Knowledge timestamp tracking ---- */
+  useEffect(() => {
+    if (!currentProject) { setKnowledgeUpdatedAt(null); return; }
+    knowledgeApi.getKnowledgeTimestamp(currentProject.id)
+      .then(res => setKnowledgeUpdatedAt(res.knowledge_updated_at))
+      .catch(() => {});
+  }, [currentProject?.id]);
+
+  /* ---- IntersectionObserver for reply visibility ---- */
+  useEffect(() => {
+    visibilityObserverRef.current = new IntersectionObserver(
+      (entries) => {
+        setVisibleReplyIds(prev => {
+          const next = new Set(prev);
+          for (const entry of entries) {
+            const id = Number((entry.target as HTMLElement).dataset.replyId);
+            if (!id) continue;
+            if (entry.isIntersecting) next.add(id);
+            else next.delete(id);
+          }
+          return next;
+        });
+      },
+      { root: scrollRef.current, rootMargin: '50px 0px' }
+    );
+    return () => { visibilityObserverRef.current?.disconnect(); };
+  }, []);
+
+  const observeReplyCard = useCallback((node: HTMLDivElement | null) => {
+    if (!node || !visibilityObserverRef.current) return;
+    visibilityObserverRef.current.observe(node);
+  }, []);
+
+  /* ---- Auto-regeneration queue (GPT-4o-mini for speed) ---- */
+  const processRegenQueue = useCallback(async () => {
+    while (regenQueueRef.current.length > 0 && activeRegensRef.current < MAX_CONCURRENT_REGENS) {
+      const replyId = regenQueueRef.current.shift()!;
+      activeRegensRef.current++;
+      setAutoRegeneratingIds(prev => new Set(prev).add(replyId));
+      try {
+        const result = await repliesApi.regenerateDraft(replyId, 'gpt-4o-mini');
+        setReplies(prev => prev.map(r => {
+          if (r.id !== replyId) return r;
+          return {
+            ...r,
+            draft_reply: result.draft_reply,
+            draft_subject: result.draft_subject,
+            draft_generated_at: result.draft_generated_at,
+            translated_draft: result.translated_draft ?? r.translated_draft,
+            category: result.category as ProcessedReply['category'],
+            classification_reasoning: result.classification_reasoning,
+          };
+        }));
+        setJustUpdatedIds(prev => new Set(prev).add(replyId));
+        setTimeout(() => setJustUpdatedIds(prev => {
+          const next = new Set(prev);
+          next.delete(replyId);
+          return next;
+        }), 3000);
+      } catch {
+        // silent — skip failed regeneration
+      } finally {
+        activeRegensRef.current--;
+        setAutoRegeneratingIds(prev => {
+          const next = new Set(prev);
+          next.delete(replyId);
+          return next;
+        });
+      }
+    }
+  }, []);
+
+  /* ---- Detect stale visible replies and queue auto-regen ---- */
+  useEffect(() => {
+    if (!knowledgeUpdatedAt) return;
+    if (lastKnowledgeTsRef.current !== knowledgeUpdatedAt) {
+      everQueuedRef.current.clear();
+      lastKnowledgeTsRef.current = knowledgeUpdatedAt;
+    }
+    const staleVisible = [...visibleReplyIds].filter(id => {
+      if (everQueuedRef.current.has(id)) return false;
+      const reply = replies.find(r => r.id === id);
+      if (!reply) return false;
+      if (regeneratingIds.has(id)) return false;
+      if (id in editingDrafts) return false;
+      if (reply.approval_status === 'approved' || reply.approval_status === 'dismissed') return false;
+      return isReplyStale(reply, knowledgeUpdatedAt);
+    });
+    if (staleVisible.length === 0) return;
+    staleVisible.forEach(id => everQueuedRef.current.add(id));
+    regenQueueRef.current.push(...staleVisible);
+    processRegenQueue();
+  }, [visibleReplyIds, knowledgeUpdatedAt, replies]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- Data loading (infinite scroll) ---- */
   const loadReplies = useCallback(async (reset = false) => {
@@ -622,9 +737,13 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
               const catLabel = CATEGORY_LABEL[reply.category || ''] || reply.category || '';
               const hasReasoning = !!reply.classification_reasoning;
               const contactInfo = contactInfoMap[reply.id];
+              const stale = isReplyStale(reply, knowledgeUpdatedAt);
+              const isAutoRegen = autoRegeneratingIds.has(reply.id);
+              const wasJustUpdated = justUpdatedIds.has(reply.id);
               return (
                 <div
                   key={reply.id}
+                  ref={observeReplyCard}
                   data-reply-id={reply.id}
                   className="rounded-md border transition-colors relative"
                   style={{
@@ -632,6 +751,20 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                     borderColor: t.cardBorder,
                   }}
                 >
+                  {/* Auto-regeneration overlay */}
+                  {isAutoRegen && (
+                    <div
+                      className="absolute inset-0 z-20 flex items-center justify-center rounded-md"
+                      style={{ background: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)' }}
+                    >
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium"
+                        style={{ background: t.cardBg, color: t.text3, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                      >
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Updating draft...
+                      </div>
+                    </div>
+                  )}
                   {/* Two-column layout: conversation | reasoning */}
                   <div className="flex">
                     {/* Left: conversation & draft */}
@@ -670,6 +803,22 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                                 style={{ background: t.badgeBg, color: t.badgeText }}
                               >
                                 {catLabel}
+                              </span>
+                            )}
+                            {stale && !isAutoRegen && !wasJustUpdated && (
+                              <span
+                                className="text-[11px] px-1.5 py-0.5 rounded font-medium"
+                                style={{ background: isDark ? '#422006' : '#fef3c7', color: isDark ? '#fbbf24' : '#92400e' }}
+                              >
+                                Stale draft
+                              </span>
+                            )}
+                            {wasJustUpdated && (
+                              <span
+                                className="text-[11px] px-1.5 py-0.5 rounded font-medium animate-pulse"
+                                style={{ background: isDark ? '#052e16' : '#dcfce7', color: isDark ? '#4ade80' : '#166534' }}
+                              >
+                                Updated
                               </span>
                             )}
                           </div>
