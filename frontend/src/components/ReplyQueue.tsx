@@ -139,8 +139,6 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [projectDocs, setProjectDocs] = useState<KnowledgeEntry[]>([]);
 
-  // Knowledge timestamp (for learning banner UX, no auto-regeneration)
-  const [knowledgeUpdatedAt, setKnowledgeUpdatedAt] = useState<string | null>(null);
 
   // Learning feedback polling
   const pendingLearning = useAppStore(s => s.pendingLearning);
@@ -167,14 +165,6 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     );
   }, [currentProject?.id]);
 
-  /* ---- Knowledge timestamp tracking ---- */
-  useEffect(() => {
-    if (!currentProject) { setKnowledgeUpdatedAt(null); return; }
-    knowledgeApi.getKnowledgeTimestamp(currentProject.id)
-      .then(res => setKnowledgeUpdatedAt(res.knowledge_updated_at))
-      .catch(() => {});
-  }, [currentProject?.id]);
-
   /* ---- Learning feedback polling ---- */
   useEffect(() => {
     if (!pendingLearning || !currentProject || pendingLearning.projectId !== currentProject.id) return;
@@ -186,11 +176,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         if (cancelled) return;
         if (status.status === 'completed') {
           clearInterval(poll);
-          setLearningBanner('Knowledge updated! Refreshing stale drafts...');
-          // Refresh knowledge timestamp to trigger staleness detection
-          knowledgeApi.getKnowledgeTimestamp(currentProject.id)
-            .then(res => setKnowledgeUpdatedAt(res.knowledge_updated_at))
-            .catch(() => {});
+          setLearningBanner('Knowledge updated!');
           setPendingLearning(null);
           setTimeout(() => setLearningBanner(null), 3000);
         } else if (status.status === 'failed') {
