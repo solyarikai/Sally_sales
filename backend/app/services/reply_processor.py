@@ -450,14 +450,17 @@ async def detect_and_translate(text: str) -> dict:
 CLASSIFICATION_PROMPT = """Classify the following email reply into one of these categories:
 
 Categories:
-- interested: The person wants to learn more about the offer
+- interested: The person shows ANY positive signal — wants to learn more, requests materials,
+  says "send it", "yes", "ok", "давайте", "отправьте", "присылайте", or uses positive emojis
+  (👍, 🤝, ✅, etc). Short affirmative replies = interested. When in doubt, classify as interested.
 - meeting_request: The person wants to schedule a call or meeting
-- not_interested: The person declines or is not interested
+- not_interested: The person EXPLICITLY declines or says no
 - out_of_office: Auto-reply or out of office message
 - wrong_person: Not the right contact, suggests someone else
 - unsubscribe: Wants to opt out or stop receiving emails
 - question: Has specific questions before deciding
-- other: Doesn't fit any other category
+- other: Doesn't fit any other category. Use ONLY when the message is truly ambiguous or irrelevant.
+  Do NOT use "other" for short positive replies — those are "interested".
 
 Email Subject: {subject}
 
