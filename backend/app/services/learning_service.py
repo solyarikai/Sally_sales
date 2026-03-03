@@ -458,8 +458,8 @@ Incorporate this feedback into the template and ICP knowledge."""
         )
         edited_count = count_result.scalar() or 0
 
-        # Trigger after 3+ edited sends since last cycle
-        if edited_count < 3:
+        # Trigger after every edited send
+        if edited_count < 1:
             return None
 
         # Check no cycle is currently processing
