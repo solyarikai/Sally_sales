@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen } from 'lucide-react';
+import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen, Activity } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -36,6 +36,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/projects', icon: FolderOpen, label: 'Projects', global: true },
     { path: '/tasks/replies', icon: ListTodo, label: 'Tasks', global: true },
     { path: '/knowledge/icp', icon: BookOpen, label: 'Knowledge', global: true },
+    { path: '/actions', icon: Activity, label: 'Actions', global: true },
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },
     { path: '/settings', icon: Settings, label: 'Settings', global: true },
   ];
@@ -87,10 +88,10 @@ export function Layout({ children }: LayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Cmd+K spotlight feedback
+  // Cmd+K (Mac) / Ctrl+K (Windows) spotlight feedback
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.metaKey && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setShowSpotlight(prev => !prev);
       }

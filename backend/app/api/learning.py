@@ -416,3 +416,56 @@ async def submit_feedback(
         "status": "processing",
         "message": "Feedback submitted, processing...",
     }
+
+
+@router.get("/{project_id}/learning/corrections")
+async def get_operator_corrections(
+    project_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(30, ge=1, le=100),
+    action_type: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_session),
+):
+    """Paginated operator corrections (actions on AI drafts)."""
+    await _get_project(db, project_id)
+
+    filters = [OperatorCorrection.project_id == project_id]
+    if action_type:
+        filters.append(OperatorCorrection.action_type == action_type)
+
+    total_result = await db.execute(
+        select(func.count(OperatorCorrection.id)).where(and_(*filters))
+    )
+    total = total_result.scalar() or 0
+
+    offset = (page - 1) * page_size
+    result = await db.execute(
+        select(OperatorCorrection)
+        .where(and_(*filters))
+        .order_by(OperatorCorrection.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    corrections = result.scalars().all()
+
+    return {
+        "items": [
+            {
+                "id": c.id,
+                "action_type": c.action_type,
+                "was_edited": c.was_edited,
+                "reply_category": c.reply_category,
+                "channel": c.channel,
+                "lead_company": c.lead_company,
+                "ai_draft_preview": (c.ai_draft_reply or "")[:200],
+                "sent_preview": (c.sent_reply or "")[:200],
+                "ai_draft_subject": c.ai_draft_subject,
+                "sent_subject": c.sent_subject,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+            }
+            for c in corrections
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }

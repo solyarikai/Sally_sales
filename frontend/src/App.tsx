@@ -21,6 +21,7 @@ import { ProjectPage } from './pages/ProjectPage';
 import { ProjectKnowledgePage } from './pages/ProjectKnowledgePage';
 import { ProjectChatPage } from './pages/ProjectChatPage';
 import { QueryDashboardPage } from './pages/QueryDashboardPage';
+import { OperatorActionsPage } from './pages/OperatorActionsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -96,6 +97,13 @@ function App() {
         <Route path="/knowledge/:tab" element={
           <Layout>
             <KnowledgePage />
+          </Layout>
+        } />
+
+        {/* Operator Actions page */}
+        <Route path="/actions" element={
+          <Layout>
+            <OperatorActionsPage />
           </Layout>
         } />
         

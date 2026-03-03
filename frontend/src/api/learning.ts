@@ -133,6 +133,36 @@ export async function getLearningStatus(projectId: number, logId: number): Promi
   return response.data;
 }
 
+export interface OperatorCorrection {
+  id: number;
+  action_type: string;
+  was_edited: boolean;
+  reply_category: string | null;
+  channel: string | null;
+  lead_company: string | null;
+  ai_draft_preview: string;
+  sent_preview: string;
+  ai_draft_subject: string | null;
+  sent_subject: string | null;
+  created_at: string | null;
+}
+
+export interface CorrectionsPage {
+  items: OperatorCorrection[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export async function getOperatorCorrections(
+  projectId: number, page = 1, pageSize = 30, actionType?: string
+): Promise<CorrectionsPage> {
+  const response = await api.get(`/projects/${projectId}/learning/corrections`, {
+    params: { page, page_size: pageSize, ...(actionType ? { action_type: actionType } : {}) },
+  });
+  return response.data;
+}
+
 export async function submitFeedback(projectId: number, feedbackText: string): Promise<AnalyzeResponse> {
   const response = await api.post(`/projects/${projectId}/learning/feedback`, {
     feedback_text: feedbackText,

@@ -686,7 +686,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
             style={{ color: t.text4 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.btnGhostHover; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-            title="Feedback (⌘K)"
+            title={`Feedback (${navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl+'}K)`}
           >
             <Command className="w-3 h-3" />
             Feedback
