@@ -78,10 +78,11 @@ def _build_project_campaign_filter(project):
     if sender_uuids:
         # For LinkedIn/GetSales replies, sender must be in project's allowed list.
         # Non-LinkedIn replies (email from SmartLead) pass through unchecked.
-        sender_json_field = ProcessedReply.raw_webhook_data["sender_profile_uuid"].astext
+        # Use PostgreSQL ->> operator to extract text from JSON column.
+        sender_text = ProcessedReply.raw_webhook_data.op("->>")("sender_profile_uuid")
         sender_check = or_(
             ProcessedReply.channel != "linkedin",
-            sender_json_field.in_(sender_uuids),
+            sender_text.in_(sender_uuids),
         )
         return and_(campaign_condition, sender_check)
 

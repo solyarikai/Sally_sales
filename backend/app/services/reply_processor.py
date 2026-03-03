@@ -133,10 +133,10 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
         # LinkedIn sender validation (same logic as _build_project_campaign_filter)
         sender_uuids = [s for s in (project.getsales_senders or []) if isinstance(s, str)]
         if sender_uuids:
-            sender_json_field = PRModel.raw_webhook_data["sender_profile_uuid"].astext
+            sender_text = PRModel.raw_webhook_data.op("->>")("sender_profile_uuid")
             sender_check = or_(
                 PRModel.channel != "linkedin",
-                sender_json_field.in_(sender_uuids),
+                sender_text.in_(sender_uuids),
             )
             project_filter = and_(campaign_condition, sender_check)
         else:
