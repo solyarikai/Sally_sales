@@ -49,19 +49,43 @@ from app.services.crm_sync_service import parse_campaigns
 logger = logging.getLogger(__name__)
 
 
-def _build_project_campaign_filter(project) -> list:
-    """Build SQLAlchemy OR conditions for matching replies to a project.
+def _build_project_campaign_filter(project):
+    """Build SQLAlchemy filter for matching replies to a project.
 
-    Returns list of conditions: exact match on campaign_filters + prefix match on project name.
+    Returns a single condition combining:
+      - Campaign name match (exact on campaign_filters + prefix on project name)
+      - GetSales sender validation (when getsales_senders is set on the project,
+        LinkedIn replies must come from an allowed sender profile)
+
+    The sender filter prevents cross-project misrouting: a campaign named "Mifort X"
+    might be run by SquareFi sender accounts — the sender check catches this.
     """
-    parts = []
+    campaign_parts = []
     project_campaigns = [c.lower() for c in (project.campaign_filters or []) if isinstance(c, str)]
     if project_campaigns:
-        parts.append(func.lower(ProcessedReply.campaign_name).in_(project_campaigns))
+        campaign_parts.append(func.lower(ProcessedReply.campaign_name).in_(project_campaigns))
     project_name_lower = (project.name or "").lower()
     if project_name_lower and len(project_name_lower) > 2:
-        parts.append(func.lower(ProcessedReply.campaign_name).like(f"{project_name_lower}%"))
-    return parts
+        campaign_parts.append(func.lower(ProcessedReply.campaign_name).like(f"{project_name_lower}%"))
+
+    if not campaign_parts:
+        return None
+
+    campaign_condition = or_(*campaign_parts)
+
+    # LinkedIn sender validation — cross-check against project's allowed senders
+    sender_uuids = [s for s in (project.getsales_senders or []) if isinstance(s, str)]
+    if sender_uuids:
+        # For LinkedIn/GetSales replies, sender must be in project's allowed list.
+        # Non-LinkedIn replies (email from SmartLead) pass through unchecked.
+        sender_json_field = ProcessedReply.raw_webhook_data["sender_profile_uuid"].astext
+        sender_check = or_(
+            ProcessedReply.channel != "linkedin",
+            sender_json_field.in_(sender_uuids),
+        )
+        return and_(campaign_condition, sender_check)
+
+    return campaign_condition
 
 
 router = APIRouter(prefix="/replies", tags=["replies"])
@@ -724,9 +748,9 @@ async def list_replies(
         )
         project = project_result.scalar_one_or_none()
         if project:
-            filter_parts = _build_project_campaign_filter(project)
-            if filter_parts:
-                conditions.append(or_(*filter_parts))
+            project_filter = _build_project_campaign_filter(project)
+            if project_filter is not None:
+                conditions.append(project_filter)
 
     if campaign_names:
         names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
@@ -1060,9 +1084,9 @@ async def get_contact_campaigns(
         )
         project = project_result.scalar_one_or_none()
         if project:
-            filter_parts = _build_project_campaign_filter(project)
-            if filter_parts:
-                conditions.append(or_(*filter_parts))
+            project_filter = _build_project_campaign_filter(project)
+            if project_filter is not None:
+                conditions.append(project_filter)
 
     query = (
         select(ProcessedReply)
@@ -1128,10 +1152,9 @@ async def get_reply_stats(
         )
         project = project_result.scalar_one_or_none()
         if project:
-            filter_parts = _build_project_campaign_filter(project)
-            if filter_parts:
-                _project_filter_condition = or_(*filter_parts)
-                base_query = base_query.where(_project_filter_condition)
+            project_filter = _build_project_campaign_filter(project)
+            if project_filter is not None:
+                base_query = base_query.where(project_filter)
 
     # Multi-campaign name filter (from global project selector)
     if campaign_names:

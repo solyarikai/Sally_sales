@@ -116,17 +116,31 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
             return ""
 
         # Build campaign filter conditions (same as _build_project_campaign_filter)
-        from sqlalchemy import or_, func as sa_func
-        filter_parts = []
+        from sqlalchemy import or_, and_, func as sa_func
+        campaign_parts = []
         campaign_names = [c.lower() for c in (project.campaign_filters or []) if isinstance(c, str)]
         if campaign_names:
-            filter_parts.append(sa_func.lower(PRModel.campaign_name).in_(campaign_names))
+            campaign_parts.append(sa_func.lower(PRModel.campaign_name).in_(campaign_names))
         pname = (project.name or "").lower()
         if pname and len(pname) > 2:
-            filter_parts.append(sa_func.lower(PRModel.campaign_name).like(f"{pname}%"))
+            campaign_parts.append(sa_func.lower(PRModel.campaign_name).like(f"{pname}%"))
 
-        if not filter_parts:
+        if not campaign_parts:
             return ""
+
+        campaign_condition = or_(*campaign_parts)
+
+        # LinkedIn sender validation (same logic as _build_project_campaign_filter)
+        sender_uuids = [s for s in (project.getsales_senders or []) if isinstance(s, str)]
+        if sender_uuids:
+            sender_json_field = PRModel.raw_webhook_data["sender_profile_uuid"].astext
+            sender_check = or_(
+                PRModel.channel != "linkedin",
+                sender_json_field.in_(sender_uuids),
+            )
+            project_filter = and_(campaign_condition, sender_check)
+        else:
+            project_filter = campaign_condition
 
         # Qualified categories — these produce the best reference replies
         QUALIFIED_CATS = {"interested", "meeting_request", "question"}
@@ -145,7 +159,7 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
             .where(
                 ThreadMessage.direction == "outbound",
                 sa_func.length(ThreadMessage.body) > 300,
-                or_(*filter_parts),
+                project_filter,
                 # Only load qualified categories — skip not_interested, unsubscribe, etc.
                 PRModel.category.in_(list(QUALIFIED_CATS)),
             )
