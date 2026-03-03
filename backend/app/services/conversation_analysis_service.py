@@ -65,43 +65,58 @@ async def get_project_conversations(
         select(ContactActivity.id).where(ContactActivity.contact_id == Contact.id)
     )
 
-    # Build query for contacts matching campaign filters
+    # Build base query for contacts matching campaign filters (no limit — added per channel)
     if project.campaign_filters and len(project.campaign_filters) > 0:
         campaign_conditions = [
             Contact.platform_state.cast(String).ilike(f'%{cf}%')
             for cf in project.campaign_filters
         ]
-        contact_query = (
-            select(Contact)
-            .where(
-                and_(
-                    or_(*campaign_conditions),
-                    Contact.last_reply_at.isnot(None),
-                    Contact.deleted_at.is_(None),
-                    has_activities,
-                )
-            )
-            .order_by(Contact.last_reply_at.desc())
-            .limit(max_conversations)
+        base_conditions = and_(
+            or_(*campaign_conditions),
+            Contact.last_reply_at.isnot(None),
+            Contact.deleted_at.is_(None),
+            has_activities,
         )
     else:
-        contact_query = (
-            select(Contact)
-            .where(
-                and_(
-                    Contact.project_id == project_id,
-                    Contact.last_reply_at.isnot(None),
-                    Contact.deleted_at.is_(None),
-                    has_activities,
-                )
-            )
-            .order_by(Contact.last_reply_at.desc())
-            .limit(max_conversations)
+        base_conditions = and_(
+            Contact.project_id == project_id,
+            Contact.last_reply_at.isnot(None),
+            Contact.deleted_at.is_(None),
+            has_activities,
         )
 
-    logger.info(f"Executing contacts query...")
-    contacts_result = await session.execute(contact_query)
-    contacts = contacts_result.scalars().all()
+    # Channel-balanced fetch: half SmartLead (email), half GetSales (LinkedIn)
+    half = max(max_conversations // 2, 10)
+    is_getsales = Contact.platform_state.cast(String).ilike('%getsales%')
+
+    gs_query = select(Contact).where(and_(base_conditions, is_getsales)).order_by(Contact.last_reply_at.desc()).limit(half)
+    sl_query = select(Contact).where(and_(base_conditions, ~is_getsales)).order_by(Contact.last_reply_at.desc()).limit(half)
+
+    logger.info(f"Executing balanced contacts query (half={half})...")
+    gs_result = await session.execute(gs_query)
+    gs_contacts = list(gs_result.scalars().all())
+    sl_result = await session.execute(sl_query)
+    sl_contacts = list(sl_result.scalars().all())
+
+    # If one side has fewer, fill remaining from the other
+    total_so_far = len(gs_contacts) + len(sl_contacts)
+    if total_so_far < max_conversations:
+        remaining = max_conversations - total_so_far
+        if len(gs_contacts) < half:
+            extra = await session.execute(sl_query.limit(half + remaining))
+            sl_contacts = list(extra.scalars().all())
+        elif len(sl_contacts) < half:
+            extra = await session.execute(gs_query.limit(half + remaining))
+            gs_contacts = list(extra.scalars().all())
+
+    seen_ids = set()
+    contacts = []
+    for c in gs_contacts + sl_contacts:
+        if c.id not in seen_ids:
+            seen_ids.add(c.id)
+            contacts.append(c)
+
+    logger.info(f"Balanced fetch: {len(gs_contacts)} GetSales + {len(sl_contacts)} SmartLead = {len(contacts)} total")
 
     conversations = []
     for contact in contacts:
