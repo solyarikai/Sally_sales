@@ -129,6 +129,26 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Request timing middleware — logs slow requests (>1s)
+import time as _time
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as _StarletteRequest
+
+class RequestTimingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: _StarletteRequest, call_next):
+        start = _time.monotonic()
+        response = await call_next(request)
+        elapsed = _time.monotonic() - start
+        path = request.url.path
+        qs = str(request.url.query)
+        if elapsed > 1.0 and "/health" not in path:
+            logger.warning(f"[SLOW] {request.method} {path}?{qs} — {elapsed:.1f}s")
+        elif "/health" not in path:
+            logger.info(f"[REQ] {request.method} {path}?{qs} — {elapsed:.1f}s")
+        return response
+
+app.add_middleware(RequestTimingMiddleware)
+
 # CORS middleware - origins from config
 cors_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
 app.add_middleware(
