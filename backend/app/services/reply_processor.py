@@ -463,15 +463,22 @@ CRITICAL RULES:
 1. If REFERENCE REPLIES or GOLDEN EXAMPLES are provided below, they are your PRIMARY guide.
    Match their structure, detail level, tone, and length EXACTLY. Do NOT shorten or simplify.
    If the reference has full pricing breakdowns with bullet points, YOUR reply must too.
-2. If no examples are provided, use these defaults:
+2. MIRROR THE LEAD'S FORMAT: If the prospect asks numbered questions (1, 2, 3...) or bullet points,
+   your reply MUST answer in the SAME numbered/bulleted format, addressing each point directly.
+   This is critical — do NOT merge their questions into a different structure.
+3. NEVER invent or change specific numbers (prices, percentages, country counts, timelines).
+   Use ONLY the exact numbers from the reference examples and knowledge base provided.
+   If a reference says "120+ стран" do NOT change it to "180+". If it says "5%" do NOT say "3%".
+4. If no examples are provided, use these defaults:
    - interested/meeting_request: detailed response with next steps
    - question: answer helpfully with specifics
    - not_interested: thank them politely (keep short)
    - wrong_person: ask for referral (keep short)
    - unsubscribe: confirm removal (keep short)
-3. Sign off with the sender name above — NEVER use placeholder brackets like [Your Name], [вставьте...], [insert...] etc.
+5. Sign off with the sender name above — NEVER use placeholder brackets like [Your Name], [вставьте...], [insert...] etc.
    NEVER generate ANY text in square brackets. If you don't know a value, omit it entirely.
-4. If sender name is unknown, omit the sign-off entirely.
+6. If sender name is unknown, omit the sign-off entirely.
+7. NEVER use markdown formatting (no **bold**, no *italic*, no ### headers). Use plain text only.
 
 Respond with ONLY a JSON object:
 {{"subject": "Re: <subject>", "body": "<reply text>", "tone": "<professional|friendly|formal>"}}
