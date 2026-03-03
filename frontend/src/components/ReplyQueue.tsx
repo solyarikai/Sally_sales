@@ -302,27 +302,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     }
   }, []);
 
-  /* ---- Detect stale visible replies and queue auto-regen ---- */
-  useEffect(() => {
-    if (!knowledgeUpdatedAt) return;
-    if (lastKnowledgeTsRef.current !== knowledgeUpdatedAt) {
-      everQueuedRef.current.clear();
-      lastKnowledgeTsRef.current = knowledgeUpdatedAt;
-    }
-    const staleVisible = [...visibleReplyIds].filter(id => {
-      if (everQueuedRef.current.has(id)) return false;
-      const reply = replies.find(r => r.id === id);
-      if (!reply) return false;
-      if (regeneratingIds.has(id)) return false;
-      if (id in editingDrafts) return false;
-      if (reply.approval_status === 'approved' || reply.approval_status === 'dismissed') return false;
-      return isReplyStale(reply, knowledgeUpdatedAt);
-    });
-    if (staleVisible.length === 0) return;
-    staleVisible.forEach(id => everQueuedRef.current.add(id));
-    regenQueueRef.current.push(...staleVisible);
-    processRegenQueue();
-  }, [visibleReplyIds, knowledgeUpdatedAt, replies]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* ---- Auto-regen disabled: was causing mass Gemini calls on page load ---- */
+  /* Stale drafts now only regenerate on manual click (regenerate button). */
 
   /* ---- Data loading (infinite scroll) ---- */
   const loadReplies = useCallback(async (reset = false) => {
