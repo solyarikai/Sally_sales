@@ -57,6 +57,8 @@ class OperatorCorrection(Base):
     reply_category = Column(String(50), nullable=True)  # interested / meeting_request / etc
     channel = Column(String(50), nullable=True)  # email / linkedin
     lead_company = Column(String(255), nullable=True)
+    lead_email = Column(String(255), nullable=True)
+    campaign_name = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     __table_args__ = (

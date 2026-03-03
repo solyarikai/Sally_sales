@@ -140,8 +140,12 @@ export interface OperatorCorrection {
   reply_category: string | null;
   channel: string | null;
   lead_company: string | null;
+  lead_email: string | null;
+  campaign_name: string | null;
   ai_draft_preview: string;
+  ai_draft_full: string | null;
   sent_preview: string;
+  sent_full: string | null;
   ai_draft_subject: string | null;
   sent_subject: string | null;
   created_at: string | null;

@@ -414,9 +414,78 @@ Incorporate this feedback into the template and ICP knowledge."""
             reply_category=reply.category,
             channel=reply.channel,
             lead_company=reply.lead_company,
+            lead_email=reply.lead_email,
+            campaign_name=reply.campaign_name,
         )
         session.add(correction)
         return correction
+
+    async def maybe_auto_trigger_learning(
+        self,
+        session: AsyncSession,
+        project_id: int,
+    ) -> Optional[int]:
+        """Auto-trigger learning if enough edited corrections accumulated since last cycle.
+
+        Returns learning_log_id if triggered, None otherwise.
+        """
+        if not project_id:
+            return None
+
+        # Check last completed learning cycle
+        last_log = await session.execute(
+            select(LearningLog.created_at)
+            .where(
+                LearningLog.project_id == project_id,
+                LearningLog.status == "completed",
+            )
+            .order_by(LearningLog.created_at.desc())
+            .limit(1)
+        )
+        last_cycle_at = last_log.scalar()
+
+        # Count edited sends since last cycle (or all time if no cycle)
+        filters = [
+            OperatorCorrection.project_id == project_id,
+            OperatorCorrection.action_type == "send",
+            OperatorCorrection.was_edited == True,
+        ]
+        if last_cycle_at:
+            filters.append(OperatorCorrection.created_at > last_cycle_at)
+
+        count_result = await session.execute(
+            select(func.count(OperatorCorrection.id)).where(and_(*filters))
+        )
+        edited_count = count_result.scalar() or 0
+
+        # Trigger after 3+ edited sends since last cycle
+        if edited_count < 3:
+            return None
+
+        # Check no cycle is currently processing
+        processing = await session.execute(
+            select(func.count(LearningLog.id)).where(
+                LearningLog.project_id == project_id,
+                LearningLog.status == "processing",
+            )
+        )
+        if (processing.scalar() or 0) > 0:
+            return None
+
+        # Create log and trigger
+        log = LearningLog(
+            project_id=project_id,
+            trigger="auto_corrections",
+            status="processing",
+        )
+        session.add(log)
+        await session.flush()
+
+        logger.info(
+            f"Auto-triggering learning for project {project_id}: "
+            f"{edited_count} edited sends since last cycle"
+        )
+        return log.id
 
     # --- Internal methods ---
 

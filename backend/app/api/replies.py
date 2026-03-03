@@ -2605,14 +2605,37 @@ async def approve_and_send_reply(
         await db.commit()
         await db.refresh(reply)
 
-        # Record operator correction for learning system
+        # Record operator correction for learning system + auto-trigger learning
         try:
             from app.services.learning_service import learning_service
-            await learning_service.record_correction(
+            correction = await learning_service.record_correction(
                 db, reply, _original_ai_draft, _original_ai_subject,
                 reply.draft_reply, reply.draft_subject,
             )
             await db.commit()
+
+            if correction and correction.was_edited and correction.project_id:
+                try:
+                    log_id = await learning_service.maybe_auto_trigger_learning(
+                        db, correction.project_id,
+                    )
+                    if log_id:
+                        await db.commit()
+                        _project_id = correction.project_id
+                        async def _run_auto_learning_li():
+                            from app.db.database import async_session_maker
+                            async with async_session_maker() as s:
+                                try:
+                                    await learning_service.run_learning_cycle(
+                                        s, _project_id, trigger="auto_corrections", log_id=log_id,
+                                    )
+                                    await s.commit()
+                                except Exception as e:
+                                    logger.error(f"Auto-learning failed for project {_project_id}: {e}")
+                        import asyncio
+                        asyncio.ensure_future(_run_auto_learning_li())
+                except Exception as _at_err:
+                    logger.warning(f"Auto-trigger check failed (non-fatal): {_at_err}")
         except Exception as _lrn_err:
             logger.warning(f"Learning correction recording failed (non-fatal): {_lrn_err}")
 
@@ -2750,14 +2773,48 @@ async def approve_and_send_reply(
     await db.commit()
     await db.refresh(reply)
 
-    # Record operator correction for learning system
+    # Record operator correction for learning system + auto-trigger learning
     try:
         from app.services.learning_service import learning_service
-        await learning_service.record_correction(
+        correction = await learning_service.record_correction(
             db, reply, _original_ai_draft, _original_ai_subject,
             reply.draft_reply, reply.draft_subject,
         )
         await db.commit()
+
+        # Auto-trigger learning if enough edited corrections accumulated
+        if correction and correction.was_edited and correction.project_id:
+            try:
+                log_id = await learning_service.maybe_auto_trigger_learning(
+                    db, correction.project_id,
+                )
+                if log_id:
+                    await db.commit()
+                    _project_id = correction.project_id
+                    async def _run_auto_learning():
+                        from app.db.database import async_session_maker
+                        async with async_session_maker() as s:
+                            try:
+                                await learning_service.run_learning_cycle(
+                                    s, _project_id, trigger="auto_corrections", log_id=log_id,
+                                )
+                                await s.commit()
+                            except Exception as e:
+                                logger.error(f"Auto-learning failed for project {_project_id}: {e}")
+                                try:
+                                    from app.models.learning import LearningLog as _LL
+                                    r = await s.execute(select(_LL).where(_LL.id == log_id))
+                                    ll = r.scalar_one_or_none()
+                                    if ll:
+                                        ll.status = "failed"
+                                        ll.error_message = str(e)[:2000]
+                                        await s.commit()
+                                except Exception:
+                                    pass
+                    import asyncio
+                    asyncio.ensure_future(_run_auto_learning())
+            except Exception as _at_err:
+                logger.warning(f"Auto-trigger check failed (non-fatal): {_at_err}")
     except Exception as _lrn_err:
         logger.warning(f"Learning correction recording failed (non-fatal): {_lrn_err}")
 

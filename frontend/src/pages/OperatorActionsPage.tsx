@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ExternalLink, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ExternalLink, Loader2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -32,6 +32,7 @@ export function OperatorActionsPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [actionFilter, setActionFilter] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const pageSize = 30;
 
   // URL -> project sync
@@ -82,6 +83,7 @@ export function OperatorActionsPage() {
     setCorrections([]);
     setTotal(0);
     setPage(1);
+    setExpandedId(null);
   }, [currentProject?.id, actionFilter]);
 
   useEffect(() => {
@@ -162,10 +164,11 @@ export function OperatorActionsPage() {
             <table className="w-full text-[13px]" style={{ color: t.text2 }}>
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wide" style={{ color: t.text4 }}>
+                  <th className="pb-2 pr-2 font-medium w-[28px]"></th>
                   <th className="pb-2 pr-3 font-medium">Action</th>
-                  <th className="pb-2 pr-3 font-medium">Category</th>
+                  <th className="pb-2 pr-3 font-medium">Lead</th>
+                  <th className="pb-2 pr-3 font-medium">Campaign</th>
                   <th className="pb-2 pr-3 font-medium">Channel</th>
-                  <th className="pb-2 pr-3 font-medium">Company</th>
                   <th className="pb-2 pr-3 font-medium">AI Draft</th>
                   <th className="pb-2 pr-3 font-medium">Operator Sent</th>
                   <th className="pb-2 font-medium">Time</th>
@@ -175,59 +178,20 @@ export function OperatorActionsPage() {
                 {corrections.map(c => {
                   const badge = ACTION_BADGES[c.action_type] || ACTION_BADGES.send;
                   const edited = c.was_edited;
+                  const isExpanded = expandedId === c.id;
+                  const hasDetail = c.action_type === 'send' && (c.ai_draft_full || c.sent_full);
                   return (
-                    <tr
+                    <CorrectionRow
                       key={c.id}
-                      className="border-t"
-                      style={{ borderColor: t.cardBorder }}
-                    >
-                      <td className="py-2.5 pr-3">
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
-                          style={{
-                            background: isDark ? badge.bgDark : badge.bg,
-                            color: isDark ? badge.colorDark : badge.color,
-                          }}
-                        >
-                          {badge.label}
-                          {edited && (
-                            <span className="opacity-70">(edited)</span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="py-2.5 pr-3">
-                        <span className="text-[12px]" style={{ color: t.text3 }}>
-                          {c.reply_category || '—'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 pr-3">
-                        <span className="text-[12px]" style={{ color: t.text3 }}>
-                          {c.channel || '—'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 pr-3">
-                        <span className="text-[12px]" style={{ color: t.text3 }}>
-                          {c.lead_company || '—'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 pr-3 max-w-[250px]">
-                        <div className="text-[12px] truncate" style={{ color: t.text4 }} title={c.ai_draft_preview}>
-                          {c.ai_draft_preview || '—'}
-                        </div>
-                      </td>
-                      <td className="py-2.5 pr-3 max-w-[250px]">
-                        <div className="text-[12px] truncate" style={{ color: edited ? t.text2 : t.text4 }} title={c.sent_preview}>
-                          {c.sent_preview || '—'}
-                        </div>
-                      </td>
-                      <td className="py-2.5 whitespace-nowrap">
-                        <span className="text-[12px]" style={{ color: t.text4 }}>
-                          {c.created_at ? new Date(c.created_at).toLocaleString('en-GB', {
-                            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-                          }) : '—'}
-                        </span>
-                      </td>
-                    </tr>
+                      c={c}
+                      badge={badge}
+                      edited={edited}
+                      isExpanded={isExpanded}
+                      hasDetail={hasDetail}
+                      isDark={isDark}
+                      t={t}
+                      onToggle={() => setExpandedId(isExpanded ? null : c.id)}
+                    />
                   );
                 })}
               </tbody>
@@ -257,6 +221,165 @@ export function OperatorActionsPage() {
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CorrectionRow({
+  c, badge, edited, isExpanded, hasDetail, isDark, t, onToggle,
+}: {
+  c: OperatorCorrection;
+  badge: typeof ACTION_BADGES['send'];
+  edited: boolean;
+  isExpanded: boolean;
+  hasDetail: boolean;
+  isDark: boolean;
+  t: ReturnType<typeof themeColors>;
+  onToggle: () => void;
+}) {
+  const leadDisplay = c.lead_email
+    ? (c.lead_company ? `${c.lead_company} (${c.lead_email})` : c.lead_email)
+    : (c.lead_company || '\u2014');
+
+  const campaignShort = c.campaign_name
+    ? (c.campaign_name.length > 30 ? c.campaign_name.slice(0, 28) + '\u2026' : c.campaign_name)
+    : '\u2014';
+
+  return (
+    <>
+      <tr
+        className="border-t cursor-pointer"
+        style={{ borderColor: t.cardBorder }}
+        onClick={hasDetail ? onToggle : undefined}
+      >
+        <td className="py-2.5 pr-1">
+          {hasDetail && (
+            isExpanded
+              ? <ChevronUp className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+              : <ChevronDown className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+          )}
+        </td>
+        <td className="py-2.5 pr-3">
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
+            style={{
+              background: isDark ? badge.bgDark : badge.bg,
+              color: isDark ? badge.colorDark : badge.color,
+            }}
+          >
+            {badge.label}
+            {edited && <Pencil className="w-2.5 h-2.5 opacity-70" />}
+          </span>
+        </td>
+        <td className="py-2.5 pr-3 max-w-[200px]">
+          <div className="text-[12px] truncate" style={{ color: t.text3 }} title={c.lead_email || ''}>
+            {leadDisplay}
+          </div>
+        </td>
+        <td className="py-2.5 pr-3 max-w-[180px]">
+          <div className="text-[12px] truncate" style={{ color: t.text4 }} title={c.campaign_name || ''}>
+            {campaignShort}
+          </div>
+        </td>
+        <td className="py-2.5 pr-3">
+          <span className="text-[12px]" style={{ color: t.text3 }}>
+            {c.channel || '\u2014'}
+          </span>
+        </td>
+        <td className="py-2.5 pr-3 max-w-[220px]">
+          <div className="text-[12px] truncate" style={{ color: t.text4 }} title={c.ai_draft_preview}>
+            {c.ai_draft_preview || '\u2014'}
+          </div>
+        </td>
+        <td className="py-2.5 pr-3 max-w-[220px]">
+          <div className="text-[12px] truncate" style={{ color: edited ? t.text2 : t.text4 }} title={c.sent_preview}>
+            {c.sent_preview || '\u2014'}
+          </div>
+        </td>
+        <td className="py-2.5 whitespace-nowrap">
+          <span className="text-[12px]" style={{ color: t.text4 }}>
+            {c.created_at ? new Date(c.created_at).toLocaleString('en-GB', {
+              day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+            }) : '\u2014'}
+          </span>
+        </td>
+      </tr>
+      {isExpanded && hasDetail && (
+        <tr style={{ borderColor: t.cardBorder }}>
+          <td colSpan={8} className="pb-4 pt-1 px-2">
+            <DraftComparison c={c} isDark={isDark} t={t} edited={edited} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function DraftComparison({
+  c, isDark, t, edited,
+}: {
+  c: OperatorCorrection;
+  isDark: boolean;
+  t: ReturnType<typeof themeColors>;
+  edited: boolean;
+}) {
+  const bgPanel = isDark ? '#2a2a2a' : '#f8f8f8';
+  const borderPanel = isDark ? '#3c3c3c' : '#e0e0e0';
+
+  return (
+    <div className="flex gap-3">
+      {/* AI Draft */}
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] uppercase tracking-wide font-medium mb-1.5" style={{ color: t.text4 }}>
+          AI Suggestion
+        </div>
+        {c.ai_draft_subject && (
+          <div className="text-[12px] font-medium mb-1" style={{ color: t.text3 }}>
+            Subject: {c.ai_draft_subject}
+          </div>
+        )}
+        <div
+          className="rounded p-3 text-[12px] whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto"
+          style={{ background: bgPanel, border: `1px solid ${borderPanel}`, color: t.text3 }}
+        >
+          {c.ai_draft_full || c.ai_draft_preview || '\u2014'}
+        </div>
+      </div>
+
+      {/* Sent / Operator version */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-[11px] uppercase tracking-wide font-medium" style={{ color: t.text4 }}>
+            Operator Sent
+          </span>
+          {edited && (
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+              style={{
+                background: isDark ? '#3b2607' : '#fef3c7',
+                color: isDark ? '#fbbf24' : '#92400e',
+              }}
+            >
+              Edited
+            </span>
+          )}
+        </div>
+        {c.sent_subject && c.sent_subject !== c.ai_draft_subject && (
+          <div className="text-[12px] font-medium mb-1" style={{ color: edited ? t.text2 : t.text3 }}>
+            Subject: {c.sent_subject}
+          </div>
+        )}
+        <div
+          className="rounded p-3 text-[12px] whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto"
+          style={{
+            background: edited ? (isDark ? '#1a2e1a' : '#f0fdf4') : bgPanel,
+            border: `1px solid ${edited ? (isDark ? '#2d5a2d' : '#bbf7d0') : borderPanel}`,
+            color: edited ? t.text2 : t.text3,
+          }}
+        >
+          {c.sent_full || c.sent_preview || '\u2014'}
+        </div>
       </div>
     </div>
   );
