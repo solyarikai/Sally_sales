@@ -1235,8 +1235,8 @@ async def getsales_webhook(
             contact.getsales_raw = {"webhooks": [webhook_entry]}
         contact.update_platform_raw("getsales", contact.getsales_raw)
         
-        # Telegram notification is now handled by process_getsales_reply() with dedup
-    
+        # Telegram notification sent AFTER commit (see below)
+
     # Enrich contact with flow/automation info if not already present
     if automation_data.get("name") or automation_data.get("uuid"):
         flow_entry = {
@@ -1259,7 +1259,23 @@ async def getsales_webhook(
     webhook_event.processed_at = datetime.utcnow()
 
     await session.commit()
-    
+
+    # Send Telegram notification AFTER commit — prevents ghost notifications on rollback
+    if is_reply and pr:
+        try:
+            from app.services.reply_processor import send_getsales_notification
+            await send_getsales_notification(
+                processed_reply=pr,
+                contact=contact,
+                flow_name=automation_data.get("name", ""),
+                flow_uuid=automation_data.get("uuid", ""),
+                message_text=message_text,
+                raw_data=body,
+                session=session,
+            )
+        except Exception as tg_err:
+            logger.warning(f"[GETSALES] Post-commit notification failed (non-fatal): {tg_err}")
+
     return {
         "status": "processed",
         "event_id": gs_event_id,

@@ -1647,6 +1647,7 @@ class CRMSyncService:
         cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
         consecutive_cached = 0
         new_reply_ids = []
+        _pending_notifications = []  # (pr, contact, flow_name, flow_uuid, message_text, raw_data)
         
         try:
             # --- Total-count guard: skip if inbox total unchanged (like SmartLead analytics guard) ---
@@ -1772,6 +1773,7 @@ class CRMSyncService:
                         contact.status = new_st
 
                     # Create ProcessedReply with classification + draft (non-fatal)
+                    _pr = None
                     try:
                         from app.services.reply_processor import process_getsales_reply
                         automation_info = msg.get("automation") or {}
@@ -1804,7 +1806,7 @@ class CRMSyncService:
                             # when reply was actually for Rizzult). Leave as empty — the webhook
                             # path will correct it with the real automation UUID, or it stays
                             # unclassified (better than misclassified).
-                        await process_getsales_reply(
+                        _pr = await process_getsales_reply(
                             message_text=message_text,
                             contact=contact,
                             flow_name=flow_name,
@@ -1817,9 +1819,13 @@ class CRMSyncService:
                     except Exception as pr_err:
                         logger.warning(f"[GETSALES] ProcessedReply creation failed (non-fatal): {pr_err}")
 
+                    # Collect for post-commit notification
+                    if _pr:
+                        _pending_notifications.append((_pr, contact, flow_name, flow_uuid, message_text, msg))
+
                     stats["new_replies"] += 1
                     new_reply_ids.append(message_id)
-                
+
                 # Pagination — fetch next page for next iteration
                 if not has_more:
                     stop_pagination = True
@@ -1832,8 +1838,21 @@ class CRMSyncService:
                     stats["pages"] += 1
                     if not messages:
                         break
-            
+
             await session.commit()
+
+            # Send notifications AFTER commit — prevents ghost notifications on rollback
+            if _pending_notifications:
+                from app.services.reply_processor import send_getsales_notification
+                for _pr, _contact, _fn, _fu, _mt, _rd in _pending_notifications:
+                    try:
+                        await send_getsales_notification(
+                            processed_reply=_pr, contact=_contact,
+                            flow_name=_fn, flow_uuid=_fu,
+                            message_text=_mt, raw_data=_rd, session=session,
+                        )
+                    except Exception:
+                        pass  # Non-fatal
             
             # Update total count in Redis after successful sync
             if redis:

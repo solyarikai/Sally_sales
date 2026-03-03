@@ -2007,35 +2007,74 @@ async def process_getsales_reply(
             raise
         logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email}")
 
-    # --- Telegram notification (dedup via telegram_sent_at) ---
-    if processed_reply and not processed_reply.telegram_sent_at:
-        try:
-            from app.services.notification_service import notify_linkedin_reply
-            from app.services.crm_sync_service import GETSALES_UUID_TO_PROJECT
-
-            contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Unknown"
-            resolved_project_id = (
-                getattr(contact, "project_id", None)
-                or GETSALES_UUID_TO_PROJECT.get(flow_uuid)
-            )
-            from app.services.crm_sync_service import GETSALES_SENDER_PROFILES
-            resolved_sender_name = GETSALES_SENDER_PROFILES.get(sender_profile_uuid or "")
-
-            sent = await notify_linkedin_reply(
-                contact_name=contact_name,
-                contact_email=contact.email or "N/A",
-                flow_name=flow_name or processed_reply.campaign_name or "",
-                message_text=message_text,
-                campaign_name=flow_name or processed_reply.campaign_name,
-                project_id=resolved_project_id,
-                inbox_link=inbox_link,
-                sender_name=resolved_sender_name,
-                category=processed_reply.category,
-            )
-            if sent:
-                processed_reply.telegram_sent_at = datetime.utcnow()
-                logger.info(f"[GETSALES] Telegram notification sent for reply {processed_reply.id} (project_id={resolved_project_id})")
-        except Exception as tg_err:
-            logger.warning(f"[GETSALES] Telegram notification failed (non-fatal): {tg_err}")
+    # NOTE: Telegram notification is NOT sent here — callers must send it
+    # AFTER session.commit() succeeds, to avoid ghost notifications on rollback.
+    # Use send_getsales_notification() after commit.
 
     return processed_reply
+
+
+async def send_getsales_notification(
+    processed_reply,
+    contact,
+    flow_name: str,
+    flow_uuid: str,
+    message_text: str,
+    raw_data: dict,
+    session=None,
+) -> bool:
+    """Send Telegram notification for a GetSales reply.
+
+    Must be called AFTER session.commit() to avoid ghost notifications on rollback.
+    Updates telegram_sent_at on the processed_reply (caller should commit again or
+    use a separate session).
+    """
+    if not processed_reply or processed_reply.telegram_sent_at:
+        return False
+
+    try:
+        from app.services.notification_service import notify_linkedin_reply
+        from app.services.crm_sync_service import GETSALES_UUID_TO_PROJECT, GETSALES_SENDER_PROFILES
+
+        contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Unknown"
+        resolved_project_id = (
+            getattr(contact, "project_id", None)
+            or GETSALES_UUID_TO_PROJECT.get(flow_uuid)
+        )
+        sender_profile_uuid = (
+            raw_data.get("sender_profile_uuid")
+            or (raw_data.get("automation", {}) or {}).get("sender_profile_uuid")
+            or ""
+        )
+        resolved_sender_name = GETSALES_SENDER_PROFILES.get(sender_profile_uuid or "")
+
+        lead_uuid = raw_data.get("lead_uuid") or raw_data.get("lead", {}).get("uuid") or raw_data.get("contact", {}).get("uuid")
+        inbox_link = None
+        if lead_uuid:
+            from app.services.crm_sync_service import GetSalesClient
+            inbox_link = GetSalesClient.build_inbox_url(lead_uuid, sender_profile_uuid)
+
+        sent = await notify_linkedin_reply(
+            contact_name=contact_name,
+            contact_email=contact.email or "N/A",
+            flow_name=flow_name or processed_reply.campaign_name or "",
+            message_text=message_text,
+            campaign_name=flow_name or processed_reply.campaign_name,
+            project_id=resolved_project_id,
+            inbox_link=inbox_link,
+            sender_name=resolved_sender_name,
+            category=processed_reply.category,
+        )
+        if sent:
+            processed_reply.telegram_sent_at = datetime.utcnow()
+            logger.info(f"[GETSALES] Telegram notification sent for reply {processed_reply.id} (project_id={resolved_project_id})")
+            # Persist the telegram_sent_at marker
+            if session:
+                try:
+                    await session.commit()
+                except Exception:
+                    pass  # Non-critical — dedup marker only
+            return True
+    except Exception as tg_err:
+        logger.warning(f"[GETSALES] Telegram notification failed (non-fatal): {tg_err}")
+    return False
