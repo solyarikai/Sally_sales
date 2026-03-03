@@ -51,7 +51,7 @@ async def gemini_generate(
     try:
         from google.genai import types
 
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=model_name,
             contents=full_prompt,
             config=types.GenerateContentConfig(
@@ -131,7 +131,7 @@ async def gemini_generate_stream(
     try:
         from google.genai import types
 
-        response_stream = client.models.generate_content_stream(
+        response_stream = await client.aio.models.generate_content_stream(
             model=model_name,
             contents=full_prompt,
             config=types.GenerateContentConfig(
@@ -140,7 +140,7 @@ async def gemini_generate_stream(
             ),
         )
 
-        for chunk in response_stream:
+        async for chunk in response_stream:
             text = chunk.text
             if text:
                 yield text
