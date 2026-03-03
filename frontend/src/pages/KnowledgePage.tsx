@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ExternalLink, Loader2 } from 'lucide-react';
+import { ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -159,6 +159,28 @@ export function KnowledgePage() {
           })}
         </div>
       </div>
+
+      {/* Setup warnings */}
+      {overview?.setup_warnings && overview.setup_warnings.length > 0 && (
+        <div
+          className="mx-5 mt-3 px-4 py-3 rounded-lg border text-[13px]"
+          style={{
+            background: isDark ? '#422006' : '#fffbeb',
+            borderColor: isDark ? '#78350f' : '#fde68a',
+            color: isDark ? '#fbbf24' : '#92400e',
+          }}
+        >
+          <div className="flex items-center gap-2 font-medium mb-1.5">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            Missing setup — AI draft quality will be reduced
+          </div>
+          <ul className="space-y-0.5 ml-6 list-disc">
+            {overview.setup_warnings.map(w => (
+              <li key={w.field}>{w.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Tab content - all panels mounted for state persistence */}
       <div className="flex-1 min-h-0 relative">

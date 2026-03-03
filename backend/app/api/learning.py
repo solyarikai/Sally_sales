@@ -134,6 +134,21 @@ async def get_learning_overview(
     )
     action_breakdown = {row[0]: row[1] for row in action_type_result.all() if row[0]}
 
+    # Setup completeness warnings
+    setup_warnings = []
+    if not project.sender_name:
+        setup_warnings.append({"field": "sender_name", "message": "Sender name not set — AI drafts won't have a proper sign-off"})
+    if not project.sender_company:
+        setup_warnings.append({"field": "sender_company", "message": "Sender company not set — AI can't reference your company in replies"})
+    if not project.sender_position:
+        setup_warnings.append({"field": "sender_position", "message": "Sender position not set — sign-off will lack your role"})
+    if not template_data:
+        setup_warnings.append({"field": "template", "message": "No reply template — run a learning cycle to generate one from conversations"})
+    if not icp_entries:
+        setup_warnings.append({"field": "icp", "message": "No ICP knowledge — run a learning cycle to extract insights from conversations"})
+    if not project.campaign_filters:
+        setup_warnings.append({"field": "campaign_filters", "message": "No campaign filters — replies won't be linked to this project"})
+
     return {
         "project_id": project_id,
         "project_name": project.name,
@@ -145,6 +160,7 @@ async def get_learning_overview(
             "edited": corrections_edited,
             "by_action": action_breakdown,
         },
+        "setup_warnings": setup_warnings,
     }
 
 

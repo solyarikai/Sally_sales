@@ -44,6 +44,11 @@ export interface LearningLogDetail extends LearningLogSummary {
   template_id: number | null;
 }
 
+export interface SetupWarning {
+  field: string;
+  message: string;
+}
+
 export interface LearningOverview {
   project_id: number;
   project_name: string;
@@ -51,6 +56,7 @@ export interface LearningOverview {
   template: TemplateData | null;
   recent_logs: LearningLogSummary[];
   corrections: { total: number; edited: number };
+  setup_warnings?: SetupWarning[];
 }
 
 export interface TemplatesResponse {
