@@ -283,7 +283,7 @@ async def trigger_learning(
         status="processing",
     )
     db.add(log)
-    await db.flush()
+    await db.commit()
     log_id = log.id
 
     # Run in background
