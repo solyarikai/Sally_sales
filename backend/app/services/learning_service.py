@@ -543,6 +543,8 @@ Incorporate this feedback into the template and ICP knowledge."""
                 "ai_draft": (c.ai_draft_reply or "")[:500],
                 "sent": (c.sent_reply or "")[:500],
                 "company": c.lead_company,
+                "lead_email": c.lead_email,
+                "campaign": c.campaign_name,
             }
             for c in corrections
         ]
