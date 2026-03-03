@@ -80,7 +80,10 @@ async def _auto_embed_reference(reply_id: int, project_id: int, was_edited: bool
             session.add(ref)
             await session.flush()
 
-            embedding = await get_embedding(sent_text)
+            # Embed the LEAD MESSAGE (not operator reply) — so semantic search finds
+            # similar incoming situations and returns what operators replied to them
+            embed_text = lead_message if lead_message and len(lead_message) > 20 else sent_text
+            embedding = await get_embedding(embed_text)
             if embedding:
                 ref.embedding = embedding
             await session.commit()
