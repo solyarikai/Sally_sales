@@ -12,7 +12,7 @@
 - **Trigger**: Operator opens Spotlight, types feedback about reply quality / style
 - **Action**: Learning service processes → updates ProjectKnowledge entries
 - **Effect**: All existing drafts where `draft_generated_at < knowledge_updated_at` become **stale**
-- **UX**: Visible stale replies auto-regenerate (GPT-4o-mini, ~1-2s). "Updating draft..." overlay → "Updated" flash
+- **UX**: Visible stale replies auto-regenerate (Gemini 2.5 Pro, ~15-20s). "Updating draft..." overlay → "Updated" flash
 
 ### UC3: Operator sends reply via system (approve-and-send)
 - **Trigger**: Operator clicks Send (with or without edits)
@@ -33,6 +33,12 @@
 - **Trigger**: Manual `/learning/analyze` or future scheduled trigger
 - **Action**: Analyzes patterns across all OperatorCorrections → updates template + ICP knowledge
 - **Effect**: Same as UC2 — knowledge updated, stale drafts auto-regenerate when visible
+
+### UC7: Share reply link
+- **Trigger**: Operator clicks link icon on reply card header / Telegram notification link
+- **URL format**: `/tasks/replies?project=easystaff-ru&lead=email@example.com`
+- **Category tabs**: synced to URL as `?category=interested` for easy sharing
+- **Deep links**: `?lead=` param bypasses category/needs_reply filters to always show the reply
 
 ### When NOT to regenerate (avoid waste):
 - No knowledge change since draft was generated

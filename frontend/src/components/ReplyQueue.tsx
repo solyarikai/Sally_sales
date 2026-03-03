@@ -1,9 +1,9 @@
 import toast, { Toaster } from 'react-hot-toast';
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, RefreshCw, X,
-  Building2, ExternalLink,
+  Building2, ExternalLink, Link2,
   XCircle, Edit3, AlertTriangle,
   Clock, MessageCircle, ArrowRight, Brain, Command, Loader2,
   Linkedin, Phone, MapPin, Tag, User, Copy, Mail, Download, FileText, Languages,
@@ -111,10 +111,13 @@ const CATEGORY_FILTERS = [
   { key: 'other', label: 'Other', countKey: 'other' },
 ] as const;
 
+const VALID_CATEGORIES = new Set(CATEGORY_FILTERS.map(f => f.key).filter(Boolean) as string[]);
+
 export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChange }: ReplyQueueProps) {
   const { currentProject } = useAppStore();
   const t = themeColors(isDark);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [replies, setReplies] = useState<ProcessedReply[]>([]);
   const [total, setTotal] = useState(0);
@@ -126,7 +129,21 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const PAGE_SIZE = 30;
 
   const [search, setSearch] = useState(initialSearch || '');
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(initialSearch ? null : 'meeting_request');
+  // Read category from URL ?category=interested, default to meeting_request
+  const urlCategory = searchParams.get('category');
+  const [categoryFilter, setCategoryFilterState] = useState<string | null>(
+    initialSearch ? null : (urlCategory && VALID_CATEGORIES.has(urlCategory) ? urlCategory : 'meeting_request')
+  );
+  // Sync category to URL when it changes
+  const setCategoryFilter = useCallback((key: string | null) => {
+    setCategoryFilterState(key);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (key) next.set('category', key);
+      else next.delete('category');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   // When opened via Telegram link (?lead=...), use server-side lead_email filter
   // and skip needs_reply/category/group_by_contact so the reply is always visible
   const isDeepLink = Boolean(initialSearch);
@@ -635,7 +652,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
             return (
               <button
                 key={f.key ?? 'all'}
-                onClick={() => setCategoryFilter(f.key)}
+                onClick={() => setCategoryFilter(f.key as string | null)}
                 className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", active ? "font-medium" : "")}
                 style={{
                   background: active ? t.btnPrimaryBg : 'transparent',
@@ -851,6 +868,22 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                                 </a>
                               ) : null;
                             })()}
+                            <button
+                              className="transition-colors cursor-pointer"
+                              title="Copy link to this reply"
+                              style={{ color: t.text5 }}
+                              onClick={e => {
+                                e.stopPropagation();
+                                const url = new URL(window.location.href);
+                                url.searchParams.set('lead', reply.lead_email);
+                                url.searchParams.delete('category');
+                                const link = url.toString();
+                                (navigator.clipboard?.writeText(link) ?? Promise.reject()).catch(() => fallbackCopy(link));
+                                toast.success('Link copied', { style: toastOk, duration: 1500 });
+                              }}
+                            >
+                              <Link2 className="w-3 h-3" />
+                            </button>
                           </div>
                         </div>
 
