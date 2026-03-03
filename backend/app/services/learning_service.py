@@ -46,9 +46,19 @@ ANALYSIS:
 - Find common objections and effective responses to them
 - Note language/channel-specific patterns (email vs LinkedIn, formal vs casual)
 
+CRITICAL — TEMPLATE FORMAT:
+The "updated_template" must be a set of INSTRUCTIONS for the AI draft generator — NOT a sample reply.
+It should describe: who the sender is, the product/service value proposition, tone guidelines, response rules per category, pricing details, and what to avoid.
+Use {sender_name}, {sender_position_line}, {sender_company_line} as placeholders for sender identity.
+Example structure:
+  "You are replying as {sender_name}{sender_position_line}{sender_company_line}.
+   [Company] does [value prop]. Key points: [bullet points from conversations].
+   Tone: [observed tone]. For interested leads: [pattern]. For objections: [pattern]."
+NEVER generate a sample reply email as the template. The template is INSTRUCTIONS, not a reply.
+
 OUTPUT strict JSON:
 {
-  "updated_template": "The improved prompt template text...",
+  "updated_template": "Instructions for the AI (see format above)...",
   "icp_insights": {
     "positive_signals": ["signal1", "signal2"],
     "negative_signals": ["signal1", "signal2"],
@@ -68,11 +78,18 @@ INPUT:
 
 Your job: Incorporate the operator's feedback into the template and ICP knowledge.
 
-CRITICAL: If the feedback contains an ACTUAL REPLY EXAMPLE (a real reply the operator wrote or wants the AI to produce), you MUST extract it verbatim into "golden_examples". Golden examples are the EXACT replies operators want the AI to produce — they define the tone, structure, length, and level of detail. Each example needs a "situation" label (e.g., "interested_asks_presentation", "meeting_request", "pricing_question").
+CRITICAL — TEMPLATE FORMAT:
+The "updated_template" must be INSTRUCTIONS for the AI draft generator — NOT a sample reply.
+It should describe: who the sender is, the product/service value prop, tone guidelines, response rules, and what to avoid.
+Use {sender_name}, {sender_position_line}, {sender_company_line} as placeholders for sender identity.
+NEVER generate a sample reply email as the template.
+
+CRITICAL — GOLDEN EXAMPLES:
+If the feedback contains an ACTUAL REPLY EXAMPLE (a real reply the operator wrote or wants the AI to produce), you MUST extract it verbatim into "golden_examples". Golden examples are the EXACT replies operators want the AI to produce — they define the tone, structure, length, and level of detail. Each example needs a "situation" label (e.g., "interested_asks_presentation", "meeting_request", "pricing_question").
 
 OUTPUT strict JSON:
 {
-  "updated_template": "The improved prompt template text incorporating feedback...",
+  "updated_template": "Instructions for the AI (NOT a sample reply)...",
   "icp_updates": {
     "positive_signals": ["signal1", "signal2"],
     "negative_signals": ["signal1"],
