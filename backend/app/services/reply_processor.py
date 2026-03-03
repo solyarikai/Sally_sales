@@ -151,29 +151,51 @@ async def _load_reference_examples_semantic(session, project_id: int, lead_messa
         )
         candidates = result.scalars().all()
 
-        # Re-rank: quality_score * (1 - cosine_distance) to boost high-quality examples
-        # quality_score range: 1-5. This gives 5-star examples a 5x boost over 1-star.
-        # cosine_distance is 0 (identical) to 2 (opposite), typical range 0.1-0.8.
+        # Split: golden examples (always included) vs semantic matches (ranked)
+        golden_examples = []
+        semantic_candidates = []
+        for ex in candidates:
+            if ex.source == "feedback" and (ex.quality_score or 0) >= 5:
+                golden_examples.append(ex)
+            else:
+                semantic_candidates.append(ex)
+
+        # Also fetch any golden examples that weren't in the similarity results
+        golden_in_results = {ex.id for ex in golden_examples}
+        golden_result = await session.execute(
+            select(ReferenceExample).where(
+                ReferenceExample.project_id == project_id,
+                ReferenceExample.source == "feedback",
+                ReferenceExample.quality_score >= 5,
+                ReferenceExample.id.notin_(golden_in_results) if golden_in_results else True,
+            )
+        )
+        extra_golden = golden_result.scalars().all()
+        golden_examples.extend(extra_golden)
+
+        # Re-rank semantic candidates by quality-weighted score
         ranked = []
-        for idx, ex in enumerate(candidates):
-            # Position-based distance proxy (already sorted by cosine_distance)
-            position_penalty = idx / max(fetch_limit, 1)  # 0.0 to ~1.0
-            quality_boost = (ex.quality_score or 3) / 3.0  # 0.33 to 1.67
+        for idx, ex in enumerate(semantic_candidates):
+            position_penalty = idx / max(len(semantic_candidates), 1)
+            quality_boost = (ex.quality_score or 3) / 3.0
             score = quality_boost * (1.0 - position_penalty * 0.5)
             ranked.append((score, ex))
 
         ranked.sort(key=lambda x: x[0], reverse=True)
-        examples = [ex for _, ex in ranked[:limit]]
+        # Reserve slots for golden examples, fill rest with semantic matches
+        semantic_limit = max(limit - len(golden_examples), 0)
+        examples = golden_examples + [ex for _, ex in ranked[:semantic_limit]]
 
         if not examples:
             return ""
 
-        # Format for prompt
+        # Format for prompt — golden examples first with special label
         parts = []
         for ex in examples:
             ctx = ex.lead_context or {}
+            label = "GOLDEN EXAMPLE — THIS IS THE IDEAL STYLE" if ex.source == "feedback" else f"{ex.category or 'unknown'}"
             parts.append(
-                f"[{ex.category or 'unknown'}] Lead ({ctx.get('name', 'lead')}, {ctx.get('company', '')}):\n"
+                f"[{label}] Lead ({ctx.get('name', 'lead')}, {ctx.get('company', '')}):\n"
                 f"\"{ex.lead_message[:500]}\"\n"
                 f"Operator replied:\n"
                 f"\"{ex.operator_reply}\""
