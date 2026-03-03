@@ -257,7 +257,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       setAutoRegeneratingIds(prev => new Set(prev).add(replyId));
 
       try {
-        const result = await repliesApi.regenerateDraft(replyId);
+        // Use gpt-4o-mini for auto-regeneration (fast, ~1-2s) — Gemini is too slow (~20s)
+        const result = await repliesApi.regenerateDraft(replyId, 'gpt-4o-mini');
         setReplies(prev => prev.map(r => {
           if (r.id !== replyId) return r;
           return {

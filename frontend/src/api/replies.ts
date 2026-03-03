@@ -556,7 +556,7 @@ export async function approveAndSendReply(
   return response.data;
 }
 
-export async function regenerateDraft(replyId: number): Promise<{
+export async function regenerateDraft(replyId: number, model?: string): Promise<{
   reply_id: number;
   draft_reply: string;
   draft_subject: string;
@@ -565,7 +565,8 @@ export async function regenerateDraft(replyId: number): Promise<{
   category: string;
   classification_reasoning: string;
 }> {
-  const response = await api.post(`/replies/${replyId}/regenerate-draft`);
+  const params = model ? { model } : {};
+  const response = await api.post(`/replies/${replyId}/regenerate-draft`, null, { params });
   return response.data;
 }
 
