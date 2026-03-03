@@ -127,34 +127,45 @@ async def backfill_project(session: AsyncSession, project_id: int, dry_run: bool
                 threads[reply_id] = []
             threads[reply_id].append(msg)
 
-        # Build reference examples: pair each outbound (position > 0) with preceding inbound
+        # Build reference examples: only include outbound messages that appear AFTER
+        # the first inbound message in the thread (these are genuine operator responses,
+        # not automated campaign follow-ups)
         examples_to_create = []
         for reply_id, messages in threads.items():
             # Sort by position within thread
             messages.sort(key=lambda m: m.position)
 
+            # Find the first inbound message position
+            first_inbound_pos = None
+            for msg in messages:
+                if msg.direction == "inbound":
+                    first_inbound_pos = msg.position
+                    break
+
+            if first_inbound_pos is None:
+                continue  # No inbound messages in thread — skip entirely
+
             for i, msg in enumerate(messages):
                 if msg.direction != "outbound":
                     continue
-                if msg.position == 0:
-                    continue  # Skip initial campaign outreach
+                if msg.position <= first_inbound_pos:
+                    continue  # Skip all outbound before first lead reply (campaign sequence)
 
                 clean_body = _strip_html(msg.body)
                 if len(clean_body) < 400:
                     continue
 
-                # Find the preceding inbound message
+                # Find the preceding inbound message (the one the operator is responding to)
                 preceding_inbound = None
                 for j in range(i - 1, -1, -1):
                     if messages[j].direction == "inbound":
                         preceding_inbound = messages[j]
                         break
 
-                # Use the preceding inbound as lead_message, fallback to ProcessedReply.email_body
-                if preceding_inbound:
-                    lead_msg = _strip_html(preceding_inbound.body or "")
-                else:
-                    lead_msg = _strip_html(msg.email_body or "")
+                if not preceding_inbound:
+                    continue  # No preceding inbound — shouldn't happen but skip
+
+                lead_msg = _strip_html(preceding_inbound.body or "")
 
                 # Truncate lead message for storage (but keep enough for embedding)
                 lead_msg_for_embed = lead_msg[:2000] if lead_msg else ""
