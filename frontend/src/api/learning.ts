@@ -148,6 +148,9 @@ export interface OperatorCorrection {
   sent_full: string | null;
   ai_draft_subject: string | null;
   sent_subject: string | null;
+  inbox_link: string | null;
+  actor: 'operator' | 'God';
+  related_log_id: number | null;
   created_at: string | null;
 }
 
@@ -159,11 +162,16 @@ export interface CorrectionsPage {
 }
 
 export async function getOperatorCorrections(
-  projectId: number, page = 1, pageSize = 30, actionType?: string
+  projectId: number,
+  page = 1,
+  pageSize = 30,
+  filters?: { actionType?: string; category?: string; channel?: string },
 ): Promise<CorrectionsPage> {
-  const response = await api.get(`/projects/${projectId}/learning/corrections`, {
-    params: { page, page_size: pageSize, ...(actionType ? { action_type: actionType } : {}) },
-  });
+  const params: Record<string, string | number> = { page, page_size: pageSize };
+  if (filters?.actionType) params.action_type = filters.actionType;
+  if (filters?.category) params.category = filters.category;
+  if (filters?.channel) params.channel = filters.channel;
+  const response = await api.get(`/projects/${projectId}/learning/corrections`, { params });
   return response.data;
 }
 

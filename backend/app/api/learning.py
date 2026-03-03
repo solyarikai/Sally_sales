@@ -19,7 +19,7 @@ import logging
 
 from app.db import get_session
 from app.models.contact import Project
-from app.models.reply import ReplyPromptTemplateModel
+from app.models.reply import ReplyPromptTemplateModel, ProcessedReply
 from app.models.learning import LearningLog, OperatorCorrection
 from app.models.project_knowledge import ProjectKnowledge
 from app.services.learning_service import learning_service
@@ -424,6 +424,8 @@ async def get_operator_corrections(
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=100),
     action_type: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    channel: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_session),
 ):
     """Paginated operator corrections (actions on AI drafts)."""
@@ -432,43 +434,81 @@ async def get_operator_corrections(
     filters = [OperatorCorrection.project_id == project_id]
     if action_type:
         filters.append(OperatorCorrection.action_type == action_type)
+    if category:
+        filters.append(OperatorCorrection.reply_category == category)
+    if channel:
+        filters.append(OperatorCorrection.channel == channel)
 
     total_result = await db.execute(
-        select(func.count(OperatorCorrection.id)).where(and_(*filters))
+        select(func.count(OperatorCorrection.id))
+        .join(ProcessedReply, OperatorCorrection.processed_reply_id == ProcessedReply.id)
+        .where(and_(*filters))
     )
     total = total_result.scalar() or 0
 
     offset = (page - 1) * page_size
     result = await db.execute(
-        select(OperatorCorrection)
+        select(OperatorCorrection, ProcessedReply.inbox_link)
+        .join(ProcessedReply, OperatorCorrection.processed_reply_id == ProcessedReply.id)
         .where(and_(*filters))
         .order_by(OperatorCorrection.created_at.desc())
         .offset(offset)
         .limit(page_size)
     )
-    corrections = result.scalars().all()
+    rows = result.all()
+
+    # Find related learning logs for edited sends (auto_corrections trigger)
+    edited_send_ids = [
+        c.id for c, _ in rows
+        if c.action_type == "send" and c.was_edited
+    ]
+    related_logs: dict[int, int] = {}
+    if edited_send_ids:
+        # Get auto_corrections logs for this project, match by timestamp
+        logs_result = await db.execute(
+            select(LearningLog.id, LearningLog.created_at)
+            .where(
+                LearningLog.project_id == project_id,
+                LearningLog.trigger == "auto_corrections",
+            )
+            .order_by(LearningLog.created_at.asc())
+        )
+        auto_logs = logs_result.all()
+        if auto_logs:
+            for c, _ in rows:
+                if c.id in edited_send_ids and c.created_at:
+                    # Find first auto_corrections log created after this correction
+                    for log_id, log_created in auto_logs:
+                        if log_created and log_created >= c.created_at:
+                            related_logs[c.id] = log_id
+                            break
+
+    items = []
+    for c, inbox_link in rows:
+        actor = "operator" if c.action_type in ("send", "dismiss") else "God"
+        items.append({
+            "id": c.id,
+            "action_type": c.action_type,
+            "was_edited": c.was_edited,
+            "reply_category": c.reply_category,
+            "channel": c.channel,
+            "lead_company": c.lead_company,
+            "lead_email": c.lead_email,
+            "campaign_name": c.campaign_name,
+            "ai_draft_preview": (c.ai_draft_reply or "")[:200],
+            "ai_draft_full": c.ai_draft_reply,
+            "sent_preview": (c.sent_reply or "")[:200],
+            "sent_full": c.sent_reply,
+            "ai_draft_subject": c.ai_draft_subject,
+            "sent_subject": c.sent_subject,
+            "inbox_link": inbox_link,
+            "actor": actor,
+            "related_log_id": related_logs.get(c.id),
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
 
     return {
-        "items": [
-            {
-                "id": c.id,
-                "action_type": c.action_type,
-                "was_edited": c.was_edited,
-                "reply_category": c.reply_category,
-                "channel": c.channel,
-                "lead_company": c.lead_company,
-                "lead_email": c.lead_email,
-                "campaign_name": c.campaign_name,
-                "ai_draft_preview": (c.ai_draft_reply or "")[:200],
-                "ai_draft_full": c.ai_draft_reply,
-                "sent_preview": (c.sent_reply or "")[:200],
-                "sent_full": c.sent_reply,
-                "ai_draft_subject": c.ai_draft_subject,
-                "sent_subject": c.sent_subject,
-                "created_at": c.created_at.isoformat() if c.created_at else None,
-            }
-            for c in corrections
-        ],
+        "items": items,
         "total": total,
         "page": page,
         "page_size": page_size,
