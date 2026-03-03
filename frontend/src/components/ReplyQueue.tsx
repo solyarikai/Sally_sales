@@ -111,6 +111,12 @@ const CATEGORY_FILTERS = [
   { key: 'other', label: 'Other', countKey: 'other' },
 ] as const;
 
+const TIMING_OPTIONS = [
+  { value: '1w', label: '1 week' },
+  { value: '1m', label: '1 month' },
+  { value: 'all', label: 'All time' },
+] as const;
+
 const VALID_CATEGORIES = new Set(CATEGORY_FILTERS.map(f => f.key).filter(Boolean) as string[]);
 
 export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChange }: ReplyQueueProps) {
@@ -141,6 +147,20 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       const next = new URLSearchParams(prev);
       if (key) next.set('category', key);
       else next.delete('category');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+  // Timing filter state + URL sync
+  const urlTiming = searchParams.get('timing');
+  const [timingFilter, setTimingFilterState] = useState<string>(
+    urlTiming && ['1w', '1m', 'all'].includes(urlTiming) ? urlTiming : '1w'
+  );
+  const setTimingFilter = useCallback((val: string) => {
+    setTimingFilterState(val);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (val && val !== '1w') next.set('timing', val);
+      else next.delete('timing');
       return next;
     }, { replace: true });
   }, [setSearchParams]);
@@ -252,6 +272,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         lead_email: isDeepLink ? initialSearch : undefined,
         category: isDeepLink ? undefined : ((categoryFilter as ReplyCategory) || undefined),
         group_by_contact: true,
+        received_since: isDeepLink ? 'all' : timingFilter,
         page: pg,
         page_size: PAGE_SIZE,
       });
@@ -270,7 +291,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [currentProject, categoryFilter, campaignNames]);
+  }, [currentProject, categoryFilter, campaignNames, timingFilter]);
 
   useEffect(() => { loadReplies(true); }, [loadReplies]);
 
@@ -306,6 +327,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         const resp = await repliesApi.getReplyCounts({
           project_id: currentProject?.id,
           campaign_names: campaignNames,
+          received_since: timingFilter,
         });
         if (cancelled) return;
         const serverTotal = resp.total || 0;
@@ -322,7 +344,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     fetchCounts();
     const interval = setInterval(fetchCounts, 30_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [currentProject, campaignNames, isDeepLink]);
+  }, [currentProject, campaignNames, isDeepLink, timingFilter]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -346,6 +368,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     repliesApi.getReplyCounts({
       project_id: currentProject?.id,
       campaign_names: campaignNames,
+      received_since: timingFilter,
     }).then(response => {
       setCategoryCounts(response.category_counts || {});
       setTotal(response.total || 0);
@@ -484,6 +507,14 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       if (data.contact_info !== undefined) {
         setContactInfoMap(prev => ({ ...prev, [reply.id]: data.contact_info || null }));
       }
+      // If history loading revealed operator already replied, remove from list
+      if ((data as any).auto_dismissed) {
+        setReplies(prev => prev.filter(r => r.id !== reply.id));
+        setCategoryCounts(prev => {
+          const cat = reply.category || 'other';
+          return { ...prev, [cat]: Math.max(0, (prev[cat] || 0) - 1) };
+        });
+      }
     } catch {
       setExpandedThreads(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
     } finally {
@@ -577,6 +608,21 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         </div>
 
         <div className="flex-1" />
+
+        <select
+          value={timingFilter}
+          onChange={e => { setTimingFilter(e.target.value); }}
+          className="text-xs px-2 py-1 rounded border"
+          style={{
+            background: t.inputBg,
+            color: t.text1,
+            borderColor: t.cardBorder,
+          }}
+        >
+          {TIMING_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
 
         <div className="relative">
           <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2" style={{ color: t.text5 }} />

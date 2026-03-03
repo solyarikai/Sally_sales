@@ -49,6 +49,18 @@ from app.services.crm_sync_service import parse_campaigns
 logger = logging.getLogger(__name__)
 
 
+def _parse_received_since(value: str | None) -> datetime | None:
+    """Parse timing filter: '1w' → 7 days ago, '1m' → 30 days ago, 'all'/None → no filter."""
+    if not value or value == "all":
+        return None
+    now = datetime.utcnow()
+    if value == "1w":
+        return now - timedelta(days=7)
+    if value == "1m":
+        return now - timedelta(days=30)
+    return None
+
+
 async def _auto_embed_reference(reply_id: int, project_id: int, was_edited: bool,
                                 lead_message: str, sent_text: str, lead_name: str,
                                 lead_company: str, channel: str, category: str):
@@ -757,6 +769,7 @@ async def list_replies(
     source: Optional[str] = Query(None, description="Filter by source: smartlead, getsales"),
     lead_email: Optional[str] = Query(None, description="Filter by lead email (exact match)"),
     group_by_contact: bool = Query(False, description="Dedup by lead_email, one card per unique contact"),
+    received_since: Optional[str] = Query("1w", description="Time window: 1w, 1m, all"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     session: AsyncSession = Depends(get_session)
@@ -835,6 +848,11 @@ async def list_replies(
                 func.coalesce(ProcessedReply.email_body, ProcessedReply.reply_text)
             )), '').in_(empty_bodies)
         )
+
+    # Time window filter
+    cutoff = _parse_received_since(received_since)
+    if cutoff:
+        conditions.append(ProcessedReply.received_at >= cutoff)
 
     # Snapshot conditions BEFORE adding category filter — used for global tab counts
     base_conditions = list(conditions)
@@ -1023,6 +1041,7 @@ async def list_replies(
 async def get_reply_counts(
     project_id: Optional[int] = Query(None),
     campaign_names: Optional[str] = Query(None),
+    received_since: Optional[str] = Query("1w", description="Time window: 1w, 1m, all"),
     session: AsyncSession = Depends(get_session)
 ):
     """Lightweight endpoint for polling: returns total + category counts only.
@@ -1049,6 +1068,11 @@ async def get_reply_counts(
         names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
         if names:
             base.append(func.lower(ProcessedReply.campaign_name).in_(names))
+
+    # Time window filter
+    cutoff = _parse_received_since(received_since)
+    if cutoff:
+        base.append(ProcessedReply.received_at >= cutoff)
 
     # Single query: total + category counts via COUNT with FILTER
     total_q = select(func.count(func.distinct(ProcessedReply.lead_email))).where(*base)
@@ -1790,11 +1814,24 @@ async def get_reply_conversation(
 
     contact_info = _build_contact_info(contact) if contact else None
 
+    # Auto-dismiss if last cached message is outbound (operator already replied)
+    auto_dismissed = False
+    if messages and messages[-1]["direction"] == "outbound":
+        if reply.approval_status in (None, "pending"):
+            reply.approval_status = "dismissed"
+            reply.approved_at = datetime.utcnow()
+            session.add(reply)
+            await session.commit()
+            await session.refresh(reply)
+            auto_dismissed = True
+            logger.info(f"[AUTO-DISMISS] Reply {reply.id} auto-dismissed via /conversation — operator already replied")
+
     return {
         "messages": messages,
         "contact_id": contact_id,
         "approval_status": reply.approval_status,
         "contact_info": contact_info,
+        "auto_dismissed": auto_dismissed,
     }
 
 

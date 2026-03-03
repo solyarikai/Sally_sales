@@ -320,6 +320,7 @@ export async function getReplies(params: {
   source?: string;
   lead_email?: string;
   group_by_contact?: boolean;
+  received_since?: string;
   page?: number;
   page_size?: number;
 }): Promise<{ replies: ProcessedReply[]; total: number; meeting_count: number; category_counts: Record<string, number>; page: number; page_size: number }> {
@@ -404,6 +405,7 @@ export async function getCampaignThread(replyId: number, campaignName: string): 
 export async function getReplyCounts(params: {
   project_id?: number;
   campaign_names?: string;
+  received_since?: string;
 }): Promise<{ total: number; category_counts: Record<string, number> }> {
   const response = await api.get('/replies/counts', { params });
   return response.data;
