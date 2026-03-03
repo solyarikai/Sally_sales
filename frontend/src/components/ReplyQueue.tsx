@@ -89,12 +89,6 @@ function leadsAsksForDocs(reply: ProcessedReply): boolean {
   return DOC_REQUEST_RE.test(text);
 }
 
-/* ---------- Staleness detection ---------- */
-function isReplyStale(reply: ProcessedReply, knowledgeUpdatedAt: string | null): boolean {
-  if (!knowledgeUpdatedAt || !reply.draft_generated_at || !reply.draft_reply) return false;
-  return new Date(reply.draft_generated_at) < new Date(knowledgeUpdatedAt);
-}
-
 /* ---------- Props ---------- */
 export interface ReplyQueueProps {
   isDark: boolean;
@@ -141,22 +135,12 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const [historyData, setHistoryData] = useState<Record<number, FullHistoryResponse>>({});
   const [selectedHistoryCampaign, setSelectedHistoryCampaign] = useState<Record<number, string | null>>({});
   const [confirmSendId, setConfirmSendId] = useState<number | null>(null);
-  const [showTranslation, setShowTranslation] = useState<Set<number>>(new Set());
 
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [projectDocs, setProjectDocs] = useState<KnowledgeEntry[]>([]);
 
-  // Knowledge-driven draft regeneration
+  // Knowledge timestamp (for learning banner UX, no auto-regeneration)
   const [knowledgeUpdatedAt, setKnowledgeUpdatedAt] = useState<string | null>(null);
-  const [visibleReplyIds, setVisibleReplyIds] = useState<Set<number>>(new Set());
-  const [autoRegeneratingIds, setAutoRegeneratingIds] = useState<Set<number>>(new Set());
-  const [justUpdatedIds, setJustUpdatedIds] = useState<Set<number>>(new Set());
-  const regenQueueRef = useRef<number[]>([]);
-  const activeRegensRef = useRef(0);
-  const everQueuedRef = useRef(new Set<number>());
-  const lastKnowledgeTsRef = useRef<string | null>(null);
-  const MAX_CONCURRENT_REGENS = 2;
-  const visibilityObserverRef = useRef<IntersectionObserver | null>(null);
 
   // Learning feedback polling
   const pendingLearning = useAppStore(s => s.pendingLearning);
@@ -221,96 +205,6 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     }, 2000);
     return () => { cancelled = true; clearInterval(poll); };
   }, [pendingLearning?.logId, currentProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /* ---- IntersectionObserver for reply visibility ---- */
-  useEffect(() => {
-    visibilityObserverRef.current = new IntersectionObserver(
-      (entries) => {
-        setVisibleReplyIds(prev => {
-          const next = new Set(prev);
-          for (const entry of entries) {
-            const id = Number((entry.target as HTMLElement).dataset.replyId);
-            if (!id) continue;
-            if (entry.isIntersecting) next.add(id);
-            else next.delete(id);
-          }
-          return next;
-        });
-      },
-      { root: scrollRef.current, rootMargin: '50px 0px' }
-    );
-    return () => { visibilityObserverRef.current?.disconnect(); };
-  }, []);
-
-  // Ref callback for observing reply cards
-  const observeReplyCard = useCallback((node: HTMLDivElement | null) => {
-    if (!node || !visibilityObserverRef.current) return;
-    visibilityObserverRef.current.observe(node);
-    // Cleanup: unobserve is handled by observer.disconnect() on unmount
-  }, []);
-
-  /* ---- Auto-regeneration queue ---- */
-  const processRegenQueue = useCallback(async () => {
-    while (regenQueueRef.current.length > 0 && activeRegensRef.current < MAX_CONCURRENT_REGENS) {
-      const replyId = regenQueueRef.current.shift()!;
-      activeRegensRef.current++;
-      setAutoRegeneratingIds(prev => new Set(prev).add(replyId));
-
-      try {
-        // Use gpt-4o-mini for auto-regeneration (fast, ~1-2s) — Gemini is too slow (~20s)
-        const result = await repliesApi.regenerateDraft(replyId, 'gpt-4o-mini');
-        setReplies(prev => prev.map(r => {
-          if (r.id !== replyId) return r;
-          return {
-            ...r,
-            draft_reply: result.draft_reply,
-            draft_subject: result.draft_subject,
-            draft_generated_at: result.draft_generated_at,
-            translated_draft: result.translated_draft ?? r.translated_draft,
-            category: result.category as ProcessedReply['category'],
-            classification_reasoning: result.classification_reasoning,
-          };
-        }));
-        setJustUpdatedIds(prev => new Set(prev).add(replyId));
-        setTimeout(() => setJustUpdatedIds(prev => {
-          const next = new Set(prev);
-          next.delete(replyId);
-          return next;
-        }), 3000);
-      } catch {
-        // silent — skip failed regeneration
-      } finally {
-        activeRegensRef.current--;
-        setAutoRegeneratingIds(prev => {
-          const next = new Set(prev);
-          next.delete(replyId);
-          return next;
-        });
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!knowledgeUpdatedAt) return;
-    // Reset tracking when knowledge timestamp changes (new feedback applied)
-    if (lastKnowledgeTsRef.current !== knowledgeUpdatedAt) {
-      everQueuedRef.current.clear();
-      lastKnowledgeTsRef.current = knowledgeUpdatedAt;
-    }
-    const staleVisible = [...visibleReplyIds].filter(id => {
-      if (everQueuedRef.current.has(id)) return false; // Already queued/processed — sync ref, no race
-      const reply = replies.find(r => r.id === id);
-      if (!reply) return false;
-      if (regeneratingIds.has(id)) return false;
-      if (id in editingDrafts) return false;
-      if (reply.approval_status === 'approved' || reply.approval_status === 'dismissed') return false;
-      return isReplyStale(reply, knowledgeUpdatedAt);
-    });
-    if (staleVisible.length === 0) return;
-    staleVisible.forEach(id => everQueuedRef.current.add(id));
-    regenQueueRef.current.push(...staleVisible);
-    processRegenQueue();
-  }, [visibleReplyIds, knowledgeUpdatedAt, replies]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- Data loading (infinite scroll) ---- */
   const loadReplies = useCallback(async (reset = false) => {
@@ -742,14 +636,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
               const catLabel = CATEGORY_LABEL[reply.category || ''] || reply.category || '';
               const hasReasoning = !!reply.classification_reasoning;
               const contactInfo = contactInfoMap[reply.id];
-              const stale = isReplyStale(reply, knowledgeUpdatedAt);
-              const isAutoRegen = autoRegeneratingIds.has(reply.id);
-              const wasJustUpdated = justUpdatedIds.has(reply.id);
-
               return (
                 <div
                   key={reply.id}
-                  ref={observeReplyCard}
                   data-reply-id={reply.id}
                   className="rounded-md border transition-colors relative"
                   style={{
@@ -757,20 +646,6 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                     borderColor: t.cardBorder,
                   }}
                 >
-                  {/* Auto-regeneration overlay */}
-                  {isAutoRegen && (
-                    <div
-                      className="absolute inset-0 z-20 flex items-center justify-center rounded-md"
-                      style={{ background: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)' }}
-                    >
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium"
-                        style={{ background: t.cardBg, color: t.text3, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                      >
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Updating draft...
-                      </div>
-                    </div>
-                  )}
                   {/* Two-column layout: conversation | reasoning */}
                   <div className="flex">
                     {/* Left: conversation & draft */}
@@ -809,22 +684,6 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                                 style={{ background: t.badgeBg, color: t.badgeText }}
                               >
                                 {catLabel}
-                              </span>
-                            )}
-                            {stale && !isAutoRegen && !wasJustUpdated && (
-                              <span
-                                className="text-[11px] px-1.5 py-0.5 rounded font-medium"
-                                style={{ background: isDark ? '#422006' : '#fef3c7', color: isDark ? '#fbbf24' : '#92400e' }}
-                              >
-                                Stale draft
-                              </span>
-                            )}
-                            {wasJustUpdated && (
-                              <span
-                                className="text-[11px] px-1.5 py-0.5 rounded font-medium animate-pulse"
-                                style={{ background: isDark ? '#052e16' : '#dcfce7', color: isDark ? '#4ade80' : '#166534' }}
-                              >
-                                Updated
                               </span>
                             )}
                           </div>
@@ -877,32 +736,26 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                         {reply.email_subject && (
                           <div className="text-[13px] mb-1" style={{ color: t.text2 }}>{reply.email_subject}</div>
                         )}
-                        {reply.translated_body && (
-                          <button
-                            className="flex items-center gap-1 text-[11px] mb-1 px-1.5 py-0.5 rounded"
-                            style={{
-                              background: showTranslation.has(reply.id) ? t.badgeBg : 'transparent',
-                              color: t.text4,
-                              border: `1px solid ${t.badgeBg}`,
-                            }}
-                            onClick={() => setShowTranslation(prev => {
-                              const next = new Set(prev);
-                              next.has(reply.id) ? next.delete(reply.id) : next.add(reply.id);
-                              return next;
-                            })}
-                          >
-                            <Languages className="w-3 h-3" />
-                            {showTranslation.has(reply.id) ? 'Show original' : `Translate (${reply.detected_language})`}
-                          </button>
-                        )}
                         <div
                           className="text-[13px] leading-relaxed whitespace-pre-wrap break-words"
                           style={{ color: t.text3 }}
                         >
-                          {showTranslation.has(reply.id) && reply.translated_body
-                            ? reply.translated_body
-                            : stripHtml(reply.email_body || reply.reply_text || '') || '(empty)'}
+                          {stripHtml(reply.email_body || reply.reply_text || '') || '(empty)'}
                         </div>
+                        {reply.translated_body && (
+                          <div className="mt-2 pt-2" style={{ borderTop: `1px dashed ${t.divider}` }}>
+                            <div className="flex items-center gap-1 text-[11px] mb-1" style={{ color: t.text5 }}>
+                              <Languages className="w-3 h-3" />
+                              English translation
+                            </div>
+                            <div
+                              className="text-[13px] leading-relaxed whitespace-pre-wrap break-words"
+                              style={{ color: t.text4 }}
+                            >
+                              {reply.translated_body}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* History */}
@@ -1097,23 +950,26 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                           </div>
                         ) : (
                           <>
-                            {showTranslation.has(reply.id) && reply.translated_draft && (
-                              <div
-                                className="text-[11px] mb-1 px-1 flex items-center gap-1"
-                                style={{ color: t.text4 }}
-                              >
-                                <Languages className="w-3 h-3" />
-                                English translation:
-                              </div>
-                            )}
                             <div
                               className="text-[13px] whitespace-pre-wrap leading-relaxed rounded p-2.5"
                               style={{ background: t.draftBg, color: t.text2 }}
                             >
-                              {showTranslation.has(reply.id) && reply.translated_draft
-                                ? reply.translated_draft
-                                : draftText || '(no draft)'}
+                              {draftText || '(no draft)'}
                             </div>
+                            {reply.translated_draft && (
+                              <div className="mt-1.5 pt-1.5" style={{ borderTop: `1px dashed ${t.divider}` }}>
+                                <div className="flex items-center gap-1 text-[11px] mb-1 px-1" style={{ color: t.text5 }}>
+                                  <Languages className="w-3 h-3" />
+                                  English translation
+                                </div>
+                                <div
+                                  className="text-[13px] whitespace-pre-wrap leading-relaxed rounded p-2.5"
+                                  style={{ background: t.draftBg, color: t.text4 }}
+                                >
+                                  {reply.translated_draft}
+                                </div>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
