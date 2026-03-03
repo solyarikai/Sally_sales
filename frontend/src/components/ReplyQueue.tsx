@@ -154,7 +154,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const activeRegensRef = useRef(0);
   const everQueuedRef = useRef(new Set<number>());
   const lastKnowledgeTsRef = useRef<string | null>(null);
-  const MAX_CONCURRENT_REGENS = 2;
+  const MAX_CONCURRENT_REGENS = 1;
   const visibilityObserverRef = useRef<IntersectionObserver | null>(null);
 
   // Learning feedback polling
@@ -253,7 +253,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       activeRegensRef.current++;
       setAutoRegeneratingIds(prev => new Set(prev).add(replyId));
       try {
-        const result = await repliesApi.regenerateDraft(replyId, 'gpt-4o-mini');
+        const result = await repliesApi.regenerateDraft(replyId);
         setReplies(prev => prev.map(r => {
           if (r.id !== replyId) return r;
           return {

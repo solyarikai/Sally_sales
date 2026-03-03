@@ -89,7 +89,8 @@ OPERATOR OPENS REPLIES PAGE
 | GPT-4o | $0.05 | 5/10 - over-summarizes, skips pricing details | ~3-5s |
 | **Gemini 2.5 Pro** | **$0.05** | **9.5/10 - near-perfect operator style match** | ~15-20s |
 
-Winner: Gemini 2.5 Pro. Copies operator's exact phrasing, full pricing breakdowns, no placeholders.
+Winner: Gemini 2.5 Pro for ALL draft generation. GPT-4o-mini ONLY for classification.
+Quality is the KPI — never downgrade model for speed.
 
 ### Token usage (Gemini 2.5 Pro per reply):
 - Input: ~8,500 tokens (prompt + knowledge + 20 reference examples)
@@ -123,9 +124,9 @@ EasyStaff RU has 1,112 outbound messages, 219 from qualified categories.
 
 ## Smart Auto-Regeneration (Mar 3 2026)
 
-### Architecture: Two-tier model split
-- **Initial draft (webhook time)**: Gemini 2.5 Pro — best quality ($0.05, ~15-20s, background)
-- **Auto-regen (knowledge stale)**: GPT-4o-mini — fast (~1-2s, $0.003), transparent to operator
+### Architecture: Single model for quality
+- **All drafts (initial + auto-regen + manual)**: Gemini 2.5 Pro — 9.5/10 quality ($0.05, ~15-20s)
+- **Classification only**: GPT-4o-mini — fast, cheap ($0.003, ~1s)
 
 ### Staleness detection:
 - Each draft stores `draft_generated_at` timestamp
@@ -136,7 +137,7 @@ EasyStaff RU has 1,112 outbound messages, 219 from qualified categories.
 1. Operator provides feedback via Cmd+K → learning service processes → ProjectKnowledge updated
 2. ReplyQueue polls learning status → detects completion → refreshes knowledge timestamp
 3. IntersectionObserver tracks which reply cards are in viewport
-4. Stale + visible → auto-queue for regeneration (GPT-4o-mini, max 2 concurrent)
+4. Stale + visible → auto-queue for regeneration (Gemini 2.5 Pro, max 1 concurrent)
 5. Card shows "Updating draft..." overlay while regenerating
 6. "Updated" flash badge for 3s after completion
 
@@ -148,10 +149,10 @@ EasyStaff RU has 1,112 outbound messages, 219 from qualified categories.
 
 ### Why this approach:
 1. **Zero operator friction**: stale drafts update automatically when visible
-2. **Fast**: GPT-4o-mini for auto-regen (~1-2s), not Gemini (~20s) — page stays responsive
+2. **Best quality always**: Gemini 2.5 Pro for ALL drafts — 9.5/10 KPI, never compromise
 3. **Cost-efficient**: auto-regen only fires when knowledge actually changed, only for visible replies
-4. **Best quality on initial draft**: Gemini 2.5 Pro runs at webhook time (background, no UX impact)
-5. **Manual escape hatch**: operator can still click Regenerate for Gemini-quality refresh
+4. **Transparent latency**: "Updating draft..." overlay for ~15-20s — operator sees it's working
+5. **GPT-4o-mini only for easy tasks**: classification ($0.003, ~1s) — no reasoning needed
 
 ## Translation UX
 
