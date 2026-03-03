@@ -717,27 +717,15 @@ async def _get_project_for_campaign(campaign_name: str):
             if isinstance(f, str) and f.lower() == campaign_lower:
                 return project_data
 
-    # 2. Prefix match: extract common prefix from each project's campaigns
+    # 2. Prefix match: campaign name starts with the project name
+    # Only use project name (not single first-word), to avoid ambiguity
+    # between projects that share a common brand prefix (e.g. "easystaff ru" vs "easystaff global")
     for project_data in _project_cache["data"].values():
-        filters = project_data.get("campaign_filters") or []
-        if not filters:
-            continue
         project_name = (project_data.get("name") or "").lower()
-        if not project_name:
+        if not project_name or len(project_name) < 4:
             continue
-        # Check if campaign_name starts with the project name (case-insensitive)
         if campaign_lower.startswith(project_name) or campaign_lower.startswith(project_name.replace(" ", "_")):
             return project_data
-        # Also check first word of each filter for common prefix
-        prefixes = set()
-        for f in filters:
-            if isinstance(f, str):
-                first_word = f.split()[0].lower() if f.strip() else ""
-                if first_word and len(first_word) > 3:
-                    prefixes.add(first_word)
-        for prefix in prefixes:
-            if campaign_lower.startswith(prefix):
-                return project_data
 
     return None
 
