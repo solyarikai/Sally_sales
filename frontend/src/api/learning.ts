@@ -36,12 +36,94 @@ export interface LearningLogSummary {
   created_at: string | null;
 }
 
+export interface TemplateChange {
+  what: string;
+  why: string;
+  evidence: string;
+}
+
+export interface EditPattern {
+  pattern: string;
+  frequency: string;
+  action_taken: string;
+}
+
+export interface CorrectionAnalysis {
+  index: number;
+  action: string;
+  key_changes: string;
+  learning_applied: string;
+}
+
+export interface KPIMetrics {
+  edit_rate: number;
+  approval_rate: number;
+  total_sends: number;
+  total_actions: number;
+}
+
+export interface CorrectionsSnapshot {
+  corrections: Array<{
+    action: string;
+    was_edited: boolean;
+    category: string;
+    channel: string;
+    ai_draft: string;
+    sent: string;
+    company: string;
+    lead_email: string;
+    campaign: string;
+  }>;
+  stats: {
+    total: number;
+    by_action: Record<string, number>;
+    by_category: Record<string, number>;
+    by_channel: Record<string, number>;
+  };
+  kpi: KPIMetrics;
+  prompt_sent: string;
+}
+
 export interface LearningLogDetail extends LearningLogSummary {
-  before_snapshot: any;
-  after_snapshot: any;
+  before_snapshot: {
+    template?: string;
+    icp?: Record<string, any>;
+  } | null;
+  after_snapshot: {
+    template?: string;
+    icp_insights?: Record<string, any>;
+    objection_patterns?: string[];
+    template_changes?: TemplateChange[];
+    edit_patterns?: EditPattern[];
+    correction_analysis?: CorrectionAnalysis[];
+  } | null;
+  corrections_snapshot: CorrectionsSnapshot | null;
   ai_reasoning: string | null;
   error_message: string | null;
   template_id: number | null;
+}
+
+export interface ReferenceExample {
+  id: number;
+  lead_message: string;
+  operator_reply: string;
+  lead_context: Record<string, any> | null;
+  channel: string | null;
+  category: string | null;
+  quality_score: number;
+  source: string;
+  has_embedding: boolean;
+  created_at: string | null;
+}
+
+export interface ReferenceExamplesPage {
+  items: ReferenceExample[];
+  total: number;
+  page: number;
+  page_size: number;
+  quality_distribution: Record<string, number>;
+  source_distribution: Record<string, number>;
+  embedded_count: number;
 }
 
 export interface SetupWarning {
@@ -185,5 +267,17 @@ export async function submitFeedback(projectId: number, feedbackText: string): P
   const response = await api.post(`/projects/${projectId}/learning/feedback`, {
     feedback_text: feedbackText,
   });
+  return response.data;
+}
+
+export async function getReferenceExamples(
+  projectId: number,
+  page = 1,
+  pageSize = 30,
+  source?: string,
+): Promise<ReferenceExamplesPage> {
+  const params: Record<string, string | number> = { page, page_size: pageSize };
+  if (source) params.source = source;
+  const response = await api.get(`/projects/${projectId}/learning/examples`, { params });
   return response.data;
 }

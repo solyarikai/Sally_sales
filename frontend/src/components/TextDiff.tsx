@@ -21,6 +21,16 @@ function lcs(a: string[], b: string[]): number[][] {
 function computeDiff(oldText: string, newText: string): Segment[] {
   const oldWords = oldText.split(/(\s+)/);
   const newWords = newText.split(/(\s+)/);
+
+  // Safety limit for very long texts — skip LCS, show full replacement
+  if (oldWords.length * newWords.length > 500000) {
+    if (oldText === newText) return [{ type: 'equal', text: oldText }];
+    return [
+      { type: 'removed', text: oldText },
+      { type: 'added', text: newText },
+    ];
+  }
+
   const dp = lcs(oldWords, newWords);
   const segments: Segment[] = [];
 
@@ -56,15 +66,31 @@ export function TextDiff({
   oldText,
   newText,
   isDark,
+  maxHeight,
 }: {
   oldText: string;
   newText: string;
   isDark: boolean;
+  maxHeight?: string;
 }) {
+  if (!oldText && !newText) {
+    return <div className="text-[12px] italic" style={{ color: '#888' }}>No content</div>;
+  }
+
+  if (oldText === newText) {
+    return <div className="text-[12px] italic" style={{ color: '#888' }}>No changes</div>;
+  }
+
   const segments = computeDiff(oldText, newText);
 
   return (
-    <div className="text-[12px] whitespace-pre-wrap leading-relaxed">
+    <div
+      className="text-[12px] whitespace-pre-wrap leading-relaxed overflow-y-auto rounded p-3"
+      style={{
+        background: isDark ? '#1e1e1e' : '#f8f8f8',
+        maxHeight: maxHeight || '400px',
+      }}
+    >
       {segments.map((seg, i) => {
         if (seg.type === 'removed') {
           return (

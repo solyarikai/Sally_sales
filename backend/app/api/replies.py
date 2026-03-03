@@ -49,6 +49,46 @@ from app.services.crm_sync_service import parse_campaigns
 logger = logging.getLogger(__name__)
 
 
+async def _auto_embed_reference(reply_id: int, project_id: int, was_edited: bool,
+                                lead_message: str, sent_text: str, lead_name: str,
+                                lead_company: str, channel: str, category: str):
+    """Auto-add approved reply to reference_examples with embedding. Fire-and-forget with own session."""
+    try:
+        from app.db.database import async_session_maker
+        from app.models.learning import ReferenceExample
+        from app.services.embedding_service import get_embedding
+
+        if len(sent_text) < 100:
+            return
+
+        async with async_session_maker() as session:
+            ref = ReferenceExample(
+                project_id=project_id,
+                lead_message=lead_message or "(no lead message)",
+                operator_reply=sent_text,
+                lead_context={
+                    "name": lead_name,
+                    "company": lead_company,
+                    "channel": channel,
+                },
+                channel=channel,
+                category=category,
+                quality_score=5 if not was_edited else 4,
+                source="learned",
+                processed_reply_id=reply_id,
+            )
+            session.add(ref)
+            await session.flush()
+
+            embedding = await get_embedding(sent_text)
+            if embedding:
+                ref.embedding = embedding
+            await session.commit()
+            logger.info(f"[EMBED] Auto-embedded reference example for reply {reply_id} (has_embed={embedding is not None})")
+    except Exception as e:
+        logger.warning(f"[EMBED] Auto-embed failed (non-fatal): {e}")
+
+
 def _build_project_campaign_filter(project):
     """Build SQLAlchemy filter for matching replies to a project.
 
@@ -2434,7 +2474,8 @@ async def regenerate_draft(
                 try:
                     from app.services.reply_processor import _load_reference_examples
                     ref_examples = await _load_reference_examples(
-                        db, project.id, category=category
+                        db, project.id, category=category,
+                        lead_message=body,
                     )
                     if ref_examples:
                         if custom_reply_prompt:
@@ -2668,6 +2709,21 @@ async def approve_and_send_reply(
         except Exception as _lrn_err:
             logger.warning(f"Learning correction recording failed (non-fatal): {_lrn_err}")
 
+        # Auto-embed as reference example
+        try:
+            _was_edited = (_original_ai_draft or "").strip() != (reply.draft_reply or "").strip()
+            _proj_id = correction.project_id if correction else None
+            if _proj_id:
+                import asyncio
+                asyncio.ensure_future(_auto_embed_reference(
+                    reply.id, _proj_id, _was_edited,
+                    reply.email_body or "", reply.draft_reply or "",
+                    reply.lead_first_name or "", reply.lead_company or "",
+                    reply.channel or "", reply.category or "",
+                ))
+        except Exception as _embed_err:
+            logger.warning(f"Auto-embed failed (non-fatal): {_embed_err}")
+
         status_msg = "Sent via LinkedIn" if send_result else "Approved — copy draft to LinkedIn"
         if send_error:
             status_msg = f"Approved (send failed: {send_error[:100]})"
@@ -2851,6 +2907,21 @@ async def approve_and_send_reply(
                 logger.warning(f"Auto-trigger check failed (non-fatal): {_at_err}")
     except Exception as _lrn_err:
         logger.warning(f"Learning correction recording failed (non-fatal): {_lrn_err}")
+
+    # Auto-embed as reference example
+    try:
+        _was_edited = (_original_ai_draft or "").strip() != (reply.draft_reply or "").strip()
+        _proj_id = correction.project_id if correction else None
+        if _proj_id:
+            import asyncio
+            asyncio.ensure_future(_auto_embed_reference(
+                reply.id, _proj_id, _was_edited,
+                reply.email_body or "", reply.draft_reply or "",
+                reply.lead_first_name or "", reply.lead_company or "",
+                reply.channel or "", reply.category or "",
+            ))
+    except Exception as _embed_err:
+        logger.warning(f"Auto-embed failed (non-fatal): {_embed_err}")
 
     # Sync to Google Sheets
     await _sync_approval_to_sheet(db, reply, status, google_sheets_service)

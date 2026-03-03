@@ -66,7 +66,10 @@ OUTPUT strict JSON:
   },
   "objection_patterns": ["pattern1", "pattern2"],
   "change_summary": "Human-readable description of what changed and why",
-  "reasoning": "Detailed reasoning for the changes"
+  "reasoning": "Detailed reasoning for the changes",
+  "template_changes": [{"what": "description of change", "why": "reason", "evidence": "correction/conversation that motivated it"}],
+  "edit_patterns": [{"pattern": "what operators consistently change", "frequency": "how often", "action_taken": "how template was updated"}],
+  "correction_analysis": [{"index": 1, "action": "EDITED/APPROVED/etc", "key_changes": "what changed", "learning_applied": "how this informed the template"}]
 }"""
 
 FEEDBACK_SYSTEM_PROMPT = """You are an expert outbound sales optimization engine. You are receiving direct operator feedback about reply quality or ICP targeting.
@@ -525,11 +528,12 @@ Incorporate this feedback into the template and ICP knowledge."""
                 "was_edited": c.was_edited,
                 "category": c.reply_category,
                 "channel": c.channel,
-                "ai_draft": (c.ai_draft_reply or "")[:500],
-                "sent": (c.sent_reply or "")[:500],
+                "ai_draft": c.ai_draft_reply or "",
+                "sent": c.sent_reply or "",
                 "company": c.lead_company,
                 "lead_email": c.lead_email,
                 "campaign": c.campaign_name,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
             }
             for c in corrections
         ]
@@ -542,7 +546,7 @@ Incorporate this feedback into the template and ICP knowledge."""
         corrections: List[Dict[str, Any]],
         log: LearningLog,
     ):
-        """Core analysis: call GPT, update template + ICP, snapshot to log."""
+        """Core analysis: call Gemini 2.5 Pro, update template + ICP, snapshot to log."""
         # Get current template
         current_template = ""
         if project.reply_prompt_template_id:
@@ -612,21 +616,91 @@ OPERATOR ACTIONS ({len(corrections)} signals — edits, approvals, dismissals, r
 
 Analyze these patterns and produce an improved template + ICP insights."""
 
-        if not openai_service.is_connected():
-            log.status = "failed"
-            log.error_message = "OpenAI not configured"
-            return
+        # Compute KPI stats for corrections snapshot
+        total_actions = len(corrections)
+        by_action = {}
+        by_category = {}
+        by_channel = {}
+        total_sends = 0
+        total_edits = 0
+        for c in corrections:
+            action = c.get("action", "send")
+            by_action[action] = by_action.get(action, 0) + 1
+            cat = c.get("category", "unknown")
+            by_category[cat] = by_category.get(cat, 0) + 1
+            ch = c.get("channel", "unknown")
+            by_channel[ch] = by_channel.get(ch, 0) + 1
+            if action == "send":
+                total_sends += 1
+                if c.get("was_edited"):
+                    total_edits += 1
 
-        response = await openai_service.complete(
-            prompt=user_prompt,
-            system_prompt=LEARNING_SYSTEM_PROMPT,
-            model="gpt-4o-mini",
-            temperature=0.5,
-            max_tokens=3000,
-            response_format={"type": "json_object"},
-        )
+        kpi = {
+            "edit_rate": round(total_edits / total_sends * 100, 1) if total_sends > 0 else 0,
+            "approval_rate": round((total_sends - total_edits) / total_sends * 100, 1) if total_sends > 0 else 0,
+            "total_sends": total_sends,
+            "total_actions": total_actions,
+        }
 
-        parsed = json.loads(response)
+        # Store corrections snapshot BEFORE calling AI
+        log.corrections_snapshot = {
+            "corrections": corrections,
+            "stats": {
+                "total": total_actions,
+                "by_action": by_action,
+                "by_category": by_category,
+                "by_channel": by_channel,
+            },
+            "kpi": kpi,
+            "prompt_sent": user_prompt[:10000],
+        }
+
+        # Use Gemini 2.5 Pro for learning analysis (better reasoning than GPT-4o-mini)
+        from app.services.gemini_client import gemini_generate, extract_json_from_gemini, is_gemini_available
+
+        if is_gemini_available():
+            try:
+                result_raw = await gemini_generate(
+                    system_prompt=LEARNING_SYSTEM_PROMPT,
+                    user_prompt=user_prompt,
+                    temperature=0.5,
+                    max_tokens=8000,
+                    project_id=project.id,
+                )
+                content = result_raw["content"]
+                clean_json = extract_json_from_gemini(content)
+                parsed = json.loads(clean_json)
+                log.tokens_used = result_raw.get("tokens", {}).get("total")
+            except Exception as gemini_err:
+                logger.warning(f"Gemini learning failed, falling back to GPT-4o-mini: {gemini_err}")
+                # Fallback to OpenAI
+                if not openai_service.is_connected():
+                    log.status = "failed"
+                    log.error_message = f"Gemini failed ({gemini_err}), OpenAI not configured"
+                    return
+                response = await openai_service.complete(
+                    prompt=user_prompt,
+                    system_prompt=LEARNING_SYSTEM_PROMPT,
+                    model="gpt-4o-mini",
+                    temperature=0.5,
+                    max_tokens=3000,
+                    response_format={"type": "json_object"},
+                )
+                parsed = json.loads(response)
+        else:
+            if not openai_service.is_connected():
+                log.status = "failed"
+                log.error_message = "Neither Gemini nor OpenAI configured"
+                return
+            response = await openai_service.complete(
+                prompt=user_prompt,
+                system_prompt=LEARNING_SYSTEM_PROMPT,
+                model="gpt-4o-mini",
+                temperature=0.5,
+                max_tokens=3000,
+                response_format={"type": "json_object"},
+            )
+            parsed = json.loads(response)
 
         # Update template (or create if project has none)
         change_type = None
@@ -643,7 +717,6 @@ Analyze these patterns and produce an improved template + ICP insights."""
                 )
                 log.template_id = project.reply_prompt_template_id
             else:
-                # Create new template and assign to project
                 new_tmpl = ReplyPromptTemplateModel(
                     name=f"{project.name} - auto",
                     prompt_text=parsed["updated_template"],
@@ -670,11 +743,14 @@ Analyze these patterns and produce an improved template + ICP insights."""
                 parsed["objection_patterns"], "Objection Patterns"
             )
 
-        # Snapshot after
+        # Enriched after_snapshot with structured analysis
         log.after_snapshot = {
             "template": parsed.get("updated_template", current_template),
             "icp_insights": parsed.get("icp_insights"),
             "objection_patterns": parsed.get("objection_patterns"),
+            "template_changes": parsed.get("template_changes", []),
+            "edit_patterns": parsed.get("edit_patterns", []),
+            "correction_analysis": parsed.get("correction_analysis", []),
         }
         log.change_type = change_type or "both"
         log.change_summary = parsed.get("change_summary", "Learning cycle completed")

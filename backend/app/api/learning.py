@@ -239,6 +239,7 @@ async def get_learning_log_detail(
         "change_type": log.change_type, "change_summary": log.change_summary,
         "before_snapshot": log.before_snapshot,
         "after_snapshot": log.after_snapshot,
+        "corrections_snapshot": log.corrections_snapshot,
         "ai_reasoning": log.ai_reasoning,
         "feedback_text": log.feedback_text,
         "conversations_analyzed": log.conversations_analyzed,
@@ -524,4 +525,88 @@ async def get_operator_corrections(
         "total": total,
         "page": page,
         "page_size": page_size,
+    }
+
+
+@router.get("/{project_id}/learning/examples")
+async def get_reference_examples(
+    project_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(30, ge=1, le=100),
+    source: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_session),
+):
+    """Reference examples for this project — the semantic retrieval knowledge base."""
+    await _get_project(db, project_id)
+    from app.models.learning import ReferenceExample
+
+    filters = [ReferenceExample.project_id == project_id]
+    if source:
+        filters.append(ReferenceExample.source == source)
+
+    # Total count
+    total_result = await db.execute(
+        select(func.count(ReferenceExample.id)).where(and_(*filters))
+    )
+    total = total_result.scalar() or 0
+
+    # Quality distribution
+    quality_result = await db.execute(
+        select(ReferenceExample.quality_score, func.count(ReferenceExample.id))
+        .where(ReferenceExample.project_id == project_id)
+        .group_by(ReferenceExample.quality_score)
+    )
+    quality_dist = {str(row[0]): row[1] for row in quality_result.all() if row[0]}
+
+    # Source distribution
+    source_result = await db.execute(
+        select(ReferenceExample.source, func.count(ReferenceExample.id))
+        .where(ReferenceExample.project_id == project_id)
+        .group_by(ReferenceExample.source)
+    )
+    source_dist = {row[0]: row[1] for row in source_result.all() if row[0]}
+
+    # Embedded count
+    embed_result = await db.execute(
+        select(func.count(ReferenceExample.id)).where(
+            ReferenceExample.project_id == project_id,
+            ReferenceExample.embedding.isnot(None),
+        )
+    )
+    embedded_count = embed_result.scalar() or 0
+
+    # Paginated examples
+    offset = (page - 1) * page_size
+    examples_result = await db.execute(
+        select(ReferenceExample)
+        .where(and_(*filters))
+        .order_by(ReferenceExample.quality_score.desc(), ReferenceExample.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+
+    items = [
+        {
+            "id": ex.id,
+            "lead_message": (ex.lead_message or "")[:300],
+            "operator_reply": (ex.operator_reply or "")[:500],
+            "lead_context": ex.lead_context,
+            "channel": ex.channel,
+            "category": ex.category,
+            "quality_score": ex.quality_score,
+            "source": ex.source,
+            "has_embedding": ex.embedding is not None,
+            "created_at": ex.created_at.isoformat() if ex.created_at else None,
+        }
+        for ex in examples_result.scalars().all()
+    ]
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "quality_distribution": quality_dist,
+        "source_distribution": source_dist,
+        "embedded_count": embedded_count,
     }

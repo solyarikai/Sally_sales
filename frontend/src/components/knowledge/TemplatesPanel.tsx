@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { FileText, Play, Loader2, AlertTriangle, CheckCircle, Download, Plus, Trash2, ExternalLink } from 'lucide-react';
-import type { TemplatesResponse, AnalyzeStatusResponse } from '../../api/learning';
-import { getLearningTemplates, triggerLearning, getLearningStatus } from '../../api/learning';
+import { FileText, Play, Loader2, AlertTriangle, CheckCircle, Download, Plus, Trash2, ExternalLink, Database, Star, ChevronDown, ChevronRight } from 'lucide-react';
+import type { TemplatesResponse, AnalyzeStatusResponse, ReferenceExamplesPage, ReferenceExample } from '../../api/learning';
+import { getLearningTemplates, triggerLearning, getLearningStatus, getReferenceExamples } from '../../api/learning';
 import { knowledgeApi, type KnowledgeEntry } from '../../api/knowledge';
 import type { ThemeTokens } from '../../lib/themeColors';
 import { useToast } from '../Toast';
@@ -28,11 +28,27 @@ export function TemplatesPanel({ projectId, isDark, t, onLearningComplete }: Pro
   const [newDocName, setNewDocName] = useState('');
   const [newDocUrl, setNewDocUrl] = useState('');
 
+  // Reference examples
+  const [refExamples, setRefExamples] = useState<ReferenceExamplesPage | null>(null);
+  const [refLoading, setRefLoading] = useState(false);
+  const [refExpanded, setRefExpanded] = useState(false);
+  const [refExpandedId, setRefExpandedId] = useState<number | null>(null);
+
   useEffect(() => {
     loadTemplates();
     loadDocs();
+    loadRefExamples();
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [projectId]);
+
+  async function loadRefExamples() {
+    setRefLoading(true);
+    try {
+      const result = await getReferenceExamples(projectId, 1, 10);
+      setRefExamples(result);
+    } catch { setRefExamples(null); }
+    finally { setRefLoading(false); }
+  }
 
   async function loadDocs() {
     try {
@@ -267,6 +283,123 @@ export function TemplatesPanel({ projectId, isDark, t, onLearningComplete }: Pro
           </div>
         </div>
       )}
+
+      {/* Reference Examples (Semantic Retrieval Knowledge Base) */}
+      <div
+        className="rounded-lg border p-4"
+        style={{ background: t.cardBg, borderColor: t.cardBorder }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Database className="w-4 h-4" style={{ color: t.text3 }} />
+            <span className="text-[14px] font-medium" style={{ color: t.text1 }}>Reference Examples</span>
+            {refExamples && (
+              <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ color: t.text4, background: isDark ? '#2d2d2d' : '#f0f0f0' }}>
+                {refExamples.total} total / {refExamples.embedded_count} embedded
+              </span>
+            )}
+          </div>
+        </div>
+        <p className="text-[12px] mb-3" style={{ color: t.text4 }}>
+          Operator's real replies used for semantic matching. The AI finds the most similar past situations when generating drafts.
+        </p>
+
+        {refLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="w-4 h-4 animate-spin" style={{ color: t.text4 }} />
+          </div>
+        ) : refExamples && refExamples.total > 0 ? (
+          <div className="space-y-3">
+            {/* Quality + Source distribution */}
+            <div className="flex flex-wrap gap-3">
+              {Object.entries(refExamples.source_distribution).map(([src, count]) => (
+                <span
+                  key={src}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[11px]"
+                  style={{ background: isDark ? '#2d2d2d' : '#f0f0f0', color: t.text2 }}
+                >
+                  <span className="font-medium">{src}</span>
+                  <span style={{ color: t.text4 }}>{count}</span>
+                </span>
+              ))}
+              {Object.entries(refExamples.quality_distribution)
+                .sort(([a], [b]) => Number(b) - Number(a))
+                .map(([score, count]) => (
+                <span
+                  key={score}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px]"
+                  style={{ background: isDark ? '#2d2d2d' : '#f0f0f0', color: t.text2 }}
+                >
+                  <Star className="w-3 h-3" style={{ color: '#f59e0b' }} />
+                  <span>{score}</span>
+                  <span style={{ color: t.text4 }}>({count})</span>
+                </span>
+              ))}
+            </div>
+
+            {/* Expandable examples list */}
+            <button
+              onClick={() => setRefExpanded(!refExpanded)}
+              className="flex items-center gap-1.5 text-[12px] font-medium hover:opacity-80"
+              style={{ color: t.text3 }}
+            >
+              {refExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              {refExpanded ? 'Hide examples' : `Show examples (${Math.min(10, refExamples.total)})`}
+            </button>
+
+            {refExpanded && (
+              <div className="space-y-2">
+                {refExamples.items.map((ex: ReferenceExample) => (
+                  <div
+                    key={ex.id}
+                    className="rounded-lg p-2.5 cursor-pointer hover:opacity-90 transition-opacity"
+                    style={{ background: isDark ? '#1e1e1e' : '#f8f8f8' }}
+                    onClick={() => setRefExpandedId(refExpandedId === ex.id ? null : ex.id)}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                        style={{
+                          background: ex.source === 'feedback' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
+                          color: ex.source === 'feedback' ? '#f59e0b' : '#3b82f6',
+                        }}
+                      >
+                        {ex.source}
+                      </span>
+                      {ex.category && (
+                        <span className="text-[10px]" style={{ color: t.text5 }}>{ex.category}</span>
+                      )}
+                      {ex.channel && (
+                        <span className="text-[10px]" style={{ color: t.text5 }}>{ex.channel}</span>
+                      )}
+                      <div className="flex items-center gap-0.5 ml-auto">
+                        {Array.from({ length: ex.quality_score }, (_, i) => (
+                          <Star key={i} className="w-2.5 h-2.5" style={{ color: '#f59e0b', fill: '#f59e0b' }} />
+                        ))}
+                      </div>
+                      {!ex.has_embedding && (
+                        <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+                          no embed
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] truncate" style={{ color: t.text4 }}>
+                      Lead: {ex.lead_message}
+                    </div>
+                    <div className={`text-[11px] mt-0.5 ${refExpandedId === ex.id ? '' : 'truncate'}`} style={{ color: t.text2 }}>
+                      Reply: {ex.operator_reply}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-[12px] text-center py-4" style={{ color: t.text5 }}>
+            No reference examples yet. They're auto-created when operators approve replies.
+          </div>
+        )}
+      </div>
 
       {/* Project Documents */}
       <div

@@ -89,25 +89,120 @@ def _strip_html_to_text(html_text: str) -> str:
     return text.strip()
 
 
-async def _load_reference_examples(session, project_id: int, category: str = None, limit: int = 20) -> str:
-    """Load operator's actual sent replies as few-shot reference examples.
+async def _load_reference_examples(session, project_id: int, category: str = None, limit: int = 30, lead_message: str = None) -> str:
+    """Load most relevant operator replies via semantic similarity.
 
-    Primary source: thread_messages (outbound, >300 chars) — full-text operator replies
-    from SmartLead conversations. These are the REAL examples with no truncation.
-    Matched to project via ProcessedReply campaign → project campaign_filters.
+    Primary strategy: embed the lead's message, find the N most similar past situations
+    via pgvector cosine search in reference_examples table.
 
-    Strategy: fetch 100 most recent outbound messages, prioritize by:
-    1. Same category as current lead (exact match)
-    2. Qualified categories (interested, meeting_request, question) — these have the
-       best detailed replies with pricing and CTAs
-    3. Longer replies first (more detail = better reference)
-    4. Skip short follow-ups and scheduling messages (<400 chars clean text)
+    Fallback: if no embeddings exist yet, falls back to legacy length-based sort from thread_messages.
     """
+    try:
+        # Try semantic retrieval first
+        if lead_message:
+            result = await _load_reference_examples_semantic(session, project_id, lead_message, limit)
+            if result:
+                return result
+
+        # Fallback to legacy
+        return await _load_reference_examples_legacy(session, project_id, category, limit)
+    except Exception as e:
+        logger.warning(f"[PROCESSOR] Reference examples loading failed (non-fatal): {e}")
+        return ""
+
+
+async def _load_reference_examples_semantic(session, project_id: int, lead_message: str, limit: int = 30) -> str:
+    """Semantic vector search — find most similar past situations."""
+    try:
+        from app.services.embedding_service import get_embedding
+        from app.models.learning import ReferenceExample
+        from sqlalchemy import func
+
+        # Check if we have any embeddings for this project
+        count_result = await session.execute(
+            select(func.count(ReferenceExample.id)).where(
+                ReferenceExample.project_id == project_id,
+                ReferenceExample.embedding.isnot(None),
+            )
+        )
+        embed_count = count_result.scalar() or 0
+        if embed_count == 0:
+            logger.info(f"[PROCESSOR] No embeddings for project {project_id}, falling back to legacy")
+            return ""
+
+        # Embed the lead's message
+        query_vector = await get_embedding(lead_message)
+        if not query_vector:
+            logger.warning("[PROCESSOR] Failed to embed lead message, falling back to legacy")
+            return ""
+
+        # Vector similarity search — fetch 3x limit, then re-rank by quality-weighted score
+        # This ensures high-quality examples (operator-approved, feedback) surface over
+        # generic thread_messages, reducing bias from unranked historical data.
+        fetch_limit = min(limit * 3, embed_count)
+        result = await session.execute(
+            select(ReferenceExample)
+            .where(
+                ReferenceExample.project_id == project_id,
+                ReferenceExample.embedding.isnot(None),
+            )
+            .order_by(ReferenceExample.embedding.cosine_distance(query_vector))
+            .limit(fetch_limit)
+        )
+        candidates = result.scalars().all()
+
+        # Re-rank: quality_score * (1 - cosine_distance) to boost high-quality examples
+        # quality_score range: 1-5. This gives 5-star examples a 5x boost over 1-star.
+        # cosine_distance is 0 (identical) to 2 (opposite), typical range 0.1-0.8.
+        ranked = []
+        for idx, ex in enumerate(candidates):
+            # Position-based distance proxy (already sorted by cosine_distance)
+            position_penalty = idx / max(fetch_limit, 1)  # 0.0 to ~1.0
+            quality_boost = (ex.quality_score or 3) / 3.0  # 0.33 to 1.67
+            score = quality_boost * (1.0 - position_penalty * 0.5)
+            ranked.append((score, ex))
+
+        ranked.sort(key=lambda x: x[0], reverse=True)
+        examples = [ex for _, ex in ranked[:limit]]
+
+        if not examples:
+            return ""
+
+        # Format for prompt
+        parts = []
+        for ex in examples:
+            ctx = ex.lead_context or {}
+            parts.append(
+                f"[{ex.category or 'unknown'}] Lead ({ctx.get('name', 'lead')}, {ctx.get('company', '')}):\n"
+                f"\"{ex.lead_message[:500]}\"\n"
+                f"Operator replied:\n"
+                f"\"{ex.operator_reply}\""
+            )
+
+        logger.info(
+            f"[PROCESSOR] Semantic retrieval: {len(parts)} examples for project {project_id} "
+            f"(from {embed_count} total embeddings)"
+        )
+
+        return (
+            "\n\n=== OPERATOR'S REAL REPLIES (YOUR PRIMARY REFERENCE — COPY THIS STYLE) ===\n"
+            f"These are the {len(parts)} MOST SIMILAR situations to the current lead.\n"
+            "COPY this EXACT style: same greeting, structure, detail, tone, length.\n"
+            "Pick the CLOSEST matching example and adapt for the current lead.\n\n"
+            + "\n\n---\n\n".join(parts)
+            + "\n=== END OPERATOR'S REAL REPLIES ==="
+        )
+    except Exception as e:
+        logger.warning(f"[PROCESSOR] Semantic retrieval failed (non-fatal): {e}")
+        return ""
+
+
+async def _load_reference_examples_legacy(session, project_id: int, category: str = None, limit: int = 20) -> str:
+    """Legacy fallback: load operator replies sorted by length from thread_messages."""
     try:
         from app.models.reply import ProcessedReply as PRModel, ThreadMessage
         from app.models.contact import Project
 
-        # Get project to determine campaign filters
         proj_result = await session.execute(
             select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
         )
@@ -115,7 +210,6 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
         if not project:
             return ""
 
-        # Build campaign filter conditions (same as _build_project_campaign_filter)
         from sqlalchemy import or_, and_, func as sa_func
         campaign_parts = []
         campaign_names = [c.lower() for c in (project.campaign_filters or []) if isinstance(c, str)]
@@ -130,7 +224,6 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
 
         campaign_condition = or_(*campaign_parts)
 
-        # LinkedIn sender validation (same logic as _build_project_campaign_filter)
         sender_uuids = [s for s in (project.getsales_senders or []) if isinstance(s, str)]
         if sender_uuids:
             sender_text = PRModel.raw_webhook_data.op("->>")("sender_profile_uuid")
@@ -142,10 +235,8 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
         else:
             project_filter = campaign_condition
 
-        # Qualified categories — these produce the best reference replies
         QUALIFIED_CATS = {"interested", "meeting_request", "question"}
 
-        # Fetch a large pool, then select the best examples
         query = (
             select(
                 ThreadMessage.body,
@@ -160,11 +251,10 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
                 ThreadMessage.direction == "outbound",
                 sa_func.length(ThreadMessage.body) > 300,
                 project_filter,
-                # Only load qualified categories — skip not_interested, unsubscribe, etc.
                 PRModel.category.in_(list(QUALIFIED_CATS)),
             )
             .order_by(ThreadMessage.id.desc())
-            .limit(100)  # Large pool for dedup + selection
+            .limit(100)
         )
         result = await session.execute(query)
         rows = result.all()
@@ -172,12 +262,10 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
         if not rows:
             return ""
 
-        # Deduplicate by content similarity (skip near-identical replies)
         seen_prefixes = set()
         unique_rows = []
         for r in rows:
             clean_body = _strip_html_to_text(r.body)
-            # Skip short follow-ups — only keep substantive replies
             if len(clean_body) < 400:
                 continue
             prefix = clean_body[:150].lower()
@@ -189,9 +277,6 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
         if not unique_rows:
             return ""
 
-        # Priority sort:
-        # 1. Same category, longest first (most detailed)
-        # 2. Other qualified categories, longest first
         same_cat = sorted(
             [(r, b) for r, b in unique_rows if r.category == category],
             key=lambda x: len(x[1]), reverse=True
@@ -214,9 +299,8 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
             )
 
         logger.info(
-            f"[PROCESSOR] Loaded {len(parts)} reference examples from thread_messages "
-            f"for project {project_id} (category={category}, "
-            f"same_cat={len(same_cat)}, other={len(other_cat)})"
+            f"[PROCESSOR] Legacy: loaded {len(parts)} reference examples "
+            f"for project {project_id} (category={category})"
         )
 
         return (
@@ -234,13 +318,24 @@ async def _load_reference_examples(session, project_id: int, category: str = Non
             + "\n=== END OPERATOR'S REAL REPLIES ==="
         )
     except Exception as e:
-        logger.warning(f"[PROCESSOR] Reference examples loading failed (non-fatal): {e}")
+        logger.warning(f"[PROCESSOR] Legacy reference examples loading failed (non-fatal): {e}")
         return ""
+
+
+def _strip_markdown_formatting(text: str) -> str:
+    """Remove markdown bold/italic stars from AI-generated replies."""
+    if not text:
+        return text
+    # Bold/italic: ***text***, **text**, *text*
+    text = re.sub(r'\*{1,3}([^*]+)\*{1,3}', r'\1', text)
+    # Markdown bullet lists → plain dashes
+    text = re.sub(r'(?m)^\s*\*\s+', '- ', text)
+    return text
 
 
 def _parse_source_timestamp(payload: dict) -> Optional[datetime]:
     """Extract the ORIGINAL reply timestamp from the source platform data.
-    
+
     Tries multiple fields in priority order. Returns None if no valid timestamp found.
     """
     candidates = [
@@ -682,6 +777,7 @@ async def generate_draft_reply(
                 result = json.loads(clean_json)
                 draft_body = result.get("body", "")
                 draft_body = _strip_placeholder_brackets(draft_body)
+                draft_body = _strip_markdown_formatting(draft_body)
                 logger.info(f"[PROCESSOR] Gemini draft OK: {len(draft_body)} chars, tokens={result_raw.get('tokens', {})}")
                 return {
                     "subject": result.get("subject", f"Re: {subject}"),
@@ -732,6 +828,7 @@ async def generate_draft_reply(
             draft_body = result.get("body", "")
             # Strip GPT placeholder brackets like [Your Name], [Ваше имя], etc.
             draft_body = _strip_placeholder_brackets(draft_body)
+            draft_body = _strip_markdown_formatting(draft_body)
 
             return {
                 "subject": result.get("subject", f"Re: {subject}"),
@@ -1115,7 +1212,8 @@ async def process_reply_webhook(
                     # Load reference examples from operator's past replies
                     try:
                         ref_examples = await _load_reference_examples(
-                            session, project.id, category=classification.get("category")
+                            session, project.id, category=classification.get("category"),
+                            lead_message=body,
                         )
                         if ref_examples:
                             if custom_reply_prompt:
@@ -1754,7 +1852,8 @@ async def process_getsales_reply(
     if _project_for_refs:
         try:
             ref_examples = await _load_reference_examples(
-                session, _project_for_refs.id, category=classification.get("category")
+                session, _project_for_refs.id, category=classification.get("category"),
+                lead_message=message_text,
             )
             if ref_examples:
                 if custom_reply_prompt:
