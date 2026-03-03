@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
+import { ExternalLink, Loader2, AlertTriangle, Linkedin } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -179,6 +179,38 @@ export function KnowledgePage() {
               <li key={w.field}>{w.message}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* LinkedIn senders */}
+      {overview?.getsales_senders && overview.getsales_senders.length > 0 && (
+        <div
+          className="mx-5 mt-3 px-4 py-2.5 rounded-lg border text-[13px]"
+          style={{
+            background: isDark ? '#1e293b' : '#f8fafc',
+            borderColor: isDark ? '#334155' : '#e2e8f0',
+            color: t.text3,
+          }}
+        >
+          <div className="flex items-center gap-1.5 text-[12px] mb-1.5" style={{ color: t.text4 }}>
+            <Linkedin className="w-3.5 h-3.5" />
+            LinkedIn senders ({overview.getsales_senders.length})
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {overview.getsales_senders.map(s => (
+              <span
+                key={s.uuid}
+                className="px-2 py-0.5 rounded text-[12px]"
+                style={{
+                  background: isDark ? '#334155' : '#e2e8f0',
+                  color: t.text2,
+                }}
+                title={s.uuid}
+              >
+                {s.name}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 

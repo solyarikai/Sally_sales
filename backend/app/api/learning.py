@@ -149,6 +149,17 @@ async def get_learning_overview(
     if not project.campaign_filters:
         setup_warnings.append({"field": "campaign_filters", "message": "No campaign filters — replies won't be linked to this project"})
 
+    # Resolve GetSales sender UUIDs to names
+    getsales_senders_list = []
+    if project.getsales_senders:
+        from app.services.crm_sync_service import GETSALES_SENDER_PROFILES
+        for uuid in (project.getsales_senders or []):
+            if isinstance(uuid, str):
+                getsales_senders_list.append({
+                    "uuid": uuid,
+                    "name": GETSALES_SENDER_PROFILES.get(uuid, "Unknown"),
+                })
+
     return {
         "project_id": project_id,
         "project_name": project.name,
@@ -161,6 +172,7 @@ async def get_learning_overview(
             "by_action": action_breakdown,
         },
         "setup_warnings": setup_warnings,
+        "getsales_senders": getsales_senders_list,
     }
 
 

@@ -49,6 +49,11 @@ export interface SetupWarning {
   message: string;
 }
 
+export interface GetSalesSender {
+  uuid: string;
+  name: string;
+}
+
 export interface LearningOverview {
   project_id: number;
   project_name: string;
@@ -57,6 +62,7 @@ export interface LearningOverview {
   recent_logs: LearningLogSummary[];
   corrections: { total: number; edited: number };
   setup_warnings?: SetupWarning[];
+  getsales_senders?: GetSalesSender[];
 }
 
 export interface TemplatesResponse {
