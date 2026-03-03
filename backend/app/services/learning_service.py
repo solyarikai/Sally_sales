@@ -370,9 +370,28 @@ Incorporate this feedback into the template and ICP knowledge."""
             )
         )
 
-        # Resolve project_id from contact
+        # Resolve project_id — try campaign_name match first (most reliable), then contact email
         project_id = None
-        if reply.lead_email:
+        campaign_name = getattr(reply, 'campaign_name', None)
+        if campaign_name:
+            from sqlalchemy import text as sa_text
+            proj_result = await session.execute(
+                select(Project.id).where(
+                    and_(
+                        Project.campaign_filters.isnot(None),
+                        Project.deleted_at.is_(None),
+                        sa_text(
+                            "EXISTS (SELECT 1 FROM jsonb_array_elements_text(projects.campaign_filters) AS cf "
+                            "WHERE LOWER(cf) = LOWER(:cname))"
+                        ),
+                    )
+                ).params(cname=campaign_name).limit(1)
+            )
+            row = proj_result.first()
+            if row:
+                project_id = row[0]
+
+        if not project_id and reply.lead_email:
             contact_result = await session.execute(
                 select(Contact.project_id).where(
                     func.lower(Contact.email) == reply.lead_email.lower(),
@@ -380,7 +399,7 @@ Incorporate this feedback into the template and ICP knowledge."""
                 )
             )
             row = contact_result.first()
-            if row:
+            if row and row[0]:
                 project_id = row[0]
 
         correction = OperatorCorrection(
