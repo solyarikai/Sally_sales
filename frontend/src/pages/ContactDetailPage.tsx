@@ -1,12 +1,15 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  Mail, User, Building, MapPin, Linkedin, MessageSquare,
+  Mail, User, Building, MapPin, Linkedin,
   Clock, ArrowLeft, Loader2, Globe, ExternalLink, Phone,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useTheme } from '../hooks/useTheme';
+import { themeColors } from '../lib/themeColors';
 import type { Contact } from '../api/contacts';
 import { contactsApi } from '../api/contacts';
+import { ConversationThread, adaptContactHistory } from '../components/ConversationThread';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -53,6 +56,8 @@ function buildCampaignList(activities: Activity[]): { email: CampaignEntry[]; li
 // ── Main Page ────────────────────────────────────────────────────────
 
 export function ContactDetailPage() {
+  const { isDark } = useTheme();
+  const t = themeColors(isDark);
   const { contactId } = useParams<{ contactId: string }>();
   const [contact, setContact] = useState<Contact | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -123,8 +128,8 @@ export function ContactDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full min-h-[500px]">
-        <Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
+      <div className="flex items-center justify-center h-full min-h-[500px]" style={{ background: t.pageBg }}>
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: t.text4 }} />
       </div>
     );
   }
@@ -147,13 +152,13 @@ export function ContactDetailPage() {
   return (
     <div className="h-[calc(100vh-48px)] flex flex-col">
       {/* Top bar */}
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-neutral-200 bg-white flex-shrink-0">
-        <Link to="/contacts" className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors">
-          <ArrowLeft className="w-5 h-5 text-neutral-600" />
+      <div className="flex items-center gap-3 px-6 py-3 flex-shrink-0" style={{ background: t.headerBg, borderBottom: `1px solid ${t.cardBorder}` }}>
+        <Link to="/contacts" className="p-1.5 rounded-lg transition-colors" style={{ color: t.text2 }}>
+          <ArrowLeft className="w-5 h-5" />
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold text-neutral-900 truncate">{contactName}</h1>
-          <p className="text-xs text-neutral-500 truncate">
+          <h1 className="text-lg font-bold truncate" style={{ color: t.text1 }}>{contactName}</h1>
+          <p className="text-xs truncate" style={{ color: t.text3 }}>
             {contact.email}
             {contact.company_name && <span> &middot; {contact.company_name}</span>}
             {contact.job_title && <span> &middot; {contact.job_title}</span>}
@@ -180,11 +185,11 @@ export function ContactDetailPage() {
       {/* Two-panel layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left panel: Contact info */}
-        <div className="w-[340px] flex-shrink-0 border-r border-neutral-200 overflow-y-auto bg-white">
+        <div className="w-[340px] flex-shrink-0 overflow-y-auto" style={{ background: t.cardBg, borderRight: `1px solid ${t.cardBorder}` }}>
           <div className="p-5 space-y-5">
             {/* Contact info */}
             <section className="space-y-3">
-              <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Contact</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: t.text4 }}>Contact</h3>
               <InfoRow icon={Mail} label="Email">
                 <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline text-sm truncate">
                   {contact.email}
@@ -202,7 +207,7 @@ export function ContactDetailPage() {
               )}
               {contact.domain && (
                 <InfoRow icon={Globe} label="Domain">
-                  <span className="text-sm text-neutral-600">{contact.domain}</span>
+                  <span className="text-sm" style={{ color: t.text2 }}>{contact.domain}</span>
                 </InfoRow>
               )}
               {contact.phone && (
@@ -231,7 +236,7 @@ export function ContactDetailPage() {
 
             {/* Status */}
             <section className="space-y-2">
-              <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Status</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: t.text4 }}>Status</h3>
               <div className="flex flex-wrap gap-1.5">
                 <span className={cn(
                   'px-2 py-0.5 rounded-full text-xs font-medium',
@@ -243,7 +248,7 @@ export function ContactDetailPage() {
                   {contact.status}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+              <div className="flex items-center gap-1.5 text-xs" style={{ color: t.text3 }}>
                 <Clock className="w-3.5 h-3.5" />
                 Added {new Date(contact.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
               </div>
@@ -252,7 +257,7 @@ export function ContactDetailPage() {
             {/* Campaigns */}
             {contact.campaigns && contact.campaigns.length > 0 && (
               <section className="space-y-2">
-                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Campaigns</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: t.text4 }}>Campaigns</h3>
                 <div className="space-y-1.5">
                   {contact.campaigns.map((c, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
@@ -261,9 +266,9 @@ export function ContactDetailPage() {
                       ) : (
                         <Mail className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
                       )}
-                      <span className="font-medium text-neutral-700 truncate">{c.name}</span>
+                      <span className="font-medium truncate" style={{ color: t.text2 }}>{c.name}</span>
                       {c.status && (
-                        <span className="text-neutral-400 flex-shrink-0">{c.status}</span>
+                        <span className="flex-shrink-0" style={{ color: t.text4 }}>{c.status}</span>
                       )}
                     </div>
                   ))}
@@ -274,7 +279,7 @@ export function ContactDetailPage() {
             {/* Notes */}
             <section className="space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Notes</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: t.text4 }}>Notes</h3>
                 {!editingNotes && (
                   <button
                     onClick={() => setEditingNotes(true)}
@@ -290,7 +295,8 @@ export function ContactDetailPage() {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={3}
-                    className="w-full text-sm border border-neutral-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full text-sm rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
                     placeholder="Add notes..."
                   />
                   <div className="flex gap-2">
@@ -302,35 +308,40 @@ export function ContactDetailPage() {
                     </button>
                     <button
                       onClick={() => { setEditingNotes(false); setNotes(contact.notes || ''); }}
-                      className="px-3 py-1 text-xs text-neutral-500 hover:text-neutral-700"
+                      className="px-3 py-1 text-xs" style={{ color: t.text3 }}
                     >
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : contact.notes ? (
-                <p className="text-sm text-neutral-600 bg-neutral-50 p-2.5 rounded-lg">{contact.notes}</p>
+                <p className="text-sm p-2.5 rounded-lg" style={{ color: t.text2, background: t.inputBg }}>{contact.notes}</p>
               ) : (
-                <p className="text-xs text-neutral-300">No notes</p>
+                <p className="text-xs" style={{ color: t.text5 }}>No notes</p>
               )}
             </section>
           </div>
         </div>
 
         {/* Right panel: Conversation */}
-        <div className="flex-1 flex overflow-hidden bg-white">
+        <div className="flex-1 flex overflow-hidden" style={{ background: t.pageBg }}>
           {/* Campaign sidebar */}
           <CampaignSidebar
             activities={activities}
             selectedCampaign={selectedCampaign}
             onSelect={setSelectedCampaign}
+            isDark={isDark}
+            t={t}
           />
 
-          {/* Messages */}
+          {/* Messages — shared ConversationThread component */}
           <div className="flex-1 flex flex-col min-w-0">
-            <ConversationView
-              activities={activities}
+            <ConversationThread
+              messages={adaptContactHistory(activities)}
               contactName={contactName}
+              showDateSeparators
+              showCampaignMarkers
+              isDark={isDark}
               filterCampaign={selectedCampaign}
             />
           </div>
@@ -343,9 +354,11 @@ export function ContactDetailPage() {
 // ── Subcomponents ────────────────────────────────────────────────────
 
 function InfoRow({ icon: Icon, children }: { icon: any; label?: string; children: React.ReactNode }) {
+  const { isDark } = useTheme();
+  const t = themeColors(isDark);
   return (
     <div className="flex items-start gap-2.5">
-      <Icon className="w-4 h-4 text-neutral-400 mt-0.5 flex-shrink-0" />
+      <Icon className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: t.text4 }} />
       <div className="min-w-0">{children}</div>
     </div>
   );
@@ -355,10 +368,14 @@ function CampaignSidebar({
   activities,
   selectedCampaign,
   onSelect,
+  isDark,
+  t,
 }: {
   activities: Activity[];
   selectedCampaign: string | null;
   onSelect: (campaign: string | null) => void;
+  isDark: boolean;
+  t: ReturnType<typeof themeColors>;
 }) {
   const { email, linkedin } = useMemo(() => buildCampaignList(activities), [activities]);
   const totalCount = activities.length;
@@ -366,21 +383,21 @@ function CampaignSidebar({
   const linkedinCount = activities.filter(a => a.channel === 'linkedin').length;
 
   return (
-    <div className="w-[180px] flex-shrink-0 border-r border-gray-100 overflow-y-auto bg-gray-50/30">
+    <div className="w-[180px] flex-shrink-0 overflow-y-auto" style={{ borderRight: `1px solid ${t.divider}`, background: isDark ? '#1a1a1a' : '#fafafa' }}>
       <div className="p-2">
         <button
           onClick={() => onSelect(null)}
           className={cn(
             'w-full text-left px-2.5 py-2 rounded-lg text-[12px] font-semibold transition-colors mb-1',
-            selectedCampaign === null ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+            selectedCampaign === null ? 'bg-blue-50 text-blue-700' : (isDark ? 'text-gray-400 hover:bg-neutral-800' : 'text-gray-600 hover:bg-gray-100')
           )}
         >
-          All <span className="ml-1 text-[10px] font-normal text-gray-400">({totalCount})</span>
+          All <span className="ml-1 text-[10px] font-normal" style={{ color: t.text4 }}>({totalCount})</span>
         </button>
 
         {emailCount > 0 && (
           <div className="mt-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: t.text4 }}>
               <Mail className="w-3 h-3" /> Email <span className="ml-auto font-normal">({emailCount})</span>
             </div>
             {email.map((c) => (
@@ -389,11 +406,11 @@ function CampaignSidebar({
                 onClick={() => onSelect(`email::${c.name}`)}
                 className={cn(
                   'w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors flex items-center gap-1.5',
-                  selectedCampaign === `email::${c.name}` ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-500 hover:bg-gray-100'
+                  selectedCampaign === `email::${c.name}` ? 'bg-blue-50 text-blue-700 font-medium' : (isDark ? 'text-gray-400 hover:bg-neutral-800' : 'text-gray-500 hover:bg-gray-100')
                 )}
               >
                 <span className="truncate flex-1">{c.name}</span>
-                <span className="text-[10px] text-gray-400 flex-shrink-0">{c.count}</span>
+                <span className="text-[10px] flex-shrink-0" style={{ color: t.text4 }}>{c.count}</span>
               </button>
             ))}
           </div>
@@ -401,7 +418,7 @@ function CampaignSidebar({
 
         {linkedinCount > 0 && (
           <div className="mt-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: t.text4 }}>
               <Linkedin className="w-3 h-3" /> LinkedIn <span className="ml-auto font-normal">({linkedinCount})</span>
             </div>
             {linkedin.map((c) => (
@@ -410,164 +427,21 @@ function CampaignSidebar({
                 onClick={() => onSelect(`linkedin::${c.name}`)}
                 className={cn(
                   'w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] transition-colors flex items-center gap-1.5',
-                  selectedCampaign === `linkedin::${c.name}` ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-500 hover:bg-gray-100'
+                  selectedCampaign === `linkedin::${c.name}` ? 'bg-blue-50 text-blue-700 font-medium' : (isDark ? 'text-gray-400 hover:bg-neutral-800' : 'text-gray-500 hover:bg-gray-100')
                 )}
               >
                 <span className="truncate flex-1">{c.name}</span>
-                <span className="text-[10px] text-gray-400 flex-shrink-0">{c.count}</span>
+                <span className="text-[10px] flex-shrink-0" style={{ color: t.text4 }}>{c.count}</span>
               </button>
             ))}
           </div>
         )}
 
         {totalCount === 0 && (
-          <p className="text-[11px] text-gray-300 px-2.5 py-4 text-center">No messages</p>
+          <p className="text-[11px] px-2.5 py-4 text-center" style={{ color: t.text5 }}>No messages</p>
         )}
       </div>
     </div>
   );
 }
 
-function ConversationView({
-  activities,
-  contactName,
-  filterCampaign = null,
-}: {
-  activities: Activity[];
-  contactName: string;
-  filterCampaign?: string | null;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const filtered = useMemo(() => {
-    if (!filterCampaign) return activities;
-    const [channel, ...nameParts] = filterCampaign.split('::');
-    const name = nameParts.join('::');
-    return activities.filter((a) => {
-      const aChannel = a.channel || 'email';
-      const aName = a.campaign || a.automation || 'Unknown';
-      return aChannel === channel && aName === name;
-    });
-  }, [activities, filterCampaign]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [filtered]);
-
-  const sorted = [...filtered].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
-
-  if (sorted.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-gray-400">
-        <div className="text-center">
-          <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-20" />
-          <p className="text-sm">No messages yet</p>
-        </div>
-      </div>
-    );
-  }
-
-  type RenderItem =
-    | { kind: 'date'; label: string; key: string }
-    | { kind: 'campaign'; label: string; channel?: string; key: string }
-    | { kind: 'message'; activity: Activity; showTail: boolean; key: string };
-
-  const items: RenderItem[] = [];
-  let prevDate = '';
-  let prevCampaign = '';
-  let prevDirection = '';
-
-  for (let i = 0; i < sorted.length; i++) {
-    const act = sorted[i];
-    const dateStr = new Date(act.timestamp).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-    });
-
-    if (dateStr !== prevDate) {
-      items.push({ kind: 'date', label: dateStr, key: `date-${i}` });
-      prevDate = dateStr;
-      prevCampaign = '';
-    }
-
-    const campaignLabel = act.campaign || act.automation || '';
-    if (campaignLabel && campaignLabel !== prevCampaign) {
-      items.push({ kind: 'campaign', label: campaignLabel, channel: act.channel, key: `campaign-${i}` });
-      prevCampaign = campaignLabel;
-    }
-
-    const showTail = act.direction !== prevDirection;
-    prevDirection = act.direction;
-    items.push({ kind: 'message', activity: act, showTail, key: `msg-${act.id}` });
-  }
-
-  return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
-      <div className="flex flex-col gap-0.5">
-        {items.map((item) => {
-          if (item.kind === 'date') {
-            return (
-              <div key={item.key} className="flex justify-center my-3">
-                <span className="px-3 py-0.5 rounded-full bg-gray-100 text-[11px] font-medium text-gray-500">
-                  {item.label}
-                </span>
-              </div>
-            );
-          }
-
-          if (item.kind === 'campaign') {
-            return (
-              <div key={item.key} className="flex justify-center my-2">
-                <span className={cn(
-                  'px-2.5 py-0.5 rounded-full text-[10px] font-medium inline-flex items-center gap-1',
-                  item.channel === 'linkedin' ? 'bg-blue-50 text-blue-500' : 'bg-purple-50 text-purple-500'
-                )}>
-                  {item.channel === 'linkedin' ? <Linkedin className="w-2.5 h-2.5" /> : <Mail className="w-2.5 h-2.5" />}
-                  {item.label}
-                </span>
-              </div>
-            );
-          }
-
-          const { activity, showTail } = item;
-          const isOut = activity.direction === 'outbound';
-          const time = new Date(activity.timestamp).toLocaleTimeString('en-US', {
-            hour: 'numeric', minute: '2-digit',
-          });
-
-          return (
-            <div
-              key={item.key}
-              className={cn('flex', isOut ? 'justify-end' : 'justify-start', showTail ? 'mt-2' : 'mt-px')}
-            >
-              {!isOut && (
-                <div className="w-7 flex-shrink-0 mt-auto mb-0.5 mr-1.5">
-                  {showTail ? (
-                    <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-semibold text-gray-600">
-                      {contactName.charAt(0).toUpperCase()}
-                    </div>
-                  ) : null}
-                </div>
-              )}
-              <div className={cn(
-                'max-w-[75%] px-3 py-2 relative text-sm',
-                isOut ? 'bg-[#3B82F6] text-white rounded-2xl rounded-br-md' : 'bg-[#F1F1F1] text-gray-900 rounded-2xl rounded-bl-md'
-              )}>
-                <p className="whitespace-pre-wrap break-words leading-relaxed">{activity.content}</p>
-                <div className={cn('flex items-center gap-1.5 mt-1', isOut ? 'justify-end' : 'justify-start')}>
-                  <span className={cn('text-[11px]', isOut ? 'text-white/60' : 'text-gray-400')}>
-                    {time}
-                  </span>
-                </div>
-              </div>
-              {isOut && <div className="w-1 flex-shrink-0" />}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}

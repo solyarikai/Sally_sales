@@ -9,13 +9,15 @@ import type { LearningOverview } from '../api/learning';
 import { ICPPanel } from '../components/knowledge/ICPPanel';
 import { TemplatesPanel } from '../components/knowledge/TemplatesPanel';
 import { LearningLogsPanel } from '../components/knowledge/LearningLogsPanel';
+import { GTMPanel } from '../components/knowledge/GTMPanel';
 
-type Tab = 'icp' | 'templates' | 'logs';
+type Tab = 'icp' | 'templates' | 'logs' | 'gtm';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'icp', label: 'ICP' },
   { key: 'templates', label: 'Templates' },
   { key: 'logs', label: 'Learning Logs' },
+  { key: 'gtm', label: 'GTM Strategy' },
 ];
 
 const VALID_TABS = new Set<string>(TABS.map(t => t.key));
@@ -240,6 +242,13 @@ export function KnowledgePage() {
                 t={t}
                 refreshKey={logsRefreshKey}
                 highlightLogId={highlightLogId}
+              />
+            </div>
+            <div className={`absolute inset-0 overflow-y-auto ${activeTab === 'gtm' ? '' : 'invisible pointer-events-none'}`}>
+              <GTMPanel
+                projectId={currentProject.id}
+                isDark={isDark}
+                t={t}
               />
             </div>
           </>

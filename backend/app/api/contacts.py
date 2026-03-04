@@ -2360,6 +2360,33 @@ async def generate_all_ai_sdr(
         raise HTTPException(status_code=500, detail=f"AI SDR generation failed: {str(e)}")
 
 
+@router.post("/projects/{project_id}/classify-segments")
+async def classify_project_segments(
+    project_id: int,
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Batch classify all contacts in a project into business segments using website scraping + GPT-4o-mini."""
+    from app.services.segment_classifier import classify_contacts_for_project
+
+    # Verify project exists
+    project_stmt = select(Project).where(
+        Project.id == project_id,
+        Project.deleted_at.is_(None),
+    )
+    if company_id:
+        project_stmt = project_stmt.where(Project.company_id == company_id)
+    project = (await session.execute(project_stmt)).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        result = await classify_contacts_for_project(session, project_id)
+        return {"success": True, **result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Segment classification failed: {str(e)}")
+
+
 # ============= Contact Activities =============
 
 class ActivityResponse(BaseModel):

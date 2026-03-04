@@ -28,6 +28,8 @@ import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
 import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter, SegmentColumnFilter, SourceColumnFilter } from '../components/filters';
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
+import { useTheme } from '../hooks/useTheme';
+import { themeColors } from '../lib/themeColors';
 
 // Status configuration — proper lead statuses (no "replied" — that's a flag, not a status)
 const STATUS_CONFIG: Record<string, { dot: string; label: string; colors: string }> = {
@@ -43,6 +45,8 @@ const STATUS_CONFIG: Record<string, { dot: string; label: string; colors: string
 };
 
 export function ContactsPage() {
+  const { isDark } = useTheme();
+  const t = themeColors(isDark);
   const gridRef = useRef<AgGridReact>(null);
   const [, setGridApi] = useState<GridApi | null>(null);
   const toast = useToast();
@@ -798,15 +802,15 @@ export function ContactsPage() {
 
   return (
     <ContactsFilterContext.Provider value={filterCtx}>
-    <div className="h-full flex flex-col bg-neutral-50">
+    <div className="h-full flex flex-col" style={{ background: t.pageBg }}>
       {/* Command bar — single row */}
-      <div className="bg-white border-b border-neutral-200 px-5 py-2.5">
+      <div className="px-5 py-2.5" style={{ background: t.headerBg, borderBottom: `1px solid ${t.cardBorder}` }}>
         <div className="flex items-center gap-2">
           {/* Title / Project name + count */}
           {activeProject ? (
             <>
-              <button onClick={() => { selectProject(null); clearFilters(); }} className="p-1 hover:bg-neutral-100 rounded" title="Back to all contacts">
-                <ChevronLeft className="w-4 h-4 text-neutral-500" />
+              <button onClick={() => { selectProject(null); clearFilters(); }} className="p-1 rounded" style={{ color: t.text3 }} title="Back to all contacts">
+                <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => { setEditingProject(!editingProject); setEditProjectName(activeProject.name); setEditCampaignFilters(activeProject.campaign_filters || []); setEditCampaignSearch(''); }}
@@ -828,9 +832,9 @@ export function ContactsPage() {
               </button>
             </>
           ) : (
-            <h1 className="text-base font-semibold text-neutral-900 shrink-0">CRM Contacts</h1>
+            <h1 className="text-base font-semibold shrink-0" style={{ color: t.text1 }}>CRM Contacts</h1>
           )}
-          <span className="text-sm text-neutral-400 font-medium shrink-0">{formatNumber(total)}</span>
+          <span className="text-sm font-medium shrink-0" style={{ color: t.text4 }}>{formatNumber(total)}</span>
 
           {/* Project selector */}
           <div className="relative shrink-0" ref={projectRef}>
@@ -840,17 +844,17 @@ export function ContactsPage() {
                 "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all",
                 activeProject
                   ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                  : "bg-white text-gray-600 border-neutral-200 hover:border-indigo-400"
+                  : `border-neutral-200 hover:border-indigo-400 ${isDark ? 'text-gray-300' : 'bg-white text-gray-600'}`
               )}
             >
               <FolderOpen className="w-3 h-3" />
               {activeProject ? 'Switch' : 'Projects'}
             </button>
             {projectDropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-xl shadow-lg border border-neutral-200 z-50 overflow-hidden">
+              <div className="absolute top-full left-0 mt-1 w-56 rounded-xl shadow-lg z-50 overflow-hidden" style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
                 <div className="max-h-48 overflow-auto">
                   {projects.length === 0 ? (
-                    <div className="px-3 py-4 text-xs text-neutral-400 text-center">No projects yet</div>
+                    <div className="px-3 py-4 text-xs text-center" style={{ color: t.text4 }}>No projects yet</div>
                   ) : (
                     projects.map(p => (
                       <button
@@ -862,7 +866,7 @@ export function ContactsPage() {
                         )}
                       >
                         <span className="truncate">{p.name}</span>
-                        <span className="text-neutral-400 text-[10px]">{p.contact_count}</span>
+                        <span className="text-[10px]" style={{ color: t.text4 }}>{p.contact_count}</span>
                       </button>
                     ))
                   )}
@@ -879,7 +883,7 @@ export function ContactsPage() {
                 "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
                 replyMode
                   ? "bg-purple-500 text-white border-purple-500"
-                  : "bg-white text-purple-600 border-purple-200 hover:border-purple-400"
+                  : `text-purple-600 border-purple-200 hover:border-purple-400 ${isDark ? '' : 'bg-white'}`
               )}
             >
               <MessageSquare className="w-3 h-3" />
@@ -895,7 +899,7 @@ export function ContactsPage() {
                 "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
                 showTasksPanel
                   ? "bg-amber-500 text-white border-amber-500"
-                  : "bg-white text-amber-600 border-amber-200 hover:border-amber-400"
+                  : `text-amber-600 border-amber-200 hover:border-amber-400 ${isDark ? '' : 'bg-white'}`
               )}
             >
               <ListTodo className="w-3 h-3" />
@@ -905,13 +909,14 @@ export function ContactsPage() {
 
           {/* Search */}
           <div className="relative flex-1 max-w-xs ml-2">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: t.text4 }} />
             <input
               type="text"
               placeholder="Search contacts..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-neutral-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
             />
           </div>
 
@@ -922,7 +927,7 @@ export function ContactsPage() {
               "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
               repliedFilter === true
                 ? "bg-green-500 text-white border-green-500"
-                : "bg-white text-green-600 border-green-200 hover:border-green-400"
+                : `text-green-600 border-green-200 hover:border-green-400 ${isDark ? '' : 'bg-white'}`
             )}
           >
             Replied
@@ -945,7 +950,7 @@ export function ContactsPage() {
               "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
               followupFilter === true
                 ? "bg-orange-500 text-white border-orange-500"
-                : "bg-white text-gray-600 border-gray-300 hover:border-orange-400"
+                : `text-gray-600 border-gray-300 hover:border-orange-400 ${isDark ? 'text-gray-300' : 'bg-white'}`
             )}
           >
             Follow-up
@@ -959,7 +964,7 @@ export function ContactsPage() {
                 "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all",
                 campaignFilters.length > 0
                   ? "border-indigo-400 bg-indigo-500 text-white"
-                  : "border-neutral-200 bg-white text-gray-600 hover:border-indigo-400"
+                  : `border-neutral-200 hover:border-indigo-400 ${isDark ? 'text-gray-300' : 'bg-white text-gray-600'}`
               )}
             >
               <Search className="w-3 h-3" />
@@ -968,24 +973,25 @@ export function ContactsPage() {
                 : 'Campaigns'}
             </button>
             {campaignDropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-80 bg-white rounded-xl shadow-lg border border-neutral-200 z-50 overflow-hidden">
+              <div className="absolute top-full left-0 mt-1 w-80 rounded-xl shadow-lg z-50 overflow-hidden" style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
                 {/* Search */}
-                <div className="p-2 border-b border-neutral-100">
+                <div className="p-2" style={{ borderBottom: `1px solid ${t.divider}` }}>
                   <div className="relative">
-                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: t.text4 }} />
                     <input
                       type="text"
                       placeholder="Search campaigns..."
                       value={campaignSearch}
                       onChange={(e) => setCampaignSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
                       autoFocus
                     />
                   </div>
                 </div>
                 {/* Selected campaigns summary */}
                 {campaignFilters.length > 0 && !campaignSearch && (
-                  <div className="px-3 py-2 border-b border-neutral-100 bg-indigo-50/50">
+                  <div className="px-3 py-2" style={{ borderBottom: `1px solid ${t.divider}`, background: isDark ? '#1e1b4b33' : '#eef2ff80' }}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] font-medium text-indigo-600 uppercase tracking-wide">Selected ({campaignFilters.length})</span>
                       <button onClick={() => { setCampaignFilters([]); setPage(1); }} className="text-[10px] text-red-500 hover:text-red-600">Clear all</button>
@@ -1007,7 +1013,7 @@ export function ContactsPage() {
                 {/* Campaign list */}
                 <div className="max-h-64 overflow-auto">
                   {filteredCampaigns.length === 0 ? (
-                    <div className="px-3 py-4 text-xs text-neutral-400 text-center">No campaigns found</div>
+                    <div className="px-3 py-4 text-xs text-center" style={{ color: t.text4 }}>No campaigns found</div>
                   ) : (
                     filteredCampaigns.map((c, i) => {
                       const isSelected = campaignFilters.includes(c.name);
@@ -1017,7 +1023,7 @@ export function ContactsPage() {
                           onClick={() => toggleCampaign(c.name)}
                           className={cn(
                             "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors",
-                            isSelected ? "bg-indigo-50 text-indigo-700" : "hover:bg-neutral-50"
+                            isSelected ? "bg-indigo-50 text-indigo-700" : (isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-50")
                           )}
                         >
                           <span className={cn(
@@ -1117,7 +1123,7 @@ export function ContactsPage() {
               "inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
               hasActiveFilters
                 ? "text-red-500 hover:bg-red-50 border-red-200"
-                : "text-neutral-300 border-neutral-200 cursor-not-allowed"
+                : `cursor-not-allowed ${isDark ? 'text-neutral-600 border-neutral-700' : 'text-neutral-300 border-neutral-200'}`
             )}
           >
             <X className="w-3 h-3" />
@@ -1125,20 +1131,20 @@ export function ContactsPage() {
           </button>
 
           {/* Separator */}
-          <span className="w-px h-5 bg-neutral-200 mx-0.5" />
+          <span className="w-px h-5 mx-0.5" style={{ background: t.divider }} />
 
           {/* Actions */}
-          <button onClick={handleRefresh} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors" title="Refresh">
-            <RefreshCw className={cn("w-4 h-4 text-neutral-500", isLoading && "animate-spin")} />
+          <button onClick={handleRefresh} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }} title="Refresh">
+            <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
           </button>
-          <button onClick={() => setShowAddModal(true)} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors" title="Add Contact">
-            <Plus className="w-4 h-4 text-neutral-500" />
+          <button onClick={() => setShowAddModal(true)} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }} title="Add Contact">
+            <Plus className="w-4 h-4" />
           </button>
-          <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors" title="Import">
-            <Upload className="w-4 h-4 text-neutral-500" />
+          <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }} title="Import">
+            <Upload className="w-4 h-4" />
           </button>
-          <button onClick={handleExportCsv} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors" title="Export CSV">
-            <Download className="w-4 h-4 text-neutral-500" />
+          <button onClick={handleExportCsv} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }} title="Export CSV">
+            <Download className="w-4 h-4" />
           </button>
           <button
             onClick={handleExportGoogleSheet}
@@ -1180,20 +1186,21 @@ export function ContactsPage() {
           setEditCampaignFilters(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
         };
         return (
-          <div className="bg-white border-b border-neutral-200 px-5 py-3">
+          <div className="px-5 py-3" style={{ background: t.headerBg, borderBottom: `1px solid ${t.cardBorder}` }}>
             <div className="flex items-start gap-6">
               {/* Name */}
               <div className="shrink-0 w-48">
-                <label className="text-[10px] font-medium text-neutral-400 uppercase tracking-wide">Name</label>
+                <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: t.text4 }}>Name</label>
                 <input
                   value={editProjectName}
                   onChange={(e) => setEditProjectName(e.target.value)}
-                  className="mt-1 w-full text-sm font-semibold border border-neutral-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1 w-full text-sm font-semibold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
                   onKeyDown={(e) => { if (e.key === 'Escape') setEditingProject(false); }}
                 />
                 <div className="mt-3 flex gap-1.5">
                   <button onClick={handleUpdateProject} className="px-3 py-1 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">Save</button>
-                  <button onClick={() => setEditingProject(false)} className="px-3 py-1 rounded-lg text-xs font-medium text-neutral-500 hover:bg-neutral-100 transition-colors">Cancel</button>
+                  <button onClick={() => setEditingProject(false)} className="px-3 py-1 rounded-lg text-xs font-medium transition-colors" style={{ color: t.text3 }}>Cancel</button>
                 </div>
               </div>
 
@@ -1201,13 +1208,14 @@ export function ContactsPage() {
               <div className="flex-1 min-w-0">
                 <div className="mb-2">
                   <div className="relative max-w-xs">
-                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: t.text4 }} />
                     <input
                       type="text"
                       placeholder="Search campaigns..."
                       value={editCampaignSearch}
                       onChange={(e) => setEditCampaignSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
                     />
                   </div>
                 </div>
@@ -1217,13 +1225,13 @@ export function ContactsPage() {
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Mail className="w-3 h-3 text-blue-500" />
                       <span className="text-[10px] font-medium text-blue-600 uppercase tracking-wide">SmartLead — Email</span>
-                      <span className="text-[10px] text-neutral-400">
+                      <span className="text-[10px]" style={{ color: t.text4 }}>
                         {editCampaignFilters.filter(n => campaigns.find(c => c.name === n && c.source === 'smartlead')).length}/{slCampaigns.length}
                       </span>
                     </div>
                     <div className="max-h-40 overflow-auto space-y-0.5 pr-1">
                       {slCampaigns.length === 0 ? (
-                        <div className="text-[11px] text-neutral-300 py-2">No SmartLead campaigns</div>
+                        <div className="text-[11px] py-2" style={{ color: t.text5 }}>No SmartLead campaigns</div>
                       ) : slCampaigns.map(c => {
                         const checked = editCampaignFilters.includes(c.name);
                         return (
@@ -1232,7 +1240,7 @@ export function ContactsPage() {
                             onClick={() => toggleEditCampaign(c.name)}
                             className={cn(
                               "w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors",
-                              checked ? "bg-blue-50 text-blue-700" : "hover:bg-neutral-50 text-neutral-600"
+                              checked ? "bg-blue-50 text-blue-700" : (isDark ? "hover:bg-neutral-800 text-neutral-400" : "hover:bg-neutral-50 text-neutral-600")
                             )}
                           >
                             <span className={cn(
@@ -1253,13 +1261,13 @@ export function ContactsPage() {
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Linkedin className="w-3 h-3 text-amber-500" />
                       <span className="text-[10px] font-medium text-amber-600 uppercase tracking-wide">GetSales — LinkedIn</span>
-                      <span className="text-[10px] text-neutral-400">
+                      <span className="text-[10px]" style={{ color: t.text4 }}>
                         {editCampaignFilters.filter(n => campaigns.find(c => c.name === n && c.source === 'getsales')).length}/{gsCampaigns.length}
                       </span>
                     </div>
                     <div className="max-h-40 overflow-auto space-y-0.5 pr-1">
                       {gsCampaigns.length === 0 ? (
-                        <div className="text-[11px] text-neutral-300 py-2">No GetSales campaigns</div>
+                        <div className="text-[11px] py-2" style={{ color: t.text5 }}>No GetSales campaigns</div>
                       ) : gsCampaigns.map(c => {
                         const checked = editCampaignFilters.includes(c.name);
                         return (
@@ -1268,7 +1276,7 @@ export function ContactsPage() {
                             onClick={() => toggleEditCampaign(c.name)}
                             className={cn(
                               "w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors",
-                              checked ? "bg-amber-50 text-amber-700" : "hover:bg-neutral-50 text-neutral-600"
+                              checked ? "bg-amber-50 text-amber-700" : (isDark ? "hover:bg-neutral-800 text-neutral-400" : "hover:bg-neutral-50 text-neutral-600")
                             )}
                           >
                             <span className={cn(
@@ -1293,7 +1301,7 @@ export function ContactsPage() {
       {/* AG Grid */}
       <div className="flex-1 px-4 pt-2 pb-1">
         <SectionErrorBoundary>
-          <div className="ag-theme-alpine h-full w-full rounded-xl overflow-hidden border border-neutral-200">
+          <div className={`${isDark ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} h-full w-full rounded-xl overflow-hidden`} style={{ border: `1px solid ${t.cardBorder}` }}>
             <AgGridReact
               ref={gridRef}
               theme={AG_GRID_THEME}
@@ -1328,18 +1336,18 @@ export function ContactsPage() {
 
       {/* Tasks panel (slide-out below grid) */}
       {showTasksPanel && activeProject && (
-        <div className="bg-white border-t border-amber-200 px-5 py-3 max-h-48 overflow-auto">
+        <div className="px-5 py-3 max-h-48 overflow-auto" style={{ background: t.cardBg, borderTop: `1px solid ${isDark ? '#78350f' : '#fde68a'}` }}>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-amber-700 flex items-center gap-1.5">
               <ListTodo className="w-4 h-4" />
               Tasks — {activeProject.name}
             </h3>
-            <button onClick={() => setShowTasksPanel(false)} className="p-1 hover:bg-neutral-100 rounded"><X className="w-3.5 h-3.5 text-neutral-400" /></button>
+            <button onClick={() => setShowTasksPanel(false)} className="p-1 rounded" style={{ color: t.text4 }}><X className="w-3.5 h-3.5" /></button>
           </div>
           {tasksLoading ? (
-            <div className="text-xs text-neutral-400 py-2">Loading tasks...</div>
+            <div className="text-xs py-2" style={{ color: t.text4 }}>Loading tasks...</div>
           ) : tasks.length === 0 ? (
-            <div className="text-xs text-neutral-400 py-2">No tasks for this project</div>
+            <div className="text-xs py-2" style={{ color: t.text4 }}>No tasks for this project</div>
           ) : (
             <div className="space-y-1">
               {tasks.map(task => (
@@ -1369,39 +1377,43 @@ export function ContactsPage() {
       )}
 
       {/* Pagination — compact */}
-      <div className="bg-white border-t border-neutral-200 px-5 py-2 flex items-center justify-between">
-        <div className="text-xs text-neutral-500">
+      <div className="px-5 py-2 flex items-center justify-between" style={{ background: t.headerBg, borderTop: `1px solid ${t.cardBorder}` }}>
+        <div className="text-xs" style={{ color: t.text3 }}>
           {((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, total)} of {formatNumber(total)}
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setPage(1)}
             disabled={page === 1}
-            className="px-2 py-1 text-xs rounded border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-40"
+            className="px-2 py-1 text-xs rounded disabled:opacity-40"
+            style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, color: t.text2 }}
           >
             First
           </button>
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="px-2 py-1 text-xs rounded border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-40"
+            className="px-2 py-1 text-xs rounded disabled:opacity-40"
+            style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, color: t.text2 }}
           >
             Prev
           </button>
-          <span className="text-xs text-neutral-500 px-2">
+          <span className="text-xs px-2" style={{ color: t.text3 }}>
             {page}/{totalPages || 1}
           </span>
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages || totalPages === 0}
-            className="px-2 py-1 text-xs rounded border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-40"
+            className="px-2 py-1 text-xs rounded disabled:opacity-40"
+            style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, color: t.text2 }}
           >
             Next
           </button>
           <button
             onClick={() => setPage(totalPages)}
             disabled={page === totalPages || totalPages === 0}
-            className="px-2 py-1 text-xs rounded border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-40"
+            className="px-2 py-1 text-xs rounded disabled:opacity-40"
+            style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, color: t.text2 }}
           >
             Last
           </button>
@@ -1507,6 +1519,8 @@ function AddContactModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { isDark } = useTheme();
+  const t = themeColors(isDark);
   const toast = useToast();
   const [formData, setFormData] = useState({
     email: '',
@@ -1554,10 +1568,10 @@ function AddContactModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
-          <h2 className="text-lg font-semibold">Add Contact</h2>
-          <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg">
+      <div className="relative rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" style={{ background: t.cardBg }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${t.cardBorder}` }}>
+          <h2 className="text-lg font-semibold" style={{ color: t.text1 }}>Add Contact</h2>
+          <button onClick={onClose} className="p-2 rounded-lg" style={{ color: t.text3 }}>
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -1565,7 +1579,7 @@ function AddContactModal({
         <form onSubmit={handleSubmit} className="flex-1 overflow-auto p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Email *</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>Email *</label>
               <input
                 type="email"
                 value={formData.email}
@@ -1575,7 +1589,7 @@ function AddContactModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Status</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>Status</label>
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
@@ -1591,7 +1605,7 @@ function AddContactModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">First Name</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>First Name</label>
               <input
                 type="text"
                 value={formData.first_name}
@@ -1600,7 +1614,7 @@ function AddContactModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Last Name</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>Last Name</label>
               <input
                 type="text"
                 value={formData.last_name}
@@ -1612,7 +1626,7 @@ function AddContactModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Company</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>Company</label>
               <input
                 type="text"
                 value={formData.company_name}
@@ -1621,7 +1635,7 @@ function AddContactModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Job Title</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>Job Title</label>
               <input
                 type="text"
                 value={formData.job_title}
@@ -1633,7 +1647,7 @@ function AddContactModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Project</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>Project</label>
               <select
                 value={formData.project_id}
                 onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
@@ -1646,7 +1660,7 @@ function AddContactModal({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Segment</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>Segment</label>
               <select
                 value={formData.segment}
                 onChange={(e) => setFormData({ ...formData, segment: e.target.value })}
@@ -1662,7 +1676,7 @@ function AddContactModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Phone</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>Phone</label>
               <input
                 type="text"
                 value={formData.phone}
@@ -1671,7 +1685,7 @@ function AddContactModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Location</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>Location</label>
               <input
                 type="text"
                 value={formData.location}
@@ -1682,7 +1696,7 @@ function AddContactModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">LinkedIn URL</label>
+            <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>LinkedIn URL</label>
             <input
               type="url"
               value={formData.linkedin_url}
@@ -1693,7 +1707,7 @@ function AddContactModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">Notes</label>
+            <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>Notes</label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -1707,7 +1721,7 @@ function AddContactModal({
           )}
         </form>
 
-        <div className="px-6 py-4 border-t border-neutral-200 flex gap-3">
+        <div className="px-6 py-4 flex gap-3" style={{ borderTop: `1px solid ${t.cardBorder}` }}>
           <button onClick={onClose} className="btn btn-secondary flex-1">
             Cancel
           </button>
@@ -1856,6 +1870,9 @@ function ProjectsModal({
     }
   };
 
+  const { isDark } = useTheme();
+  const t = themeColors(isDark);
+
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? null : section);
   };
@@ -1863,26 +1880,26 @@ function ProjectsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
+      <div className="relative rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" style={{ background: t.cardBg }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${t.cardBorder}` }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">AI SDR Dashboard</h2>
-              <p className="text-sm text-neutral-500">Generate TAM, GTM plans, and pitch templates per project</p>
+              <h2 className="text-lg font-semibold" style={{ color: t.text1 }}>AI SDR Dashboard</h2>
+              <p className="text-sm" style={{ color: t.text3 }}>Generate TAM, GTM plans, and pitch templates per project</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg">
+          <button onClick={onClose} className="p-2 rounded-lg" style={{ color: t.text3 }}>
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="flex-1 overflow-hidden flex">
           {/* Left panel - Projects list */}
-          <div className="w-1/3 border-r border-neutral-200 overflow-auto">
-            <div className="p-4 border-b border-neutral-200">
+          <div className="w-1/3 overflow-auto" style={{ borderRight: `1px solid ${t.cardBorder}` }}>
+            <div className="p-4" style={{ borderBottom: `1px solid ${t.cardBorder}` }}>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -1904,7 +1921,7 @@ function ProjectsModal({
 
             <div className="p-2">
               {projects.length === 0 ? (
-                <div className="text-center py-8 text-neutral-500 text-sm">
+                <div className="text-center py-8 text-sm" style={{ color: t.text3 }}>
                   No projects yet
                 </div>
               ) : (
@@ -1915,13 +1932,13 @@ function ProjectsModal({
                       "flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors mb-1",
                       selectedProject?.id === project.id
                         ? "bg-purple-50 border border-purple-200"
-                        : "hover:bg-neutral-50"
+                        : (isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-50")
                     )}
                     onClick={() => loadProjectAISDR(project.id)}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate">{project.name}</div>
-                      <div className="text-xs text-neutral-500">{project.contact_count} contacts</div>
+                      <div className="text-xs" style={{ color: t.text3 }}>{project.contact_count} contacts</div>
                     </div>
                     <div className="flex items-center gap-1">
                       {confirmDeleteId === project.id ? (
@@ -2043,7 +2060,7 @@ function ProjectsModal({
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-neutral-200">
+        <div className="px-6 py-4" style={{ borderTop: `1px solid ${t.cardBorder}` }}>
           <button onClick={onClose} className="btn btn-secondary w-full">
             Done
           </button>
@@ -2150,6 +2167,8 @@ function ImportContactsModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { isDark } = useTheme();
+  const t = themeColors(isDark);
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [projectId, setProjectId] = useState<number | undefined>(undefined);
@@ -2228,18 +2247,18 @@ function ImportContactsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
+      <div className="relative rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" style={{ background: t.cardBg }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${t.cardBorder}` }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
               <Upload className="w-5 h-5 text-indigo-600" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Import Contacts</h2>
-              <p className="text-sm text-neutral-500">Upload a CSV file with contact data</p>
+              <h2 className="text-lg font-semibold" style={{ color: t.text1 }}>Import Contacts</h2>
+              <p className="text-sm" style={{ color: t.text3 }}>Upload a CSV file with contact data</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg">
+          <button onClick={onClose} className="p-2 rounded-lg" style={{ color: t.text3 }}>
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -2252,7 +2271,7 @@ function ImportContactsModal({
                 "border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer",
                 file
                   ? "border-green-300 bg-green-50"
-                  : "border-neutral-200 hover:border-indigo-300 hover:bg-indigo-50/30"
+                  : (isDark ? "border-neutral-700 hover:border-indigo-500" : "border-neutral-200 hover:border-indigo-300 hover:bg-indigo-50/30")
               )}
               onClick={() => fileInputRef.current?.click()}
             >
@@ -2274,9 +2293,9 @@ function ImportContactsModal({
                 </div>
               ) : (
                 <>
-                  <Upload className="w-10 h-10 text-neutral-400 mx-auto mb-3" />
-                  <p className="text-sm text-neutral-600 mb-1">Click to select a CSV file</p>
-                  <p className="text-xs text-neutral-400">or drag and drop</p>
+                  <Upload className="w-10 h-10 mx-auto mb-3" style={{ color: t.text4 }} />
+                  <p className="text-sm mb-1" style={{ color: t.text2 }}>Click to select a CSV file</p>
+                  <p className="text-xs" style={{ color: t.text4 }}>or drag and drop</p>
                 </>
               )}
             </div>
@@ -2293,7 +2312,7 @@ function ImportContactsModal({
           {/* Import Options */}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>
                 Assign to Project (optional)
               </label>
               <select
@@ -2309,7 +2328,7 @@ function ImportContactsModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
+              <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>
                 Assign Segment (optional)
               </label>
               <select
@@ -2322,7 +2341,7 @@ function ImportContactsModal({
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
-              <p className="text-xs text-neutral-500 mt-1">
+              <p className="text-xs mt-1" style={{ color: t.text3 }}>
                 This will override the segment column in CSV
               </p>
             </div>
@@ -2335,7 +2354,7 @@ function ImportContactsModal({
                 onChange={(e) => setSkipDuplicates(e.target.checked)}
                 className="rounded border-neutral-300"
               />
-              <label htmlFor="skipDuplicates" className="text-sm text-neutral-700">
+              <label htmlFor="skipDuplicates" className="text-sm" style={{ color: t.text2 }}>
                 Skip duplicate emails (recommended)
               </label>
             </div>
@@ -2406,7 +2425,7 @@ function ImportContactsModal({
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-neutral-200 flex gap-3">
+        <div className="px-6 py-4 flex gap-3" style={{ borderTop: `1px solid ${t.cardBorder}` }}>
           <button onClick={onClose} className="btn btn-secondary flex-1">
             {result?.created ? 'Close' : 'Cancel'}
           </button>
