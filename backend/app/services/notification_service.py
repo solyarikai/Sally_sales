@@ -866,15 +866,43 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     if len(body_trimmed) > 200:
         body_trimmed = body_trimmed[:200] + "…"
 
+    # Translation for non-RU/EN messages
+    translation_line = ""
+    translated = getattr(reply, "translated_body", None)
+    if not translated:
+        # Try to detect and translate on the fly
+        try:
+            from app.services.reply_processor import detect_and_translate
+            lang_info = await detect_and_translate(body_raw[:1000])
+            translated = lang_info.get("translation")
+        except Exception:
+            pass
+    if translated:
+        tr_trimmed = translated.strip()
+        tr_lines = tr_trimmed.split("\n")
+        tr_trimmed = "\n".join(l for l in tr_lines[:6] if l.strip())
+        if len(tr_trimmed) > 200:
+            tr_trimmed = tr_trimmed[:200] + "…"
+        translation_line = f"\n\n🌐 <b>Translation:</b>\n<i>{tr_trimmed}</i>"
+
+    # Reply time
+    time_line = ""
+    received_at = getattr(reply, "received_at", None)
+    if received_at:
+        try:
+            time_line = f"\n<b>Time:</b> {received_at.strftime('%b %d, %Y at %H:%M')} UTC"
+        except Exception:
+            pass
+
     message = f"""{indicator} <b>New Email Reply!</b>
 
 <b>From:</b> {reply.lead_email}
 <b>Subject:</b> {reply.email_subject or 'No subject'}
 <b>Company:</b> {reply.lead_company or 'Unknown'}
-<b>Campaign:</b> {campaign_name or 'Unknown'}{project_line}{inbox_line_email}
+<b>Campaign:</b> {campaign_name or 'Unknown'}{project_line}{inbox_line_email}{time_line}
 
 <b>Message:</b>
-<code>{body_trimmed}</code>
+<code>{body_trimmed}</code>{translation_line}
 
 <a href="{replies_ui_url}">📋 Open in Replies UI</a>  ·  <a href="{reply.inbox_link or 'https://app.smartlead.ai/app/master-inbox'}">📬 Open in SmartLead</a>"""
     
@@ -960,12 +988,30 @@ async def notify_linkedin_reply(
     campaign_line = f"\n<b>Campaign:</b> {campaign_display}" if campaign_display else ""
     project_line = f"\n<b>Project:</b> {project['name']}" if project else ""
     email_line = f"\n<b>Email:</b> {contact_email}" if is_real_email else ""
+
+    # Translation for non-RU/EN messages
+    translation_line = ""
+    if raw_text and len(raw_text) > 10:
+        try:
+            from app.services.reply_processor import detect_and_translate
+            lang_info = await detect_and_translate(raw_text[:1000])
+            tr = lang_info.get("translation")
+            if tr:
+                tr_trimmed = tr.strip()
+                tr_lines = tr_trimmed.split("\n")
+                tr_trimmed = "\n".join(l for l in tr_lines[:6] if l.strip())
+                if len(tr_trimmed) > 200:
+                    tr_trimmed = tr_trimmed[:200] + "…"
+                translation_line = f"\n\n🌐 <b>Translation:</b>\n<i>{tr_trimmed}</i>"
+        except Exception:
+            pass
+
     message = f"""{indicator} <b>New LinkedIn Reply!</b>
 
 <b>From:</b> {contact_name}{email_line}{campaign_line}{project_line}{sender_line}
 
 <b>Message:</b>
-<code>{message_preview}</code>
+<code>{message_preview}</code>{translation_line}
 {replies_line}{inbox_line}"""
 
     # 1. Always send to admin
