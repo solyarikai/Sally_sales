@@ -874,12 +874,12 @@ async def list_replies(
         # PostgreSQL DISTINCT ON (lead_email): picks one row per email based on ORDER BY.
         # SQLAlchemy: select(...).distinct(col) => SELECT DISTINCT ON (col) ...
 
-        # Subquery: pick one reply ID per lead_email (best category, then newest)
+        # Subquery: pick one reply ID per lead_email (newest first, then best category as tiebreaker)
         dedup_sub = (
             select(ProcessedReply.lead_email.label("_dedup_email"), ProcessedReply.id.label("id"))
             .distinct(ProcessedReply.lead_email)
             .where(*conditions)
-            .order_by(ProcessedReply.lead_email, category_priority, desc(ProcessedReply.received_at))
+            .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at), category_priority)
         ).subquery()
 
         # Total unique contacts
@@ -932,7 +932,7 @@ async def list_replies(
                 select(ProcessedReply.lead_email.label("_dedup_email"), ProcessedReply.category.label("category"))
                 .distinct(ProcessedReply.lead_email)
                 .where(*base_conditions)
-                .order_by(ProcessedReply.lead_email, category_priority, desc(ProcessedReply.received_at))
+                .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at), category_priority)
             ).subquery()
             cat_q = (
                 select(cat_sub.c.category, func.count())
@@ -1046,7 +1046,7 @@ async def get_reply_counts(
     session: AsyncSession = Depends(get_session)
 ):
     """Lightweight endpoint for polling: returns total + category counts only.
-    No reply data, no group_by_contact dedup, no joins.
+    Deduped by contact: each lead counted once under their newest reply's category.
     """
     base = []
     base.append(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
@@ -1076,7 +1076,7 @@ async def get_reply_counts(
     if cutoff:
         base.append(ProcessedReply.received_at >= cutoff)
 
-    # Dedup: one category per contact (best priority, then newest)
+    # Dedup: one category per contact (newest first, then best priority as tiebreaker)
     # Matches list_replies group_by_contact logic exactly
     from sqlalchemy import case
     cat_priority = case(
@@ -1093,7 +1093,7 @@ async def get_reply_counts(
         )
         .distinct(ProcessedReply.lead_email)
         .where(*base)
-        .order_by(ProcessedReply.lead_email, cat_priority, desc(ProcessedReply.received_at))
+        .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at), cat_priority)
     ).subquery()
 
     cat_q = (
