@@ -25,11 +25,11 @@ STATUS_MAP = {
 
 
 def parse_email(raw: str) -> str | None:
-    """Extract first valid email from field. Handles 'email1 / email2' format."""
+    """Extract first valid email from field. Handles 'email1 / email2' and newlines."""
     if not raw or raw.strip() in ("-", "", "N/A", "n/a"):
         return None
-    # Take the first email if multiple separated by / or ,
-    parts = re.split(r"[/,;]", raw)
+    # Take the first email if multiple separated by / , ; or newlines
+    parts = re.split(r"[/,;\n]", raw)
     for part in parts:
         candidate = part.strip()
         if "@" in candidate and "." in candidate:
@@ -38,10 +38,15 @@ def parse_email(raw: str) -> str | None:
 
 
 def split_name(full_name: str) -> tuple[str | None, str | None]:
-    """Split 'First Last' into (first, last). Single word -> (first, None)."""
+    """Split 'First Last' into (first, last). Single word -> (first, None).
+    Takes only the first line if multiline."""
     if not full_name or full_name.strip() in ("-", ""):
         return None, None
-    parts = full_name.strip().split(None, 1)
+    # Take only first line (rest may be notes)
+    first_line = full_name.strip().split("\n")[0].strip()
+    if not first_line:
+        return None, None
+    parts = first_line.split(None, 1)
     first = parts[0] if parts else None
     last = parts[1] if len(parts) > 1 else None
     return first, last
