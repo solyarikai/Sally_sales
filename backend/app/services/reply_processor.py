@@ -1906,43 +1906,67 @@ async def process_getsales_reply(
         if draft_lang.get("translation"):
             translated_draft = draft_lang["translation"]
 
-    # --- Create ProcessedReply (one per unique reply) ---
-    processed_reply = ProcessedReply(
-        source="getsales",
-        channel="linkedin",
-        campaign_id=flow_uuid,
-        campaign_name=flow_name,
-        lead_email=lead_email,
-        lead_first_name=contact.first_name,
-        lead_last_name=contact.last_name,
-        lead_company=contact.company_name,
-        email_subject="LinkedIn conversation",
-        email_body=message_text,
-        reply_text=message_text,
-        received_at=activity_at,
-        category=classification["category"],
-        category_confidence=classification["confidence"],
-        classification_reasoning=classification["reasoning"],
-        draft_reply=draft.get("body"),
-        draft_subject=draft.get("subject"),
-        draft_generated_at=datetime.utcnow(),
-        detected_language=detected_lang,
-        translated_body=translated_body,
-        translated_draft=translated_draft,
-        raw_webhook_data=raw_data,
-        inbox_link=inbox_link,
-        message_hash=message_hash,
+    # --- Upsert ProcessedReply (one per unique reply) ---
+    # Check if a reply with the same content already exists (regardless of campaign_id).
+    # This handles the sync-first-then-webhook scenario: sync creates a record with
+    # empty campaign info, webhook later arrives with the real automation name/UUID.
+    existing_result = await session.execute(
+        select(ProcessedReply).where(
+            ProcessedReply.lead_email == lead_email,
+            ProcessedReply.message_hash == message_hash,
+        ).limit(1)
     )
-    session.add(processed_reply)
-    try:
-        await session.flush()
-    except Exception as flush_err:
-        if "uq_processed_reply_content" in str(flush_err):
+    existing_reply = existing_result.scalar()
+
+    if existing_reply:
+        # Same content already exists — enrich campaign info if we have better data
+        if flow_name and not existing_reply.campaign_name:
+            existing_reply.campaign_name = flow_name
+            existing_reply.campaign_id = flow_uuid or existing_reply.campaign_id
+            logger.info(f"[GETSALES] Enriched reply {existing_reply.id} campaign: {flow_name}")
+        elif flow_uuid and not existing_reply.campaign_id:
+            existing_reply.campaign_id = flow_uuid
+            logger.info(f"[GETSALES] Enriched reply {existing_reply.id} campaign_id: {flow_uuid}")
+        else:
             logger.info(f"[GETSALES] Duplicate reply (same content hash) for {lead_email} — skipping")
-            await session.rollback()
-            return None
-        raise
-    logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email} (hash={message_hash[:8]})")
+        processed_reply = existing_reply
+    else:
+        processed_reply = ProcessedReply(
+            source="getsales",
+            channel="linkedin",
+            campaign_id=flow_uuid,
+            campaign_name=flow_name,
+            lead_email=lead_email,
+            lead_first_name=contact.first_name,
+            lead_last_name=contact.last_name,
+            lead_company=contact.company_name,
+            email_subject="LinkedIn conversation",
+            email_body=message_text,
+            reply_text=message_text,
+            received_at=activity_at,
+            category=classification["category"],
+            category_confidence=classification["confidence"],
+            classification_reasoning=classification["reasoning"],
+            draft_reply=draft.get("body"),
+            draft_subject=draft.get("subject"),
+            draft_generated_at=datetime.utcnow(),
+            detected_language=detected_lang,
+            translated_body=translated_body,
+            translated_draft=translated_draft,
+            raw_webhook_data=raw_data,
+            inbox_link=inbox_link,
+            message_hash=message_hash,
+        )
+        session.add(processed_reply)
+        try:
+            await session.flush()
+        except Exception as flush_err:
+            if "uq_processed_reply_content" in str(flush_err):
+                logger.info(f"[GETSALES] Duplicate reply (race condition) for {lead_email} — skipping")
+                await session.rollback()
+                return None
+            raise
+        logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email} (hash={message_hash[:8]})")
 
     # --- Fetch LinkedIn conversation thread and store as ThreadMessage rows ---
     conv_uuid = raw_data.get("linkedin_conversation_uuid")

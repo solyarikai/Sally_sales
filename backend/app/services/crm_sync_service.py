@@ -16,7 +16,7 @@ import httpx
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import select, and_, or_, func, text as sa_text
 
 from app.models.contact import Contact, ContactActivity
 from app.services.cache_service import acquire_sync_lock, release_sync_lock, bulk_check_replies, bulk_add_replies, add_processed_reply
@@ -188,17 +188,30 @@ GETSALES_FLOW_NAMES: Dict[str, str] = {
     # Archistruct automations
     "1c05ddab-2d69-4735-a3c8-1eb6a9a91dfe": "Archistruct Devs Dubai",
     "a8c636e9-c5c1-4426-bd16-35066c112ecb": "Archistruct Devs Dubai NEW",
+    "7aad9446-7712-4588-8e48-3a1c7f98ac85": "Archistruct Architects 4/12",
+    "7b8d0ada-e7b7-457a-aa3b-9feb1f2ed56d": "Archistruct Devs outDubai(BV)",
     # GWC automations
     "33c589e4-0fc4-4c05-a711-e6196d0cf010": "GWC - ICE Orchestrations Nataliya",
     "2cf4a1da-310c-4b24-8c5b-78c688041b09": "GWC - ICE Platforms Post Conf Hugo",
     # Inxy automations
     "b7a31e91-9166-41f8-9d16-4c2f8823ba5b": "Inxy - Crypto Payments",
     "f9c239c3-313f-4c02-9a4c-0550f9d08118": "Inxy - Tokenization [Personalization] 2",
+    "2ebe0504-810c-4782-9f47-82f0eb98fac2": "Inxy - Luma 2",
     # OnSocial automations
     "c7465183-9bc3-4bb7-8cb1-854b6b54f37e": "OnSocial | Generic",
     "b5307c82-c997-4cc5-84c7-8340b1428fb8": "OnSocial | Marketing agencies",
+    "2238070f-e038-4209-9c0c-3fddb4946654": "OnSocial | IM platforms & SaaS",
     # Palark automations
     "3df443f1-1e7c-4ac9-9636-c95bbc52bb04": "Palark - After ICE 19/02 - Nikita",
+    # EasyStaff Global automations
+    "5d5daa90-2746-470f-952d-66223afd13d6": "EasyStaff - AU - PH",
+    # Deliryo automations
+    "e567a094-7915-4476-8f69-4f69f1024fed": "Deliryo Недвижимость за рубежом (ОАЭ/Дубай)",
+    # Rizzult additional
+    "9515a70b-0020-4955-8bea-9c2f7b904be8": "RIzzult big 5 agencies 27 02 26",
+    "5a8628e0-f8b5-43f7-9477-0bd825bb7ee5": "RIzzult partner agencies 15 02 26",
+    # Mifort additional
+    "c3d72e1c-061a-4b75-92e1-75669d08bcdc": "Mifort Fintech Crypto Clay",
 }
 
 # Sender profile UUID → human name (LinkedIn account owner).
@@ -251,7 +264,7 @@ GETSALES_SENDER_PROFILES: Dict[str, str] = {
 _PROJECT_PREFIXES = {
     "easystaff": 40,
     "squarefi": 40,
-    "inxy": 40,
+    "inxy": 10,
     "rizzult": 22,
     "mifort": 21,
     "mft": 21,
@@ -1789,7 +1802,11 @@ class CRMSyncService:
                             raw_name = automation_info.get("name", "")
                             flow_name = mapped or (raw_name if _is_valid_campaign_name(raw_name) else "")
                         else:
-                            # automation: "synced" — try to resolve from contact's known campaigns
+                            # automation: "synced" — resolve campaign name in priority order:
+                            # 1. Contact's cached campaigns (if UUID in GETSALES_FLOW_NAMES)
+                            # 2. Contact's cached campaigns (if name passes validation)
+                            # 3. Sender's most recent webhook automation (from webhook_events)
+                            # 4. Leave empty — webhook path will enrich it later via upsert
                             gs_campaigns = (contact.get_platform("getsales") or {}).get("campaigns", [])
                             if gs_campaigns and isinstance(gs_campaigns, list):
                                 for gc in gs_campaigns:
@@ -1803,12 +1820,33 @@ class CRMSyncService:
                                         flow_name = gc_name
                                         flow_uuid = gc_id
                                         break
-                            # NEVER fall back to sender_profile_uuid for campaign routing.
-                            # A sender can work across multiple projects; using sender UUID
-                            # as campaign ID causes misrouting (e.g. Pavel Medvedev → EasyStaff RU
-                            # when reply was actually for Rizzult). Leave as empty — the webhook
-                            # path will correct it with the real automation UUID, or it stays
-                            # unclassified (better than misclassified).
+                            # Fallback: resolve from sender's webhook history
+                            if not flow_name:
+                                _sender_uuid = msg.get("sender_profile_uuid", "")
+                                if _sender_uuid:
+                                    try:
+                                        from app.models.reply import WebhookEventModel
+                                        _wh_result = await session.execute(
+                                            select(WebhookEventModel.payload).where(
+                                                WebhookEventModel.event_type == "linkedin_inbox",
+                                                sa_text(
+                                                    "payload::jsonb->'sender_profile'->>'uuid' = :spuuid"
+                                                ),
+                                            ).params(spuuid=_sender_uuid)
+                                            .order_by(WebhookEventModel.created_at.desc())
+                                            .limit(1)
+                                        )
+                                        _wh_row = _wh_result.scalar()
+                                        if _wh_row:
+                                            import json as _json
+                                            _wh_payload = _json.loads(_wh_row) if isinstance(_wh_row, str) else _wh_row
+                                            _wh_auto = _wh_payload.get("automation", {})
+                                            if isinstance(_wh_auto, dict) and _wh_auto.get("name"):
+                                                flow_name = _wh_auto["name"]
+                                                flow_uuid = _wh_auto.get("uuid", "")
+                                                logger.info(f"[GETSALES] Resolved campaign from webhook history: {flow_name}")
+                                    except Exception as _wh_err:
+                                        logger.debug(f"[GETSALES] Webhook history lookup failed: {_wh_err}")
                         _pr = await process_getsales_reply(
                             message_text=message_text,
                             contact=contact,
