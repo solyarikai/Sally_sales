@@ -2235,40 +2235,227 @@ async def generate_tam_analysis(
         raise HTTPException(status_code=500, detail=f"TAM generation failed: {str(e)}")
 
 
+@router.get("/projects/{project_id}/gtm-data")
+async def get_gtm_data(
+    project_id: int,
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Return real segment/industry stats from classified contacts for GTM dashboard."""
+    from sqlalchemy import cast, JSON
+    from collections import Counter
+
+    # Verify project
+    project_stmt = select(Project).where(
+        Project.id == project_id, Project.deleted_at.is_(None),
+    )
+    if company_id:
+        project_stmt = project_stmt.where(Project.company_id == company_id)
+    project = (await session.execute(project_stmt)).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Fetch all non-deleted contacts for this project
+    contacts_result = await session.execute(
+        select(Contact).where(
+            and_(Contact.project_id == project_id, Contact.deleted_at.is_(None))
+        )
+    )
+    contacts = list(contacts_result.scalars().all())
+    total = len(contacts)
+
+    # Segment distribution
+    segment_counts: Dict[str, int] = Counter()
+    industry_counts: Dict[str, int] = Counter()
+    keyword_counts: Dict[str, int] = Counter()
+    suitable_for_counts: Dict[str, int] = Counter()
+    status_by_segment: Dict[str, Dict[str, int]] = {}
+    classified = 0
+    unclassified = 0
+    confidences: list[float] = []
+
+    for c in contacts:
+        seg = c.segment
+        if seg:
+            classified += 1
+            segment_counts[seg] += 1
+            # Status breakdown per segment
+            status_by_segment.setdefault(seg, Counter())
+            status_by_segment[seg][c.status or "lead"] += 1
+        else:
+            unclassified += 1
+
+        # Extract industry/keywords from platform_state.classification
+        ps = c.platform_state or {}
+        cls_data = ps.get("classification", {})
+        if cls_data:
+            industry = cls_data.get("industry")
+            if industry:
+                industry_counts[industry] += 1
+            for kw in cls_data.get("keywords", []):
+                keyword_counts[kw] += 1
+            conf = cls_data.get("confidence")
+            if conf is not None:
+                confidences.append(float(conf))
+
+        # Cross-project suitability
+        for target in (c.suitable_for or []):
+            suitable_for_counts[target] += 1
+
+    # Sort everything by count descending
+    segments = [{"segment": k, "count": v} for k, v in segment_counts.most_common()]
+    industries = [{"industry": k, "count": v} for k, v in industry_counts.most_common(20)]
+    keywords = [{"keyword": k, "count": v} for k, v in keyword_counts.most_common(30)]
+    cross_matches = [{"target": k, "count": v} for k, v in suitable_for_counts.most_common()]
+
+    # Convert status_by_segment Counters to regular dicts
+    status_breakdown = {seg: dict(counts) for seg, counts in status_by_segment.items()}
+
+    return {
+        "project_id": project_id,
+        "project_name": project.name,
+        "total_contacts": total,
+        "classified": classified,
+        "unclassified": unclassified,
+        "avg_confidence": round(sum(confidences) / len(confidences), 2) if confidences else None,
+        "segments": segments,
+        "industries": industries,
+        "top_keywords": keywords,
+        "cross_project_matches": cross_matches,
+        "status_by_segment": status_breakdown,
+        "gtm_plan": project.gtm_plan,
+    }
+
+
 @router.post("/projects/{project_id}/generate-gtm")
 async def generate_gtm_plan(
     project_id: int,
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
-    """Generate GTM plan for a project using AI."""
-    project, contacts = await _get_project_with_contacts(project_id, session, company_id)
-    
+    """Generate GTM plan using Gemini 2.5 with real classification data."""
+    from collections import Counter
+
+    # Verify project
+    project_stmt = select(Project).where(
+        Project.id == project_id, Project.deleted_at.is_(None),
+    )
+    if company_id:
+        project_stmt = project_stmt.where(Project.company_id == company_id)
+    project = (await session.execute(project_stmt)).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Fetch classified contacts
+    contacts_result = await session.execute(
+        select(Contact).where(
+            and_(Contact.project_id == project_id, Contact.deleted_at.is_(None))
+        )
+    )
+    contacts = list(contacts_result.scalars().all())
     if not contacts:
-        raise HTTPException(
-            status_code=400, 
-            detail="Project has no contacts. Add contacts before generating GTM plan."
-        )
-    
+        raise HTTPException(status_code=400, detail="Project has no contacts.")
+
+    # Build real segment data for Gemini
+    segment_counts: Dict[str, int] = Counter()
+    industry_counts: Dict[str, int] = Counter()
+    keyword_counts: Dict[str, int] = Counter()
+    status_by_seg: Dict[str, Counter] = {}
+    suitable_for_counts: Dict[str, int] = Counter()
+
+    for c in contacts:
+        seg = c.segment
+        if seg:
+            segment_counts[seg] += 1
+            status_by_seg.setdefault(seg, Counter())
+            status_by_seg[seg][c.status or "lead"] += 1
+        ps = c.platform_state or {}
+        cls_data = ps.get("classification", {})
+        if cls_data:
+            ind = cls_data.get("industry")
+            if ind:
+                industry_counts[ind] += 1
+            for kw in cls_data.get("keywords", []):
+                keyword_counts[kw] += 1
+        for target in (c.suitable_for or []):
+            suitable_for_counts[target] += 1
+
+    segment_summary = "\n".join(
+        f"  {seg}: {cnt} contacts (statuses: {dict(status_by_seg.get(seg, {}))})"
+        for seg, cnt in segment_counts.most_common()
+    )
+    industry_summary = "\n".join(
+        f"  {ind}: {cnt}" for ind, cnt in industry_counts.most_common(15)
+    )
+    keyword_summary = ", ".join(kw for kw, _ in keyword_counts.most_common(20))
+
     try:
-        gtm_plan = await ai_sdr_service.generate_gtm_plan(
-            project_name=project.name,
-            target_industries=project.target_industries,
-            target_segments=project.target_segments,
-            contacts=contacts,
-            tam_analysis=project.tam_analysis,  # Use existing TAM if available
+        from app.services.gemini_client import gemini_generate, extract_json_from_gemini
+
+        system_prompt = """You are a B2B GTM strategist. Analyze the REAL classified contact data below and produce a structured go-to-market strategy as JSON.
+
+Return ONLY valid JSON with this exact structure:
+{
+  "segments": [
+    {
+      "segment": "Segment Name",
+      "priority": 1,
+      "size": 123,
+      "rationale": "Why this segment is high priority - based on data",
+      "characteristics": ["key trait 1", "key trait 2"],
+      "apollo_query": "Concrete Apollo.io search query to find more companies like these",
+      "outreach_angle": "Recommended messaging angle for this segment"
+    }
+  ],
+  "summary": "2-3 sentence executive summary of the GTM strategy",
+  "total_addressable": "Estimate of total addressable companies per segment"
+}
+
+Order segments by priority (highest first). Include ALL segments with >5 contacts.
+Apollo queries should be specific and actionable — use real industry terms, job titles, company sizes."""
+
+        user_prompt = f"""Project: {project.name}
+Target Industries: {project.target_industries or 'Not specified'}
+Target Segments: {project.target_segments or 'Not specified'}
+Total contacts: {len(contacts)} ({sum(segment_counts.values())} classified)
+
+SEGMENT DISTRIBUTION:
+{segment_summary or '  No segments classified yet'}
+
+INDUSTRY BREAKDOWN:
+{industry_summary or '  No industries classified yet'}
+
+TOP KEYWORDS: {keyword_summary or 'None'}
+
+CROSS-PROJECT MATCHES: {dict(suitable_for_counts) if suitable_for_counts else 'None'}
+
+Generate a data-driven GTM strategy. Prioritize segments with the most contacts and highest conversion potential. For each segment, suggest a specific Apollo.io search query that would find more companies in that segment."""
+
+        result = await gemini_generate(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.4,
+            max_tokens=4000,
+            model="gemini-2.5-pro-preview-06-05",
+            project_id=project_id,
         )
-        
+
+        gtm_json = extract_json_from_gemini(result["content"])
+        # Validate it's valid JSON
+        import json as json_mod
+        json_mod.loads(gtm_json)
+
         # Save to project
-        project.gtm_plan = gtm_plan
+        project.gtm_plan = gtm_json
         project.updated_at = datetime.utcnow()
         await session.commit()
-        
+
         return {
             "success": True,
-            "gtm_plan": gtm_plan,
+            "gtm_plan": gtm_json,
         }
     except Exception as e:
+        logger.error(f"GTM generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"GTM generation failed: {str(e)}")
 
 

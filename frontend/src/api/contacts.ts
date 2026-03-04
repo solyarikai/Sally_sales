@@ -167,6 +167,21 @@ export interface ProjectMonitoring {
   };
 }
 
+export interface GTMData {
+  project_id: number;
+  project_name: string;
+  total_contacts: number;
+  classified: number;
+  unclassified: number;
+  avg_confidence: number | null;
+  segments: Array<{ segment: string; count: number }>;
+  industries: Array<{ industry: string; count: number }>;
+  top_keywords: Array<{ keyword: string; count: number }>;
+  cross_project_matches: Array<{ target: string; count: number }>;
+  status_by_segment: Record<string, Record<string, number>>;
+  gtm_plan: string | null;
+}
+
 export interface ImportResult {
   success: boolean;
   total_rows: number;
@@ -456,13 +471,19 @@ export const contactsApi = {
     return response.data;
   },
 
+  // GTM data — real segment stats from DB
+  async getGTMData(projectId: number): Promise<GTMData> {
+    const response = await api.get(`/contacts/projects/${projectId}/gtm-data`);
+    return response.data;
+  },
+
   // AI SDR - Generate TAM analysis
   async generateTAM(projectId: number): Promise<AISDRGenerationResult> {
     const response = await api.post(`/contacts/projects/${projectId}/generate-tam`);
     return response.data;
   },
 
-  // AI SDR - Generate GTM plan
+  // AI SDR - Generate GTM plan (Gemini 2.5)
   async generateGTM(projectId: number): Promise<AISDRGenerationResult> {
     const response = await api.post(`/contacts/projects/${projectId}/generate-gtm`);
     return response.data;
