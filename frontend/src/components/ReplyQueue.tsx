@@ -291,12 +291,12 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       const useCategory = isDeepLink ? undefined :
         (isAllMode ? undefined : (categoryFilter as ReplyCategory) || undefined);
       const response = await repliesApi.getReplies({
-        project_id: currentProject?.id,
-        campaign_names: campaignNames,
+        project_id: isDeepLink ? undefined : currentProject?.id,
+        campaign_names: isDeepLink ? undefined : campaignNames,
         needs_reply: useNeedsReply,
         lead_email: isDeepLink ? initialSearch : undefined,
         category: useCategory,
-        group_by_contact: true,
+        group_by_contact: !isDeepLink,
         received_since: isDeepLink ? 'all' : timingFilter,
         page: pg,
         page_size: PAGE_SIZE,
