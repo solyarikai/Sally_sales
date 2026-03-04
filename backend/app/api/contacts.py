@@ -2372,11 +2372,14 @@ async def generate_all_ai_sdr(
 @router.post("/projects/{project_id}/classify-segments")
 async def classify_project_segments(
     project_id: int,
+    limit: int = Query(0, description="Max contacts to classify (0=all, 1000 for test)"),
+    cross_match_project: Optional[str] = Query(None, description="Target project name for cross-matching (e.g. 'inxy')"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
-    """Batch classify all contacts in a project into business segments using website scraping + GPT-4o-mini."""
-    from app.services.segment_classifier import classify_contacts_for_project
+    """Batch classify contacts into business segments using website scraping + GPT-4o-mini.
+    Optionally cross-match results against a target project's ICP."""
+    from app.services.segment_classifier import classify_contacts_for_project, cross_match_for_project
 
     # Verify project exists
     project_stmt = select(Project).where(
@@ -2390,8 +2393,18 @@ async def classify_project_segments(
         raise HTTPException(status_code=404, detail="Project not found")
 
     try:
-        result = await classify_contacts_for_project(session, project_id)
-        return {"success": True, **result}
+        result = await classify_contacts_for_project(
+            session, project_id, limit=limit, only_unclassified=True,
+        )
+
+        # Optional cross-matching step
+        cross_match_result = None
+        if cross_match_project:
+            cross_match_result = await cross_match_for_project(
+                session, project_id, target_project_name=cross_match_project,
+            )
+
+        return {"success": True, **result, "cross_match": cross_match_result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Segment classification failed: {str(e)}")
 

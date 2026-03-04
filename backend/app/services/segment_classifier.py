@@ -19,6 +19,21 @@ from app.services.openai_service import openai_service
 
 logger = logging.getLogger(__name__)
 
+# Segments that indicate a company likely does cross-border payments / digital commerce
+# and is suitable for Inxy outreach (PSP / payment processing)
+INXY_TARGET_SEGMENTS = {
+    "fintech", "e-commerce", "marketplace", "crypto/web3", "gaming",
+    "saas", "travel", "logistics",
+}
+
+# Industries that strongly signal Inxy fit
+INXY_TARGET_INDUSTRIES_KEYWORDS = [
+    "payment", "fintech", "remittance", "forex", "crypto", "exchange",
+    "e-commerce", "marketplace", "digital commerce", "cross-border",
+    "money transfer", "banking", "neobank", "wallet", "checkout",
+    "billing", "subscription", "psp", "acquiring",
+]
+
 CLASSIFICATION_SYSTEM_PROMPT = """You are a B2B business analyst. Given a company's website content and metadata,
 classify it into a business segment and industry.
 
@@ -55,22 +70,30 @@ async def classify_contacts_for_project(
     session: AsyncSession,
     project_id: int,
     statuses: List[str] | None = None,
+    limit: int = 0,
+    only_unclassified: bool = True,
 ) -> Dict[str, Any]:
     """
-    Batch classify all contacts for a project.
+    Batch classify contacts for a project.
+    Args:
+        limit: Max contacts to classify (0 = all). Hardcoded to 1000 for test.
+        only_unclassified: If True, skip contacts that already have a segment.
     Returns progress dict: { total, classified, skipped, errors }
     """
-    if statuses is None:
-        statuses = ["qualified", "warm", "lead", "touched"]
-
     # Fetch contacts that need classification
-    stmt = select(Contact).where(
-        and_(
-            Contact.project_id == project_id,
-            Contact.status.in_(statuses),
-            Contact.deleted_at.is_(None),
-        )
-    )
+    conditions = [
+        Contact.project_id == project_id,
+        Contact.deleted_at.is_(None),
+    ]
+    if statuses:
+        conditions.append(Contact.status.in_(statuses))
+    if only_unclassified:
+        conditions.append(Contact.segment.is_(None))
+
+    stmt = select(Contact).where(and_(*conditions)).order_by(Contact.created_at.desc())
+    if limit > 0:
+        stmt = stmt.limit(limit)
+
     result = await session.execute(stmt)
     contacts = list(result.scalars().all())
 
@@ -195,4 +218,64 @@ async def classify_contacts_for_project(
         "skipped": skipped,
         "errors": errors,
         "domains_scraped": len([d for d, t in scraped.items() if t]),
+    }
+
+
+async def cross_match_for_project(
+    session: AsyncSession,
+    source_project_id: int,
+    target_project_name: str,
+    target_segments: set[str] | None = None,
+    target_industry_keywords: List[str] | None = None,
+) -> Dict[str, Any]:
+    """
+    After classification, mark contacts whose segment/industry matches as suitable
+    for a target project. Sets suitable_for JSON array on matching contacts.
+
+    Returns: { matched, total_classified }
+    """
+    if target_segments is None:
+        target_segments = INXY_TARGET_SEGMENTS
+    if target_industry_keywords is None:
+        target_industry_keywords = INXY_TARGET_INDUSTRIES_KEYWORDS
+
+    # Fetch classified contacts from source project
+    stmt = select(Contact).where(
+        and_(
+            Contact.project_id == source_project_id,
+            Contact.segment.isnot(None),
+            Contact.deleted_at.is_(None),
+        )
+    )
+    result = await session.execute(stmt)
+    contacts = list(result.scalars().all())
+
+    matched = 0
+    for c in contacts:
+        segment = (c.segment or "").lower()
+        is_match = segment in target_segments
+
+        # Also check industry from classification data
+        if not is_match and c.platform_state:
+            cls_data = c.platform_state.get("classification", {})
+            industry = (cls_data.get("industry") or "").lower()
+            keywords = [k.lower() for k in cls_data.get("keywords", [])]
+            for kw in target_industry_keywords:
+                if kw in industry or any(kw in k for k in keywords):
+                    is_match = True
+                    break
+
+        if is_match:
+            current = list(c.suitable_for or [])
+            if target_project_name not in current:
+                current.append(target_project_name)
+                c.suitable_for = current
+            matched += 1
+
+    await session.commit()
+
+    return {
+        "total_classified": len(contacts),
+        "matched": matched,
+        "target_project": target_project_name,
     }
