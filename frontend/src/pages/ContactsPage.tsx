@@ -19,7 +19,8 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Target, Mail, Loader2, Upload, AlertCircle, Check,
-  MessageSquare, ListTodo, Edit3, ChevronLeft, Linkedin, FileSpreadsheet
+  MessageSquare, ListTodo, Edit3, ChevronLeft, Linkedin, FileSpreadsheet,
+  Sparkles, ChevronRight, ChevronDown, Users, FileText
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type OperatorTask } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -96,8 +97,6 @@ export function ContactsPage() {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const projectRef = useRef<HTMLDivElement>(null);
-  const [showSaveProjectForm, setShowSaveProjectForm] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
   const [editingProject, setEditingProject] = useState(false);
   const [editProjectName, setEditProjectName] = useState('');
   const [editCampaignFilters, setEditCampaignFilters] = useState<string[]>([]);
@@ -621,7 +620,6 @@ export function ContactsPage() {
 
   // Export states
   const [isExportingSheet, setIsExportingSheet] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
 
   // Actions
   const handleExportCsv = async () => {
@@ -662,35 +660,6 @@ export function ContactsPage() {
     }
   };
 
-  const handleVerifyCampaigns = async () => {
-    if (!activeProject?.id) {
-      toast.error('Select a project', 'Campaign verification requires an active project');
-      return;
-    }
-    setIsVerifying(true);
-    try {
-      const result = await contactsApi.verifyCampaigns(activeProject.id);
-      const lines = result.campaigns.map(c =>
-        `${c.name}: DB=${c.db_count}, SmartLead=${c.smartlead_count ?? '?'} ${c.match ? '✓' : '✗'}${c.error ? ` (${c.error})` : ''}`
-      );
-      if (result.all_match) {
-        toast.success(
-          `All campaigns match (${result.total_db} contacts)`,
-          lines.join('\n')
-        );
-      } else {
-        toast.error(
-          `Mismatch: DB=${result.total_db}, SmartLead=${result.total_smartlead}`,
-          lines.join('\n')
-        );
-      }
-    } catch (err) {
-      console.error('Verify failed:', err);
-      toast.error('Verification failed', getErrorMessage(err));
-    } finally {
-      setIsVerifying(false);
-    }
-  };
 
   const handleDeleteSelected = () => {
     if (selectedContacts.length === 0) return;
@@ -751,23 +720,6 @@ export function ContactsPage() {
     }
   };
 
-  // Save current campaign filter as project
-  const handleSaveAsProject = async () => {
-    if (!newProjectName.trim() || campaignFilters.length === 0) return;
-    try {
-      const created = await contactsApi.createProject({
-        name: newProjectName.trim(),
-        campaign_filters: campaignFilters,
-      });
-      await loadProjects();
-      selectProject(created);
-      setShowSaveProjectForm(false);
-      setNewProjectName('');
-      toast.success('Project created', `"${created.name}" saved with campaign filter`);
-    } catch (err) {
-      toast.error('Failed to create project', getErrorMessage(err));
-    }
-  };
 
   // Update project filters
   const handleUpdateProject = async () => {
@@ -804,7 +756,6 @@ export function ContactsPage() {
     domainFilter,
     suitableForFilter,
   ].filter(Boolean).length;
-  const hasActiveFilters = activeFilterCount > 0 || !!search || replyMode;
   const totalPages = Math.ceil(total / pageSize);
 
   const setDateRange = useCallback((after: string | null, before: string | null) => {
