@@ -3,6 +3,7 @@ import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
 import { Check, Search } from 'lucide-react';
+import { useTheme } from '../../hooks/useTheme';
 
 const SOURCES = [
   { key: 'smartlead',                label: 'Email',        color: 'text-blue-600' },
@@ -14,6 +15,7 @@ const SOURCES = [
 
 export const SourceColumnFilter = forwardRef((props: IFilterParams, ref) => {
   const { sourceFilter, setSourceFilter, resetPage } = useContactsFilter();
+  const { isDark } = useTheme();
   const [query, setQuery] = useState('');
 
   useImperativeHandle(ref, () => ({
@@ -41,9 +43,9 @@ export const SourceColumnFilter = forwardRef((props: IFilterParams, ref) => {
   }, [query]);
 
   return (
-    <div className="p-3 min-w-[160px]">
+    <div className={cn("p-3 min-w-[160px]", isDark && "bg-neutral-800")}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-neutral-500">SOURCE</span>
+        <span className={cn("text-xs font-medium", isDark ? "text-neutral-400" : "text-neutral-500")}>SOURCE</span>
         {sourceFilter && (
           <button
             onClick={() => { setSourceFilter(null); resetPage(); }}
@@ -60,7 +62,10 @@ export const SourceColumnFilter = forwardRef((props: IFilterParams, ref) => {
           placeholder="Search sources..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full pl-7 pr-2 py-1.5 rounded-md border border-neutral-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className={cn(
+            "w-full pl-7 pr-2 py-1.5 rounded-md border text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500",
+            isDark ? "bg-neutral-700 border-neutral-600 text-neutral-200 placeholder-neutral-500" : "border-neutral-200"
+          )}
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -73,13 +78,13 @@ export const SourceColumnFilter = forwardRef((props: IFilterParams, ref) => {
               className={cn(
                 "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all text-left",
                 isActive
-                  ? "bg-emerald-100 text-emerald-700 border-emerald-300"
-                  : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400"
+                  ? (isDark ? "bg-emerald-900/40 text-emerald-300 border-emerald-700" : "bg-emerald-100 text-emerald-700 border-emerald-300")
+                  : (isDark ? "bg-neutral-700 text-neutral-300 border-neutral-600 hover:border-neutral-400" : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400")
               )}
             >
               <span className={cn(
                 "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
-                isActive ? "bg-indigo-500 border-indigo-500" : "border-neutral-300"
+                isActive ? "bg-indigo-500 border-indigo-500" : (isDark ? "border-neutral-500" : "border-neutral-300")
               )}>
                 {isActive && <Check className="w-2.5 h-2.5 text-white" />}
               </span>

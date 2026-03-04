@@ -3,6 +3,7 @@ import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
 import { Check } from 'lucide-react';
+import { useTheme } from '../../hooks/useTheme';
 
 const OPTIONS = [
   { key: 'replied',    label: 'Replied',          dot: 'bg-green-500' },
@@ -12,6 +13,7 @@ const OPTIONS = [
 
 export const RepliedColumnFilter = forwardRef((props: IFilterParams, ref) => {
   const { repliedFilter, setRepliedFilter, followupFilter, setFollowupFilter, resetPage } = useContactsFilter();
+  const { isDark } = useTheme();
 
   const activeKey = followupFilter === true ? 'followup' : repliedFilter === true ? 'replied' : repliedFilter === false ? 'no_reply' : null;
 
@@ -58,9 +60,9 @@ export const RepliedColumnFilter = forwardRef((props: IFilterParams, ref) => {
   };
 
   return (
-    <div className="p-3 min-w-[160px]">
+    <div className={cn("p-3 min-w-[160px]", isDark && "bg-neutral-800")}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-neutral-500">REPLIED</span>
+        <span className={cn("text-xs font-medium", isDark ? "text-neutral-400" : "text-neutral-500")}>REPLIED</span>
         {activeKey && (
           <button
             onClick={() => { setRepliedFilter(null); setFollowupFilter(null); resetPage(); }}
@@ -80,13 +82,13 @@ export const RepliedColumnFilter = forwardRef((props: IFilterParams, ref) => {
               className={cn(
                 "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all text-left",
                 isActive
-                  ? "bg-green-100 text-green-700 border-green-300"
-                  : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400"
+                  ? (isDark ? "bg-green-900/40 text-green-300 border-green-700" : "bg-green-100 text-green-700 border-green-300")
+                  : (isDark ? "bg-neutral-700 text-neutral-300 border-neutral-600 hover:border-neutral-400" : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400")
               )}
             >
               <span className={cn(
                 "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
-                isActive ? "bg-indigo-500 border-indigo-500" : "border-neutral-300"
+                isActive ? "bg-indigo-500 border-indigo-500" : (isDark ? "border-neutral-500" : "border-neutral-300")
               )}>
                 {isActive && <Check className="w-2.5 h-2.5 text-white" />}
               </span>

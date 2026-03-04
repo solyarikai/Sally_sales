@@ -17,16 +17,16 @@ const AG_GRID_THEME = "legacy";
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 import {
-  Users, Search, Download, Trash2, RefreshCw,
-  Plus, X, FolderOpen, Sparkles, FileText, Target, Mail, Loader2, ChevronRight, ChevronDown, Upload, AlertCircle, Check,
-  MessageSquare, ListTodo, Save, Edit3, ChevronLeft, Linkedin, FileSpreadsheet, ShieldCheck, MapPin
+  Search, Download, Trash2, RefreshCw,
+  Plus, X, FolderOpen, Target, Mail, Loader2, Upload, AlertCircle, Check,
+  MessageSquare, ListTodo, Edit3, ChevronLeft, Linkedin, FileSpreadsheet
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type OperatorTask } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
-import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter, SegmentColumnFilter, SourceColumnFilter } from '../components/filters';
+import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter, SegmentColumnFilter, SourceColumnFilter, RepliedColumnFilter, GeoColumnFilter } from '../components/filters';
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -75,9 +75,6 @@ export function ContactsPage() {
     searchParams.get('campaign')?.split(',').filter(Boolean) || []
   );
   const [campaignIdFilter, setCampaignIdFilter] = useState<string | null>(searchParams.get('campaign_id'));
-  const [campaignSearch, setCampaignSearch] = useState('');
-  const [campaignDropdownOpen, setCampaignDropdownOpen] = useState(false);
-  const campaignRef = useRef<HTMLDivElement>(null);
   const [campaigns, setCampaigns] = useState<Array<{name: string, source: string}>>([]);
   const [followupFilter, setFollowupFilter] = useState<boolean | null>(
     searchParams.get('followup') === 'true' ? true : null
@@ -191,9 +188,6 @@ export function ContactsPage() {
   // Close dropdowns on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (campaignRef.current && !campaignRef.current.contains(e.target as Node)) {
-        setCampaignDropdownOpen(false);
-      }
       if (projectRef.current && !projectRef.current.contains(e.target as Node)) {
         setProjectDropdownOpen(false);
       }
@@ -241,16 +235,6 @@ export function ContactsPage() {
       setTasksLoading(false);
     }
   }, [activeProject]);
-
-  // Filtered campaigns for autocomplete
-  const filteredCampaigns = useMemo(() => {
-    if (!campaignSearch) return campaigns.slice(0, 100);
-    const q = campaignSearch.toLowerCase();
-    // Prioritize prefix matches
-    const prefix = campaigns.filter(c => c.name.toLowerCase().startsWith(q));
-    const contains = campaigns.filter(c => !c.name.toLowerCase().startsWith(q) && c.name.toLowerCase().includes(q));
-    return [...prefix, ...contains].slice(0, 100);
-  }, [campaigns, campaignSearch]);
 
   const resetPage = useCallback(() => setPage(1), []);
   const toggleCampaign = useCallback((name: string) => {
@@ -434,6 +418,23 @@ export function ContactsPage() {
       },
     },
     {
+      headerName: 'Replied',
+      width: 90,
+      sortable: false,
+      filter: RepliedColumnFilter,
+      valueGetter: (params) => {
+        const c = params.data as Contact;
+        if (c?.needs_followup) return 'Follow-up';
+        if (c?.has_replied) return 'Replied';
+        return '';
+      },
+      cellRenderer: (params: { value: string }) => {
+        if (params.value === 'Follow-up') return <span className="text-xs font-medium text-orange-500">Follow-up</span>;
+        if (params.value === 'Replied') return <span className="text-xs font-medium text-green-600">Replied</span>;
+        return <span className="text-xs text-gray-400">—</span>;
+      },
+    },
+    {
       field: 'email',
       headerName: 'Email',
       filter: 'agTextColumnFilter',
@@ -514,6 +515,14 @@ export function ContactsPage() {
       filter: SegmentColumnFilter,
       sortable: true,
       width: 100,
+      valueFormatter: (params: ValueFormatterParams) => params.value || '-',
+    },
+    {
+      field: 'geo',
+      headerName: 'Geo',
+      filter: GeoColumnFilter,
+      sortable: true,
+      width: 70,
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
     {
@@ -783,7 +792,19 @@ export function ContactsPage() {
     return contacts.filter(c => !!c.last_reply_at && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
-  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilters.length > 0 || geoFilter || campaignFilters.length > 0 || campaignIdFilter || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode || domainFilter || suitableForFilter;
+  const activeFilterCount = [
+    statusFilters.length > 0,
+    sourceFilter,
+    segmentFilters.length > 0,
+    geoFilter,
+    campaignFilters.length > 0 || !!campaignIdFilter,
+    followupFilter !== null,
+    repliedFilter !== null,
+    createdAfter || createdBefore,
+    domainFilter,
+    suitableForFilter,
+  ].filter(Boolean).length;
+  const hasActiveFilters = activeFilterCount > 0 || !!search || replyMode;
   const totalPages = Math.ceil(total / pageSize);
 
   const setDateRange = useCallback((after: string | null, before: string | null) => {
@@ -941,225 +962,21 @@ export function ContactsPage() {
             />
           </div>
 
-          {/* Replied */}
-          <button
-            onClick={() => { setRepliedFilter(repliedFilter === true ? null : true); setPage(1); }}
-            className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
-              repliedFilter === true
-                ? "bg-green-500 text-white border-green-500"
-                : `text-green-600 border-green-200 hover:border-green-400 ${isDark ? '' : 'bg-white'}`
-            )}
-          >
-            Replied
-            {stats && (stats.by_status?.replied || 0) > 0 && (
-              <span className={cn(
-                "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
-                repliedFilter === true
-                  ? "bg-green-400 text-white"
-                  : "bg-green-100 text-green-600"
-              )}>
-                {stats.by_status?.replied || 0}
-              </span>
-            )}
-          </button>
-
-          {/* Follow-up */}
-          <button
-            onClick={() => { setFollowupFilter(followupFilter === true ? null : true); setPage(1); }}
-            className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
-              followupFilter === true
-                ? "bg-orange-500 text-white border-orange-500"
-                : `text-gray-600 border-gray-300 hover:border-orange-400 ${isDark ? 'text-gray-300' : 'bg-white'}`
-            )}
-          >
-            Follow-up
-          </button>
-
-          {/* Campaign filter — compact counter + dropdown */}
-          <div className="relative shrink-0" ref={campaignRef}>
+          {/* Active filter count pill */}
+          {activeFilterCount > 0 && (
             <button
-              onClick={() => { setCampaignDropdownOpen(!campaignDropdownOpen); setCampaignSearch(''); }}
+              onClick={clearFilters}
               className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all",
-                campaignFilters.length > 0
-                  ? "border-indigo-400 bg-indigo-500 text-white"
-                  : `border-neutral-200 hover:border-indigo-400 ${isDark ? 'text-gray-300' : 'bg-white text-gray-600'}`
+                "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
+                isDark
+                  ? "bg-indigo-900/40 text-indigo-300 border-indigo-700 hover:bg-indigo-900/60"
+                  : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
               )}
             >
-              <Search className="w-3 h-3" />
-              {campaignFilters.length > 0
-                ? `${campaignFilters.length} campaign${campaignFilters.length > 1 ? 's' : ''}`
-                : 'Campaigns'}
-            </button>
-            {campaignDropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-80 rounded-xl shadow-lg z-50 overflow-hidden" style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
-                {/* Search */}
-                <div className="p-2" style={{ borderBottom: `1px solid ${t.divider}` }}>
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: t.text4 }} />
-                    <input
-                      type="text"
-                      placeholder="Search campaigns..."
-                      value={campaignSearch}
-                      onChange={(e) => setCampaignSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
-                      autoFocus
-                    />
-                  </div>
-                </div>
-                {/* Selected campaigns summary */}
-                {campaignFilters.length > 0 && !campaignSearch && (
-                  <div className="px-3 py-2" style={{ borderBottom: `1px solid ${t.divider}`, background: isDark ? '#1e1b4b33' : '#eef2ff80' }}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-medium text-indigo-600 uppercase tracking-wide">Selected ({campaignFilters.length})</span>
-                      <button onClick={() => { setCampaignFilters([]); setPage(1); }} className="text-[10px] text-red-500 hover:text-red-600">Clear all</button>
-                    </div>
-                    <div className="flex flex-wrap gap-1 max-h-20 overflow-auto">
-                      {campaignFilters.map(name => (
-                        <button
-                          key={name}
-                          onClick={() => toggleCampaign(name)}
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 max-w-[200px]"
-                        >
-                          <span className="truncate">{name}</span>
-                          <X className="w-2.5 h-2.5 shrink-0" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Campaign list */}
-                <div className="max-h-64 overflow-auto">
-                  {filteredCampaigns.length === 0 ? (
-                    <div className="px-3 py-4 text-xs text-center" style={{ color: t.text4 }}>No campaigns found</div>
-                  ) : (
-                    filteredCampaigns.map((c, i) => {
-                      const isSelected = campaignFilters.includes(c.name);
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => toggleCampaign(c.name)}
-                          className={cn(
-                            "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors",
-                            isSelected ? "bg-indigo-50 text-indigo-700" : (isDark ? "hover:bg-neutral-800" : "hover:bg-neutral-50")
-                          )}
-                        >
-                          <span className={cn(
-                            "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
-                            isSelected ? "bg-indigo-500 border-indigo-500" : "border-neutral-300"
-                          )}>
-                            {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
-                          </span>
-                          <span className={cn(
-                            "shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium",
-                            c.source === 'smartlead' ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"
-                          )}>
-                            {c.source === 'smartlead' ? 'Email' : 'LI'}
-                          </span>
-                          <span className="truncate">{c.name}</span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Save as Project (when campaign filters active and no project) */}
-          {campaignFilters.length > 0 && !activeProject && !showSaveProjectForm && (
-            <button
-              onClick={() => { setShowSaveProjectForm(true); setNewProjectName(campaignFilters[0]); }}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-green-200 bg-white text-green-600 hover:border-green-400 transition-all shrink-0"
-            >
-              <Save className="w-3 h-3" />
-              Save as Project
+              {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''}
+              <X className="w-3 h-3" />
             </button>
           )}
-          {showSaveProjectForm && (
-            <div className="inline-flex items-center gap-1 shrink-0">
-              <input
-                value={newProjectName}
-                onChange={(e) => setNewProjectName(e.target.value)}
-                placeholder="Project name"
-                className="text-xs border border-green-300 rounded px-2 py-1.5 w-36 focus:outline-none focus:ring-1 focus:ring-green-400"
-                autoFocus
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveAsProject(); if (e.key === 'Escape') setShowSaveProjectForm(false); }}
-              />
-              <button onClick={handleSaveAsProject} className="p-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600"><Check className="w-3 h-3" /></button>
-              <button onClick={() => setShowSaveProjectForm(false)} className="p-1.5 rounded-lg hover:bg-neutral-100"><X className="w-3 h-3 text-neutral-500" /></button>
-            </div>
-          )}
-
-          {/* Active segment filter badges */}
-          {segmentFilters.map(seg => (
-            <span key={seg} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
-              <Target className="w-3 h-3" />
-              {seg.replace(/_/g, ' ')}
-              <button onClick={() => toggleSegment(seg)} className="ml-0.5 hover:bg-blue-100 rounded p-0.5">
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </span>
-          ))}
-
-          {/* Active geo filter badge */}
-          {geoFilter && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200 shrink-0">
-              <MapPin className="w-3 h-3" />
-              {geoFilter}
-              <button onClick={() => { setGeoFilter(null); setPage(1); }} className="ml-0.5 hover:bg-violet-100 rounded p-0.5">
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </span>
-          )}
-
-          {/* Active source filter badge */}
-          {sourceFilter && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-              src: {sourceFilter}
-              <button onClick={() => { setSourceFilter(null); setPage(1); }} className="ml-0.5 hover:bg-emerald-100 rounded p-0.5">
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </span>
-          )}
-
-          {/* Active domain filter badge */}
-          {domainFilter && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-cyan-50 text-cyan-700 border border-cyan-200 shrink-0">
-              domains: {domainFilter.split(',').length}
-              <button onClick={() => { setDomainFilter(null); setPage(1); }} className="ml-0.5 hover:bg-cyan-100 rounded p-0.5">
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </span>
-          )}
-
-          {/* Active suitable_for filter badge */}
-          {suitableForFilter && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-              suitable for: {suitableForFilter}
-              <button onClick={() => { setSuitableForFilter(null); setPage(1); }} className="ml-0.5 hover:bg-emerald-100 rounded p-0.5">
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </span>
-          )}
-
-          {/* Reset filters */}
-          <button
-            onClick={clearFilters}
-            disabled={!hasActiveFilters}
-            className={cn(
-              "inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
-              hasActiveFilters
-                ? "text-red-500 hover:bg-red-50 border-red-200"
-                : `cursor-not-allowed ${isDark ? 'text-neutral-600 border-neutral-700' : 'text-neutral-300 border-neutral-200'}`
-            )}
-          >
-            <X className="w-3 h-3" />
-            Reset
-          </button>
 
           {/* Separator */}
           <span className="w-px h-5 mx-0.5" style={{ background: t.divider }} />
@@ -1187,18 +1004,6 @@ export function ContactsPage() {
               ? <Loader2 className="w-4 h-4 text-green-600 animate-spin" />
               : <FileSpreadsheet className="w-4 h-4 text-green-600" />}
           </button>
-          {activeProject && (
-            <button
-              onClick={handleVerifyCampaigns}
-              disabled={isVerifying}
-              className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
-              title="Verify SmartLead campaigns"
-            >
-              {isVerifying
-                ? <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                : <ShieldCheck className="w-4 h-4 text-blue-600" />}
-            </button>
-          )}
           {selectedContacts.length > 0 && (
             <button onClick={handleDeleteSelected} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-red-500" title="Delete Selected">
               <Trash2 className="w-4 h-4" />

@@ -3,6 +3,7 @@ import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
 import { Check, Search } from 'lucide-react';
+import { useTheme } from '../../hooks/useTheme';
 
 const STATUSES = [
   { key: 'touched',        label: 'Touched',         dot: 'bg-blue-500',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
@@ -19,6 +20,7 @@ const STATUSES = [
 
 export const StatusColumnFilter = forwardRef((props: IFilterParams, ref) => {
   const { statusFilters, toggleStatus, setStatusFilters, stats, resetPage } = useContactsFilter();
+  const { isDark } = useTheme();
   const [query, setQuery] = useState('');
 
   useImperativeHandle(ref, () => ({
@@ -51,9 +53,9 @@ export const StatusColumnFilter = forwardRef((props: IFilterParams, ref) => {
   }, [query]);
 
   return (
-    <div className="p-3 min-w-[180px]">
+    <div className={cn("p-3 min-w-[180px]", isDark && "bg-neutral-800")}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-neutral-500">STATUS</span>
+        <span className={cn("text-xs font-medium", isDark ? "text-neutral-400" : "text-neutral-500")}>STATUS</span>
         {statusFilters.length > 0 && (
           <button
             onClick={() => { setStatusFilters([]); resetPage(); }}
@@ -70,7 +72,10 @@ export const StatusColumnFilter = forwardRef((props: IFilterParams, ref) => {
           placeholder="Search statuses..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full pl-7 pr-2 py-1.5 rounded-md border border-neutral-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className={cn(
+            "w-full pl-7 pr-2 py-1.5 rounded-md border text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500",
+            isDark ? "bg-neutral-700 border-neutral-600 text-neutral-200 placeholder-neutral-500" : "border-neutral-200"
+          )}
         />
       </div>
       <div className="flex flex-col gap-1 max-h-[320px] overflow-y-auto">
@@ -83,12 +88,14 @@ export const StatusColumnFilter = forwardRef((props: IFilterParams, ref) => {
               onClick={() => handleToggle(key)}
               className={cn(
                 "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all text-left",
-                isActive ? "bg-indigo-50 text-indigo-700 border-indigo-200" : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400"
+                isActive
+                  ? (isDark ? "bg-indigo-900/40 text-indigo-300 border-indigo-700" : "bg-indigo-50 text-indigo-700 border-indigo-200")
+                  : (isDark ? "bg-neutral-700 text-neutral-300 border-neutral-600 hover:border-neutral-400" : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400")
               )}
             >
               <span className={cn(
                 "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
-                isActive ? "bg-indigo-500 border-indigo-500" : "border-neutral-300"
+                isActive ? "bg-indigo-500 border-indigo-500" : (isDark ? "border-neutral-500" : "border-neutral-300")
               )}>
                 {isActive && <Check className="w-2.5 h-2.5 text-white" />}
               </span>
