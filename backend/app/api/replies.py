@@ -2085,6 +2085,23 @@ async def get_reply_full_history(
                 "campaign": default_campaign,
             })
 
+    # 3b. Safety net: ensure the current reply's inbound message is in activities
+    if reply.email_body or reply.reply_text:
+        reply_body = (reply.reply_text or reply.email_body or "").strip()
+        reply_ts = reply.received_at.isoformat() + "Z" if reply.received_at else ""
+        has_current = any(
+            a["direction"] == "inbound" and a.get("timestamp", "")[:19] >= reply_ts[:19]
+            for a in activities
+        )
+        if not has_current and reply_body:
+            activities.append({
+                "direction": "inbound",
+                "content": reply_body,
+                "timestamp": reply_ts,
+                "channel": reply.channel or "email",
+                "campaign": reply.campaign_name or "",
+            })
+
     # 4. LinkedIn activities (if getsales contact)
     contact = contact_for_campaigns  # reuse from step 2b
 
