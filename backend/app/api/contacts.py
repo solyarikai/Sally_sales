@@ -97,6 +97,7 @@ class ContactResponse(BaseModel):
     domain: Optional[str] = None
     job_title: Optional[str] = None
     segment: Optional[str] = None
+    suitable_for: Optional[List[str]] = None
     geo: Optional[str] = None
     project_id: Optional[int] = None
     project_name: Optional[str] = None
@@ -273,6 +274,7 @@ async def _build_filtered_query(
     created_before: Optional[str] = None,
     search: Optional[str] = None,
     domain: Optional[str] = None,
+    suitable_for: Optional[str] = None,
 ):
     """Build a filtered Contact query. Shared by list, CSV export, and Google Sheet export."""
     query = select(Contact).where(
@@ -414,6 +416,12 @@ async def _build_filtered_query(
             query = query.where(func.lower(Contact.domain) == domain_list[0])
         elif domain_list:
             query = query.where(func.lower(Contact.domain).in_(domain_list))
+    if suitable_for:
+        # suitable_for is a JSON array column; filter contacts where the array contains the value
+        query = query.where(
+            sql_text("contacts.suitable_for::jsonb @> :sf_val::jsonb")
+            .bindparams(sf_val=f'["{suitable_for}"]')
+        )
     if search:
         search_term = f"%{search}%"
         query = query.where(
@@ -452,6 +460,7 @@ async def list_contacts(
     created_after: Optional[str] = Query(None, description="Filter contacts created after this date (ISO format, e.g. 2026-02-02)"),
     created_before: Optional[str] = Query(None, description="Filter contacts created before this date (ISO format, e.g. 2026-02-09)"),
     domain: Optional[str] = Query(None, description="Filter by domain(s), comma-separated"),
+    suitable_for: Optional[str] = Query(None, description="Filter by suitable_for project name"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -462,7 +471,7 @@ async def list_contacts(
         has_replied=has_replied, has_smartlead=has_smartlead, has_getsales=has_getsales,
         campaign=campaign, campaign_id=campaign_id, needs_followup=needs_followup,
         created_after=created_after, created_before=created_before, search=search,
-        domain=domain,
+        domain=domain, suitable_for=suitable_for,
     )
     
     # Count total

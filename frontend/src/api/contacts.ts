@@ -9,6 +9,7 @@ export interface Contact {
   domain?: string;
   job_title?: string;
   segment?: string;
+  suitable_for?: string[];
   geo?: string;
   project_id?: number;
   project_name?: string;

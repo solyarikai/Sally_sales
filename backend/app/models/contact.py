@@ -112,6 +112,7 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
 
     # Classification
     segment = Column(String(255), nullable=True, index=True)
+    suitable_for = Column(JSON, nullable=True)  # ["inxy", "tfp"] — cross-project targeting
     geo = Column(String(50), nullable=True, index=True)
     source = Column(String(50), nullable=False, default="manual", index=True)
     source_id = Column(String(255), nullable=True)

@@ -514,6 +514,22 @@ export function ContactsPage() {
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
     {
+      field: 'suitable_for',
+      headerName: 'Suitable For',
+      sortable: false,
+      width: 120,
+      cellRenderer: (params: { value: string[] }) => {
+        if (!params.value || params.value.length === 0) return <span className="text-xs text-gray-400">—</span>;
+        return (
+          <span className="inline-flex items-center gap-1 flex-wrap">
+            {params.value.map((p: string) => (
+              <span key={p} className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">{p}</span>
+            ))}
+          </span>
+        );
+      },
+    },
+    {
       field: 'location',
       headerName: 'Location',
       filter: 'agTextColumnFilter',
