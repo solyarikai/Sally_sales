@@ -118,7 +118,7 @@ const ARCHIVE_CATEGORY_FILTERS = [
   { key: 'unsubscribe',    label: 'Unsubscribe',    countKey: 'unsubscribe' },
 ] as const;
 
-const ARCHIVE_KEYS = new Set(ARCHIVE_CATEGORY_FILTERS.map(f => f.key));
+const ARCHIVE_KEYS = new Set<string>(ARCHIVE_CATEGORY_FILTERS.map(f => f.key));
 
 const TIMING_OPTIONS = [
   { value: '1w', label: '1 week' },
