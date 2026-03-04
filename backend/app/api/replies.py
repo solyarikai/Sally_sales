@@ -888,11 +888,11 @@ async def list_replies(
         )
         total = total_result.scalar() or 0
 
-        # Hydrate full rows, paginate
+        # Hydrate full rows, paginate — newest first
         query = (
             select(ProcessedReply)
             .where(ProcessedReply.id.in_(select(dedup_sub.c.id)))
-            .order_by(category_priority, desc(ProcessedReply.received_at))
+            .order_by(desc(ProcessedReply.received_at))
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
@@ -1000,8 +1000,8 @@ async def list_replies(
         logger.warning(f"Failed to compute category counts: {e}")
     meeting_count = category_counts.get("meeting_request", 0)
 
-    # Order by category priority (meetings/interested first), then newest
-    query = query.order_by(category_priority, desc(ProcessedReply.received_at))
+    # Newest first
+    query = query.order_by(desc(ProcessedReply.received_at))
     query = query.offset((page - 1) * page_size).limit(page_size)
 
     result = await session.execute(query)
