@@ -159,15 +159,14 @@ async def main():
     print(f"Prepared {len(contacts_to_insert)} contacts for import")
     print(f"Skipped {skipped_no_email} rows without valid email")
 
-    # 3. Insert into database, deduplicating by email + project_id
+    # 3. Insert into database, deduplicating by email (global unique constraint)
     async with async_session_maker() as session:
-        # Get existing emails for this project
+        # Get ALL existing emails (global unique constraint on lower(email))
         result = await session.execute(
-            text("SELECT lower(email) FROM contacts WHERE project_id = :pid"),
-            {"pid": PROJECT_ID}
+            text("SELECT lower(email) FROM contacts")
         )
         existing_emails = {row[0] for row in result.fetchall()}
-        print(f"Found {len(existing_emails)} existing contacts for project {PROJECT_ID}")
+        print(f"Found {len(existing_emails)} existing contacts globally")
 
         inserted = 0
         skipped_dup = 0
@@ -182,7 +181,7 @@ async def main():
                 continue
             seen_emails.add(email_lower)
 
-            # Skip if already exists in DB
+            # Skip if already exists in DB (global uniqueness)
             if email_lower in existing_emails:
                 skipped_dup += 1
                 continue
@@ -206,7 +205,7 @@ async def main():
         await session.commit()
         print(f"\nIMPORT COMPLETE:")
         print(f"  Inserted: {inserted}")
-        print(f"  Skipped (duplicate): {skipped_dup}")
+        print(f"  Skipped (duplicate email): {skipped_dup}")
         print(f"  Skipped (no email): {skipped_no_email}")
         print(f"  Total rows in sheet: {len(data)}")
 
