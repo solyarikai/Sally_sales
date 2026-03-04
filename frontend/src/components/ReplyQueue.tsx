@@ -298,7 +298,12 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         setReplies(prev => [...prev, ...newReplies]);
       }
       setTotal(response.total || 0);
-      setCategoryCounts(response.category_counts || {});
+      // Only update normal tab counts from reply list when NOT in archive mode.
+      // Archive mode returns unfiltered counts that would corrupt needs_reply counts.
+      // Both count sets are maintained independently by their respective polls.
+      if (!isArchiveMode) {
+        setCategoryCounts(response.category_counts || {});
+      }
       setHasMore(newReplies.length >= PAGE_SIZE);
     } catch (err) {
       console.error('Failed to load replies:', err);
