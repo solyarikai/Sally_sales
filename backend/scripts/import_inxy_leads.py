@@ -47,12 +47,21 @@ def split_name(full_name: str) -> tuple[str | None, str | None]:
     return first, last
 
 
-def is_linkedin_url(s: str) -> bool:
-    """Check if string looks like a LinkedIn URL or handle."""
+def extract_linkedin(s: str) -> str | None:
+    """Extract LinkedIn URL from field. May contain phone numbers on separate lines."""
     if not s:
-        return False
-    s = s.strip().lower()
-    return "linkedin.com" in s or s.startswith("linkedin.com")
+        return None
+    # Take only the first line (rest may be phone numbers)
+    first_line = s.strip().split("\n")[0].strip()
+    if not first_line:
+        return None
+    lower = first_line.lower()
+    if "linkedin.com" not in lower:
+        return None
+    url = first_line
+    if not url.startswith("http"):
+        url = "https://" + url
+    return url
 
 
 def extract_domain(website: str) -> str | None:
@@ -123,12 +132,8 @@ async def main():
         if location == "-":
             location = None
 
-        linkedin_raw = row.get("linkedin / contacts", "").strip()
-        linkedin_url = None
-        if is_linkedin_url(linkedin_raw):
-            linkedin_url = linkedin_raw
-            if not linkedin_url.startswith("http"):
-                linkedin_url = "https://" + linkedin_url
+        linkedin_raw = row.get("linkedin / contacts", "")
+        linkedin_url = extract_linkedin(linkedin_raw)
 
         status = map_status(row.get("status", ""))
         source_val = row.get("source", "").strip() or None
@@ -187,11 +192,11 @@ async def main():
                     INSERT INTO contacts (
                         email, first_name, last_name, company_name, job_title,
                         domain, location, linkedin_url, status, source, source_id,
-                        notes, project_id, company_id, created_at, updated_at
+                        notes, project_id, company_id, is_active, created_at, updated_at
                     ) VALUES (
                         :email, :first_name, :last_name, :company_name, :job_title,
                         :domain, :location, :linkedin_url, :status, :source, :source_id,
-                        :notes, :project_id, :company_id, NOW(), NOW()
+                        :notes, :project_id, :company_id, true, NOW(), NOW()
                     )
                 """),
                 c
