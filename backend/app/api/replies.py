@@ -2026,6 +2026,33 @@ async def get_reply_full_history(
             if ts and (not campaign_map[key]["earliest_at"] or ts < campaign_map[key]["earliest_at"]):
                 campaign_map[key]["earliest_at"] = ts
 
+    # 2b. Enrich with ALL campaigns from contact's platform_state
+    # This shows campaigns the lead was engaged with, even without replies
+    contact_for_campaigns = None
+    contact_result_early = await session.execute(
+        select(Contact).where(
+            and_(func.lower(Contact.email) == reply.lead_email.lower(), Contact.deleted_at.is_(None))
+        )
+    )
+    contact_for_campaigns = contact_result_early.scalar_one_or_none()
+    if contact_for_campaigns and contact_for_campaigns.platform_state:
+        for source_key, ch in [("smartlead", "email"), ("getsales", "linkedin")]:
+            platform_data = (contact_for_campaigns.platform_state or {}).get(source_key, {}) or {}
+            for camp in platform_data.get("campaigns", []):
+                cname = camp.get("name", "")
+                if not cname or len(cname) < 5:
+                    continue
+                key = f"{ch}::{cname}"
+                if key not in campaign_map:
+                    campaign_map[key] = {
+                        "campaign_name": cname,
+                        "channel": ch,
+                        "message_count": 0,
+                        "latest_at": "",
+                        "earliest_at": "",
+                        "reply_id": None,
+                    }
+
     # Pin the reply's own campaign first, then sort rest by recency
     reply_campaign_key = f"{reply.channel or 'email'}::{reply.campaign_name or ''}"
     campaigns_sorted = sorted(
@@ -2074,13 +2101,7 @@ async def get_reply_full_history(
             })
 
     # 4. LinkedIn activities (if getsales contact)
-    contact = None
-    contact_result = await session.execute(
-        select(Contact).where(
-            and_(func.lower(Contact.email) == reply.lead_email.lower(), Contact.deleted_at.is_(None))
-        )
-    )
-    contact = contact_result.scalar_one_or_none()
+    contact = contact_for_campaigns  # reuse from step 2b
 
     if contact:
         # On-demand fetch: if no outbound activities exist, pull conversation from GetSales API
