@@ -321,6 +321,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   useEffect(() => {
     if (isDeepLink) return;
     let cancelled = false;
+    // Reset baseline so a timing/project change doesn't produce a false "N new replies" banner
+    allTotalRef.current = -1;
+    setNewCount(0);
 
     const fetchCounts = async () => {
       try {
