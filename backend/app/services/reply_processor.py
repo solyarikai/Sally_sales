@@ -975,6 +975,8 @@ async def _fetch_and_cache_thread(
         history_entries = parse_history_response(resp.json())
         if not history_entries:
             logger.info(f"[THREAD_CACHE] Empty history for reply {reply.id}")
+            # Mark as fetched so we don't re-hit the API on every click
+            reply.thread_fetched_at = datetime.utcnow()
             return False
 
         # --- Replace cached messages (idempotent) ---

@@ -2004,8 +2004,11 @@ async def get_reply_full_history(
     all_replies = all_replies_result.scalars().all()
 
     # 2. Build campaign summary from ProcessedReply records (pure DB, instant)
+    #    Skip ghost records with no content (old imports with no reply text)
     campaign_map: dict[str, dict] = {}
     for r in all_replies:
+        if not r.reply_text and not r.email_body:
+            continue
         cname = r.campaign_name or f"Campaign {r.campaign_id}"
         ch = r.channel or ("linkedin" if r.source == "getsales" else "email")
         key = f"{ch}::{cname}"
@@ -2196,9 +2199,8 @@ async def get_campaign_thread(
     # Fetch thread if never cached
     if target_reply.thread_fetched_at is None and target_reply.campaign_id and (not target_reply.source or target_reply.source == "smartlead"):
         try:
-            ok = await _fetch_and_cache_thread(target_reply, session)
-            if ok:
-                await session.commit()
+            await _fetch_and_cache_thread(target_reply, session)
+            await session.commit()
         except Exception as e:
             logger.warning(f"campaign-thread: fetch failed for {campaign_name}: {e}")
             await session.rollback()
