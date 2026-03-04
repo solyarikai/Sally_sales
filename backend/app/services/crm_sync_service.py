@@ -270,7 +270,7 @@ for _uuid, _name in GETSALES_FLOW_NAMES.items():
 
 
 def _is_valid_campaign_name(name: str) -> bool:
-    """Reject placeholders, timestamps, and export automation names."""
+    """Reject placeholders, timestamps, short flow codes, and export automation names."""
     import re
     if not name or name == "Unknown":
         return False
@@ -279,6 +279,9 @@ def _is_valid_campaign_name(name: str) -> bool:
     if re.match(r'^\d{1,2} \w{3,9} \d{4}', name):
         return False
     if re.match(r'^\d{4}-\d{2}-\d{2}', name):
+        return False
+    # Reject short uppercase flow codes like "KYD3", "ABC1" (GetSales internal codes)
+    if re.match(r'^[A-Z0-9]{2,8}$', name):
         return False
     return True
 
