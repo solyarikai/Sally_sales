@@ -1653,6 +1653,67 @@ async def process_reply_webhook(
         raise
 
 
+async def _fetch_getsales_thread(
+    session: AsyncSession,
+    reply: ProcessedReply,
+    conversation_uuid: str,
+    sender_profile_uuid: str,
+) -> bool:
+    """Fetch GetSales LinkedIn conversation and store as ThreadMessage rows.
+
+    Non-fatal: any failure is logged as a warning and returns False.
+    """
+    import os
+    from app.services.crm_sync_service import GetSalesClient
+    from sqlalchemy import delete as sa_delete
+
+    api_key = os.getenv("GETSALES_API_KEY", "")
+    if not api_key:
+        logger.warning("[GETSALES_THREAD] No GETSALES_API_KEY set, skipping thread fetch")
+        return False
+    client = GetSalesClient(api_key)
+    try:
+        messages = await client.get_conversation_messages(conversation_uuid)
+    finally:
+        await client.close()
+
+    if not messages:
+        logger.info(f"[GETSALES_THREAD] No messages for conversation {conversation_uuid[:8]}")
+        return False
+
+    # Clear existing thread messages for this reply
+    await session.execute(sa_delete(ThreadMessage).where(ThreadMessage.reply_id == reply.id))
+
+    for idx, msg in enumerate(messages):
+        msg_type = msg.get("type", "")
+        direction = "outbound" if msg_type == "outbox" else "inbound"
+        body = msg.get("text") or msg.get("message") or ""
+        activity_at_str = msg.get("sent_at") or msg.get("created_at")
+        activity_at = None
+        if activity_at_str:
+            try:
+                from dateutil.parser import parse as dt_parse
+                activity_at = dt_parse(activity_at_str)
+            except Exception:
+                pass
+
+        session.add(ThreadMessage(
+            reply_id=reply.id,
+            direction=direction,
+            channel="linkedin",
+            subject=None,
+            body=body,
+            activity_at=activity_at,
+            source="getsales",
+            activity_type="linkedin_sent" if direction == "outbound" else "linkedin_replied",
+            position=idx,
+        ))
+
+    reply.thread_fetched_at = datetime.utcnow()
+    logger.info(f"[GETSALES_THREAD] Stored {len(messages)} messages for reply {reply.id}")
+    return True
+
+
 async def process_getsales_reply(
     message_text: str,
     contact: "Contact",
@@ -1882,6 +1943,14 @@ async def process_getsales_reply(
             return None
         raise
     logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email} (hash={message_hash[:8]})")
+
+    # --- Fetch LinkedIn conversation thread and store as ThreadMessage rows ---
+    conv_uuid = raw_data.get("linkedin_conversation_uuid")
+    if conv_uuid and sender_profile_uuid:
+        try:
+            await _fetch_getsales_thread(session, processed_reply, conv_uuid, sender_profile_uuid)
+        except Exception as thread_err:
+            logger.warning(f"[GETSALES] Thread fetch failed (non-fatal): {thread_err}")
 
     # NOTE: Telegram notification is NOT sent here — callers must send it
     # AFTER session.commit() succeeds, to avoid ghost notifications on rollback.
