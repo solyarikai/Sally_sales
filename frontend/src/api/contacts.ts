@@ -26,6 +26,9 @@ export interface Contact {
   last_reply_at?: string;
   has_replied?: boolean;       // computed by backend from last_reply_at
   needs_followup?: boolean;
+  // Reply classification (enriched from ProcessedReply)
+  latest_reply_category?: string;
+  latest_reply_confidence?: string;
   // Canonical data
   provenance?: Record<string, any>;
   platform_state?: Record<string, any>;
@@ -256,6 +259,7 @@ export interface ContactFilters {
   created_before?: string;
   domain?: string;
   suitable_for?: string;
+  reply_category?: string;
 }
 
 export interface GenerateReplyResponse {

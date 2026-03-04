@@ -6,6 +6,7 @@ export { DateColumnFilter } from './DateColumnFilter';
 export { SegmentColumnFilter } from './SegmentColumnFilter';
 export { SourceColumnFilter } from './SourceColumnFilter';
 export { RepliedColumnFilter } from './RepliedColumnFilter';
+export { ReplyCategoryColumnFilter } from './ReplyCategoryColumnFilter';
 export { GeoColumnFilter } from './GeoColumnFilter';
 export { PipelineFilterContext, usePipelineFilter } from './PipelineFilterContext';
 export type { PipelineFilterState } from './PipelineFilterContext';

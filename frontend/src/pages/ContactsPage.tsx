@@ -27,7 +27,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
-import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter, SegmentColumnFilter, SourceColumnFilter, RepliedColumnFilter, GeoColumnFilter } from '../components/filters';
+import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter, SegmentColumnFilter, SourceColumnFilter, RepliedColumnFilter, GeoColumnFilter, ReplyCategoryColumnFilter } from '../components/filters';
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -43,6 +43,17 @@ const STATUS_CONFIG: Record<string, { dot: string; label: string; colors: string
   qualified:         { dot: 'bg-emerald-500', label: 'Qualified',       colors: 'bg-emerald-100 text-emerald-700' },
   customer:          { dot: 'bg-emerald-600', label: 'Customer',        colors: 'bg-emerald-100 text-emerald-700' },
   lost:              { dot: 'bg-red-500',     label: 'Lost',            colors: 'bg-red-100 text-red-600' },
+};
+
+const REPLY_CATEGORY_CONFIG: Record<string, { dot: string; label: string; colors: string }> = {
+  meeting_request:  { dot: 'bg-green-500',   label: 'Meeting',        colors: 'bg-green-100 text-green-700' },
+  interested:       { dot: 'bg-blue-500',    label: 'Interested',     colors: 'bg-blue-100 text-blue-700' },
+  question:         { dot: 'bg-indigo-500',  label: 'Question',       colors: 'bg-indigo-100 text-indigo-700' },
+  not_interested:   { dot: 'bg-gray-400',    label: 'Not Interested', colors: 'bg-gray-100 text-gray-600' },
+  out_of_office:    { dot: 'bg-yellow-400',  label: 'OOO',            colors: 'bg-yellow-100 text-yellow-700' },
+  wrong_person:     { dot: 'bg-red-400',     label: 'Wrong Person',   colors: 'bg-red-100 text-red-600' },
+  unsubscribe:      { dot: 'bg-orange-400',  label: 'Unsubscribe',    colors: 'bg-orange-100 text-orange-700' },
+  other:            { dot: 'bg-purple-400',  label: 'Other',          colors: 'bg-purple-100 text-purple-600' },
 };
 
 export function ContactsPage() {
@@ -87,6 +98,9 @@ export function ContactsPage() {
   const [createdBefore, setCreatedBefore] = useState<string | null>(searchParams.get('before'));
   const [domainFilter, setDomainFilter] = useState<string | null>(searchParams.get('domain'));
   const [suitableForFilter, setSuitableForFilter] = useState<string | null>(searchParams.get('suitable_for'));
+  const [replyCategoryFilters, setReplyCategoryFilters] = useState<string[]>(
+    searchParams.get('reply_category')?.split(',').filter(Boolean) || []
+  );
 
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -169,6 +183,7 @@ export function ContactsPage() {
       before: createdBefore,
       domain: domainFilter,
       suitable_for: suitableForFilter,
+      reply_category: replyCategoryFilters.length ? replyCategoryFilters.join(',') : null,
     };
     for (const [key, value] of Object.entries(managed)) {
       if (value) {
@@ -182,7 +197,7 @@ export function ContactsPage() {
     if (existingContactId) params.set('contact_id', existingContactId);
 
     setSearchParams(params, { replace: true });
-  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter]);
+  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters]);
 
   // Close dropdowns on click outside
   useEffect(() => {
@@ -248,6 +263,10 @@ export function ContactsPage() {
     setSegmentFilters(prev => prev.includes(segment) ? prev.filter(s => s !== segment) : [...prev, segment]);
     setPage(1);
   }, []);
+  const toggleReplyCategory = useCallback((cat: string) => {
+    setReplyCategoryFilters(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+    setPage(1);
+  }, []);
 
   // Load data
   const loadContacts = useCallback(async () => {
@@ -272,6 +291,7 @@ export function ContactsPage() {
         created_before: createdBefore || undefined,
         domain: domainFilter || undefined,
         suitable_for: suitableForFilter || undefined,
+        reply_category: replyCategoryFilters.length > 0 ? replyCategoryFilters.join(',') : undefined,
       });
 
       setContacts(response.contacts);
@@ -282,7 +302,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -431,6 +451,22 @@ export function ContactsPage() {
         if (params.value === 'Follow-up') return <span className="text-xs font-medium text-orange-500">Follow-up</span>;
         if (params.value === 'Replied') return <span className="text-xs font-medium text-green-600">Replied</span>;
         return <span className="text-xs text-gray-400">—</span>;
+      },
+    },
+    {
+      field: 'latest_reply_category',
+      headerName: 'Reply Type',
+      width: 130,
+      sortable: false,
+      filter: ReplyCategoryColumnFilter,
+      cellRenderer: (params: { value: string }) => {
+        const cfg = REPLY_CATEGORY_CONFIG[params.value];
+        return cfg ? (
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.colors}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+            {cfg.label}
+          </span>
+        ) : <span className="text-xs text-gray-400">—</span>;
       },
     },
     {
@@ -614,9 +650,10 @@ export function ContactsPage() {
       if (createdAfter) filters.created_after = createdAfter;
       if (createdBefore) filters.created_before = createdBefore;
       if (suitableForFilter) filters.suitable_for = suitableForFilter;
+      if (replyCategoryFilters.length > 0) filters.reply_category = replyCategoryFilters.join(',');
     }
     return filters;
-  }, [selectedContacts, activeProject, campaignFilters, statusFilters, sourceFilter, segmentFilters, geoFilter, debouncedSearch, repliedFilter, createdAfter, createdBefore, suitableForFilter]);
+  }, [selectedContacts, activeProject, campaignFilters, statusFilters, sourceFilter, segmentFilters, geoFilter, debouncedSearch, repliedFilter, createdAfter, createdBefore, suitableForFilter, replyCategoryFilters]);
 
   // Export states
   const [isExportingSheet, setIsExportingSheet] = useState(false);
@@ -703,6 +740,7 @@ export function ContactsPage() {
     setCreatedBefore(null);
     setDomainFilter(null);
     setSuitableForFilter(null);
+    setReplyCategoryFilters([]);
     setSearch('');
     setReplyMode(false);
     gridRef.current?.api?.setFilterModel(null);
@@ -755,6 +793,7 @@ export function ContactsPage() {
     createdAfter || createdBefore,
     domainFilter,
     suitableForFilter,
+    replyCategoryFilters.length > 0,
   ].filter(Boolean).length;
   const totalPages = Math.ceil(total / pageSize);
 
@@ -791,7 +830,10 @@ export function ContactsPage() {
     createdAfter,
     createdBefore,
     setDateRange,
-  }), [campaignFilters, toggleCampaign, campaignIdFilter, statusFilters, toggleStatus, segmentFilters, toggleSegment, geoFilter, sourceFilter, repliedFilter, followupFilter, campaigns, stats, filterOptions, resetPage, createdAfter, createdBefore, setDateRange]);
+    replyCategoryFilters,
+    setReplyCategoryFilters: (cats: string[]) => { setReplyCategoryFilters(cats); setPage(1); },
+    toggleReplyCategory,
+  }), [campaignFilters, toggleCampaign, campaignIdFilter, statusFilters, toggleStatus, segmentFilters, toggleSegment, geoFilter, sourceFilter, repliedFilter, followupFilter, campaigns, stats, filterOptions, resetPage, createdAfter, createdBefore, setDateRange, replyCategoryFilters, toggleReplyCategory]);
 
   return (
     <ContactsFilterContext.Provider value={filterCtx}>

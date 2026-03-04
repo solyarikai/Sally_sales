@@ -111,13 +111,25 @@ const CATEGORY_FILTERS = [
   { key: 'other', label: 'Other', countKey: 'other' },
 ] as const;
 
+const ARCHIVE_CATEGORY_FILTERS = [
+  { key: 'not_interested', label: 'Not Interested', countKey: 'not_interested' },
+  { key: 'out_of_office',  label: 'OOO',            countKey: 'out_of_office' },
+  { key: 'wrong_person',   label: 'Wrong Person',   countKey: 'wrong_person' },
+  { key: 'unsubscribe',    label: 'Unsubscribe',    countKey: 'unsubscribe' },
+] as const;
+
+const ARCHIVE_KEYS = new Set(ARCHIVE_CATEGORY_FILTERS.map(f => f.key));
+
 const TIMING_OPTIONS = [
   { value: '1w', label: '1 week' },
   { value: '1m', label: '1 month' },
   { value: 'all', label: 'All time' },
 ] as const;
 
-const VALID_CATEGORIES = new Set(CATEGORY_FILTERS.map(f => f.key).filter(Boolean) as string[]);
+const VALID_CATEGORIES = new Set([
+  ...CATEGORY_FILTERS.map(f => f.key).filter(Boolean) as string[],
+  ...ARCHIVE_CATEGORY_FILTERS.map(f => f.key),
+]);
 
 export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChange }: ReplyQueueProps) {
   const { currentProject } = useAppStore();
@@ -167,6 +179,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   // When opened via Telegram link (?lead=...), use server-side lead_email filter
   // and skip needs_reply/category/group_by_contact so the reply is always visible
   const isDeepLink = Boolean(initialSearch);
+
+  const [archiveCounts, setArchiveCounts] = useState<Record<string, number>>({});
+  const isArchiveMode = categoryFilter !== null && ARCHIVE_KEYS.has(categoryFilter);
 
   const [editingDrafts, setEditingDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
   const [sendingIds, setSendingIds] = useState<Set<number>>(new Set());
@@ -268,7 +283,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       const response = await repliesApi.getReplies({
         project_id: currentProject?.id,
         campaign_names: campaignNames,
-        needs_reply: isDeepLink ? undefined : true,
+        needs_reply: isDeepLink ? undefined : (isArchiveMode ? undefined : true),
         lead_email: isDeepLink ? initialSearch : undefined,
         category: isDeepLink ? undefined : ((categoryFilter as ReplyCategory) || undefined),
         group_by_contact: true,
@@ -346,6 +361,27 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     // Immediately establish baseline from /counts (same endpoint used for polling)
     fetchCounts();
     const interval = setInterval(fetchCounts, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [currentProject, campaignNames, isDeepLink, timingFilter]);
+
+  /* ---- Fetch archive counts (include_all) ---- */
+  useEffect(() => {
+    if (isDeepLink) return;
+    let cancelled = false;
+    const fetchArchiveCounts = async () => {
+      try {
+        const resp = await repliesApi.getReplyCounts({
+          project_id: currentProject?.id,
+          campaign_names: campaignNames,
+          received_since: timingFilter,
+          include_all: true,
+        });
+        if (cancelled) return;
+        setArchiveCounts(resp.category_counts || {});
+      } catch { /* silent */ }
+    };
+    fetchArchiveCounts();
+    const interval = setInterval(fetchArchiveCounts, 60_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [currentProject, campaignNames, isDeepLink, timingFilter]);
 
@@ -592,7 +628,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         {/* Category filter tabs with counts */}
         <div className="flex items-center gap-1">
           {CATEGORY_FILTERS.map(f => {
-            const active = categoryFilter === f.key;
+            const active = categoryFilter === f.key && !isArchiveMode;
             const count = getTabCount(f.countKey);
             return (
               <button
@@ -608,6 +644,30 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
               </button>
             );
           })}
+          {/* Archive tabs separator + tabs */}
+          {ARCHIVE_CATEGORY_FILTERS.some(f => (archiveCounts[f.countKey] || 0) > 0) && (
+            <>
+              <div className="w-px h-4 mx-1" style={{ background: t.cardBorder }} />
+              {ARCHIVE_CATEGORY_FILTERS.map(f => {
+                const count = archiveCounts[f.countKey] || 0;
+                if (count === 0) return null;
+                const active = categoryFilter === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    onClick={() => setCategoryFilter(f.key)}
+                    className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", active ? "font-medium" : "")}
+                    style={{
+                      background: active ? (isDark ? '#4a3333' : '#fef2f2') : 'transparent',
+                      color: active ? (isDark ? '#fca5a5' : '#b91c1c') : t.text5,
+                    }}
+                  >
+                    {f.label} {count}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
 
         <div className="flex-1" />

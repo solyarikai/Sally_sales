@@ -406,6 +406,7 @@ export async function getReplyCounts(params: {
   project_id?: number;
   campaign_names?: string;
   received_since?: string;
+  include_all?: boolean;
 }): Promise<{ total: number; category_counts: Record<string, number> }> {
   const response = await api.get('/replies/counts', { params });
   return response.data;

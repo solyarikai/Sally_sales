@@ -5,7 +5,7 @@ Simple flat table with filters - project, segment, status, source
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, String, text as sql_text
+from sqlalchemy import select, func, and_, or_, String, text as sql_text, desc
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
@@ -114,6 +114,9 @@ class ContactResponse(BaseModel):
     last_reply_at: Optional[datetime] = None
     has_replied: Optional[bool] = None
     needs_followup: Optional[bool] = None
+    # Reply classification (enriched from ProcessedReply)
+    latest_reply_category: Optional[str] = None
+    latest_reply_confidence: Optional[str] = None
     # Canonical data
     provenance: Optional[Dict[str, Any]] = None
     platform_state: Optional[Dict[str, Any]] = None
@@ -275,6 +278,7 @@ async def _build_filtered_query(
     search: Optional[str] = None,
     domain: Optional[str] = None,
     suitable_for: Optional[str] = None,
+    reply_category: Optional[str] = None,
 ):
     """Build a filtered Contact query. Shared by list, CSV export, and Google Sheet export."""
     query = select(Contact).where(
@@ -434,6 +438,17 @@ async def _build_filtered_query(
                 Contact.job_title.ilike(search_term),
             )
         )
+    if reply_category:
+        from app.models.reply import ProcessedReply
+        cats = [c.strip() for c in reply_category.split(',') if c.strip()]
+        # Subquery: latest reply category per lead_email
+        latest_cat = (
+            select(ProcessedReply.lead_email)
+            .distinct(ProcessedReply.lead_email)
+            .where(ProcessedReply.category.in_(cats))
+            .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at))
+        ).subquery()
+        query = query.where(Contact.email.in_(select(latest_cat.c.lead_email)))
 
     return query
 
@@ -461,6 +476,7 @@ async def list_contacts(
     created_before: Optional[str] = Query(None, description="Filter contacts created before this date (ISO format, e.g. 2026-02-09)"),
     domain: Optional[str] = Query(None, description="Filter by domain(s), comma-separated"),
     suitable_for: Optional[str] = Query(None, description="Filter by suitable_for project name"),
+    reply_category: Optional[str] = Query(None, description="Filter by latest reply category (comma-separated)"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -471,7 +487,7 @@ async def list_contacts(
         has_replied=has_replied, has_smartlead=has_smartlead, has_getsales=has_getsales,
         campaign=campaign, campaign_id=campaign_id, needs_followup=needs_followup,
         created_after=created_after, created_before=created_before, search=search,
-        domain=domain, suitable_for=suitable_for,
+        domain=domain, suitable_for=suitable_for, reply_category=reply_category,
     )
     
     # Count total
@@ -504,12 +520,35 @@ async def list_contacts(
         for proj in proj_result.scalars().all():
             project_names[proj.id] = proj.name
     
+    # Enrich with latest reply category
+    contact_emails = [c.email for c in contacts if c.email]
+    reply_cat_map: dict[str, tuple[str | None, str | None]] = {}
+    if contact_emails:
+        from app.models.reply import ProcessedReply
+        latest_reply_sub = (
+            select(
+                ProcessedReply.lead_email,
+                ProcessedReply.category,
+                ProcessedReply.category_confidence,
+            )
+            .distinct(ProcessedReply.lead_email)
+            .where(ProcessedReply.lead_email.in_(contact_emails))
+            .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at))
+        ).subquery()
+        cat_result = await session.execute(select(latest_reply_sub))
+        for row in cat_result.all():
+            reply_cat_map[row[0]] = (row[1], row[2])
+
     # Build response
     contact_responses = []
     for contact in contacts:
         response = ContactResponse.model_validate(contact)
         if contact.project_id:
             response.project_name = project_names.get(contact.project_id)
+        cat_info = reply_cat_map.get(contact.email)
+        if cat_info:
+            response.latest_reply_category = cat_info[0]
+            response.latest_reply_confidence = cat_info[1]
         contact_responses.append(response)
     
     total_pages = (total + page_size - 1) // page_size

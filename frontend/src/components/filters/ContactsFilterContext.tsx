@@ -28,6 +28,9 @@ export interface ContactsFilterState {
   createdAfter: string | null;
   createdBefore: string | null;
   setDateRange: (after: string | null, before: string | null) => void;
+  replyCategoryFilters: string[];
+  setReplyCategoryFilters: (cats: string[]) => void;
+  toggleReplyCategory: (cat: string) => void;
 }
 
 export const ContactsFilterContext = createContext<ContactsFilterState | null>(null);

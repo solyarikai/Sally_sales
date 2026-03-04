@@ -1042,6 +1042,7 @@ async def get_reply_counts(
     project_id: Optional[int] = Query(None),
     campaign_names: Optional[str] = Query(None),
     received_since: Optional[str] = Query("1w", description="Time window: 1w, 1m, all"),
+    include_all: bool = Query(False, description="Include archive categories (OOO, wrong_person, etc.)"),
     session: AsyncSession = Depends(get_session)
 ):
     """Lightweight endpoint for polling: returns total + category counts only.
@@ -1049,8 +1050,9 @@ async def get_reply_counts(
     """
     base = []
     base.append(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
-    no_reply_cats = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
-    base.append(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))
+    if not include_all:
+        no_reply_cats = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
+        base.append(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))
     empty_bodies = ("(empty)", "(no content)", "no content", "empty", "")
     base.append(~func.coalesce(func.trim(func.lower(
         func.coalesce(ProcessedReply.email_body, ProcessedReply.reply_text)
