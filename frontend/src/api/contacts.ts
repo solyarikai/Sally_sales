@@ -240,6 +240,7 @@ export interface ContactFilters {
   created_after?: string;
   created_before?: string;
   domain?: string;
+  suitable_for?: string;
 }
 
 export interface GenerateReplyResponse {

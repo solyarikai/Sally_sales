@@ -88,6 +88,7 @@ export function ContactsPage() {
   const [createdAfter, setCreatedAfter] = useState<string | null>(searchParams.get('after'));
   const [createdBefore, setCreatedBefore] = useState<string | null>(searchParams.get('before'));
   const [domainFilter, setDomainFilter] = useState<string | null>(searchParams.get('domain'));
+  const [suitableForFilter, setSuitableForFilter] = useState<string | null>(searchParams.get('suitable_for'));
 
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -171,6 +172,7 @@ export function ContactsPage() {
       after: createdAfter,
       before: createdBefore,
       domain: domainFilter,
+      suitable_for: suitableForFilter,
     };
     for (const [key, value] of Object.entries(managed)) {
       if (value) {
@@ -184,7 +186,7 @@ export function ContactsPage() {
     if (existingContactId) params.set('contact_id', existingContactId);
 
     setSearchParams(params, { replace: true });
-  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter]);
+  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter]);
 
   // Close dropdowns on click outside
   useEffect(() => {
@@ -286,6 +288,7 @@ export function ContactsPage() {
         created_after: createdAfter || undefined,
         created_before: createdBefore || undefined,
         domain: domainFilter || undefined,
+        suitable_for: suitableForFilter || undefined,
       });
 
       setContacts(response.contacts);
@@ -296,7 +299,7 @@ export function ContactsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, toast]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, toast]);
 
   useEffect(() => {
     loadContacts();
@@ -602,9 +605,10 @@ export function ContactsPage() {
       if (repliedFilter !== null) filters.has_replied = repliedFilter;
       if (createdAfter) filters.created_after = createdAfter;
       if (createdBefore) filters.created_before = createdBefore;
+      if (suitableForFilter) filters.suitable_for = suitableForFilter;
     }
     return filters;
-  }, [selectedContacts, activeProject, campaignFilters, statusFilters, sourceFilter, segmentFilters, geoFilter, debouncedSearch, repliedFilter, createdAfter, createdBefore]);
+  }, [selectedContacts, activeProject, campaignFilters, statusFilters, sourceFilter, segmentFilters, geoFilter, debouncedSearch, repliedFilter, createdAfter, createdBefore, suitableForFilter]);
 
   // Export states
   const [isExportingSheet, setIsExportingSheet] = useState(false);
@@ -720,6 +724,7 @@ export function ContactsPage() {
     setCreatedAfter(null);
     setCreatedBefore(null);
     setDomainFilter(null);
+    setSuitableForFilter(null);
     setSearch('');
     setReplyMode(false);
     gridRef.current?.api?.setFilterModel(null);
@@ -778,7 +783,7 @@ export function ContactsPage() {
     return contacts.filter(c => !!c.last_reply_at && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
-  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilters.length > 0 || geoFilter || campaignFilters.length > 0 || campaignIdFilter || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode || domainFilter;
+  const hasActiveFilters = statusFilters.length > 0 || sourceFilter || segmentFilters.length > 0 || geoFilter || campaignFilters.length > 0 || campaignIdFilter || followupFilter !== null || repliedFilter !== null || createdAfter || createdBefore || search || replyMode || domainFilter || suitableForFilter;
   const totalPages = Math.ceil(total / pageSize);
 
   const setDateRange = useCallback((after: string | null, before: string | null) => {
@@ -1126,6 +1131,16 @@ export function ContactsPage() {
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-cyan-50 text-cyan-700 border border-cyan-200 shrink-0">
               domains: {domainFilter.split(',').length}
               <button onClick={() => { setDomainFilter(null); setPage(1); }} className="ml-0.5 hover:bg-cyan-100 rounded p-0.5">
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          )}
+
+          {/* Active suitable_for filter badge */}
+          {suitableForFilter && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+              suitable for: {suitableForFilter}
+              <button onClick={() => { setSuitableForFilter(null); setPage(1); }} className="ml-0.5 hover:bg-emerald-100 rounded p-0.5">
                 <X className="w-2.5 h-2.5" />
               </button>
             </span>
