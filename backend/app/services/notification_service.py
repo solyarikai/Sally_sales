@@ -699,33 +699,64 @@ async def _ensure_cache_fresh():
 
 
 async def _get_project_for_campaign(campaign_name: str):
-    """Find the project that owns a campaign. Uses in-memory cache.
+    """Find the project that owns a campaign.
 
-    Matching strategy:
+    CRITICAL: The returned project's name is used to build the Telegram
+    notification "Open in Replies UI" link as ?project=<name>.  If this
+    returns None the link has no project param and the UI shows nothing.
+
+    Matching strategy (in order):
       1. Exact match against campaign_filters
       2. Prefix match: campaign name starts with a project's known prefix
-         (e.g. "rizzult recommended 27 02" matches Rizzult project that has "Rizzult" campaigns)
+         — prefer LONGEST matching prefix to resolve "easystaff" vs "easystaff global"
+      3. DB fallback: look up campaign by name in campaigns table → project_id
     """
     await _ensure_cache_fresh()
 
     campaign_lower = campaign_name.lower()
 
-    # 1. Exact match
+    # 1. Exact match against campaign_filters
     for project_data in _project_cache["data"].values():
         filters = project_data.get("campaign_filters") or []
         for f in filters:
             if isinstance(f, str) and f.lower() == campaign_lower:
                 return project_data
 
-    # 2. Prefix match: campaign name starts with the project name
-    # Only use project name (not single first-word), to avoid ambiguity
-    # between projects that share a common brand prefix (e.g. "easystaff ru" vs "easystaff global")
+    # 2. Prefix match — pick the LONGEST matching project name
+    #    (e.g. "easystaff global" beats "easystaff" for "easystaff -canada_eu")
+    best_match = None
+    best_len = 0
     for project_data in _project_cache["data"].values():
         project_name = (project_data.get("name") or "").lower()
         if not project_name or len(project_name) < 4:
             continue
         if campaign_lower.startswith(project_name) or campaign_lower.startswith(project_name.replace(" ", "_")):
-            return project_data
+            if len(project_name) > best_len:
+                best_match = project_data
+                best_len = len(project_name)
+    if best_match:
+        return best_match
+
+    # 3. DB fallback: look up campaigns table for project_id
+    try:
+        from app.db import async_session_maker
+        from app.models.contact import Campaign
+        from sqlalchemy import select, func
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(Campaign.project_id).where(
+                    func.lower(Campaign.name) == campaign_lower,
+                    Campaign.project_id.isnot(None),
+                ).limit(1)
+            )
+            row = result.first()
+            if row and row[0]:
+                project_data = _project_cache["data"].get(row[0])
+                if project_data:
+                    logger.info(f"Campaign '{campaign_name}' resolved to project {row[0]} via DB fallback")
+                    return project_data
+    except Exception as e:
+        logger.debug(f"DB campaign lookup failed (non-fatal): {e}")
 
     return None
 
