@@ -103,8 +103,10 @@ export interface ReplyQueueProps {
   onCountsChange?: (categoryCounts: Record<string, number>, total: number) => void;
 }
 
-const CATEGORY_FILTERS = [
-  { key: null, label: 'All need reply', countKey: null },
+// "All" shows everything (no needs_reply filter). Actionable tabs use needs_reply=true.
+const ALL_TAB = { key: '__all__', label: 'All', countKey: '__all__' } as const;
+
+const ACTIONABLE_CATEGORY_FILTERS = [
   { key: 'meeting_request', label: 'Meetings', countKey: 'meeting_request' },
   { key: 'interested', label: 'Interested', countKey: 'interested' },
   { key: 'question', label: 'Questions', countKey: 'question' },
@@ -126,8 +128,9 @@ const TIMING_OPTIONS = [
   { value: 'all', label: 'All time' },
 ] as const;
 
-const VALID_CATEGORIES = new Set([
-  ...CATEGORY_FILTERS.map(f => f.key).filter(Boolean) as string[],
+const VALID_CATEGORIES = new Set<string>([
+  ALL_TAB.key,
+  ...ACTIONABLE_CATEGORY_FILTERS.map(f => f.key),
   ...ARCHIVE_CATEGORY_FILTERS.map(f => f.key),
 ]);
 
@@ -149,15 +152,15 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const [search, setSearch] = useState(initialSearch || '');
   // Read category from URL ?category=interested, default to meeting_request
   const urlCategory = searchParams.get('category');
-  const [categoryFilter, setCategoryFilterState] = useState<string | null>(
-    initialSearch ? null : (urlCategory && VALID_CATEGORIES.has(urlCategory) ? urlCategory : 'meeting_request')
+  const [categoryFilter, setCategoryFilterState] = useState(
+    initialSearch ? '__all__' : (urlCategory && VALID_CATEGORIES.has(urlCategory) ? urlCategory : 'meeting_request')
   );
   // Sync category to URL when it changes
-  const setCategoryFilter = useCallback((key: string | null) => {
+  const setCategoryFilter = useCallback((key: string) => {
     setCategoryFilterState(key);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
-      if (key) next.set('category', key);
+      if (key && key !== '__all__') next.set('category', key);
       else next.delete('category');
       return next;
     }, { replace: true });
@@ -180,8 +183,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   // and skip needs_reply/category/group_by_contact so the reply is always visible
   const isDeepLink = Boolean(initialSearch);
 
-  const [archiveCounts, setArchiveCounts] = useState<Record<string, number>>({});
-  const isArchiveMode = categoryFilter !== null && ARCHIVE_KEYS.has(categoryFilter);
+  const [allCounts, setAllCounts] = useState<Record<string, number>>({});
+  const isArchiveMode = ARCHIVE_KEYS.has(categoryFilter);
+  const isAllMode = categoryFilter === '__all__';
 
   const [editingDrafts, setEditingDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
   const [sendingIds, setSendingIds] = useState<Set<number>>(new Set());
@@ -280,12 +284,18 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     }
     try {
       const pg = reset ? 1 : pageRef.current;
+      // "All" tab: no needs_reply, no category filter — shows everything
+      // Archive tabs: no needs_reply, specific category filter
+      // Actionable tabs: needs_reply=true, specific category filter (or all actionable if none)
+      const useNeedsReply = isDeepLink ? undefined : (isAllMode || isArchiveMode ? undefined : true);
+      const useCategory = isDeepLink ? undefined :
+        (isAllMode ? undefined : (categoryFilter as ReplyCategory) || undefined);
       const response = await repliesApi.getReplies({
         project_id: currentProject?.id,
         campaign_names: campaignNames,
-        needs_reply: isDeepLink ? undefined : (isArchiveMode ? undefined : true),
+        needs_reply: useNeedsReply,
         lead_email: isDeepLink ? initialSearch : undefined,
-        category: isDeepLink ? undefined : ((categoryFilter as ReplyCategory) || undefined),
+        category: useCategory,
         group_by_contact: true,
         received_since: isDeepLink ? 'all' : timingFilter,
         page: pg,
@@ -298,10 +308,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         setReplies(prev => [...prev, ...newReplies]);
       }
       setTotal(response.total || 0);
-      // Only update normal tab counts from reply list when NOT in archive mode.
-      // Archive mode returns unfiltered counts that would corrupt needs_reply counts.
-      // Both count sets are maintained independently by their respective polls.
-      if (!isArchiveMode) {
+      // Actionable tab counts come from the reply list response (needs_reply=true context).
+      // All/archive modes have different filter contexts, so only update from actionable tabs.
+      if (!isArchiveMode && !isAllMode) {
         setCategoryCounts(response.category_counts || {});
       }
       setHasMore(newReplies.length >= PAGE_SIZE);
@@ -369,11 +378,11 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     return () => { cancelled = true; clearInterval(interval); };
   }, [currentProject, campaignNames, isDeepLink, timingFilter]);
 
-  /* ---- Fetch archive counts (include_all) ---- */
+  /* ---- Fetch all counts (include_all) — drives "All" tab total + archive tab counts ---- */
   useEffect(() => {
     if (isDeepLink) return;
     let cancelled = false;
-    const fetchArchiveCounts = async () => {
+    const fetchAllCounts = async () => {
       try {
         const resp = await repliesApi.getReplyCounts({
           project_id: currentProject?.id,
@@ -382,11 +391,11 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
           include_all: true,
         });
         if (cancelled) return;
-        setArchiveCounts(resp.category_counts || {});
+        setAllCounts(resp.category_counts || {});
       } catch { /* silent */ }
     };
-    fetchArchiveCounts();
-    const interval = setInterval(fetchArchiveCounts, 60_000);
+    fetchAllCounts();
+    const interval = setInterval(fetchAllCounts, 60_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [currentProject, campaignNames, isDeepLink, timingFilter]);
 
@@ -615,10 +624,12 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     );
   });
 
-  const getTabCount = (countKey: string | null): number => {
-    if (countKey === null) return Object.values(categoryCounts).reduce((a, b) => a + b, 0);
-    return categoryCounts[countKey] || 0;
-  };
+  // "All" tab count = sum of all categories from include_all endpoint
+  // Actionable tab counts come from needs_reply=true counts
+  // Archive tab counts come from include_all endpoint
+  const allTotal = Object.values(allCounts).reduce((a, b) => a + b, 0);
+  const getActionableCount = (countKey: string): number => categoryCounts[countKey] || 0;
+  const getArchiveCount = (countKey: string): number => allCounts[countKey] || 0;
 
   /* ==================================================================== */
   return (
@@ -630,15 +641,27 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         className="border-b px-5 py-2.5 flex items-center gap-3"
         style={{ background: t.headerBg, borderColor: t.cardBorder }}
       >
-        {/* Category filter tabs with counts */}
+        {/* Category tabs: All | actionable tabs | separator | archive tabs */}
         <div className="flex items-center gap-1">
-          {CATEGORY_FILTERS.map(f => {
-            const active = categoryFilter === f.key && !isArchiveMode;
-            const count = getTabCount(f.countKey);
+          {/* "All" tab */}
+          <button
+            onClick={() => setCategoryFilter('__all__')}
+            className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", isAllMode ? "font-medium" : "")}
+            style={{
+              background: isAllMode ? t.btnPrimaryBg : 'transparent',
+              color: isAllMode ? t.btnPrimaryText : t.text4,
+            }}
+          >
+            All{allTotal > 0 ? ` ${allTotal}` : ''}
+          </button>
+          {/* Actionable category tabs (needs_reply) */}
+          {ACTIONABLE_CATEGORY_FILTERS.map(f => {
+            const active = categoryFilter === f.key;
+            const count = getActionableCount(f.countKey);
             return (
               <button
-                key={f.key ?? 'all'}
-                onClick={() => setCategoryFilter(f.key as string | null)}
+                key={f.key}
+                onClick={() => setCategoryFilter(f.key)}
                 className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", active ? "font-medium" : "")}
                 style={{
                   background: active ? t.btnPrimaryBg : 'transparent',
@@ -649,30 +672,25 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
               </button>
             );
           })}
-          {/* Archive tabs separator + tabs */}
-          {ARCHIVE_CATEGORY_FILTERS.some(f => (archiveCounts[f.countKey] || 0) > 0) && (
-            <>
-              <div className="w-px h-4 mx-1" style={{ background: t.cardBorder }} />
-              {ARCHIVE_CATEGORY_FILTERS.map(f => {
-                const count = archiveCounts[f.countKey] || 0;
-                if (count === 0) return null;
-                const active = categoryFilter === f.key;
-                return (
-                  <button
-                    key={f.key}
-                    onClick={() => setCategoryFilter(f.key)}
-                    className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", active ? "font-medium" : "")}
-                    style={{
-                      background: active ? (isDark ? '#4a3333' : '#fef2f2') : 'transparent',
-                      color: active ? (isDark ? '#fca5a5' : '#b91c1c') : t.text5,
-                    }}
-                  >
-                    {f.label} {count}
-                  </button>
-                );
-              })}
-            </>
-          )}
+          {/* Separator + archive tabs (always visible) */}
+          <div className="w-px h-4 mx-1" style={{ background: t.cardBorder }} />
+          {ARCHIVE_CATEGORY_FILTERS.map(f => {
+            const count = getArchiveCount(f.countKey);
+            const active = categoryFilter === f.key;
+            return (
+              <button
+                key={f.key}
+                onClick={() => setCategoryFilter(f.key)}
+                className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", active ? "font-medium" : "")}
+                style={{
+                  background: active ? (isDark ? '#4a3333' : '#fef2f2') : 'transparent',
+                  color: active ? (isDark ? '#fca5a5' : '#b91c1c') : t.text5,
+                }}
+              >
+                {f.label}{count > 0 ? ` ${count}` : ''}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex-1" />
