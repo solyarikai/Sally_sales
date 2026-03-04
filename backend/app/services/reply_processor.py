@@ -1301,117 +1301,52 @@ async def process_reply_webhook(
         # Determine received_at: use actual reply timestamp from source platform
         received_at = _parse_source_timestamp(payload) or datetime.utcnow()
 
-        # Check for existing ProcessedReply (same email + campaign).
-        # If the lead replied again after operator responded, UPDATE the record
-        # instead of creating a duplicate — keeps one row per (email, campaign)
-        # with the latest reply data, and re-surfaces it for operator attention.
-        from sqlalchemy import func as sa_func
-        existing_pr_result = await session.execute(
-            select(ProcessedReply).where(
-                and_(
-                    sa_func.lower(ProcessedReply.lead_email) == lead_email.lower(),
-                    ProcessedReply.campaign_id == campaign_id,
-                )
-            ).limit(1)
+        # Content-based dedup: hash the reply body to detect true duplicates
+        # (same webhook received twice, or webhook + polling for the same reply).
+        # Different replies from the same lead get their own records + notifications.
+        import hashlib
+        body_for_hash = (body or "").strip().lower()[:500]
+        message_hash = hashlib.md5(body_for_hash.encode()).hexdigest()
+
+        # Create new processed reply record (one per unique reply)
+        processed_reply = ProcessedReply(
+            automation_id=automation_id,
+            campaign_id=campaign_id,
+            campaign_name=campaign_name,
+            source="smartlead",
+            channel="email",
+            lead_email=lead_email,
+            lead_first_name=first_name,
+            lead_last_name=last_name,
+            lead_company=payload.get("company_name", ""),
+            email_subject=subject,
+            email_body=body,
+            reply_text=body,
+            received_at=received_at,
+            category=classification["category"],
+            category_confidence=classification["confidence"],
+            classification_reasoning=classification["reasoning"],
+            draft_reply=draft["body"],
+            draft_subject=draft["subject"],
+            draft_generated_at=datetime.utcnow(),
+            detected_language=detected_lang,
+            translated_body=translated_body,
+            translated_draft=translated_draft,
+            inbox_link=inbox_link,
+            raw_webhook_data=payload,
+            smartlead_lead_id=payload.get("sl_email_lead_id") or None,
+            message_hash=message_hash,
         )
-        existing_pr = existing_pr_result.scalar_one_or_none()
-
-        if existing_pr:
-            # Snapshot previous version before overwriting (prevents data loss)
-            prev = {
-                "email_body": existing_pr.email_body,
-                "email_subject": existing_pr.email_subject,
-                "category": existing_pr.category,
-                "draft_reply": existing_pr.draft_reply,
-                "draft_subject": existing_pr.draft_subject,
-                "approval_status": existing_pr.approval_status,
-                "received_at": existing_pr.received_at.isoformat() if existing_pr.received_at else None,
-                "updated_at": existing_pr.updated_at.isoformat() if existing_pr.updated_at else None,
-            }
-            old_raw = existing_pr.raw_webhook_data or {}
-            if not isinstance(old_raw, dict):
-                old_raw = {}
-            versions = old_raw.get("_previous_versions", [])
-            versions.append(prev)
-            # Keep last 10 versions max
-            if len(versions) > 10:
-                versions = versions[-10:]
-
-            # Update existing record with new reply data
-            if received_at > (existing_pr.received_at or datetime.min):
-                existing_pr.received_at = received_at
-            existing_pr.email_body = body
-            existing_pr.reply_text = body
-            existing_pr.email_subject = subject
-            existing_pr.category = classification["category"]
-            existing_pr.category_confidence = classification["confidence"]
-            existing_pr.classification_reasoning = classification["reasoning"]
-            existing_pr.draft_reply = draft["body"]
-            existing_pr.draft_subject = draft["subject"]
-            existing_pr.draft_generated_at = datetime.utcnow()
-            existing_pr.approval_status = None  # Re-surface for operator
-            existing_pr.detected_language = detected_lang
-            existing_pr.translated_body = translated_body
-            existing_pr.translated_draft = translated_draft
-            new_raw = dict(payload) if isinstance(payload, dict) else {}
-            new_raw["_previous_versions"] = versions
-            existing_pr.raw_webhook_data = new_raw
-            existing_pr.updated_at = datetime.utcnow()
-            existing_pr.source = existing_pr.source or "smartlead"
-            existing_pr.channel = existing_pr.channel or "email"
-            if campaign_name:
-                existing_pr.campaign_name = campaign_name
-            # Backfill / update smartlead_lead_id + invalidate thread cache
-            existing_pr.smartlead_lead_id = (
-                existing_pr.smartlead_lead_id
-                or payload.get("sl_email_lead_id")
-                or None
-            )
-            existing_pr.thread_fetched_at = None  # invalidate so thread is re-fetched
-            if inbox_link:
-                existing_pr.inbox_link = inbox_link
-            processed_reply = existing_pr
+        session.add(processed_reply)
+        try:
             await session.flush()
-            logger.info(f"[PROCESSOR] Updated existing ProcessedReply {existing_pr.id} for {lead_email} with new reply")
-        else:
-            # Create new processed reply record
-            processed_reply = ProcessedReply(
-                automation_id=automation_id,
-                campaign_id=campaign_id,
-                campaign_name=campaign_name,
-                source="smartlead",
-                channel="email",
-                lead_email=lead_email,
-                lead_first_name=first_name,
-                lead_last_name=last_name,
-                lead_company=payload.get("company_name", ""),
-                email_subject=subject,
-                email_body=body,
-                reply_text=body,  # Store reply text same as body
-                received_at=received_at,
-                category=classification["category"],
-                category_confidence=classification["confidence"],
-                classification_reasoning=classification["reasoning"],
-                draft_reply=draft["body"],
-                draft_subject=draft["subject"],
-                draft_generated_at=datetime.utcnow(),
-                detected_language=detected_lang,
-                translated_body=translated_body,
-                translated_draft=translated_draft,
-                inbox_link=inbox_link,  # Smartlead master inbox link
-                raw_webhook_data=payload,
-                smartlead_lead_id=payload.get("sl_email_lead_id") or None,
-            )
-            session.add(processed_reply)
-            try:
-                await session.flush()
-            except Exception as flush_err:
-                if "uq_processed_reply_email_campaign" in str(flush_err):
-                    logger.info(f"[PROCESSOR] Concurrent insert caught by unique constraint for {lead_email}, campaign {campaign_id}")
-                    await session.rollback()
-                    return None
-                raise
-            logger.info(f"[PROCESSOR] Created new ProcessedReply {processed_reply.id} for {lead_email}")
+        except Exception as flush_err:
+            if "uq_processed_reply_content" in str(flush_err):
+                logger.info(f"[PROCESSOR] Duplicate reply (same content hash) for {lead_email}, campaign {campaign_id} — skipping")
+                await session.rollback()
+                return None
+            raise
+        logger.info(f"[PROCESSOR] Created ProcessedReply {processed_reply.id} for {lead_email} (hash={message_hash[:8]})")
         
         # Create ContactActivity for conversation history
         try:
@@ -1743,45 +1678,10 @@ async def process_getsales_reply(
         logger.warning(f"[GETSALES] Skipping reply — contact {contact.id} has no email")
         return None
 
-    # --- Dedup: check for existing ProcessedReply ---
-    existing_pr = None
-    # Step 1: if we have a real automation UUID, try exact match
-    if flow_uuid:
-        exact_result = await session.execute(
-            select(ProcessedReply).where(
-                and_(
-                    ProcessedReply.source == "getsales",
-                    sa_func.lower(ProcessedReply.lead_email) == lead_email,
-                    ProcessedReply.campaign_id == flow_uuid,
-                )
-            ).limit(1)
-        )
-        existing_pr = exact_result.scalar_one_or_none()
-
-    # Step 2: broader match by lead_email only.
-    # Catches: polling without automation → webhook with automation, or vice versa.
-    if not existing_pr:
-        broader_result = await session.execute(
-            select(ProcessedReply).where(
-                and_(
-                    ProcessedReply.source == "getsales",
-                    sa_func.lower(ProcessedReply.lead_email) == lead_email,
-                )
-            ).order_by(ProcessedReply.created_at.desc()).limit(1)
-        )
-        existing_pr = broader_result.scalar_one_or_none()
-        if existing_pr:
-            logger.info(f"[GETSALES] Found existing reply {existing_pr.id} via broader match (campaign_id {existing_pr.campaign_id} != {flow_uuid})")
-
-    if existing_pr and existing_pr.received_at and activity_at and activity_at <= existing_pr.received_at:
-        # Still allow update if we have new campaign info for an unclassified record.
-        # Polling creates records with empty campaign_name; the webhook arrives later
-        # with the real automation but older activity_at (from linkedin_message.sent_at).
-        has_new_campaign_info = flow_name and (not existing_pr.campaign_name)
-        if not has_new_campaign_info:
-            logger.info(f"[GETSALES] Skipping older/duplicate reply for {lead_email} (existing received_at={existing_pr.received_at})")
-            return existing_pr
-        logger.info(f"[GETSALES] Allowing update for {lead_email}: existing has no campaign, webhook has '{flow_name}'")
+    # --- Content-based dedup via message_hash ---
+    import hashlib
+    body_for_hash = (message_text or "").strip().lower()[:500]
+    message_hash = hashlib.md5(body_for_hash.encode()).hexdigest()
 
     # --- Find project for sender identity + prompt template ---
     custom_reply_prompt = None
@@ -1945,70 +1845,43 @@ async def process_getsales_reply(
         if draft_lang.get("translation"):
             translated_draft = draft_lang["translation"]
 
-    # --- Create or update ProcessedReply ---
-    if existing_pr:
-        existing_pr.received_at = activity_at
-        existing_pr.email_body = message_text
-        existing_pr.reply_text = message_text
-        existing_pr.category = classification["category"]
-        existing_pr.category_confidence = classification["confidence"]
-        existing_pr.classification_reasoning = classification["reasoning"]
-        existing_pr.draft_reply = draft.get("body")
-        existing_pr.draft_subject = draft.get("subject")
-        existing_pr.draft_generated_at = datetime.utcnow()
-        existing_pr.detected_language = detected_lang
-        existing_pr.translated_body = translated_body
-        existing_pr.translated_draft = translated_draft
-        existing_pr.approval_status = None  # Re-surface for operator
-        existing_pr.raw_webhook_data = raw_data
-        existing_pr.updated_at = datetime.utcnow()
-        # Only overwrite campaign info if we have a real automation-derived flow_name.
-        # Empty flow_name means we couldn't determine the automation (e.g. "synced") —
-        # never overwrite a known campaign with empty/unknown values.
-        if flow_name:
-            existing_pr.campaign_name = flow_name
-            existing_pr.campaign_id = flow_uuid
-        if inbox_link:
-            existing_pr.inbox_link = inbox_link
-        processed_reply = existing_pr
+    # --- Create ProcessedReply (one per unique reply) ---
+    processed_reply = ProcessedReply(
+        source="getsales",
+        channel="linkedin",
+        campaign_id=flow_uuid,
+        campaign_name=flow_name,
+        lead_email=lead_email,
+        lead_first_name=contact.first_name,
+        lead_last_name=contact.last_name,
+        lead_company=contact.company_name,
+        email_subject="LinkedIn conversation",
+        email_body=message_text,
+        reply_text=message_text,
+        received_at=activity_at,
+        category=classification["category"],
+        category_confidence=classification["confidence"],
+        classification_reasoning=classification["reasoning"],
+        draft_reply=draft.get("body"),
+        draft_subject=draft.get("subject"),
+        draft_generated_at=datetime.utcnow(),
+        detected_language=detected_lang,
+        translated_body=translated_body,
+        translated_draft=translated_draft,
+        raw_webhook_data=raw_data,
+        inbox_link=inbox_link,
+        message_hash=message_hash,
+    )
+    session.add(processed_reply)
+    try:
         await session.flush()
-        logger.info(f"[GETSALES] Updated ProcessedReply {existing_pr.id} for {lead_email}")
-    else:
-        processed_reply = ProcessedReply(
-            source="getsales",
-            channel="linkedin",
-            campaign_id=flow_uuid,
-            campaign_name=flow_name,
-            lead_email=lead_email,
-            lead_first_name=contact.first_name,
-            lead_last_name=contact.last_name,
-            lead_company=contact.company_name,
-            email_subject="LinkedIn conversation",
-            email_body=message_text,
-            reply_text=message_text,
-            received_at=activity_at,
-            category=classification["category"],
-            category_confidence=classification["confidence"],
-            classification_reasoning=classification["reasoning"],
-            draft_reply=draft.get("body"),
-            draft_subject=draft.get("subject"),
-            draft_generated_at=datetime.utcnow(),
-            detected_language=detected_lang,
-            translated_body=translated_body,
-            translated_draft=translated_draft,
-            raw_webhook_data=raw_data,
-            inbox_link=inbox_link,
-        )
-        session.add(processed_reply)
-        try:
-            await session.flush()
-        except Exception as flush_err:
-            if "uq_processed_reply_email_campaign" in str(flush_err):
-                logger.info(f"[GETSALES] Concurrent insert caught by unique constraint for {lead_email}")
-                await session.rollback()
-                return None
-            raise
-        logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email}")
+    except Exception as flush_err:
+        if "uq_processed_reply_content" in str(flush_err):
+            logger.info(f"[GETSALES] Duplicate reply (same content hash) for {lead_email} — skipping")
+            await session.rollback()
+            return None
+        raise
+    logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email} (hash={message_hash[:8]})")
 
     # NOTE: Telegram notification is NOT sent here — callers must send it
     # AFTER session.commit() succeeds, to avoid ghost notifications on rollback.

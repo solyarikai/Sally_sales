@@ -149,6 +149,11 @@ class ProcessedReply(Base, TimestampMixin):
     smartlead_lead_id = Column(String(100), nullable=True, index=True)
     thread_fetched_at = Column(DateTime, nullable=True)
 
+    # Content-based dedup hash — MD5 of normalized reply body.
+    # Prevents duplicate ProcessedReply from concurrent webhook + polling
+    # while allowing multiple DIFFERENT replies from the same lead.
+    message_hash = Column(String(32), nullable=True, index=True)
+
     # Relationships
     automation = relationship("ReplyAutomation", back_populates="processed_replies")
     thread_messages = relationship(
@@ -159,13 +164,9 @@ class ProcessedReply(Base, TimestampMixin):
     )
 
     __table_args__ = (
-        # Unique per lead per campaign — prevents duplicate ProcessedReply
-        # from concurrent webhook + polling.
-        # For existing DBs run:
-        #   CREATE UNIQUE INDEX IF NOT EXISTS uq_processed_reply_email_campaign
-        #   ON processed_replies (LOWER(lead_email), campaign_id)
-        #   WHERE campaign_id IS NOT NULL;
-        Index('uq_processed_reply_email_campaign', 'lead_email', 'campaign_id', unique=True),
+        # Content-based dedup: same reply body from same lead in same campaign = duplicate.
+        # Different replies from the same lead get their own records + notifications.
+        Index('uq_processed_reply_content', 'lead_email', 'campaign_id', 'message_hash', unique=True),
     )
 
     def __repr__(self):
