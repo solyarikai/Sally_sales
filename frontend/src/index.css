@@ -476,3 +476,52 @@
 .ag-theme-alpine .ag-header-cell-filtered {
   background-color: rgba(79, 70, 229, 0.05);
 }
+
+/* Dark mode AG Grid — subtle, not garish */
+.ag-theme-alpine-dark {
+  --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --ag-font-size: 13px;
+  --ag-header-font-size: 12px;
+  --ag-header-font-weight: 600;
+  --ag-row-height: 44px;
+  --ag-header-height: 44px;
+  --ag-background-color: #1e1e1e;
+  --ag-header-background-color: #232323;
+  --ag-odd-row-background-color: #212121;
+  --ag-row-hover-color: #272727;
+  --ag-selected-row-background-color: #2a2a2e;
+  --ag-range-selection-background-color: #2a2a2e;
+  --ag-border-color: #2a2a2a;
+  --ag-header-column-separator-color: #2a2a2a;
+  --ag-cell-horizontal-padding: 12px;
+  --ag-foreground-color: #c8c8c8;
+  --ag-secondary-foreground-color: #777;
+}
+
+.ag-theme-alpine-dark .ag-header-cell-text {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #777;
+}
+
+.ag-theme-alpine-dark .ag-cell {
+  display: flex;
+  align-items: center;
+}
+
+.ag-theme-alpine-dark .ag-row {
+  border-bottom: 1px solid #252525;
+}
+
+.ag-theme-alpine-dark .ag-header {
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.ag-theme-alpine-dark .ag-header-cell-filtered .ag-header-cell-text {
+  color: #9ca3af;
+  font-weight: 700;
+}
+
+.ag-theme-alpine-dark .ag-header-cell-filtered {
+  background-color: rgba(255, 255, 255, 0.03);
+}

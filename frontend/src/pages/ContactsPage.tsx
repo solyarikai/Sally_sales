@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type {
@@ -19,10 +19,10 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Target, Mail, Loader2, Upload, AlertCircle, Check,
-  MessageSquare, ListTodo, Edit3, ChevronLeft, Linkedin, FileSpreadsheet,
+  Edit3, ChevronLeft, Linkedin, FileSpreadsheet,
   Sparkles, ChevronRight, ChevronDown, Users, FileText
 } from 'lucide-react';
-import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type OperatorTask } from '../api';
+import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
@@ -33,28 +33,28 @@ import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useAppStore } from '../store/appStore';
 
-// Status configuration — proper lead statuses (no "replied" — that's a flag, not a status)
-const STATUS_CONFIG: Record<string, { dot: string; label: string; colors: string }> = {
-  touched:           { dot: 'bg-blue-500',    label: 'Touched',         colors: 'bg-blue-100 text-blue-700' },
-  warm:              { dot: 'bg-amber-500',   label: 'Warm',            colors: 'bg-amber-100 text-amber-700' },
-  not_interested:    { dot: 'bg-gray-400',    label: 'Not Interested',  colors: 'bg-gray-100 text-gray-600' },
-  wrong_person:      { dot: 'bg-red-400',     label: 'Wrong Person',    colors: 'bg-red-100 text-red-600' },
-  out_of_office:     { dot: 'bg-yellow-400',  label: 'OOO',             colors: 'bg-yellow-100 text-yellow-700' },
-  other:             { dot: 'bg-purple-400',  label: 'Other',           colors: 'bg-purple-100 text-purple-600' },
-  qualified:         { dot: 'bg-emerald-500', label: 'Qualified',       colors: 'bg-emerald-100 text-emerald-700' },
-  customer:          { dot: 'bg-emerald-600', label: 'Customer',        colors: 'bg-emerald-100 text-emerald-700' },
-  lost:              { dot: 'bg-red-500',     label: 'Lost',            colors: 'bg-red-100 text-red-600' },
+// Status configuration — dot-only, theme-neutral
+const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
+  touched:        { dot: '#3b82f6', label: 'Touched' },
+  warm:           { dot: '#f59e0b', label: 'Warm' },
+  not_interested: { dot: '#9ca3af', label: 'Not Interested' },
+  wrong_person:   { dot: '#f87171', label: 'Wrong Person' },
+  out_of_office:  { dot: '#fbbf24', label: 'OOO' },
+  other:          { dot: '#a78bfa', label: 'Other' },
+  qualified:      { dot: '#10b981', label: 'Qualified' },
+  customer:       { dot: '#059669', label: 'Customer' },
+  lost:           { dot: '#ef4444', label: 'Lost' },
 };
 
-const REPLY_CATEGORY_CONFIG: Record<string, { dot: string; label: string; colors: string }> = {
-  meeting_request:  { dot: 'bg-green-500',   label: 'Meeting',        colors: 'bg-green-100 text-green-700' },
-  interested:       { dot: 'bg-blue-500',    label: 'Interested',     colors: 'bg-blue-100 text-blue-700' },
-  question:         { dot: 'bg-indigo-500',  label: 'Question',       colors: 'bg-indigo-100 text-indigo-700' },
-  not_interested:   { dot: 'bg-gray-400',    label: 'Not Interested', colors: 'bg-gray-100 text-gray-600' },
-  out_of_office:    { dot: 'bg-yellow-400',  label: 'OOO',            colors: 'bg-yellow-100 text-yellow-700' },
-  wrong_person:     { dot: 'bg-red-400',     label: 'Wrong Person',   colors: 'bg-red-100 text-red-600' },
-  unsubscribe:      { dot: 'bg-orange-400',  label: 'Unsubscribe',    colors: 'bg-orange-100 text-orange-700' },
-  other:            { dot: 'bg-purple-400',  label: 'Other',          colors: 'bg-purple-100 text-purple-600' },
+const REPLY_CATEGORY_CONFIG: Record<string, { dot: string; label: string }> = {
+  meeting_request: { dot: '#22c55e', label: 'Meeting' },
+  interested:      { dot: '#3b82f6', label: 'Interested' },
+  question:        { dot: '#6366f1', label: 'Question' },
+  not_interested:  { dot: '#9ca3af', label: 'Not Interested' },
+  out_of_office:   { dot: '#fbbf24', label: 'OOO' },
+  wrong_person:    { dot: '#f87171', label: 'Wrong Person' },
+  unsubscribe:     { dot: '#fb923c', label: 'Unsubscribe' },
+  other:           { dot: '#a78bfa', label: 'Other' },
 };
 
 export function ContactsPage() {
@@ -63,7 +63,6 @@ export function ContactsPage() {
   const gridRef = useRef<AgGridReact>(null);
   const [, setGridApi] = useState<GridApi | null>(null);
   const toast = useToast();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Data
@@ -121,16 +120,15 @@ export function ContactsPage() {
   const [replyContactIndex, setReplyContactIndex] = useState(0);
   const [processedContacts, setProcessedContacts] = useState<Set<number>>(new Set());
 
-  // Tasks
-  const [showTasksPanel, setShowTasksPanel] = useState(false);
-  const [tasks, setTasks] = useState<OperatorTask[]>([]);
-  const [tasksLoading, setTasksLoading] = useState(false);
+  // Tasks (kept for future use)
 
   // Pagination & Sorting
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Selection
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
@@ -232,20 +230,6 @@ export function ContactsPage() {
     });
   }, [activeProject]);
 
-  // Load tasks for active project
-  const loadTasks = useCallback(async () => {
-    if (!activeProject) return;
-    setTasksLoading(true);
-    try {
-      const data = await contactsApi.listTasks({ project_id: activeProject.id });
-      setTasks(data.tasks);
-    } catch (err) {
-      console.error('Failed to load tasks:', err);
-    } finally {
-      setTasksLoading(false);
-    }
-  }, [activeProject]);
-
   const resetPage = useCallback(() => setPage(1), []);
   const toggleCampaign = useCallback((name: string) => {
     setCampaignFilters(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
@@ -264,42 +248,67 @@ export function ContactsPage() {
     setPage(1);
   }, []);
 
-  // Load data
+  // Build filter params (shared between load and loadMore)
+  const buildFilterParams = useCallback(() => ({
+    page_size: pageSize,
+    sort_by: sortBy,
+    sort_order: sortOrder,
+    search: debouncedSearch || undefined,
+    status: statusFilters.length > 0 ? statusFilters.join(',') : undefined,
+    source: sourceFilter || undefined,
+    segment: segmentFilters.length > 0 ? segmentFilters.join(',') : undefined,
+    geo: geoFilter || undefined,
+    campaign: campaignFilters.length > 0 ? campaignFilters.join(',') : undefined,
+    campaign_id: campaignIdFilter || undefined,
+    has_replied: replyMode ? true : (repliedFilter ?? undefined),
+    needs_followup: followupFilter ?? undefined,
+    project_id: activeProject?.id,
+    created_after: createdAfter || undefined,
+    created_before: createdBefore || undefined,
+    domain: domainFilter || undefined,
+    suitable_for: suitableForFilter || undefined,
+    reply_category: replyCategoryFilters.length > 0 ? replyCategoryFilters.join(',') : undefined,
+  }), [pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters]);
+
+  // Load first page (resets list)
   const loadContacts = useCallback(async () => {
     setIsLoading(true);
+    setPage(1);
     try {
-      const response = await contactsApi.list({
-        page,
-        page_size: pageSize,
-        sort_by: sortBy,
-        sort_order: sortOrder,
-        search: debouncedSearch || undefined,
-        status: statusFilters.length > 0 ? statusFilters.join(',') : undefined,
-        source: sourceFilter || undefined,
-        segment: segmentFilters.length > 0 ? segmentFilters.join(',') : undefined,
-        geo: geoFilter || undefined,
-        campaign: campaignFilters.length > 0 ? campaignFilters.join(',') : undefined,
-        campaign_id: campaignIdFilter || undefined,
-        has_replied: replyMode ? true : (repliedFilter ?? undefined),
-        needs_followup: followupFilter ?? undefined,
-        project_id: activeProject?.id,
-        created_after: createdAfter || undefined,
-        created_before: createdBefore || undefined,
-        domain: domainFilter || undefined,
-        suitable_for: suitableForFilter || undefined,
-        reply_category: replyCategoryFilters.length > 0 ? replyCategoryFilters.join(',') : undefined,
-      });
-
+      const response = await contactsApi.list({ ...buildFilterParams(), page: 1 });
       setContacts(response.contacts);
       setTotal(response.total);
+      setHasMore(response.contacts.length >= pageSize);
     } catch (err) {
       console.error('Failed to load contacts:', err);
       toast.error('Failed to load contacts', getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, toast]);
+  }, [buildFilterParams, pageSize, toast]);
 
+  // Load more (append to list)
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore) return;
+    setIsLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const response = await contactsApi.list({ ...buildFilterParams(), page: nextPage });
+      if (response.contacts.length > 0) {
+        setContacts(prev => [...prev, ...response.contacts]);
+        setPage(nextPage);
+        setHasMore(response.contacts.length >= pageSize);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error('Failed to load more:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, hasMore, page, buildFilterParams, pageSize]);
+
+  // Reload when filters/sort change
   useEffect(() => {
     loadContacts();
   }, [loadContacts]);
@@ -430,11 +439,11 @@ export function ContactsPage() {
       cellRenderer: (params: { value: string }) => {
         const cfg = STATUS_CONFIG[params.value];
         return cfg ? (
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.colors}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+          <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: isDark ? '#aaa' : '#555' }}>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.dot }} />
             {cfg.label}
           </span>
-        ) : <span className="text-xs text-gray-400">—</span>;
+        ) : <span className="text-xs" style={{ color: t.text6 }}>—</span>;
       },
     },
     {
@@ -449,9 +458,9 @@ export function ContactsPage() {
         return '';
       },
       cellRenderer: (params: { value: string }) => {
-        if (params.value === 'Follow-up') return <span className="text-xs font-medium text-orange-500">Follow-up</span>;
-        if (params.value === 'Replied') return <span className="text-xs font-medium text-green-600">Replied</span>;
-        return <span className="text-xs text-gray-400">—</span>;
+        if (params.value === 'Follow-up') return <span className="text-xs" style={{ color: isDark ? '#d97706' : '#d97706' }}>Follow-up</span>;
+        if (params.value === 'Replied') return <span className="text-xs" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>Replied</span>;
+        return <span className="text-xs" style={{ color: t.text6 }}>—</span>;
       },
     },
     {
@@ -463,11 +472,11 @@ export function ContactsPage() {
       cellRenderer: (params: { value: string }) => {
         const cfg = REPLY_CATEGORY_CONFIG[params.value];
         return cfg ? (
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.colors}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+          <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: isDark ? '#aaa' : '#555' }}>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.dot }} />
             {cfg.label}
           </span>
-        ) : <span className="text-xs text-gray-400">—</span>;
+        ) : <span className="text-xs" style={{ color: t.text6 }}>—</span>;
       },
     },
     {
@@ -604,7 +613,7 @@ export function ContactsPage() {
       width: 110,
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
-  ], []);
+  ], [isDark, t]);
 
   // Default column settings
   const defaultColDef = useMemo<ColDef>(() => ({
@@ -632,6 +641,19 @@ export function ContactsPage() {
       setSortOrder(sortModel.sort as 'asc' | 'desc');
     }
   }, []);
+
+  // Infinite scroll: load more when scrolled near bottom
+  const onBodyScrollEnd = useCallback(() => {
+    const grid = gridRef.current;
+    if (!grid || !hasMore || isLoadingMore) return;
+    const api = grid.api;
+    if (!api) return;
+    const lastRow = api.getLastDisplayedRowIndex();
+    const totalRows = contacts.length;
+    if (lastRow >= totalRows - 10) {
+      loadMore();
+    }
+  }, [hasMore, isLoadingMore, contacts.length, loadMore]);
 
   // Build current filter object for exports
   const buildExportFilters = useCallback(() => {
@@ -750,7 +772,6 @@ export function ContactsPage() {
   const selectProject = (project: Project | null) => {
     setActiveProject(project);
     setReplyMode(false);
-    setShowTasksPanel(false);
     setPage(1);
     if (project?.campaign_filters && project.campaign_filters.length > 0) {
       setCampaignFilters(project.campaign_filters);
@@ -781,7 +802,7 @@ export function ContactsPage() {
     return contacts.filter(c => !!c.last_reply_at && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
-  const totalPages = Math.ceil(total / pageSize);
+  // totalPages removed — using infinite scroll
 
   const setDateRange = useCallback((after: string | null, before: string | null) => {
     setCreatedAfter(after);
@@ -825,113 +846,73 @@ export function ContactsPage() {
   return (
     <ContactsFilterContext.Provider value={filterCtx}>
     <div className="h-full flex flex-col" style={{ background: t.pageBg }}>
-      {/* Command bar — single row */}
-      <div className="px-5 py-2.5" style={{ background: t.headerBg, borderBottom: `1px solid ${t.cardBorder}` }}>
-        <div className="flex items-center gap-2">
-          {/* Title / Project name + count */}
+      {/* Command bar — minimal */}
+      <div className="px-5 py-2" style={{ borderBottom: `1px solid ${isDark ? '#2a2a2a' : '#eee'}` }}>
+        <div className="flex items-center gap-2.5">
           {activeProject ? (
             <>
-              <button onClick={() => { selectProject(null); clearFilters(); }} className="p-1 rounded" style={{ color: t.text3 }} title="Back to all contacts">
+              <button onClick={() => { selectProject(null); clearFilters(); }} className="p-1 rounded-md transition-colors" style={{ color: t.text4 }} title="Back to all contacts">
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => { setEditingProject(!editingProject); setEditProjectName(activeProject.name); setEditCampaignFilters(activeProject.campaign_filters || []); setEditCampaignSearch(''); ensureCampaignsLoaded(); }}
-                className={cn(
-                  "text-base font-semibold flex items-center gap-1 shrink-0 transition-colors",
-                  editingProject ? "text-indigo-500" : "text-indigo-700 hover:text-indigo-900"
-                )}
+                className="text-sm font-medium flex items-center gap-1.5 shrink-0 transition-colors"
+                style={{ color: t.text1 }}
               >
                 {activeProject.name}
-                <Edit3 className="w-3 h-3 text-indigo-400" />
-              </button>
-              <button
-                onClick={() => navigate(`/projects/${activeProject.id}/knowledge`)}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all"
-                title="View knowledge base"
-              >
-                <Target className="w-3 h-3" />
-                Knowledge
+                <Edit3 className="w-3 h-3" style={{ color: t.text5 }} />
               </button>
             </>
           ) : (
-            <h1 className="text-base font-semibold shrink-0" style={{ color: t.text1 }}>CRM Contacts</h1>
+            <h1 className="text-sm font-medium shrink-0" style={{ color: t.text1 }}>Contacts</h1>
           )}
-          <span className="text-sm font-medium shrink-0" style={{ color: t.text4 }}>{formatNumber(total)}</span>
-
-          {/* Reply mode button (only inside a project) */}
-          {activeProject && (
-            <button
-              onClick={() => { setReplyMode(!replyMode); setPage(1); }}
-              className={cn(
-                "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
-                replyMode
-                  ? "bg-purple-500 text-white border-purple-500"
-                  : `text-purple-600 border-purple-200 hover:border-purple-400 ${isDark ? '' : 'bg-white'}`
-              )}
-            >
-              <MessageSquare className="w-3 h-3" />
-              Reply
-            </button>
-          )}
-
-          {/* Tasks button (only inside a project) */}
-          {activeProject && (
-            <button
-              onClick={() => { setShowTasksPanel(!showTasksPanel); if (!showTasksPanel) loadTasks(); }}
-              className={cn(
-                "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
-                showTasksPanel
-                  ? "bg-amber-500 text-white border-amber-500"
-                  : `text-amber-600 border-amber-200 hover:border-amber-400 ${isDark ? '' : 'bg-white'}`
-              )}
-            >
-              <ListTodo className="w-3 h-3" />
-              Tasks
-            </button>
-          )}
+          <span className="text-xs shrink-0 tabular-nums" style={{ color: t.text5 }}>{formatNumber(total)}</span>
 
           {/* Search */}
-          <div className="relative flex-1 max-w-xs ml-2">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: t.text4 }} />
+          <div className="relative flex-1 max-w-xs ml-auto">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: t.text5 }} />
             <input
               type="text"
-              placeholder="Search contacts..."
+              placeholder="Search..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
+              className="w-full pl-8 pr-3 py-1.5 rounded-md text-xs focus:outline-none focus:ring-1 transition-colors"
+              style={{ background: isDark ? '#2a2a2a' : '#f5f5f5', border: 'none', color: t.text1, boxShadow: 'none' }}
             />
           </div>
 
-          {/* Actions */}
-          <button onClick={handleRefresh} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }} title="Refresh">
-            <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-          </button>
-          <button onClick={() => setShowAddModal(true)} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }} title="Add Contact">
-            <Plus className="w-4 h-4" />
-          </button>
-          <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }} title="Import">
-            <Upload className="w-4 h-4" />
-          </button>
-          <button onClick={handleExportCsv} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }} title="Export CSV">
-            <Download className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleExportGoogleSheet}
-            disabled={isExportingSheet}
-            className="p-1.5 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50"
-            title="Export to Google Sheet"
-          >
-            {isExportingSheet
-              ? <Loader2 className="w-4 h-4 text-green-600 animate-spin" />
-              : <FileSpreadsheet className="w-4 h-4 text-green-600" />}
-          </button>
-          {selectedContacts.length > 0 && (
-            <button onClick={handleDeleteSelected} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-red-500" title="Delete Selected">
-              <Trash2 className="w-4 h-4" />
-              <span className="ml-0.5 text-xs">{selectedContacts.length}</span>
+          {/* Actions — icon-only */}
+          <div className="flex items-center gap-0.5">
+            <button onClick={handleRefresh} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Refresh">
+              <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
             </button>
-          )}
+            <button onClick={() => setShowAddModal(true)} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Add">
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Import">
+              <Upload className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={handleExportCsv} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Export CSV">
+              <Download className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleExportGoogleSheet}
+              disabled={isExportingSheet}
+              className="p-1.5 rounded-md transition-colors hover:opacity-70 disabled:opacity-30"
+              style={{ color: t.text4 }}
+              title="Export to Google Sheet"
+            >
+              {isExportingSheet
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <FileSpreadsheet className="w-3.5 h-3.5" />}
+            </button>
+            {selectedContacts.length > 0 && (
+              <button onClick={handleDeleteSelected} className="p-1.5 rounded-md transition-colors text-red-400 hover:text-red-300" title="Delete Selected">
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="ml-0.5 text-[10px]">{selectedContacts.length}</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1070,9 +1051,9 @@ export function ContactsPage() {
       })()}
 
       {/* AG Grid */}
-      <div className="flex-1 px-4 pt-2 pb-1">
+      <div className="flex-1 px-3 pt-1 pb-0">
         <SectionErrorBoundary>
-          <div className={`${isDark ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} h-full w-full rounded-xl overflow-hidden`} style={{ border: `1px solid ${t.cardBorder}` }}>
+          <div className={`${isDark ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} h-full w-full`}>
             <AgGridReact
               ref={gridRef}
               theme={AG_GRID_THEME}
@@ -1094,102 +1075,30 @@ export function ContactsPage() {
               onGridReady={onGridReady}
               onSelectionChanged={onSelectionChanged}
               onSortChanged={onSortChanged}
-              animateRows={true}
+              onBodyScrollEnd={onBodyScrollEnd}
+              animateRows={false}
               suppressCellFocus={true}
               enableCellTextSelection={true}
               getRowId={(params) => String(params.data.id)}
-              overlayLoadingTemplate='<span class="text-neutral-500">Loading contacts...</span>'
-              overlayNoRowsTemplate='<span class="text-neutral-500">No contacts found</span>'
+              overlayLoadingTemplate='<span style="color:#888;font-size:12px">Loading...</span>'
+              overlayNoRowsTemplate='<span style="color:#888;font-size:12px">No contacts</span>'
             />
           </div>
         </SectionErrorBoundary>
       </div>
 
-      {/* Tasks panel (slide-out below grid) */}
-      {showTasksPanel && activeProject && (
-        <div className="px-5 py-3 max-h-48 overflow-auto" style={{ background: t.cardBg, borderTop: `1px solid ${isDark ? '#78350f' : '#fde68a'}` }}>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-amber-700 flex items-center gap-1.5">
-              <ListTodo className="w-4 h-4" />
-              Tasks — {activeProject.name}
-            </h3>
-            <button onClick={() => setShowTasksPanel(false)} className="p-1 rounded" style={{ color: t.text4 }}><X className="w-3.5 h-3.5" /></button>
-          </div>
-          {tasksLoading ? (
-            <div className="text-xs py-2" style={{ color: t.text4 }}>Loading tasks...</div>
-          ) : tasks.length === 0 ? (
-            <div className="text-xs py-2" style={{ color: t.text4 }}>No tasks for this project</div>
-          ) : (
-            <div className="space-y-1">
-              {tasks.map(task => (
-                <div key={task.id} className={cn("flex items-center gap-3 px-3 py-2 rounded-lg text-xs", task.status === 'done' ? "bg-green-50 text-green-600" : task.status === 'skipped' ? "bg-gray-50 text-gray-400" : "bg-amber-50")}>
-                  <span className="flex-1 font-medium">{task.title}</span>
-                  <span className="text-neutral-400 shrink-0">{new Date(task.due_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                  {task.status === 'pending' && (
-                    <div className="flex gap-1">
-                      <button
-                        onClick={async () => { await contactsApi.updateTask(task.id, { status: 'done' }); loadTasks(); }}
-                        className="px-2 py-0.5 rounded bg-green-500 text-white hover:bg-green-600"
-                      >Done</button>
-                      <button
-                        onClick={async () => { await contactsApi.updateTask(task.id, { status: 'skipped' }); loadTasks(); }}
-                        className="px-2 py-0.5 rounded bg-gray-200 text-gray-600 hover:bg-gray-300"
-                      >Skip</button>
-                    </div>
-                  )}
-                  {task.status !== 'pending' && (
-                    <span className={cn("px-2 py-0.5 rounded text-[10px] font-medium", task.status === 'done' ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400")}>{task.status}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Infinite scroll status */}
+      {isLoadingMore && (
+        <div className="flex items-center justify-center py-1.5" style={{ color: t.text5 }}>
+          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+          <span className="text-[11px]">Loading more...</span>
         </div>
       )}
-
-      {/* Pagination — compact */}
-      <div className="px-5 py-2 flex items-center justify-between" style={{ background: t.headerBg, borderTop: `1px solid ${t.cardBorder}` }}>
-        <div className="text-xs" style={{ color: t.text3 }}>
-          {((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, total)} of {formatNumber(total)}
+      {!hasMore && contacts.length > 0 && (
+        <div className="text-center py-1" style={{ color: t.text6 }}>
+          <span className="text-[10px]">{formatNumber(contacts.length)} of {formatNumber(total)}</span>
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setPage(1)}
-            disabled={page === 1}
-            className="px-2 py-1 text-xs rounded disabled:opacity-40"
-            style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, color: t.text2 }}
-          >
-            First
-          </button>
-          <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="px-2 py-1 text-xs rounded disabled:opacity-40"
-            style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, color: t.text2 }}
-          >
-            Prev
-          </button>
-          <span className="text-xs px-2" style={{ color: t.text3 }}>
-            {page}/{totalPages || 1}
-          </span>
-          <button
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages || totalPages === 0}
-            className="px-2 py-1 text-xs rounded disabled:opacity-40"
-            style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, color: t.text2 }}
-          >
-            Next
-          </button>
-          <button
-            onClick={() => setPage(totalPages)}
-            disabled={page === totalPages || totalPages === 0}
-            className="px-2 py-1 text-xs rounded disabled:opacity-40"
-            style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, color: t.text2 }}
-          >
-            Last
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Add Contact Modal */}
       {showAddModal && (
