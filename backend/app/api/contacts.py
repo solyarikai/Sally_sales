@@ -3000,6 +3000,25 @@ async def get_contact_history(
             for a in email_activities
         ]
 
+    # Fetch inbox links from ProcessedReply for this contact's email
+    inbox_links = {}
+    if contact and contact.email:
+        from app.models.reply import ProcessedReply
+        inbox_result = await session.execute(
+            select(ProcessedReply.campaign_name, ProcessedReply.inbox_link)
+            .where(
+                and_(
+                    ProcessedReply.lead_email == contact.email,
+                    ProcessedReply.inbox_link.isnot(None),
+                )
+            )
+            .order_by(ProcessedReply.received_at.desc())
+        )
+        for row in inbox_result:
+            key = row.campaign_name or "Unknown"
+            if key not in inbox_links:
+                inbox_links[key] = row.inbox_link
+
     return {
         "contact_id": contact_id,
         "email_history": email_history,
@@ -3017,6 +3036,7 @@ async def get_contact_history(
             }
             for a in linkedin_activities
         ],
+        "inbox_links": inbox_links,
         "summary": {
             "total_activities": len(email_history) + len(linkedin_activities),
             "email_count": len(email_history),

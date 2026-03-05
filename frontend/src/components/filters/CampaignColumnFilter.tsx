@@ -20,9 +20,12 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 }
 
 export const CampaignColumnFilter = forwardRef((props: IFilterParams, ref) => {
-  const { campaignFilters, setCampaignFilters, toggleCampaign, campaigns, resetPage, campaignIdFilter, setCampaignIdFilter } = useContactsFilter();
+  const { campaignFilters, setCampaignFilters, toggleCampaign, campaigns, ensureCampaignsLoaded, resetPage, campaignIdFilter, setCampaignIdFilter } = useContactsFilter();
   const { isDark } = useTheme();
   const [query, setQuery] = useState('');
+
+  // Lazy-load campaigns on first filter open
+  useEffect(() => { ensureCampaignsLoaded(); }, []);
 
   useImperativeHandle(ref, () => ({
     isFilterActive: () => campaignFilters.length > 0 || !!campaignIdFilter,

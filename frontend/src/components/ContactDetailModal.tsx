@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles, ExternalLink, Link2 } from 'lucide-react';
+import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles, ExternalLink, Link2, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Contact } from '../api/contacts';
 import { contactsApi } from '../api/contacts';
@@ -219,7 +219,8 @@ export function ContactDetailModal({
   const { isDark } = useTheme();
   const t = modalTheme(isDark);
 
-  const [activeTab, setActiveTab] = useState<'details' | 'conversation' | 'sequence'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'conversation'>('details');
+  const [sequenceExpanded, setSequenceExpanded] = useState(false);
   const [sequencePlan, setSequencePlan] = useState<any>(null);
   const [sequenceLoading, setSequenceLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -233,6 +234,7 @@ export function ContactDetailModal({
   const [isAddingToProject, setIsAddingToProject] = useState(false);
   const [addedToProject, setAddedToProject] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+  const [inboxLinks, setInboxLinks] = useState<Record<string, string>>({});
 
   // Build campaigns list for CampaignDropdown
   const campaigns = useMemo(() => buildCampaignsFromActivities(activities), [activities]);
@@ -282,6 +284,7 @@ export function ContactDetailModal({
       setAiDraftBody('');
       setAiCategory('');
       setSelectedCampaign(null);
+      setInboxLinks({});
 
       // Fetch projects list
       const fetchProjects = async () => {
@@ -328,6 +331,7 @@ export function ContactDetailModal({
             ];
 
             setActivities(allActivities);
+            if (data.inbox_links) setInboxLinks(data.inbox_links);
             // Campaign pre-selection: prefer initialCampaignKey (from redirect), else most recent
             if (allActivities.length > 0) {
               const campaignMap = new Map<string, string>();
@@ -546,6 +550,20 @@ export function ContactDetailModal({
                   onSelect={setSelectedCampaign}
                   isDark={isDark}
                 />
+                {selectedCampaign && (() => {
+                  const campName = selectedCampaign.split('::')[1] || selectedCampaign;
+                  const link = inboxLinks[campName];
+                  if (!link) return null;
+                  const isGetSales = link.includes('getsales');
+                  return (
+                    <a href={link} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-colors ml-auto"
+                      style={{ color: t.text5 }} title={isGetSales ? 'Open in GetSales' : 'Open in SmartLead'}>
+                      <ExternalLink className="w-3 h-3" />
+                      {isGetSales ? 'GetSales' : 'SmartLead'}
+                    </a>
+                  );
+                })()}
               </div>
               )}
 
@@ -668,6 +686,13 @@ export function ContactDetailModal({
                 <ExternalLink className="w-3.5 h-3.5" /> SmartLead
               </a>
             )}
+            {contact.getsales_id && (
+              <a href={`https://amazing.getsales.io/messenger?contactId=${contact.getsales_id}`} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] transition-colors"
+                style={{ color: t.text5 }} title="Open in GetSales">
+                <Linkedin className="w-3.5 h-3.5" /> GetSales
+              </a>
+            )}
             <button
               onClick={handleShareLink}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] transition-colors cursor-pointer"
@@ -685,9 +710,9 @@ export function ContactDetailModal({
 
         {/* Tabs */}
         <div className="flex px-6" style={{ borderBottom: `1px solid ${t.border}` }}>
-          {(['details', 'conversation', 'sequence'] as const).map(tab => {
+          {(['details', 'conversation'] as const).map(tab => {
             const active = activeTab === tab;
-            const Icon = tab === 'details' ? User : tab === 'conversation' ? MessageSquare : SkipForward;
+            const Icon = tab === 'details' ? User : MessageSquare;
             const label = tab.charAt(0).toUpperCase() + tab.slice(1);
             return (
               <button key={tab} onClick={() => setActiveTab(tab)}
@@ -814,6 +839,78 @@ export function ContactDetailModal({
                     onSelect={setSelectedCampaign}
                     isDark={isDark}
                   />
+                  {selectedCampaign && (() => {
+                    const campName = selectedCampaign.split('::')[1] || selectedCampaign;
+                    const link = inboxLinks[campName];
+                    if (!link) return null;
+                    const isGetSales = link.includes('getsales');
+                    return (
+                      <a href={link} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-colors ml-auto"
+                        style={{ color: t.text5 }} title={isGetSales ? 'Open in GetSales' : 'Open in SmartLead'}>
+                        <ExternalLink className="w-3 h-3" />
+                        {isGetSales ? 'GetSales' : 'SmartLead'}
+                      </a>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Collapsible sequence plan section */}
+              {sequencePlan && sequencePlan.campaigns?.length > 0 && (
+                <div style={{ borderBottom: `1px solid ${t.divider}` }}>
+                  <button
+                    onClick={() => setSequenceExpanded(!sequenceExpanded)}
+                    className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium transition-colors cursor-pointer"
+                    style={{ color: t.text3 }}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <SkipForward className="w-3 h-3" />
+                      Sequence Plan
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: t.badgeBg, color: t.badgeText }}>
+                        {sequencePlan.campaigns.reduce((acc: number, c: any) => acc + (c.steps_sent || 0), 0)}/{sequencePlan.campaigns.reduce((acc: number, c: any) => acc + (c.total_steps || 0), 0)} steps
+                      </span>
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${sequenceExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  {sequenceExpanded && (
+                    <div className="px-4 pb-3 space-y-3">
+                      {sequencePlan.campaigns.map((camp: any) => (
+                        <div key={camp.campaign_id} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${t.border}` }}>
+                          <div className="px-3 py-2" style={{ background: t.divider, borderBottom: `1px solid ${t.border}` }}>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h4 className="font-medium text-xs" style={{ color: t.text1 }}>{camp.campaign_name || camp.campaign_id}</h4>
+                                <span className="text-[10px]" style={{ color: t.text4 }}>{camp.steps_sent}/{camp.total_steps} steps sent</span>
+                              </div>
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: t.badgeBg, color: t.badgeText }}>
+                                {camp.steps_sent === camp.total_steps ? 'Complete' : camp.steps_sent > 0 ? 'In Progress' : 'Queued'}
+                              </span>
+                            </div>
+                            <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: t.divider }}>
+                              <div className="h-full rounded-full transition-all" style={{ width: camp.total_steps > 0 ? `${(camp.steps_sent / camp.total_steps) * 100}%` : '0%', background: isDark ? '#d4d4d4' : '#3b82f6' }} />
+                            </div>
+                          </div>
+                          <div>
+                            {camp.steps.map((step: any, si: number) => (
+                              <div key={step.seq_number} className="px-3 py-2 flex items-start gap-2" style={{ borderTop: si > 0 ? `1px solid ${t.divider}` : undefined }}>
+                                <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-[10px] font-bold"
+                                  style={{ background: t.badgeBg, color: step.status === 'sent' ? (isDark ? '#6ee7b7' : '#16a34a') : t.badgeText }}>
+                                  {step.status === 'sent' ? <CheckIcon className="w-3 h-3" /> : step.seq_number}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-medium text-xs truncate" style={{ color: t.text1 }}>{step.subject || `Step ${step.seq_number}`}</span>
+                                    <span className="text-[9px] font-medium uppercase px-1 py-0.5 rounded flex-shrink-0" style={{ background: t.badgeBg, color: t.badgeText }}>{step.status}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -836,74 +933,21 @@ export function ContactDetailModal({
                 )}
               </div>
 
-              {/* Compose area */}
-              <ComposeArea
-                contact={contact}
-                replyChannel={replyChannel}
-                setReplyChannel={setReplyChannel}
-                draftReply={draftReply}
-                setDraftReply={setDraftReply}
-                savedDraft={savedDraft}
-                setSavedDraft={setSavedDraft}
-                isSaving={isSaving}
-                handleSaveDraft={handleSaveDraft}
-                isDark={isDark}
-                t={t}
-              />
-            </div>
-          )}
-
-          {activeTab === 'sequence' && (
-            <div className="flex-1 overflow-auto p-6">
-              {sequenceLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text5 }} />
-                </div>
-              ) : !sequencePlan || sequencePlan.campaigns?.length === 0 ? (
-                <div className="text-center py-12 text-sm" style={{ color: t.text5 }}>
-                  No sequence data available for this contact.
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {sequencePlan.campaigns.map((camp: any) => (
-                    <div key={camp.campaign_id} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${t.border}` }}>
-                      <div className="px-4 py-3" style={{ background: t.divider, borderBottom: `1px solid ${t.border}` }}>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium text-sm" style={{ color: t.text1 }}>{camp.campaign_name || camp.campaign_id}</h4>
-                            <span className="text-xs" style={{ color: t.text4 }}>{camp.steps_sent}/{camp.total_steps} steps sent</span>
-                          </div>
-                          <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: t.badgeBg, color: t.badgeText }}>
-                            {camp.steps_sent === camp.total_steps ? 'Complete' : camp.steps_sent > 0 ? 'In Progress' : 'Queued'}
-                          </span>
-                        </div>
-                        <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: t.divider }}>
-                          <div className="h-full rounded-full transition-all" style={{ width: camp.total_steps > 0 ? `${(camp.steps_sent / camp.total_steps) * 100}%` : '0%', background: isDark ? '#d4d4d4' : '#3b82f6' }} />
-                        </div>
-                      </div>
-                      <div>
-                        {camp.steps.map((step: any, si: number) => (
-                          <div key={step.seq_number} className="px-4 py-3 flex items-start gap-3" style={{ borderTop: si > 0 ? `1px solid ${t.divider}` : undefined }}>
-                            <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold"
-                              style={{ background: t.badgeBg, color: step.status === 'sent' ? (isDark ? '#6ee7b7' : '#16a34a') : t.badgeText }}>
-                              {step.status === 'sent' ? <CheckIcon className="w-3.5 h-3.5" /> : step.seq_number}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-sm truncate" style={{ color: t.text1 }}>{step.subject || `Step ${step.seq_number}`}</span>
-                                <span className="text-[10px] font-medium uppercase px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: t.badgeBg, color: t.badgeText }}>{step.status}</span>
-                              </div>
-                              {step.body_preview && <p className="text-xs mt-1 line-clamp-2" style={{ color: t.text4 }}>{step.body_preview}</p>}
-                            </div>
-                          </div>
-                        ))}
-                        {camp.steps.length === 0 && (
-                          <div className="px-4 py-6 text-center text-sm" style={{ color: t.text5 }}>No sequence steps found for this campaign.</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              {/* Compose area — only in reply mode */}
+              {replyMode && (
+                <ComposeArea
+                  contact={contact}
+                  replyChannel={replyChannel}
+                  setReplyChannel={setReplyChannel}
+                  draftReply={draftReply}
+                  setDraftReply={setDraftReply}
+                  savedDraft={savedDraft}
+                  setSavedDraft={setSavedDraft}
+                  isSaving={isSaving}
+                  handleSaveDraft={handleSaveDraft}
+                  isDark={isDark}
+                  t={t}
+                />
               )}
             </div>
           )}

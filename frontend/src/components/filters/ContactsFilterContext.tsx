@@ -22,6 +22,7 @@ export interface ContactsFilterState {
   followupFilter: boolean | null;
   setFollowupFilter: (v: boolean | null) => void;
   campaigns: Array<{ name: string; source: string }>;
+  ensureCampaignsLoaded: () => void;
   stats: ContactStats | null;
   filterOptions: FilterOptions | null;
   resetPage: () => void;

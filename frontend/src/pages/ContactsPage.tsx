@@ -345,9 +345,9 @@ export function ContactsPage() {
     loadStats();
     loadFilterOptions();
     loadProjects();
-    loadCampaigns();
   }, []);
 
+  const campaignsLoadedRef = useRef(false);
   const loadCampaigns = async () => {
     try {
       const response = await fetch('/api/contacts/campaigns');
@@ -359,6 +359,11 @@ export function ContactsPage() {
       console.error('Failed to load campaigns:', err);
     }
   };
+  const ensureCampaignsLoaded = useCallback(() => {
+    if (campaignsLoadedRef.current) return;
+    campaignsLoadedRef.current = true;
+    loadCampaigns();
+  }, []);
 
   const loadStats = async () => {
     try {
@@ -743,7 +748,6 @@ export function ContactsPage() {
     setReplyCategoryFilters([]);
     setSearch('');
     setReplyMode(false);
-    gridRef.current?.api?.setFilterModel(null);
   };
 
   // Select a project
@@ -782,19 +786,6 @@ export function ContactsPage() {
     return contacts.filter(c => !!c.last_reply_at && !processedContacts.has(c.id));
   }, [contacts, replyMode, processedContacts]);
 
-  const activeFilterCount = [
-    statusFilters.length > 0,
-    sourceFilter,
-    segmentFilters.length > 0,
-    geoFilter,
-    campaignFilters.length > 0 || !!campaignIdFilter,
-    followupFilter !== null,
-    repliedFilter !== null,
-    createdAfter || createdBefore,
-    domainFilter,
-    suitableForFilter,
-    replyCategoryFilters.length > 0,
-  ].filter(Boolean).length;
   const totalPages = Math.ceil(total / pageSize);
 
   const setDateRange = useCallback((after: string | null, before: string | null) => {
@@ -824,6 +815,7 @@ export function ContactsPage() {
     followupFilter,
     setFollowupFilter: (v: boolean | null) => { setFollowupFilter(v); setPage(1); },
     campaigns,
+    ensureCampaignsLoaded,
     stats,
     filterOptions,
     resetPage,
@@ -833,7 +825,7 @@ export function ContactsPage() {
     replyCategoryFilters,
     setReplyCategoryFilters: (cats: string[]) => { setReplyCategoryFilters(cats); setPage(1); },
     toggleReplyCategory,
-  }), [campaignFilters, toggleCampaign, campaignIdFilter, statusFilters, toggleStatus, segmentFilters, toggleSegment, geoFilter, sourceFilter, repliedFilter, followupFilter, campaigns, stats, filterOptions, resetPage, createdAfter, createdBefore, setDateRange, replyCategoryFilters, toggleReplyCategory]);
+  }), [campaignFilters, toggleCampaign, campaignIdFilter, statusFilters, toggleStatus, segmentFilters, toggleSegment, geoFilter, sourceFilter, repliedFilter, followupFilter, campaigns, ensureCampaignsLoaded, stats, filterOptions, resetPage, createdAfter, createdBefore, setDateRange, replyCategoryFilters, toggleReplyCategory]);
 
   return (
     <ContactsFilterContext.Provider value={filterCtx}>
@@ -848,7 +840,7 @@ export function ContactsPage() {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
-                onClick={() => { setEditingProject(!editingProject); setEditProjectName(activeProject.name); setEditCampaignFilters(activeProject.campaign_filters || []); setEditCampaignSearch(''); }}
+                onClick={() => { setEditingProject(!editingProject); setEditProjectName(activeProject.name); setEditCampaignFilters(activeProject.campaign_filters || []); setEditCampaignSearch(''); ensureCampaignsLoaded(); }}
                 className={cn(
                   "text-base font-semibold flex items-center gap-1 shrink-0 transition-colors",
                   editingProject ? "text-indigo-500" : "text-indigo-700 hover:text-indigo-900"
@@ -955,25 +947,6 @@ export function ContactsPage() {
             />
           </div>
 
-          {/* Active filter count pill */}
-          {activeFilterCount > 0 && (
-            <button
-              onClick={clearFilters}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
-                isDark
-                  ? "bg-indigo-900/40 text-indigo-300 border-indigo-700 hover:bg-indigo-900/60"
-                  : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-              )}
-            >
-              {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''}
-              <X className="w-3 h-3" />
-            </button>
-          )}
-
-          {/* Separator */}
-          <span className="w-px h-5 mx-0.5" style={{ background: t.divider }} />
-
           {/* Actions */}
           <button onClick={handleRefresh} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }} title="Refresh">
             <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
@@ -1006,7 +979,7 @@ export function ContactsPage() {
         </div>
       </div>
 
-      {/* Project Settings Panel — campaigns split by source */}
+      {/* Project Settings Modal */}
       {editingProject && activeProject && (() => {
         const q = editCampaignSearch.toLowerCase();
         const slCampaigns = campaigns.filter(c => c.source === 'smartlead' && (!q || c.name.toLowerCase().includes(q)));
@@ -1015,28 +988,35 @@ export function ContactsPage() {
           setEditCampaignFilters(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
         };
         return (
-          <div className="px-5 py-3" style={{ background: t.headerBg, borderBottom: `1px solid ${t.cardBorder}` }}>
-            <div className="flex items-start gap-6">
-              {/* Name */}
-              <div className="shrink-0 w-48">
-                <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: t.text4 }}>Name</label>
-                <input
-                  value={editProjectName}
-                  onChange={(e) => setEditProjectName(e.target.value)}
-                  className="mt-1 w-full text-sm font-semibold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
-                  onKeyDown={(e) => { if (e.key === 'Escape') setEditingProject(false); }}
-                />
-                <div className="mt-3 flex gap-1.5">
-                  <button onClick={handleUpdateProject} className="px-3 py-1 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">Save</button>
-                  <button onClick={() => setEditingProject(false)} className="px-3 py-1 rounded-lg text-xs font-medium transition-colors" style={{ color: t.text3 }}>Cancel</button>
-                </div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 backdrop-blur-sm" style={{ background: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setEditingProject(false)} />
+            <div className="relative rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${t.cardBorder}` }}>
+                <h3 className="text-base font-semibold" style={{ color: t.text1 }}>Project Settings</h3>
+                <button onClick={() => setEditingProject(false)} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }}>
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              {/* Search campaigns */}
-              <div className="flex-1 min-w-0">
-                <div className="mb-2">
-                  <div className="relative max-w-xs">
+              {/* Modal body */}
+              <div className="flex-1 overflow-auto px-6 py-4 space-y-5">
+                {/* Name */}
+                <div>
+                  <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: t.text4 }}>Name</label>
+                  <input
+                    value={editProjectName}
+                    onChange={(e) => setEditProjectName(e.target.value)}
+                    className="mt-1 w-full text-sm font-semibold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setEditingProject(false); }}
+                  />
+                </div>
+
+                {/* Campaigns */}
+                <div>
+                  <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: t.text4 }}>Campaigns</label>
+                  <div className="relative mt-1 mb-3 max-w-xs">
                     <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: t.text4 }} />
                     <input
                       type="text"
@@ -1047,80 +1027,86 @@ export function ContactsPage() {
                       style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  {/* SmartLead campaigns */}
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Mail className="w-3 h-3 text-blue-500" />
-                      <span className="text-[10px] font-medium text-blue-600 uppercase tracking-wide">SmartLead — Email</span>
-                      <span className="text-[10px]" style={{ color: t.text4 }}>
-                        {editCampaignFilters.filter(n => campaigns.find(c => c.name === n && c.source === 'smartlead')).length}/{slCampaigns.length}
-                      </span>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* SmartLead campaigns */}
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Mail className="w-3 h-3 text-blue-500" />
+                        <span className="text-[10px] font-medium text-blue-600 uppercase tracking-wide">SmartLead — Email</span>
+                        <span className="text-[10px]" style={{ color: t.text4 }}>
+                          {editCampaignFilters.filter(n => campaigns.find(c => c.name === n && c.source === 'smartlead')).length}/{slCampaigns.length}
+                        </span>
+                      </div>
+                      <div className="max-h-48 overflow-auto space-y-0.5 pr-1">
+                        {slCampaigns.length === 0 ? (
+                          <div className="text-[11px] py-2" style={{ color: t.text5 }}>No SmartLead campaigns</div>
+                        ) : slCampaigns.map(c => {
+                          const checked = editCampaignFilters.includes(c.name);
+                          return (
+                            <button
+                              key={c.name}
+                              onClick={() => toggleEditCampaign(c.name)}
+                              className={cn(
+                                "w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors",
+                                checked ? (isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-50 text-blue-700") : (isDark ? "hover:bg-neutral-700 text-neutral-400" : "hover:bg-neutral-50 text-neutral-600")
+                              )}
+                            >
+                              <span className={cn(
+                                "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
+                                checked ? "bg-blue-500 border-blue-500" : (isDark ? "border-neutral-500" : "border-neutral-300")
+                              )}>
+                                {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                              </span>
+                              <span className="truncate">{c.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="max-h-40 overflow-auto space-y-0.5 pr-1">
-                      {slCampaigns.length === 0 ? (
-                        <div className="text-[11px] py-2" style={{ color: t.text5 }}>No SmartLead campaigns</div>
-                      ) : slCampaigns.map(c => {
-                        const checked = editCampaignFilters.includes(c.name);
-                        return (
-                          <button
-                            key={c.name}
-                            onClick={() => toggleEditCampaign(c.name)}
-                            className={cn(
-                              "w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors",
-                              checked ? "bg-blue-50 text-blue-700" : (isDark ? "hover:bg-neutral-800 text-neutral-400" : "hover:bg-neutral-50 text-neutral-600")
-                            )}
-                          >
-                            <span className={cn(
-                              "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
-                              checked ? "bg-blue-500 border-blue-500" : "border-neutral-300"
-                            )}>
-                              {checked && <Check className="w-2.5 h-2.5 text-white" />}
-                            </span>
-                            <span className="truncate">{c.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
 
-                  {/* GetSales campaigns */}
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Linkedin className="w-3 h-3 text-amber-500" />
-                      <span className="text-[10px] font-medium text-amber-600 uppercase tracking-wide">GetSales — LinkedIn</span>
-                      <span className="text-[10px]" style={{ color: t.text4 }}>
-                        {editCampaignFilters.filter(n => campaigns.find(c => c.name === n && c.source === 'getsales')).length}/{gsCampaigns.length}
-                      </span>
-                    </div>
-                    <div className="max-h-40 overflow-auto space-y-0.5 pr-1">
-                      {gsCampaigns.length === 0 ? (
-                        <div className="text-[11px] py-2" style={{ color: t.text5 }}>No GetSales campaigns</div>
-                      ) : gsCampaigns.map(c => {
-                        const checked = editCampaignFilters.includes(c.name);
-                        return (
-                          <button
-                            key={c.name}
-                            onClick={() => toggleEditCampaign(c.name)}
-                            className={cn(
-                              "w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors",
-                              checked ? "bg-amber-50 text-amber-700" : (isDark ? "hover:bg-neutral-800 text-neutral-400" : "hover:bg-neutral-50 text-neutral-600")
-                            )}
-                          >
-                            <span className={cn(
-                              "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
-                              checked ? "bg-amber-500 border-amber-500" : "border-neutral-300"
-                            )}>
-                              {checked && <Check className="w-2.5 h-2.5 text-white" />}
-                            </span>
-                            <span className="truncate">{c.name}</span>
-                          </button>
-                        );
-                      })}
+                    {/* GetSales campaigns */}
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Linkedin className="w-3 h-3 text-amber-500" />
+                        <span className="text-[10px] font-medium text-amber-600 uppercase tracking-wide">GetSales — LinkedIn</span>
+                        <span className="text-[10px]" style={{ color: t.text4 }}>
+                          {editCampaignFilters.filter(n => campaigns.find(c => c.name === n && c.source === 'getsales')).length}/{gsCampaigns.length}
+                        </span>
+                      </div>
+                      <div className="max-h-48 overflow-auto space-y-0.5 pr-1">
+                        {gsCampaigns.length === 0 ? (
+                          <div className="text-[11px] py-2" style={{ color: t.text5 }}>No GetSales campaigns</div>
+                        ) : gsCampaigns.map(c => {
+                          const checked = editCampaignFilters.includes(c.name);
+                          return (
+                            <button
+                              key={c.name}
+                              onClick={() => toggleEditCampaign(c.name)}
+                              className={cn(
+                                "w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors",
+                                checked ? (isDark ? "bg-amber-900/40 text-amber-300" : "bg-amber-50 text-amber-700") : (isDark ? "hover:bg-neutral-700 text-neutral-400" : "hover:bg-neutral-50 text-neutral-600")
+                              )}
+                            >
+                              <span className={cn(
+                                "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
+                                checked ? "bg-amber-500 border-amber-500" : (isDark ? "border-neutral-500" : "border-neutral-300")
+                              )}>
+                                {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                              </span>
+                              <span className="truncate">{c.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Modal footer */}
+              <div className="flex items-center justify-end gap-2 px-6 py-3" style={{ borderTop: `1px solid ${t.cardBorder}` }}>
+                <button onClick={() => setEditingProject(false)} className="px-4 py-1.5 rounded-lg text-xs font-medium transition-colors" style={{ color: t.text3 }}>Cancel</button>
+                <button onClick={handleUpdateProject} className="px-4 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">Save</button>
               </div>
             </div>
           </div>
