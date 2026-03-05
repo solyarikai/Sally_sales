@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 AGENCY_NAMES = [
     "easystaff global",  # Process before "easystaff" — both can overlap
     "inxy",
+    "squarefi fedor",
+    "squarefi evgeny",
     "squarefi",
     "easystaff",
     "tfp",

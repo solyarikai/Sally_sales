@@ -263,8 +263,15 @@ GETSALES_SENDER_PROFILES: Dict[str, str] = {
 
 # Auto-populate automation_uuid -> project_id mapping from flow names
 _PROJECT_PREFIXES = {
+    # Longer prefixes first — first match wins
+    "squarefi - es": 47,          # squarefi evgeny
+    "squarefi - psp": 46,         # squarefi fedor
+    "squarefi - igaming fedor": 46,
+    "squarefi - fedor": 46,
+    "squarefi - agencies - fedor": 46,
+    "squarefi - amazon - fedor": 46,
+    "squarefi": 46,               # remaining squarefi → fedor (general campaigns)
     "easystaff": 40,
-    "squarefi": 40,
     "inxy": 10,
     "rizzult": 22,
     "mifort": 21,
