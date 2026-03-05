@@ -125,7 +125,7 @@ CRITICAL RULES:
 - If operator says "add X" — include X plus all current campaigns.
 - If operator says "remove X" — include all current campaigns except X.
 - If operator says "only X, Y, Z" — final_campaigns = [X, Y, Z] ONLY. Remove everything else.
-- When matching by prefix (e.g. "GS: SquareFi - ES - RUS DMs"), match the campaign name after the prefix label.
+- When operator uses platform labels like "GS:" (GetSales) or "SL:" (SmartLead), STRIP them — they are NOT part of the campaign name. "GS: SquareFi - ES - RUS DMs" → "SquareFi - ES - RUS DMs".
 - Keep change_summary concise: "Added 2, removed 15 campaigns" or "Set to 4 specific campaigns".
 
 AUTO-ASSIGN PREFIXES:
