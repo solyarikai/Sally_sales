@@ -1774,6 +1774,9 @@ async def process_getsales_reply(
     proj_sender_name = None
     proj_sender_position = None
     proj_sender_company = None
+    project = None
+    matched_via_prefix = False
+    _knowledge_entries = []
 
     if flow_name:
         try:
@@ -1852,7 +1855,7 @@ async def process_getsales_reply(
             logger.warning(f"[GETSALES] Project lookup failed (non-fatal): {proj_err}")
 
     # --- Auto-register GetSales campaign in campaigns table (God Panel) ---
-    _project_resolved = locals().get("project")
+    _project_resolved = project
     from app.services.crm_sync_service import _is_valid_campaign_name
     if flow_name and _is_valid_campaign_name(flow_name):
         try:
@@ -1884,8 +1887,8 @@ async def process_getsales_reply(
                     project_id=_project_resolved.id if _project_resolved else None,
                     first_seen_at=datetime.utcnow(),
                     resolution_method=(
-                        "exact_match" if (_project_resolved and not locals().get("matched_via_prefix"))
-                        else "prefix_match" if (_project_resolved and locals().get("matched_via_prefix"))
+                        "exact_match" if (_project_resolved and not matched_via_prefix)
+                        else "prefix_match" if (_project_resolved and matched_via_prefix)
                         else "unresolved"
                     ),
                     resolution_detail=(
@@ -1897,13 +1900,13 @@ async def process_getsales_reply(
                 logger.info(f"[GETSALES] Auto-registered campaign '{flow_name}' in campaigns table (id={new_campaign.id})")
             elif _project_resolved and not existing_campaign.project_id:
                 existing_campaign.project_id = _project_resolved.id
-                existing_campaign.resolution_method = "prefix_match" if locals().get("matched_via_prefix") else "exact_match"
+                existing_campaign.resolution_method = "prefix_match" if matched_via_prefix else "exact_match"
                 existing_campaign.resolution_detail = f"Matched project '{_project_resolved.name}'"
                 logger.info(f"[GETSALES] Updated campaign '{flow_name}' with project '{_project_resolved.name}'")
         except Exception as camp_err:
             logger.debug(f"[GETSALES] Campaign registration failed (non-fatal): {camp_err}")
 
-    _knowledge_entries = locals().get("_knowledge_entries", [])
+    # _knowledge_entries is initialized before the try block above
 
     # --- Classify ---
     linkedin_suffix = "This is a LinkedIn DM, not an email. Classify based on the message content."

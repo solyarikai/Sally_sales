@@ -326,7 +326,7 @@ async def fetch_smartlead_replies(
                                 if reply_time_str:
                                     try:
                                         contact.last_reply_at = datetime.fromisoformat(reply_time_str.replace("Z", ""))
-                                    except:
+                                    except (ValueError, TypeError):
                                         contact.last_reply_at = datetime.utcnow()
                                 bg_session.add(contact)
                                 contacts_updated += 1
@@ -342,7 +342,7 @@ async def fetch_smartlead_replies(
                                     try:
                                         from datetime import datetime
                                         contact.last_reply_at = datetime.fromisoformat(reply_time_str.replace("Z", ""))
-                                    except:
+                                    except (ValueError, TypeError):
                                         contact.last_reply_at = None
                                 contacts_updated += 1
                                 
@@ -1094,7 +1094,7 @@ async def getsales_webhook(
     if sent_at_str:
         try:
             activity_at = datetime.fromisoformat(sent_at_str.replace(" ", "T").replace("Z", "+00:00"))
-        except:
+        except (ValueError, TypeError):
             activity_at = datetime.utcnow()
     else:
         activity_at = datetime.utcnow()
@@ -1210,7 +1210,7 @@ async def getsales_webhook(
                 touches = json.loads(contact.touches) if isinstance(contact.touches, str) else contact.touches
                 touches.append(touch)
                 contact.touches = touches
-            except:
+            except (json.JSONDecodeError, TypeError, AttributeError):
                 contact.touches = [touch]
         else:
             contact.touches = [touch]
@@ -1229,7 +1229,7 @@ async def getsales_webhook(
                     raw["webhooks"] = []
                 raw["webhooks"].append(webhook_entry)
                 contact.getsales_raw = raw
-            except:
+            except (json.JSONDecodeError, TypeError, AttributeError):
                 contact.getsales_raw = {"webhooks": [webhook_entry]}
         else:
             contact.getsales_raw = {"webhooks": [webhook_entry]}

@@ -630,40 +630,51 @@ class GetSalesClient:
         "contact_linkedin_connection_requested",
     ]
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, team_id: str = None):
         self.api_key = api_key
+        self.team_id = team_id or os.getenv("GETSALES_TEAM_ID", "")
         self.client = httpx.AsyncClient(timeout=60.0)
-    
+        self._last_request_at = 0.0  # rate limiting: min 200ms between requests
+
     async def close(self):
         await self.client.aclose()
-    
+
+    def _headers(self) -> dict:
+        h = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        if self.team_id:
+            h["Team-Id"] = self.team_id
+        return h
+
+    async def _rate_limit(self):
+        """Enforce minimum 200ms between API requests to avoid rate limits."""
+        import time
+        now = time.monotonic()
+        elapsed = now - self._last_request_at
+        if elapsed < 0.2:
+            await asyncio.sleep(0.2 - elapsed)
+        self._last_request_at = time.monotonic()
+
     async def _get(self, endpoint: str, params: dict = None) -> dict:
         """Make GET request to GetSales API."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        resp = await self.client.get(f"{self.BASE_URL}{endpoint}", headers=headers, params=params)
+        await self._rate_limit()
+        resp = await self.client.get(f"{self.BASE_URL}{endpoint}", headers=self._headers(), params=params)
         resp.raise_for_status()
         return resp.json()
-    
+
     async def _post(self, endpoint: str, data: dict) -> dict:
         """Make POST request to GetSales API."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        resp = await self.client.post(f"{self.BASE_URL}{endpoint}", headers=headers, json=data)
+        await self._rate_limit()
+        resp = await self.client.post(f"{self.BASE_URL}{endpoint}", headers=self._headers(), json=data)
         resp.raise_for_status()
         return resp.json()
-    
+
     async def _delete(self, endpoint: str) -> bool:
         """Make DELETE request to GetSales API."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        resp = await self.client.delete(f"{self.BASE_URL}{endpoint}", headers=headers)
+        await self._rate_limit()
+        resp = await self.client.delete(f"{self.BASE_URL}{endpoint}", headers=self._headers())
         return resp.status_code in (200, 204)
     
     async def get_lists(self) -> List[dict]:
@@ -786,11 +797,31 @@ class GetSalesClient:
         Returns:
             API response dict with message details
         """
-        return await self._post("/flows/api/linkedin-messages", {
-            "sender_profile_uuid": sender_profile_uuid,
-            "lead_uuid": lead_uuid,
-            "text": text,
-        })
+        last_err = None
+        for attempt in range(3):
+            try:
+                return await self._post("/flows/api/linkedin-messages", {
+                    "sender_profile_uuid": sender_profile_uuid,
+                    "lead_uuid": lead_uuid,
+                    "text": text,
+                })
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in (429, 500, 502, 503, 504) and attempt < 2:
+                    wait = (attempt + 1) * 2  # 2s, 4s
+                    logger.warning(f"[GETSALES] Send retry {attempt + 1}/3 after {e.response.status_code}, waiting {wait}s")
+                    await asyncio.sleep(wait)
+                    last_err = e
+                    continue
+                raise
+            except (httpx.TimeoutException, httpx.ConnectError) as e:
+                if attempt < 2:
+                    wait = (attempt + 1) * 2
+                    logger.warning(f"[GETSALES] Send retry {attempt + 1}/3 after {type(e).__name__}, waiting {wait}s")
+                    await asyncio.sleep(wait)
+                    last_err = e
+                    continue
+                raise
+        raise last_err  # should not reach here
 
     @staticmethod
     def build_inbox_url(lead_uuid: str, sender_profile_uuid: str = "") -> str:

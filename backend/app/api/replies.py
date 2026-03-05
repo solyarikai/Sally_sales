@@ -2698,7 +2698,15 @@ async def approve_and_send_reply(
         send_result = None
         send_error = None
 
-        if lead_uuid and sender_profile_uuid and not test_mode:
+        if test_mode:
+            logger.info(f"[TEST_MODE] GetSales send skipped for reply {reply_id}")
+        elif not lead_uuid or not sender_profile_uuid:
+            missing = []
+            if not lead_uuid: missing.append("lead_uuid")
+            if not sender_profile_uuid: missing.append("sender_profile_uuid")
+            send_error = f"Missing GetSales identifiers: {', '.join(missing)} — operator must send manually"
+            logger.warning(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email}: {send_error}")
+        else:
             try:
                 from app.services.crm_sync_service import GetSalesClient
                 gs = GetSalesClient(settings.GETSALES_API_KEY)
@@ -2713,7 +2721,7 @@ async def approve_and_send_reply(
                     await gs.close()
             except Exception as gs_err:
                 send_error = str(gs_err)
-                logger.error(f"GetSales send failed for reply {reply_id}: {gs_err}")
+                logger.error(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email} campaign={reply.campaign_name}: GetSales API error: {gs_err}")
 
         reply.approval_status = "approved"
 
