@@ -31,6 +31,7 @@ import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateCo
 import { cn, formatNumber, getErrorMessage } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
+import { useAppStore } from '../store/appStore';
 
 // Status configuration — proper lead statuses (no "replied" — that's a flag, not a status)
 const STATUS_CONFIG: Record<string, { dot: string; label: string; colors: string }> = {
@@ -109,8 +110,7 @@ export function ContactsPage() {
 
   // Project view
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
-  const projectRef = useRef<HTMLDivElement>(null);
+  const currentProject = useAppStore(s => s.currentProject);
   const [editingProject, setEditingProject] = useState(false);
   const [editProjectName, setEditProjectName] = useState('');
   const [editCampaignFilters, setEditCampaignFilters] = useState<string[]>([]);
@@ -199,16 +199,12 @@ export function ContactsPage() {
     setSearchParams(params, { replace: true });
   }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters]);
 
-  // Close dropdowns on click outside
+  // Sync CRM project from global navbar project selector
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (projectRef.current && !projectRef.current.contains(e.target as Node)) {
-        setProjectDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    if (currentProject) {
+      selectProject(currentProject);
+    }
+  }, [currentProject]);
 
   // Load processed contacts from localStorage
   useEffect(() => {
@@ -753,7 +749,6 @@ export function ContactsPage() {
   // Select a project
   const selectProject = (project: Project | null) => {
     setActiveProject(project);
-    setProjectDropdownOpen(false);
     setReplyMode(false);
     setShowTasksPanel(false);
     setPage(1);
@@ -862,45 +857,6 @@ export function ContactsPage() {
             <h1 className="text-base font-semibold shrink-0" style={{ color: t.text1 }}>CRM Contacts</h1>
           )}
           <span className="text-sm font-medium shrink-0" style={{ color: t.text4 }}>{formatNumber(total)}</span>
-
-          {/* Project selector */}
-          <div className="relative shrink-0" ref={projectRef}>
-            <button
-              onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
-              className={cn(
-                "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all",
-                activeProject
-                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                  : `border-neutral-200 hover:border-indigo-400 ${isDark ? 'text-gray-300' : 'bg-white text-gray-600'}`
-              )}
-            >
-              <FolderOpen className="w-3 h-3" />
-              {activeProject ? 'Switch' : 'Projects'}
-            </button>
-            {projectDropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-56 rounded-xl shadow-lg z-50 overflow-hidden" style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
-                <div className="max-h-48 overflow-auto">
-                  {projects.length === 0 ? (
-                    <div className="px-3 py-4 text-xs text-center" style={{ color: t.text4 }}>No projects yet</div>
-                  ) : (
-                    projects.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => selectProject(p)}
-                        className={cn(
-                          "w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 flex items-center justify-between",
-                          activeProject?.id === p.id && "bg-indigo-50 text-indigo-700"
-                        )}
-                      >
-                        <span className="truncate">{p.name}</span>
-                        <span className="text-[10px]" style={{ color: t.text4 }}>{p.contact_count}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Reply mode button (only inside a project) */}
           {activeProject && (

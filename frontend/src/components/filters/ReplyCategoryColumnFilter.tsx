@@ -31,7 +31,7 @@ export const ReplyCategoryColumnFilter = forwardRef((props: IFilterParams, ref) 
   }));
 
   useEffect(() => {
-    props.filterChangedCallback();
+    props.filterChangedCallback?.();
   }, [replyCategoryFilters]);
 
   const handleToggle = (key: string) => {

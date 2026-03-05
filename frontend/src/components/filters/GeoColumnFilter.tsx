@@ -27,7 +27,7 @@ export const GeoColumnFilter = forwardRef((props: IFilterParams, ref) => {
   }));
 
   useEffect(() => {
-    props.filterChangedCallback();
+    props.filterChangedCallback?.();
   }, [geoFilter]);
 
   const handleSelect = (key: string) => {

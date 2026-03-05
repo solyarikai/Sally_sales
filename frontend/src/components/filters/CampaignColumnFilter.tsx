@@ -38,7 +38,7 @@ export const CampaignColumnFilter = forwardRef((props: IFilterParams, ref) => {
   }));
 
   useEffect(() => {
-    props.filterChangedCallback();
+    props.filterChangedCallback?.();
   }, [campaignFilters, campaignIdFilter]);
 
   // Sort: prefix matches first, then includes

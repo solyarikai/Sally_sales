@@ -33,7 +33,7 @@ export const StatusColumnFilter = forwardRef((props: IFilterParams, ref) => {
   }));
 
   useEffect(() => {
-    props.filterChangedCallback();
+    props.filterChangedCallback?.();
   }, [statusFilters]);
 
   const handleToggle = (key: string) => {

@@ -62,7 +62,7 @@ export const DateColumnFilter = forwardRef((props: IFilterParams, ref) => {
   }));
 
   useEffect(() => {
-    props.filterChangedCallback();
+    props.filterChangedCallback?.();
   }, [createdAfter, createdBefore]);
 
   const handlePreset = (key: string) => {

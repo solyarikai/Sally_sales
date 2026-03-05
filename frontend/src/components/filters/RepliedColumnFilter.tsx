@@ -39,7 +39,7 @@ export const RepliedColumnFilter = forwardRef((props: IFilterParams, ref) => {
   }));
 
   useEffect(() => {
-    props.filterChangedCallback();
+    props.filterChangedCallback?.();
   }, [repliedFilter, followupFilter]);
 
   const handleSelect = (key: string) => {

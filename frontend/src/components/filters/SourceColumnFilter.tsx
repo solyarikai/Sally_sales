@@ -28,7 +28,7 @@ export const SourceColumnFilter = forwardRef((props: IFilterParams, ref) => {
   }));
 
   useEffect(() => {
-    props.filterChangedCallback();
+    props.filterChangedCallback?.();
   }, [sourceFilter]);
 
   const handleSelect = (key: string) => {

@@ -20,7 +20,7 @@ export const SegmentColumnFilter = forwardRef((props: IFilterParams, ref) => {
   }));
 
   useEffect(() => {
-    props.filterChangedCallback();
+    props.filterChangedCallback?.();
   }, [segmentFilters]);
 
   const segments = filterOptions?.segments || [];
