@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles, ExternalLink, Link2, ChevronDown } from 'lucide-react';
+import { X, Mail, User, Building, MapPin, Linkedin, MessageSquare, Send, Clock, AlertTriangle, FolderPlus, ChevronLeft, ChevronRight, Loader2, SkipForward, Sparkles, ExternalLink, Link2, ChevronDown, Database, Search as SearchIcon, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Contact } from '../api/contacts';
 import { contactsApi } from '../api/contacts';
@@ -219,7 +219,7 @@ export function ContactDetailModal({
   const { isDark } = useTheme();
   const t = modalTheme(isDark);
 
-  const [activeTab, setActiveTab] = useState<'details' | 'conversation'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'conversation' | 'source'>('details');
   const [sequenceExpanded, setSequenceExpanded] = useState(false);
   const [sequencePlan, setSequencePlan] = useState<any>(null);
   const [, setSequenceLoading] = useState(false);
@@ -710,12 +710,14 @@ export function ContactDetailModal({
 
         {/* Tabs */}
         <div className="flex px-6" style={{ borderBottom: `1px solid ${t.border}` }}>
-          {(['details', 'conversation'] as const).map(tab => {
-            const active = activeTab === tab;
-            const Icon = tab === 'details' ? User : MessageSquare;
-            const label = tab.charAt(0).toUpperCase() + tab.slice(1);
+          {([
+            { key: 'details', label: 'Details', icon: User },
+            { key: 'conversation', label: 'Conversation', icon: MessageSquare },
+            { key: 'source', label: 'Source', icon: Database },
+          ] as const).map(({ key, label, icon: Icon }) => {
+            const active = activeTab === key;
             return (
-              <button key={tab} onClick={() => setActiveTab(tab)}
+              <button key={key} onClick={() => setActiveTab(key)}
                 className="px-4 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer"
                 style={{ borderColor: active ? t.tabBorder : 'transparent', color: active ? t.tabActive : t.tabInactive }}>
                 <Icon className="w-4 h-4 inline mr-1.5" />{label}
@@ -951,8 +953,127 @@ export function ContactDetailModal({
               )}
             </div>
           )}
+
+          {activeTab === 'source' && (
+            <div className="flex-1 overflow-auto p-6">
+              <SourceTab contact={contact} isDark={isDark} t={t} />
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Source tab — shows provenance, platform state, campaigns
+function SourceTab({ contact, isDark, t }: { contact: Contact; isDark: boolean; t: ReturnType<typeof modalTheme> }) {
+  const prov = contact.provenance || {};
+  const platformState = contact.platform_state || {};
+  const campaigns = contact.campaigns || [];
+
+  const sourceLabel = prov.source === 'APOLLO' ? 'Apollo' : prov.source === 'WEBSITE_SCRAPE' ? 'Web Scrape' : prov.source || contact.source || 'Unknown';
+
+  return (
+    <div className="space-y-6">
+      {/* Origin */}
+      <div>
+        <h3 className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: t.text4 }}>Origin</h3>
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-3">
+            <Database className="w-4 h-4 shrink-0" style={{ color: t.text5 }} />
+            <span className="text-sm" style={{ color: t.text2 }}>{sourceLabel}</span>
+          </div>
+          {prov.query && (
+            <div className="flex items-start gap-3">
+              <SearchIcon className="w-4 h-4 shrink-0 mt-0.5" style={{ color: t.text5 }} />
+              <div>
+                <span className="text-[10px] uppercase tracking-wide" style={{ color: t.text5 }}>Search Query</span>
+                <p className="text-sm mt-0.5" style={{ color: t.text1 }}>{prov.query}</p>
+              </div>
+            </div>
+          )}
+          {prov.domain && (
+            <div className="flex items-center gap-3">
+              <Globe className="w-4 h-4 shrink-0" style={{ color: t.text5 }} />
+              <div>
+                <span className="text-[10px] uppercase tracking-wide" style={{ color: t.text5 }}>Domain</span>
+                <p className="text-sm mt-0.5" style={{ color: t.text2 }}>{prov.domain}</p>
+              </div>
+            </div>
+          )}
+          {prov.segment && (
+            <div className="flex items-center gap-3">
+              <span className="w-4 h-4 shrink-0 flex items-center justify-center text-[10px] font-bold" style={{ color: t.text5 }}>S</span>
+              <div>
+                <span className="text-[10px] uppercase tracking-wide" style={{ color: t.text5 }}>Segment</span>
+                <p className="text-sm mt-0.5" style={{ color: t.text2 }}>{String(prov.segment).replace(/_/g, ' ')}</p>
+              </div>
+            </div>
+          )}
+          {prov.gathered_at && (
+            <div className="flex items-center gap-3">
+              <Clock className="w-4 h-4 shrink-0" style={{ color: t.text5 }} />
+              <div>
+                <span className="text-[10px] uppercase tracking-wide" style={{ color: t.text5 }}>Gathered</span>
+                <p className="text-sm mt-0.5" style={{ color: t.text3 }}>{new Date(prov.gathered_at).toLocaleString()}</p>
+              </div>
+            </div>
+          )}
+          {prov.apollo_enriched && (
+            <div className="flex items-center gap-3">
+              <span className="w-4 h-4 shrink-0 flex items-center justify-center text-[10px]" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>A</span>
+              <span className="text-sm" style={{ color: t.text3 }}>Apollo enriched</span>
+            </div>
+          )}
+          {prov.search_job_id && (
+            <div className="flex items-center gap-3">
+              <span className="w-4 h-4 shrink-0 text-[10px] text-center" style={{ color: t.text5 }}>#</span>
+              <span className="text-sm" style={{ color: t.text4 }}>Search job {prov.search_job_id}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Campaigns */}
+      {campaigns.length > 0 && (
+        <div>
+          <h3 className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: t.text4 }}>Campaigns</h3>
+          <div className="space-y-1.5">
+            {campaigns.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: t.divider }}>
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c.source === 'smartlead' ? '#3b82f6' : '#f59e0b' }} />
+                <span className="text-xs flex-1 truncate" style={{ color: t.text2 }}>{c.name}</span>
+                <span className="text-[10px]" style={{ color: t.text5 }}>{c.source === 'smartlead' ? 'Email' : 'LinkedIn'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Platform State */}
+      {Object.keys(platformState).length > 0 && (
+        <div>
+          <h3 className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: t.text4 }}>Platform Data</h3>
+          {Object.entries(platformState).map(([platform, data]) => (
+            <div key={platform} className="mb-3">
+              <span className="text-[10px] uppercase tracking-wide font-medium" style={{ color: t.text5 }}>{platform}</span>
+              <pre className="mt-1 text-[11px] p-3 rounded-lg overflow-auto max-h-40" style={{ background: t.divider, color: t.text3 }}>
+                {JSON.stringify(data, null, 2)}
+              </pre>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Raw provenance */}
+      {Object.keys(prov).length > 0 && (
+        <div>
+          <h3 className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: t.text4 }}>Raw Provenance</h3>
+          <pre className="text-[11px] p-3 rounded-lg overflow-auto max-h-40" style={{ background: t.divider, color: t.text3 }}>
+            {JSON.stringify(prov, null, 2)}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
