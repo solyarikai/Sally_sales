@@ -3,9 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Check, X, Search, Trash2,
   MessageCircle, Loader2, Unlink, FolderOpen, Zap, FileSpreadsheet, RefreshCw,
-  Activity, Radio, Clock, AlertTriangle, CheckCircle2, XCircle,
+  Activity, Radio, Clock, AlertTriangle, CheckCircle2, XCircle, Info,
 } from 'lucide-react';
 import { contactsApi, type Project, type SheetSyncConfig, type ProjectMonitoring } from '../api/contacts';
+import { godPanelApi, type ProjectRules } from '../api/godPanel';
 import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../store/appStore';
 import { cn } from '../lib/utils';
@@ -46,6 +47,9 @@ export function ProjectPage() {
   const [monitoring, setMonitoring] = useState<ProjectMonitoring | null>(null);
   const [monitoringLoading, setMonitoringLoading] = useState(false);
 
+  // Assignment rules
+  const [rules, setRules] = useState<ProjectRules | null>(null);
+
   const loadMonitoring = useCallback(async () => {
     if (!projectId) return;
     setMonitoringLoading(true);
@@ -81,7 +85,8 @@ export function ProjectPage() {
     loadProject();
     loadCampaigns();
     loadMonitoring();
-  }, [loadProject, loadCampaigns, loadMonitoring]);
+    if (projectId) godPanelApi.getProjectRules(projectId).then(setRules).catch(() => {});
+  }, [loadProject, loadCampaigns, loadMonitoring, projectId]);
 
   // Sync loaded project to the global store (project selector in header)
   useEffect(() => {
@@ -236,6 +241,24 @@ export function ProjectPage() {
           )}
         </div>
       </div>
+
+      {/* Assignment Rules */}
+      {rules && rules.rules.length > 0 && (
+        <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#1e1e1e] border-[#333]" : "bg-slate-50 border-neutral-200")}>
+          <h2 className={cn("text-sm font-semibold mb-2.5 flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+            <Info className="w-4 h-4" />
+            How campaigns are assigned to this project
+          </h2>
+          <div className="space-y-1.5">
+            {rules.rules.map((rule, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <div className={cn("w-1 h-1 rounded-full mt-1.5 flex-shrink-0", isDark ? "bg-[#6e6e6e]" : "bg-neutral-400")} />
+                <span className={cn("text-[13px]", isDark ? "text-[#b0b0b0]" : "text-neutral-600")}>{rule}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Campaigns Section */}
       <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")} data-testid="campaigns-section">
