@@ -222,7 +222,7 @@ export function ContactDetailModal({
   const [activeTab, setActiveTab] = useState<'details' | 'conversation'>('details');
   const [sequenceExpanded, setSequenceExpanded] = useState(false);
   const [sequencePlan, setSequencePlan] = useState<any>(null);
-  const [sequenceLoading, setSequenceLoading] = useState(false);
+  const [, setSequenceLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [draftReply, setDraftReply] = useState('');
