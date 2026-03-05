@@ -67,8 +67,13 @@ export const godPanelApi = {
     return data;
   },
 
-  async getUnresolvedCount(): Promise<number> {
+  async getUnresolvedCount(): Promise<{ count: number; newCount: number }> {
     const { data } = await api.get('/god-panel/unresolved-count');
-    return data.count;
+    return { count: data.count, newCount: data.new_count ?? 0 };
+  },
+
+  async submitRuleFeedback(projectId: number, feedbackText: string): Promise<{ learning_log_id: number }> {
+    const { data } = await api.post(`/god-panel/projects/${projectId}/rule-feedback`, { feedback_text: feedbackText });
+    return data;
   },
 };

@@ -47,8 +47,10 @@ export function ProjectPage() {
   const [monitoring, setMonitoring] = useState<ProjectMonitoring | null>(null);
   const [monitoringLoading, setMonitoringLoading] = useState(false);
 
-  // Assignment rules
+  // Assignment rules + feedback
   const [rules, setRules] = useState<ProjectRules | null>(null);
+  const [ruleFeedbackMode, setRuleFeedbackMode] = useState<'idle' | 'editing' | 'submitting' | 'success'>('idle');
+  const [ruleFeedbackText, setRuleFeedbackText] = useState('');
 
   const loadMonitoring = useCallback(async () => {
     if (!projectId) return;
@@ -245,10 +247,27 @@ export function ProjectPage() {
       {/* Assignment Rules */}
       {rules && rules.rules.length > 0 && (
         <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#1e1e1e] border-[#333]" : "bg-slate-50 border-neutral-200")}>
-          <h2 className={cn("text-sm font-semibold mb-2.5 flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
-            <Info className="w-4 h-4" />
-            How campaigns are assigned to this project
-          </h2>
+          <div className="flex items-center justify-between mb-2.5">
+            <h2 className={cn("text-sm font-semibold flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+              <Info className="w-4 h-4" />
+              How campaigns are assigned to this project
+            </h2>
+            {ruleFeedbackMode === 'idle' && (
+              <button
+                onClick={() => setRuleFeedbackMode('editing')}
+                className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] transition-colors", isDark ? "text-[#858585] hover:text-[#d4d4d4] hover:bg-[#2d2d2d]" : "text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100")}
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                Give feedback
+              </button>
+            )}
+            {ruleFeedbackMode === 'success' && (
+              <span className="flex items-center gap-1.5 text-[12px] text-emerald-500">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Rules updated
+              </span>
+            )}
+          </div>
           <div className="space-y-1.5">
             {rules.rules.map((rule, i) => (
               <div key={i} className="flex items-start gap-2">
@@ -257,6 +276,61 @@ export function ProjectPage() {
               </div>
             ))}
           </div>
+
+          {/* Feedback form */}
+          {(ruleFeedbackMode === 'editing' || ruleFeedbackMode === 'submitting') && (
+            <div className="mt-3 pt-3 border-t" style={{ borderColor: isDark ? '#333' : '#e5e5e5' }}>
+              <textarea
+                value={ruleFeedbackText}
+                onChange={e => setRuleFeedbackText(e.target.value)}
+                placeholder="e.g. 'Add all EasyStaff campaigns to this project' or 'Remove Mifort DM campaigns'"
+                rows={2}
+                disabled={ruleFeedbackMode === 'submitting'}
+                className={cn(
+                  "w-full px-3 py-2 rounded-lg text-[13px] resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/20",
+                  isDark ? "bg-[#2d2d2d] text-[#d4d4d4] placeholder-[#6e6e6e]" : "bg-white text-neutral-800 placeholder-neutral-400 border border-neutral-200"
+                )}
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  onClick={async () => {
+                    if (!ruleFeedbackText.trim()) return;
+                    setRuleFeedbackMode('submitting');
+                    try {
+                      await godPanelApi.submitRuleFeedback(projectId, ruleFeedbackText.trim());
+                      setRuleFeedbackMode('success');
+                      setRuleFeedbackText('');
+                      // Refresh rules and project after a short delay for background processing
+                      setTimeout(() => {
+                        godPanelApi.getProjectRules(projectId).then(setRules).catch(() => {});
+                        loadProject();
+                      }, 3000);
+                      setTimeout(() => setRuleFeedbackMode('idle'), 5000);
+                    } catch {
+                      setRuleFeedbackMode('editing');
+                    }
+                  }}
+                  disabled={ruleFeedbackMode === 'submitting' || !ruleFeedbackText.trim()}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors",
+                    ruleFeedbackMode === 'submitting'
+                      ? "bg-violet-500/50 text-white cursor-wait"
+                      : "bg-violet-600 text-white hover:bg-violet-700"
+                  )}
+                >
+                  {ruleFeedbackMode === 'submitting' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                  {ruleFeedbackMode === 'submitting' ? 'Processing...' : 'Submit'}
+                </button>
+                <button
+                  onClick={() => { setRuleFeedbackMode('idle'); setRuleFeedbackText(''); }}
+                  disabled={ruleFeedbackMode === 'submitting'}
+                  className={cn("px-3 py-1.5 rounded-lg text-[12px] transition-colors", isDark ? "text-[#858585] hover:bg-[#2d2d2d]" : "text-neutral-500 hover:bg-neutral-100")}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

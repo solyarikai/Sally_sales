@@ -10,6 +10,7 @@ import { SectionErrorBoundary } from './ErrorBoundary';
 import { SpotlightFeedback } from './SpotlightFeedback';
 import { useTheme } from '../hooks/useTheme';
 import { godPanelApi } from '../api/godPanel';
+import { useToast } from './Toast';
 
 interface LayoutProps {
   children: ReactNode;
@@ -29,14 +30,22 @@ export function Layout({ children }: LayoutProps) {
   const projectDropdownRef = useRef<HTMLDivElement>(null);
   const { isDark, toggle: toggleTheme } = useTheme();
   const [unresolvedCount, setUnresolvedCount] = useState(0);
+  const prevNewCountRef = useRef(0);
+  const { info: toastInfo } = useToast();
 
-  // Poll unresolved campaign count for God Panel badge
+  // Poll unresolved campaign count for God Panel badge + toast on new campaigns
   useEffect(() => {
-    const poll = () => godPanelApi.getUnresolvedCount().then(setUnresolvedCount).catch(() => {});
+    const poll = () => godPanelApi.getUnresolvedCount().then(({ count, newCount }) => {
+      setUnresolvedCount(count);
+      if (newCount > 0 && prevNewCountRef.current === 0) {
+        toastInfo(`${newCount} new campaign${newCount > 1 ? 's' : ''} discovered`, 'Check God Panel for details');
+      }
+      prevNewCountRef.current = newCount;
+    }).catch(() => {});
     poll();
     const interval = setInterval(poll, 30_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [toastInfo]);
 
   const navItems = [
     { path: '/', icon: Search, label: 'Data Search', global: true },

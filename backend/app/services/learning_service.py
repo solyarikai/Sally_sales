@@ -109,6 +109,28 @@ OUTPUT strict JSON:
   "reasoning": "Why these changes make sense"
 }"""
 
+RULE_FEEDBACK_SYSTEM_PROMPT = """You are a campaign routing expert. You decide which campaigns belong to which project based on naming conventions, sender identity, and business context.
+
+INPUT:
+1. Project name and its current campaign_filters
+2. GetSales sender UUIDs + known prefix rules
+3. List of unassigned campaigns
+4. Operator feedback explaining what should change
+
+OUTPUT strict JSON:
+{
+  "add_campaigns": ["campaign name to add to this project"],
+  "remove_campaigns": ["campaign name to remove from this project"],
+  "reasoning": "Why these changes make sense",
+  "change_summary": "Human-readable summary of changes"
+}
+
+Rules:
+- Only add campaigns that clearly belong to this project based on sender, product, or naming
+- Only remove campaigns the operator explicitly says don't belong
+- If unsure, don't add — false positives break notification routing
+- Keep change_summary concise (1-2 sentences)"""
+
 MIN_QUALIFIED_THRESHOLD = 20
 
 
@@ -351,6 +373,136 @@ Incorporate this feedback into the template and ICP knowledge."""
             log.status = "failed"
             log.error_message = str(e)[:2000]
             logger.error(f"Feedback processing failed for project {project_id}: {e}", exc_info=True)
+
+        return log
+
+    async def process_rule_feedback(
+        self,
+        session: AsyncSession,
+        project_id: int,
+        feedback_text: str,
+        log_id: int,
+    ) -> LearningLog:
+        """Process operator feedback on campaign assignment rules via GPT-4o-mini."""
+        result = await session.execute(select(LearningLog).where(LearningLog.id == log_id))
+        log = result.scalar_one_or_none()
+        if not log:
+            raise ValueError(f"LearningLog {log_id} not found")
+
+        try:
+            proj_result = await session.execute(
+                select(Project).where(and_(Project.id == project_id, Project.deleted_at.is_(None)))
+            )
+            project = proj_result.scalar_one_or_none()
+            if not project:
+                log.status = "failed"
+                log.error_message = "Project not found"
+                return log
+
+            current_filters = project.campaign_filters or []
+            senders = project.getsales_senders or []
+
+            # Get prefix rules
+            prefix_rules = []
+            try:
+                from app.services.crm_sync_service import _PROJECT_PREFIXES
+                prefix_rules = [p for p, pid in _PROJECT_PREFIXES.items() if pid == project_id]
+            except ImportError:
+                pass
+
+            # Get unassigned campaigns
+            from app.models.campaign import Campaign
+            unassigned_result = await session.execute(
+                select(Campaign.name).where(Campaign.project_id.is_(None))
+            )
+            unassigned = [r[0] for r in unassigned_result.all()]
+
+            log.before_snapshot = {
+                "campaign_filters": current_filters,
+                "getsales_senders": senders,
+                "prefix_rules": prefix_rules,
+                "unassigned_campaigns": unassigned,
+            }
+
+            user_prompt = f"""Project: {project.name} (id={project_id})
+
+CURRENT CAMPAIGN FILTERS: {json.dumps(current_filters)}
+
+GETSALES SENDERS: {json.dumps(senders)}
+
+PREFIX RULES: {json.dumps(prefix_rules)}
+
+UNASSIGNED CAMPAIGNS ({len(unassigned)}):
+{chr(10).join(f'- {c}' for c in unassigned) if unassigned else '(none)'}
+
+OPERATOR FEEDBACK:
+{feedback_text}
+
+Decide which campaigns to add or remove for this project."""
+
+            if not openai_service.is_connected():
+                log.status = "failed"
+                log.error_message = "OpenAI not configured"
+                return log
+
+            response = await openai_service.complete(
+                prompt=user_prompt,
+                system_prompt=RULE_FEEDBACK_SYSTEM_PROMPT,
+                model="gpt-4o-mini",
+                temperature=0.3,
+                max_tokens=1000,
+                response_format={"type": "json_object"},
+            )
+            parsed = json.loads(response)
+
+            add_campaigns = parsed.get("add_campaigns", [])
+            remove_campaigns = parsed.get("remove_campaigns", [])
+
+            # Apply changes to campaign_filters
+            updated_filters = list(current_filters)
+            existing_lower = {f.lower() for f in updated_filters}
+
+            for name in add_campaigns:
+                if name.lower() not in existing_lower:
+                    updated_filters.append(name)
+                    existing_lower.add(name.lower())
+                    logger.info(f"[RULE_FEEDBACK] Adding '{name}' to project '{project.name}'")
+
+            for name in remove_campaigns:
+                updated_filters = [f for f in updated_filters if f.lower() != name.lower()]
+                logger.info(f"[RULE_FEEDBACK] Removing '{name}' from project '{project.name}'")
+
+            project.campaign_filters = updated_filters
+
+            # Update campaign project_id in campaigns table
+            from app.models.campaign import Campaign
+            for name in add_campaigns:
+                await session.execute(
+                    update(Campaign)
+                    .where(func.lower(Campaign.name) == name.lower(), Campaign.project_id.is_(None))
+                    .values(project_id=project_id, resolution_method="rule_feedback", resolution_detail=f"Added via rule feedback: {feedback_text[:100]}")
+                )
+            for name in remove_campaigns:
+                await session.execute(
+                    update(Campaign)
+                    .where(func.lower(Campaign.name) == name.lower(), Campaign.project_id == project_id)
+                    .values(project_id=None, resolution_method=None, resolution_detail=None)
+                )
+
+            log.after_snapshot = {
+                "campaign_filters": updated_filters,
+                "added": add_campaigns,
+                "removed": remove_campaigns,
+            }
+            log.change_type = "rule_feedback"
+            log.change_summary = parsed.get("change_summary", "Rule feedback applied")
+            log.ai_reasoning = parsed.get("reasoning", "")
+            log.status = "completed"
+
+        except Exception as e:
+            log.status = "failed"
+            log.error_message = str(e)[:2000]
+            logger.error(f"Rule feedback failed for project {project_id}: {e}", exc_info=True)
 
         return log
 

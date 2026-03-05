@@ -7,14 +7,15 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select, and_, func, desc, case, literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import get_session
+from app.db import get_session, async_session_maker
 from app.models.campaign import Campaign
 from app.models.contact import Project
+from app.models.learning import LearningLog
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/god-panel", tags=["God Panel"])
@@ -45,6 +46,10 @@ class CampaignOut(BaseModel):
 
 class AssignRequest(BaseModel):
     project_id: int
+
+
+class RuleFeedbackRequest(BaseModel):
+    feedback_text: str
 
 
 class ProjectRulesOut(BaseModel):
@@ -223,10 +228,15 @@ async def get_project_rules(
         else:
             rules.append(f"Explicit campaign filters: {len(filters)} campaigns ({', '.join(filters[:3])}, ...)")
 
-    # 3. GetSales senders
+    # 3. GetSales senders — resolve UUIDs to human names
     senders = project.getsales_senders or []
     if senders:
-        rules.append(f"GetSales sender UUIDs: {len(senders)} senders ({', '.join(s[:8] for s in senders)})")
+        try:
+            from app.services.crm_sync_service import GETSALES_SENDER_PROFILES
+            sender_names = [GETSALES_SENDER_PROFILES.get(s, s[:8]) for s in senders if isinstance(s, str)]
+        except ImportError:
+            sender_names = [s[:8] for s in senders]
+        rules.append(f"LinkedIn senders: {', '.join(sender_names)}")
 
     # 4. Project name prefix (implicit)
     project_name_lower = (project.name or "").lower()
@@ -304,12 +314,67 @@ async def get_stats(
     )
 
 
+@router.post("/projects/{project_id}/rule-feedback")
+async def submit_rule_feedback(
+    project_id: int,
+    body: RuleFeedbackRequest,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+):
+    """Submit feedback on campaign assignment rules — AI reconsiders and updates campaign_filters."""
+    # Validate project
+    proj_result = await session.execute(
+        select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
+    )
+    if not proj_result.scalar():
+        raise HTTPException(404, "Project not found")
+
+    # Create learning log immediately
+    log = LearningLog(
+        project_id=project_id,
+        trigger="rule_feedback",
+        feedback_text=body.feedback_text,
+        status="processing",
+    )
+    session.add(log)
+    await session.flush()
+    log_id = log.id
+    await session.commit()
+
+    # Process in background with own session
+    async def _process():
+        from app.services.learning_service import learning_service
+        async with async_session_maker() as bg_session:
+            try:
+                await learning_service.process_rule_feedback(
+                    bg_session, project_id, body.feedback_text, log_id
+                )
+                await bg_session.commit()
+            except Exception as e:
+                logger.error(f"Rule feedback processing failed: {e}", exc_info=True)
+                await bg_session.rollback()
+
+    background_tasks.add_task(_process)
+    return {"learning_log_id": log_id, "status": "processing"}
+
+
 @router.get("/unresolved-count")
 async def get_unresolved_count(
     session: AsyncSession = Depends(get_session),
 ):
     """Badge count: number of unresolved campaigns (no project assigned)."""
+    now = datetime.utcnow()
     result = await session.execute(
         select(func.count(Campaign.id)).where(Campaign.project_id.is_(None))
     )
-    return {"count": result.scalar() or 0}
+    count = result.scalar() or 0
+
+    # Count campaigns first seen in last 60 seconds
+    new_result = await session.execute(
+        select(func.count(Campaign.id)).where(
+            Campaign.first_seen_at >= now - timedelta(seconds=60)
+        )
+    )
+    new_count = new_result.scalar() or 0
+
+    return {"count": count, "new_count": new_count}
