@@ -672,16 +672,31 @@ async def send_telegram_notification(
                     await asyncio.sleep(retry_after)
                     continue
                     
-                logger.error(f"Telegram API error: {result.get('description')} (attempt {attempt + 1})")
-                    
+                error_desc = result.get('description', '')
+                logger.error(f"Telegram API error: {error_desc} (attempt {attempt + 1})")
+
+                # If HTML parsing failed, retry without parse_mode
+                if "can't parse entities" in error_desc.lower() and parse_mode:
+                    logger.warning(f"Telegram HTML parse error, retrying without parse_mode")
+                    try:
+                        fallback_resp = await client.post(url, data={
+                            "chat_id": target_chat,
+                            "text": message,
+                        })
+                        if fallback_resp.json().get("ok"):
+                            logger.info(f"Telegram notification sent (plaintext fallback) to {target_chat}")
+                            return True
+                    except Exception:
+                        pass
+
         except Exception as e:
             logger.error(f"Telegram send error (attempt {attempt + 1}): {e}")
-        
+
         # Exponential backoff before retry
         if attempt < max_retries - 1:
             wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
             await asyncio.sleep(wait)
-    
+
     logger.error(f"Telegram notification failed after {max_retries} attempts to {target_chat}")
     return False
 
@@ -915,20 +930,27 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     body_trimmed = "\n".join(l for l in body_lines[:8] if l.strip())
     if len(body_trimmed) > 200:
         body_trimmed = body_trimmed[:200] + "…"
+    # Escape HTML entities to prevent Telegram parse errors
+    from html import escape as _html_escape
+    body_trimmed = _html_escape(body_trimmed)
 
     # Translation for non-RU/EN messages
     translation_line = ""
     translated = getattr(reply, "translated_body", None)
+    detected_lang = getattr(reply, "detected_language", None)
+    logger.debug(f"[NOTIFY] Reply {getattr(reply, 'id', '?')}: lang={detected_lang}, translated_body={'set' if translated else 'None'}")
     if not translated:
         # Try to detect and translate on the fly
         try:
             from app.services.reply_processor import detect_and_translate
             lang_info = await detect_and_translate(body_raw[:1000])
             translated = lang_info.get("translation")
-        except Exception:
-            pass
+            if translated:
+                logger.info(f"[NOTIFY] On-the-fly translation for reply {getattr(reply, 'id', '?')}: lang={lang_info.get('language')}")
+        except Exception as tr_err:
+            logger.warning(f"[NOTIFY] On-the-fly translation failed: {tr_err}")
     if translated:
-        tr_trimmed = translated.strip()
+        tr_trimmed = _html_escape(translated.strip())
         tr_lines = tr_trimmed.split("\n")
         tr_trimmed = "\n".join(l for l in tr_lines[:6] if l.strip())
         if len(tr_trimmed) > 200:
@@ -944,12 +966,16 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
         except Exception:
             pass
 
+    _subj = _html_escape(reply.email_subject or 'No subject')
+    _company = _html_escape(reply.lead_company or 'Unknown')
+    _campaign = _html_escape(campaign_name or 'Unknown')
+
     message = f"""{indicator} <b>New Email Reply!</b>
 
 <b>From:</b> {reply.lead_email}
-<b>Subject:</b> {reply.email_subject or 'No subject'}
-<b>Company:</b> {reply.lead_company or 'Unknown'}
-<b>Campaign:</b> {campaign_name or 'Unknown'}{project_line}{inbox_line_email}{time_line}
+<b>Subject:</b> {_subj}
+<b>Company:</b> {_company}
+<b>Campaign:</b> {_campaign}{project_line}{inbox_line_email}{time_line}
 
 <b>Message:</b>
 <code>{body_trimmed}</code>{translation_line}
@@ -997,6 +1023,8 @@ async def notify_linkedin_reply(
     message_preview = "\n".join(l for l in msg_lines[:8] if l.strip())
     if len(message_preview) > 200:
         message_preview = message_preview[:200] + "…"
+    from html import escape as _html_escape
+    message_preview = _html_escape(message_preview)
     inbox_line = ""
     if inbox_link:
         inbox_line = f'\n<a href="{inbox_link}">💼 Open in GetSales</a>'
@@ -1047,7 +1075,7 @@ async def notify_linkedin_reply(
             lang_info = await detect_and_translate(raw_text[:1000])
             tr = lang_info.get("translation")
             if tr:
-                tr_trimmed = tr.strip()
+                tr_trimmed = _html_escape(tr.strip())
                 tr_lines = tr_trimmed.split("\n")
                 tr_trimmed = "\n".join(l for l in tr_lines[:6] if l.strip())
                 if len(tr_trimmed) > 200:
