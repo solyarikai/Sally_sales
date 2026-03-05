@@ -1828,6 +1828,58 @@ async def process_getsales_reply(
         except Exception as proj_err:
             logger.warning(f"[GETSALES] Project lookup failed (non-fatal): {proj_err}")
 
+    # --- Auto-register GetSales campaign in campaigns table (God Panel) ---
+    _project_resolved = locals().get("project")
+    from app.services.crm_sync_service import _is_valid_campaign_name
+    if flow_name and _is_valid_campaign_name(flow_name):
+        try:
+            from app.models.campaign import Campaign as CampaignModel
+            # Check if already registered
+            existing_campaign = None
+            if flow_uuid:
+                existing_campaign = (await session.execute(
+                    select(CampaignModel).where(
+                        CampaignModel.platform == "getsales",
+                        CampaignModel.external_id == flow_uuid,
+                    ).limit(1)
+                )).scalar()
+            if not existing_campaign:
+                existing_campaign = (await session.execute(
+                    select(CampaignModel).where(
+                        CampaignModel.platform == "getsales",
+                        CampaignModel.name == flow_name,
+                    ).limit(1)
+                )).scalar()
+            if not existing_campaign:
+                new_campaign = CampaignModel(
+                    company_id=1,
+                    platform="getsales",
+                    channel="linkedin",
+                    external_id=flow_uuid or None,
+                    name=flow_name,
+                    status="active",
+                    project_id=_project_resolved.id if _project_resolved else None,
+                    first_seen_at=datetime.utcnow(),
+                    resolution_method=(
+                        "exact_match" if (_project_resolved and not locals().get("matched_via_prefix"))
+                        else "prefix_match" if (_project_resolved and locals().get("matched_via_prefix"))
+                        else "unresolved"
+                    ),
+                    resolution_detail=(
+                        f"Matched project '{_project_resolved.name}'" if _project_resolved else "No project match"
+                    ),
+                )
+                session.add(new_campaign)
+                await session.flush()
+                logger.info(f"[GETSALES] Auto-registered campaign '{flow_name}' in campaigns table (id={new_campaign.id})")
+            elif _project_resolved and not existing_campaign.project_id:
+                existing_campaign.project_id = _project_resolved.id
+                existing_campaign.resolution_method = "prefix_match" if locals().get("matched_via_prefix") else "exact_match"
+                existing_campaign.resolution_detail = f"Matched project '{_project_resolved.name}'"
+                logger.info(f"[GETSALES] Updated campaign '{flow_name}' with project '{_project_resolved.name}'")
+        except Exception as camp_err:
+            logger.debug(f"[GETSALES] Campaign registration failed (non-fatal): {camp_err}")
+
     _knowledge_entries = locals().get("_knowledge_entries", [])
 
     # --- Classify ---

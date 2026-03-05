@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen, Activity } from 'lucide-react';
+import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen, Activity, Shield } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -9,6 +9,7 @@ import { contactsApi } from '../api/contacts';
 import { SectionErrorBoundary } from './ErrorBoundary';
 import { SpotlightFeedback } from './SpotlightFeedback';
 import { useTheme } from '../hooks/useTheme';
+import { godPanelApi } from '../api/godPanel';
 
 interface LayoutProps {
   children: ReactNode;
@@ -27,6 +28,15 @@ export function Layout({ children }: LayoutProps) {
   const [showSpotlight, setShowSpotlight] = useState(false);
   const projectDropdownRef = useRef<HTMLDivElement>(null);
   const { isDark, toggle: toggleTheme } = useTheme();
+  const [unresolvedCount, setUnresolvedCount] = useState(0);
+
+  // Poll unresolved campaign count for God Panel badge
+  useEffect(() => {
+    const poll = () => godPanelApi.getUnresolvedCount().then(setUnresolvedCount).catch(() => {});
+    poll();
+    const interval = setInterval(poll, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const navItems = [
     { path: '/', icon: Search, label: 'Data Search', global: true },
@@ -37,6 +47,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/tasks/replies', icon: ListTodo, label: 'Tasks', global: true },
     { path: '/knowledge/icp', icon: BookOpen, label: 'Knowledge', global: true },
     { path: '/actions', icon: Activity, label: 'Actions', global: true },
+    { path: '/god-panel', icon: Shield, label: 'God Panel', global: true, badge: true },
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },
     { path: '/settings', icon: Settings, label: 'Settings', global: true },
   ];
@@ -258,6 +269,11 @@ export function Layout({ children }: LayoutProps) {
               >
                 <item.icon className="w-3.5 h-3.5" />
                 <span>{item.label}</span>
+                {(item as any).badge && unresolvedCount > 0 && (
+                  <span className="ml-0.5 px-1 py-0 rounded-full text-[10px] font-bold leading-tight bg-red-500 text-white min-w-[16px] text-center">
+                    {unresolvedCount}
+                  </span>
+                )}
               </Link>
             );
           })}

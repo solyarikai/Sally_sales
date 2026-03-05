@@ -31,6 +31,7 @@ from .knowledge import router as project_knowledge_router
 from .learning import router as learning_router
 from .query_dashboard import router as query_dashboard_router
 from .operator_tasks import router as operator_tasks_router
+from .god_panel import router as god_panel_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -95,5 +96,8 @@ api_router.include_router(learning_router)
 
 # Operator Tasks (3-tab daily operations)
 api_router.include_router(operator_tasks_router)
+
+# God Panel (campaign intelligence dashboard)
+api_router.include_router(god_panel_router)
 
 __all__ = ["api_router"]

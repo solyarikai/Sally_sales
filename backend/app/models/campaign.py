@@ -7,6 +7,7 @@ ChannelAccount: sender identities (email accounts, LinkedIn profiles) per platfo
 These replace the JSON-blob approach (Project.campaign_filters, Contact.campaigns)
 with proper FK relationships that can be indexed and queried.
 """
+from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey, Boolean, Index, text
 from sqlalchemy.orm import relationship
 from app.db import Base
@@ -47,6 +48,12 @@ class Campaign(Base, TimestampMixin):
     # Polling reads /analytics, compares with this value; webhook increments it.
     # Prevents redundant pagination when webhook already caught the reply.
     sl_reply_count = Column(Integer, default=0, nullable=False, server_default="0")
+
+    # God Panel — campaign intelligence tracking
+    resolution_method = Column(String(50), nullable=True)   # exact_match, prefix_match, sender_match, db_fallback, manual, unresolved
+    resolution_detail = Column(Text, nullable=True)          # Human-readable: "Matched prefix 'squarefi - es' → project 47"
+    first_seen_at = Column(DateTime, nullable=True, default=datetime.utcnow)  # When campaign was first discovered
+    acknowledged = Column(Boolean, nullable=False, default=False, server_default="false")  # Operator reviewed in God Panel
 
     # Platform-specific config (sequence, schedule, tracking settings)
     config = Column(JSON, nullable=True)

@@ -22,6 +22,7 @@ import { ProjectKnowledgePage } from './pages/ProjectKnowledgePage';
 import { ProjectChatPage } from './pages/ProjectChatPage';
 import { QueryDashboardPage } from './pages/QueryDashboardPage';
 import { OperatorActionsPage } from './pages/OperatorActionsPage';
+import { GodPanelPage } from './pages/GodPanelPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -104,6 +105,13 @@ function App() {
         <Route path="/actions" element={
           <Layout>
             <OperatorActionsPage />
+          </Layout>
+        } />
+
+        {/* God Panel — campaign intelligence */}
+        <Route path="/god-panel" element={
+          <Layout>
+            <GodPanelPage />
           </Layout>
         } />
         

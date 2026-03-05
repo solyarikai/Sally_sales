@@ -620,6 +620,9 @@ _project_cache = {"data": {}, "last_refresh": None}
 _PROJECT_CACHE_TTL = 300
 _project_cache_lock = _asyncio.Lock()
 
+# God Panel — track which campaigns have been resolution-tracked (one update per process lifetime)
+_seen_campaigns: set = set()
+
 
 async def send_telegram_notification(
     message: str, 
@@ -698,6 +701,34 @@ async def _ensure_cache_fresh():
                     logger.warning(f"Failed to refresh project cache: {e}")
 
 
+async def _track_campaign_resolution(campaign_name: str, method: str, detail: str, project_id: int = None):
+    """Fire-and-forget: update campaign's resolution_method in campaigns table.
+    Deduped by _seen_campaigns set — one update per campaign per process lifetime."""
+    if campaign_name in _seen_campaigns:
+        return
+    _seen_campaigns.add(campaign_name)
+    try:
+        from app.db import async_session_maker
+        from app.models.campaign import Campaign as CampaignModel
+        from sqlalchemy import select, func
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(CampaignModel).where(
+                    func.lower(CampaignModel.name) == campaign_name.lower()
+                ).limit(1)
+            )
+            campaign = result.scalar()
+            if campaign:
+                if not campaign.resolution_method or campaign.resolution_method == "unresolved":
+                    campaign.resolution_method = method
+                    campaign.resolution_detail = detail
+                if project_id and not campaign.project_id:
+                    campaign.project_id = project_id
+                await session.commit()
+    except Exception as e:
+        logger.debug(f"Campaign resolution tracking failed (non-fatal): {e}")
+
+
 async def _get_project_for_campaign(campaign_name: str):
     """Find the project that owns a campaign.
 
@@ -720,6 +751,11 @@ async def _get_project_for_campaign(campaign_name: str):
         filters = project_data.get("campaign_filters") or []
         for f in filters:
             if isinstance(f, str) and f.lower() == campaign_lower:
+                _asyncio.ensure_future(_track_campaign_resolution(
+                    campaign_name, "exact_match",
+                    f"Exact match in campaign_filters of project '{project_data.get('name')}'",
+                    project_data.get("id"),
+                ))
                 return project_data
 
     # 2. Prefix match — pick the LONGEST matching project name
@@ -735,6 +771,11 @@ async def _get_project_for_campaign(campaign_name: str):
                 best_match = project_data
                 best_len = len(project_name)
     if best_match:
+        _asyncio.ensure_future(_track_campaign_resolution(
+            campaign_name, "prefix_match",
+            f"Matched prefix '{best_match.get('name')}' (len={best_len})",
+            best_match.get("id"),
+        ))
         return best_match
 
     # 3. DB fallback: look up campaigns table for project_id
@@ -754,10 +795,19 @@ async def _get_project_for_campaign(campaign_name: str):
                 project_data = _project_cache["data"].get(row[0])
                 if project_data:
                     logger.info(f"Campaign '{campaign_name}' resolved to project {row[0]} via DB fallback")
+                    _asyncio.ensure_future(_track_campaign_resolution(
+                        campaign_name, "db_fallback",
+                        f"Found in campaigns table → project {row[0]}",
+                        row[0],
+                    ))
                     return project_data
     except Exception as e:
         logger.debug(f"DB campaign lookup failed (non-fatal): {e}")
 
+    # Unresolved — track it
+    _asyncio.ensure_future(_track_campaign_resolution(
+        campaign_name, "unresolved", "No project match found"
+    ))
     return None
 
 

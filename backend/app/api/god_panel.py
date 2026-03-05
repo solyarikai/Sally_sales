@@ -1,0 +1,310 @@
+"""
+God Panel API — Campaign Intelligence Dashboard.
+
+Endpoints for monitoring campaign discovery, resolution, and assignment.
+"""
+import logging
+from datetime import datetime, timedelta
+from typing import Optional, List
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import select, and_, func, desc, case, literal_column
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db import get_session
+from app.models.campaign import Campaign
+from app.models.contact import Project
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/god-panel", tags=["God Panel"])
+
+
+# ─── Response schemas ──────────────────────────────────────────
+
+class CampaignOut(BaseModel):
+    id: int
+    name: str
+    platform: str
+    channel: str
+    external_id: Optional[str] = None
+    project_id: Optional[int] = None
+    project_name: Optional[str] = None
+    status: Optional[str] = None
+    resolution_method: Optional[str] = None
+    resolution_detail: Optional[str] = None
+    first_seen_at: Optional[datetime] = None
+    acknowledged: bool = False
+    replied_count: int = 0
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AssignRequest(BaseModel):
+    project_id: int
+
+
+class ProjectRulesOut(BaseModel):
+    project_id: int
+    project_name: str
+    rules: List[str]
+
+
+class StatsOut(BaseModel):
+    total_campaigns: int
+    smartlead_campaigns: int
+    getsales_campaigns: int
+    unresolved_count: int
+    unacknowledged_count: int
+    assignment_rate: float
+    reply_volume_7d: int
+    reply_volume_30d: int
+    newest_campaign: Optional[str] = None
+    newest_campaign_at: Optional[datetime] = None
+
+
+# ─── Endpoints ─────────────────────────────────────────────────
+
+@router.get("/campaigns/", response_model=List[CampaignOut])
+async def list_campaigns(
+    platform: Optional[str] = Query(None, description="Filter by platform: smartlead, getsales"),
+    unresolved: Optional[bool] = Query(None, description="Only unresolved campaigns (no project)"),
+    unacknowledged: Optional[bool] = Query(None, description="Only unacknowledged campaigns"),
+    project_id: Optional[int] = Query(None, description="Filter by project"),
+    since: Optional[str] = Query(None, description="ISO date — campaigns first seen after this date"),
+    session: AsyncSession = Depends(get_session),
+):
+    """List all campaigns with optional filters."""
+    query = select(Campaign, Project.name.label("project_name")).outerjoin(
+        Project, Campaign.project_id == Project.id
+    )
+
+    filters = []
+    if platform:
+        filters.append(Campaign.platform == platform)
+    if unresolved:
+        filters.append(Campaign.project_id.is_(None))
+    if unacknowledged:
+        filters.append(Campaign.acknowledged == False)
+    if project_id:
+        filters.append(Campaign.project_id == project_id)
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since)
+            filters.append(Campaign.first_seen_at >= since_dt)
+        except ValueError:
+            pass
+
+    if filters:
+        query = query.where(and_(*filters))
+
+    query = query.order_by(desc(Campaign.first_seen_at), desc(Campaign.created_at))
+    result = await session.execute(query)
+    rows = result.all()
+
+    return [
+        CampaignOut(
+            id=campaign.id,
+            name=campaign.name,
+            platform=campaign.platform,
+            channel=campaign.channel,
+            external_id=campaign.external_id,
+            project_id=campaign.project_id,
+            project_name=project_name,
+            status=campaign.status,
+            resolution_method=campaign.resolution_method,
+            resolution_detail=campaign.resolution_detail,
+            first_seen_at=campaign.first_seen_at,
+            acknowledged=campaign.acknowledged,
+            replied_count=campaign.replied_count,
+            created_at=campaign.created_at,
+        )
+        for campaign, project_name in rows
+    ]
+
+
+@router.post("/campaigns/{campaign_id}/acknowledge")
+async def acknowledge_campaign(
+    campaign_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Mark a campaign as reviewed by operator."""
+    result = await session.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    campaign.acknowledged = True
+    await session.commit()
+    return {"ok": True, "campaign_id": campaign_id}
+
+
+@router.post("/campaigns/{campaign_id}/assign")
+async def assign_campaign(
+    campaign_id: int,
+    body: AssignRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Assign a campaign to a project. Also adds to project's campaign_filters."""
+    result = await session.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    # Validate project exists
+    proj_result = await session.execute(
+        select(Project).where(Project.id == body.project_id, Project.deleted_at.is_(None))
+    )
+    project = proj_result.scalar()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # Update campaign
+    campaign.project_id = project.id
+    campaign.resolution_method = "manual"
+    campaign.resolution_detail = f"Manually assigned to '{project.name}' via God Panel"
+    campaign.acknowledged = True
+
+    # Add to project's campaign_filters if not already there
+    existing_filters = project.campaign_filters or []
+    existing_lower = {f.lower() for f in existing_filters if isinstance(f, str)}
+    if campaign.name.lower() not in existing_lower:
+        project.campaign_filters = existing_filters + [campaign.name]
+        logger.info(f"[GOD_PANEL] Added '{campaign.name}' to project '{project.name}' campaign_filters")
+
+    await session.commit()
+    return {
+        "ok": True,
+        "campaign_id": campaign_id,
+        "project_id": project.id,
+        "project_name": project.name,
+    }
+
+
+@router.get("/projects/{project_id}/rules", response_model=ProjectRulesOut)
+async def get_project_rules(
+    project_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Get computed assignment rules for a project."""
+    result = await session.execute(
+        select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
+    )
+    project = result.scalar()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    rules = []
+
+    # 1. Prefix rules from _PROJECT_PREFIXES
+    try:
+        from app.services.crm_sync_service import _PROJECT_PREFIXES
+        matching_prefixes = [
+            prefix for prefix, pid in _PROJECT_PREFIXES.items()
+            if pid == project_id
+        ]
+        if matching_prefixes:
+            rules.append(f"GetSales automation prefix match: {', '.join(repr(p) for p in matching_prefixes)}")
+    except ImportError:
+        pass
+
+    # 2. Campaign filters
+    filters = project.campaign_filters or []
+    if filters:
+        if len(filters) <= 5:
+            rules.append(f"Explicit campaign filters: {', '.join(filters)}")
+        else:
+            rules.append(f"Explicit campaign filters: {len(filters)} campaigns ({', '.join(filters[:3])}, ...)")
+
+    # 3. GetSales senders
+    senders = project.getsales_senders or []
+    if senders:
+        rules.append(f"GetSales sender UUIDs: {len(senders)} senders ({', '.join(s[:8] for s in senders)})")
+
+    # 4. Project name prefix (implicit)
+    project_name_lower = (project.name or "").lower()
+    if project_name_lower and len(project_name_lower) >= 4:
+        rules.append(f"Implicit name prefix match: campaigns starting with '{project.name}'")
+
+    return ProjectRulesOut(
+        project_id=project.id,
+        project_name=project.name,
+        rules=rules if rules else ["No assignment rules configured"],
+    )
+
+
+@router.get("/stats", response_model=StatsOut)
+async def get_stats(
+    session: AsyncSession = Depends(get_session),
+):
+    """Cross-project campaign intelligence metrics."""
+    from app.models.reply import ProcessedReply
+
+    # Campaign counts
+    total_result = await session.execute(select(func.count(Campaign.id)))
+    total = total_result.scalar() or 0
+
+    platform_result = await session.execute(
+        select(Campaign.platform, func.count(Campaign.id)).group_by(Campaign.platform)
+    )
+    platform_counts = dict(platform_result.all())
+
+    unresolved_result = await session.execute(
+        select(func.count(Campaign.id)).where(Campaign.project_id.is_(None))
+    )
+    unresolved = unresolved_result.scalar() or 0
+
+    unack_result = await session.execute(
+        select(func.count(Campaign.id)).where(Campaign.acknowledged == False)
+    )
+    unacknowledged = unack_result.scalar() or 0
+
+    # Reply volumes
+    now = datetime.utcnow()
+    vol_7d = await session.execute(
+        select(func.count(ProcessedReply.id)).where(
+            ProcessedReply.received_at >= now - timedelta(days=7)
+        )
+    )
+    vol_30d = await session.execute(
+        select(func.count(ProcessedReply.id)).where(
+            ProcessedReply.received_at >= now - timedelta(days=30)
+        )
+    )
+
+    # Newest campaign
+    newest_result = await session.execute(
+        select(Campaign.name, Campaign.first_seen_at)
+        .order_by(desc(Campaign.first_seen_at))
+        .limit(1)
+    )
+    newest = newest_result.first()
+
+    assigned = total - unresolved
+    assignment_rate = (assigned / total * 100) if total > 0 else 0.0
+
+    return StatsOut(
+        total_campaigns=total,
+        smartlead_campaigns=platform_counts.get("smartlead", 0),
+        getsales_campaigns=platform_counts.get("getsales", 0),
+        unresolved_count=unresolved,
+        unacknowledged_count=unacknowledged,
+        assignment_rate=round(assignment_rate, 1),
+        reply_volume_7d=vol_7d.scalar() or 0,
+        reply_volume_30d=vol_30d.scalar() or 0,
+        newest_campaign=newest[0] if newest else None,
+        newest_campaign_at=newest[1] if newest else None,
+    )
+
+
+@router.get("/unresolved-count")
+async def get_unresolved_count(
+    session: AsyncSession = Depends(get_session),
+):
+    """Badge count: number of unresolved campaigns (no project assigned)."""
+    result = await session.execute(
+        select(func.count(Campaign.id)).where(Campaign.project_id.is_(None))
+    )
+    return {"count": result.scalar() or 0}

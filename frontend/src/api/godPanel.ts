@@ -1,0 +1,74 @@
+import { api } from './client';
+
+export interface GodPanelCampaign {
+  id: number;
+  name: string;
+  platform: string;
+  channel: string;
+  external_id?: string;
+  project_id?: number;
+  project_name?: string;
+  status?: string;
+  resolution_method?: string;
+  resolution_detail?: string;
+  first_seen_at?: string;
+  acknowledged: boolean;
+  replied_count: number;
+  created_at?: string;
+}
+
+export interface ProjectRules {
+  project_id: number;
+  project_name: string;
+  rules: string[];
+}
+
+export interface GodPanelStats {
+  total_campaigns: number;
+  smartlead_campaigns: number;
+  getsales_campaigns: number;
+  unresolved_count: number;
+  unacknowledged_count: number;
+  assignment_rate: number;
+  reply_volume_7d: number;
+  reply_volume_30d: number;
+  newest_campaign?: string;
+  newest_campaign_at?: string;
+}
+
+export const godPanelApi = {
+  async listCampaigns(params?: {
+    platform?: string;
+    unresolved?: boolean;
+    unacknowledged?: boolean;
+    project_id?: number;
+    since?: string;
+  }): Promise<GodPanelCampaign[]> {
+    const { data } = await api.get('/god-panel/campaigns/', { params });
+    return data;
+  },
+
+  async acknowledgeCampaign(id: number): Promise<void> {
+    await api.post(`/god-panel/campaigns/${id}/acknowledge`);
+  },
+
+  async assignCampaign(id: number, projectId: number): Promise<{ project_name: string }> {
+    const { data } = await api.post(`/god-panel/campaigns/${id}/assign`, { project_id: projectId });
+    return data;
+  },
+
+  async getProjectRules(projectId: number): Promise<ProjectRules> {
+    const { data } = await api.get(`/god-panel/projects/${projectId}/rules`);
+    return data;
+  },
+
+  async getStats(): Promise<GodPanelStats> {
+    const { data } = await api.get('/god-panel/stats');
+    return data;
+  },
+
+  async getUnresolvedCount(): Promise<number> {
+    const { data } = await api.get('/god-panel/unresolved-count');
+    return data.count;
+  },
+};
