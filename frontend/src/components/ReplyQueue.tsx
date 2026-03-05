@@ -202,6 +202,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const [projectDocs, setProjectDocs] = useState<KnowledgeEntry[]>([]);
 
   // Knowledge-driven draft staleness — on-demand regen when reply enters viewport
+  // Only activates after a learning cycle completes during this session (never on initial load)
   const [knowledgeUpdatedAt, setKnowledgeUpdatedAt] = useState<string | null>(null);
   const [autoRegeneratingIds, setAutoRegeneratingIds] = useState<Set<number>>(new Set());
   const [justUpdatedIds, setJustUpdatedIds] = useState<Set<number>>(new Set());
@@ -264,18 +265,16 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   }, [pendingLearning?.logId, currentProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- Knowledge timestamp tracking ---- */
+  // Don't load on mount — only set after a learning cycle completes during this session
   useEffect(() => {
-    if (!currentProject) { setKnowledgeUpdatedAt(null); return; }
-    knowledgeApi.getKnowledgeTimestamp(currentProject.id)
-      .then(res => setKnowledgeUpdatedAt(res.knowledge_updated_at))
-      .catch(() => {});
+    if (!currentProject) { setKnowledgeUpdatedAt(null); }
   }, [currentProject?.id]);
 
   /* ---- On-demand auto-regen: regenerate stale drafts when they enter viewport ---- */
   const regenObserverRef = useRef<IntersectionObserver | null>(null);
   const observedNodesRef = useRef<Set<HTMLDivElement>>(new Set());
 
-  // Create observer once, re-create when knowledgeUpdatedAt changes
+  // Create observer — only active when knowledgeUpdatedAt is set (after learning cycle completes)
   useEffect(() => {
     regenObserverRef.current?.disconnect();
     if (!knowledgeUpdatedAt) return;

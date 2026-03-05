@@ -72,7 +72,7 @@ export function SpotlightFeedback({ open, onClose }: Props) {
           <div className="flex items-center gap-2">
             <Command className="w-4 h-4" style={{ color: t.text3 }} />
             <span className="text-[13px] font-medium" style={{ color: t.text1 }}>
-              Feedback for {currentProject?.name || 'project'}
+              Reply quality feedback — {currentProject?.name || 'project'}
             </span>
           </div>
           <button onClick={onClose} className="p-1 rounded hover:opacity-70">
@@ -95,7 +95,7 @@ export function SpotlightFeedback({ open, onClose }: Props) {
                   Feedback submitted
                 </p>
                 <p className="text-[12px] mt-1" style={{ color: t.text4 }}>
-                  AI is processing your feedback and updating templates...
+                  AI is updating reply templates and knowledge...
                 </p>
               </div>
               <button
@@ -124,7 +124,7 @@ export function SpotlightFeedback({ open, onClose }: Props) {
                   if (e.key === 'Escape') onClose();
                   if (e.key === 'Enter' && e.metaKey) handleSubmit();
                 }}
-                placeholder="Tell the AI how to improve replies... (e.g., 'Be more casual on LinkedIn', 'Always mention our free trial')"
+                placeholder="How should AI improve replies? e.g. 'Be more casual on LinkedIn', 'Always mention our free trial', 'Add pricing details for interested leads'"
                 rows={4}
                 className="w-full rounded-lg px-3 py-2 text-[13px] resize-none focus:outline-none"
                 style={{

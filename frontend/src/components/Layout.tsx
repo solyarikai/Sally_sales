@@ -108,10 +108,11 @@ export function Layout({ children }: LayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Cmd+K (Mac) / Ctrl+K (Windows) spotlight feedback
+  // Cmd+K (Mac) / Ctrl+K (Windows) spotlight feedback — skip on project page (has own handler)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        if (/^\/projects\/\d+/.test(location.pathname)) return; // ProjectPage handles its own Cmd+K
         e.preventDefault();
         setShowSpotlight(prev => !prev);
       }
