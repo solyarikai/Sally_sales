@@ -330,25 +330,35 @@ class CRMScheduler:
                 # names match first — "EasyStaff Russian" before "EasyStaff"
                 sorted_projects = sorted(projects, key=lambda p: len(p.name), reverse=True)
 
+                # Build prefix lookup: project name + custom prefixes from campaign_auto_prefixes
+                project_prefixes = []  # [(prefix_lower, project)]
+                for project in sorted_projects:
+                    p_lower = project.name.lower()
+                    project_prefixes.append((p_lower, project))
+                    project_prefixes.append((p_lower.replace(" ", " - "), project))
+                    for custom_prefix in (project.campaign_auto_prefixes or []):
+                        cp_lower = custom_prefix.lower().strip()
+                        if cp_lower and cp_lower != p_lower:
+                            project_prefixes.append((cp_lower, project))
+                # Sort by prefix length DESC (longest match wins)
+                project_prefixes.sort(key=lambda x: len(x[0]), reverse=True)
+
                 assigned_count = 0
                 for campaign in all_campaigns:
                     c_name = campaign.get("name", "")
                     if not c_name or c_name.lower() in assigned_names:
                         continue
 
-                    # Match: campaign name must START WITH the project name (case-insensitive)
-                    # e.g. project "EasyStaff - Russian" matches "EasyStaff - Russian DM [>500]"
-                    # but NOT "EasyStaff - Sigma" (different prefix)
+                    # Match: campaign name must START WITH a project prefix (case-insensitive)
                     c_lower = c_name.lower()
-                    for project in sorted_projects:
-                        p_lower = project.name.lower()
-                        if c_lower.startswith(p_lower) or c_lower.startswith(p_lower.replace(" ", " - ")):
+                    for prefix, project in project_prefixes:
+                        if c_lower.startswith(prefix):
                             filters = list(project.campaign_filters or [])
                             filters.append(c_name)
                             project.campaign_filters = filters
                             assigned_names.add(c_name.lower())
                             assigned_count += 1
-                            logger.info(f"Auto-assigned campaign '{c_name}' to project '{project.name}'")
+                            logger.info(f"Auto-assigned campaign '{c_name}' to project '{project.name}' (prefix: '{prefix}')")
                             break
 
                 if assigned_count > 0:

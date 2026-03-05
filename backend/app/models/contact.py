@@ -37,6 +37,11 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # Kept for backward compat — services still read this during transition.
     campaign_filters = Column(JSON, nullable=True)
 
+    # Auto-assign prefixes — campaigns starting with any of these prefixes are auto-assigned.
+    # Set via AI feedback (e.g. "track future campaigns matching SquareFi ES").
+    # Checked in _auto_assign_new_campaigns alongside implicit project name prefix.
+    campaign_auto_prefixes = Column(JSON, nullable=True)
+
     # GetSales LinkedIn sender filter — list of sender_profile_uuids allowed for this project.
     # When set, LinkedIn replies are only shown if their sender matches this list.
     # Prevents cross-project misrouting when GetSales attributes a reply to wrong automation.

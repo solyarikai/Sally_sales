@@ -114,6 +114,7 @@ RULE_FEEDBACK_SYSTEM_PROMPT = """You are a campaign routing expert. You decide w
 OUTPUT strict JSON:
 {
   "final_campaigns": ["exact campaign names that should remain assigned to this project"],
+  "auto_assign_prefixes": ["prefix strings for auto-assigning FUTURE campaigns"],
   "reasoning": "Why these changes make sense",
   "change_summary": "Human-readable summary: X campaigns added, Y removed"
 }
@@ -125,7 +126,14 @@ CRITICAL RULES:
 - If operator says "remove X" — include all current campaigns except X.
 - If operator says "only X, Y, Z" — final_campaigns = [X, Y, Z] ONLY. Remove everything else.
 - When matching by prefix (e.g. "GS: SquareFi - ES - RUS DMs"), match the campaign name after the prefix label.
-- Keep change_summary concise: "Added 2, removed 15 campaigns" or "Set to 4 specific campaigns"."""
+- Keep change_summary concise: "Added 2, removed 15 campaigns" or "Set to 4 specific campaigns".
+
+AUTO-ASSIGN PREFIXES:
+- If the operator mentions "future campaigns" or "all campaigns matching X" or "track new campaigns with prefix Y", extract the PREFIX patterns into auto_assign_prefixes.
+- Prefixes are case-insensitive name prefixes. Any future campaign whose name starts with a prefix will be auto-assigned.
+- Example: "only these 4 campaigns, plus any future SquareFi - ES campaigns" → auto_assign_prefixes: ["SquareFi - ES"]
+- If no future/prefix instructions, set auto_assign_prefixes to the CURRENT AUTO-ASSIGN PREFIXES value (preserve existing).
+- Prefix patterns should be broad enough to catch future campaigns but specific enough to avoid false matches."""
 
 MIN_QUALIFIED_THRESHOLD = 20
 
@@ -396,6 +404,7 @@ Incorporate this feedback into the template and ICP knowledge."""
                 return log
 
             current_filters = project.campaign_filters or []
+            current_prefixes = project.campaign_auto_prefixes or []
             senders = project.getsales_senders or []
 
             # Get prefix rules
@@ -415,6 +424,7 @@ Incorporate this feedback into the template and ICP knowledge."""
 
             log.before_snapshot = {
                 "campaign_filters": current_filters,
+                "campaign_auto_prefixes": current_prefixes,
                 "getsales_senders": senders,
                 "prefix_rules": prefix_rules,
                 "unassigned_campaigns": unassigned,
@@ -423,6 +433,8 @@ Incorporate this feedback into the template and ICP knowledge."""
             user_prompt = f"""Project: {project.name} (id={project_id})
 
 CURRENT CAMPAIGN FILTERS: {json.dumps(current_filters)}
+
+CURRENT AUTO-ASSIGN PREFIXES: {json.dumps(current_prefixes) if current_prefixes else '(none)'}
 
 GETSALES SENDERS: {json.dumps(senders)}
 
@@ -452,6 +464,7 @@ Decide which campaigns to add or remove for this project."""
             parsed = json.loads(response)
 
             final_campaigns = parsed.get("final_campaigns", [])
+            new_prefixes = parsed.get("auto_assign_prefixes", current_prefixes)
 
             # Compute diffs
             current_lower = {f.lower(): f for f in current_filters}
@@ -460,6 +473,11 @@ Decide which campaigns to add or remove for this project."""
             removed = [current_lower[k] for k in current_lower if k not in final_lower]
 
             project.campaign_filters = final_campaigns
+
+            # Update auto-assign prefixes if AI provided them
+            if new_prefixes != current_prefixes:
+                project.campaign_auto_prefixes = new_prefixes if new_prefixes else None
+                logger.info(f"[RULE_FEEDBACK] Updated auto-assign prefixes for '{project.name}': {new_prefixes}")
             logger.info(f"[RULE_FEEDBACK] Project '{project.name}': +{len(added)} -{len(removed)} campaigns")
 
             # Update campaign project_id in campaigns table
@@ -503,6 +521,7 @@ Decide which campaigns to add or remove for this project."""
 
             log.after_snapshot = {
                 "campaign_filters": final_campaigns,
+                "campaign_auto_prefixes": new_prefixes,
                 "added": added,
                 "removed": removed,
             }

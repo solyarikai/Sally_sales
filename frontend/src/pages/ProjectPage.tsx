@@ -62,6 +62,7 @@ export function ProjectPage() {
   // Campaign audit logs
   const [campaignLogs, setCampaignLogs] = useState<CampaignAuditLogEntry[]>([]);
   const [showCampaignLogs, setShowCampaignLogs] = useState(false);
+  const [showAllLogs, setShowAllLogs] = useState(false);
 
   const t = themeColors(isDark);
 
@@ -474,7 +475,7 @@ export function ProjectPage() {
           <div className="px-5 pb-5 space-y-1.5">
             {campaignLogs.length === 0 ? (
               <p className={cn("text-[12px] py-2", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>No campaign changes recorded yet</p>
-            ) : campaignLogs.map(log => (
+            ) : (showAllLogs ? campaignLogs : campaignLogs.slice(0, 5)).map(log => (
               <div key={log.id} className={cn("flex items-start gap-2.5 px-3 py-2 rounded-lg text-[12px]", isDark ? "bg-[#1e1e1e]" : "bg-neutral-50")}>
                 {log.action === 'add' ? (
                   <Plus className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-500" />
@@ -506,6 +507,14 @@ export function ProjectPage() {
                 </div>
               </div>
             ))}
+            {campaignLogs.length > 5 && (
+              <button
+                onClick={() => setShowAllLogs(prev => !prev)}
+                className={cn("text-[12px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors", isDark ? "text-[#858585] hover:text-[#d4d4d4] hover:bg-[#1e1e1e]" : "text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50")}
+              >
+                {showAllLogs ? `Show less` : `Show all ${campaignLogs.length} entries`}
+              </button>
+            )}
           </div>
         )}
       </div>

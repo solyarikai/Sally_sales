@@ -250,7 +250,12 @@ async def get_project_rules(
         else:
             rules.append(f"Explicit campaign filters: {len(filters)} campaigns ({', '.join(filters[:3])}, ...)")
 
-    # 3. GetSales senders — resolve UUIDs to human names
+    # 3. Custom auto-assign prefixes (from AI feedback)
+    auto_prefixes = project.campaign_auto_prefixes or []
+    if auto_prefixes:
+        rules.append(f"Auto-assign prefixes (future campaigns): {', '.join(repr(p) for p in auto_prefixes)}")
+
+    # 4. GetSales senders — resolve UUIDs to human names
     senders = project.getsales_senders or []
     if senders:
         try:
@@ -260,10 +265,13 @@ async def get_project_rules(
             sender_names = [s[:8] for s in senders]
         rules.append(f"LinkedIn senders: {', '.join(sender_names)}")
 
-    # 4. Project name prefix (implicit)
+    # 5. Project name prefix (implicit)
     project_name_lower = (project.name or "").lower()
     if project_name_lower and len(project_name_lower) >= 4:
         rules.append(f"Implicit name prefix match: campaigns starting with '{project.name}'")
+
+    # 6. Monitoring schedule
+    rules.append("Monitoring: new campaigns checked every ~30 min, replies polled every 3–10 min")
 
     return ProjectRulesOut(
         project_id=project.id,
