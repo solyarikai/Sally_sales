@@ -3,10 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Check, X, Search, Trash2,
   MessageCircle, Loader2, Unlink, FolderOpen, Zap, FileSpreadsheet, RefreshCw,
-  Activity, Radio, Clock, AlertTriangle, CheckCircle2, XCircle, Info, Command, Send, ExternalLink,
+  Activity, Radio, Clock, AlertTriangle, CheckCircle2, XCircle, Info, Command, Send, ExternalLink, ChevronDown, Plus, Minus,
 } from 'lucide-react';
 import { contactsApi, type Project, type SheetSyncConfig, type ProjectMonitoring } from '../api/contacts';
-import { godPanelApi, type ProjectRules } from '../api/godPanel';
+import { godPanelApi, type ProjectRules, type CampaignAuditLogEntry } from '../api/godPanel';
 import { getLearningStatus } from '../api/learning';
 import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../store/appStore';
@@ -59,8 +59,9 @@ export function ProjectPage() {
   const [rulesRefreshing, setRulesRefreshing] = useState(false);
   const ruleFeedbackRef = useRef<HTMLTextAreaElement>(null);
 
-  // Feedback log id (for "View in logs" link after submit)
-  const [ruleFeedbackLogId, setRuleFeedbackLogId] = useState<number | null>(null);
+  // Campaign audit logs
+  const [campaignLogs, setCampaignLogs] = useState<CampaignAuditLogEntry[]>([]);
+  const [showCampaignLogs, setShowCampaignLogs] = useState(false);
 
   const t = themeColors(isDark);
 
@@ -95,12 +96,21 @@ export function ProjectPage() {
     } catch {}
   }, []);
 
+  const loadCampaignLogs = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const logs = await godPanelApi.getCampaignLogs(projectId);
+      setCampaignLogs(logs);
+    } catch {}
+  }, [projectId]);
+
   useEffect(() => {
     loadProject();
     loadCampaigns();
     loadMonitoring();
+    loadCampaignLogs();
     if (projectId) godPanelApi.getProjectRules(projectId).then(setRules).catch(() => {});
-  }, [loadProject, loadCampaigns, loadMonitoring, projectId]);
+  }, [loadProject, loadCampaigns, loadMonitoring, loadCampaignLogs, projectId]);
 
   // Sync loaded project to the global store (project selector in header)
   useEffect(() => {
@@ -117,7 +127,6 @@ export function ProjectPage() {
         setShowRuleFeedback(prev => !prev);
         setRuleFeedbackText('');
         setRuleFeedbackStatus('idle');
-        setRuleFeedbackLogId(null);
         setTimeout(() => ruleFeedbackRef.current?.focus(), 50);
       }
     }
@@ -131,7 +140,7 @@ export function ProjectPage() {
     setRuleFeedbackStatus('polling');
     try {
       const { learning_log_id } = await godPanelApi.submitRuleFeedback(projectId, ruleFeedbackText.trim());
-      setRuleFeedbackLogId(learning_log_id);
+
       // Poll for completion
       let stopped = false;
       const poll = setInterval(async () => {
@@ -144,11 +153,12 @@ export function ProjectPage() {
             setRuleFeedbackStatus('done');
             setRuleFeedbackSummary(status.change_summary || 'Rules updated');
             setRuleFeedbackSubmitting(false);
-            // Refresh rules + project data
+            // Refresh rules + project data + campaign logs
             setRulesRefreshing(true);
             await Promise.all([
               godPanelApi.getProjectRules(projectId).then(setRules).catch(() => {}),
               loadProject(),
+              loadCampaignLogs(),
             ]);
             setRulesRefreshing(false);
           } else if (status.status === 'failed') {
@@ -310,7 +320,7 @@ export function ProjectPage() {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => { setShowRuleFeedback(true); setRuleFeedbackText(''); setRuleFeedbackStatus('idle'); setRuleFeedbackLogId(null); setTimeout(() => ruleFeedbackRef.current?.focus(), 50); }}
+              onClick={() => { setShowRuleFeedback(true); setRuleFeedbackText(''); setRuleFeedbackStatus('idle'); setTimeout(() => ruleFeedbackRef.current?.focus(), 50); }}
               className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] transition-colors", isDark ? "text-[#858585] hover:text-[#d4d4d4] hover:bg-[#2d2d2d]" : "text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100")}
               title={`Campaign rules feedback (${navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl+'}K)`}
             >
@@ -443,6 +453,63 @@ export function ProjectPage() {
         </div>
       </div>
 
+      {/* Campaign Assignment History */}
+      <div className={cn("rounded-xl border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
+        <button
+          onClick={() => setShowCampaignLogs(prev => !prev)}
+          className={cn("w-full flex items-center justify-between p-5 text-left rounded-xl", isDark ? "hover:bg-[#2d2d2d]" : "hover:bg-neutral-50")}
+        >
+          <h2 className={cn("text-sm font-semibold flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+            <Clock className="w-4 h-4" />
+            Campaign Assignment History
+            {campaignLogs.length > 0 && (
+              <span className={cn("text-[11px] font-normal px-1.5 py-0.5 rounded", isDark ? "bg-[#333] text-[#858585]" : "bg-neutral-100 text-neutral-500")}>
+                {campaignLogs.length}
+              </span>
+            )}
+          </h2>
+          <ChevronDown className={cn("w-4 h-4 transition-transform", showCampaignLogs && "rotate-180", isDark ? "text-[#6e6e6e]" : "text-neutral-400")} />
+        </button>
+        {showCampaignLogs && (
+          <div className="px-5 pb-5 space-y-1.5">
+            {campaignLogs.length === 0 ? (
+              <p className={cn("text-[12px] py-2", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>No campaign changes recorded yet</p>
+            ) : campaignLogs.map(log => (
+              <div key={log.id} className={cn("flex items-start gap-2.5 px-3 py-2 rounded-lg text-[12px]", isDark ? "bg-[#1e1e1e]" : "bg-neutral-50")}>
+                {log.action === 'add' ? (
+                  <Plus className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-500" />
+                ) : log.action === 'remove' ? (
+                  <Minus className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-red-400" />
+                ) : (
+                  <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: t.text4 }} />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={cn("font-medium", isDark ? "text-[#d4d4d4]" : "text-neutral-800")}>
+                      {log.campaign_name || (log.action === 'no_change' ? 'No changes' : log.action)}
+                    </span>
+                    <span className={cn(
+                      "text-[10px] font-medium px-1.5 py-0.5 rounded",
+                      log.source === 'manual' ? (isDark ? "bg-[#333] text-[#858585]" : "bg-neutral-200 text-neutral-500")
+                        : log.source === 'ai_feedback' ? (isDark ? "bg-violet-900/30 text-violet-400" : "bg-violet-50 text-violet-600")
+                        : (isDark ? "bg-amber-900/30 text-amber-400" : "bg-amber-50 text-amber-700")
+                    )}>
+                      {log.source === 'manual' ? 'Manual' : log.source === 'ai_feedback' ? 'AI Feedback' : 'God Panel'}
+                    </span>
+                    <span className={cn("text-[11px]", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+                      {log.created_at ? new Date(log.created_at).toLocaleString() : ''}
+                    </span>
+                  </div>
+                  {log.details && (
+                    <p className={cn("mt-0.5 truncate", isDark ? "text-[#858585]" : "text-neutral-500")}>{log.details}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Webhook Tracking Section */}
       <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
         <div className="flex items-center justify-between">
@@ -538,17 +605,14 @@ export function ProjectPage() {
                   >
                     Stay here
                   </button>
-                  {ruleFeedbackLogId && (
-                    <Link
-                      to={`/knowledge/logs?project=${encodeURIComponent(project.name.toLowerCase().replace(/\s+/g, '-'))}&logId=${ruleFeedbackLogId}`}
-                      onClick={() => setShowRuleFeedback(false)}
-                      className="flex items-center gap-1.5 text-[12px] transition-opacity hover:opacity-70"
-                      style={{ color: t.text5 }}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      View in Learning Logs
-                    </Link>
-                  )}
+                  <button
+                    onClick={() => { setShowRuleFeedback(false); setShowCampaignLogs(true); }}
+                    className="flex items-center gap-1.5 text-[12px] transition-opacity hover:opacity-70 cursor-pointer"
+                    style={{ color: t.text5 }}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    View Campaign History
+                  </button>
                 </div>
               ) : ruleFeedbackStatus === 'failed' ? (
                 <div className="flex flex-col items-center py-4 gap-3">

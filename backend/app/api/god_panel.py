@@ -58,6 +58,19 @@ class ProjectRulesOut(BaseModel):
     rules: List[str]
 
 
+class CampaignAuditLogOut(BaseModel):
+    id: int
+    action: str
+    campaign_name: Optional[str] = None
+    source: str
+    learning_log_id: Optional[int] = None
+    details: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class StatsOut(BaseModel):
     total_campaigns: int
     smartlead_campaigns: int
@@ -181,8 +194,17 @@ async def assign_campaign(
     existing_filters = project.campaign_filters or []
     existing_lower = {f.lower() for f in existing_filters if isinstance(f, str)}
     if campaign.name.lower() not in existing_lower:
-        project.campaign_filters = existing_filters + [campaign.name]
+        new_filters = existing_filters + [campaign.name]
+        project.campaign_filters = new_filters
         logger.info(f"[GOD_PANEL] Added '{campaign.name}' to project '{project.name}' campaign_filters")
+
+        # Audit log
+        from app.models.campaign_audit_log import CampaignAuditLog
+        session.add(CampaignAuditLog(
+            project_id=project.id, action="add", campaign_name=campaign.name,
+            source="god_panel", details=f"Assigned via God Panel (campaign #{campaign_id})",
+            campaigns_before=existing_filters, campaigns_after=new_filters,
+        ))
 
     await session.commit()
     return {
@@ -248,6 +270,25 @@ async def get_project_rules(
         project_name=project.name,
         rules=rules if rules else ["No assignment rules configured"],
     )
+
+
+@router.get("/projects/{project_id}/campaign-logs", response_model=List[CampaignAuditLogOut])
+async def get_campaign_logs(
+    project_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+):
+    """Campaign assignment change history for a project."""
+    from app.models.campaign_audit_log import CampaignAuditLog
+    result = await session.execute(
+        select(CampaignAuditLog)
+        .where(CampaignAuditLog.project_id == project_id)
+        .order_by(desc(CampaignAuditLog.created_at))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    return result.scalars().all()
 
 
 @router.get("/stats", response_model=StatsOut)

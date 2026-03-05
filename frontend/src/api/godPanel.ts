@@ -36,6 +36,16 @@ export interface GodPanelStats {
   newest_campaign_at?: string;
 }
 
+export interface CampaignAuditLogEntry {
+  id: number;
+  action: string;
+  campaign_name?: string;
+  source: string;
+  learning_log_id?: number;
+  details?: string;
+  created_at?: string;
+}
+
 export const godPanelApi = {
   async listCampaigns(params?: {
     platform?: string;
@@ -74,6 +84,13 @@ export const godPanelApi = {
 
   async submitRuleFeedback(projectId: number, feedbackText: string): Promise<{ learning_log_id: number }> {
     const { data } = await api.post(`/god-panel/projects/${projectId}/rule-feedback`, { feedback_text: feedbackText });
+    return data;
+  },
+
+  async getCampaignLogs(projectId: number, page = 1, pageSize = 50): Promise<CampaignAuditLogEntry[]> {
+    const { data } = await api.get(`/god-panel/projects/${projectId}/campaign-logs`, {
+      params: { page, page_size: pageSize },
+    });
     return data;
   },
 };

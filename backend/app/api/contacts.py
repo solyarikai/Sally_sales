@@ -1731,6 +1731,28 @@ async def update_project(
     
     update_data = updates.model_dump(exclude_unset=True)
 
+    # Audit campaign_filters changes (manual adds/removes from UI)
+    if "campaign_filters" in update_data and update_data["campaign_filters"] is not None:
+        from app.models.campaign_audit_log import CampaignAuditLog
+        old_filters = project.campaign_filters or []
+        new_filters = update_data["campaign_filters"]
+        old_set = {f.lower(): f for f in old_filters}
+        new_set = {f.lower(): f for f in new_filters}
+        for key in new_set:
+            if key not in old_set:
+                session.add(CampaignAuditLog(
+                    project_id=project_id, action="add", campaign_name=new_set[key],
+                    source="manual", details="Added via project settings UI",
+                    campaigns_before=old_filters, campaigns_after=new_filters,
+                ))
+        for key in old_set:
+            if key not in new_set:
+                session.add(CampaignAuditLog(
+                    project_id=project_id, action="remove", campaign_name=old_set[key],
+                    source="manual", details="Removed via project settings UI",
+                    campaigns_before=old_filters, campaigns_after=new_filters,
+                ))
+
     # Resolve telegram_username -> chat_id from registrations table
     if "telegram_username" in update_data:
         username = (update_data["telegram_username"] or "").strip().lstrip("@").lower()

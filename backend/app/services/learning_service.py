@@ -109,27 +109,23 @@ OUTPUT strict JSON:
   "reasoning": "Why these changes make sense"
 }"""
 
-RULE_FEEDBACK_SYSTEM_PROMPT = """You are a campaign routing expert. You decide which campaigns belong to which project based on naming conventions, sender identity, and business context.
-
-INPUT:
-1. Project name and its current campaign_filters
-2. GetSales sender UUIDs + known prefix rules
-3. List of unassigned campaigns
-4. Operator feedback explaining what should change
+RULE_FEEDBACK_SYSTEM_PROMPT = """You are a campaign routing expert. You decide which campaigns belong to which project.
 
 OUTPUT strict JSON:
 {
-  "add_campaigns": ["campaign name to add to this project"],
-  "remove_campaigns": ["campaign name to remove from this project"],
+  "final_campaigns": ["exact campaign names that should remain assigned to this project"],
   "reasoning": "Why these changes make sense",
-  "change_summary": "Human-readable summary of changes"
+  "change_summary": "Human-readable summary: X campaigns added, Y removed"
 }
 
-Rules:
-- Only add campaigns that clearly belong to this project based on sender, product, or naming
-- Only remove campaigns the operator explicitly says don't belong
-- If unsure, don't add — false positives break notification routing
-- Keep change_summary concise (1-2 sentences)"""
+CRITICAL RULES:
+- The operator's instruction is FINAL. If they say "only these campaigns", the final_campaigns list must contain EXACTLY those campaigns and nothing else.
+- Match campaign names EXACTLY as they appear in CURRENT FILTERS or UNASSIGNED list. Do not invent names.
+- If operator says "add X" — include X plus all current campaigns.
+- If operator says "remove X" — include all current campaigns except X.
+- If operator says "only X, Y, Z" — final_campaigns = [X, Y, Z] ONLY. Remove everything else.
+- When matching by prefix (e.g. "GS: SquareFi - ES - RUS DMs"), match the campaign name after the prefix label.
+- Keep change_summary concise: "Added 2, removed 15 campaigns" or "Set to 4 specific campaigns"."""
 
 MIN_QUALIFIED_THRESHOLD = 20
 
@@ -455,44 +451,60 @@ Decide which campaigns to add or remove for this project."""
             )
             parsed = json.loads(response)
 
-            add_campaigns = parsed.get("add_campaigns", [])
-            remove_campaigns = parsed.get("remove_campaigns", [])
+            final_campaigns = parsed.get("final_campaigns", [])
 
-            # Apply changes to campaign_filters
-            updated_filters = list(current_filters)
-            existing_lower = {f.lower() for f in updated_filters}
+            # Compute diffs
+            current_lower = {f.lower(): f for f in current_filters}
+            final_lower = {f.lower(): f for f in final_campaigns}
+            added = [final_lower[k] for k in final_lower if k not in current_lower]
+            removed = [current_lower[k] for k in current_lower if k not in final_lower]
 
-            for name in add_campaigns:
-                if name.lower() not in existing_lower:
-                    updated_filters.append(name)
-                    existing_lower.add(name.lower())
-                    logger.info(f"[RULE_FEEDBACK] Adding '{name}' to project '{project.name}'")
-
-            for name in remove_campaigns:
-                updated_filters = [f for f in updated_filters if f.lower() != name.lower()]
-                logger.info(f"[RULE_FEEDBACK] Removing '{name}' from project '{project.name}'")
-
-            project.campaign_filters = updated_filters
+            project.campaign_filters = final_campaigns
+            logger.info(f"[RULE_FEEDBACK] Project '{project.name}': +{len(added)} -{len(removed)} campaigns")
 
             # Update campaign project_id in campaigns table
             from app.models.campaign import Campaign
-            for name in add_campaigns:
+            for name in added:
                 await session.execute(
                     update(Campaign)
                     .where(func.lower(Campaign.name) == name.lower(), Campaign.project_id.is_(None))
                     .values(project_id=project_id, resolution_method="rule_feedback", resolution_detail=f"Added via rule feedback: {feedback_text[:100]}")
                 )
-            for name in remove_campaigns:
+            for name in removed:
                 await session.execute(
                     update(Campaign)
                     .where(func.lower(Campaign.name) == name.lower(), Campaign.project_id == project_id)
                     .values(project_id=None, resolution_method=None, resolution_detail=None)
                 )
 
+            # Audit log entries
+            from app.models.campaign_audit_log import CampaignAuditLog
+            for name in added:
+                session.add(CampaignAuditLog(
+                    project_id=project_id, action="add", campaign_name=name,
+                    source="ai_feedback", learning_log_id=log_id,
+                    details=f"AI added: {parsed.get('reasoning', '')[:200]}",
+                    campaigns_before=current_filters, campaigns_after=final_campaigns,
+                ))
+            for name in removed:
+                session.add(CampaignAuditLog(
+                    project_id=project_id, action="remove", campaign_name=name,
+                    source="ai_feedback", learning_log_id=log_id,
+                    details=f"AI removed: {parsed.get('reasoning', '')[:200]}",
+                    campaigns_before=current_filters, campaigns_after=final_campaigns,
+                ))
+            if not added and not removed:
+                session.add(CampaignAuditLog(
+                    project_id=project_id, action="no_change", campaign_name=None,
+                    source="ai_feedback", learning_log_id=log_id,
+                    details="AI determined no changes needed",
+                    campaigns_before=current_filters, campaigns_after=final_campaigns,
+                ))
+
             log.after_snapshot = {
-                "campaign_filters": updated_filters,
-                "added": add_campaigns,
-                "removed": remove_campaigns,
+                "campaign_filters": final_campaigns,
+                "added": added,
+                "removed": removed,
             }
             log.change_type = "rule_feedback"
             log.change_summary = parsed.get("change_summary", "Rule feedback applied")
