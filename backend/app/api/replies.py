@@ -2401,6 +2401,7 @@ async def send_reply(
         contact = contact_result.scalar_one_or_none()
 
     if not contact or not contact.smartlead_id:
+        logger.error(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email} campaign={reply.campaign_name}: contact not found or no SmartLead ID. contact={'found' if contact else 'NOT found'}")
         raise HTTPException(status_code=400, detail="Contact not found or no SmartLead ID")
 
     # Determine campaign_id — use from reply or first SmartLead campaign on contact
@@ -2412,6 +2413,7 @@ async def send_reply(
                 break
 
     if not campaign_id:
+        logger.error(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email} campaign={reply.campaign_name}: no SmartLead campaign_id (legacy send)")
         raise HTTPException(status_code=400, detail="No SmartLead campaign_id found")
 
     # Send via SmartLead
@@ -2423,6 +2425,7 @@ async def send_reply(
     )
 
     if "error" in send_result:
+        logger.error(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email} campaign={reply.campaign_name}: SmartLead API error: {send_result['error']}")
         raise HTTPException(status_code=502, detail=send_result["error"])
 
     # Mark as approved + sent
@@ -2676,9 +2679,11 @@ async def approve_and_send_reply(
         reply.draft_subject = body.draft_subject
 
     if not reply.draft_reply:
+        logger.warning(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email} campaign={reply.campaign_name}: no draft reply")
         raise HTTPException(status_code=400, detail="No draft reply to send")
 
     if reply.approval_status in ("approved", "approved_dry_run"):
+        logger.warning(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email} campaign={reply.campaign_name}: already approved ({reply.approval_status})")
         raise HTTPException(status_code=400, detail="Reply already approved")
 
     # --- LinkedIn replies: send via GetSales API ---
@@ -2839,6 +2844,7 @@ async def approve_and_send_reply(
                 break
 
     if not campaign_id:
+        logger.error(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email} campaign={reply.campaign_name}: no SmartLead campaign_id. contact={'found' if contact else 'NOT found'}, contact_id={contact.id if contact else None}, smartlead_id={contact.smartlead_id if contact else None}")
         raise HTTPException(status_code=400, detail="No SmartLead campaign_id found")
 
     # --- Determine lead_id to use ---
@@ -2872,6 +2878,7 @@ async def approve_and_send_reply(
     else:
         email_body = _text_to_html(reply.draft_reply)
         if not contact or not lead_id:
+            logger.error(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email} campaign={reply.campaign_name} campaign_id={campaign_id}: contact not found or no SmartLead ID. contact={'found' if contact else 'NOT found'}, smartlead_id={lead_id}")
             raise HTTPException(status_code=400, detail="Contact not found or no SmartLead ID")
 
     # --- Send via SmartLead ---
@@ -2901,6 +2908,7 @@ async def approve_and_send_reply(
                 "message": f"SmartLead send failed ({send_result['error']}) — marked approved (dry run).",
                 "contact_id": contact.id if contact else None,
             }
+        logger.error(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email} campaign={reply.campaign_name} campaign_id={campaign_id}: SmartLead API error: {send_result['error']}")
         raise HTTPException(status_code=502, detail=send_result["error"])
 
     status = "approved_test" if test_mode else "approved"
