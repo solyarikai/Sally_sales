@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, Check, Link2, AlertTriangle, Loader2, ChevronRight } from 'lucide-react';
+import { Shield, Check, AlertTriangle, Loader2, ChevronRight } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useAppStore } from '../store/appStore';
 import { godPanelApi } from '../api/godPanel';
 import type { GodPanelCampaign, ProjectRules, GodPanelStats } from '../api/godPanel';
-import { cn } from '../lib/utils';
 
 type Tab = 'campaigns' | 'rules' | 'analytics';
 
@@ -54,8 +53,8 @@ function PlatformBadge({ platform, isDark }: { platform: string; isDark: boolean
 }
 
 // ─── Stat card ──────────────────────────────────────────────
-function StatCard({ label, value, sub, t, isDark }: {
-  label: string; value: string | number; sub?: string; t: ReturnType<typeof themeColors>; isDark: boolean;
+function StatCard({ label, value, sub, t }: {
+  label: string; value: string | number; sub?: string; t: ReturnType<typeof themeColors>;
 }) {
   return (
     <div
@@ -374,7 +373,7 @@ function RulesTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeCo
 }
 
 // ─── Analytics tab ──────────────────────────────────────────
-function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeColors> }) {
+function AnalyticsTab({ t }: { isDark?: boolean; t: ReturnType<typeof themeColors> }) {
   const [stats, setStats] = useState<GodPanelStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -388,27 +387,25 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
   return (
     <div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Total campaigns" value={stats.total_campaigns} t={t} isDark={isDark} />
-        <StatCard label="Email campaigns" value={stats.smartlead_campaigns} sub="SmartLead" t={t} isDark={isDark} />
-        <StatCard label="LinkedIn campaigns" value={stats.getsales_campaigns} sub="GetSales" t={t} isDark={isDark} />
+        <StatCard label="Total campaigns" value={stats.total_campaigns} t={t} />
+        <StatCard label="Email campaigns" value={stats.smartlead_campaigns} sub="SmartLead" t={t} />
+        <StatCard label="LinkedIn campaigns" value={stats.getsales_campaigns} sub="GetSales" t={t} />
         <StatCard
           label="Assignment rate"
           value={`${stats.assignment_rate}%`}
           sub={`${stats.unresolved_count} unresolved`}
           t={t}
-          isDark={isDark}
         />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Replies (7d)" value={stats.reply_volume_7d} t={t} isDark={isDark} />
-        <StatCard label="Replies (30d)" value={stats.reply_volume_30d} t={t} isDark={isDark} />
-        <StatCard label="Unacknowledged" value={stats.unacknowledged_count} t={t} isDark={isDark} />
+        <StatCard label="Replies (7d)" value={stats.reply_volume_7d} t={t} />
+        <StatCard label="Replies (30d)" value={stats.reply_volume_30d} t={t} />
+        <StatCard label="Unacknowledged" value={stats.unacknowledged_count} t={t} />
         <StatCard
           label="Newest campaign"
           value={stats.newest_campaign || '—'}
           sub={stats.newest_campaign_at ? new Date(stats.newest_campaign_at).toLocaleDateString() : undefined}
           t={t}
-          isDark={isDark}
         />
       </div>
     </div>
