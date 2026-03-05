@@ -278,7 +278,7 @@ export function ContactDetailModal({
       setDraftReply('');
       setReplyChannel(null);
       setSavedDraft(false);
-      setActiveTab('conversation');
+      setActiveTab('details');
       setSelectedProject(contact.project_id || null);
       setAddedToProject(false);
       setAiDraftBody('');
