@@ -35,7 +35,8 @@ class CampaignOut(BaseModel):
     resolution_detail: Optional[str] = None
     first_seen_at: Optional[datetime] = None
     acknowledged: bool = False
-    replied_count: int = 0
+    replied_count: Optional[int] = 0
+    leads_count: Optional[int] = 0
     created_at: Optional[datetime] = None
 
     class Config:
@@ -74,6 +75,8 @@ async def list_campaigns(
     unacknowledged: Optional[bool] = Query(None, description="Only unacknowledged campaigns"),
     project_id: Optional[int] = Query(None, description="Filter by project"),
     since: Optional[str] = Query(None, description="ISO date — campaigns first seen after this date"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),
     session: AsyncSession = Depends(get_session),
 ):
     """List all campaigns with optional filters."""
@@ -101,6 +104,7 @@ async def list_campaigns(
         query = query.where(and_(*filters))
 
     query = query.order_by(desc(Campaign.first_seen_at), desc(Campaign.created_at))
+    query = query.offset((page - 1) * page_size).limit(page_size)
     result = await session.execute(query)
     rows = result.all()
 
@@ -117,8 +121,9 @@ async def list_campaigns(
             resolution_method=campaign.resolution_method,
             resolution_detail=campaign.resolution_detail,
             first_seen_at=campaign.first_seen_at,
-            acknowledged=campaign.acknowledged,
-            replied_count=campaign.replied_count,
+            acknowledged=campaign.acknowledged or False,
+            replied_count=campaign.replied_count or 0,
+            leads_count=campaign.leads_count or 0,
             created_at=campaign.created_at,
         )
         for campaign, project_name in rows
