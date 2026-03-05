@@ -350,8 +350,10 @@ POST /campaigns/{campaign_id}/webhooks?api_key={key}
 
 ## GetSales API
 
-**Base URL:** `https://amazing.getsales.io`  
+**Base URL:** `https://amazing.getsales.io`
 **Authentication:** Header `Authorization: Bearer <GETSALES_API_KEY from credentials above>`
+**Optional header:** `Team-Id: <GETSALES_TEAM_ID>` (for multi-team accounts, set via env var)
+**Rate limit:** Client enforces 200ms minimum between requests to avoid API throttling
 
 ### Reply Tracking Methods
 
@@ -410,6 +412,25 @@ GET /flows/api/linkedin-messages?limit=100&offset=0&filter[type]=inbox
 - `filter[type]=outbox` - Only sent messages
 - `filter[lead_uuid]=xxx` - Messages for specific lead
 - `filter[sender_profile_uuid]=xxx` - Messages from specific sender
+- `filter[linkedin_conversation_uuid]=xxx` - Messages in a specific conversation thread
+
+#### 3b. Send LinkedIn Message (Operator Reply)
+```
+POST /flows/api/linkedin-messages
+```
+**Body:**
+```json
+{
+  "sender_profile_uuid": "774af09b-...",
+  "lead_uuid": "2d191f73-...",
+  "text": "Thanks for your interest! Let me share more details..."
+}
+```
+
+**Client behavior** (in `GetSalesClient.send_linkedin_message()`):
+- **Retry**: 3 attempts with exponential backoff (2s, 4s) on transient errors (429, 500-504, timeouts)
+- **Rate limit**: 200ms minimum between all GetSales API requests
+- **Error handling**: If `lead_uuid` or `sender_profile_uuid` is missing, logged as `[SEND_FAIL]` — operator must send manually via GetSales UI
 
 #### 4. Bulk Export Webhook
 Configure in GetSales UI → Settings → Webhooks

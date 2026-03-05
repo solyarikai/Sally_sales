@@ -57,7 +57,7 @@ CRM Scheduler
    - Webhook: `POST /api/crm-sync/webhook/getsales` → `crm_sync.py:getsales_webhook()`
    - Polling fallback: `crm_sync_service.sync_getsales_replies()`
    - Source="getsales", channel="linkedin"
-   - Operator can send reply directly via GetSales API (`send_linkedin_message()`)
+   - Operator can send reply directly via GetSales API (`send_linkedin_message()` with 3-attempt retry + 200ms rate limiting)
    - Sender profile UUID → project mapping in `GETSALES_UUID_TO_PROJECT` (auto-populated from `GETSALES_FLOW_NAMES`)
 
 ### Telegram notification routing
