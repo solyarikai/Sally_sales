@@ -201,10 +201,11 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [projectDocs, setProjectDocs] = useState<KnowledgeEntry[]>([]);
 
-  // Knowledge-driven draft staleness (auto-regen disabled — too many Gemini calls)
+  // Knowledge-driven draft staleness — on-demand regen when reply enters viewport
   const [knowledgeUpdatedAt, setKnowledgeUpdatedAt] = useState<string | null>(null);
-  const [autoRegeneratingIds] = useState<Set<number>>(new Set());
-  const [justUpdatedIds] = useState<Set<number>>(new Set());
+  const [autoRegeneratingIds, setAutoRegeneratingIds] = useState<Set<number>>(new Set());
+  const [justUpdatedIds, setJustUpdatedIds] = useState<Set<number>>(new Set());
+  const everQueuedRef = useRef<Set<number>>(new Set());
 
   // Learning feedback polling
   const pendingLearning = useAppStore(s => s.pendingLearning);
@@ -242,7 +243,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         if (cancelled) return;
         if (status.status === 'completed') {
           clearInterval(poll);
-          setLearningBanner('Knowledge updated! Refreshing stale drafts...');
+          setLearningBanner('Knowledge updated! Drafts will regenerate as you scroll.');
           // Refresh knowledge timestamp to trigger staleness detection → auto-regen
           knowledgeApi.getKnowledgeTimestamp(currentProject.id)
             .then(res => setKnowledgeUpdatedAt(res.knowledge_updated_at))
@@ -270,9 +271,66 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       .catch(() => {});
   }, [currentProject?.id]);
 
-  /* ---- Auto-regen disabled: was causing mass Gemini calls on page load ---- */
-  /* Stale drafts now only regenerate on manual click (regenerate button). */
-  const observeReplyCard = useCallback((_node: HTMLDivElement | null) => {}, []);
+  /* ---- On-demand auto-regen: regenerate stale drafts when they enter viewport ---- */
+  const regenObserverRef = useRef<IntersectionObserver | null>(null);
+  const observedNodesRef = useRef<Set<HTMLDivElement>>(new Set());
+
+  // Create observer once, re-create when knowledgeUpdatedAt changes
+  useEffect(() => {
+    regenObserverRef.current?.disconnect();
+    if (!knowledgeUpdatedAt) return;
+
+    regenObserverRef.current = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const replyId = Number((entry.target as HTMLElement).dataset.replyId);
+          if (!replyId || everQueuedRef.current.has(replyId)) continue;
+
+          // Check if this reply is stale
+          const reply = replies.find(r => r.id === replyId);
+          if (!reply || !isReplyStale(reply, knowledgeUpdatedAt)) continue;
+
+          everQueuedRef.current.add(replyId);
+          setAutoRegeneratingIds(prev => new Set(prev).add(replyId));
+
+          repliesApi.regenerateDraft(replyId).then(result => {
+            setReplies(prev => prev.map(r => {
+              if (r.id !== replyId) return r;
+              return {
+                ...r,
+                draft_reply: result.draft_reply,
+                draft_subject: result.draft_subject,
+                draft_generated_at: result.draft_generated_at,
+                translated_draft: result.translated_draft ?? r.translated_draft,
+                category: result.category as ProcessedReply['category'],
+                classification_reasoning: result.classification_reasoning,
+              };
+            }));
+            setAutoRegeneratingIds(prev => { const s = new Set(prev); s.delete(replyId); return s; });
+            setJustUpdatedIds(prev => new Set(prev).add(replyId));
+            setTimeout(() => setJustUpdatedIds(prev => { const s = new Set(prev); s.delete(replyId); return s; }), 3000);
+          }).catch(() => {
+            setAutoRegeneratingIds(prev => { const s = new Set(prev); s.delete(replyId); return s; });
+          });
+        }
+      },
+      { root: scrollRef.current, rootMargin: '0px' }
+    );
+
+    // Re-observe all tracked nodes
+    for (const node of observedNodesRef.current) {
+      regenObserverRef.current.observe(node);
+    }
+
+    return () => regenObserverRef.current?.disconnect();
+  }, [knowledgeUpdatedAt, replies]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const observeReplyCard = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    observedNodesRef.current.add(node);
+    regenObserverRef.current?.observe(node);
+  }, []);
 
   /* ---- Data loading (infinite scroll) ---- */
   const loadReplies = useCallback(async (reset = false) => {
@@ -797,7 +855,6 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
               const catLabel = CATEGORY_LABEL[reply.category || ''] || reply.category || '';
               const hasReasoning = !!reply.classification_reasoning;
               const contactInfo = contactInfoMap[reply.id];
-              const stale = isReplyStale(reply, knowledgeUpdatedAt);
               const isAutoRegen = autoRegeneratingIds.has(reply.id);
               const wasJustUpdated = justUpdatedIds.has(reply.id);
               return (
@@ -865,14 +922,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                                 {catLabel}
                               </span>
                             )}
-                            {stale && !isAutoRegen && !wasJustUpdated && (
-                              <span
-                                className="text-[11px] px-1.5 py-0.5 rounded font-medium"
-                                style={{ background: isDark ? '#422006' : '#fef3c7', color: isDark ? '#fbbf24' : '#92400e' }}
-                              >
-                                Stale draft
-                              </span>
-                            )}
+                            {/* Stale badge removed — auto-regen handles it silently */}
                             {wasJustUpdated && (
                               <span
                                 className="text-[11px] px-1.5 py-0.5 rounded font-medium animate-pulse"
