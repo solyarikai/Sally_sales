@@ -3,10 +3,11 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Check, X, Search, Trash2,
   MessageCircle, Loader2, Unlink, FolderOpen, Zap, FileSpreadsheet, RefreshCw,
-  Activity, Radio, Clock, AlertTriangle, CheckCircle2, XCircle, Info, Command, Send,
+  Activity, Radio, Clock, AlertTriangle, CheckCircle2, XCircle, Info, Command, Send, ExternalLink,
 } from 'lucide-react';
 import { contactsApi, type Project, type SheetSyncConfig, type ProjectMonitoring } from '../api/contacts';
 import { godPanelApi, type ProjectRules } from '../api/godPanel';
+import { getLearningStatus } from '../api/learning';
 import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../store/appStore';
 import { cn } from '../lib/utils';
@@ -53,8 +54,14 @@ export function ProjectPage() {
   const [showRuleFeedback, setShowRuleFeedback] = useState(false);
   const [ruleFeedbackText, setRuleFeedbackText] = useState('');
   const [ruleFeedbackSubmitting, setRuleFeedbackSubmitting] = useState(false);
-  const [ruleFeedbackDone, setRuleFeedbackDone] = useState(false);
+  const [ruleFeedbackStatus, setRuleFeedbackStatus] = useState<'idle' | 'polling' | 'done' | 'failed'>('idle');
+  const [ruleFeedbackSummary, setRuleFeedbackSummary] = useState('');
+  const [rulesRefreshing, setRulesRefreshing] = useState(false);
   const ruleFeedbackRef = useRef<HTMLTextAreaElement>(null);
+
+  // Feedback log id (for "View in logs" link after submit)
+  const [ruleFeedbackLogId, setRuleFeedbackLogId] = useState<number | null>(null);
+
   const t = themeColors(isDark);
 
   const loadMonitoring = useCallback(async () => {
@@ -109,7 +116,8 @@ export function ProjectPage() {
         e.preventDefault();
         setShowRuleFeedback(prev => !prev);
         setRuleFeedbackText('');
-        setRuleFeedbackDone(false);
+        setRuleFeedbackStatus('idle');
+        setRuleFeedbackLogId(null);
         setTimeout(() => ruleFeedbackRef.current?.focus(), 50);
       }
     }
@@ -120,20 +128,53 @@ export function ProjectPage() {
   const handleRuleFeedbackSubmit = async () => {
     if (!ruleFeedbackText.trim() || ruleFeedbackSubmitting) return;
     setRuleFeedbackSubmitting(true);
+    setRuleFeedbackStatus('polling');
     try {
-      await godPanelApi.submitRuleFeedback(projectId, ruleFeedbackText.trim());
-      setRuleFeedbackDone(true);
-      // Poll for completion then refresh
+      const { learning_log_id } = await godPanelApi.submitRuleFeedback(projectId, ruleFeedbackText.trim());
+      setRuleFeedbackLogId(learning_log_id);
+      // Poll for completion
+      let stopped = false;
+      const poll = setInterval(async () => {
+        if (stopped) return;
+        try {
+          const status = await getLearningStatus(projectId, learning_log_id);
+          if (status.status === 'completed') {
+            stopped = true;
+            clearInterval(poll);
+            setRuleFeedbackStatus('done');
+            setRuleFeedbackSummary(status.change_summary || 'Rules updated');
+            setRuleFeedbackSubmitting(false);
+            // Refresh rules + project data
+            setRulesRefreshing(true);
+            await Promise.all([
+              godPanelApi.getProjectRules(projectId).then(setRules).catch(() => {}),
+              loadProject(),
+            ]);
+            setRulesRefreshing(false);
+          } else if (status.status === 'failed') {
+            stopped = true;
+            clearInterval(poll);
+            setRuleFeedbackStatus('failed');
+            setRuleFeedbackSummary(status.error_message || 'Processing failed');
+            setRuleFeedbackSubmitting(false);
+          }
+        } catch {}
+      }, 2000);
+      // Safety timeout: stop polling after 30s
       setTimeout(() => {
-        godPanelApi.getProjectRules(projectId).then(setRules).catch(() => {});
-        loadProject();
-      }, 3000);
-      setTimeout(() => {
-        godPanelApi.getProjectRules(projectId).then(setRules).catch(() => {});
-        loadProject();
-      }, 6000);
+        if (!stopped) {
+          stopped = true;
+          clearInterval(poll);
+          setRuleFeedbackStatus('done');
+          setRuleFeedbackSummary('Processing timed out — check Learning Logs');
+          setRuleFeedbackSubmitting(false);
+          godPanelApi.getProjectRules(projectId).then(setRules).catch(() => {});
+          loadProject();
+        }
+      }, 30000);
     } catch {
       setRuleFeedbackSubmitting(false);
+      setRuleFeedbackStatus('failed');
     }
   };
 
@@ -267,39 +308,41 @@ export function ProjectPage() {
             )}
           </div>
 
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setShowRuleFeedback(true); setRuleFeedbackText(''); setRuleFeedbackStatus('idle'); setRuleFeedbackLogId(null); setTimeout(() => ruleFeedbackRef.current?.focus(), 50); }}
+              className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] transition-colors", isDark ? "text-[#858585] hover:text-[#d4d4d4] hover:bg-[#2d2d2d]" : "text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100")}
+              title={`Campaign rules feedback (${navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl+'}K)`}
+            >
+              <Command className="w-3 h-3" />
+              Feedback
+            </button>
           {showDeleteConfirm ? (
-            <div className="flex items-center gap-2">
+            <>
               <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium">
                 Confirm Delete
               </button>
               <button onClick={() => setShowDeleteConfirm(false)} className={cn("px-3 py-1.5 text-sm", isDark ? "text-[#858585]" : "text-neutral-500")}>
                 Cancel
               </button>
-            </div>
+            </>
           ) : (
             <button onClick={() => setShowDeleteConfirm(true)} className={cn("p-2 transition-colors", isDark ? "text-[#6e6e6e] hover:text-red-400" : "text-neutral-400 hover:text-red-500")} title="Delete project">
               <Trash2 className="w-4 h-4" />
             </button>
           )}
+          </div>
         </div>
       </div>
 
       {/* Assignment Rules */}
       {rules && rules.rules.length > 0 && (
-        <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#1e1e1e] border-[#333]" : "bg-slate-50 border-neutral-200")}>
-          <div className="flex items-center justify-between mb-2.5">
-            <h2 className={cn("text-sm font-semibold flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
-              <Info className="w-4 h-4" />
-              How campaigns are assigned to this project
-            </h2>
-            <button
-              onClick={() => { setShowRuleFeedback(true); setRuleFeedbackText(''); setRuleFeedbackDone(false); setTimeout(() => ruleFeedbackRef.current?.focus(), 50); }}
-              className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] transition-colors", isDark ? "text-[#858585] hover:text-[#d4d4d4] hover:bg-[#2d2d2d]" : "text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100")}
-            >
-              <Command className="w-3 h-3" />
-              Feedback
-            </button>
-          </div>
+        <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#1e1e1e] border-[#333]" : "bg-slate-50 border-neutral-200", rulesRefreshing && "opacity-60 transition-opacity")}>
+          <h2 className={cn("text-sm font-semibold mb-2.5 flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+            <Info className="w-4 h-4" />
+            How campaigns are assigned to this project
+            {rulesRefreshing && <Loader2 className="w-3.5 h-3.5 animate-spin ml-1" />}
+          </h2>
           <div className="space-y-1.5">
             {rules.rules.map((rule, i) => (
               <div key={i} className="flex items-start gap-2">
@@ -473,19 +516,52 @@ export function ProjectPage() {
               </button>
             </div>
             <div className="p-4">
-              {ruleFeedbackDone ? (
+              {ruleFeedbackStatus === 'polling' ? (
+                <div className="flex flex-col items-center py-6 gap-3">
+                  <Loader2 className="w-8 h-8 animate-spin" style={{ color: t.text3 }} />
+                  <div className="text-center">
+                    <p className="text-[14px] font-medium" style={{ color: t.text1 }}>AI is updating campaign rules...</p>
+                    <p className="text-[12px] mt-1" style={{ color: t.text4 }}>This takes a few seconds</p>
+                  </div>
+                </div>
+              ) : ruleFeedbackStatus === 'done' ? (
                 <div className="flex flex-col items-center py-4 gap-3">
                   <CheckCircle2 className="w-8 h-8" style={{ color: '#22c55e' }} />
                   <div className="text-center">
-                    <p className="text-[14px] font-medium" style={{ color: t.text1 }}>Rules updating</p>
-                    <p className="text-[12px] mt-1" style={{ color: t.text4 }}>AI is processing — campaigns will refresh automatically.</p>
+                    <p className="text-[14px] font-medium" style={{ color: t.text1 }}>Rules updated</p>
+                    <p className="text-[12px] mt-1 max-w-sm" style={{ color: t.text4 }}>{ruleFeedbackSummary}</p>
                   </div>
                   <button
                     onClick={() => setShowRuleFeedback(false)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 cursor-pointer"
                     style={{ background: t.btnPrimaryBg, color: t.btnPrimaryText }}
                   >
-                    Close
+                    Stay here
+                  </button>
+                  {ruleFeedbackLogId && (
+                    <Link
+                      to={`/knowledge/logs?project=${encodeURIComponent(project.name.toLowerCase().replace(/\s+/g, '-'))}&logId=${ruleFeedbackLogId}`}
+                      onClick={() => setShowRuleFeedback(false)}
+                      className="flex items-center gap-1.5 text-[12px] transition-opacity hover:opacity-70"
+                      style={{ color: t.text5 }}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      View in Learning Logs
+                    </Link>
+                  )}
+                </div>
+              ) : ruleFeedbackStatus === 'failed' ? (
+                <div className="flex flex-col items-center py-4 gap-3">
+                  <XCircle className="w-8 h-8" style={{ color: '#ef4444' }} />
+                  <div className="text-center">
+                    <p className="text-[14px] font-medium" style={{ color: t.text1 }}>Failed</p>
+                    <p className="text-[12px] mt-1" style={{ color: t.text4 }}>{ruleFeedbackSummary || 'Something went wrong'}</p>
+                  </div>
+                  <button
+                    onClick={() => { setRuleFeedbackStatus('idle'); setRuleFeedbackText(''); }}
+                    className="text-[12px] cursor-pointer" style={{ color: t.text5 }}
+                  >
+                    Try again
                   </button>
                 </div>
               ) : (
