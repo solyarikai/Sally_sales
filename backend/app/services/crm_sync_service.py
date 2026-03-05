@@ -257,6 +257,7 @@ GETSALES_SENDER_PROFILES: Dict[str, str] = {
     "91fb80ab-4430-4b07-bc19-330d3f4ac8fd": "Elena Shamaeva",
     "abf28dba-0834-432b-a57d-b7fc03bb0db7": "Pavel Tikhonov",
     "d16d6837-4156-4022-bd38-51945de1bf4a": "Max Ionin",
+    "b0399ffb-8f6e-47e4-b909-2b23847cf74c": "Jegors Zubarevs",
 }
 
 
@@ -273,6 +274,7 @@ _PROJECT_PREFIXES = {
     "gwc": 17,
     "onsocial": 42,
     "palark": 16,
+    "paybis": 15,
 }
 for _uuid, _name in GETSALES_FLOW_NAMES.items():
     _name_lower = _name.lower()
