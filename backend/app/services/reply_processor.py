@@ -1094,12 +1094,35 @@ async def process_reply_webhook(
             if "On " in body and " wrote:" in body:
                 body = body.split("On ")[0].strip()
         
-        # Lead name - extract from to_name field
-        to_name = payload.get("to_name") or ""
-        lead_name_parts = to_name.split() if to_name else []
-        first_name = lead_name_parts[0] if len(lead_name_parts) > 0 else payload.get("first_name", "")
-        last_name = " ".join(lead_name_parts[1:]) if len(lead_name_parts) > 1 else payload.get("last_name", "")
-        logger.info(f"[PROCESSOR] Parsed name: first={first_name}, last={last_name} from to_name={to_name}")
+        # Lead name - prioritize first_name/last_name from lead_data (SmartLead DB),
+        # fall back to to_name only if it's a real person (not a system sender like bounces)
+        _SYSTEM_SENDERS = {"mail delivery subsystem", "mailer-daemon", "postmaster", "mail delivery system", "automated message"}
+        first_name = payload.get("first_name", "")
+        last_name = payload.get("last_name", "")
+        if not first_name and not last_name:
+            to_name = payload.get("to_name") or ""
+            if to_name.lower().strip() not in _SYSTEM_SENDERS:
+                lead_name_parts = to_name.split() if to_name else []
+                first_name = lead_name_parts[0] if len(lead_name_parts) > 0 else ""
+                last_name = " ".join(lead_name_parts[1:]) if len(lead_name_parts) > 1 else ""
+            else:
+                logger.info(f"[PROCESSOR] Ignoring system sender to_name: {to_name}")
+        # Final fallback: look up the contact record in our DB by email
+        if not first_name and not last_name and lead_email:
+            try:
+                from app.models.contact import Contact
+                contact_row = (await session.execute(
+                    select(Contact.first_name, Contact.last_name)
+                    .where(Contact.email == lead_email)
+                    .limit(1)
+                )).first()
+                if contact_row and (contact_row.first_name or contact_row.last_name):
+                    first_name = contact_row.first_name or ""
+                    last_name = contact_row.last_name or ""
+                    logger.info(f"[PROCESSOR] Name from contacts DB: {first_name} {last_name}")
+            except Exception as e:
+                logger.warning(f"[PROCESSOR] Contact lookup failed: {e}")
+        logger.info(f"[PROCESSOR] Parsed name: first={first_name}, last={last_name}")
         
         # Campaign name
         campaign_name = payload.get("campaign_name", "")
