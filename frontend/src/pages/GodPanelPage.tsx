@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, Check, AlertTriangle, Loader2, ChevronRight } from 'lucide-react';
+import { Shield, Check, AlertTriangle, Loader2, ChevronRight, Plus, Minus, Info, Clock } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useAppStore } from '../store/appStore';
 import { godPanelApi } from '../api/godPanel';
-import type { GodPanelCampaign, ProjectRules, GodPanelStats } from '../api/godPanel';
+import type { GodPanelCampaign, ProjectRules, GodPanelStats, CampaignAuditLogEntry } from '../api/godPanel';
 
 type Tab = 'campaigns' | 'rules' | 'analytics';
 
@@ -18,6 +18,9 @@ function ResolutionBadge({ method, isDark }: { method?: string; isDark: boolean 
     sender_match: { bg: '#fef3c7', bgDark: '#422006', text: '#92400e', textDark: '#fcd34d' },
     db_fallback: { bg: '#e0e7ff', bgDark: '#1e1b4b', text: '#3730a3', textDark: '#a5b4fc' },
     manual: { bg: '#f3e8ff', bgDark: '#3b0764', text: '#6b21a8', textDark: '#c084fc' },
+    auto_discovery: { bg: '#cffafe', bgDark: '#083344', text: '#155e75', textDark: '#67e8f9' },
+    seed: { bg: '#e0e7ff', bgDark: '#1e1b4b', text: '#3730a3', textDark: '#a5b4fc' },
+    rule_feedback: { bg: '#dbeafe', bgDark: '#172554', text: '#1e40af', textDark: '#93c5fd' },
     unresolved: { bg: '#fee2e2', bgDark: '#450a0a', text: '#991b1b', textDark: '#fca5a5' },
   };
 
@@ -300,13 +303,20 @@ function RulesTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeCo
   const { projects } = useAppStore();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [rules, setRules] = useState<ProjectRules | null>(null);
+  const [logs, setLogs] = useState<CampaignAuditLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showAllLogs, setShowAllLogs] = useState(false);
 
   const loadRules = useCallback(async (id: number) => {
     setLoading(true);
+    setShowAllLogs(false);
     try {
-      const data = await godPanelApi.getProjectRules(id);
+      const [data, logData] = await Promise.all([
+        godPanelApi.getProjectRules(id),
+        godPanelApi.getCampaignLogs(id),
+      ]);
       setRules(data);
+      setLogs(logData);
     } catch (e) {
       console.error('Failed to load rules', e);
     } finally {
@@ -317,6 +327,22 @@ function RulesTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeCo
   useEffect(() => {
     if (selectedId) loadRules(selectedId);
   }, [selectedId, loadRules]);
+
+  const sourceBadge = (source: string) => {
+    const styles: Record<string, { bg: string; text: string }> = {
+      auto_discovery: { bg: isDark ? '#052e16' : '#dcfce7', text: isDark ? '#4ade80' : '#166534' },
+      manual: { bg: isDark ? '#3b0764' : '#f3e8ff', text: isDark ? '#c084fc' : '#6b21a8' },
+      ai_feedback: { bg: isDark ? '#172554' : '#dbeafe', text: isDark ? '#93c5fd' : '#1e40af' },
+    };
+    const s = styles[source] || { bg: isDark ? '#333' : '#f5f5f5', text: isDark ? '#858585' : '#666' };
+    return (
+      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: s.bg, color: s.text }}>
+        {source === 'auto_discovery' ? 'Auto' : source === 'ai_feedback' ? 'AI' : source === 'manual' ? 'Manual' : source}
+      </span>
+    );
+  };
+
+  const displayLogs = showAllLogs ? logs : logs.slice(0, 8);
 
   return (
     <div className="flex gap-4 min-h-[400px]">
@@ -355,16 +381,63 @@ function RulesTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeCo
         ) : loading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text4 }} /></div>
         ) : rules ? (
-          <div>
-            <div className="text-[15px] font-medium mb-4" style={{ color: t.text1 }}>{rules.project_name}</div>
-            <div className="space-y-2">
-              {rules.rules.map((rule, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: t.text4 }} />
-                  <div className="text-[13px]" style={{ color: t.text2 }}>{rule}</div>
-                </div>
-              ))}
+          <div className="space-y-6">
+            {/* Rules section */}
+            <div>
+              <div className="text-[15px] font-medium mb-4" style={{ color: t.text1 }}>{rules.project_name}</div>
+              <div className="space-y-2">
+                {rules.rules.map((rule, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: t.text4 }} />
+                    <div className="text-[13px]" style={{ color: t.text2 }}>{rule}</div>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {/* Assignment History section */}
+            {logs.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+                  <span className="text-[13px] font-medium" style={{ color: t.text3 }}>
+                    Assignment History
+                  </span>
+                  <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ backgroundColor: isDark ? '#333' : '#f0f0f0', color: t.text5 }}>
+                    {logs.length}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {displayLogs.map(log => (
+                    <div key={log.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded text-[12px]"
+                      style={{ backgroundColor: isDark ? '#1e1e1e' : '#f9f9f9' }}
+                    >
+                      {log.action === 'add' ? (
+                        <Plus className="w-3 h-3 flex-shrink-0" style={{ color: '#22c55e' }} />
+                      ) : log.action === 'remove' ? (
+                        <Minus className="w-3 h-3 flex-shrink-0" style={{ color: '#ef4444' }} />
+                      ) : (
+                        <Info className="w-3 h-3 flex-shrink-0" style={{ color: t.text4 }} />
+                      )}
+                      <span className="truncate flex-1" style={{ color: t.text2 }}>{log.campaign_name || '(no campaign)'}</span>
+                      {sourceBadge(log.source)}
+                      <span className="text-[11px] flex-shrink-0" style={{ color: t.text5 }}>
+                        {log.created_at ? new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {logs.length > 8 && (
+                  <button
+                    onClick={() => setShowAllLogs(prev => !prev)}
+                    className="text-[12px] mt-2 px-2"
+                    style={{ color: isDark ? '#6e9eff' : '#3b82f6' }}
+                  >
+                    {showAllLogs ? 'Show less' : `Show all ${logs.length} entries`}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ) : null}
       </div>

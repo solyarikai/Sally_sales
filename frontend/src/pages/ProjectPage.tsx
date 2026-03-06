@@ -454,6 +454,18 @@ export function ProjectPage() {
         </div>
       </div>
 
+      {/* Ownership Rules Editor */}
+      {project && <OwnershipRulesEditor
+        project={project}
+        isDark={isDark}
+        onUpdate={async (rules) => {
+          await contactsApi.updateProject(projectId, { campaign_ownership_rules: rules });
+          setProject(prev => prev ? { ...prev, campaign_ownership_rules: rules } : prev);
+          // Refresh assignment rules display
+          try { const r = await godPanelApi.getProjectRules(projectId); setRules(r); } catch {}
+        }}
+      />}
+
       {/* Campaign Assignment History */}
       <div className={cn("rounded-xl border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
         <button
@@ -675,6 +687,121 @@ export function ProjectPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+/* Ownership Rules Editor — editable prefixes, contains, and SmartLead tags */
+function OwnershipRulesEditor({ project, isDark, onUpdate }: {
+  project: Project;
+  isDark: boolean;
+  onUpdate: (rules: Record<string, string[]>) => Promise<void>;
+}) {
+  const rules = project.campaign_ownership_rules || {};
+  const [newPrefix, setNewPrefix] = useState('');
+  const [newContains, setNewContains] = useState('');
+  const [newTag, setNewTag] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const addRule = async (key: 'prefixes' | 'contains' | 'smartlead_tags', value: string) => {
+    if (!value.trim()) return;
+    const current = rules[key] || [];
+    if (current.some((v: string) => v.toLowerCase() === value.trim().toLowerCase())) return;
+    setSaving(true);
+    try {
+      await onUpdate({ ...rules, [key]: [...current, value.trim()] });
+      if (key === 'prefixes') setNewPrefix('');
+      if (key === 'contains') setNewContains('');
+      if (key === 'smartlead_tags') setNewTag('');
+    } finally { setSaving(false); }
+  };
+
+  const removeRule = async (key: 'prefixes' | 'contains' | 'smartlead_tags', value: string) => {
+    const current = rules[key] || [];
+    const updated = current.filter((v: string) => v !== value);
+    setSaving(true);
+    try {
+      const newRules = { ...rules, [key]: updated };
+      if (updated.length === 0) delete newRules[key];
+      await onUpdate(Object.keys(newRules).length > 0 ? newRules : {});
+    } finally { setSaving(false); }
+  };
+
+  const RuleChips = ({ items, ruleKey, color }: { items: string[]; ruleKey: 'prefixes' | 'contains' | 'smartlead_tags'; color: string }) => (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map(item => (
+        <span key={item} className={cn(
+          "inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md text-xs group border",
+          isDark ? "bg-[#2d2d2d] border-[#3c3c3c]" : "bg-white border-neutral-200"
+        )}>
+          <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", color)} />
+          <span className={cn(isDark ? "text-[#b0b0b0]" : "text-neutral-700")}>{item}</span>
+          <button
+            onClick={() => removeRule(ruleKey, item)}
+            disabled={saving}
+            className={cn("p-0.5 transition-colors opacity-0 group-hover:opacity-100", isDark ? "text-[#6e6e6e] hover:text-red-400" : "text-neutral-300 hover:text-red-500")}
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+
+  const RuleRow = ({ label, items, ruleKey, color, inputValue, setInputValue, placeholder }: {
+    label: string; items: string[]; ruleKey: 'prefixes' | 'contains' | 'smartlead_tags';
+    color: string; inputValue: string; setInputValue: (v: string) => void; placeholder: string;
+  }) => (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className={cn("text-xs font-medium", isDark ? "text-[#858585]" : "text-neutral-500")}>{label}</span>
+        {items.length > 0 && <span className={cn("text-[10px] px-1 rounded", isDark ? "bg-[#333] text-[#6e6e6e]" : "bg-neutral-100 text-neutral-400")}>{items.length}</span>}
+      </div>
+      {items.length > 0 && <RuleChips items={items} ruleKey={ruleKey} color={color} />}
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={e => setInputValue(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addRule(ruleKey, inputValue); } }}
+          placeholder={placeholder}
+          className={cn(
+            "flex-1 px-2.5 py-1.5 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-violet-500/30",
+            isDark ? "bg-[#3c3c3c] border border-transparent text-[#d4d4d4] placeholder-[#6e6e6e]" : "border border-neutral-200 text-neutral-900 placeholder-neutral-400"
+          )}
+        />
+        <button
+          onClick={() => addRule(ruleKey, inputValue)}
+          disabled={!inputValue.trim() || saving}
+          className={cn(
+            "px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
+            inputValue.trim()
+              ? isDark ? "bg-violet-600 text-white hover:bg-violet-500" : "bg-violet-600 text-white hover:bg-violet-500"
+              : isDark ? "bg-[#333] text-[#6e6e6e]" : "bg-neutral-100 text-neutral-400"
+          )}
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200", saving && "opacity-60")}>
+      <h2 className={cn("text-sm font-semibold mb-4 flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+        <Zap className="w-4 h-4" />
+        Campaign Ownership Rules
+        {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+      </h2>
+      <p className={cn("text-xs mb-4", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+        New campaigns matching these rules are auto-assigned to this project. Priority: tags &gt; prefix &gt; contains.
+      </p>
+      <div className="space-y-4">
+        <RuleRow label="Name Prefixes" items={rules.prefixes || []} ruleKey="prefixes" color="bg-blue-500" inputValue={newPrefix} setInputValue={setNewPrefix} placeholder="e.g. inxy" />
+        <RuleRow label="Name Contains" items={rules.contains || []} ruleKey="contains" color="bg-amber-500" inputValue={newContains} setInputValue={setNewContains} placeholder="e.g. - ES -" />
+        <RuleRow label="SmartLead Tags" items={rules.smartlead_tags || []} ruleKey="smartlead_tags" color="bg-emerald-500" inputValue={newTag} setInputValue={setNewTag} placeholder="e.g. squarefi fedor" />
+      </div>
     </div>
   );
 }

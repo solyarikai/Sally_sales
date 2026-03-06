@@ -146,7 +146,7 @@ class SmartleadService:
         try:
             response = await smartlead_request(
                 "GET", f"{self.base_url}/campaigns",
-                params={"api_key": self._api_key},
+                params={"api_key": self._api_key, "include_tags": "true"},
             )
 
             if response.status_code == 200:

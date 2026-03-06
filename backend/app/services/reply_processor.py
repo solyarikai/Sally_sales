@@ -1228,6 +1228,39 @@ async def process_reply_webhook(
                     ).params(cname=campaign_name).limit(1)
                 )
                 project = project_result.scalar()
+
+                # Fallback: prefix/tag/contains matching (mirrors GetSales path)
+                matched_via_prefix = False
+                if not project:
+                    from app.services.crm_sync_service import match_campaign_to_project
+                    matched_pid = match_campaign_to_project(campaign_name)
+                    if matched_pid:
+                        proj_result = await session.execute(
+                            select(Project).where(
+                                and_(Project.id == matched_pid, Project.deleted_at.is_(None))
+                            )
+                        )
+                        project = proj_result.scalar()
+                        if project:
+                            matched_via_prefix = True
+
+                # Auto-register: add campaign to project's campaign_filters for future exact matches
+                if project and matched_via_prefix and project.campaign_filters is not None:
+                    existing_lower = {c.lower() for c in project.campaign_filters if isinstance(c, str)}
+                    if campaign_name.lower() not in existing_lower:
+                        project.campaign_filters = project.campaign_filters + [campaign_name]
+                        logger.info(f"[PROCESSOR] Auto-registered SmartLead campaign '{campaign_name}' to project '{project.name}'")
+                        # Audit log
+                        try:
+                            from app.models.campaign_audit_log import CampaignAuditLog
+                            session.add(CampaignAuditLog(
+                                project_id=project.id, action="add", campaign_name=campaign_name,
+                                source="auto_discovery",
+                                details=f"Auto-registered from SmartLead reply webhook (prefix match)",
+                            ))
+                        except Exception:
+                            pass
+
                 if project:
                     # Extract sender identity fields
                     proj_sender_name = project.sender_name
@@ -1799,20 +1832,20 @@ async def process_getsales_reply(
             )
             project = project_result.scalar()
 
-            # Prefix match: campaign name starts with project name
+            # Fallback: prefix/tag/contains matching via ownership rules
             matched_via_prefix = False
             if not project:
-                proj_result = await session.execute(
-                    select(Project).where(
-                        and_(
-                            Project.deleted_at.is_(None),
-                            sa_text("LOWER(:cname) LIKE LOWER(projects.name) || '%'"),
+                from app.services.crm_sync_service import match_campaign_to_project
+                matched_pid = match_campaign_to_project(flow_name)
+                if matched_pid:
+                    proj_result = await session.execute(
+                        select(Project).where(
+                            and_(Project.id == matched_pid, Project.deleted_at.is_(None))
                         )
-                    ).params(cname=flow_name).limit(1)
-                )
-                project = proj_result.scalar()
-                if project:
-                    matched_via_prefix = True
+                    )
+                    project = proj_result.scalar()
+                    if project:
+                        matched_via_prefix = True
 
             if project:
                 # Auto-register new campaign name so future exact matches work

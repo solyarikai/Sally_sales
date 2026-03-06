@@ -76,6 +76,12 @@ export interface SheetSyncConfig {
   last_error_at?: string | null;
 }
 
+export interface CampaignOwnershipRules {
+  prefixes?: string[];
+  contains?: string[];
+  smartlead_tags?: string[];
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -83,6 +89,7 @@ export interface Project {
   target_industries?: string;
   target_segments?: string;
   campaign_filters?: string[];
+  campaign_ownership_rules?: CampaignOwnershipRules | null;
   telegram_chat_id?: string;
   telegram_username?: string;
   webhooks_enabled?: boolean;
@@ -442,7 +449,7 @@ export const contactsApi = {
   },
 
   // Update project
-  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[]; telegram_username?: string; webhooks_enabled?: boolean; sheet_sync_config?: SheetSyncConfig | null }): Promise<Project> {
+  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[]; campaign_ownership_rules?: CampaignOwnershipRules | Record<string, string[]> | null; telegram_username?: string; webhooks_enabled?: boolean; sheet_sync_config?: SheetSyncConfig | null }): Promise<Project> {
     const response = await api.patch(`/contacts/projects/${id}`, updates);
     return response.data;
   },

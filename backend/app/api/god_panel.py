@@ -229,18 +229,18 @@ async def get_project_rules(
         raise HTTPException(404, "Project not found")
 
     rules = []
+    ownership = project.campaign_ownership_rules or {}
 
-    # 1. Prefix rules from _PROJECT_PREFIXES
-    try:
-        from app.services.crm_sync_service import _PROJECT_PREFIXES
-        matching_prefixes = [
-            prefix for prefix, pid in _PROJECT_PREFIXES.items()
-            if pid == project_id
-        ]
-        if matching_prefixes:
-            rules.append(f"GetSales automation prefix match: {', '.join(repr(p) for p in matching_prefixes)}")
-    except ImportError:
-        pass
+    # 1. Ownership rules (replaces hardcoded _PROJECT_PREFIXES)
+    rule_prefixes = ownership.get("prefixes", [])
+    rule_contains = ownership.get("contains", [])
+    rule_tags = ownership.get("smartlead_tags", [])
+    if rule_prefixes:
+        rules.append(f"Prefix match: campaigns starting with {', '.join(repr(p) for p in rule_prefixes)}")
+    if rule_contains:
+        rules.append(f"Contains match: campaigns containing {', '.join(repr(s) for s in rule_contains)}")
+    if rule_tags:
+        rules.append(f"SmartLead tag match: {', '.join(repr(t) for t in rule_tags)}")
 
     # 2. Campaign filters
     filters = project.campaign_filters or []
@@ -249,11 +249,6 @@ async def get_project_rules(
             rules.append(f"Explicit campaign filters: {', '.join(filters)}")
         else:
             rules.append(f"Explicit campaign filters: {len(filters)} campaigns ({', '.join(filters[:3])}, ...)")
-
-    # 3. Custom auto-assign prefixes (from AI feedback)
-    auto_prefixes = project.campaign_auto_prefixes or []
-    if auto_prefixes:
-        rules.append(f"Auto-assign prefixes (future campaigns): {', '.join(repr(p) for p in auto_prefixes)}")
 
     # 4. GetSales senders — resolve UUIDs to human names
     senders = project.getsales_senders or []

@@ -181,6 +181,7 @@ class ProjectUpdate(BaseModel):
     target_industries: Optional[str] = None
     target_segments: Optional[str] = None
     campaign_filters: Optional[List[str]] = None
+    campaign_ownership_rules: Optional[Dict[str, Any]] = None
     telegram_chat_id: Optional[str] = None  # Resolved chat ID (set automatically)
     telegram_username: Optional[str] = None  # Operator @username for notifications
     webhooks_enabled: Optional[bool] = None
@@ -198,6 +199,7 @@ class ProjectResponse(BaseModel):
     target_industries: Optional[str] = None
     target_segments: Optional[str] = None
     campaign_filters: Optional[List[str]] = None
+    campaign_ownership_rules: Optional[Dict[str, Any]] = None
     telegram_chat_id: Optional[str] = None
     telegram_username: Optional[str] = None
     webhooks_enabled: bool = True
@@ -1587,6 +1589,7 @@ async def list_projects(
             target_industries=project.target_industries,
             target_segments=project.target_segments,
             campaign_filters=project.campaign_filters,
+            campaign_ownership_rules=project.campaign_ownership_rules,
             telegram_chat_id=project.telegram_chat_id,
             webhooks_enabled=project.webhooks_enabled,
             sheet_sync_config=project.sheet_sync_config,
@@ -1636,6 +1639,7 @@ async def create_project(
         target_industries=db_project.target_industries,
         target_segments=db_project.target_segments,
         campaign_filters=db_project.campaign_filters,
+        campaign_ownership_rules=db_project.campaign_ownership_rules,
         telegram_chat_id=db_project.telegram_chat_id,
         webhooks_enabled=db_project.webhooks_enabled,
         sheet_sync_config=db_project.sheet_sync_config,
@@ -1693,6 +1697,7 @@ async def get_project(
         target_industries=project.target_industries,
         target_segments=project.target_segments,
         campaign_filters=project.campaign_filters,
+        campaign_ownership_rules=project.campaign_ownership_rules,
         telegram_chat_id=project.telegram_chat_id,
         webhooks_enabled=project.webhooks_enabled,
         sheet_sync_config=project.sheet_sync_config,
@@ -1793,6 +1798,14 @@ async def update_project(
     )
     contact_count = count_result.scalar() or 0
     
+    # Refresh project prefix cache if ownership rules changed
+    if "campaign_ownership_rules" in update_data:
+        try:
+            from app.services.crm_sync_service import refresh_project_prefixes
+            await refresh_project_prefixes()
+        except Exception:
+            pass
+
     return ProjectResponse(
         id=project.id,
         name=project.name,
@@ -1800,6 +1813,7 @@ async def update_project(
         target_industries=project.target_industries,
         target_segments=project.target_segments,
         campaign_filters=project.campaign_filters,
+        campaign_ownership_rules=project.campaign_ownership_rules,
         telegram_chat_id=project.telegram_chat_id,
         telegram_username=project.telegram_username,
         webhooks_enabled=project.webhooks_enabled,
