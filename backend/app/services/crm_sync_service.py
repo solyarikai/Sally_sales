@@ -1535,12 +1535,20 @@ class CRMSyncService:
         while total_synced < max_leads:
             batch_size = min(100, max_leads - total_synced)
             # SmartleadClient.get_campaign_leads returns List[dict] directly
-            leads = await self.smartlead.get_campaign_leads(
+            raw_leads = await self.smartlead.get_campaign_leads(
                 campaign.external_id, offset=offset, limit=batch_size
             )
 
-            if not leads:
+            if not raw_leads:
                 break
+
+            # Flatten: API may return [{campaign_lead_map_id, lead: {...}}, ...] wrappers
+            leads = []
+            for item in raw_leads:
+                if isinstance(item, dict) and "lead" in item:
+                    leads.append(item["lead"])
+                else:
+                    leads.append(item)
 
             for lead in leads:
                 # Inject campaign info so _process_smartlead_lead can populate platform_state
