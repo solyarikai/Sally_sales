@@ -84,6 +84,18 @@ class StatsOut(BaseModel):
     newest_campaign_at: Optional[datetime] = None
 
 
+class ProjectMetric(BaseModel):
+    project_id: int
+    project_name: str
+    contacts_uploaded: int = 0
+    warm_replies: int = 0
+
+
+class ProjectMetricsOut(BaseModel):
+    projects: List[ProjectMetric]
+    period: str
+
+
 # ─── Endpoints ─────────────────────────────────────────────────
 
 @router.get("/campaigns/", response_model=List[CampaignOut])
@@ -400,6 +412,73 @@ async def submit_rule_feedback(
 
     background_tasks.add_task(_process)
     return {"learning_log_id": log_id, "status": "processing"}
+
+
+@router.get("/project-metrics", response_model=ProjectMetricsOut)
+async def get_project_metrics(
+    period: str = Query("30d", description="Time period: 7d, 30d, or all"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Per-project metrics: contacts uploaded to campaigns + warm replies."""
+    from app.models.reply import ProcessedReply
+
+    # Time filter
+    now = datetime.utcnow()
+    if period == "7d":
+        since = now - timedelta(days=7)
+    elif period == "30d":
+        since = now - timedelta(days=30)
+    else:
+        since = None
+
+    # 1. All active projects
+    proj_result = await session.execute(
+        select(Project.id, Project.name).where(Project.deleted_at.is_(None)).order_by(Project.name)
+    )
+    projects_list = proj_result.all()
+    if not projects_list:
+        return ProjectMetricsOut(projects=[], period=period)
+
+    # 2. Contacts uploaded (sum of Campaign.leads_count per project)
+    leads_query = (
+        select(Campaign.project_id, func.coalesce(func.sum(Campaign.leads_count), 0).label("total_leads"))
+        .where(Campaign.project_id.isnot(None))
+        .group_by(Campaign.project_id)
+    )
+    leads_result = await session.execute(leads_query)
+    leads_map = {row.project_id: row.total_leads for row in leads_result.all()}
+
+    # 3. Warm replies per project (interested + meeting_request + question)
+    #    Join ProcessedReply → Campaign on campaign_name to resolve project_id
+    warm_categories = ["interested", "meeting_request", "question"]
+    warm_query = (
+        select(Campaign.project_id, func.count(ProcessedReply.id).label("warm_count"))
+        .join(Campaign, func.lower(ProcessedReply.campaign_name) == func.lower(Campaign.name))
+        .where(
+            and_(
+                ProcessedReply.category.in_(warm_categories),
+                Campaign.project_id.isnot(None),
+            )
+        )
+        .group_by(Campaign.project_id)
+    )
+    if since:
+        warm_query = warm_query.where(ProcessedReply.received_at >= since)
+    warm_result = await session.execute(warm_query)
+    warm_map = {row.project_id: row.warm_count for row in warm_result.all()}
+
+    # 4. Build response sorted by warm replies desc
+    metrics = []
+    for pid, pname in projects_list:
+        metrics.append(ProjectMetric(
+            project_id=pid,
+            project_name=pname,
+            contacts_uploaded=leads_map.get(pid, 0),
+            warm_replies=warm_map.get(pid, 0),
+        ))
+    metrics.sort(key=lambda m: m.warm_replies, reverse=True)
+
+    return ProjectMetricsOut(projects=metrics, period=period)
 
 
 @router.get("/unresolved-count")

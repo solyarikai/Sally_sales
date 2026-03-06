@@ -36,6 +36,18 @@ export interface GodPanelStats {
   newest_campaign_at?: string;
 }
 
+export interface ProjectMetric {
+  project_id: number;
+  project_name: string;
+  contacts_uploaded: number;
+  warm_replies: number;
+}
+
+export interface ProjectMetricsResponse {
+  projects: ProjectMetric[];
+  period: string;
+}
+
 export interface CampaignAuditLogEntry {
   id: number;
   action: string;
@@ -84,6 +96,11 @@ export const godPanelApi = {
 
   async submitRuleFeedback(projectId: number, feedbackText: string): Promise<{ learning_log_id: number }> {
     const { data } = await api.post(`/god-panel/projects/${projectId}/rule-feedback`, { feedback_text: feedbackText });
+    return data;
+  },
+
+  async getProjectMetrics(period: string = '30d'): Promise<ProjectMetricsResponse> {
+    const { data } = await api.get('/god-panel/project-metrics', { params: { period } });
     return data;
   },
 

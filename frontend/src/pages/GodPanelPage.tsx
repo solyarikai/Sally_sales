@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Shield, Check, AlertTriangle, Loader2, ChevronRight, Plus, Minus, Info, Clock } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Shield, Check, AlertTriangle, Loader2, ChevronRight, Plus, Minus, Info, Clock, ExternalLink, Users, MessageSquare } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useAppStore } from '../store/appStore';
 import { godPanelApi } from '../api/godPanel';
-import type { GodPanelCampaign, ProjectRules, GodPanelStats, CampaignAuditLogEntry } from '../api/godPanel';
+import type { GodPanelCampaign, ProjectRules, CampaignAuditLogEntry, ProjectMetricsResponse } from '../api/godPanel';
 
 type Tab = 'campaigns' | 'rules' | 'analytics';
 
@@ -52,22 +53,6 @@ function PlatformBadge({ platform, isDark }: { platform: string; isDark: boolean
     >
       {platform === 'getsales' ? 'LinkedIn' : 'Email'}
     </span>
-  );
-}
-
-// ─── Stat card ──────────────────────────────────────────────
-function StatCard({ label, value, sub, t }: {
-  label: string; value: string | number; sub?: string; t: ReturnType<typeof themeColors>;
-}) {
-  return (
-    <div
-      className="rounded-lg p-4 border"
-      style={{ backgroundColor: t.cardBg, borderColor: t.cardBorder }}
-    >
-      <div className="text-[11px] font-medium uppercase tracking-wide mb-1" style={{ color: t.text4 }}>{label}</div>
-      <div className="text-2xl font-semibold" style={{ color: t.text1 }}>{value}</div>
-      {sub && <div className="text-[11px] mt-0.5" style={{ color: t.text5 }}>{sub}</div>}
-    </div>
   );
 }
 
@@ -446,41 +431,138 @@ function RulesTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeCo
 }
 
 // ─── Analytics tab ──────────────────────────────────────────
-function AnalyticsTab({ t }: { isDark?: boolean; t: ReturnType<typeof themeColors> }) {
-  const [stats, setStats] = useState<GodPanelStats | null>(null);
+type Period = '7d' | '30d' | 'all';
+
+function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeColors> }) {
+  const [data, setData] = useState<ProjectMetricsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<Period>('30d');
+  const navigate = useNavigate();
 
   useEffect(() => {
-    godPanelApi.getStats().then(setStats).catch(console.error).finally(() => setLoading(false));
-  }, []);
+    setLoading(true);
+    godPanelApi.getProjectMetrics(period).then(setData).catch(console.error).finally(() => setLoading(false));
+  }, [period]);
 
-  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text4 }} /></div>;
-  if (!stats) return null;
+  const totals = useMemo(() => {
+    if (!data) return { contacts: 0, warm: 0 };
+    return data.projects.reduce((acc, p) => ({
+      contacts: acc.contacts + p.contacts_uploaded,
+      warm: acc.warm + p.warm_replies,
+    }), { contacts: 0, warm: 0 });
+  }, [data]);
+
+  const maxWarm = useMemo(() => {
+    if (!data) return 1;
+    return Math.max(1, ...data.projects.map(p => p.warm_replies));
+  }, [data]);
+
+  const periodLabels: Record<Period, string> = { '7d': '1 Week', '30d': '1 Month', 'all': 'All Time' };
 
   return (
     <div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Total campaigns" value={stats.total_campaigns} t={t} />
-        <StatCard label="Email campaigns" value={stats.smartlead_campaigns} sub="SmartLead" t={t} />
-        <StatCard label="LinkedIn campaigns" value={stats.getsales_campaigns} sub="GetSales" t={t} />
-        <StatCard
-          label="Assignment rate"
-          value={`${stats.assignment_rate}%`}
-          sub={`${stats.unresolved_count} unresolved`}
-          t={t}
-        />
+      {/* Summary cards + period filter */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex gap-3">
+          <div className="flex items-center gap-2 rounded-lg px-4 py-2.5 border" style={{ backgroundColor: t.cardBg, borderColor: t.cardBorder }}>
+            <Users className="w-4 h-4" style={{ color: isDark ? '#93c5fd' : '#3b82f6' }} />
+            <div>
+              <div className="text-[11px] uppercase tracking-wide" style={{ color: t.text5 }}>Contacts Uploaded</div>
+              <div className="text-lg font-semibold tabular-nums" style={{ color: t.text1 }}>{totals.contacts.toLocaleString()}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg px-4 py-2.5 border" style={{ backgroundColor: t.cardBg, borderColor: t.cardBorder }}>
+            <MessageSquare className="w-4 h-4" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
+            <div>
+              <div className="text-[11px] uppercase tracking-wide" style={{ color: t.text5 }}>Warm Replies</div>
+              <div className="text-lg font-semibold tabular-nums" style={{ color: t.text1 }}>{totals.warm.toLocaleString()}</div>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-1 rounded-lg p-0.5 border" style={{ borderColor: t.cardBorder, backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }}>
+          {(['7d', '30d', 'all'] as Period[]).map(p => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className="px-3 py-1 rounded text-[12px] font-medium transition-colors"
+              style={{
+                backgroundColor: period === p ? (isDark ? '#37373d' : '#fff') : 'transparent',
+                color: period === p ? t.text1 : t.text4,
+                boxShadow: period === p ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+              }}
+            >
+              {periodLabels[p]}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Replies (7d)" value={stats.reply_volume_7d} t={t} />
-        <StatCard label="Replies (30d)" value={stats.reply_volume_30d} t={t} />
-        <StatCard label="Unacknowledged" value={stats.unacknowledged_count} t={t} />
-        <StatCard
-          label="Newest campaign"
-          value={stats.newest_campaign || '—'}
-          sub={stats.newest_campaign_at ? new Date(stats.newest_campaign_at).toLocaleDateString() : undefined}
-          t={t}
-        />
-      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text4 }} /></div>
+      ) : !data || data.projects.length === 0 ? (
+        <div className="text-center py-12 text-[13px]" style={{ color: t.text4 }}>No project data</div>
+      ) : (
+        <div className="rounded-lg border overflow-hidden" style={{ borderColor: t.cardBorder }}>
+          {/* Header */}
+          <div
+            className="grid grid-cols-[1fr_140px_160px_60px] gap-3 px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide border-b"
+            style={{ backgroundColor: isDark ? '#1e1e1e' : '#f8f8f8', borderColor: t.cardBorder, color: t.text5 }}
+          >
+            <span>Project</span>
+            <span className="text-right">Contacts Uploaded</span>
+            <span>Warm Replies</span>
+            <span></span>
+          </div>
+          {/* Rows */}
+          {data.projects.map((p, i) => {
+            const barWidth = maxWarm > 0 ? (p.warm_replies / maxWarm) * 100 : 0;
+            return (
+              <div
+                key={p.project_id}
+                className="grid grid-cols-[1fr_140px_160px_60px] gap-3 px-4 py-2.5 border-b items-center transition-colors cursor-pointer group"
+                style={{ borderColor: t.cardBorder, backgroundColor: t.cardBg }}
+                onClick={() => navigate(`/contacts?project_id=${p.project_id}`)}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = isDark ? '#2a2a2a' : '#f5f5f5')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = t.cardBg)}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span
+                    className="text-[12px] font-semibold w-6 h-6 rounded flex items-center justify-center flex-shrink-0"
+                    style={{
+                      backgroundColor: i < 3 ? (isDark ? '#422006' : '#fef3c7') : (isDark ? '#1e1e1e' : '#f0f0f0'),
+                      color: i < 3 ? (isDark ? '#fcd34d' : '#92400e') : t.text5,
+                    }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="text-[13px] font-medium truncate" style={{ color: t.text1 }}>{p.project_name}</span>
+                </div>
+                <div className="text-[13px] tabular-nums text-right font-medium" style={{ color: t.text2 }}>
+                  {p.contacts_uploaded.toLocaleString()}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: isDark ? '#2d2d2d' : '#e8e8e8' }}>
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${barWidth}%`,
+                        backgroundColor: isDark ? '#4ade80' : '#22c55e',
+                        minWidth: p.warm_replies > 0 ? '4px' : '0',
+                      }}
+                    />
+                  </div>
+                  <span className="text-[13px] tabular-nums font-semibold w-10 text-right" style={{ color: p.warm_replies > 0 ? (isDark ? '#4ade80' : '#16a34a') : t.text5 }}>
+                    {p.warm_replies}
+                  </span>
+                </div>
+                <div className="flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <ExternalLink className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -489,7 +571,14 @@ function AnalyticsTab({ t }: { isDark?: boolean; t: ReturnType<typeof themeColor
 export function GodPanelPage() {
   const { isDark } = useTheme();
   const t = themeColors(isDark);
-  const [tab, setTab] = useState<Tab>('campaigns');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') as Tab | null;
+  const [tab, setTabState] = useState<Tab>(tabParam && ['campaigns', 'rules', 'analytics'].includes(tabParam) ? tabParam : 'campaigns');
+
+  const setTab = (newTab: Tab) => {
+    setTabState(newTab);
+    setSearchParams({ tab: newTab }, { replace: true });
+  };
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'campaigns', label: 'Campaigns' },
