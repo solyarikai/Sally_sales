@@ -521,7 +521,17 @@ class SmartleadClient:
         }
         
         return await self._post(f"/campaigns/{campaign_id}/webhooks", webhook_data)
-    
+
+    async def _delete_campaign_webhook(self, campaign_id: int, webhook_id: int) -> bool:
+        """Delete a specific webhook from a SmartLead campaign."""
+        from app.services.smartlead_service import smartlead_request
+        params = {"api_key": self.api_key}
+        resp = await smartlead_request(
+            "DELETE", f"{self.BASE_URL}/campaigns/{campaign_id}/webhooks/{webhook_id}",
+            params=params, client=self.client
+        )
+        return resp.status_code in (200, 204)
+
     _verified_webhooks: dict = {}
     _VERIFIED_CACHE_TTL = 3600
     _VERIFIED_CACHE_MAX = 2000
@@ -583,7 +593,9 @@ class SmartleadClient:
             sem = asyncio.Semaphore(10)
 
             from urllib.parse import urlparse
-            our_host = urlparse(webhook_url).netloc
+            parsed_target = urlparse(webhook_url)
+            our_host = parsed_target.netloc
+            our_path = parsed_target.path  # e.g. /api/smartlead/webhook
 
             async def _check_one(campaign: dict):
                 campaign_id = campaign.get("id")
@@ -591,12 +603,29 @@ class SmartleadClient:
                 async with sem:
                     try:
                         existing_webhooks = await self.get_campaign_webhooks(campaign_id)
+                        has_correct = False
+                        stale_ids = []
                         for wh in existing_webhooks:
                             wh_url = wh.get("webhook_url", "")
-                            if urlparse(wh_url).netloc == our_host:
-                                results["existing"].append({"id": campaign_id, "name": campaign_name})
-                                self._cache_verified(campaign_id)
-                                return
+                            parsed_wh = urlparse(wh_url)
+                            if parsed_wh.netloc != our_host:
+                                continue
+                            if parsed_wh.path == our_path:
+                                has_correct = True
+                            else:
+                                # Same host but wrong path — stale/broken webhook
+                                stale_ids.append(wh.get("id"))
+                        # Delete stale webhooks with wrong path
+                        for stale_id in stale_ids:
+                            try:
+                                await self._delete_campaign_webhook(campaign_id, stale_id)
+                                logger.info(f"Deleted stale webhook {stale_id} from campaign {campaign_id}")
+                            except Exception as de:
+                                logger.warning(f"Failed to delete stale webhook {stale_id}: {de}")
+                        if has_correct:
+                            results["existing"].append({"id": campaign_id, "name": campaign_name})
+                            self._cache_verified(campaign_id)
+                            return
                         await self.create_campaign_webhook(
                             campaign_id=campaign_id,
                             webhook_url=webhook_url,
