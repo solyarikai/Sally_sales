@@ -1562,10 +1562,14 @@ class CRMSyncService:
                         "campaign_id": campaign.external_id,
                         "lead_status": lead.get("status", "ACTIVE"),
                     }]
-                action = await self._process_smartlead_lead(
-                    session, company_id, lead, campaign_project_id=campaign.project_id
-                )
-                result[action] += 1
+                try:
+                    async with session.begin_nested():
+                        action = await self._process_smartlead_lead(
+                            session, company_id, lead, campaign_project_id=campaign.project_id
+                        )
+                    result[action] += 1
+                except Exception:
+                    result["skipped"] += 1
 
             total_synced += len(leads)
             offset += len(leads)
@@ -1605,11 +1609,15 @@ class CRMSyncService:
                 break
 
             for item in leads:
-                action = await self._process_getsales_lead(
-                    session, company_id, item, list_name=campaign.name,
-                    campaign_project_id=campaign.project_id,
-                )
-                result[action] += 1
+                try:
+                    async with session.begin_nested():
+                        action = await self._process_getsales_lead(
+                            session, company_id, item, list_name=campaign.name,
+                            campaign_project_id=campaign.project_id,
+                        )
+                    result[action] += 1
+                except Exception:
+                    result["skipped"] += 1
 
             total_synced += len(leads)
             offset += len(leads)
