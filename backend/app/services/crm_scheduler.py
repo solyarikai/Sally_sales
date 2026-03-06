@@ -333,6 +333,7 @@ class CRMScheduler:
                     if not c_name or not c_id:
                         continue
                     c_tags = [t.get("name", "") for t in c.get("tags", []) if isinstance(t, dict)]
+                    c_leads = c.get("total_lead_count", c.get("lead_count", 0)) or 0
                     existing = await session.execute(
                         select(Campaign).where(
                             and_(Campaign.platform == "smartlead", Campaign.external_id == c_id)
@@ -344,6 +345,8 @@ class CRMScheduler:
                             camp.name = c_name
                         if c_tags:
                             camp.config = {**(camp.config or {}), "tags": c_tags}
+                        if c_leads and camp.leads_count != c_leads:
+                            camp.leads_count = c_leads
                     else:
                         matched_pid = match_campaign_to_project(c_name, c_tags)
                         camp = Campaign(
@@ -351,6 +354,7 @@ class CRMScheduler:
                             platform="smartlead", channel="email",
                             external_id=c_id, name=c_name,
                             status=c.get("status", "active"),
+                            leads_count=c_leads,
                             resolution_method="auto_discovery" if matched_pid else None,
                             resolution_detail=f"Auto-discovered from SmartLead" if matched_pid else None,
                             config={"tags": c_tags} if c_tags else None,
