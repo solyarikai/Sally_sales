@@ -48,6 +48,17 @@ export interface ProjectMetricsResponse {
   period: string;
 }
 
+export interface CleanupLogEntry {
+  id: number;
+  project_id?: number;
+  project_name?: string;
+  replies_checked: number;
+  replies_resolved: number;
+  resolved_replies?: { reply_id: number; lead_email: string; campaign_name?: string }[];
+  errors: number;
+  created_at?: string;
+}
+
 export interface CampaignAuditLogEntry {
   id: number;
   action: string;
@@ -101,6 +112,13 @@ export const godPanelApi = {
 
   async getProjectMetrics(period: string = '30d'): Promise<ProjectMetricsResponse> {
     const { data } = await api.get('/god-panel/project-metrics', { params: { period } });
+    return data;
+  },
+
+  async getCleanupLogs(projectId: number, page = 1, pageSize = 20): Promise<CleanupLogEntry[]> {
+    const { data } = await api.get(`/god-panel/projects/${projectId}/cleanup-logs`, {
+      params: { page, page_size: pageSize },
+    });
     return data;
   },
 

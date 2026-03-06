@@ -85,6 +85,7 @@ class CRMScheduler:
         self._conversation_sync_task: Optional[asyncio.Task] = None
         self._telegram_poll_task: Optional[asyncio.Task] = None
         self._sheet_sync_task: Optional[asyncio.Task] = None
+        self._cleanup_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         
         # Per-task tracking: last_run, interval_seconds, next_run
@@ -97,6 +98,7 @@ class CRMScheduler:
             "event_recovery": {"last_run": None, "interval": 300, "label": "Event recovery"},
             "prompt_refresh": {"last_run": None, "interval": prompt_refresh_interval_hours * 3600, "label": "Prompt refresh"},
             "report": {"last_run": None, "interval": report_interval_hours * 3600, "label": "Reports"},
+            "needs_reply_cleanup": {"last_run": None, "interval": 86400, "label": "Needs-reply cleanup"},
         }
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
@@ -155,7 +157,7 @@ class CRMScheduler:
             self._report_task, self._prompt_refresh_task,
             self._recovery_task, self._conversation_sync_task,
             self._telegram_poll_task, self._sheet_sync_task,
-            self._watchdog_task
+            self._cleanup_task, self._watchdog_task
         ]
         for task in all_tasks:
             if task:
@@ -178,6 +180,7 @@ class CRMScheduler:
             ("_conversation_sync_task", self._run_conversation_sync_loop, "Conversation sync"),
             ("_telegram_poll_task", self._run_telegram_poll_loop, "Telegram poll"),
             ("_sheet_sync_task", self._run_sheet_sync_loop, "Sheet sync"),
+            ("_cleanup_task", self._run_needs_reply_cleanup_loop, "Needs-reply cleanup"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -631,6 +634,33 @@ class CRMScheduler:
                 self._mark_task_run("conversation_sync")
             except Exception as e:
                 logger.error(f"Conversation sync error: {e}")
+            await asyncio.sleep(interval)
+
+    # ===== Daily Needs-Reply Cleanup (once per day) =====
+
+    async def _run_needs_reply_cleanup_loop(self):
+        """Daily deep cleanup: load ALL pending reply threads, auto-resolve where operator replied.
+
+        Runs once per day. On startup, waits 5 minutes then runs immediately,
+        then every 24 hours.
+        """
+        await asyncio.sleep(300)  # Wait 5 min after startup
+
+        interval = 86400  # 24 hours
+
+        while self._running:
+            try:
+                from app.services.crm_sync_service import deep_cleanup_needs_reply
+
+                async with async_session_maker() as session:
+                    stats = await deep_cleanup_needs_reply(session)
+                    logger.info(
+                        f"[CLEANUP] Daily cleanup: checked={stats['checked']} "
+                        f"resolved={stats['resolved']} errors={stats['errors']}"
+                    )
+                self._mark_task_run("needs_reply_cleanup")
+            except Exception as e:
+                logger.error(f"Needs-reply cleanup error: {e}")
             await asyncio.sleep(interval)
 
     # ===== Telegram Bot Polling (long-poll every 30s) =====

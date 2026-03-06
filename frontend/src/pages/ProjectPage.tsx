@@ -6,7 +6,7 @@ import {
   Activity, Radio, Clock, AlertTriangle, CheckCircle2, XCircle, Info, Command, Send, ExternalLink, ChevronDown, Plus, Minus,
 } from 'lucide-react';
 import { contactsApi, type Project, type SheetSyncConfig, type ProjectMonitoring } from '../api/contacts';
-import { godPanelApi, type ProjectRules, type CampaignAuditLogEntry } from '../api/godPanel';
+import { godPanelApi, type ProjectRules, type CampaignAuditLogEntry, type CleanupLogEntry } from '../api/godPanel';
 import { getLearningStatus } from '../api/learning';
 import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../store/appStore';
@@ -64,6 +64,10 @@ export function ProjectPage() {
   const [showCampaignLogs, setShowCampaignLogs] = useState(false);
   const [showAllLogs, setShowAllLogs] = useState(false);
 
+  // Cleanup logs
+  const [cleanupLogs, setCleanupLogs] = useState<CleanupLogEntry[]>([]);
+  const [showCleanupLogs, setShowCleanupLogs] = useState(false);
+
   const t = themeColors(isDark);
 
   const loadMonitoring = useCallback(async () => {
@@ -105,13 +109,22 @@ export function ProjectPage() {
     } catch {}
   }, [projectId]);
 
+  const loadCleanupLogs = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const logs = await godPanelApi.getCleanupLogs(projectId);
+      setCleanupLogs(logs);
+    } catch {}
+  }, [projectId]);
+
   useEffect(() => {
     loadProject();
     loadCampaigns();
     loadMonitoring();
     loadCampaignLogs();
+    loadCleanupLogs();
     if (projectId) godPanelApi.getProjectRules(projectId).then(setRules).catch(() => {});
-  }, [loadProject, loadCampaigns, loadMonitoring, loadCampaignLogs, projectId]);
+  }, [loadProject, loadCampaigns, loadMonitoring, loadCampaignLogs, loadCleanupLogs, projectId]);
 
   // Sync loaded project to the global store (project selector in header)
   useEffect(() => {
@@ -527,6 +540,68 @@ export function ProjectPage() {
                 {showAllLogs ? `Show less` : `Show all ${campaignLogs.length} entries`}
               </button>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Reply Cleanup History */}
+      <div className={cn("rounded-xl border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
+        <button
+          onClick={() => setShowCleanupLogs(prev => !prev)}
+          className={cn("w-full flex items-center justify-between p-5 text-left rounded-xl", isDark ? "hover:bg-[#2d2d2d]" : "hover:bg-neutral-50")}
+        >
+          <h2 className={cn("text-sm font-semibold flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+            <RefreshCw className="w-4 h-4" />
+            Reply Cleanup History
+            {cleanupLogs.length > 0 && (
+              <span className={cn("text-[11px] font-normal px-1.5 py-0.5 rounded", isDark ? "bg-[#333] text-[#858585]" : "bg-neutral-100 text-neutral-500")}>
+                {cleanupLogs.reduce((sum, l) => sum + l.replies_resolved, 0)} resolved
+              </span>
+            )}
+          </h2>
+          <ChevronDown className={cn("w-4 h-4 transition-transform", showCleanupLogs && "rotate-180", isDark ? "text-[#6e6e6e]" : "text-neutral-400")} />
+        </button>
+        {showCleanupLogs && (
+          <div className="px-5 pb-5 space-y-2">
+            {cleanupLogs.length === 0 ? (
+              <p className={cn("text-[12px] py-2", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>No cleanup runs yet — runs daily</p>
+            ) : cleanupLogs.map(log => (
+              <div key={log.id} className={cn("rounded-lg px-4 py-3 text-[12px]", isDark ? "bg-[#1e1e1e]" : "bg-neutral-50")}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className={cn("font-medium", isDark ? "text-[#d4d4d4]" : "text-neutral-800")}>
+                      {log.replies_resolved} resolved
+                    </span>
+                    {log.errors > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">{log.errors} errors</span>
+                    )}
+                  </div>
+                  <span className={cn("text-[11px]", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+                    {log.created_at ? new Date(log.created_at).toLocaleString() : ''}
+                  </span>
+                </div>
+                {log.resolved_replies && log.resolved_replies.length > 0 && (
+                  <div className="space-y-0.5 mt-1.5">
+                    {log.resolved_replies.slice(0, 5).map((r, i) => (
+                      <div key={i} className={cn("flex items-center gap-2 text-[11px]", isDark ? "text-[#858585]" : "text-neutral-500")}>
+                        <span className="truncate">{r.lead_email}</span>
+                        {r.campaign_name && (
+                          <span className={cn("text-[10px] px-1 py-0.5 rounded truncate max-w-[200px]", isDark ? "bg-[#2d2d2d]" : "bg-neutral-100")}>
+                            {r.campaign_name}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    {log.resolved_replies.length > 5 && (
+                      <span className={cn("text-[11px]", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+                        +{log.resolved_replies.length - 5} more
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

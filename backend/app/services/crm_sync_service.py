@@ -2321,6 +2321,225 @@ async def sync_conversation_histories(
     return stats
 
 
+async def deep_cleanup_needs_reply(session: AsyncSession) -> Dict[str, Any]:
+    """Daily deep cleanup: load ALL pending reply threads, resolve where operator already replied.
+
+    Unlike sync_conversation_histories (3-min, 7-day, SmartLead-only), this:
+    - Has no date cutoff — checks ALL pending replies
+    - Handles both SmartLead and GetSales
+    - Sets approval_status='auto_resolved' directly
+    - Writes per-project ReplyCleanupLog entries
+    """
+    from app.models.reply import ProcessedReply, ReplyCleanupLog, ThreadMessage
+    from app.models.contact import Project
+    from app.services.smartlead_service import SmartleadService, parse_history_response, smartlead_request as _sl_request
+    import os
+
+    stats = {"checked": 0, "resolved": 0, "errors": 0, "by_project": {}}
+
+    # Find ALL pending needs_reply replies (no date limit)
+    no_reply_categories = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
+    pending_q = (
+        select(ProcessedReply)
+        .where(
+            and_(
+                or_(
+                    ProcessedReply.approval_status == None,
+                    ProcessedReply.approval_status == "pending",
+                ),
+                ProcessedReply.lead_email.isnot(None),
+                or_(
+                    ProcessedReply.category == None,
+                    ~ProcessedReply.category.in_(no_reply_categories),
+                ),
+            )
+        )
+        .order_by(ProcessedReply.received_at.desc())
+    )
+    result = await session.execute(pending_q)
+    pending_replies = result.scalars().all()
+
+    if not pending_replies:
+        logger.info("[CLEANUP] No pending needs_reply items to check")
+        return stats
+
+    logger.info(f"[CLEANUP] Starting deep cleanup: {len(pending_replies)} pending replies")
+
+    # Build campaign_name → project mapping
+    from app.models.campaign import Campaign
+    camp_result = await session.execute(
+        select(func.lower(Campaign.name), Campaign.project_id)
+        .where(Campaign.project_id.isnot(None))
+    )
+    campaign_to_project: Dict[str, int] = {}
+    for cname, pid in camp_result.all():
+        if cname not in campaign_to_project:
+            campaign_to_project[cname] = pid
+
+    # Project names
+    proj_result = await session.execute(
+        select(Project.id, Project.name).where(Project.deleted_at.is_(None))
+    )
+    project_names = {pid: pname for pid, pname in proj_result.all()}
+
+    # SmartLead API
+    sl = SmartleadService()
+    sl_available = bool(sl._api_key)
+
+    # GetSales API
+    gs_key = os.getenv("GETSALES_API_KEY", "")
+
+    # Deduplicate by (source, campaign_id, lead_email)
+    seen = set()
+
+    for reply in pending_replies:
+        email_lower = (reply.lead_email or "").lower()
+        source = reply.source or "smartlead"
+        dedup_key = (source, reply.campaign_id or "", email_lower)
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+
+        resolved = False
+        try:
+            if source == "getsales":
+                # GetSales: check if thread has outbound after reply
+                if not gs_key:
+                    continue
+                # Get conversation UUID from raw_webhook_data
+                conv_uuid = None
+                if reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+                    conv_uuid = (
+                        reply.raw_webhook_data.get("linkedin_conversation_uuid")
+                        or reply.raw_webhook_data.get("conversation_uuid")
+                        or (reply.raw_webhook_data.get("contact", {}) or {}).get("linkedin_conversation_uuid")
+                    )
+                if not conv_uuid:
+                    continue
+
+                gs_client = GetSalesClient(gs_key)
+                try:
+                    messages = await gs_client.get_conversation_messages(conv_uuid)
+                finally:
+                    await gs_client.close()
+
+                if messages:
+                    # Check if any outbound message after reply's received_at
+                    for msg in reversed(messages):
+                        if msg.get("type") == "outbox":
+                            msg_time = None
+                            ts = msg.get("sent_at") or msg.get("created_at")
+                            if ts:
+                                try:
+                                    from dateutil.parser import parse as dt_parse
+                                    msg_time = dt_parse(ts)
+                                    if msg_time.tzinfo:
+                                        msg_time = msg_time.replace(tzinfo=None)
+                                except Exception:
+                                    pass
+                            if msg_time and reply.received_at and msg_time > reply.received_at:
+                                resolved = True
+                            elif not reply.received_at:
+                                resolved = True
+                            break
+            else:
+                # SmartLead: check message history
+                if not sl_available or not reply.campaign_id:
+                    continue
+
+                lead_id = reply.smartlead_lead_id
+                if not lead_id:
+                    row = (await session.execute(
+                        select(Contact.smartlead_id).where(
+                            func.lower(Contact.email) == email_lower,
+                            Contact.deleted_at.is_(None),
+                        )
+                    )).first()
+                    if row and row[0]:
+                        lead_id = str(row[0])
+
+                if not lead_id and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+                    lead_id = str(
+                        reply.raw_webhook_data.get("sl_email_lead_id")
+                        or reply.raw_webhook_data.get("sl_lead_id")
+                        or reply.raw_webhook_data.get("lead_id")
+                        or ""
+                    ).strip() or None
+
+                if not lead_id:
+                    continue
+
+                resp = await _sl_request(
+                    "GET",
+                    f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
+                    params={"api_key": sl._api_key},
+                    timeout=15.0,
+                )
+                if resp.status_code != 200:
+                    stats["errors"] += 1
+                    continue
+
+                history = parse_history_response(resp.json())
+                if history:
+                    last_type = history[-1].get("type", "")
+                    if last_type != "REPLY":
+                        resolved = True
+
+            stats["checked"] += 1
+
+            if resolved:
+                reply.approval_status = "auto_resolved"
+                reply.approved_at = datetime.utcnow()
+                stats["resolved"] += 1
+
+                # Track per-project
+                cname_lower = (reply.campaign_name or "").lower()
+                pid = campaign_to_project.get(cname_lower)
+                if pid:
+                    if pid not in stats["by_project"]:
+                        stats["by_project"][pid] = {"checked": 0, "resolved": 0, "resolved_items": []}
+                    stats["by_project"][pid]["resolved"] += 1
+                    stats["by_project"][pid]["resolved_items"].append({
+                        "reply_id": reply.id,
+                        "lead_email": reply.lead_email,
+                        "campaign_name": reply.campaign_name,
+                    })
+
+        except Exception as e:
+            logger.warning(f"[CLEANUP] Error checking reply {reply.id}: {e}")
+            stats["errors"] += 1
+
+    # Write per-project cleanup logs
+    for pid, pstats in stats["by_project"].items():
+        if pstats["resolved"] > 0:
+            session.add(ReplyCleanupLog(
+                project_id=pid,
+                project_name=project_names.get(pid, "Unknown"),
+                replies_checked=pstats.get("checked", 0),
+                replies_resolved=pstats["resolved"],
+                resolved_replies=pstats["resolved_items"][:50],  # Cap stored items
+                errors=0,
+            ))
+
+    # Also write a global summary log (project_id=None)
+    session.add(ReplyCleanupLog(
+        project_id=None,
+        project_name="[Global Summary]",
+        replies_checked=stats["checked"],
+        replies_resolved=stats["resolved"],
+        errors=stats["errors"],
+    ))
+
+    try:
+        await session.commit()
+    except Exception as e:
+        logger.error(f"[CLEANUP] Commit failed: {e}")
+        await session.rollback()
+
+    logger.info(f"[CLEANUP] Deep cleanup done: checked={stats['checked']}, resolved={stats['resolved']}, errors={stats['errors']}")
+    return stats
+
+
 # Singleton instance
 _crm_sync_service: Optional[CRMSyncService] = None
 

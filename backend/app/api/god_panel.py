@@ -71,6 +71,20 @@ class CampaignAuditLogOut(BaseModel):
         from_attributes = True
 
 
+class CleanupLogOut(BaseModel):
+    id: int
+    project_id: Optional[int] = None
+    project_name: Optional[str] = None
+    replies_checked: int = 0
+    replies_resolved: int = 0
+    resolved_replies: Optional[list] = None
+    errors: int = 0
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class StatsOut(BaseModel):
     total_campaigns: int
     smartlead_campaigns: int
@@ -412,6 +426,25 @@ async def submit_rule_feedback(
 
     background_tasks.add_task(_process)
     return {"learning_log_id": log_id, "status": "processing"}
+
+
+@router.get("/projects/{project_id}/cleanup-logs", response_model=List[CleanupLogOut])
+async def get_cleanup_logs(
+    project_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+):
+    """Needs-reply cleanup history for a project."""
+    from app.models.reply import ReplyCleanupLog
+    result = await session.execute(
+        select(ReplyCleanupLog)
+        .where(ReplyCleanupLog.project_id == project_id)
+        .order_by(desc(ReplyCleanupLog.created_at))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    return result.scalars().all()
 
 
 @router.get("/project-metrics", response_model=ProjectMetricsOut)
