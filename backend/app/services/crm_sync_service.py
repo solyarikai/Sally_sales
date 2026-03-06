@@ -1470,6 +1470,8 @@ class CRMSyncService:
         # Find campaigns needing sync: assigned to a project AND either:
         # 1. Never synced (last_contact_sync_at IS NULL), or
         # 2. Have more leads than synced (leads_count > synced_leads_count)
+        # Prioritize active campaigns first (currently sending outreach)
+        active_statuses = ("active", "ACTIVE", "INPROGRESS")
         result = await session.execute(
             select(Campaign).where(
                 and_(
@@ -1480,7 +1482,8 @@ class CRMSyncService:
                     ),
                 )
             ).order_by(
-                # Prioritize never-synced campaigns, then by delta
+                # Active campaigns first, then unsynced, then by delta
+                Campaign.status.in_(active_statuses).desc(),
                 Campaign.last_contact_sync_at.is_(None).desc(),
                 (Campaign.leads_count - Campaign.synced_leads_count).desc(),
             ).limit(max_campaigns)
