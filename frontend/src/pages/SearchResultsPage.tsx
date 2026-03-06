@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Target, Download, FileSpreadsheet, ArrowLeft,
@@ -50,8 +50,31 @@ type TabId = 'jobs' | 'targets' | 'push-rules' | 'push-tracker';
 
 function JobHistoryView() {
   const navigate = useNavigate();
-  const { currentCompany, currentProject } = useAppStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { currentCompany, currentProject, projects, setCurrentProject } = useAppStore();
   const selectedProject = currentProject?.id ?? undefined;
+
+  // Sync project from URL param on mount
+  useEffect(() => {
+    const projectParam = searchParams.get('project');
+    if (projectParam) {
+      const pid = parseInt(projectParam, 10);
+      if (pid && pid !== currentProject?.id && projects.length > 0) {
+        const found = projects.find(p => p.id === pid);
+        if (found) setCurrentProject(found);
+      }
+    }
+  }, [searchParams, projects]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update URL when project changes
+  useEffect(() => {
+    if (selectedProject) {
+      const currentParam = searchParams.get('project');
+      if (currentParam !== String(selectedProject)) {
+        setSearchParams({ project: String(selectedProject) }, { replace: true });
+      }
+    }
+  }, [selectedProject]); // eslint-disable-line react-hooks/exhaustive-deps
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<{ items: SearchHistoryItem[]; total: number } | null>(null);
