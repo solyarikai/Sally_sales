@@ -1513,7 +1513,10 @@ class CRMSyncService:
                 )
             except Exception as e:
                 logger.error(f"[CONTACT-SYNC] Failed to sync campaign '{campaign.name}': {e}", exc_info=True)
-                await session.rollback()
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass
 
         return stats
 
@@ -1531,11 +1534,10 @@ class CRMSyncService:
 
         while total_synced < max_leads:
             batch_size = min(100, max_leads - total_synced)
-            data = await self.smartlead.get_campaign_leads(
+            # SmartleadClient.get_campaign_leads returns List[dict] directly
+            leads = await self.smartlead.get_campaign_leads(
                 campaign.external_id, offset=offset, limit=batch_size
             )
-            leads = data.get("leads", [])
-            api_total = data.get("total", 0)
 
             if not leads:
                 break
@@ -1556,14 +1558,13 @@ class CRMSyncService:
             total_synced += len(leads)
             offset += len(leads)
 
-            if len(leads) < batch_size or offset >= api_total:
+            if len(leads) < batch_size:
                 break
 
             await session.flush()
 
-        # Update campaign stats from API
-        if api_total:
-            campaign.leads_count = api_total
+        # Update campaign stats
+        campaign.leads_count = max(campaign.leads_count or 0, total_synced)
         campaign.synced_leads_count = total_synced
         await session.flush()
         return result
@@ -1579,10 +1580,11 @@ class CRMSyncService:
         result = {"created": 0, "updated": 0, "skipped": 0}
         offset = 0
         total_synced = 0
+        api_total = 0
 
         while total_synced < max_leads:
             batch_size = min(100, max_leads - total_synced)
-            leads, total = await self.getsales.search_leads(
+            leads, api_total = await self.getsales.search_leads(
                 filter_={"flow_uuid": campaign.external_id},
                 limit=batch_size, offset=offset,
             )
@@ -1600,14 +1602,13 @@ class CRMSyncService:
             total_synced += len(leads)
             offset += len(leads)
 
-            if len(leads) < batch_size or offset >= total:
+            if len(leads) < batch_size or offset >= api_total:
                 break
 
             await session.flush()
 
         # Update campaign stats
-        if total:
-            campaign.leads_count = total
+        campaign.leads_count = max(campaign.leads_count or 0, api_total or total_synced)
         campaign.synced_leads_count = total_synced
         await session.flush()
         return result
