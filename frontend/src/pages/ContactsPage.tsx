@@ -101,7 +101,7 @@ export function ContactsPage() {
   const [replyCategoryFilters, setReplyCategoryFilters] = useState<string[]>(
     searchParams.get('reply_category')?.split(',').filter(Boolean) || []
   );
-  const [replySince, setReplySince] = useState<string | null>(searchParams.get('reply_since'));
+  const [replySince] = useState<string | null>(searchParams.get('reply_since'));
 
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
