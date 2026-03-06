@@ -1467,18 +1467,22 @@ class CRMSyncService:
 
         stats = {"campaigns_synced": 0, "contacts_created": 0, "contacts_updated": 0, "contacts_skipped": 0}
 
-        # Find campaigns needing sync: assigned to a project AND have leads we haven't synced yet
+        # Find campaigns needing sync: assigned to a project AND either:
+        # 1. Never synced (last_contact_sync_at IS NULL), or
+        # 2. Have more leads than synced (leads_count > synced_leads_count)
         result = await session.execute(
             select(Campaign).where(
                 and_(
                     Campaign.project_id.isnot(None),
                     or_(
+                        Campaign.last_contact_sync_at.is_(None),
                         Campaign.leads_count > Campaign.synced_leads_count,
-                        Campaign.synced_leads_count == 0,
                     ),
                 )
             ).order_by(
-                (Campaign.leads_count - Campaign.synced_leads_count).desc()
+                # Prioritize never-synced campaigns, then by delta
+                Campaign.last_contact_sync_at.is_(None).desc(),
+                (Campaign.leads_count - Campaign.synced_leads_count).desc(),
             ).limit(max_campaigns)
         )
         campaigns_to_sync = result.scalars().all()
