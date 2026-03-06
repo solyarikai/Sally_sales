@@ -436,7 +436,7 @@ type Period = '7d' | '30d' | 'all';
 function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeColors> }) {
   const [data, setData] = useState<ProjectMetricsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<Period>('30d');
+  const [period, setPeriod] = useState<Period>('7d');
   const navigate = useNavigate();
 
   useEffect(() => {

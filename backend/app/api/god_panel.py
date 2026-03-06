@@ -472,20 +472,17 @@ async def get_project_metrics(
     if not projects_list:
         return ProjectMetricsOut(projects=[], period=period)
 
-    # 2. Contacts uploaded (sum of Campaign.leads_count per project, fall back to synced_leads_count)
-    leads_query = (
-        select(
-            Campaign.project_id,
-            func.coalesce(
-                func.sum(func.greatest(Campaign.leads_count, Campaign.synced_leads_count)),
-                0
-            ).label("total_leads"),
-        )
-        .where(Campaign.project_id.isnot(None))
-        .group_by(Campaign.project_id)
+    # 2. Contacts uploaded — count from contacts table, time-bounded like warm replies
+    from app.models.contact import Contact
+    contacts_query = (
+        select(Contact.project_id, func.count(Contact.id).label("total"))
+        .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
+        .group_by(Contact.project_id)
     )
-    leads_result = await session.execute(leads_query)
-    leads_map = {row.project_id: row.total_leads for row in leads_result.all()}
+    if since:
+        contacts_query = contacts_query.where(Contact.created_at >= since)
+    leads_result = await session.execute(contacts_query)
+    leads_map = {row.project_id: row.total for row in leads_result.all()}
 
     # 3. Warm replies per project (interested + meeting_request + question)
     #    Use distinct campaign_name→project_id mapping to avoid duplicate counting
