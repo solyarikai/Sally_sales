@@ -476,7 +476,7 @@ class CRMScheduler:
             sync_service = get_crm_sync_service()
             async with async_session_maker() as sync_session:
                 sync_stats = await sync_service.sync_campaign_contacts(
-                    sync_session, self.company_id, max_campaigns=5, max_leads_per_campaign=500
+                    sync_session, self.company_id, max_campaigns=30, max_leads_per_campaign=500
                 )
                 if sync_stats["campaigns_synced"] > 0:
                     logger.info(f"[CONTACT-SYNC] Phase 4 complete: {sync_stats}")
