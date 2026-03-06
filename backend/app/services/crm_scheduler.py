@@ -98,7 +98,7 @@ class CRMScheduler:
             "event_recovery": {"last_run": None, "interval": 300, "label": "Event recovery"},
             "prompt_refresh": {"last_run": None, "interval": prompt_refresh_interval_hours * 3600, "label": "Prompt refresh"},
             "report": {"last_run": None, "interval": report_interval_hours * 3600, "label": "Reports"},
-            "needs_reply_cleanup": {"last_run": None, "interval": 86400, "label": "Needs-reply cleanup"},
+            "needs_reply_cleanup": {"last_run": None, "interval": 21600, "label": "Needs-reply cleanup"},
         }
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
@@ -639,14 +639,14 @@ class CRMScheduler:
     # ===== Daily Needs-Reply Cleanup (once per day) =====
 
     async def _run_needs_reply_cleanup_loop(self):
-        """Daily deep cleanup: load ALL pending reply threads, auto-resolve where operator replied.
+        """Deep cleanup: load pending reply threads, auto-resolve where operator replied.
 
-        Runs once per day. On startup, waits 5 minutes then runs immediately,
-        then every 24 hours.
+        Runs every 6 hours, processing 200 replies per batch. Processes the full
+        backlog over multiple cycles, then maintains cleanliness.
         """
         await asyncio.sleep(300)  # Wait 5 min after startup
 
-        interval = 86400  # 24 hours
+        interval = 21600  # 6 hours
 
         while self._running:
             try:

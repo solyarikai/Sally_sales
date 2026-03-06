@@ -2321,11 +2321,11 @@ async def sync_conversation_histories(
     return stats
 
 
-async def deep_cleanup_needs_reply(session: AsyncSession) -> Dict[str, Any]:
-    """Daily deep cleanup: load ALL pending reply threads, resolve where operator already replied.
+async def deep_cleanup_needs_reply(session: AsyncSession, batch_limit: int = 200) -> Dict[str, Any]:
+    """Daily deep cleanup: load pending reply threads, resolve where operator already replied.
 
     Unlike sync_conversation_histories (3-min, 7-day, SmartLead-only), this:
-    - Has no date cutoff — checks ALL pending replies
+    - Has no date cutoff — checks ALL pending replies (oldest first, batch_limit per run)
     - Handles both SmartLead and GetSales
     - Sets approval_status='auto_resolved' directly
     - Writes per-project ReplyCleanupLog entries
@@ -2354,7 +2354,8 @@ async def deep_cleanup_needs_reply(session: AsyncSession) -> Dict[str, Any]:
                 ),
             )
         )
-        .order_by(ProcessedReply.received_at.desc())
+        .order_by(ProcessedReply.received_at.asc())  # Oldest first — work through backlog
+        .limit(batch_limit * 5)  # Overfetch since dedup reduces the set
     )
     result = await session.execute(pending_q)
     pending_replies = result.scalars().all()
@@ -2389,10 +2390,13 @@ async def deep_cleanup_needs_reply(session: AsyncSession) -> Dict[str, Any]:
     # GetSales API
     gs_key = os.getenv("GETSALES_API_KEY", "")
 
-    # Deduplicate by (source, campaign_id, lead_email)
+    # Deduplicate by (source, campaign_id, lead_email), cap at batch_limit
     seen = set()
+    api_calls = 0
 
     for reply in pending_replies:
+        if api_calls >= batch_limit:
+            break
         email_lower = (reply.lead_email or "").lower()
         source = reply.source or "smartlead"
         dedup_key = (source, reply.campaign_id or "", email_lower)
@@ -2486,6 +2490,7 @@ async def deep_cleanup_needs_reply(session: AsyncSession) -> Dict[str, Any]:
                         resolved = True
 
             stats["checked"] += 1
+            api_calls += 1
 
             if resolved:
                 reply.approval_status = "auto_resolved"
