@@ -470,6 +470,18 @@ class CRMScheduler:
             except Exception as e:
                 await session.rollback()
                 logger.error(f"Auto-assign campaigns failed: {e}", exc_info=True)
+
+        # ── Phase 4: Sync contacts for campaigns needing it ──
+        try:
+            sync_service = get_crm_sync_service()
+            async with async_session_maker() as sync_session:
+                sync_stats = await sync_service.sync_campaign_contacts(
+                    sync_session, self.company_id, max_campaigns=5, max_leads_per_campaign=500
+                )
+                if sync_stats["campaigns_synced"] > 0:
+                    logger.info(f"[CONTACT-SYNC] Phase 4 complete: {sync_stats}")
+        except Exception as e:
+            logger.error(f"[CONTACT-SYNC] Phase 4 failed: {e}", exc_info=True)
     
     async def _check_replies(self):
         """Check for new replies — scoped to enabled project campaigns only."""

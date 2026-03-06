@@ -472,9 +472,15 @@ async def get_project_metrics(
     if not projects_list:
         return ProjectMetricsOut(projects=[], period=period)
 
-    # 2. Contacts uploaded (sum of Campaign.leads_count per project)
+    # 2. Contacts uploaded (sum of Campaign.leads_count per project, fall back to synced_leads_count)
     leads_query = (
-        select(Campaign.project_id, func.coalesce(func.sum(Campaign.leads_count), 0).label("total_leads"))
+        select(
+            Campaign.project_id,
+            func.coalesce(
+                func.sum(func.greatest(Campaign.leads_count, Campaign.synced_leads_count)),
+                0
+            ).label("total_leads"),
+        )
         .where(Campaign.project_id.isnot(None))
         .group_by(Campaign.project_id)
     )

@@ -1093,7 +1093,8 @@ class CRMSyncService:
         self,
         session: AsyncSession,
         company_id: int,
-        lead: dict
+        lead: dict,
+        campaign_project_id: int = None,
     ) -> str:
         """Process a single Smartlead lead. Returns 'created', 'updated', or 'skipped'."""
         email = self.normalize_email(lead.get("email"))
@@ -1134,6 +1135,8 @@ class CRMSyncService:
             # Update existing contact
             existing.smartlead_id = smartlead_id
             existing.update_platform_status("smartlead", smartlead_status)
+            if campaign_project_id and not existing.project_id:
+                existing.project_id = campaign_project_id
             if not existing.domain and email and '@' in email:
                 existing.domain = email.split('@')[1].lower()
             # Upgrade placeholder email with real email from Smartlead
@@ -1187,6 +1190,7 @@ class CRMSyncService:
             ]
             contact = Contact(
                 company_id=company_id,
+                project_id=campaign_project_id,
                 email=email,
                 domain=email.split('@')[1].lower() if email and '@' in email else None,
                 first_name=_truncate(lead.get("first_name"), 255),
@@ -1255,7 +1259,8 @@ class CRMSyncService:
         session: AsyncSession,
         company_id: int,
         item: dict,
-        list_name: str = None
+        list_name: str = None,
+        campaign_project_id: int = None,
     ) -> str:
         """Process a single GetSales lead. Returns 'created', 'updated', or 'skipped'."""
         lead = item.get("lead", {})
@@ -1280,6 +1285,8 @@ class CRMSyncService:
             # Update existing contact
             existing.getsales_id = getsales_id
             existing.update_platform_status("getsales", getsales_status)
+            if campaign_project_id and not existing.project_id:
+                existing.project_id = campaign_project_id
             if not existing.domain and email and '@' in email:
                 existing.domain = email.split('@')[1].lower()
             if not existing.linkedin_url and linkedin_raw:
@@ -1328,6 +1335,7 @@ class CRMSyncService:
             actual_email = email or f"gs_{getsales_id or linkedin}@linkedin.placeholder"
             contact = Contact(
                 company_id=company_id,
+                project_id=campaign_project_id,
                 email=actual_email,
                 domain=email.split('@')[1].lower() if email and '@' in email else None,
                 first_name=lead.get("first_name"),
@@ -1442,6 +1450,167 @@ class CRMSyncService:
                         text = parts[0].strip()
                         break
         return text.strip()
+
+    async def sync_campaign_contacts(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        max_campaigns: int = 5,
+        max_leads_per_campaign: int = 500,
+    ) -> Dict[str, Any]:
+        """Sync contacts from campaigns that have more leads than we've synced.
+
+        Picks campaigns with largest delta between leads_count and synced_leads_count.
+        Returns stats dict with campaigns_synced, contacts_created, contacts_updated.
+        """
+        from app.models.campaign import Campaign
+
+        stats = {"campaigns_synced": 0, "contacts_created": 0, "contacts_updated": 0, "contacts_skipped": 0}
+
+        # Find campaigns needing sync: assigned to a project AND have leads we haven't synced yet
+        result = await session.execute(
+            select(Campaign).where(
+                and_(
+                    Campaign.project_id.isnot(None),
+                    or_(
+                        Campaign.leads_count > Campaign.synced_leads_count,
+                        Campaign.synced_leads_count == 0,
+                    ),
+                )
+            ).order_by(
+                (Campaign.leads_count - Campaign.synced_leads_count).desc()
+            ).limit(max_campaigns)
+        )
+        campaigns_to_sync = result.scalars().all()
+
+        if not campaigns_to_sync:
+            return stats
+
+        for campaign in campaigns_to_sync:
+            try:
+                if campaign.platform == "smartlead":
+                    synced = await self._sync_smartlead_campaign_contacts(
+                        session, company_id, campaign, max_leads_per_campaign
+                    )
+                elif campaign.platform == "getsales":
+                    synced = await self._sync_getsales_campaign_contacts(
+                        session, company_id, campaign, max_leads_per_campaign
+                    )
+                else:
+                    continue
+
+                stats["contacts_created"] += synced.get("created", 0)
+                stats["contacts_updated"] += synced.get("updated", 0)
+                stats["contacts_skipped"] += synced.get("skipped", 0)
+                stats["campaigns_synced"] += 1
+
+                campaign.last_contact_sync_at = datetime.utcnow()
+                await session.commit()
+                logger.info(
+                    f"[CONTACT-SYNC] Campaign '{campaign.name}' (id={campaign.id}): "
+                    f"created={synced.get('created', 0)}, updated={synced.get('updated', 0)}, "
+                    f"synced_leads_count={campaign.synced_leads_count}"
+                )
+            except Exception as e:
+                logger.error(f"[CONTACT-SYNC] Failed to sync campaign '{campaign.name}': {e}", exc_info=True)
+                await session.rollback()
+
+        return stats
+
+    async def _sync_smartlead_campaign_contacts(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        campaign,
+        max_leads: int,
+    ) -> Dict[str, int]:
+        """Sync contacts from a single SmartLead campaign."""
+        result = {"created": 0, "updated": 0, "skipped": 0}
+        offset = 0
+        total_synced = 0
+
+        while total_synced < max_leads:
+            batch_size = min(100, max_leads - total_synced)
+            data = await self.smartlead.get_campaign_leads(
+                campaign.external_id, offset=offset, limit=batch_size
+            )
+            leads = data.get("leads", [])
+            api_total = data.get("total", 0)
+
+            if not leads:
+                break
+
+            for lead in leads:
+                # Inject campaign info so _process_smartlead_lead can populate platform_state
+                if not lead.get("campaigns"):
+                    lead["campaigns"] = [{
+                        "campaign_name": campaign.name,
+                        "campaign_id": campaign.external_id,
+                        "lead_status": lead.get("status", "ACTIVE"),
+                    }]
+                action = await self._process_smartlead_lead(
+                    session, company_id, lead, campaign_project_id=campaign.project_id
+                )
+                result[action] += 1
+
+            total_synced += len(leads)
+            offset += len(leads)
+
+            if len(leads) < batch_size or offset >= api_total:
+                break
+
+            await session.flush()
+
+        # Update campaign stats from API
+        if api_total:
+            campaign.leads_count = api_total
+        campaign.synced_leads_count = total_synced
+        await session.flush()
+        return result
+
+    async def _sync_getsales_campaign_contacts(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        campaign,
+        max_leads: int,
+    ) -> Dict[str, int]:
+        """Sync contacts from a single GetSales campaign (flow)."""
+        result = {"created": 0, "updated": 0, "skipped": 0}
+        offset = 0
+        total_synced = 0
+
+        while total_synced < max_leads:
+            batch_size = min(100, max_leads - total_synced)
+            leads, total = await self.getsales.search_leads(
+                filter_={"flow_uuid": campaign.external_id},
+                limit=batch_size, offset=offset,
+            )
+
+            if not leads:
+                break
+
+            for item in leads:
+                action = await self._process_getsales_lead(
+                    session, company_id, item, list_name=campaign.name,
+                    campaign_project_id=campaign.project_id,
+                )
+                result[action] += 1
+
+            total_synced += len(leads)
+            offset += len(leads)
+
+            if len(leads) < batch_size or offset >= total:
+                break
+
+            await session.flush()
+
+        # Update campaign stats
+        if total:
+            campaign.leads_count = total
+        campaign.synced_leads_count = total_synced
+        await session.flush()
+        return result
 
     async def sync_smartlead_replies(
         self,

@@ -101,6 +101,7 @@ export function ContactsPage() {
   const [replyCategoryFilters, setReplyCategoryFilters] = useState<string[]>(
     searchParams.get('reply_category')?.split(',').filter(Boolean) || []
   );
+  const [replySince, setReplySince] = useState<string | null>(searchParams.get('reply_since'));
 
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -182,6 +183,7 @@ export function ContactsPage() {
       domain: domainFilter,
       suitable_for: suitableForFilter,
       reply_category: replyCategoryFilters.length ? replyCategoryFilters.join(',') : null,
+      reply_since: replySince,
     };
     for (const [key, value] of Object.entries(managed)) {
       if (value) {
@@ -195,7 +197,7 @@ export function ContactsPage() {
     if (existingContactId) params.set('contact_id', existingContactId);
 
     setSearchParams(params, { replace: true });
-  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters]);
+  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, replySince]);
 
   // Sync CRM project from global navbar project selector
   useEffect(() => {
@@ -268,7 +270,8 @@ export function ContactsPage() {
     domain: domainFilter || undefined,
     suitable_for: suitableForFilter || undefined,
     reply_category: replyCategoryFilters.length > 0 ? replyCategoryFilters.join(',') : undefined,
-  }), [pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters]);
+    reply_since: replySince || undefined,
+  }), [pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, replySince]);
 
   // Load first page (resets list)
   const loadContacts = useCallback(async () => {

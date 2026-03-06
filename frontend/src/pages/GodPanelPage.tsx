@@ -521,7 +521,19 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
                 key={p.project_id}
                 className="grid grid-cols-[1fr_140px_160px_60px] gap-3 px-4 py-2.5 border-b items-center transition-colors cursor-pointer group"
                 style={{ borderColor: t.cardBorder, backgroundColor: t.cardBg }}
-                onClick={() => navigate(`/contacts?project_id=${p.project_id}`)}
+                onClick={() => {
+                  const warmCats = 'interested,meeting_request,question';
+                  const now = new Date();
+                  const sinceDate = period === '7d'
+                    ? new Date(now.getTime() - 7 * 86400000).toISOString().split('T')[0]
+                    : period === '30d'
+                    ? new Date(now.getTime() - 30 * 86400000).toISOString().split('T')[0]
+                    : undefined;
+                  navigate(
+                    `/contacts?project_id=${p.project_id}&reply_category=${warmCats}` +
+                    (sinceDate ? `&reply_since=${sinceDate}` : '')
+                  );
+                }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = isDark ? '#2a2a2a' : '#f5f5f5')}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = t.cardBg)}
               >

@@ -281,6 +281,7 @@ async def _build_filtered_query(
     domain: Optional[str] = None,
     suitable_for: Optional[str] = None,
     reply_category: Optional[str] = None,
+    reply_since: Optional[str] = None,
 ):
     """Build a filtered Contact query. Shared by list, CSV export, and Google Sheet export."""
     query = select(Contact).where(
@@ -443,11 +444,18 @@ async def _build_filtered_query(
     if reply_category:
         from app.models.reply import ProcessedReply
         cats = [c.strip() for c in reply_category.split(',') if c.strip()]
-        # Subquery: latest reply category per lead_email
+        # Subquery: leads with matching reply category (optionally time-bounded)
+        cat_filter = [ProcessedReply.category.in_(cats)]
+        if reply_since:
+            try:
+                since_dt = datetime.fromisoformat(reply_since)
+                cat_filter.append(ProcessedReply.received_at >= since_dt)
+            except ValueError:
+                pass
         latest_cat = (
             select(ProcessedReply.lead_email)
             .distinct(ProcessedReply.lead_email)
-            .where(ProcessedReply.category.in_(cats))
+            .where(and_(*cat_filter))
             .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at))
         ).subquery()
         query = query.where(Contact.email.in_(select(latest_cat.c.lead_email)))
@@ -479,6 +487,7 @@ async def list_contacts(
     domain: Optional[str] = Query(None, description="Filter by domain(s), comma-separated"),
     suitable_for: Optional[str] = Query(None, description="Filter by suitable_for project name"),
     reply_category: Optional[str] = Query(None, description="Filter by latest reply category (comma-separated)"),
+    reply_since: Optional[str] = Query(None, description="Only include replies received after this date (ISO format)"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -490,6 +499,7 @@ async def list_contacts(
         campaign=campaign, campaign_id=campaign_id, needs_followup=needs_followup,
         created_after=created_after, created_before=created_before, search=search,
         domain=domain, suitable_for=suitable_for, reply_category=reply_category,
+        reply_since=reply_since,
     )
     
     # Count total
