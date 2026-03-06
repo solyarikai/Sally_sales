@@ -449,23 +449,27 @@ async def get_project_metrics(
     leads_map = {row.project_id: row.total_leads for row in leads_result.all()}
 
     # 3. Warm replies per project (interested + meeting_request + question)
-    #    Join ProcessedReply → Campaign on campaign_name to resolve project_id
+    #    Use distinct campaign_name→project_id mapping to avoid duplicate counting
     warm_categories = ["interested", "meeting_request", "question"]
-    warm_query = (
-        select(Campaign.project_id, func.count(ProcessedReply.id).label("warm_count"))
-        .join(Campaign, func.lower(ProcessedReply.campaign_name) == func.lower(Campaign.name))
-        .where(
-            and_(
-                ProcessedReply.category.in_(warm_categories),
-                Campaign.project_id.isnot(None),
-            )
+    campaign_map = (
+        select(
+            func.lower(Campaign.name).label("cname"),
+            func.min(Campaign.project_id).label("pid"),
         )
-        .group_by(Campaign.project_id)
+        .where(Campaign.project_id.isnot(None))
+        .group_by(func.lower(Campaign.name))
+    ).subquery()
+
+    warm_query = (
+        select(campaign_map.c.pid, func.count(ProcessedReply.id).label("warm_count"))
+        .join(campaign_map, func.lower(ProcessedReply.campaign_name) == campaign_map.c.cname)
+        .where(ProcessedReply.category.in_(warm_categories))
+        .group_by(campaign_map.c.pid)
     )
     if since:
         warm_query = warm_query.where(ProcessedReply.received_at >= since)
     warm_result = await session.execute(warm_query)
-    warm_map = {row.project_id: row.warm_count for row in warm_result.all()}
+    warm_map = {row.pid: row.warm_count for row in warm_result.all()}
 
     # 4. Build response sorted by warm replies desc
     metrics = []
