@@ -122,11 +122,19 @@ export function ContactsPage() {
   const [processedContacts, setProcessedContacts] = useState<Set<number>>(new Set());
 
   // Column visibility
-  const DEFAULT_HIDDEN_COLUMNS = ['Project', 'Suitable For', 'Segment'];
+  const DEFAULT_HIDDEN_COLUMNS = ['Project', 'Suitable For', 'Segment', 'Status', 'Replied', 'Reply Type'];
+  const HIDDEN_COLS_VERSION = 2; // bump to reset user prefs when defaults change
   const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => {
     try {
-      const stored = localStorage.getItem('crm:hiddenColumns');
-      return stored ? JSON.parse(stored) : DEFAULT_HIDDEN_COLUMNS;
+      const ver = localStorage.getItem('crm:hiddenColumnsVer');
+      if (ver && Number(ver) >= HIDDEN_COLS_VERSION) {
+        const stored = localStorage.getItem('crm:hiddenColumns');
+        return stored ? JSON.parse(stored) : DEFAULT_HIDDEN_COLUMNS;
+      }
+      // Version mismatch — reset to new defaults
+      localStorage.setItem('crm:hiddenColumnsVer', String(HIDDEN_COLS_VERSION));
+      localStorage.setItem('crm:hiddenColumns', JSON.stringify(DEFAULT_HIDDEN_COLUMNS));
+      return DEFAULT_HIDDEN_COLUMNS;
     } catch { return DEFAULT_HIDDEN_COLUMNS; }
   });
   const [showColumnPicker, setShowColumnPicker] = useState(false);
@@ -138,6 +146,7 @@ export function ContactsPage() {
         ? prev.filter(n => n !== headerName)
         : [...prev, headerName];
       localStorage.setItem('crm:hiddenColumns', JSON.stringify(next));
+      localStorage.setItem('crm:hiddenColumnsVer', String(HIDDEN_COLS_VERSION));
       return next;
     });
   }, []);
@@ -967,11 +976,12 @@ export function ContactsPage() {
             <div className="relative" ref={columnPickerRef}>
               <button
                 onClick={() => setShowColumnPicker(v => !v)}
-                className="p-1.5 rounded-md transition-colors hover:opacity-70"
+                className="flex items-center gap-1 px-1.5 py-1 rounded-md transition-colors hover:opacity-70 text-[11px]"
                 style={{ color: t.text4 }}
                 title="Toggle columns"
               >
                 <Columns3 className="w-3.5 h-3.5" />
+                <span>Columns</span>
               </button>
               {showColumnPicker && (
                 <div
