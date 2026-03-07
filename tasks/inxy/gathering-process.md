@@ -88,44 +88,92 @@ Find all people (decision-makers) at companies that sell gaming skins, virtual i
 - Columns: Full Name, First Name, Last Name, Job Title, Company, Domain, LinkedIn, Location
 - Public read access
 
+## Step 4: Full TAM Search — All 981 Domains (5 Batches)
+
+**Fixes applied** to `clay_people_search.js`:
+1. **Fresh tab per batch** — opens a new browser tab for each batch, avoiding stale DOM
+2. **Titles BEFORE domains** — applies job title filter first (typing 200+ domains hides other inputs)
+3. **Dismiss dropdown** — presses Escape after typing titles to close suggestion menu
+4. **Scroll to Companies** — sidebar "Companies" section is near bottom, needs scrolling
+5. **Coordinate-based clicks** — uses `page.mouse.click(x,y)` instead of `ElementHandle.click()` to avoid detached node errors
+6. **10-min timeout** — prevents timeout on large table reads
+
+**Run 2: Title-filtered (--titles flag)**
+
+| Batch | Domains | People found |
+|-------|---------|-------------|
+| 1 | 200 | 30 |
+| 2 | 200 | 1 |
+| 3 | 200 | 13 |
+| 4 | 200 | 230 |
+| 5 | 181 | 1 |
+| **Total** | **981** | **275** |
+
+**Run 3: All roles (no title filter)**
+
+| Batch | Domains | People found |
+|-------|---------|-------------|
+| 1 | 200 | 137 |
+| 2 | 200 | 8 |
+| 3 | 200 | 18 |
+| 4 | 200 | 1,275 |
+| 5 | 181 | 3 |
+| **Total** | **981** | **1,441** |
+
+### Step 5: Merge + ICP Domain Filtering
+
+**Problem**: Most people from new batches were at non-gaming companies (Clay TAM had noise — Code Ninjas, fintech, etc.)
+
+**Approach**: Domain-based filtering against verified skin-selling domains:
+- Pipeline CSV domains (309 verified gaming companies)
+- Known brand domains (Stake, Gamdom, Duelbits, etc.)
+- Keyword-in-domain match (skin, csgo, cs2, loot, case, etc.)
+
+**Merged sources**:
+1. Original Sheet data (1,040 people from first run's batch 1)
+2. New batch data (1,441 people from 5 batches)
+3. Dedup by LinkedIn URL → **2,476 unique people**
+4. Filter by skin-selling domain → **1,026 people at 25 gaming companies**
+5. Of those: **190 decision-makers**
+
 ## Final Output
 
-**Google Sheet**: https://docs.google.com/spreadsheets/d/1piVnDfhtgpqRv-Cq-5IepuFbAK4fDe7P9M7EurzZC5s
+**Google Sheet (Full TAM)**: https://docs.google.com/spreadsheets/d/1jNZVQF4bFl0bMn0fJgTeB60W068pX78HS870w67fJBY
+- Tab "Decision Makers": 190 people (CEO, Founder, CTO, VP, Director, Head of...)
+- Tab "All People": 1,026 people at gaming ICP companies
+- Tab "Summary": company breakdown
 
-| Company | Domain | People found |
-|---------|--------|-------------|
-| MY.GAMES | my.games | 639 |
-| Stake | stake.com | 98 |
-| Gamdom | gamdom.com | 82 |
-| Duelbits | duelbits.com | 63 |
-| itemku (PT. Five Jack) | itemku.com | 54 |
-| Sportcast | sportcast.com.au | 21 |
-| Roobet | roobet.com | 19 |
-| Rainbet | rainbet.com | 17 |
-| SkinBaron GmbH | skinbaron.de | 14 |
-| Moonrail Limited (CSGOEmpire) | csgoempire.com | 13 |
-| Others (9 companies) | various | 20 |
-| **Total** | **19 companies** | **1,040 people** |
+**Previous Sheet (First Run)**: https://docs.google.com/spreadsheets/d/1piVnDfhtgpqRv-Cq-5IepuFbAK4fDe7P9M7EurzZC5s
+
+| Company | Domain | People | Decision Makers |
+|---------|--------|--------|----------------|
+| MY.GAMES | my.games | 634 | 42 |
+| Stake | stake.com | 98 | 25 |
+| Gamdom | gamdom.com | 82 | 23 |
+| Duelbits | duelbits.com | 63 | 22 |
+| itemku (PT. Five Jack) | itemku.com | 42 | 12 |
+| SportCast | sportcast.com.au | 18 | 8 |
+| Roobet | roobet.com | 17 | 9 |
+| Rainbet | rainbet.com | 16 | 8 |
+| SkinBaron GmbH | skinbaron.de | 14 | 7 |
+| Moonrail Limited (CSGOEmpire) | csgoempire.com | 13 | 8 |
+| Others (15 companies) | various | 29 | 26 |
+| **Total** | **25 companies** | **1,026** | **190** |
 
 **Credits spent**: 0
 
-## What's Missing
+**Clay tables created**: 11 (1 first run + 5 title-filtered + 5 all-roles)
 
-### Coverage gaps
-- Only 200 of 981 domains were successfully searched (batch 1 only)
-- 781 domains in batches 2-5 were not searched due to automation bug
-- Job title filter was not applied (input hidden after typing domains) — so results include all roles, not just decision-makers
-- Many known gaming companies (CSFloat, DMarket, cs.money, CSGO500, etc.) may not have been in the first 200 domains
+## Key Findings
 
-### Known issues to fix
-1. **Batch navigation**: After completing one search, returning to People tab doesn't render the same way. Fix: open a fresh tab or fully reload the page between batches.
-2. **Filter order**: Apply job titles FIRST (they use a visible input), THEN expand Companies section and type domains.
-3. **CSV export**: The "Export" option in Actions menu was found and clicked, but the CSV file never appeared in the download directory. May need Chrome download path configuration or a different export flow.
-4. **Domain input capacity**: 200 domains per search works but is slow (~2 min to type). Clay may support pasting comma-separated domains.
+1. **Clay's People DB has limited coverage for niche gaming companies**. Of 981 domains searched, only ~25 had people in Clay's database. Major brands (MY.GAMES, Stake, Gamdom) are well-covered; small skin shops are not.
+2. **The original first 200 domains** (batch 1, first run) contained most of the high-value companies.
+3. **Domain filtering is essential** — Clay TAM + pipeline CSV have significant contamination (fintech, crypto, game dev studios, coding education).
+4. **Fresh tab per batch** solves the navigation bug. Reusing the same tab after table creation causes Clay's UI to render differently.
+5. **Title filter before domains** is critical — typing 200+ domains makes other inputs unreachable.
 
-### Next steps to complete TAM
-1. Fix batch navigation bug (fresh page per batch)
-2. Run remaining 781 domains in 4 more batches
-3. Apply job title filter to narrow to decision-makers
-4. Merge all batches, dedup by LinkedIn URL
-5. Re-export to Google Sheets with full coverage
+## Remaining Gaps
+
+- **CSV export via UI still broken**: "Export" button is clickable but CSV file never downloads. Workaround: read table data via browser API.
+- **Small gaming companies missing**: Companies like CSFloat, DMarket, cs.money, CSGO500 were in the domain list but had 0 people in Clay's database.
+- **To find more people at small companies**: Need LinkedIn scraping, Apollo enrichment (when credits available), or Clay "Find People at Company" enrichment (costs credits).
