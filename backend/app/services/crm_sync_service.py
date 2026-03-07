@@ -1469,9 +1469,11 @@ class CRMSyncService:
 
         # Find campaigns needing sync: assigned to a project AND either:
         # 1. Never synced (last_contact_sync_at IS NULL), or
-        # 2. Have more leads than synced (leads_count > synced_leads_count)
+        # 2. Have more leads than synced (leads_count > synced_leads_count), or
+        # 3. Active campaign last synced >7 days ago (detect new leads)
         # Prioritize active campaigns first (currently sending outreach)
         active_statuses = ("active", "ACTIVE", "INPROGRESS")
+        resync_cutoff = datetime.utcnow() - timedelta(days=7)
         result = await session.execute(
             select(Campaign).where(
                 and_(
@@ -1479,6 +1481,11 @@ class CRMSyncService:
                     or_(
                         Campaign.last_contact_sync_at.is_(None),
                         Campaign.leads_count > Campaign.synced_leads_count,
+                        # Re-sync active campaigns weekly to detect new leads
+                        and_(
+                            Campaign.status.in_(active_statuses),
+                            Campaign.last_contact_sync_at < resync_cutoff,
+                        ),
                     ),
                 )
             ).order_by(
