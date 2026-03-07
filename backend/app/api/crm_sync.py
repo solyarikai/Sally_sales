@@ -1421,3 +1421,131 @@ async def get_recent_replies(
         ))
     
     return responses
+
+
+# ── Contact Sync: Full Load / Incremental ──
+
+@router.post("/contact-sync/start")
+async def start_contact_sync(
+    background_tasks: BackgroundTasks,
+    phase: str = Query("full_load", regex="^(full_load|incremental)$"),
+    session: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Launch contact sync as a background task.
+
+    - phase=full_load: resets offsets to 0, syncs all leads (no limit)
+    - phase=incremental: syncs from saved offset with 3K limit
+    """
+    import redis.asyncio as aioredis
+    import os
+
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis = aioredis.from_url(redis_url)
+    try:
+        status = await redis.get("contact_sync:status")
+        if status and status.decode() == "running":
+            raise HTTPException(409, "Contact sync already running")
+
+        if phase == "full_load":
+            await redis.set("contact_sync:smartlead_offset", "0")
+            await redis.set("contact_sync:getsales_offset", "0")
+
+        await redis.set("contact_sync:status", "running")
+        await redis.delete("contact_sync:cancel")
+        await redis.delete("contact_sync:progress")
+        await redis.hset("contact_sync:progress", mapping={
+            "status": "running",
+            "phase": phase,
+            "started_at": datetime.utcnow().isoformat(),
+            "sl_processed": "0", "sl_created": "0", "sl_updated": "0",
+            "sl_skipped": "0", "sl_offset": "0", "sl_has_more": "1",
+            "gs_processed": "0", "gs_offset": "0", "gs_total": "0",
+            "elapsed": "0",
+        })
+    finally:
+        await redis.aclose()
+
+    max_leads = 999999 if phase == "full_load" else 3000
+
+    async def _run_sync():
+        redis_inner = aioredis.from_url(redis_url)
+        try:
+            async with async_session_maker() as sync_session:
+                sync_service = await get_crm_sync_service(sync_session)
+                await sync_service.sync_contacts_global(
+                    sync_session, company.id,
+                    max_leads=max_leads,
+                    report_progress=True,
+                )
+            await redis_inner.set("contact_sync:status", "completed")
+        except Exception as e:
+            logger.error(f"[CONTACT-SYNC] Background sync failed: {e}")
+            await redis_inner.set("contact_sync:status", "failed")
+        finally:
+            await redis_inner.aclose()
+
+    background_tasks.add_task(_run_sync)
+    return {"status": "started", "phase": phase, "max_leads": max_leads}
+
+
+@router.get("/contact-sync/progress")
+async def get_sync_progress(
+    company: Company = Depends(get_required_company),
+):
+    """Get real-time contact sync progress from Redis."""
+    import redis.asyncio as aioredis
+    import os
+
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis = aioredis.from_url(redis_url)
+    try:
+        progress = await redis.hgetall("contact_sync:progress")
+        if not progress:
+            return {"status": "idle", "message": "No sync has been run yet"}
+
+        # Decode bytes to str
+        decoded = {k.decode(): v.decode() for k, v in progress.items()}
+        return {
+            "status": decoded.get("status", "unknown"),
+            "phase": decoded.get("phase", "unknown"),
+            "started_at": decoded.get("started_at"),
+            "elapsed_seconds": int(decoded.get("elapsed", "0")),
+            "smartlead": {
+                "processed": int(decoded.get("sl_processed", "0")),
+                "created": int(decoded.get("sl_created", "0")),
+                "updated": int(decoded.get("sl_updated", "0")),
+                "skipped": int(decoded.get("sl_skipped", "0")),
+                "offset": int(decoded.get("sl_offset", "0")),
+                "has_more": decoded.get("sl_has_more", "0") == "1",
+            },
+            "getsales": {
+                "processed": int(decoded.get("gs_processed", "0")),
+                "offset": int(decoded.get("gs_offset", "0")),
+                "total": int(decoded.get("gs_total", "0")),
+            },
+            "error": decoded.get("error"),
+        }
+    finally:
+        await redis.aclose()
+
+
+@router.post("/contact-sync/cancel")
+async def cancel_contact_sync(
+    company: Company = Depends(get_required_company),
+):
+    """Cancel a running contact sync."""
+    import redis.asyncio as aioredis
+    import os
+
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis = aioredis.from_url(redis_url)
+    try:
+        status = await redis.get("contact_sync:status")
+        if not status or status.decode() != "running":
+            raise HTTPException(400, "No sync is currently running")
+
+        await redis.set("contact_sync:cancel", "1")
+        return {"status": "cancel_requested"}
+    finally:
+        await redis.aclose()

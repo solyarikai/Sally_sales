@@ -1456,6 +1456,7 @@ class CRMSyncService:
         session: AsyncSession,
         company_id: int,
         max_leads: int = 3000,
+        report_progress: bool = False,
     ) -> Dict[str, Any]:
         """Sync contacts via SmartLead global-leads + GetSales bulk search.
 
@@ -1466,12 +1467,16 @@ class CRMSyncService:
         - For re-sync: starts from saved offset (only new leads)
 
         Uses a stored offset (in Redis or DB) to resume from last position.
+        When report_progress=True, writes live stats to Redis and checks cancel flag.
         """
         from app.models.campaign import Campaign
         from app.db import async_session_maker
         import redis.asyncio as aioredis
+        import time as _time
 
         stats = {"created": 0, "updated": 0, "skipped": 0, "processed": 0}
+        started_at = _time.time()
+        cancelled = False
 
         # Build campaign name → project_id lookup from DB
         camp_result = await session.execute(
@@ -1504,148 +1509,257 @@ class CRMSyncService:
                     return campaign_project_map[cname]
             return None
 
-        # Get saved offset from Redis (resume from last sync)
+        # Single Redis connection for entire sync
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis = None
         try:
             redis = aioredis.from_url(redis_url)
+
             saved_offset = await redis.get("contact_sync:smartlead_offset")
             offset = int(saved_offset) if saved_offset else 0
-            await redis.aclose()
+
+            saved_gs = await redis.get("contact_sync:getsales_offset")
+            gs_offset_start = int(saved_gs) if saved_gs else 0
         except Exception:
             offset = 0
+            gs_offset_start = 0
 
         # ── SmartLead global-leads scan ──
         has_more = True
         processed = 0
 
-        while has_more and processed < max_leads:
-            try:
-                leads, has_more = await self.smartlead.get_global_leads(
-                    limit=100, offset=offset
-                )
-            except Exception as e:
-                logger.error(f"[GLOBAL-SYNC] SmartLead global-leads failed at offset={offset}: {e}")
-                break
-
-            if not leads:
-                break
-
-            for lead in leads:
-                lead_campaigns = lead.get("campaigns", [])
-                project_id = _resolve_project(lead_campaigns)
-
-                # Inject campaign info for _process_smartlead_lead
-                if lead_campaigns and not lead.get("campaigns_injected"):
-                    lead["campaigns"] = [{
-                        "campaign_name": c.get("campaign_name", ""),
-                        "campaign_id": str(c.get("campaign_id", "")),
-                        "lead_status": c.get("lead_status", "ACTIVE"),
-                    } for c in lead_campaigns]
+        try:
+            while has_more and processed < max_leads:
+                # Check cancel flag
+                if report_progress and redis:
+                    try:
+                        cancel = await redis.get("contact_sync:cancel")
+                        if cancel:
+                            await redis.delete("contact_sync:cancel")
+                            cancelled = True
+                            logger.info("[GLOBAL-SYNC] Cancelled by user")
+                            break
+                    except Exception:
+                        pass
 
                 try:
-                    async with session.begin_nested():
-                        action = await self._process_smartlead_lead(
-                            session, company_id, lead, campaign_project_id=project_id
-                        )
-                    stats[action] += 1
+                    leads, has_more = await self.smartlead.get_global_leads(
+                        limit=100, offset=offset
+                    )
+                except Exception as e:
+                    logger.error(f"[GLOBAL-SYNC] SmartLead global-leads failed at offset={offset}: {e}")
+                    break
+
+                if not leads:
+                    break
+
+                for lead in leads:
+                    lead_campaigns = lead.get("campaigns", [])
+                    project_id = _resolve_project(lead_campaigns)
+
+                    # Inject campaign info for _process_smartlead_lead
+                    if lead_campaigns and not lead.get("campaigns_injected"):
+                        lead["campaigns"] = [{
+                            "campaign_name": c.get("campaign_name", ""),
+                            "campaign_id": str(c.get("campaign_id", "")),
+                            "lead_status": c.get("lead_status", "ACTIVE"),
+                        } for c in lead_campaigns]
+
+                    try:
+                        async with session.begin_nested():
+                            action = await self._process_smartlead_lead(
+                                session, company_id, lead, campaign_project_id=project_id
+                            )
+                        stats[action] += 1
+                    except Exception:
+                        stats["skipped"] += 1
+
+                    processed += 1
+
+                offset += len(leads)
+
+                if len(leads) < 100:
+                    has_more = False
+
+                # Flush every 500 leads
+                if processed % 500 == 0:
+                    await session.flush()
+
+                # Report progress to Redis
+                if report_progress and redis and processed % 100 == 0:
+                    try:
+                        await redis.hset("contact_sync:progress", mapping={
+                            "sl_processed": str(processed),
+                            "sl_created": str(stats["created"]),
+                            "sl_updated": str(stats["updated"]),
+                            "sl_skipped": str(stats["skipped"]),
+                            "sl_offset": str(offset),
+                            "sl_has_more": "1" if has_more else "0",
+                            "gs_processed": "0",
+                            "gs_offset": str(gs_offset_start),
+                            "gs_total": "0",
+                            "status": "running",
+                            "elapsed": str(int(_time.time() - started_at)),
+                        })
+                    except Exception:
+                        pass
+
+            stats["processed"] = processed
+
+            # Save SmartLead offset
+            if redis:
+                try:
+                    await redis.set("contact_sync:smartlead_offset", str(offset))
                 except Exception:
-                    stats["skipped"] += 1
+                    pass
 
-                processed += 1
+            await session.commit()
+            logger.info(
+                f"[GLOBAL-SYNC] SmartLead: processed={processed}, created={stats['created']}, "
+                f"updated={stats['updated']}, skipped={stats['skipped']}, offset={offset}"
+            )
 
-            offset += len(leads)
+            if cancelled:
+                if report_progress and redis:
+                    try:
+                        await redis.hset("contact_sync:progress", mapping={
+                            "status": "cancelled",
+                            "elapsed": str(int(_time.time() - started_at)),
+                        })
+                    except Exception:
+                        pass
+                return stats
 
-            if len(leads) < 100:
-                has_more = False
+            # ── GetSales bulk scan ──
+            gs_offset = gs_offset_start
+            gs_processed = 0
+            gs_total = 0
 
-            # Flush every 500 leads
-            if processed % 500 == 0:
-                await session.flush()
-
-        stats["processed"] = processed
-
-        # Save offset to Redis for next run
-        try:
-            redis = aioredis.from_url(redis_url)
-            await redis.set("contact_sync:smartlead_offset", str(offset))
-            await redis.aclose()
-        except Exception:
-            pass
-
-        await session.commit()
-        logger.info(
-            f"[GLOBAL-SYNC] SmartLead: processed={processed}, created={stats['created']}, "
-            f"updated={stats['updated']}, skipped={stats['skipped']}, offset={offset}"
-        )
-
-        # ── GetSales bulk scan ──
-        gs_offset = 0
-        gs_processed = 0
-        gs_total = 0
-        try:
-            redis = aioredis.from_url(redis_url)
-            saved_gs = await redis.get("contact_sync:getsales_offset")
-            gs_offset = int(saved_gs) if saved_gs else 0
-            await redis.aclose()
-        except Exception:
-            pass
-
-        while gs_processed < max_leads:
-            try:
-                gs_leads, gs_total = await self.getsales.search_leads(
-                    filter_={}, limit=100, offset=gs_offset
-                )
-            except Exception as e:
-                logger.error(f"[GLOBAL-SYNC] GetSales search failed at offset={gs_offset}: {e}")
-                break
-
-            if not gs_leads:
-                break
-
-            for item in gs_leads:
-                # GetSales leads may have flow info
-                flow_name = ""
-                if isinstance(item, dict):
-                    flow_name = item.get("automation_name") or item.get("flow_name") or ""
-
-                project_id = None
-                if flow_name:
-                    project_id = campaign_project_map.get(flow_name.lower())
+            while gs_processed < max_leads:
+                # Check cancel flag
+                if report_progress and redis:
+                    try:
+                        cancel = await redis.get("contact_sync:cancel")
+                        if cancel:
+                            await redis.delete("contact_sync:cancel")
+                            cancelled = True
+                            logger.info("[GLOBAL-SYNC] Cancelled by user during GetSales phase")
+                            break
+                    except Exception:
+                        pass
 
                 try:
-                    async with session.begin_nested():
-                        action = await self._process_getsales_lead(
-                            session, company_id, item, list_name=flow_name,
-                            campaign_project_id=project_id,
-                        )
-                    stats[action] += 1
+                    gs_leads, gs_total = await self.getsales.search_leads(
+                        filter_={}, limit=100, offset=gs_offset
+                    )
+                except Exception as e:
+                    logger.error(f"[GLOBAL-SYNC] GetSales search failed at offset={gs_offset}: {e}")
+                    break
+
+                if not gs_leads:
+                    break
+
+                for item in gs_leads:
+                    # GetSales leads may have flow info
+                    flow_name = ""
+                    if isinstance(item, dict):
+                        flow_name = item.get("automation_name") or item.get("flow_name") or ""
+
+                    project_id = None
+                    if flow_name:
+                        project_id = campaign_project_map.get(flow_name.lower())
+
+                    try:
+                        async with session.begin_nested():
+                            action = await self._process_getsales_lead(
+                                session, company_id, item, list_name=flow_name,
+                                campaign_project_id=project_id,
+                            )
+                        stats[action] += 1
+                    except Exception:
+                        stats["skipped"] += 1
+
+                    gs_processed += 1
+
+                gs_offset += len(gs_leads)
+
+                if len(gs_leads) < 100 or gs_offset >= gs_total:
+                    break
+
+                if gs_processed % 500 == 0:
+                    await session.flush()
+
+                # Report progress
+                if report_progress and redis and gs_processed % 100 == 0:
+                    try:
+                        await redis.hset("contact_sync:progress", mapping={
+                            "sl_processed": str(processed),
+                            "sl_created": str(stats["created"]),
+                            "sl_updated": str(stats["updated"]),
+                            "sl_skipped": str(stats["skipped"]),
+                            "sl_offset": str(offset),
+                            "sl_has_more": "0",
+                            "gs_processed": str(gs_processed),
+                            "gs_offset": str(gs_offset),
+                            "gs_total": str(gs_total),
+                            "status": "running",
+                            "elapsed": str(int(_time.time() - started_at)),
+                        })
+                    except Exception:
+                        pass
+
+            await session.commit()
+
+            # Save GetSales offset
+            if redis:
+                try:
+                    await redis.set("contact_sync:getsales_offset", str(gs_offset))
                 except Exception:
-                    stats["skipped"] += 1
+                    pass
 
-                gs_processed += 1
+            stats["processed"] += gs_processed
+            logger.info(
+                f"[GLOBAL-SYNC] GetSales: processed={gs_processed}, total offset={gs_offset}"
+            )
 
-            gs_offset += len(gs_leads)
+            # Final progress update
+            if report_progress and redis:
+                final_status = "cancelled" if cancelled else "completed"
+                try:
+                    await redis.hset("contact_sync:progress", mapping={
+                        "sl_processed": str(processed),
+                        "sl_created": str(stats["created"]),
+                        "sl_updated": str(stats["updated"]),
+                        "sl_skipped": str(stats["skipped"]),
+                        "sl_offset": str(offset),
+                        "sl_has_more": "0",
+                        "gs_processed": str(gs_processed),
+                        "gs_offset": str(gs_offset),
+                        "gs_total": str(gs_total),
+                        "status": final_status,
+                        "elapsed": str(int(_time.time() - started_at)),
+                    })
+                except Exception:
+                    pass
 
-            if len(gs_leads) < 100 or gs_offset >= gs_total:
-                break
-
-            if gs_processed % 500 == 0:
-                await session.flush()
-
-        await session.commit()
-
-        # Save GetSales offset
-        try:
-            redis = aioredis.from_url(redis_url)
-            await redis.set("contact_sync:getsales_offset", str(gs_offset))
-            await redis.aclose()
-        except Exception:
-            pass
-
-        stats["processed"] += gs_processed
-        logger.info(
-            f"[GLOBAL-SYNC] GetSales: processed={gs_processed}, total offset={gs_offset}"
-        )
+        except Exception as e:
+            logger.error(f"[GLOBAL-SYNC] Fatal error: {e}")
+            if report_progress and redis:
+                try:
+                    await redis.hset("contact_sync:progress", mapping={
+                        "status": "failed",
+                        "error": str(e)[:500],
+                        "elapsed": str(int(_time.time() - started_at)),
+                    })
+                except Exception:
+                    pass
+            raise
+        finally:
+            if redis:
+                try:
+                    await redis.aclose()
+                except Exception:
+                    pass
 
         return stats
 
