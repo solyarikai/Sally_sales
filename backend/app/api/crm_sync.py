@@ -1471,13 +1471,21 @@ async def start_contact_sync(
     async def _run_sync():
         redis_inner = aioredis.from_url(redis_url)
         try:
-            async with async_session_maker() as sync_session:
-                sync_service = get_crm_sync_service()
-                await sync_service.sync_contacts_global(
-                    sync_session, company.id,
-                    max_leads=max_leads,
-                    report_progress=True,
-                )
+            sync_service = get_crm_sync_service()
+
+            async def _run_platform(plat: str):
+                async with async_session_maker() as s:
+                    await sync_service.sync_contacts_global(
+                        s, company.id,
+                        max_leads=max_leads,
+                        report_progress=True,
+                        platform=plat,
+                    )
+
+            await asyncio.gather(
+                _run_platform("smartlead"),
+                _run_platform("getsales"),
+            )
             await redis_inner.set("contact_sync:status", "completed")
         except Exception as e:
             logger.error(f"[CONTACT-SYNC] Background sync failed: {e}")
@@ -1506,23 +1514,37 @@ async def get_sync_progress(
 
         # Decode bytes to str
         decoded = {k.decode(): v.decode() for k, v in progress.items()}
+        # Derive overall status from per-platform statuses
+        sl_status = decoded.get("status_smartlead", "pending")
+        gs_status = decoded.get("status_getsales", "pending")
+        overall = decoded.get("status", "running")
+        if sl_status == "completed" and gs_status == "completed":
+            overall = "completed"
+        elif "failed" in (sl_status, gs_status):
+            overall = "failed"
+        elif "running" in (sl_status, gs_status):
+            overall = "running"
+
         return {
-            "status": decoded.get("status", "unknown"),
+            "status": overall,
             "phase": decoded.get("phase", "unknown"),
             "started_at": decoded.get("started_at"),
-            "elapsed_seconds": int(decoded.get("elapsed", "0")),
             "smartlead": {
+                "status": sl_status,
                 "processed": int(decoded.get("sl_processed", "0")),
                 "created": int(decoded.get("sl_created", "0")),
                 "updated": int(decoded.get("sl_updated", "0")),
                 "skipped": int(decoded.get("sl_skipped", "0")),
                 "offset": int(decoded.get("sl_offset", "0")),
                 "has_more": decoded.get("sl_has_more", "0") == "1",
+                "elapsed_seconds": int(decoded.get("elapsed_smartlead", decoded.get("elapsed", "0"))),
             },
             "getsales": {
+                "status": gs_status,
                 "processed": int(decoded.get("gs_processed", "0")),
                 "offset": int(decoded.get("gs_offset", "0")),
                 "total": int(decoded.get("gs_total", "0")),
+                "elapsed_seconds": int(decoded.get("elapsed_getsales", decoded.get("elapsed", "0"))),
             },
             "error": decoded.get("error"),
         }
