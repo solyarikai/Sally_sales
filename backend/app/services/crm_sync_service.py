@@ -1500,59 +1500,68 @@ class CRMSyncService:
         if not campaigns_to_sync:
             return stats
 
-        # Process campaigns concurrently in batches of 5 (respects SmartLead semaphore)
-        async def _sync_one(campaign):
-            """Sync a single campaign, return (campaign, result_dict) or (campaign, None) on error."""
-            try:
-                is_resync = campaign.last_contact_sync_at is not None
-                if campaign.platform == "smartlead":
-                    synced = await self._sync_smartlead_campaign_contacts(
-                        session, company_id, campaign, max_leads_per_campaign,
-                        start_offset=campaign.synced_leads_count if is_resync else 0,
-                    )
-                elif campaign.platform == "getsales":
-                    synced = await self._sync_getsales_campaign_contacts(
-                        session, company_id, campaign, max_leads_per_campaign,
-                        start_offset=campaign.synced_leads_count if is_resync else 0,
-                    )
-                else:
-                    return campaign, None
-                return campaign, synced
-            except Exception as e:
-                logger.error(f"[CONTACT-SYNC] Failed to sync campaign '{campaign.name}': {e}", exc_info=True)
-                return campaign, None
+        # Capture campaign data for parallel processing (detach from main session)
+        campaign_data = [
+            {"id": c.id, "name": c.name, "platform": c.platform, "external_id": c.external_id,
+             "project_id": c.project_id, "synced_leads_count": c.synced_leads_count or 0,
+             "is_resync": c.last_contact_sync_at is not None}
+            for c in campaigns_to_sync
+        ]
 
-        # Run in parallel batches of 5
-        for i in range(0, len(campaigns_to_sync), 5):
-            batch = campaigns_to_sync[i:i + 5]
+        from app.db import async_session_maker
+
+        async def _sync_one(cdata):
+            """Sync one campaign with its own session."""
+            try:
+                async with async_session_maker() as camp_session:
+                    # Reload campaign in this session
+                    camp_result = await camp_session.execute(
+                        select(Campaign).where(Campaign.id == cdata["id"])
+                    )
+                    campaign = camp_result.scalar()
+                    if not campaign:
+                        return None
+
+                    start_offset = cdata["synced_leads_count"] if cdata["is_resync"] else 0
+
+                    if cdata["platform"] == "smartlead":
+                        synced = await self._sync_smartlead_campaign_contacts(
+                            camp_session, company_id, campaign, max_leads_per_campaign,
+                            start_offset=start_offset,
+                        )
+                    elif cdata["platform"] == "getsales":
+                        synced = await self._sync_getsales_campaign_contacts(
+                            camp_session, company_id, campaign, max_leads_per_campaign,
+                            start_offset=start_offset,
+                        )
+                    else:
+                        return None
+
+                    campaign.last_contact_sync_at = datetime.utcnow()
+                    await camp_session.commit()
+
+                    logger.info(
+                        f"[CONTACT-SYNC] Campaign '{cdata['name']}' (id={cdata['id']}): "
+                        f"created={synced.get('created', 0)}, updated={synced.get('updated', 0)}, "
+                        f"synced_leads_count={campaign.synced_leads_count}"
+                    )
+                    return synced
+            except Exception as e:
+                logger.error(f"[CONTACT-SYNC] Failed to sync campaign '{cdata['name']}': {e}", exc_info=True)
+                return None
+
+        # Run in parallel batches of 5 (each with own session)
+        for i in range(0, len(campaign_data), 5):
+            batch = campaign_data[i:i + 5]
             results = await asyncio.gather(*[_sync_one(c) for c in batch], return_exceptions=True)
 
-            for item in results:
-                if isinstance(item, Exception):
+            for r in results:
+                if isinstance(r, Exception) or r is None:
                     continue
-                campaign, synced = item
-                if synced is None:
-                    continue
-
-                stats["contacts_created"] += synced.get("created", 0)
-                stats["contacts_updated"] += synced.get("updated", 0)
-                stats["contacts_skipped"] += synced.get("skipped", 0)
+                stats["contacts_created"] += r.get("created", 0)
+                stats["contacts_updated"] += r.get("updated", 0)
+                stats["contacts_skipped"] += r.get("skipped", 0)
                 stats["campaigns_synced"] += 1
-
-                campaign.last_contact_sync_at = datetime.utcnow()
-                logger.info(
-                    f"[CONTACT-SYNC] Campaign '{campaign.name}' (id={campaign.id}): "
-                    f"created={synced.get('created', 0)}, updated={synced.get('updated', 0)}, "
-                    f"synced_leads_count={campaign.synced_leads_count}"
-                )
-
-            try:
-                await session.commit()
-            except Exception:
-                try:
-                    await session.rollback()
-                except Exception:
-                    pass
 
         return stats
 
