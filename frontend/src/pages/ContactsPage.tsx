@@ -20,7 +20,7 @@ import {
   Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Target, Mail, Loader2, Upload, AlertCircle, Check,
   Edit3, ChevronLeft, Linkedin, FileSpreadsheet,
-  Sparkles, ChevronRight, ChevronDown, Users, FileText
+  Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -120,6 +120,46 @@ export function ContactsPage() {
   const [replyMode, setReplyMode] = useState(false);
   const [replyContactIndex, setReplyContactIndex] = useState(0);
   const [processedContacts, setProcessedContacts] = useState<Set<number>>(new Set());
+
+  // Column visibility
+  const DEFAULT_HIDDEN_COLUMNS = ['Project', 'Suitable For', 'Segment'];
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('crm:hiddenColumns');
+      return stored ? JSON.parse(stored) : DEFAULT_HIDDEN_COLUMNS;
+    } catch { return DEFAULT_HIDDEN_COLUMNS; }
+  });
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const columnPickerRef = useRef<HTMLDivElement>(null);
+
+  const toggleColumnVisibility = useCallback((headerName: string) => {
+    setHiddenColumns(prev => {
+      const next = prev.includes(headerName)
+        ? prev.filter(n => n !== headerName)
+        : [...prev, headerName];
+      localStorage.setItem('crm:hiddenColumns', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  // Close column picker on outside click or Escape
+  useEffect(() => {
+    if (!showColumnPicker) return;
+    const handleClick = (e: MouseEvent) => {
+      if (columnPickerRef.current && !columnPickerRef.current.contains(e.target as Node)) {
+        setShowColumnPicker(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowColumnPicker(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [showColumnPicker]);
 
   // Tasks (kept for future use)
 
@@ -487,14 +527,14 @@ export function ContactsPage() {
       headerName: 'Email',
       filter: 'agTextColumnFilter',
       sortable: true,
-      flex: 2,
+      flex: 1.5,
       minWidth: 160,
     },
     {
       headerName: 'Name',
       filter: 'agTextColumnFilter',
       sortable: true,
-      flex: 1.5,
+      flex: 1,
       minWidth: 120,
       valueGetter: (params) => {
         const c = params.data as Contact;
@@ -506,7 +546,7 @@ export function ContactsPage() {
       headerName: 'Company',
       filter: 'agTextColumnFilter',
       sortable: true,
-      flex: 1.5,
+      flex: 1,
       minWidth: 110,
     },
     {
@@ -521,7 +561,7 @@ export function ContactsPage() {
       headerName: 'Campaign',
       filter: CampaignColumnFilter,
       sortable: true,
-      flex: 1.5,
+      flex: 1,
       minWidth: 120,
       valueGetter: (params) => {
         const c = params.data as Contact;
@@ -618,6 +658,20 @@ export function ContactsPage() {
     },
   ], [isDark, t]);
 
+  // System columns excluded from toggle list
+  const SYSTEM_COLUMNS = new Set([undefined, 'Done']);
+  const toggleableColumns = useMemo(() =>
+    columnDefs.filter(c => c.headerName && !SYSTEM_COLUMNS.has(c.headerName)).map(c => c.headerName!),
+    [columnDefs]
+  );
+
+  // Filter columns through visibility set + auto-hide Project when project is selected
+  const visibleColumnDefs = useMemo(() => {
+    const effectiveHidden = new Set(hiddenColumns);
+    if (activeProject) effectiveHidden.add('Project');
+    return columnDefs.filter(c => !c.headerName || !effectiveHidden.has(c.headerName));
+  }, [columnDefs, hiddenColumns, activeProject]);
+
   // Default column settings
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
@@ -625,6 +679,7 @@ export function ContactsPage() {
     filter: 'agTextColumnFilter',
     floatingFilter: false,
     filterParams: { debounceMs: 300 },
+    cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), []);
 
   // Grid events
@@ -909,6 +964,49 @@ export function ContactsPage() {
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 : <FileSpreadsheet className="w-3.5 h-3.5" />}
             </button>
+            <div className="relative" ref={columnPickerRef}>
+              <button
+                onClick={() => setShowColumnPicker(v => !v)}
+                className="p-1.5 rounded-md transition-colors hover:opacity-70"
+                style={{ color: t.text4 }}
+                title="Toggle columns"
+              >
+                <Columns3 className="w-3.5 h-3.5" />
+              </button>
+              {showColumnPicker && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-50 rounded-lg shadow-lg py-1 min-w-[160px]"
+                  style={{ background: isDark ? '#1e1e1e' : '#fff', border: `1px solid ${isDark ? '#333' : '#e5e5e5'}` }}
+                >
+                  {toggleableColumns.map(name => {
+                    const isHidden = hiddenColumns.includes(name) || (name === 'Project' && !!activeProject);
+                    const isAutoHidden = name === 'Project' && !!activeProject;
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => !isAutoHidden && toggleColumnVisibility(name)}
+                        className="w-full text-left px-3 py-1 flex items-center gap-2 text-xs transition-colors"
+                        style={{
+                          color: isAutoHidden ? (isDark ? '#555' : '#bbb') : (isDark ? '#ccc' : '#444'),
+                          cursor: isAutoHidden ? 'default' : 'pointer',
+                        }}
+                        onMouseEnter={e => { if (!isAutoHidden) (e.currentTarget.style.background = isDark ? '#2a2a2a' : '#f5f5f5'); }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <span className={cn(
+                          "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
+                          !isHidden ? (isDark ? "bg-indigo-500 border-indigo-500" : "bg-indigo-600 border-indigo-600") : (isDark ? "border-neutral-600" : "border-neutral-300")
+                        )}>
+                          {!isHidden && <Check className="w-2.5 h-2.5 text-white" />}
+                        </span>
+                        {name}
+                        {isAutoHidden && <span className="text-[10px] ml-auto" style={{ color: isDark ? '#555' : '#bbb' }}>auto</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             {selectedContacts.length > 0 && (
               <button onClick={handleDeleteSelected} className="p-1.5 rounded-md transition-colors text-red-400 hover:text-red-300" title="Delete Selected">
                 <Trash2 className="w-3.5 h-3.5" />
@@ -1067,7 +1165,7 @@ export function ContactsPage() {
                 }
               }}
               rowData={contacts}
-              columnDefs={columnDefs}
+              columnDefs={visibleColumnDefs}
               defaultColDef={defaultColDef}
               rowSelection={{
                 mode: 'multiRow',
