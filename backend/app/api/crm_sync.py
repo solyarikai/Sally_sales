@@ -1482,10 +1482,14 @@ async def start_contact_sync(
                         platform=plat,
                     )
 
-            await asyncio.gather(
-                _run_platform("smartlead"),
-                _run_platform("getsales"),
-            )
+            if phase == "full_load":
+                # GetSales has ES 10K offset limit — full load done via CSV import
+                await _run_platform("smartlead")
+            else:
+                await asyncio.gather(
+                    _run_platform("smartlead"),
+                    _run_platform("getsales"),
+                )
             await redis_inner.set("contact_sync:status", "completed")
         except Exception as e:
             logger.error(f"[CONTACT-SYNC] Background sync failed: {e}")
