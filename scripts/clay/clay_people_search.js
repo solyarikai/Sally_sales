@@ -204,26 +204,111 @@ async function runPeopleSearch(page, filters, label = 'default') {
   }
   await screenshot(page, `${label}_01_people_tab`);
 
-  // Apply filters
+  // Apply filters — People tab uses sidebar sections that must be clicked to expand
   console.log('  Applying filters...');
 
-  if (filters.company_industries?.length) {
-    await fillFilterField(page, 'Software development', filters.company_industries);
+  // Helper: click a sidebar section label to expand it, then find and fill inputs inside
+  async function expandAndFill(sectionName, values) {
+    if (!values || values.length === 0) return false;
+
+    // Click the section label in the sidebar
+    const section = await findByText(page, sectionName, false);
+    if (section) {
+      await page.mouse.click(section.x, section.y);
+      await humanDelay(800, 1200);
+    }
+
+    // Now find any visible input and type values
+    const inputs = await page.$$('input[type="text"], input:not([type])');
+    let filled = false;
+    for (const input of inputs) {
+      const isVisible = await input.evaluate(el => el.offsetParent !== null);
+      if (!isVisible) continue;
+      const placeholder = await input.evaluate(el => el.placeholder || '');
+      // Skip inputs that are clearly not filters
+      if (placeholder.includes('Search') && !placeholder.includes('search')) continue;
+
+      for (const value of values) {
+        await input.click({ clickCount: 3 });
+        await humanDelay(200, 400);
+        await input.type(value, { delay: 30 + Math.random() * 50 });
+        await humanDelay(500, 1000);
+        await page.keyboard.press('Enter');
+        await humanDelay(400, 700);
+      }
+      console.log(`    ${sectionName}: ${values.join(', ')}`);
+      filled = true;
+      break;
+    }
+    if (!filled) console.log(`    ${sectionName}: no input found after expanding`);
+    return filled;
   }
-  if (filters.company_description_keywords?.length) {
-    await fillFilterField(page, 'sales, data, outbound', filters.company_description_keywords);
+
+  // Companies section — industry + description keywords
+  if (filters.company_industries?.length || filters.company_description_keywords?.length) {
+    const compSection = await findByText(page, 'Companies', true) || await findByText(page, 'Company attributes', false);
+    if (compSection) {
+      await page.mouse.click(compSection.x, compSection.y);
+      await humanDelay(1000, 1500);
+      await screenshot(page, `${label}_02a_companies_expanded`);
+
+      // Try to find industry input
+      if (filters.company_industries?.length) {
+        // Look for industry-related inputs
+        const allInputs = await page.evaluate(() =>
+          [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
+            .map(i => ({ placeholder: i.placeholder, id: i.id, name: i.name }))
+        );
+        console.log('    Available inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
+
+        // Try each possible placeholder
+        for (const ph of ['Industry', 'industry', 'Software', 'Online gaming', 'Add industry']) {
+          const r = await fillFilterField(page, ph, filters.company_industries);
+          if (r) break;
+        }
+      }
+
+      if (filters.company_description_keywords?.length) {
+        for (const ph of ['keyword', 'description', 'sales, data', 'Add keyword']) {
+          const r = await fillFilterField(page, ph, filters.company_description_keywords);
+          if (r) break;
+        }
+      }
+    }
   }
+
+  // Job title section
   if (filters.job_titles?.length) {
-    // Try multiple possible placeholders for job title
-    const filled = await fillFilterField(page, 'CEO', filters.job_titles)
-      || await fillFilterField(page, 'Job title', filters.job_titles)
-      || await fillFilterField(page, 'title', filters.job_titles);
-    if (!filled) console.log('    Job title filter not found');
+    const titleSection = await findByText(page, 'Job title', true);
+    if (titleSection) {
+      await page.mouse.click(titleSection.x, titleSection.y);
+      await humanDelay(800, 1200);
+      await screenshot(page, `${label}_02b_title_expanded`);
+
+      const allInputs = await page.evaluate(() =>
+        [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
+          .map(i => ({ placeholder: i.placeholder }))
+      );
+      console.log('    Title inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
+
+      for (const ph of ['CEO', 'Add title', 'Job title', 'title', 'Search']) {
+        const r = await fillFilterField(page, ph, filters.job_titles);
+        if (r) break;
+      }
+    }
   }
+
+  // Location section
   if (filters.countries?.length) {
-    await fillFilterField(page, 'United States', filters.countries)
-      || await fillFilterField(page, 'country', filters.countries)
-      || await fillFilterField(page, 'location', filters.countries);
+    const locSection = await findByText(page, 'Location', true);
+    if (locSection) {
+      await page.mouse.click(locSection.x, locSection.y);
+      await humanDelay(800, 1200);
+      for (const ph of ['United States', 'country', 'location', 'Add location']) {
+        const r = await fillFilterField(page, ph, filters.countries);
+        if (r) break;
+      }
+    }
   }
 
   await humanDelay(2000, 3000);
