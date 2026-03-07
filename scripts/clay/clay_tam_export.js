@@ -296,6 +296,7 @@ async function main() {
   const args = process.argv.slice(2);
   const isTest = args.includes('--test');
   const isLoginOnly = args.includes('--login-only');
+  const headless = args.includes('--headless');
   const maxExport = isTest ? 5 : 50;
   const icpText = isTest || isLoginOnly
     ? 'Companies selling gaming skins, virtual items, loot boxes for games like CS2, CSGO, Dota2, Roblox, WoW, FIFA. Gaming marketplace platforms. Skin trading sites.'
@@ -330,8 +331,11 @@ async function main() {
   // Step 2: Launch browser
   console.log('\n[2] Launching stealth browser...');
   const browser = await puppeteer.launch({
-    headless: false,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1440,900', '--disable-blink-features=AutomationControlled'],
+    headless: headless ? 'new' : false,
+    executablePath: headless ? (process.env.CHROME_PATH || '/usr/bin/google-chrome') : undefined,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1440,900',
+           '--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage',
+           '--disable-gpu', '--disable-extensions'],
     defaultViewport: { width: 1440, height: 900 },
   });
 

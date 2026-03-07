@@ -501,6 +501,7 @@ async function main() {
   const args = process.argv.slice(2);
   const autoClose = args.includes('--auto');
   const splitByGeo = args.includes('--split-geo');
+  const headless = args.includes('--headless');
 
   console.log('\n========================================');
   console.log('  Clay People Search — Gaming Skins ICP');
@@ -508,8 +509,11 @@ async function main() {
 
   // Launch browser with download support
   const browser = await puppeteer.launch({
-    headless: false,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1440,900', '--disable-blink-features=AutomationControlled'],
+    headless: headless ? 'new' : false,
+    executablePath: headless ? (process.env.CHROME_PATH || '/usr/bin/google-chrome') : undefined,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1440,900',
+           '--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage',
+           '--disable-gpu', '--disable-extensions'],
     defaultViewport: { width: 1440, height: 900 },
   });
 
