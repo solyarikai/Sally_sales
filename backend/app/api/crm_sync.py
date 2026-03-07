@@ -1472,7 +1472,7 @@ async def start_contact_sync(
         redis_inner = aioredis.from_url(redis_url)
         try:
             async with async_session_maker() as sync_session:
-                sync_service = await get_crm_sync_service(sync_session)
+                sync_service = get_crm_sync_service()
                 await sync_service.sync_contacts_global(
                     sync_session, company.id,
                     max_leads=max_leads,
