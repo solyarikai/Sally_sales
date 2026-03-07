@@ -1819,9 +1819,13 @@ class CRMSyncService:
                                     pass
 
                 else:
-                    # Simple offset pagination (for incremental syncs under 10K)
-                    gs_offset = gs_offset_start
-                    while gs_processed < max_leads:
+                    # Incremental: start from offset 0 (newest first), stop when
+                    # we hit a streak of already-known contacts (all "updated").
+                    # This correctly picks up new leads regardless of position shifts.
+                    gs_offset = 0
+                    consecutive_known = 0
+                    KNOWN_STREAK_THRESHOLD = 200  # stop after 200 consecutive known leads
+                    while gs_processed < max_leads and gs_offset < 9900:
                         if report_progress and redis:
                             try:
                                 cancel = await redis.get("contact_sync:cancel")
@@ -1844,6 +1848,7 @@ class CRMSyncService:
                         if not gs_leads:
                             break
 
+                        batch_created = 0
                         for item in gs_leads:
                             flow_name = ""
                             if isinstance(item, dict):
@@ -1858,11 +1863,27 @@ class CRMSyncService:
                                         campaign_project_id=project_id,
                                     )
                                 stats[action] += 1
+                                if action == "created":
+                                    batch_created += 1
                             except Exception:
                                 stats["skipped"] += 1
                             gs_processed += 1
 
                         gs_offset += len(gs_leads)
+
+                        # Track consecutive batches with no new contacts
+                        if batch_created == 0:
+                            consecutive_known += len(gs_leads)
+                        else:
+                            consecutive_known = 0
+
+                        if consecutive_known >= KNOWN_STREAK_THRESHOLD:
+                            logger.info(
+                                f"[GLOBAL-SYNC] GetSales incremental: stopping after "
+                                f"{consecutive_known} consecutive known leads"
+                            )
+                            break
+
                         if len(gs_leads) < 100 or gs_offset >= gs_total:
                             break
                         if gs_processed % 500 == 0:
@@ -1879,13 +1900,6 @@ class CRMSyncService:
                                 })
                             except Exception:
                                 pass
-
-                    # Save offset for incremental mode
-                    if redis:
-                        try:
-                            await redis.set("contact_sync:getsales_offset", str(gs_offset))
-                        except Exception:
-                            pass
 
                 await session.commit()
                 stats["processed"] += gs_processed
