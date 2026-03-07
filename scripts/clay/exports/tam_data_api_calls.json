@@ -1,0 +1,68 @@
+[
+  {
+    "url": "https://api.clay.com/v3/tables/t_0tbi6fcsiogNNdYfj6Q/fieldrun",
+    "status": 200,
+    "bodyLen": 15,
+    "preview": "{\"fieldIds\":[]}"
+  },
+  {
+    "url": "https://api.clay.com/v3/tables/t_0tbi6fcsiogNNdYfj6Q",
+    "status": 200,
+    "bodyLen": 17556,
+    "preview": "{\"table\":{\"id\":\"t_0tbi6fcsiogNNdYfj6Q\",\"workspaceId\":889252,\"createdByUserId\":\"1044584\",\"name\":\"Find companies Table\",\"description\":\"\",\"type\":\"company\",\"icon\":null,\"parentFolderId\":null,\"tableSettings\":{\"DEDUPE_FIELD_ID\":\"f_0tbi6fdYtzdnNEGkUgi\",\"HAS_SCHEDULED_RUNS\":false},\"createdAt\":\"2026-03-07T00:"
+  },
+  {
+    "url": "https://api.clay.com/v3/tables/t_0tbi6fcsiogNNdYfj6Q/views/gv_0tbi6fdQPw7tmGS5kZP/records/ids",
+    "status": 200,
+    "bodyLen": 19741,
+    "preview": "{\"results\":[\"r_0tbi6fe9a6haxPwo7xo\",\"r_0tbi6feytekAroYpQtP\",\"r_0tbi6feeqRsxo5advSj\",\"r_0tbi6feScpv9PUWQuJt\",\"r_0tbi6ferrF53x4vh7Da\",\"r_0tbi6fexdV4ot6445KV\",\"r_0tbi6fePZuzNWcSyb8X\",\"r_0tbi6feSoboXgb9vHws\",\"r_0tbi6feiSmrC6N22ec3\",\"r_0tbi6feqixkhoyTSQrs\",\"r_0tbi6feAjoMGdb7izRs\",\"r_0tbi6fewg2xP24F4Ps4\","
+  },
+  {
+    "url": "https://api.clay.com/v3/workspaces/889252/resources/t_0tbi6fcsiogNNdYfj6Q/activity",
+    "status": 200,
+    "bodyLen": 16,
+    "preview": "{\"success\":true}"
+  },
+  {
+    "url": "https://api.clay.com/v3/tables/t_0tbi6fcsiogNNdYfj6Q/count",
+    "status": 200,
+    "bodyLen": 30,
+    "preview": "{\"tableTotalRecordsCount\":822}"
+  },
+  {
+    "url": "https://api.clay.com/v3/workspaces/889252/tables/t_0tbi6fcsiogNNdYfj6Q/fields/runstatus",
+    "status": 200,
+    "bodyLen": 592,
+    "preview": "{\"statusCountsByField\":{\"f_0tbi6fcdinveGvsgFrn\":[{\"status\":\"SUCCESS\",\"count\":822}],\"f_0tbi6fcFwfFicoJEJ4m\":[{\"status\":\"SUCCESS\",\"count\":822}],\"f_0tbi6fckeWSv6jY3e7q\":[{\"status\":\"SUCCESS\",\"count\":822}],\"f_0tbi6fcv6XgPhkoA7jg\":[{\"status\":\"SUCCESS\",\"count\":822}],\"f_0tbi6fcwaPkmCvzqnsV\":[{\"status\":\"SUCC"
+  },
+  {
+    "url": "https://api.clay.com/v3/sources",
+    "status": 200,
+    "bodyLen": 2355,
+    "preview": "[{\"id\":\"s_0tbi6fb9cebHPwrAmyw\",\"workspaceId\":889252,\"name\":\"Find companies\",\"createdAt\":\"2026-03-07T00:23:35.325Z\",\"updatedAt\":\"2026-03-07T00:23:35.325Z\",\"deletedAt\":null,\"type\":\"v3-action\",\"typeSettings\":{\"name\":\"Find companies\",\"idPath\":\"linkedin_company_id\",\"inputs\":{\"name\":\"\",\"limit\":5000,\"sizes"
+  },
+  {
+    "url": "https://api.clay.com/v3/tables/t_0tbi6fcsiogNNdYfj6Q/bulk-fetch-records",
+    "status": 200,
+    "bodyLen": 564370,
+    "preview": "{\"results\":[{\"id\":\"r_0tbi6fshmENrZTywP6W\",\"tableId\":\"t_0tbi6fcsiogNNdYfj6Q\",\"cells\":{\"f_0tbi6fcdinveGvsgFrn\":{\"value\":\"Cross Design Group\",\"metadata\":{\"status\":\"SUCCESS\"}},\"f_0tbi6fcFwfFicoJEJ4m\":{\"value\":{\"optionIds\":[\"3422a6fe-baf5-4acd-a75d-2df62c81a160\"]},\"metadata\":{\"status\":\"SUCCESS\",\"isCoerce"
+  },
+  {
+    "url": "https://api.clay.com/v3/tables/t_0tbi6fcsiogNNdYfj6Q/bulk-fetch-records",
+    "status": 200,
+    "bodyLen": 564370,
+    "preview": "{\"results\":[{\"id\":\"r_0tbi6fshmENrZTywP6W\",\"tableId\":\"t_0tbi6fcsiogNNdYfj6Q\",\"cells\":{\"f_0tbi6fcdinveGvsgFrn\":{\"value\":\"Cross Design Group\",\"metadata\":{\"status\":\"SUCCESS\"}},\"f_0tbi6fcFwfFicoJEJ4m\":{\"value\":{\"optionIds\":[\"3422a6fe-baf5-4acd-a75d-2df62c81a160\"]},\"metadata\":{\"status\":\"SUCCESS\",\"isCoerce"
+  },
+  {
+    "url": "https://api.clay.com/v3/tables/t_0tbi6fcsiogNNdYfj6Q/count",
+    "status": 200,
+    "bodyLen": 30,
+    "preview": "{\"tableTotalRecordsCount\":822}"
+  },
+  {
+    "url": "https://api.clay.com/v3/889252/ai-generation/chat-suggestions",
+    "status": 200,
+    "bodyLen": 1097,
+    "preview": "{\"suggestions\":[{\"id\":\"sug-_0tbi6g8aQMwiBZxtngm\",\"title\":\"Analyze company size and industry distribution\",\"description\":\"Calculate the average employee count grouped by industry to understand which sectors you are targeting most effectively.\",\"tag\":\"analytical_query\",\"prompt\":\"Show the average 'Size"
+  }
+]

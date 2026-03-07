@@ -1,0 +1,36 @@
+{
+  "icp": "Companies selling gaming skins, virtual items, loot boxes for games like CS2, CSGO, Dota2, Roblox, WoW, FIFA. Gaming marketplace platforms. Skin trading sites.",
+  "filters": {
+    "industries": [
+      "Online gaming",
+      "Computer games",
+      "E-commerce"
+    ],
+    "description_keywords": [
+      "skins",
+      "CS2",
+      "CSGO",
+      "Dota2",
+      "Roblox",
+      "WoW",
+      "FIFA",
+      "gaming marketplace",
+      "virtual items",
+      "loot boxes",
+      "skin trading"
+    ]
+  },
+  "creditsBefore": {
+    "basic": 2161,
+    "longExpiry": 0,
+    "actionExecution": 999999837401
+  },
+  "creditsAfter": {
+    "basic": 2161,
+    "longExpiry": 0,
+    "actionExecution": 999999837401
+  },
+  "tableUrl": "https://app.clay.com/workspaces/889252/workbooks/wb_0tbi6y3cSNcbrRano6g/tables/t_0tbi6y4thVNYVeDqXGB/views/gv_0tbi6y6xufKDm9f73kD?conversationId=cc_0tbi6wqcCmTkcA764n5&tableId=t_0tbi6y4thVNYVeDqXGB&viewId=gv_0tbi6y6xufKDm9f73kD&workbookId=wb_0tbi6y3cSNcbrRano6g",
+  "tableId": "t_0tbi6y4thVNYVeDqXGB",
+  "timestamp": "2026-03-07T00:35:44.197Z"
+}
