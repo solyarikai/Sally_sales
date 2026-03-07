@@ -37,12 +37,38 @@ const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 // ============================================================
 // Gaming Skins ICP — filter config
 // ============================================================
+// Strategy: use the "Companies" domain input to target SPECIFIC known gaming companies
+// rather than broad industry filters (which don't work well in People tab).
+// Load domains from pipeline CSV (verified gaming ICP).
+
+function loadKnownDomains() {
+  const domains = new Set();
+  // Pipeline CSV = verified gaming ICP domains (team xlsx + Yandex/Google search)
+  const csvPath = path.join(__dirname, 'inxy_gaming_companies.csv');
+  if (fs.existsSync(csvPath)) {
+    const lines = fs.readFileSync(csvPath, 'utf-8').split('\n');
+    for (const line of lines) {
+      const d = line.trim().toLowerCase();
+      if (d && d !== 'website' && d.includes('.')) {
+        domains.add(d.replace(/^www\./, ''));
+      }
+    }
+  }
+  // Clay TAM domains
+  const tamPath = path.join(OUT_DIR, 'tam_companies.json');
+  if (fs.existsSync(tamPath)) {
+    const companies = JSON.parse(fs.readFileSync(tamPath, 'utf-8'));
+    for (const c of companies) {
+      const d = (c.Domain || '').toLowerCase().trim().replace(/^www\./, '');
+      if (d) domains.add(d);
+    }
+  }
+  return [...domains];
+}
+
 const GAMING_ICP_FILTERS = {
-  company_industries: ['Online gaming', 'Computer games'],
-  company_description_keywords: [
-    'skins', 'CS2', 'CSGO', 'Dota2', 'gaming marketplace',
-    'virtual items', 'loot boxes', 'skin trading',
-  ],
+  // company_domains will be filled from CSV at runtime
+  company_domains: [],
   job_titles: ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
     'VP', 'Head of', 'Director', 'Chief', 'Managing Director', 'Owner'],
 };
@@ -204,110 +230,121 @@ async function runPeopleSearch(page, filters, label = 'default') {
   }
   await screenshot(page, `${label}_01_people_tab`);
 
-  // Apply filters — People tab uses sidebar sections that must be clicked to expand
+  // Apply filters — People tab uses sidebar sections
   console.log('  Applying filters...');
 
-  // Helper: click a sidebar section label to expand it, then find and fill inputs inside
-  async function expandAndFill(sectionName, values) {
-    if (!values || values.length === 0) return false;
+  // Step A: Type company domains into the "Companies" field (placeholder: "amazon.com, microsoft.com")
+  // This is the most important filter — targets specific gaming companies
+  if (filters.company_domains?.length) {
+    console.log(`  Typing ${filters.company_domains.length} company domains...`);
 
-    // Click the section label in the sidebar
-    const section = await findByText(page, sectionName, false);
-    if (section) {
-      await page.mouse.click(section.x, section.y);
-      await humanDelay(800, 1200);
-    }
-
-    // Now find any visible input and type values
-    const inputs = await page.$$('input[type="text"], input:not([type])');
-    let filled = false;
-    for (const input of inputs) {
-      const isVisible = await input.evaluate(el => el.offsetParent !== null);
-      if (!isVisible) continue;
-      const placeholder = await input.evaluate(el => el.placeholder || '');
-      // Skip inputs that are clearly not filters
-      if (placeholder.includes('Search') && !placeholder.includes('search')) continue;
-
-      for (const value of values) {
-        await input.click({ clickCount: 3 });
-        await humanDelay(200, 400);
-        await input.type(value, { delay: 30 + Math.random() * 50 });
-        await humanDelay(500, 1000);
-        await page.keyboard.press('Enter');
-        await humanDelay(400, 700);
-      }
-      console.log(`    ${sectionName}: ${values.join(', ')}`);
-      filled = true;
-      break;
-    }
-    if (!filled) console.log(`    ${sectionName}: no input found after expanding`);
-    return filled;
-  }
-
-  // Companies section — industry + description keywords
-  if (filters.company_industries?.length || filters.company_description_keywords?.length) {
-    const compSection = await findByText(page, 'Companies', true) || await findByText(page, 'Company attributes', false);
+    // The "Companies" section should already have a visible domain input
+    // or we need to click it to expand
+    const compSection = await findByText(page, 'Companies', true);
     if (compSection) {
       await page.mouse.click(compSection.x, compSection.y);
-      await humanDelay(1000, 1500);
-      await screenshot(page, `${label}_02a_companies_expanded`);
-
-      // Try to find industry input
-      if (filters.company_industries?.length) {
-        // Look for industry-related inputs
-        const allInputs = await page.evaluate(() =>
-          [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
-            .map(i => ({ placeholder: i.placeholder, id: i.id, name: i.name }))
-        );
-        console.log('    Available inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
-
-        // Try each possible placeholder
-        for (const ph of ['Industry', 'industry', 'Software', 'Online gaming', 'Add industry']) {
-          const r = await fillFilterField(page, ph, filters.company_industries);
-          if (r) break;
-        }
-      }
-
-      if (filters.company_description_keywords?.length) {
-        for (const ph of ['keyword', 'description', 'sales, data', 'Add keyword']) {
-          const r = await fillFilterField(page, ph, filters.company_description_keywords);
-          if (r) break;
-        }
-      }
-    }
-  }
-
-  // Job title section
-  if (filters.job_titles?.length) {
-    const titleSection = await findByText(page, 'Job title', true);
-    if (titleSection) {
-      await page.mouse.click(titleSection.x, titleSection.y);
       await humanDelay(800, 1200);
-      await screenshot(page, `${label}_02b_title_expanded`);
+    }
 
+    // Find the domain input (placeholder contains "amazon.com" or similar)
+    const domainInput = await page.$('input[placeholder*="amazon"]')
+      || await page.$('input[placeholder*="microsoft"]')
+      || await page.$('input[placeholder*=".com"]');
+
+    if (domainInput) {
+      // Type domains in batches (Clay may have input limits)
+      // Type each domain, press Enter to add it as a tag
+      const domainsToType = filters.company_domains.slice(0, 500); // Safety limit
+      let typed = 0;
+
+      for (const domain of domainsToType) {
+        await domainInput.click();
+        await humanDelay(100, 200);
+        await domainInput.type(domain, { delay: 15 + Math.random() * 20 });
+        await humanDelay(200, 400);
+        await page.keyboard.press('Enter');
+        await humanDelay(150, 300);
+        typed++;
+        if (typed % 50 === 0) {
+          console.log(`    Typed ${typed}/${domainsToType.length} domains...`);
+          await humanDelay(500, 1000); // Brief pause every 50
+        }
+      }
+      console.log(`    Companies: typed ${typed} domains`);
+    } else {
+      console.log('    WARNING: Company domain input not found!');
+      // Dump available inputs for debugging
       const allInputs = await page.evaluate(() =>
         [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
           .map(i => ({ placeholder: i.placeholder }))
       );
-      console.log('    Title inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
-
-      for (const ph of ['CEO', 'Add title', 'Job title', 'title', 'Search']) {
-        const r = await fillFilterField(page, ph, filters.job_titles);
-        if (r) break;
-      }
+      console.log('    Available inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
     }
+    await screenshot(page, `${label}_02a_companies`);
   }
 
-  // Location section
+  // Step B: Job title filter
+  if (filters.job_titles?.length) {
+    const titleInput = await page.$('input[placeholder*="CEO"]')
+      || await page.$('input[placeholder*="VP"]')
+      || await page.$('input[placeholder*="Director"]');
+
+    if (titleInput) {
+      for (const title of filters.job_titles) {
+        await titleInput.click();
+        await humanDelay(100, 200);
+        await titleInput.type(title, { delay: 25 + Math.random() * 30 });
+        await humanDelay(300, 600);
+        await page.keyboard.press('Enter');
+        await humanDelay(200, 400);
+      }
+      console.log(`    Job titles: ${filters.job_titles.join(', ')}`);
+    } else {
+      // Try clicking "Job title" section first
+      const titleSection = await findByText(page, 'Job title', true);
+      if (titleSection) {
+        await page.mouse.click(titleSection.x, titleSection.y);
+        await humanDelay(800, 1200);
+      }
+      // Try again
+      const retryInput = await page.$('input[placeholder*="CEO"]')
+        || await page.$('input[placeholder*="VP"]');
+      if (retryInput) {
+        for (const title of filters.job_titles) {
+          await retryInput.click();
+          await humanDelay(100, 200);
+          await retryInput.type(title, { delay: 25 });
+          await humanDelay(300, 500);
+          await page.keyboard.press('Enter');
+          await humanDelay(200, 400);
+        }
+        console.log(`    Job titles: ${filters.job_titles.join(', ')}`);
+      } else {
+        console.log('    WARNING: Job title input not found');
+      }
+    }
+    await screenshot(page, `${label}_02b_titles`);
+  }
+
+  // Location section (for geo splits)
   if (filters.countries?.length) {
     const locSection = await findByText(page, 'Location', true);
     if (locSection) {
       await page.mouse.click(locSection.x, locSection.y);
       await humanDelay(800, 1200);
-      for (const ph of ['United States', 'country', 'location', 'Add location']) {
-        const r = await fillFilterField(page, ph, filters.countries);
-        if (r) break;
+    }
+    const locInput = await page.$('input[placeholder*="United States"]')
+      || await page.$('input[placeholder*="country"]')
+      || await page.$('input[placeholder*="location"]');
+    if (locInput) {
+      for (const country of filters.countries) {
+        await locInput.click();
+        await locInput.type(country, { delay: 25 });
+        await humanDelay(400, 700);
+        await page.keyboard.press('Enter');
+        await humanDelay(200, 400);
       }
+      console.log(`    Location: ${filters.countries.join(', ')}`);
     }
   }
 
@@ -643,10 +680,29 @@ async function main() {
   const creditsBefore = check.credits;
   console.log(`  Credits: ${JSON.stringify(creditsBefore)}`);
 
+  // Load known gaming ICP domains
+  const allDomains = loadKnownDomains();
+  console.log(`  Known gaming ICP domains: ${allDomains.length}`);
+  GAMING_ICP_FILTERS.company_domains = allDomains;
+
   // Build search configs
+  // Clay limit is ~500 domains per search and 5000 people per table.
+  // If we have >500 domains, split into batches.
   let searches;
-  if (splitByGeo) {
-    // Split by geo for >5000 results
+  const DOMAIN_BATCH_SIZE = 200; // Conservative batch size for UI input
+
+  if (allDomains.length > DOMAIN_BATCH_SIZE) {
+    // Split domains into batches
+    searches = [];
+    for (let i = 0; i < allDomains.length; i += DOMAIN_BATCH_SIZE) {
+      const batch = allDomains.slice(i, i + DOMAIN_BATCH_SIZE);
+      searches.push({
+        label: `batch_${Math.floor(i / DOMAIN_BATCH_SIZE) + 1}`,
+        filters: { ...GAMING_ICP_FILTERS, company_domains: batch },
+      });
+    }
+    console.log(`\n[2] Running ${searches.length} domain-batch searches (${DOMAIN_BATCH_SIZE} domains each)...`);
+  } else if (splitByGeo) {
     searches = GEO_SPLITS.map(geo => ({
       label: geo.label.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
       filters: {
@@ -656,7 +712,6 @@ async function main() {
     }));
     console.log(`\n[2] Running ${searches.length} geo-split searches...`);
   } else {
-    // Single search
     searches = [{ label: 'all', filters: GAMING_ICP_FILTERS }];
     console.log('\n[2] Running single search...');
   }
