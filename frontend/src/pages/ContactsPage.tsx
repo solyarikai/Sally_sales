@@ -19,7 +19,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Target, Mail, Loader2, Upload, AlertCircle, Check,
-  Edit3, ChevronLeft, Linkedin, FileSpreadsheet,
+  Edit3, Linkedin, FileSpreadsheet,
   Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult } from '../api';
@@ -817,23 +817,6 @@ export function ContactsPage() {
     loadFilterOptions();
   };
 
-  const clearFilters = () => {
-    setStatusFilters([]);
-    setSourceFilter(null);
-    setSegmentFilters([]);
-    setGeoFilter(null);
-    setCampaignFilters([]);
-    setCampaignIdFilter(null);
-    setFollowupFilter(null);
-    setRepliedFilter(null);
-    setCreatedAfter(null);
-    setCreatedBefore(null);
-    setDomainFilter(null);
-    setSuitableForFilter(null);
-    setReplyCategoryFilters([]);
-    setSearch('');
-    setReplyMode(false);
-  };
 
   // Select a project
   const selectProject = (project: Project | null) => {
