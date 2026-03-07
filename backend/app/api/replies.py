@@ -2121,25 +2121,6 @@ async def get_reply_full_history(
         if not has_outbound and (reply.source == "getsales" or reply.channel == "linkedin"):
             await _fetch_getsales_conversation(contact, reply, session)
 
-            # After fetching full conversation, check if operator already replied.
-            # If last message is outbound and reply is still pending, auto-dismiss.
-            last_outbound_check = await session.execute(
-                select(ContactActivity.direction).where(
-                    and_(
-                        ContactActivity.contact_id == contact.id,
-                        ContactActivity.channel == "linkedin",
-                    )
-                ).order_by(ContactActivity.activity_at.desc()).limit(1)
-            )
-            last_direction = last_outbound_check.scalar()
-            if last_direction == "outbound" and reply.approval_status in (None, "pending"):
-                reply.approval_status = "dismissed"
-                reply.approved_at = datetime.utcnow()
-                session.add(reply)
-                await session.commit()
-                await session.refresh(reply)
-                logger.info(f"[AUTO-DISMISS] Reply {reply.id} auto-dismissed — operator already replied via LinkedIn")
-
         ca_result = await session.execute(
             select(ContactActivity).where(
                 and_(ContactActivity.contact_id == contact.id, ContactActivity.channel == "linkedin")
@@ -2160,6 +2141,19 @@ async def get_reply_full_history(
             })
 
     activities.sort(key=lambda a: a["timestamp"])
+
+    # Final auto-dismiss: after ALL sources (ThreadMessages + ContactActivity) are merged,
+    # check if the last message is outbound. This catches cases where:
+    # - GetSales automation sent messages (ContactActivity) after the inbound reply
+    # - Operator replied externally and the outbound was synced later
+    if activities and activities[-1]["direction"] == "outbound":
+        if reply.approval_status in (None, "pending"):
+            reply.approval_status = "dismissed"
+            reply.approved_at = datetime.utcnow()
+            session.add(reply)
+            await session.commit()
+            await session.refresh(reply)
+            logger.info(f"[AUTO-DISMISS] Reply {reply.id} auto-dismissed via /full-history (final check) — last activity is outbound")
 
     inbox_links = {
         (r.campaign_name or f"Campaign {r.campaign_id}"): r.inbox_link
