@@ -69,8 +69,8 @@ function loadKnownDomains() {
 const GAMING_ICP_FILTERS = {
   // company_domains will be filled from CSV at runtime
   company_domains: [],
-  job_titles: ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
-    'VP', 'Head of', 'Director', 'Chief', 'Managing Director', 'Owner'],
+  // job_titles: pass --titles flag to enable title filtering
+  job_titles: [],
 };
 
 // Geo splits for >5000 results
@@ -673,6 +673,15 @@ async function main() {
   const autoClose = args.includes('--auto');
   const splitByGeo = args.includes('--split-geo');
   const headless = args.includes('--headless');
+  const useTitles = args.includes('--titles');
+
+  if (useTitles) {
+    GAMING_ICP_FILTERS.job_titles = ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
+      'VP', 'Head of', 'Director', 'Chief', 'Managing Director', 'Owner'];
+    console.log('  Title filter: ON (decision-makers only)');
+  } else {
+    console.log('  Title filter: OFF (all roles)');
+  }
 
   console.log('\n========================================');
   console.log('  Clay People Search — Gaming Skins ICP');
