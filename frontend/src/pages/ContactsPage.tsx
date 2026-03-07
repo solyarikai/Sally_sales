@@ -96,8 +96,8 @@ export function ContactsPage() {
   );
   const [createdAfter, setCreatedAfter] = useState<string | null>(searchParams.get('after'));
   const [createdBefore, setCreatedBefore] = useState<string | null>(searchParams.get('before'));
-  const [domainFilter, setDomainFilter] = useState<string | null>(searchParams.get('domain'));
-  const [suitableForFilter, setSuitableForFilter] = useState<string | null>(searchParams.get('suitable_for'));
+  const [domainFilter, _setDomainFilter] = useState<string | null>(searchParams.get('domain'));
+  const [suitableForFilter, _setSuitableForFilter] = useState<string | null>(searchParams.get('suitable_for'));
   const [replyCategoryFilters, setReplyCategoryFilters] = useState<string[]>(
     searchParams.get('reply_category')?.split(',').filter(Boolean) || []
   );
