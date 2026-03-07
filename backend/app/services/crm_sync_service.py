@@ -1500,17 +1500,38 @@ class CRMSyncService:
         if not campaigns_to_sync:
             return stats
 
-        for campaign in campaigns_to_sync:
+        # Process campaigns concurrently in batches of 5 (respects SmartLead semaphore)
+        async def _sync_one(campaign):
+            """Sync a single campaign, return (campaign, result_dict) or (campaign, None) on error."""
             try:
+                is_resync = campaign.last_contact_sync_at is not None
                 if campaign.platform == "smartlead":
                     synced = await self._sync_smartlead_campaign_contacts(
-                        session, company_id, campaign, max_leads_per_campaign
+                        session, company_id, campaign, max_leads_per_campaign,
+                        start_offset=campaign.synced_leads_count if is_resync else 0,
                     )
                 elif campaign.platform == "getsales":
                     synced = await self._sync_getsales_campaign_contacts(
-                        session, company_id, campaign, max_leads_per_campaign
+                        session, company_id, campaign, max_leads_per_campaign,
+                        start_offset=campaign.synced_leads_count if is_resync else 0,
                     )
                 else:
+                    return campaign, None
+                return campaign, synced
+            except Exception as e:
+                logger.error(f"[CONTACT-SYNC] Failed to sync campaign '{campaign.name}': {e}", exc_info=True)
+                return campaign, None
+
+        # Run in parallel batches of 5
+        for i in range(0, len(campaigns_to_sync), 5):
+            batch = campaigns_to_sync[i:i + 5]
+            results = await asyncio.gather(*[_sync_one(c) for c in batch], return_exceptions=True)
+
+            for item in results:
+                if isinstance(item, Exception):
+                    continue
+                campaign, synced = item
+                if synced is None:
                     continue
 
                 stats["contacts_created"] += synced.get("created", 0)
@@ -1519,14 +1540,15 @@ class CRMSyncService:
                 stats["campaigns_synced"] += 1
 
                 campaign.last_contact_sync_at = datetime.utcnow()
-                await session.commit()
                 logger.info(
                     f"[CONTACT-SYNC] Campaign '{campaign.name}' (id={campaign.id}): "
                     f"created={synced.get('created', 0)}, updated={synced.get('updated', 0)}, "
                     f"synced_leads_count={campaign.synced_leads_count}"
                 )
-            except Exception as e:
-                logger.error(f"[CONTACT-SYNC] Failed to sync campaign '{campaign.name}': {e}", exc_info=True)
+
+            try:
+                await session.commit()
+            except Exception:
                 try:
                     await session.rollback()
                 except Exception:
@@ -1540,15 +1562,18 @@ class CRMSyncService:
         company_id: int,
         campaign,
         max_leads: int,
+        start_offset: int = 0,
     ) -> Dict[str, int]:
-        """Sync contacts from a single SmartLead campaign."""
-        result = {"created": 0, "updated": 0, "skipped": 0}
-        offset = 0
-        total_synced = 0
+        """Sync contacts from a single SmartLead campaign.
 
-        while total_synced < max_leads:
-            batch_size = min(100, max_leads - total_synced)
-            # SmartleadClient.get_campaign_leads returns List[dict] directly
+        For re-syncs, start_offset skips already-synced leads (1 API call if no new leads).
+        """
+        result = {"created": 0, "updated": 0, "skipped": 0}
+        offset = start_offset
+        total_synced = start_offset  # preserve count from previous sync
+
+        while total_synced < max_leads + start_offset:
+            batch_size = min(100, max_leads + start_offset - total_synced)
             raw_leads = await self.smartlead.get_campaign_leads(
                 campaign.external_id, offset=offset, limit=batch_size
             )
@@ -1565,7 +1590,6 @@ class CRMSyncService:
                     leads.append(item)
 
             for lead in leads:
-                # Inject campaign info so _process_smartlead_lead can populate platform_state
                 if not lead.get("campaigns"):
                     lead["campaigns"] = [{
                         "campaign_name": campaign.name,
@@ -1601,15 +1625,19 @@ class CRMSyncService:
         company_id: int,
         campaign,
         max_leads: int,
+        start_offset: int = 0,
     ) -> Dict[str, int]:
-        """Sync contacts from a single GetSales campaign (flow)."""
+        """Sync contacts from a single GetSales campaign (flow).
+
+        For re-syncs, start_offset skips already-synced leads.
+        """
         result = {"created": 0, "updated": 0, "skipped": 0}
-        offset = 0
-        total_synced = 0
+        offset = start_offset
+        total_synced = start_offset
         api_total = 0
 
-        while total_synced < max_leads:
-            batch_size = min(100, max_leads - total_synced)
+        while total_synced < max_leads + start_offset:
+            batch_size = min(100, max_leads + start_offset - total_synced)
             leads, api_total = await self.getsales.search_leads(
                 filter_={"flow_uuid": campaign.external_id},
                 limit=batch_size, offset=offset,
