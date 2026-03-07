@@ -271,6 +271,11 @@ async function runPeopleSearch(page, filters, label = 'default') {
       );
       console.log('    Available inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
     }
+    // Dismiss any open dropdown by pressing Escape and clicking neutral area
+    await page.keyboard.press('Escape');
+    await humanDelay(300, 500);
+    await page.mouse.click(650, 400); // Click in the preview area to deselect
+    await humanDelay(500, 800);
     await screenshot(page, `${label}_02a_titles`);
   }
 
@@ -279,34 +284,83 @@ async function runPeopleSearch(page, filters, label = 'default') {
   if (filters.company_domains?.length) {
     console.log(`  Typing ${filters.company_domains.length} company domains...`);
 
-    // The "Companies" section should already have a visible domain input
-    // or we need to click it to expand
+    // "Companies" section is near the bottom of the sidebar — scroll down to it
+    await page.evaluate(() => {
+      const sidebar = document.querySelector('[class*="sidebar"]')
+        || document.querySelector('[class*="filter"]')?.closest('div[style*="overflow"]')
+        || document.querySelector('div[class*="scroll"]');
+      // Try to find and scroll the sidebar container
+      const sections = [...document.querySelectorAll('div, section')].filter(el => {
+        const style = window.getComputedStyle(el);
+        return style.overflowY === 'auto' || style.overflowY === 'scroll';
+      });
+      for (const s of sections) {
+        if (s.scrollHeight > s.clientHeight && s.clientHeight > 200) {
+          s.scrollTop = s.scrollHeight;
+          break;
+        }
+      }
+    });
+    await humanDelay(800, 1200);
+
+    // Click "Companies" section to expand it (exact text, not "Company attributes")
     const compSection = await findByText(page, 'Companies', true);
     if (compSection) {
       await page.mouse.click(compSection.x, compSection.y);
-      await humanDelay(800, 1200);
+      await humanDelay(1200, 1800);
+    } else {
+      // Fallback: try finding it with icon prefix
+      const compAlt = await findByText(page, 'Companies', false);
+      if (compAlt) {
+        await page.mouse.click(compAlt.x, compAlt.y);
+        await humanDelay(1200, 1800);
+      }
     }
 
     // Find the domain input (placeholder contains "amazon.com" or similar)
-    const domainInput = await page.$('input[placeholder*="amazon"]')
-      || await page.$('input[placeholder*="microsoft"]')
-      || await page.$('input[placeholder*=".com"]');
+    // Use evaluate to get coordinates — more reliable than ElementHandle.click()
+    async function findDomainInput() {
+      return page.evaluate(() => {
+        const selectors = [
+          'input[placeholder*="amazon"]',
+          'input[placeholder*="microsoft"]',
+          'input[placeholder*=".com"]',
+        ];
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el && el.offsetParent !== null) {
+            const rect = el.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: el.placeholder };
+          }
+        }
+        return null;
+      });
+    }
 
-    if (domainInput) {
+    let domainInputPos = await findDomainInput();
+    await screenshot(page, `${label}_02b_companies_expanded`);
+
+    if (domainInputPos) {
+      console.log(`    Found domain input: "${domainInputPos.placeholder}"`);
       const domainsToType = filters.company_domains.slice(0, 500); // Safety limit
       let typed = 0;
 
       for (const domain of domainsToType) {
-        await domainInput.click();
-        await humanDelay(100, 200);
-        await domainInput.type(domain, { delay: 15 + Math.random() * 20 });
-        await humanDelay(200, 400);
-        await page.keyboard.press('Enter');
+        // Re-find input every 100 domains (it may shift as tags are added)
+        if (typed > 0 && typed % 100 === 0) {
+          const newPos = await findDomainInput();
+          if (newPos) domainInputPos = newPos;
+        }
+        await page.mouse.click(domainInputPos.x, domainInputPos.y);
+        await humanDelay(80, 150);
+        await page.keyboard.type(domain, { delay: 15 + Math.random() * 20 });
         await humanDelay(150, 300);
+        await page.keyboard.press('Enter');
+        await humanDelay(100, 250);
         typed++;
         if (typed % 50 === 0) {
           console.log(`    Typed ${typed}/${domainsToType.length} domains...`);
-          await humanDelay(500, 1000); // Brief pause every 50
+          await humanDelay(300, 600); // Brief pause every 50
         }
       }
       console.log(`    Companies: typed ${typed} domains`);
@@ -314,9 +368,9 @@ async function runPeopleSearch(page, filters, label = 'default') {
       console.log('    WARNING: Company domain input not found!');
       const allInputs = await page.evaluate(() =>
         [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
-          .map(i => ({ placeholder: i.placeholder }))
+          .map(i => ({ placeholder: i.placeholder, rect: i.getBoundingClientRect() }))
       );
-      console.log('    Available inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
+      console.log('    Available inputs:', JSON.stringify(allInputs.map(i => i.placeholder)));
     }
     await screenshot(page, `${label}_02b_companies`);
   }
