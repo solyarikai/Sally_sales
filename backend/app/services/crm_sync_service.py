@@ -1451,6 +1451,204 @@ class CRMSyncService:
                         break
         return text.strip()
 
+    async def sync_contacts_global(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        max_leads: int = 3000,
+    ) -> Dict[str, Any]:
+        """Sync contacts via SmartLead global-leads + GetSales bulk search.
+
+        Much faster than per-campaign sync:
+        - Single paginated stream vs. 1000+ per-campaign calls
+        - Each lead includes all campaign assignments
+        - Skips empty campaigns entirely
+        - For re-sync: starts from saved offset (only new leads)
+
+        Uses a stored offset (in Redis or DB) to resume from last position.
+        """
+        from app.models.campaign import Campaign
+        from app.db import async_session_maker
+        import redis.asyncio as aioredis
+
+        stats = {"created": 0, "updated": 0, "skipped": 0, "processed": 0}
+
+        # Build campaign name → project_id lookup from DB
+        camp_result = await session.execute(
+            select(Campaign.name, Campaign.project_id).where(
+                Campaign.project_id.isnot(None)
+            )
+        )
+        campaign_project_map = {}
+        for row in camp_result.all():
+            campaign_project_map[row.name.lower()] = row.project_id
+            # Also store with campaign_id for SmartLead lookup
+        # Also build external_id → project_id
+        camp_id_result = await session.execute(
+            select(Campaign.external_id, Campaign.project_id).where(
+                Campaign.project_id.isnot(None)
+            )
+        )
+        campaign_id_map = {row.external_id: row.project_id for row in camp_id_result.all()}
+
+        def _resolve_project(lead_campaigns: list) -> Optional[int]:
+            """Find project_id from lead's campaign list."""
+            for camp in lead_campaigns:
+                # Try by campaign_id first (most precise)
+                cid = str(camp.get("campaign_id", ""))
+                if cid in campaign_id_map:
+                    return campaign_id_map[cid]
+                # Fall back to name match
+                cname = (camp.get("campaign_name") or "").lower()
+                if cname in campaign_project_map:
+                    return campaign_project_map[cname]
+            return None
+
+        # Get saved offset from Redis (resume from last sync)
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        try:
+            redis = aioredis.from_url(redis_url)
+            saved_offset = await redis.get("contact_sync:smartlead_offset")
+            offset = int(saved_offset) if saved_offset else 0
+            await redis.aclose()
+        except Exception:
+            offset = 0
+
+        # ── SmartLead global-leads scan ──
+        has_more = True
+        processed = 0
+
+        while has_more and processed < max_leads:
+            try:
+                leads, has_more = await self.smartlead.get_global_leads(
+                    limit=100, offset=offset
+                )
+            except Exception as e:
+                logger.error(f"[GLOBAL-SYNC] SmartLead global-leads failed at offset={offset}: {e}")
+                break
+
+            if not leads:
+                break
+
+            for lead in leads:
+                lead_campaigns = lead.get("campaigns", [])
+                project_id = _resolve_project(lead_campaigns)
+
+                # Inject campaign info for _process_smartlead_lead
+                if lead_campaigns and not lead.get("campaigns_injected"):
+                    lead["campaigns"] = [{
+                        "campaign_name": c.get("campaign_name", ""),
+                        "campaign_id": str(c.get("campaign_id", "")),
+                        "lead_status": c.get("lead_status", "ACTIVE"),
+                    } for c in lead_campaigns]
+
+                try:
+                    async with session.begin_nested():
+                        action = await self._process_smartlead_lead(
+                            session, company_id, lead, campaign_project_id=project_id
+                        )
+                    stats[action] += 1
+                except Exception:
+                    stats["skipped"] += 1
+
+                processed += 1
+
+            offset += len(leads)
+
+            if len(leads) < 100:
+                has_more = False
+
+            # Flush every 500 leads
+            if processed % 500 == 0:
+                await session.flush()
+
+        stats["processed"] = processed
+
+        # Save offset to Redis for next run
+        try:
+            redis = aioredis.from_url(redis_url)
+            await redis.set("contact_sync:smartlead_offset", str(offset))
+            await redis.aclose()
+        except Exception:
+            pass
+
+        await session.commit()
+        logger.info(
+            f"[GLOBAL-SYNC] SmartLead: processed={processed}, created={stats['created']}, "
+            f"updated={stats['updated']}, skipped={stats['skipped']}, offset={offset}"
+        )
+
+        # ── GetSales bulk scan ──
+        gs_offset = 0
+        gs_processed = 0
+        gs_total = 0
+        try:
+            redis = aioredis.from_url(redis_url)
+            saved_gs = await redis.get("contact_sync:getsales_offset")
+            gs_offset = int(saved_gs) if saved_gs else 0
+            await redis.aclose()
+        except Exception:
+            pass
+
+        while gs_processed < max_leads:
+            try:
+                gs_leads, gs_total = await self.getsales.search_leads(
+                    filter_={}, limit=100, offset=gs_offset
+                )
+            except Exception as e:
+                logger.error(f"[GLOBAL-SYNC] GetSales search failed at offset={gs_offset}: {e}")
+                break
+
+            if not gs_leads:
+                break
+
+            for item in gs_leads:
+                # GetSales leads may have flow info
+                flow_name = ""
+                if isinstance(item, dict):
+                    flow_name = item.get("automation_name") or item.get("flow_name") or ""
+
+                project_id = None
+                if flow_name:
+                    project_id = campaign_project_map.get(flow_name.lower())
+
+                try:
+                    async with session.begin_nested():
+                        action = await self._process_getsales_lead(
+                            session, company_id, item, list_name=flow_name,
+                            campaign_project_id=project_id,
+                        )
+                    stats[action] += 1
+                except Exception:
+                    stats["skipped"] += 1
+
+                gs_processed += 1
+
+            gs_offset += len(gs_leads)
+
+            if len(gs_leads) < 100 or gs_offset >= gs_total:
+                break
+
+            if gs_processed % 500 == 0:
+                await session.flush()
+
+        await session.commit()
+
+        # Save GetSales offset
+        try:
+            redis = aioredis.from_url(redis_url)
+            await redis.set("contact_sync:getsales_offset", str(gs_offset))
+            await redis.aclose()
+        except Exception:
+            pass
+
+        stats["processed"] += gs_processed
+        logger.info(
+            f"[GLOBAL-SYNC] GetSales: processed={gs_processed}, total offset={gs_offset}"
+        )
+
+        return stats
+
     async def sync_campaign_contacts(
         self,
         session: AsyncSession,

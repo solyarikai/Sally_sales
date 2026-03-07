@@ -471,17 +471,19 @@ class CRMScheduler:
                 await session.rollback()
                 logger.error(f"Auto-assign campaigns failed: {e}", exc_info=True)
 
-        # ── Phase 4: Sync contacts for campaigns needing it ──
+        # ── Phase 4: Global contact sync (SmartLead + GetSales) ──
+        # Uses global-leads endpoint: single paginated scan instead of per-campaign calls.
+        # Resumes from saved offset each cycle (3000 leads/cycle ≈ 30 API calls).
         try:
             sync_service = get_crm_sync_service()
             async with async_session_maker() as sync_session:
-                sync_stats = await sync_service.sync_campaign_contacts(
-                    sync_session, self.company_id, max_campaigns=30, max_leads_per_campaign=500
+                sync_stats = await sync_service.sync_contacts_global(
+                    sync_session, self.company_id, max_leads=3000
                 )
-                if sync_stats["campaigns_synced"] > 0:
-                    logger.info(f"[CONTACT-SYNC] Phase 4 complete: {sync_stats}")
+                if sync_stats["processed"] > 0:
+                    logger.info(f"[GLOBAL-SYNC] Phase 4 complete: {sync_stats}")
         except Exception as e:
-            logger.error(f"[CONTACT-SYNC] Phase 4 failed: {e}", exc_info=True)
+            logger.error(f"[GLOBAL-SYNC] Phase 4 failed: {e}", exc_info=True)
     
     async def _check_replies(self):
         """Check for new replies — scoped to enabled project campaigns only."""
