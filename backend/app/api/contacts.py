@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, String, text as sql_text, desc
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from datetime import datetime
 import csv
 import io
@@ -132,24 +132,25 @@ class ContactResponse(BaseModel):
             return True
         return bool(v)
 
-    @field_validator('campaigns', mode='before')
-    @classmethod
-    def derive_campaigns(cls, v, info):
-        """Derive campaigns list from platform_state since the campaigns column was dropped."""
-        if isinstance(v, list):
-            return v
-        ps = info.data.get('platform_state')
-        if not isinstance(ps, dict):
-            return None
+    @model_validator(mode='after')
+    def derive_campaigns(self):
+        """Derive campaigns list from platform_state since the campaigns column was dropped.
+        Uses model_validator instead of field_validator because Pydantic v2 skips
+        field validators when the ORM object lacks the attribute entirely."""
+        if self.campaigns:
+            return self
+        if not isinstance(self.platform_state, dict):
+            return self
         result = []
-        for plat_name, plat_data in ps.items():
+        for plat_name, plat_data in self.platform_state.items():
             if isinstance(plat_data, dict):
                 for camp in plat_data.get("campaigns", []):
                     if isinstance(camp, dict):
                         camp_copy = dict(camp)
                         camp_copy.setdefault("source", plat_name)
                         result.append(camp_copy)
-        return result or None
+        self.campaigns = result or None
+        return self
 
     class Config:
         from_attributes = True

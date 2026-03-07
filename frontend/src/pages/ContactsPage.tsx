@@ -19,7 +19,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Target, Mail, Loader2, Upload, AlertCircle, Check,
-  Edit3, Linkedin, FileSpreadsheet,
+  FileSpreadsheet,
   Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult } from '../api';
