@@ -843,6 +843,11 @@ class GetSalesClient:
         }
         data = await self._post("/leads/api/leads/search", payload)
         return data.get("data", []), data.get("total", 0)
+
+    async def get_data_sources(self) -> List[dict]:
+        """Get all data sources (lead import batches)."""
+        data = await self._get("/leads/api/data-sources")
+        return data if isinstance(data, list) else data.get("data", [])
     
     async def get_leads_by_list(self, list_uuid: str, limit: int = 100, offset: int = 0) -> Tuple[List[dict], int]:
         """Get leads from a specific list."""
@@ -1634,90 +1639,258 @@ class CRMSyncService:
                 return stats
 
             # ── GetSales bulk scan ──
-            gs_offset = gs_offset_start
+            # ES hard limit: offset+size <= 10,000. For full loads (max_leads > 10K),
+            # iterate by data_source_uuid so each chunk stays under the limit.
             gs_processed = 0
             gs_total = 0
 
             if run_getsales:
-                while gs_processed < max_leads:
-                    # Check cancel flag
-                    if report_progress and redis:
+                use_datasource_chunking = max_leads > 9000
+
+                if use_datasource_chunking:
+                    # Get all data sources, then paginate within each
+                    try:
+                        data_sources = await self.getsales.get_data_sources()
+                    except Exception as e:
+                        logger.error(f"[GLOBAL-SYNC] GetSales get_data_sources failed: {e}")
+                        data_sources = []
+
+                    # Also get unfiltered total for progress
+                    try:
+                        _, gs_total = await self.getsales.search_leads(filter_={}, limit=1, offset=0)
+                    except Exception:
+                        pass
+
+                    # Track which data sources we've completed (Redis set)
+                    completed_ds_key = "contact_sync:gs_completed_ds"
+                    completed_ds = set()
+                    if redis:
                         try:
-                            cancel = await redis.get("contact_sync:cancel")
-                            if cancel:
-                                await redis.delete("contact_sync:cancel")
-                                cancelled = True
-                                logger.info("[GLOBAL-SYNC] Cancelled by user during GetSales phase")
-                                break
+                            completed_ds = {m.decode() for m in await redis.smembers(completed_ds_key)}
                         except Exception:
                             pass
 
-                    try:
-                        gs_leads, gs_total = await self.getsales.search_leads(
-                            filter_={}, limit=100, offset=gs_offset
-                        )
-                    except Exception as e:
-                        logger.error(f"[GLOBAL-SYNC] GetSales search failed at offset={gs_offset}: {e}")
-                        break
+                    for ds in data_sources:
+                        ds_uuid = ds.get("uuid", "")
+                        if not ds_uuid or ds_uuid in completed_ds:
+                            continue
 
-                    if not gs_leads:
-                        break
+                        if cancelled:
+                            break
 
-                    for item in gs_leads:
-                        # GetSales leads may have flow info
-                        flow_name = ""
-                        if isinstance(item, dict):
-                            flow_name = item.get("automation_name") or item.get("flow_name") or ""
+                        ds_offset = 0
+                        while gs_processed < max_leads:
+                            # Check cancel flag
+                            if report_progress and redis:
+                                try:
+                                    cancel = await redis.get("contact_sync:cancel")
+                                    if cancel:
+                                        await redis.delete("contact_sync:cancel")
+                                        cancelled = True
+                                        logger.info("[GLOBAL-SYNC] Cancelled during GetSales phase")
+                                        break
+                                except Exception:
+                                    pass
 
-                        project_id = None
-                        if flow_name:
-                            project_id = campaign_project_map.get(flow_name.lower())
-
-                        try:
-                            async with session.begin_nested():
-                                action = await self._process_getsales_lead(
-                                    session, company_id, item, list_name=flow_name,
-                                    campaign_project_id=project_id,
+                            try:
+                                gs_leads, ds_total = await self.getsales.search_leads(
+                                    filter_={"data_source_uuid": ds_uuid},
+                                    limit=100, offset=ds_offset,
                                 )
-                            stats[action] += 1
-                        except Exception:
-                            stats["skipped"] += 1
+                            except Exception as e:
+                                logger.error(f"[GLOBAL-SYNC] GetSales ds={ds_uuid[:8]} offset={ds_offset}: {e}")
+                                break
 
-                        gs_processed += 1
+                            if not gs_leads:
+                                break
 
-                    gs_offset += len(gs_leads)
+                            for item in gs_leads:
+                                flow_name = ""
+                                if isinstance(item, dict):
+                                    flow_name = item.get("automation_name") or item.get("flow_name") or ""
 
-                    if len(gs_leads) < 100 or gs_offset >= gs_total:
-                        break
+                                project_id = None
+                                if flow_name:
+                                    project_id = campaign_project_map.get(flow_name.lower())
 
-                    if gs_processed % 500 == 0:
-                        await session.flush()
+                                try:
+                                    async with session.begin_nested():
+                                        action = await self._process_getsales_lead(
+                                            session, company_id, item, list_name=flow_name,
+                                            campaign_project_id=project_id,
+                                        )
+                                    stats[action] += 1
+                                except Exception:
+                                    stats["skipped"] += 1
 
-                    # Report progress (only own fields)
-                    if report_progress and redis and gs_processed % 100 == 0:
+                                gs_processed += 1
+
+                            ds_offset += len(gs_leads)
+
+                            if len(gs_leads) < 100 or ds_offset >= ds_total:
+                                break
+
+                            if gs_processed % 500 == 0:
+                                await session.flush()
+
+                            if report_progress and redis and gs_processed % 100 == 0:
+                                try:
+                                    await redis.hset("contact_sync:progress", mapping={
+                                        "gs_processed": str(gs_processed),
+                                        "gs_total": str(gs_total),
+                                        "status": "running",
+                                        "elapsed": str(int(_time.time() - started_at)),
+                                    })
+                                except Exception:
+                                    pass
+
+                        # Mark data source as completed
+                        if redis and not cancelled:
+                            try:
+                                await redis.sadd(completed_ds_key, ds_uuid)
+                            except Exception:
+                                pass
+
+                    # Also scan leads with no data source (list_uuid filter)
+                    if not cancelled:
                         try:
-                            await redis.hset("contact_sync:progress", mapping={
-                                "gs_processed": str(gs_processed),
-                                "gs_offset": str(gs_offset),
-                                "gs_total": str(gs_total),
-                                "status": "running",
-                                "elapsed": str(int(_time.time() - started_at)),
-                            })
+                            lists = await self.getsales.get_lists()
+                        except Exception:
+                            lists = []
+                        for lst in lists:
+                            list_uuid = lst.get("uuid", "")
+                            if not list_uuid or list_uuid in completed_ds:
+                                continue
+                            if cancelled:
+                                break
+
+                            ds_offset = 0
+                            while gs_processed < max_leads:
+                                if report_progress and redis:
+                                    try:
+                                        cancel = await redis.get("contact_sync:cancel")
+                                        if cancel:
+                                            await redis.delete("contact_sync:cancel")
+                                            cancelled = True
+                                            break
+                                    except Exception:
+                                        pass
+
+                                try:
+                                    gs_leads, ds_total = await self.getsales.search_leads(
+                                        filter_={"list_uuid": list_uuid},
+                                        limit=100, offset=ds_offset,
+                                    )
+                                except Exception as e:
+                                    logger.error(f"[GLOBAL-SYNC] GetSales list={list_uuid[:8]} offset={ds_offset}: {e}")
+                                    break
+
+                                if not gs_leads:
+                                    break
+
+                                for item in gs_leads:
+                                    flow_name = ""
+                                    if isinstance(item, dict):
+                                        flow_name = item.get("automation_name") or item.get("flow_name") or ""
+                                    project_id = None
+                                    if flow_name:
+                                        project_id = campaign_project_map.get(flow_name.lower())
+                                    try:
+                                        async with session.begin_nested():
+                                            action = await self._process_getsales_lead(
+                                                session, company_id, item, list_name=flow_name,
+                                                campaign_project_id=project_id,
+                                            )
+                                        stats[action] += 1
+                                    except Exception:
+                                        stats["skipped"] += 1
+                                    gs_processed += 1
+
+                                ds_offset += len(gs_leads)
+                                if len(gs_leads) < 100 or ds_offset >= ds_total:
+                                    break
+                                if gs_processed % 500 == 0:
+                                    await session.flush()
+
+                            if redis and not cancelled:
+                                try:
+                                    await redis.sadd(completed_ds_key, list_uuid)
+                                except Exception:
+                                    pass
+
+                else:
+                    # Simple offset pagination (for incremental syncs under 10K)
+                    gs_offset = gs_offset_start
+                    while gs_processed < max_leads:
+                        if report_progress and redis:
+                            try:
+                                cancel = await redis.get("contact_sync:cancel")
+                                if cancel:
+                                    await redis.delete("contact_sync:cancel")
+                                    cancelled = True
+                                    logger.info("[GLOBAL-SYNC] Cancelled during GetSales phase")
+                                    break
+                            except Exception:
+                                pass
+
+                        try:
+                            gs_leads, gs_total = await self.getsales.search_leads(
+                                filter_={}, limit=100, offset=gs_offset
+                            )
+                        except Exception as e:
+                            logger.error(f"[GLOBAL-SYNC] GetSales search failed at offset={gs_offset}: {e}")
+                            break
+
+                        if not gs_leads:
+                            break
+
+                        for item in gs_leads:
+                            flow_name = ""
+                            if isinstance(item, dict):
+                                flow_name = item.get("automation_name") or item.get("flow_name") or ""
+                            project_id = None
+                            if flow_name:
+                                project_id = campaign_project_map.get(flow_name.lower())
+                            try:
+                                async with session.begin_nested():
+                                    action = await self._process_getsales_lead(
+                                        session, company_id, item, list_name=flow_name,
+                                        campaign_project_id=project_id,
+                                    )
+                                stats[action] += 1
+                            except Exception:
+                                stats["skipped"] += 1
+                            gs_processed += 1
+
+                        gs_offset += len(gs_leads)
+                        if len(gs_leads) < 100 or gs_offset >= gs_total:
+                            break
+                        if gs_processed % 500 == 0:
+                            await session.flush()
+
+                        if report_progress and redis and gs_processed % 100 == 0:
+                            try:
+                                await redis.hset("contact_sync:progress", mapping={
+                                    "gs_processed": str(gs_processed),
+                                    "gs_offset": str(gs_offset),
+                                    "gs_total": str(gs_total),
+                                    "status": "running",
+                                    "elapsed": str(int(_time.time() - started_at)),
+                                })
+                            except Exception:
+                                pass
+
+                    # Save offset for incremental mode
+                    if redis:
+                        try:
+                            await redis.set("contact_sync:getsales_offset", str(gs_offset))
                         except Exception:
                             pass
 
                 await session.commit()
-
-                # Save GetSales offset
-                if redis:
-                    try:
-                        await redis.set("contact_sync:getsales_offset", str(gs_offset))
-                    except Exception:
-                        pass
-
                 stats["processed"] += gs_processed
                 logger.info(
-                    f"[GLOBAL-SYNC] GetSales: processed={gs_processed}, total offset={gs_offset}"
+                    f"[GLOBAL-SYNC] GetSales: processed={gs_processed}, total={gs_total}"
                 )
 
             # Final progress update
