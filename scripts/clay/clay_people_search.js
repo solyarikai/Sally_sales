@@ -231,9 +231,50 @@ async function runPeopleSearch(page, filters, label = 'default') {
   await screenshot(page, `${label}_01_people_tab`);
 
   // Apply filters — People tab uses sidebar sections
+  // IMPORTANT: Apply job titles FIRST, then domains.
+  // Typing 200+ domains makes other inputs hard to find.
   console.log('  Applying filters...');
 
-  // Step A: Type company domains into the "Companies" field (placeholder: "amazon.com, microsoft.com")
+  // Step A: Job title filter (MUST be before domains)
+  if (filters.job_titles?.length) {
+    let titleInput = await page.$('input[placeholder*="CEO"]')
+      || await page.$('input[placeholder*="VP"]')
+      || await page.$('input[placeholder*="Director"]');
+
+    if (!titleInput) {
+      // Try clicking "Job title" section to expand it
+      const titleSection = await findByText(page, 'Job title', true);
+      if (titleSection) {
+        await page.mouse.click(titleSection.x, titleSection.y);
+        await humanDelay(800, 1200);
+      }
+      titleInput = await page.$('input[placeholder*="CEO"]')
+        || await page.$('input[placeholder*="VP"]')
+        || await page.$('input[placeholder*="Director"]');
+    }
+
+    if (titleInput) {
+      for (const title of filters.job_titles) {
+        await titleInput.click();
+        await humanDelay(100, 200);
+        await titleInput.type(title, { delay: 25 + Math.random() * 30 });
+        await humanDelay(300, 600);
+        await page.keyboard.press('Enter');
+        await humanDelay(200, 400);
+      }
+      console.log(`    Job titles: ${filters.job_titles.join(', ')}`);
+    } else {
+      console.log('    WARNING: Job title input not found');
+      const allInputs = await page.evaluate(() =>
+        [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
+          .map(i => ({ placeholder: i.placeholder }))
+      );
+      console.log('    Available inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
+    }
+    await screenshot(page, `${label}_02a_titles`);
+  }
+
+  // Step B: Type company domains into the "Companies" field (placeholder: "amazon.com, microsoft.com")
   // This is the most important filter — targets specific gaming companies
   if (filters.company_domains?.length) {
     console.log(`  Typing ${filters.company_domains.length} company domains...`);
@@ -252,8 +293,6 @@ async function runPeopleSearch(page, filters, label = 'default') {
       || await page.$('input[placeholder*=".com"]');
 
     if (domainInput) {
-      // Type domains in batches (Clay may have input limits)
-      // Type each domain, press Enter to add it as a tag
       const domainsToType = filters.company_domains.slice(0, 500); // Safety limit
       let typed = 0;
 
@@ -273,57 +312,13 @@ async function runPeopleSearch(page, filters, label = 'default') {
       console.log(`    Companies: typed ${typed} domains`);
     } else {
       console.log('    WARNING: Company domain input not found!');
-      // Dump available inputs for debugging
       const allInputs = await page.evaluate(() =>
         [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
           .map(i => ({ placeholder: i.placeholder }))
       );
       console.log('    Available inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
     }
-    await screenshot(page, `${label}_02a_companies`);
-  }
-
-  // Step B: Job title filter
-  if (filters.job_titles?.length) {
-    const titleInput = await page.$('input[placeholder*="CEO"]')
-      || await page.$('input[placeholder*="VP"]')
-      || await page.$('input[placeholder*="Director"]');
-
-    if (titleInput) {
-      for (const title of filters.job_titles) {
-        await titleInput.click();
-        await humanDelay(100, 200);
-        await titleInput.type(title, { delay: 25 + Math.random() * 30 });
-        await humanDelay(300, 600);
-        await page.keyboard.press('Enter');
-        await humanDelay(200, 400);
-      }
-      console.log(`    Job titles: ${filters.job_titles.join(', ')}`);
-    } else {
-      // Try clicking "Job title" section first
-      const titleSection = await findByText(page, 'Job title', true);
-      if (titleSection) {
-        await page.mouse.click(titleSection.x, titleSection.y);
-        await humanDelay(800, 1200);
-      }
-      // Try again
-      const retryInput = await page.$('input[placeholder*="CEO"]')
-        || await page.$('input[placeholder*="VP"]');
-      if (retryInput) {
-        for (const title of filters.job_titles) {
-          await retryInput.click();
-          await humanDelay(100, 200);
-          await retryInput.type(title, { delay: 25 });
-          await humanDelay(300, 500);
-          await page.keyboard.press('Enter');
-          await humanDelay(200, 400);
-        }
-        console.log(`    Job titles: ${filters.job_titles.join(', ')}`);
-      } else {
-        console.log('    WARNING: Job title input not found');
-      }
-    }
-    await screenshot(page, `${label}_02b_titles`);
+    await screenshot(page, `${label}_02b_companies`);
   }
 
   // Location section (for geo splits)
@@ -640,13 +635,14 @@ async function main() {
   });
 
   const page = await browser.newPage();
+  await page.setDefaultTimeout(600000); // 10 min timeout for large table reads
   await page.setUserAgent(USER_AGENT);
   await page.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => false });
   });
 
-  // Session
-  const session = loadSession();
+  // Session — use `let` so we can update if refreshed during login
+  let session = loadSession();
   if (!session.value) {
     console.log('ERROR: No session. Run: node clay_tam_export.js --login-only');
     await browser.close();
@@ -668,7 +664,7 @@ async function main() {
       if (page.url().includes('/workspaces/') || page.url().includes('/home')) {
         const cookies = await page.cookies('https://api.clay.com');
         const sc = cookies.find(c => c.name === 'claysession');
-        if (sc) { saveSession(sc.value); break; }
+        if (sc) { session = { value: sc.value }; saveSession(sc.value); break; }
       }
     }
     await page.goto(`https://app.clay.com/workspaces/${WORKSPACE_ID}/home`, { waitUntil: 'networkidle2' });
@@ -716,11 +712,35 @@ async function main() {
     console.log('\n[2] Running single search...');
   }
 
-  // Run searches
+  // Run searches — use a FRESH page for each batch to avoid stale UI state
   const allResults = [];
-  for (const search of searches) {
-    const result = await runPeopleSearch(page, search.filters, search.label);
+  for (let si = 0; si < searches.length; si++) {
+    const search = searches[si];
+    // Create a fresh page (new tab) for each batch to avoid Clay's stale DOM
+    let batchPage;
+    if (si === 0) {
+      batchPage = page; // Reuse the validated page for the first batch
+    } else {
+      console.log(`\n  Opening fresh tab for ${search.label}...`);
+      batchPage = await browser.newPage();
+      await batchPage.setDefaultTimeout(600000);
+      await batchPage.setUserAgent(USER_AGENT);
+      await batchPage.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      });
+      await setSessionCookie(batchPage, session.value);
+      // Navigate to workspace home to initialize session
+      await batchPage.goto(`https://app.clay.com/workspaces/${WORKSPACE_ID}/home`, { waitUntil: 'networkidle2', timeout: 30000 });
+      await humanDelay(2000, 3000);
+    }
+
+    const result = await runPeopleSearch(batchPage, search.filters, search.label);
     if (result) allResults.push(result);
+
+    // Close the batch page (except the first one which we keep for final checks)
+    if (si > 0) {
+      await batchPage.close();
+    }
     await humanDelay(2000, 4000);
   }
 
