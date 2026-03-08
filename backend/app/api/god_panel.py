@@ -543,12 +543,12 @@ async def get_campaign_metrics(
         SELECT campaign_elem->>'name' AS campaign_name, COUNT(DISTINCT c.id) AS contacts_added
         FROM contacts c,
              jsonb_array_elements(
-               COALESCE(c.platform_state::jsonb->'smartlead'->'campaigns', '[]'::jsonb) ||
-               COALESCE(c.platform_state::jsonb->'getsales'->'campaigns', '[]'::jsonb)
+               COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', CAST('[]' AS jsonb)) ||
+               COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', CAST('[]' AS jsonb))
              ) AS campaign_elem
         WHERE c.project_id = :project_id
           AND c.deleted_at IS NULL
-          AND (:since IS NULL OR c.created_at >= :since::timestamp)
+          AND (:since IS NULL OR c.created_at >= CAST(:since AS timestamp))
         GROUP BY campaign_elem->>'name'
         ORDER BY contacts_added DESC
     """)
