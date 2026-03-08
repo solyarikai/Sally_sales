@@ -793,15 +793,18 @@ async def refresh_leads_counts(
 
     async def _batch_refresh():
         import asyncio
+        from sqlalchemy.orm.attributes import flag_modified
         from app.services.crm_sync_service import get_crm_sync_service
+        logger.info("[BATCH] Starting leads_count refresh for all SmartLead campaigns")
         sync_service = get_crm_sync_service()
         sl_client = sync_service.smartlead if sync_service else None
         if not sl_client:
-            logger.warning("No SmartLead client for batch refresh")
+            logger.warning("[BATCH] No SmartLead client available")
             return
 
         today_key = datetime.utcnow().strftime("%Y-%m-%d")
         refreshed = 0
+        processed = 0
         errors = 0
 
         async with async_session_maker() as bg_session:
@@ -815,34 +818,38 @@ async def refresh_leads_counts(
                 )
             )
             campaigns_to_refresh = result.scalars().all()
+            logger.info(f"[BATCH] Processing {len(campaigns_to_refresh)} campaigns")
 
             for camp in campaigns_to_refresh:
+                processed += 1
                 try:
                     total = await sl_client.get_campaign_lead_count(camp.external_id)
                     total = int(total) if total else 0
                     if total > 0:
                         camp.leads_count = total
-                        # Store daily snapshot
                         config = dict(camp.config or {})
                         snapshots = config.setdefault("daily_snapshots", {})
                         snapshots[today_key] = total
                         camp.config = config
+                        flag_modified(camp, "config")
                         refreshed += 1
-                    await asyncio.sleep(1.5)  # rate limit: ~40/min
+                    await asyncio.sleep(1.5)
                 except Exception as e:
                     errors += 1
-                    if errors > 20:
-                        logger.error(f"Batch refresh: too many errors ({errors}), stopping")
+                    logger.warning(f"[BATCH] Error on campaign {camp.external_id}: {e}")
+                    if errors > 50:
+                        logger.error(f"[BATCH] Too many errors ({errors}), stopping")
                         break
                     await asyncio.sleep(3)
 
-                # Commit every 50 campaigns
-                if refreshed % 50 == 0 and refreshed > 0:
+                # Commit every 25 campaigns
+                if processed % 25 == 0:
                     await bg_session.commit()
-                    logger.info(f"Batch refresh progress: {refreshed} refreshed, {errors} errors")
+                    if processed % 100 == 0:
+                        logger.info(f"[BATCH] Progress: {processed}/{len(campaigns_to_refresh)} processed, {refreshed} with leads, {errors} errors")
 
             await bg_session.commit()
-            logger.info(f"Batch refresh complete: {refreshed} refreshed, {errors} errors out of {len(campaigns_to_refresh)} total")
+            logger.info(f"[BATCH] Complete: {refreshed} campaigns with leads, {errors} errors out of {processed} processed")
 
     background_tasks.add_task(_batch_refresh)
     return {"status": "started", "total_campaigns": total_campaigns, "message": "Refreshing in background (~1.5s per campaign)"}

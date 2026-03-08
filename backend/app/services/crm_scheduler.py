@@ -377,6 +377,7 @@ class CRMScheduler:
                             Campaign.id.desc(),  # newest campaigns first
                         ).limit(10)
                     )
+                    from sqlalchemy.orm.attributes import flag_modified
                     today_key = datetime.utcnow().strftime("%Y-%m-%d")
                     for camp_to_refresh in refresh_q.scalars().all():
                         try:
@@ -390,12 +391,12 @@ class CRMScheduler:
                                 config = dict(camp_to_refresh.config or {})
                                 snapshots = config.setdefault("daily_snapshots", {})
                                 snapshots[today_key] = total
-                                # Keep last 180 days of snapshots
                                 if len(snapshots) > 180:
                                     sorted_keys = sorted(snapshots.keys())
                                     for old_key in sorted_keys[:-180]:
                                         del snapshots[old_key]
                                 camp_to_refresh.config = config
+                                flag_modified(camp_to_refresh, "config")
                             await asyncio.sleep(2)  # rate limit friendly
                         except Exception:
                             pass
