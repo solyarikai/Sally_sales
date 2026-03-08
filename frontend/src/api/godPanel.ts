@@ -153,4 +153,9 @@ export const godPanelApi = {
     });
     return data;
   },
+
+  async refreshLeadsCounts(): Promise<{ status: string; total_campaigns: number; message: string }> {
+    const { data } = await api.post('/god-panel/refresh-leads-counts');
+    return data;
+  },
 };

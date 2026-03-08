@@ -482,18 +482,43 @@ async def get_project_metrics(
     if not projects_list:
         return ProjectMetricsOut(projects=[], period=period)
 
-    # 2. Contacts uploaded — hybrid: SUM(Campaign.leads_count) when available,
-    #    otherwise COUNT(Contact) from CRM as fallback. Uses the max per project.
-    #    a) From Campaign.leads_count (SmartLead API totals)
-    sl_query = (
-        select(Campaign.project_id, func.coalesce(func.sum(Campaign.leads_count), 0).label("cnt"))
-        .where(and_(Campaign.project_id.isnot(None), Campaign.leads_count > 0))
-        .group_by(Campaign.project_id)
-    )
-    sl_result = await session.execute(sl_query)
-    sl_leads_map: dict[int, int] = {row.project_id: row.cnt for row in sl_result.all()}
+    # 2. Contacts uploaded — uses daily snapshots for time-filtered SmartLead data
+    #    All Time: SUM(Campaign.leads_count) per project
+    #    Time period: SUM(current_total - snapshot_at_period_start) per project
+    if since_dt:
+        # Time-filtered: compute delta from snapshots per SmartLead campaign
+        camp_result = await session.execute(
+            select(Campaign).where(
+                and_(Campaign.project_id.isnot(None), Campaign.leads_count > 0, Campaign.platform == "smartlead")
+            )
+        )
+        sl_leads_map: dict[int, int] = {}
+        since_key = since_dt.strftime("%Y-%m-%d")
+        for camp in camp_result.scalars().all():
+            total = camp.leads_count or 0
+            snapshots = (camp.config or {}).get("daily_snapshots", {})
+            if snapshots:
+                candidates = [(k, v) for k, v in snapshots.items() if k <= since_key]
+                if candidates:
+                    baseline = max(candidates, key=lambda x: x[0])[1]
+                    delta = max(0, total - baseline)
+                else:
+                    earliest = min(snapshots.items(), key=lambda x: x[0])
+                    delta = max(0, total - earliest[1]) if total > earliest[1] else total
+            else:
+                delta = total  # no snapshots yet, show full total
+            sl_leads_map[camp.project_id] = sl_leads_map.get(camp.project_id, 0) + delta
+    else:
+        # All Time: SUM(Campaign.leads_count)
+        sl_query = (
+            select(Campaign.project_id, func.coalesce(func.sum(Campaign.leads_count), 0).label("cnt"))
+            .where(and_(Campaign.project_id.isnot(None), Campaign.leads_count > 0))
+            .group_by(Campaign.project_id)
+        )
+        sl_result = await session.execute(sl_query)
+        sl_leads_map = {row.project_id: row.cnt for row in sl_result.all()}
 
-    #    b) From CRM contacts (platform_state), time-filtered
+    # GetSales + fallback: CRM contacts, time-filtered
     crm_query = (
         select(Contact.project_id, func.count(Contact.id).label("cnt"))
         .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
@@ -504,7 +529,7 @@ async def get_project_metrics(
     crm_result = await session.execute(crm_query)
     crm_leads_map: dict[int, int] = {row.project_id: row.cnt for row in crm_result.all()}
 
-    #    Use max of both sources per project
+    # Use max of both sources per project
     all_pids = set(sl_leads_map.keys()) | set(crm_leads_map.keys())
     leads_map: dict[int, int] = {
         pid: max(sl_leads_map.get(pid, 0), crm_leads_map.get(pid, 0))
@@ -629,15 +654,36 @@ async def get_campaign_metrics(
     warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
 
     # 5. Build response — deduplicate by lowercase campaign name
-    #    SmartLead: MAX(Campaign.leads_count, platform_state count) — best available
-    #    GetSales: platform_state count
+    #    SmartLead contacts: uses daily snapshots for time-filtered views
+    #      - All Time: Campaign.leads_count (total from SmartLead API)
+    #      - Time period: current_total - snapshot_at_period_start (contacts added in period)
+    #    GetSales: platform_state count (CRM contacts)
+    def _snapshot_contacts(campaign, since_dt_inner):
+        """Compute contacts added in period using daily snapshots stored in config."""
+        total = campaign.leads_count or 0
+        if not since_dt_inner or total == 0:
+            return total
+        snapshots = (campaign.config or {}).get("daily_snapshots", {})
+        if not snapshots:
+            return total  # no snapshots yet, show full total
+        since_key = since_dt_inner.strftime("%Y-%m-%d")
+        # Find closest snapshot at or before the period start
+        candidates = [(k, v) for k, v in snapshots.items() if k <= since_key]
+        if candidates:
+            baseline = max(candidates, key=lambda x: x[0])[1]
+            return max(0, total - baseline)
+        # No snapshot before period start — all snapshots are within period
+        # Use earliest snapshot as baseline (contacts before our tracking)
+        earliest = min(snapshots.items(), key=lambda x: x[0])
+        return max(0, total - earliest[1]) if total > earliest[1] else total
+
     seen_names: dict[str, dict] = {}
     for c in campaigns:
         name_lower = c.name.lower()
         warm = warm_by_campaign.get(name_lower, 0)
         ps_count = ps_contacts.get(name_lower, 0)
         if c.platform == "smartlead":
-            contacts = max(c.leads_count or 0, ps_count)
+            contacts = _snapshot_contacts(c, since_dt) if since_dt else max(c.leads_count or 0, ps_count)
         else:
             contacts = ps_count
         if name_lower in seen_names:
@@ -728,3 +774,74 @@ async def get_unresolved_count(
     new_count = new_result.scalar() or 0
 
     return {"count": count, "new_count": new_count}
+
+
+@router.post("/refresh-leads-counts")
+async def refresh_leads_counts(
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+):
+    """Batch refresh leads_count for ALL SmartLead campaigns (background job with rate limiting)."""
+    # Count how many need refresh
+    result = await session.execute(
+        select(func.count(Campaign.id)).where(
+            and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None))
+        )
+    )
+    total_campaigns = result.scalar() or 0
+
+    async def _batch_refresh():
+        import asyncio
+        from app.services.crm_sync_service import get_crm_sync_service
+        sync_service = get_crm_sync_service()
+        sl_client = sync_service.smartlead if sync_service else None
+        if not sl_client:
+            logger.warning("No SmartLead client for batch refresh")
+            return
+
+        today_key = datetime.utcnow().strftime("%Y-%m-%d")
+        refreshed = 0
+        errors = 0
+
+        async with async_session_maker() as bg_session:
+            result = await bg_session.execute(
+                select(Campaign).where(
+                    and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None))
+                ).order_by(
+                    Campaign.leads_count.is_(None).desc(),
+                    (Campaign.leads_count == 0).desc(),
+                    Campaign.id.desc(),
+                )
+            )
+            campaigns_to_refresh = result.scalars().all()
+
+            for camp in campaigns_to_refresh:
+                try:
+                    total = await sl_client.get_campaign_lead_count(camp.external_id)
+                    total = int(total) if total else 0
+                    if total > 0:
+                        camp.leads_count = total
+                        # Store daily snapshot
+                        config = dict(camp.config or {})
+                        snapshots = config.setdefault("daily_snapshots", {})
+                        snapshots[today_key] = total
+                        camp.config = config
+                        refreshed += 1
+                    await asyncio.sleep(1.5)  # rate limit: ~40/min
+                except Exception as e:
+                    errors += 1
+                    if errors > 20:
+                        logger.error(f"Batch refresh: too many errors ({errors}), stopping")
+                        break
+                    await asyncio.sleep(3)
+
+                # Commit every 50 campaigns
+                if refreshed % 50 == 0 and refreshed > 0:
+                    await bg_session.commit()
+                    logger.info(f"Batch refresh progress: {refreshed} refreshed, {errors} errors")
+
+            await bg_session.commit()
+            logger.info(f"Batch refresh complete: {refreshed} refreshed, {errors} errors out of {len(campaigns_to_refresh)} total")
+
+    background_tasks.add_task(_batch_refresh)
+    return {"status": "started", "total_campaigns": total_campaigns, "message": "Refreshing in background (~1.5s per campaign)"}

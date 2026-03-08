@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Shield, Check, AlertTriangle, Loader2, ChevronRight, ChevronDown, Plus, Minus, Info, Clock, ExternalLink, Users, MessageSquare, AlertCircle } from 'lucide-react';
+import { Shield, Check, AlertTriangle, Loader2, ChevronRight, ChevronDown, Plus, Minus, Info, Clock, ExternalLink, Users, MessageSquare, AlertCircle, RefreshCw } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useAppStore } from '../store/appStore';
@@ -558,6 +558,20 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
               style={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: t.cardBorder, color: t.text2, colorScheme: isDark ? 'dark' : 'light' }}
             />
           </div>
+          <button
+            onClick={async () => {
+              try {
+                const r = await godPanelApi.refreshLeadsCounts();
+                alert(`Refreshing ${r.total_campaigns} campaigns in background`);
+              } catch { alert('Failed to start refresh'); }
+            }}
+            className="rounded px-2 py-1 text-[11px] border flex items-center gap-1 hover:opacity-80"
+            style={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: t.cardBorder, color: t.text3 }}
+            title="Refresh all SmartLead campaign lead counts (background job)"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Sync Counts
+          </button>
         </div>
       </div>
 
