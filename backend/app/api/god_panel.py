@@ -472,17 +472,22 @@ async def get_project_metrics(
     if not projects_list:
         return ProjectMetricsOut(projects=[], period=period)
 
-    # 2. Contacts uploaded — count from contacts table, time-bounded like warm replies
-    from app.models.contact import Contact
-    contacts_query = (
-        select(Contact.project_id, func.count(Contact.id).label("total"))
-        .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
-        .group_by(Contact.project_id)
+    # 2. Contacts uploaded — SUM of Campaign.leads_count per project
+    #    This matches the per-campaign breakdown (same source: SmartLead lead counts).
+    #    Deduplicate by lowercase name to avoid double-counting duplicate campaign records.
+    camp_leads_query = (
+        select(
+            Campaign.project_id,
+            func.lower(Campaign.name).label("cname"),
+            func.max(Campaign.leads_count).label("max_leads"),
+        )
+        .where(and_(Campaign.project_id.isnot(None), Campaign.leads_count.isnot(None)))
+        .group_by(Campaign.project_id, func.lower(Campaign.name))
     )
-    if since:
-        contacts_query = contacts_query.where(Contact.created_at >= since)
-    leads_result = await session.execute(contacts_query)
-    leads_map = {row.project_id: row.total for row in leads_result.all()}
+    camp_leads_result = await session.execute(camp_leads_query)
+    leads_map: dict[int, int] = {}
+    for row in camp_leads_result.all():
+        leads_map[row.project_id] = leads_map.get(row.project_id, 0) + (row.max_leads or 0)
 
     # 3. Warm replies per project (interested + meeting_request + question)
     #    Use distinct campaign_name→project_id mapping to avoid duplicate counting
@@ -563,19 +568,26 @@ async def get_campaign_metrics(
     warm_result = await session.execute(warm_query)
     warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
 
-    # Build response
-    campaign_metrics = []
-    campaigns_warm_total = 0
+    # Build response — deduplicate by lowercase campaign name (merge leads_count)
+    seen_names: dict[str, dict] = {}
     for c in campaigns:
-        warm = warm_by_campaign.get(c.name.lower(), 0)
-        campaigns_warm_total += warm
-        campaign_metrics.append({
-            "campaign_id": c.id,
-            "campaign_name": c.name,
-            "platform": c.platform,
-            "leads_count": c.leads_count or 0,
-            "warm_replies": warm,
-        })
+        name_lower = c.name.lower()
+        warm = warm_by_campaign.get(name_lower, 0)
+        if name_lower in seen_names:
+            # Merge: keep highest leads_count, same warm (it's per-name)
+            existing = seen_names[name_lower]
+            existing["leads_count"] = max(existing["leads_count"], c.leads_count or 0)
+        else:
+            seen_names[name_lower] = {
+                "campaign_id": c.id,
+                "campaign_name": c.name,
+                "platform": c.platform,
+                "leads_count": c.leads_count or 0,
+                "warm_replies": warm,
+            }
+
+    campaign_metrics = list(seen_names.values())
+    campaigns_warm_total = sum(m["warm_replies"] for m in campaign_metrics)
 
     # Sort by warm replies desc, then leads desc
     campaign_metrics.sort(key=lambda x: (-x["warm_replies"], -x["leads_count"]))
