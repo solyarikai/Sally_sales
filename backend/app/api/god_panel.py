@@ -9,12 +9,12 @@ from typing import Optional, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select, and_, func, desc, case, literal_column
+from sqlalchemy import select, and_, func, desc, case, literal_column, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, async_session_maker
 from app.models.campaign import Campaign
-from app.models.contact import Project
+from app.models.contact import Contact, Project
 from app.models.learning import LearningLog
 
 logger = logging.getLogger(__name__)
@@ -472,22 +472,16 @@ async def get_project_metrics(
     if not projects_list:
         return ProjectMetricsOut(projects=[], period=period)
 
-    # 2. Contacts uploaded — SUM of Campaign.leads_count per project
-    #    This matches the per-campaign breakdown (same source: SmartLead lead counts).
-    #    Deduplicate by lowercase name to avoid double-counting duplicate campaign records.
-    camp_leads_query = (
-        select(
-            Campaign.project_id,
-            func.lower(Campaign.name).label("cname"),
-            func.max(Campaign.leads_count).label("max_leads"),
-        )
-        .where(and_(Campaign.project_id.isnot(None), Campaign.leads_count.isnot(None)))
-        .group_by(Campaign.project_id, func.lower(Campaign.name))
+    # 2. Contacts uploaded — COUNT of contacts per project from Contact table, time-filtered
+    contacts_query = (
+        select(Contact.project_id, func.count(Contact.id).label("cnt"))
+        .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
+        .group_by(Contact.project_id)
     )
-    camp_leads_result = await session.execute(camp_leads_query)
-    leads_map: dict[int, int] = {}
-    for row in camp_leads_result.all():
-        leads_map[row.project_id] = leads_map.get(row.project_id, 0) + (row.max_leads or 0)
+    if since:
+        contacts_query = contacts_query.where(Contact.created_at >= since)
+    contacts_result = await session.execute(contacts_query)
+    leads_map: dict[int, int] = {row.project_id: row.cnt for row in contacts_result.all()}
 
     # 3. Warm replies per project (interested + meeting_request + question)
     #    Use distinct campaign_name→project_id mapping to avoid duplicate counting
@@ -543,17 +537,33 @@ async def get_campaign_metrics(
     else:
         since = None
 
-    # All campaigns assigned to this project
-    camp_query = select(Campaign).where(
-        and_(Campaign.project_id == project_id)
-    ).order_by(Campaign.name)
+    # 1. Per-campaign CONTACTS from platform_state JSON, time-filtered
+    #    Each contact stores campaigns in platform_state: {"smartlead": {"campaigns": [{"name": "..."}]}, "getsales": {"campaigns": [...]}}
+    contacts_per_campaign_sql = text("""
+        SELECT campaign_elem->>'name' AS campaign_name, COUNT(DISTINCT c.id) AS contacts_added
+        FROM contacts c,
+             jsonb_array_elements(
+               COALESCE(c.platform_state::jsonb->'smartlead'->'campaigns', '[]'::jsonb) ||
+               COALESCE(c.platform_state::jsonb->'getsales'->'campaigns', '[]'::jsonb)
+             ) AS campaign_elem
+        WHERE c.project_id = :project_id
+          AND c.deleted_at IS NULL
+          AND (:since IS NULL OR c.created_at >= :since::timestamp)
+        GROUP BY campaign_elem->>'name'
+        ORDER BY contacts_added DESC
+    """)
+    contacts_result = await session.execute(contacts_per_campaign_sql, {"project_id": project_id, "since": since.isoformat() if since else None})
+    contacts_by_campaign: dict[str, int] = {row.campaign_name.lower(): row.contacts_added for row in contacts_result.all() if row.campaign_name}
+
+    # 2. All campaigns assigned to this project (for platform info + campaign IDs)
+    camp_query = select(Campaign).where(Campaign.project_id == project_id).order_by(Campaign.name)
     camp_result = await session.execute(camp_query)
     campaigns = camp_result.scalars().all()
 
-    if not campaigns:
+    if not campaigns and not contacts_by_campaign:
         return {"campaigns": [], "checksum": {"campaigns_warm_total": 0, "project_warm_total": 0, "match": True}}
 
-    # Warm replies per campaign_name (case-insensitive)
+    # 3. Warm replies per campaign_name (case-insensitive)
     warm_categories = ["interested", "meeting_request", "question"]
     warm_query = (
         select(
@@ -568,21 +578,33 @@ async def get_campaign_metrics(
     warm_result = await session.execute(warm_query)
     warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
 
-    # Build response — deduplicate by lowercase campaign name (merge leads_count)
+    # 4. Build response — deduplicate by lowercase campaign name
     seen_names: dict[str, dict] = {}
     for c in campaigns:
         name_lower = c.name.lower()
         warm = warm_by_campaign.get(name_lower, 0)
+        contacts = contacts_by_campaign.get(name_lower, 0)
         if name_lower in seen_names:
-            # Merge: keep highest leads_count, same warm (it's per-name)
             existing = seen_names[name_lower]
-            existing["leads_count"] = max(existing["leads_count"], c.leads_count or 0)
+            existing["leads_count"] = max(existing["leads_count"], contacts)
         else:
             seen_names[name_lower] = {
                 "campaign_id": c.id,
                 "campaign_name": c.name,
                 "platform": c.platform,
-                "leads_count": c.leads_count or 0,
+                "leads_count": contacts,
+                "warm_replies": warm,
+            }
+
+    # Also include campaigns found in platform_state but not in campaigns table
+    for cname_lower, cnt in contacts_by_campaign.items():
+        if cname_lower not in seen_names:
+            warm = warm_by_campaign.get(cname_lower, 0)
+            seen_names[cname_lower] = {
+                "campaign_id": 0,
+                "campaign_name": cname_lower,
+                "platform": "unknown",
+                "leads_count": cnt,
                 "warm_replies": warm,
             }
 
