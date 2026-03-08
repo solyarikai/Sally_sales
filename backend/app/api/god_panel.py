@@ -619,8 +619,18 @@ async def get_campaign_metrics(
             }
 
     # 4b. Include GetSales campaigns from campaign_filters that have contacts in platform_state
+    #     Skip junk names: "Unknown (uuid...)", "KYD*", sender-style "ProjectName - SenderName"
+    def _is_display_worthy(name: str) -> bool:
+        if name.startswith("unknown (") or name.startswith("kyd"):
+            return False
+        # Skip sender-style entries like "easystaff ru - alex" (used for routing, not real campaigns)
+        parts = name.split(" - ", 1)
+        if len(parts) == 2 and parts[1].strip() and not any(kw in parts[1] for kw in ["dm", "list", "hq", "ice", "crypto"]):
+            return False
+        return True
+
     for cname_lower, cnt in contacts_by_campaign.items():
-        if cname_lower not in seen_names and cname_lower in campaign_filters_set and cnt > 0:
+        if cname_lower not in seen_names and cname_lower in campaign_filters_set and cnt > 0 and _is_display_worthy(cname_lower):
             warm = warm_by_campaign.get(cname_lower, 0)
             seen_names[cname_lower] = {
                 "campaign_id": 0,
@@ -637,24 +647,23 @@ async def get_campaign_metrics(
     # Sort by contacts desc, then warm desc
     campaign_metrics.sort(key=lambda x: (-x["leads_count"], -x["warm_replies"]))
 
-    # Checksum: project-level warm total via same logic as project-metrics endpoint
-    campaign_map = (
-        select(
-            func.lower(Campaign.name).label("cname"),
-            func.min(Campaign.project_id).label("pid"),
+    # Checksum: project-level warm total — count warm replies where campaign_name
+    # matches ANY campaign shown in the metrics (Campaign table + campaign_filters)
+    all_campaign_names = list(seen_names.keys())  # lowercase names
+    if all_campaign_names:
+        project_warm_query = (
+            select(func.count(ProcessedReply.id))
+            .where(and_(
+                func.lower(ProcessedReply.campaign_name).in_(all_campaign_names),
+                ProcessedReply.category.in_(warm_categories),
+            ))
         )
-        .where(Campaign.project_id.isnot(None))
-        .group_by(func.lower(Campaign.name))
-    ).subquery()
-    project_warm_query = (
-        select(func.count(ProcessedReply.id))
-        .join(campaign_map, func.lower(ProcessedReply.campaign_name) == campaign_map.c.cname)
-        .where(and_(campaign_map.c.pid == project_id, ProcessedReply.category.in_(warm_categories)))
-    )
-    if since_dt:
-        project_warm_query = project_warm_query.where(ProcessedReply.received_at >= since_dt)
-    project_warm_result = await session.execute(project_warm_query)
-    project_warm_total = project_warm_result.scalar() or 0
+        if since_dt:
+            project_warm_query = project_warm_query.where(ProcessedReply.received_at >= since_dt)
+        project_warm_result = await session.execute(project_warm_query)
+        project_warm_total = project_warm_result.scalar() or 0
+    else:
+        project_warm_total = 0
 
     return {
         "campaigns": campaign_metrics,
