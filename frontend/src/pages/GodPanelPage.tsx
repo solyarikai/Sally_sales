@@ -637,7 +637,7 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
                                 <span></span>
                                 <span className="pl-9">Campaign</span>
                                 <span>Platform</span>
-                                <span className="text-right">Leads</span>
+                                <span className="text-right">Contacts</span>
                                 <span className="text-right">Warm</span>
                                 <span></span>
                               </div>
