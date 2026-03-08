@@ -539,7 +539,8 @@ async def get_campaign_metrics(
 
     # 1. Per-campaign CONTACTS from platform_state JSON, time-filtered
     #    Each contact stores campaigns in platform_state: {"smartlead": {"campaigns": [{"name": "..."}]}, "getsales": {"campaigns": [...]}}
-    contacts_per_campaign_sql = text("""
+    since_clause = "AND c.created_at >= CAST(:since AS timestamp)" if since else ""
+    contacts_per_campaign_sql = text(f"""
         SELECT campaign_elem->>'name' AS campaign_name, COUNT(DISTINCT c.id) AS contacts_added
         FROM contacts c,
              jsonb_array_elements(
@@ -548,11 +549,14 @@ async def get_campaign_metrics(
              ) AS campaign_elem
         WHERE c.project_id = :project_id
           AND c.deleted_at IS NULL
-          AND (:since IS NULL OR c.created_at >= CAST(:since AS timestamp))
+          {since_clause}
         GROUP BY campaign_elem->>'name'
         ORDER BY contacts_added DESC
     """)
-    contacts_result = await session.execute(contacts_per_campaign_sql, {"project_id": project_id, "since": since.isoformat() if since else None})
+    params: dict = {"project_id": project_id}
+    if since:
+        params["since"] = since.isoformat()
+    contacts_result = await session.execute(contacts_per_campaign_sql, params)
     contacts_by_campaign: dict[str, int] = {row.campaign_name.lower(): row.contacts_added for row in contacts_result.all() if row.campaign_name}
 
     # 2. All campaigns assigned to this project (for platform info + campaign IDs)
