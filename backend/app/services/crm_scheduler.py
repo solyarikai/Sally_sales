@@ -365,15 +365,28 @@ class CRMScheduler:
                         )
                         session.add(camp)
                         registered += 1
-                    # Refresh lead count from SmartLead API (1 call per campaign)
-                    if sl_client and camp.external_id:
+                # Refresh lead counts: pick 10 campaigns per cycle (avoid rate limits)
+                # Prioritize: never-counted first, then oldest refresh
+                if sl_client:
+                    refresh_q = await session.execute(
+                        select(Campaign).where(
+                            and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None))
+                        ).order_by(
+                            Campaign.leads_count.is_(None).desc(),
+                            (Campaign.leads_count == 0).desc(),
+                            Campaign.id.desc(),  # newest campaigns first
+                        ).limit(10)
+                    )
+                    for camp_to_refresh in refresh_q.scalars().all():
                         try:
-                            total = await sl_client.get_campaign_lead_count(camp.external_id)
-                            if total and total != (camp.leads_count or 0):
-                                camp.leads_count = total
+                            total = await sl_client.get_campaign_lead_count(camp_to_refresh.external_id)
+                            total = int(total) if total else 0
+                            if total > 0 and total != (camp_to_refresh.leads_count or 0):
+                                camp_to_refresh.leads_count = total
                                 leads_refreshed += 1
+                            await asyncio.sleep(2)  # rate limit friendly
                         except Exception:
-                            pass  # non-critical, will retry next cycle
+                            pass
                 if leads_refreshed:
                     logger.info(f"Refreshed leads_count for {leads_refreshed} SmartLead campaigns")
 

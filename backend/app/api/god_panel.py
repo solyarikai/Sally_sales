@@ -482,15 +482,34 @@ async def get_project_metrics(
     if not projects_list:
         return ProjectMetricsOut(projects=[], period=period)
 
-    # 2. Contacts uploaded — SUM(Campaign.leads_count) per project
-    #    leads_count is synced from SmartLead API (accurate total per campaign)
-    contacts_query = (
+    # 2. Contacts uploaded — hybrid: SUM(Campaign.leads_count) when available,
+    #    otherwise COUNT(Contact) from CRM as fallback. Uses the max per project.
+    #    a) From Campaign.leads_count (SmartLead API totals)
+    sl_query = (
         select(Campaign.project_id, func.coalesce(func.sum(Campaign.leads_count), 0).label("cnt"))
         .where(and_(Campaign.project_id.isnot(None), Campaign.leads_count > 0))
         .group_by(Campaign.project_id)
     )
-    contacts_result = await session.execute(contacts_query)
-    leads_map: dict[int, int] = {row.project_id: row.cnt for row in contacts_result.all()}
+    sl_result = await session.execute(sl_query)
+    sl_leads_map: dict[int, int] = {row.project_id: row.cnt for row in sl_result.all()}
+
+    #    b) From CRM contacts (platform_state), time-filtered
+    crm_query = (
+        select(Contact.project_id, func.count(Contact.id).label("cnt"))
+        .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
+        .group_by(Contact.project_id)
+    )
+    if since_dt:
+        crm_query = crm_query.where(Contact.created_at >= since_dt)
+    crm_result = await session.execute(crm_query)
+    crm_leads_map: dict[int, int] = {row.project_id: row.cnt for row in crm_result.all()}
+
+    #    Use max of both sources per project
+    all_pids = set(sl_leads_map.keys()) | set(crm_leads_map.keys())
+    leads_map: dict[int, int] = {
+        pid: max(sl_leads_map.get(pid, 0), crm_leads_map.get(pid, 0))
+        for pid in all_pids
+    }
 
     # 3. Warm replies per project (interested + meeting_request + question)
     #    Use distinct campaign_name→project_id mapping to avoid duplicate counting
@@ -552,12 +571,16 @@ async def get_campaign_metrics(
     camp_result = await session.execute(camp_query)
     campaigns = camp_result.scalars().all()
 
-    # 2. GetSales contacts from platform_state (for campaigns not in Campaign table)
+    # 2. Per-campaign contacts from platform_state (both SmartLead + GetSales)
+    #    Used as fallback for SmartLead when Campaign.leads_count not yet populated,
+    #    and as primary source for GetSales campaigns.
     since_clause = "AND c.created_at >= :since" if since_dt else ""
-    gs_contacts_sql = text(f"""
-        SELECT campaign_elem->>'name' AS campaign_name, COUNT(DISTINCT c.id) AS contacts_added
+    contacts_sql = text(f"""
+        SELECT campaign_elem->>'name' AS campaign_name,
+               COUNT(DISTINCT c.id) AS contacts_added
         FROM contacts c,
              jsonb_array_elements(
+               COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', CAST('[]' AS jsonb)) ||
                COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', CAST('[]' AS jsonb))
              ) AS campaign_elem
         WHERE c.project_id = :project_id
@@ -569,10 +592,10 @@ async def get_campaign_metrics(
     params: dict = {"project_id": project_id}
     if since_dt:
         params["since"] = since_dt
-    gs_result = await session.execute(gs_contacts_sql, params)
-    gs_contacts_by_campaign: dict[str, int] = {
+    ps_result = await session.execute(contacts_sql, params)
+    ps_contacts: dict[str, int] = {
         row.campaign_name.lower(): row.contacts_added
-        for row in gs_result.all() if row.campaign_name
+        for row in ps_result.all() if row.campaign_name
     }
 
     # 3. Get project's campaign_filters for matching GetSales campaigns not in Campaign table
@@ -587,7 +610,7 @@ async def get_campaign_metrics(
         except Exception:
             pass
 
-    if not campaigns and not gs_contacts_by_campaign:
+    if not campaigns and not ps_contacts:
         return {"campaigns": [], "checksum": {"campaigns_warm_total": 0, "project_warm_total": 0, "match": True}}
 
     # 4. Warm replies per campaign_name (case-insensitive)
@@ -606,16 +629,17 @@ async def get_campaign_metrics(
     warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
 
     # 5. Build response — deduplicate by lowercase campaign name
-    #    SmartLead: use Campaign.leads_count (accurate from API)
-    #    GetSales: use CRM contacts from platform_state
+    #    SmartLead: MAX(Campaign.leads_count, platform_state count) — best available
+    #    GetSales: platform_state count
     seen_names: dict[str, dict] = {}
     for c in campaigns:
         name_lower = c.name.lower()
         warm = warm_by_campaign.get(name_lower, 0)
+        ps_count = ps_contacts.get(name_lower, 0)
         if c.platform == "smartlead":
-            contacts = c.leads_count or 0
+            contacts = max(c.leads_count or 0, ps_count)
         else:
-            contacts = gs_contacts_by_campaign.get(name_lower, 0)
+            contacts = ps_count
         if name_lower in seen_names:
             existing = seen_names[name_lower]
             existing["leads_count"] = max(existing["leads_count"], contacts)
@@ -638,7 +662,7 @@ async def get_campaign_metrics(
             return False
         return True
 
-    for cname_lower, cnt in gs_contacts_by_campaign.items():
+    for cname_lower, cnt in ps_contacts.items():
         if cname_lower not in seen_names and cname_lower in campaign_filters_set and cnt > 0 and _is_display_worthy(cname_lower):
             warm = warm_by_campaign.get(cname_lower, 0)
             seen_names[cname_lower] = {
