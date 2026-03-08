@@ -440,6 +440,7 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [campaignData, setCampaignData] = useState<Record<number, CampaignMetricsResponse>>({});
   const [campaignLoading, setCampaignLoading] = useState<number | null>(null);
+  const [showAllCampaigns, setShowAllCampaigns] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -455,6 +456,7 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
       return;
     }
     setExpandedId(projectId);
+    setShowAllCampaigns(false);
     if (!campaignData[projectId]) {
       setCampaignLoading(projectId);
       try {
@@ -621,61 +623,76 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
                         )}
                         {cd.campaigns.length === 0 ? (
                           <div className="px-6 py-3 text-[12px]" style={{ color: t.text5 }}>No campaigns assigned</div>
-                        ) : (
-                          <div>
-                            {/* Campaign sub-header */}
-                            <div
-                              className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 text-[10px] font-medium uppercase tracking-wide"
-                              style={{ color: t.text5 }}
-                            >
-                              <span></span>
-                              <span className="pl-9">Campaign</span>
-                              <span>Platform</span>
-                              <span className="text-right">Leads</span>
-                              <span className="text-right">Warm</span>
-                              <span></span>
-                            </div>
-                            {cd.campaigns.map(c => (
+                        ) : (() => {
+                          const activeCampaigns = cd.campaigns.filter(c => c.warm_replies > 0 || c.leads_count > 0);
+                          const inactiveCampaigns = cd.campaigns.filter(c => c.warm_replies === 0 && c.leads_count === 0);
+                          const visibleCampaigns = showAllCampaigns ? cd.campaigns : activeCampaigns;
+                          return (
+                            <div>
+                              {/* Campaign sub-header */}
                               <div
-                                key={c.campaign_id}
-                                className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 items-center group/camp"
-                                style={{ borderTop: `1px solid ${isDark ? '#2a2a2a' : '#f0f0f0'}` }}
+                                className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 text-[10px] font-medium uppercase tracking-wide"
+                                style={{ color: t.text5 }}
                               >
                                 <span></span>
-                                <div className="flex items-center gap-1.5 min-w-0 pl-9">
-                                  <span className="text-[12px] truncate" style={{ color: t.text2 }}>{c.campaign_name}</span>
-                                </div>
-                                <PlatformBadge platform={c.platform} isDark={isDark} />
-                                <div className="text-[12px] tabular-nums text-right" style={{ color: t.text3 }}>
-                                  {c.leads_count.toLocaleString()}
-                                </div>
-                                <div className="text-[12px] tabular-nums text-right font-medium" style={{ color: c.warm_replies > 0 ? (isDark ? '#4ade80' : '#16a34a') : t.text5 }}>
-                                  {c.warm_replies}
-                                </div>
-                                {/* CRM link for specific campaign */}
-                                <div
-                                  className="flex justify-center opacity-0 group-hover/camp:opacity-100 transition-opacity cursor-pointer"
-                                  onClick={() => navigate(`/contacts?project_id=${p.project_id}&campaign=${encodeURIComponent(c.campaign_name)}`)}
-                                  title={`Open ${c.campaign_name} in CRM`}
-                                >
-                                  <ExternalLink className="w-3 h-3" style={{ color: t.text4 }} />
-                                </div>
+                                <span className="pl-9">Campaign</span>
+                                <span>Platform</span>
+                                <span className="text-right">Leads</span>
+                                <span className="text-right">Warm</span>
+                                <span></span>
                               </div>
-                            ))}
-                            {/* Totals row */}
-                            <div
-                              className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 text-[11px] font-medium"
-                              style={{ borderTop: `1px solid ${isDark ? '#333' : '#e0e0e0'}`, color: t.text4 }}
-                            >
-                              <span></span>
-                              <span className="pl-9">Total ({cd.campaigns.length} campaigns)</span>
-                              <span></span>
-                              <span className="text-right tabular-nums">{cd.campaigns.reduce((s, c) => s + c.leads_count, 0).toLocaleString()}</span>
-                              <span className="text-right tabular-nums">{cd.checksum.campaigns_warm_total}</span>
-                              <span></span>
+                              {visibleCampaigns.map(c => (
+                                <div
+                                  key={c.campaign_id}
+                                  className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 items-center group/camp"
+                                  style={{ borderTop: `1px solid ${isDark ? '#2a2a2a' : '#f0f0f0'}` }}
+                                >
+                                  <span></span>
+                                  <div className="flex items-center gap-1.5 min-w-0 pl-9">
+                                    <span className="text-[12px] truncate" style={{ color: t.text2 }}>{c.campaign_name}</span>
+                                  </div>
+                                  <PlatformBadge platform={c.platform} isDark={isDark} />
+                                  <div className="text-[12px] tabular-nums text-right" style={{ color: t.text3 }}>
+                                    {c.leads_count.toLocaleString()}
+                                  </div>
+                                  <div className="text-[12px] tabular-nums text-right font-medium" style={{ color: c.warm_replies > 0 ? (isDark ? '#4ade80' : '#16a34a') : t.text5 }}>
+                                    {c.warm_replies}
+                                  </div>
+                                  {/* CRM link for specific campaign */}
+                                  <div
+                                    className="flex justify-center opacity-0 group-hover/camp:opacity-100 transition-opacity cursor-pointer"
+                                    onClick={() => navigate(`/contacts?project_id=${p.project_id}&campaign=${encodeURIComponent(c.campaign_name)}`)}
+                                    title={`Open ${c.campaign_name} in CRM`}
+                                  >
+                                    <ExternalLink className="w-3 h-3" style={{ color: t.text4 }} />
+                                  </div>
+                                </div>
+                              ))}
+                              {/* Show all / show less toggle */}
+                              {inactiveCampaigns.length > 0 && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setShowAllCampaigns(prev => !prev); }}
+                                  className="w-full text-center py-1.5 text-[11px] transition-colors"
+                                  style={{ color: isDark ? '#6e9eff' : '#3b82f6', borderTop: `1px solid ${isDark ? '#2a2a2a' : '#f0f0f0'}` }}
+                                >
+                                  {showAllCampaigns ? 'Show active only' : `Show all ${cd.campaigns.length} campaigns (+${inactiveCampaigns.length} with no data)`}
+                                </button>
+                              )}
+                              {/* Totals row */}
+                              <div
+                                className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 text-[11px] font-medium"
+                                style={{ borderTop: `1px solid ${isDark ? '#333' : '#e0e0e0'}`, color: t.text4 }}
+                              >
+                                <span></span>
+                                <span className="pl-9">Total ({cd.campaigns.length} campaigns)</span>
+                                <span></span>
+                                <span className="text-right tabular-nums">{cd.campaigns.reduce((s, c) => s + c.leads_count, 0).toLocaleString()}</span>
+                                <span className="text-right tabular-nums">{cd.checksum.campaigns_warm_total}</span>
+                                <span></span>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                       </>
                     ) : null}
                   </div>
