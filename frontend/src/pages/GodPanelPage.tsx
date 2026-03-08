@@ -431,24 +431,38 @@ function RulesTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeCo
 }
 
 // ─── Analytics tab ──────────────────────────────────────────
-type Period = '7d' | '30d' | 'all';
+type Period = '7d' | '30d' | 'all' | 'custom';
+
+function getSmartLeadUrl(externalId: string | null | undefined) {
+  if (!externalId) return null;
+  return `https://app.smartlead.ai/app/email-campaign/${externalId}/lead-management`;
+}
 
 function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeColors> }) {
   const [data, setData] = useState<ProjectMetricsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>('7d');
+  const [customSince, setCustomSince] = useState('');
+  const [customUntil, setCustomUntil] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [campaignData, setCampaignData] = useState<Record<number, CampaignMetricsResponse>>({});
   const [campaignLoading, setCampaignLoading] = useState<number | null>(null);
-  const [showAllCampaigns, setShowAllCampaigns] = useState(false);
   const navigate = useNavigate();
+
+  const fetchParams = useMemo(() => {
+    if (period === 'custom' && customSince) {
+      return { period: 'custom', since: customSince, until: customUntil || undefined };
+    }
+    return { period, since: undefined, until: undefined };
+  }, [period, customSince, customUntil]);
 
   useEffect(() => {
     setLoading(true);
     setExpandedId(null);
     setCampaignData({});
-    godPanelApi.getProjectMetrics(period).then(setData).catch(console.error).finally(() => setLoading(false));
-  }, [period]);
+    godPanelApi.getProjectMetrics(fetchParams.period, fetchParams.since, fetchParams.until)
+      .then(setData).catch(console.error).finally(() => setLoading(false));
+  }, [fetchParams]);
 
   const toggleExpand = async (projectId: number) => {
     if (expandedId === projectId) {
@@ -456,11 +470,10 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
       return;
     }
     setExpandedId(projectId);
-    setShowAllCampaigns(false);
     if (!campaignData[projectId]) {
       setCampaignLoading(projectId);
       try {
-        const metrics = await godPanelApi.getCampaignMetrics(projectId, period);
+        const metrics = await godPanelApi.getCampaignMetrics(projectId, fetchParams.period, fetchParams.since, fetchParams.until);
         setCampaignData(prev => ({ ...prev, [projectId]: metrics }));
       } catch (e) {
         console.error('Failed to load campaign metrics', e);
@@ -483,7 +496,7 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
     return Math.max(1, ...data.projects.map(p => p.warm_replies));
   }, [data]);
 
-  const periodLabels: Record<Period, string> = { '7d': '1 Week', '30d': '1 Month', 'all': 'All Time' };
+  const periodLabels: Record<string, string> = { '7d': '1 Week', '30d': '1 Month', 'all': 'All Time' };
 
   return (
     <div>
@@ -505,21 +518,40 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
             </div>
           </div>
         </div>
-        <div className="flex gap-1 rounded-lg p-0.5 border" style={{ borderColor: t.cardBorder, backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }}>
-          {(['7d', '30d', 'all'] as Period[]).map(p => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className="px-3 py-1 rounded text-[12px] font-medium transition-colors"
-              style={{
-                backgroundColor: period === p ? (isDark ? '#37373d' : '#fff') : 'transparent',
-                color: period === p ? t.text1 : t.text4,
-                boxShadow: period === p ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
-              }}
-            >
-              {periodLabels[p]}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 rounded-lg p-0.5 border" style={{ borderColor: t.cardBorder, backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }}>
+            {(['7d', '30d', 'all'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className="px-3 py-1 rounded text-[12px] font-medium transition-colors"
+                style={{
+                  backgroundColor: period === p ? (isDark ? '#37373d' : '#fff') : 'transparent',
+                  color: period === p ? t.text1 : t.text4,
+                  boxShadow: period === p ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                }}
+              >
+                {periodLabels[p]}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={customSince}
+              onChange={e => { setCustomSince(e.target.value); if (e.target.value) setPeriod('custom'); }}
+              className="rounded px-2 py-1 text-[11px] border"
+              style={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: t.cardBorder, color: t.text2, colorScheme: isDark ? 'dark' : 'light' }}
+            />
+            <span className="text-[11px]" style={{ color: t.text5 }}>—</span>
+            <input
+              type="date"
+              value={customUntil}
+              onChange={e => { setCustomUntil(e.target.value); if (customSince) setPeriod('custom'); }}
+              className="rounded px-2 py-1 text-[11px] border"
+              style={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderColor: t.cardBorder, color: t.text2, colorScheme: isDark ? 'dark' : 'light' }}
+            />
+          </div>
         </div>
       </div>
 
@@ -621,17 +653,16 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
                             <span>Checksum mismatch: campaigns total {cd.checksum.campaigns_warm_total} vs project total {cd.checksum.project_warm_total}</span>
                           </div>
                         )}
-                        {cd.campaigns.length === 0 ? (
-                          <div className="px-6 py-3 text-[12px]" style={{ color: t.text5 }}>No campaigns assigned</div>
-                        ) : (() => {
-                          const activeCampaigns = cd.campaigns.filter(c => c.warm_replies > 0 || c.leads_count > 0);
-                          const inactiveCampaigns = cd.campaigns.filter(c => c.warm_replies === 0 && c.leads_count === 0);
-                          const visibleCampaigns = showAllCampaigns ? cd.campaigns : activeCampaigns;
+                        {(() => {
+                          const activeCampaigns = cd.campaigns.filter(c => c.leads_count > 0);
+                          if (activeCampaigns.length === 0) {
+                            return <div className="px-6 py-3 text-[12px]" style={{ color: t.text5 }}>No campaigns with contacts in this period</div>;
+                          }
                           return (
                             <div>
                               {/* Campaign sub-header */}
                               <div
-                                className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 text-[10px] font-medium uppercase tracking-wide"
+                                className="grid grid-cols-[24px_1fr_80px_100px_80px_60px] gap-2 px-4 py-1.5 text-[10px] font-medium uppercase tracking-wide"
                                 style={{ color: t.text5 }}
                               >
                                 <span></span>
@@ -641,52 +672,52 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
                                 <span className="text-right">Warm</span>
                                 <span></span>
                               </div>
-                              {visibleCampaigns.map(c => (
-                                <div
-                                  key={c.campaign_id}
-                                  className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 items-center group/camp"
-                                  style={{ borderTop: `1px solid ${isDark ? '#2a2a2a' : '#f0f0f0'}` }}
-                                >
-                                  <span></span>
-                                  <div className="flex items-center gap-1.5 min-w-0 pl-9">
-                                    <span className="text-[12px] truncate" style={{ color: t.text2 }}>{c.campaign_name}</span>
-                                  </div>
-                                  <PlatformBadge platform={c.platform} isDark={isDark} />
-                                  <div className="text-[12px] tabular-nums text-right" style={{ color: t.text3 }}>
-                                    {c.leads_count.toLocaleString()}
-                                  </div>
-                                  <div className="text-[12px] tabular-nums text-right font-medium" style={{ color: c.warm_replies > 0 ? (isDark ? '#4ade80' : '#16a34a') : t.text5 }}>
-                                    {c.warm_replies}
-                                  </div>
-                                  {/* CRM link for specific campaign */}
+                              {activeCampaigns.map(c => {
+                                const sourceUrl = c.platform === 'smartlead' ? getSmartLeadUrl(c.external_id) : null;
+                                return (
                                   <div
-                                    className="flex justify-center opacity-0 group-hover/camp:opacity-100 transition-opacity cursor-pointer"
-                                    onClick={() => navigate(`/contacts?project_id=${p.project_id}&campaign=${encodeURIComponent(c.campaign_name)}`)}
-                                    title={`Open ${c.campaign_name} in CRM`}
+                                    key={c.campaign_id + c.campaign_name}
+                                    className="grid grid-cols-[24px_1fr_80px_100px_80px_60px] gap-2 px-4 py-1.5 items-center group/camp"
+                                    style={{ borderTop: `1px solid ${isDark ? '#2a2a2a' : '#f0f0f0'}` }}
                                   >
-                                    <ExternalLink className="w-3 h-3" style={{ color: t.text4 }} />
+                                    <span></span>
+                                    <div className="flex items-center gap-1.5 min-w-0 pl-9">
+                                      <span className="text-[12px] truncate" style={{ color: t.text2 }}>{c.campaign_name}</span>
+                                    </div>
+                                    <PlatformBadge platform={c.platform} isDark={isDark} />
+                                    <div className="text-[12px] tabular-nums text-right" style={{ color: t.text3 }}>
+                                      {c.leads_count.toLocaleString()}
+                                    </div>
+                                    <div className="text-[12px] tabular-nums text-right font-medium" style={{ color: c.warm_replies > 0 ? (isDark ? '#4ade80' : '#16a34a') : t.text5 }}>
+                                      {c.warm_replies}
+                                    </div>
+                                    {/* Links: CRM + Source */}
+                                    <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover/camp:opacity-100 transition-opacity">
+                                      <span
+                                        className="cursor-pointer"
+                                        onClick={() => navigate(`/contacts?project_id=${p.project_id}&campaign=${encodeURIComponent(c.campaign_name)}`)}
+                                        title="Open in CRM"
+                                      >
+                                        <ExternalLink className="w-3 h-3" style={{ color: t.text4 }} />
+                                      </span>
+                                      {sourceUrl && (
+                                        <a href={sourceUrl} target="_blank" rel="noopener noreferrer" title="Open in SmartLead" onClick={e => e.stopPropagation()}>
+                                          <ExternalLink className="w-3 h-3" style={{ color: isDark ? '#93c5fd' : '#3b82f6' }} />
+                                        </a>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                              {/* Show all / show less toggle */}
-                              {inactiveCampaigns.length > 0 && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setShowAllCampaigns(prev => !prev); }}
-                                  className="w-full text-center py-1.5 text-[11px] transition-colors"
-                                  style={{ color: isDark ? '#6e9eff' : '#3b82f6', borderTop: `1px solid ${isDark ? '#2a2a2a' : '#f0f0f0'}` }}
-                                >
-                                  {showAllCampaigns ? 'Show active only' : `Show all ${cd.campaigns.length} campaigns (+${inactiveCampaigns.length} with no data)`}
-                                </button>
-                              )}
+                                );
+                              })}
                               {/* Totals row */}
                               <div
-                                className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 text-[11px] font-medium"
+                                className="grid grid-cols-[24px_1fr_80px_100px_80px_60px] gap-2 px-4 py-1.5 text-[11px] font-medium"
                                 style={{ borderTop: `1px solid ${isDark ? '#333' : '#e0e0e0'}`, color: t.text4 }}
                               >
                                 <span></span>
-                                <span className="pl-9">Total ({cd.campaigns.length} campaigns)</span>
+                                <span className="pl-9">Total ({activeCampaigns.length} campaigns)</span>
                                 <span></span>
-                                <span className="text-right tabular-nums">{cd.campaigns.reduce((s, c) => s + c.leads_count, 0).toLocaleString()}</span>
+                                <span className="text-right tabular-nums">{activeCampaigns.reduce((s, c) => s + c.leads_count, 0).toLocaleString()}</span>
                                 <span className="text-right tabular-nums">{cd.checksum.campaigns_warm_total}</span>
                                 <span></span>
                               </div>

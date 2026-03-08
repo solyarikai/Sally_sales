@@ -54,6 +54,7 @@ export interface CampaignMetric {
   platform: string;
   leads_count: number;
   warm_replies: number;
+  external_id?: string | null;
 }
 
 export interface CampaignMetricsResponse {
@@ -127,8 +128,8 @@ export const godPanelApi = {
     return data;
   },
 
-  async getProjectMetrics(period: string = '30d'): Promise<ProjectMetricsResponse> {
-    const { data } = await api.get('/god-panel/project-metrics', { params: { period } });
+  async getProjectMetrics(period: string = '30d', since?: string, until?: string): Promise<ProjectMetricsResponse> {
+    const { data } = await api.get('/god-panel/project-metrics', { params: { period, since, until } });
     return data;
   },
 
@@ -146,9 +147,9 @@ export const godPanelApi = {
     return data;
   },
 
-  async getCampaignMetrics(projectId: number, period: string = '30d'): Promise<CampaignMetricsResponse> {
+  async getCampaignMetrics(projectId: number, period: string = '30d', since?: string, until?: string): Promise<CampaignMetricsResponse> {
     const { data } = await api.get(`/god-panel/projects/${projectId}/campaign-metrics`, {
-      params: { period },
+      params: { period, since, until },
     });
     return data;
   },

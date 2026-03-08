@@ -447,22 +447,32 @@ async def get_cleanup_logs(
     return result.scalars().all()
 
 
+def _parse_period(period: str, since_param: Optional[str] = None, until_param: Optional[str] = None):
+    """Parse period string or custom date range into (since, until) datetimes."""
+    now = datetime.utcnow()
+    if since_param:
+        since = datetime.fromisoformat(since_param)
+        until = datetime.fromisoformat(until_param) if until_param else now
+        return since, until
+    if period == "7d":
+        return now - timedelta(days=7), now
+    elif period == "30d":
+        return now - timedelta(days=30), now
+    return None, now
+
+
 @router.get("/project-metrics", response_model=ProjectMetricsOut)
 async def get_project_metrics(
     period: str = Query("30d", description="Time period: 7d, 30d, or all"),
+    since: Optional[str] = Query(None, description="Custom start date ISO"),
+    until: Optional[str] = Query(None, description="Custom end date ISO"),
     session: AsyncSession = Depends(get_session),
 ):
     """Per-project metrics: contacts uploaded to campaigns + warm replies."""
     from app.models.reply import ProcessedReply
 
     # Time filter
-    now = datetime.utcnow()
-    if period == "7d":
-        since = now - timedelta(days=7)
-    elif period == "30d":
-        since = now - timedelta(days=30)
-    else:
-        since = None
+    since_dt, _until_dt = _parse_period(period, since, until)
 
     # 1. All active projects
     proj_result = await session.execute(
@@ -478,8 +488,8 @@ async def get_project_metrics(
         .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
         .group_by(Contact.project_id)
     )
-    if since:
-        contacts_query = contacts_query.where(Contact.created_at >= since)
+    if since_dt:
+        contacts_query = contacts_query.where(Contact.created_at >= since_dt)
     contacts_result = await session.execute(contacts_query)
     leads_map: dict[int, int] = {row.project_id: row.cnt for row in contacts_result.all()}
 
@@ -501,8 +511,8 @@ async def get_project_metrics(
         .where(ProcessedReply.category.in_(warm_categories))
         .group_by(campaign_map.c.pid)
     )
-    if since:
-        warm_query = warm_query.where(ProcessedReply.received_at >= since)
+    if since_dt:
+        warm_query = warm_query.where(ProcessedReply.received_at >= since_dt)
     warm_result = await session.execute(warm_query)
     warm_map = {row.pid: row.warm_count for row in warm_result.all()}
 
@@ -524,22 +534,17 @@ async def get_project_metrics(
 async def get_campaign_metrics(
     project_id: int,
     period: str = Query("30d", description="Time period: 7d, 30d, or all"),
+    since: Optional[str] = Query(None, alias="since", description="Custom start date ISO"),
+    until: Optional[str] = Query(None, alias="until", description="Custom end date ISO"),
     session: AsyncSession = Depends(get_session),
 ):
     """Per-campaign breakdown for a project: leads count + warm replies."""
     from app.models.reply import ProcessedReply
 
-    now = datetime.utcnow()
-    if period == "7d":
-        since = now - timedelta(days=7)
-    elif period == "30d":
-        since = now - timedelta(days=30)
-    else:
-        since = None
+    since_dt, _until_dt = _parse_period(period, since, until)
 
     # 1. Per-campaign CONTACTS from platform_state JSON, time-filtered
-    #    Each contact stores campaigns in platform_state: {"smartlead": {"campaigns": [{"name": "..."}]}, "getsales": {"campaigns": [...]}}
-    since_clause = "AND c.created_at >= :since" if since else ""
+    since_clause = "AND c.created_at >= :since" if since_dt else ""
     contacts_per_campaign_sql = text(f"""
         SELECT campaign_elem->>'name' AS campaign_name, COUNT(DISTINCT c.id) AS contacts_added
         FROM contacts c,
@@ -554,8 +559,8 @@ async def get_campaign_metrics(
         ORDER BY contacts_added DESC
     """)
     params: dict = {"project_id": project_id}
-    if since:
-        params["since"] = since
+    if since_dt:
+        params["since"] = since_dt
     contacts_result = await session.execute(contacts_per_campaign_sql, params)
     contacts_by_campaign: dict[str, int] = {row.campaign_name.lower(): row.contacts_added for row in contacts_result.all() if row.campaign_name}
 
@@ -563,6 +568,18 @@ async def get_campaign_metrics(
     camp_query = select(Campaign).where(Campaign.project_id == project_id).order_by(Campaign.name)
     camp_result = await session.execute(camp_query)
     campaigns = camp_result.scalars().all()
+
+    # 2b. Get project's campaign_filters for matching GetSales campaigns not in Campaign table
+    proj_result = await session.execute(select(Project.campaign_filters).where(Project.id == project_id))
+    proj_row = proj_result.first()
+    campaign_filters_set: set[str] = set()
+    if proj_row and proj_row.campaign_filters:
+        import json as json_lib
+        try:
+            filters = proj_row.campaign_filters if isinstance(proj_row.campaign_filters, list) else json_lib.loads(proj_row.campaign_filters)
+            campaign_filters_set = {f.lower() for f in filters}
+        except Exception:
+            pass
 
     if not campaigns and not contacts_by_campaign:
         return {"campaigns": [], "checksum": {"campaigns_warm_total": 0, "project_warm_total": 0, "match": True}}
@@ -577,8 +594,8 @@ async def get_campaign_metrics(
         .where(ProcessedReply.category.in_(warm_categories))
         .group_by(func.lower(ProcessedReply.campaign_name))
     )
-    if since:
-        warm_query = warm_query.where(ProcessedReply.received_at >= since)
+    if since_dt:
+        warm_query = warm_query.where(ProcessedReply.received_at >= since_dt)
     warm_result = await session.execute(warm_query)
     warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
 
@@ -598,13 +615,27 @@ async def get_campaign_metrics(
                 "platform": c.platform,
                 "leads_count": contacts,
                 "warm_replies": warm,
+                "external_id": c.external_id,
+            }
+
+    # 4b. Include GetSales campaigns from campaign_filters that have contacts in platform_state
+    for cname_lower, cnt in contacts_by_campaign.items():
+        if cname_lower not in seen_names and cname_lower in campaign_filters_set and cnt > 0:
+            warm = warm_by_campaign.get(cname_lower, 0)
+            seen_names[cname_lower] = {
+                "campaign_id": 0,
+                "campaign_name": cname_lower,
+                "platform": "getsales",
+                "leads_count": cnt,
+                "warm_replies": warm,
+                "external_id": None,
             }
 
     campaign_metrics = list(seen_names.values())
     campaigns_warm_total = sum(m["warm_replies"] for m in campaign_metrics)
 
-    # Sort by warm replies desc, then leads desc
-    campaign_metrics.sort(key=lambda x: (-x["warm_replies"], -x["leads_count"]))
+    # Sort by contacts desc, then warm desc
+    campaign_metrics.sort(key=lambda x: (-x["leads_count"], -x["warm_replies"]))
 
     # Checksum: project-level warm total via same logic as project-metrics endpoint
     campaign_map = (
@@ -620,8 +651,8 @@ async def get_campaign_metrics(
         .join(campaign_map, func.lower(ProcessedReply.campaign_name) == campaign_map.c.cname)
         .where(and_(campaign_map.c.pid == project_id, ProcessedReply.category.in_(warm_categories)))
     )
-    if since:
-        project_warm_query = project_warm_query.where(ProcessedReply.received_at >= since)
+    if since_dt:
+        project_warm_query = project_warm_query.where(ProcessedReply.received_at >= since_dt)
     project_warm_result = await session.execute(project_warm_query)
     project_warm_total = project_warm_result.scalar() or 0
 
