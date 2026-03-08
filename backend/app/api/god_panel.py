@@ -487,6 +487,7 @@ async def get_project_metrics(
     #    Time period: SUM(current_total - snapshot_at_period_start) per project
     if since_dt:
         # Time-filtered: compute delta from snapshots per SmartLead campaign
+        # If snapshot history doesn't cover the period, skip (let CRM fallback handle it)
         camp_result = await session.execute(
             select(Campaign).where(
                 and_(Campaign.project_id.isnot(None), Campaign.leads_count > 0, Campaign.platform == "smartlead")
@@ -502,12 +503,9 @@ async def get_project_metrics(
                 if candidates:
                     baseline = max(candidates, key=lambda x: x[0])[1]
                     delta = max(0, total - baseline)
-                else:
-                    earliest = min(snapshots.items(), key=lambda x: x[0])
-                    delta = max(0, total - earliest[1]) if total > earliest[1] else total
-            else:
-                delta = total  # no snapshots yet, show full total
-            sl_leads_map[camp.project_id] = sl_leads_map.get(camp.project_id, 0) + delta
+                    sl_leads_map[camp.project_id] = sl_leads_map.get(camp.project_id, 0) + delta
+                # else: no snapshot before period start, skip this campaign (CRM fallback)
+            # else: no snapshots at all, skip (CRM fallback)
     else:
         # All Time: SUM(Campaign.leads_count)
         sl_query = (
@@ -659,23 +657,22 @@ async def get_campaign_metrics(
     #      - Time period: current_total - snapshot_at_period_start (contacts added in period)
     #    GetSales: platform_state count (CRM contacts)
     def _snapshot_contacts(campaign, since_dt_inner):
-        """Compute contacts added in period using daily snapshots stored in config."""
+        """Compute contacts added in period using daily snapshots.
+        Returns int if snapshot data covers the period, None if insufficient history."""
         total = campaign.leads_count or 0
         if not since_dt_inner or total == 0:
             return total
         snapshots = (campaign.config or {}).get("daily_snapshots", {})
         if not snapshots:
-            return total  # no snapshots yet, show full total
+            return None  # no snapshots yet, caller should use fallback
         since_key = since_dt_inner.strftime("%Y-%m-%d")
         # Find closest snapshot at or before the period start
         candidates = [(k, v) for k, v in snapshots.items() if k <= since_key]
         if candidates:
             baseline = max(candidates, key=lambda x: x[0])[1]
             return max(0, total - baseline)
-        # No snapshot before period start — all snapshots are within period
-        # Use earliest snapshot as baseline (contacts before our tracking)
-        earliest = min(snapshots.items(), key=lambda x: x[0])
-        return max(0, total - earliest[1]) if total > earliest[1] else total
+        # No snapshot before period start — insufficient history
+        return None
 
     seen_names: dict[str, dict] = {}
     for c in campaigns:
@@ -683,7 +680,11 @@ async def get_campaign_metrics(
         warm = warm_by_campaign.get(name_lower, 0)
         ps_count = ps_contacts.get(name_lower, 0)
         if c.platform == "smartlead":
-            contacts = _snapshot_contacts(c, since_dt) if since_dt else max(c.leads_count or 0, ps_count)
+            if since_dt:
+                snapshot_val = _snapshot_contacts(c, since_dt)
+                contacts = snapshot_val if snapshot_val is not None else ps_count
+            else:
+                contacts = max(c.leads_count or 0, ps_count)
         else:
             contacts = ps_count
         if name_lower in seen_names:
