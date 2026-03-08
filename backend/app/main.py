@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -94,12 +95,32 @@ async def lifespan(app: FastAPI):
         logger.info("CRM sync scheduler started")
     except Exception as e:
         logger.warning(f"CRM scheduler start failed: {e}")
-    
+
+    # Start Sally bot (Telegram client chat monitor)
+    sally_task = None
+    try:
+        from app.services.sally_bot_service import sally_bot_service
+        if settings.TELEGRAM_SALLY_BOT_TOKEN:
+            sally_task = asyncio.create_task(sally_bot_service.poll_loop())
+            logger.info("Sally bot started")
+    except Exception as e:
+        logger.warning(f"Sally bot start failed: {e}")
+
     yield
     
     # Shutdown
     logger.info("Shutting down...")
-    
+
+    # Stop Sally bot
+    try:
+        from app.services.sally_bot_service import sally_bot_service
+        sally_bot_service.stop()
+        if sally_task:
+            sally_task.cancel()
+        logger.info("Sally bot stopped")
+    except Exception as e:
+        logger.warning(f"Sally bot stop failed: {e}")
+
     # Stop CRM scheduler
     try:
         from app.services.crm_scheduler import stop_crm_scheduler

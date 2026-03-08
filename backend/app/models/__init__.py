@@ -30,6 +30,7 @@ from .chat import ProjectChatMessage
 from .project_knowledge import ProjectKnowledge
 from .learning import LearningLog, OperatorCorrection, ReferenceExample
 from .campaign_audit_log import CampaignAuditLog
+from .telegram_chat import TelegramChat, TelegramChatMessage, TelegramChatInsight
 from .pipeline_run import (
     PipelineRun, PipelineRunStatus, PipelinePhase,
     PipelinePhaseLog, PipelinePhaseStatus,
@@ -77,6 +78,8 @@ __all__ = [
     "LearningLog", "OperatorCorrection", "ReferenceExample",
     # Campaign Audit
     "CampaignAuditLog",
+    # Telegram Chat Monitoring
+    "TelegramChat", "TelegramChatMessage", "TelegramChatInsight",
     # Pipeline Runs & Cost
     "PipelineRun", "PipelineRunStatus", "PipelinePhase",
     "PipelinePhaseLog", "PipelinePhaseStatus",
