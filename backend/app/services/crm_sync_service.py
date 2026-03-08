@@ -441,6 +441,23 @@ class SmartleadClient:
         SmartleadClient._campaigns_cache_at = now
         return result
     
+    async def get_campaign_lead_count(self, campaign_id: str) -> int:
+        """Get total lead count for a campaign (1 API call, minimal data)."""
+        try:
+            from app.services.smartlead_service import smartlead_request
+            resp = await smartlead_request(
+                "GET", f"{self.BASE_URL}/campaigns/{campaign_id}/leads",
+                params={"api_key": self.api_key, "limit": 1, "offset": 0},
+                client=self.client,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("total_leads", 0) if isinstance(data, dict) else 0
+            return 0
+        except Exception as e:
+            logger.warning(f"Failed to get lead count for campaign {campaign_id}: {e}")
+            return 0
+
     async def get_campaign_leads(self, campaign_id: int, limit: int = 100, offset: int = 0, lead_category_id: int = None) -> List[dict]:
         """Get leads from a campaign.
         
