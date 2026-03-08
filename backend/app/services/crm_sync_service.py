@@ -1216,15 +1216,15 @@ class CRMSyncService:
                 contact.set_platform("smartlead", {"campaigns": campaign_data})
             return "created"
     
-    async def sync_getsales_contacts(
+    async def sync_getsales_contacts_full(
         self,
         session: AsyncSession,
         company_id: int,
         limit: int = 50000
     ) -> Dict[str, int]:
         """
-        Sync contacts from GetSales.
-        
+        Full sync of ALL contacts from GetSales (used for daily reconciliation).
+
         Returns dict with created, updated, skipped counts.
         """
         if not self.getsales:
@@ -1269,23 +1269,38 @@ class CRMSyncService:
     ) -> str:
         """Process a single GetSales lead. Returns 'created', 'updated', or 'skipped'."""
         lead = item.get("lead", {})
-        
+
         email = self.normalize_email(lead.get("work_email") or lead.get("personal_email"))
         linkedin_raw = lead.get("linkedin")
         linkedin = self.normalize_linkedin(linkedin_raw)
         if linkedin_raw and not linkedin_raw.startswith("http"):
             linkedin_raw = f"https://linkedin.com/in/{linkedin_raw}"
-        
+
         getsales_id = lead.get("uuid")
-        
+
         if not email and not linkedin:
             return "skipped"
-        
+
+        # Auto-detect project from flow names or list name if not explicitly set
+        if not campaign_project_id:
+            # Check flow names against ownership rules
+            for flow in item.get("flows", []):
+                flow_uuid = flow.get("flow_uuid", "")
+                flow_name = _getsales_flow_cache.get(flow_uuid, "")
+                if flow_name:
+                    pid = match_campaign_to_project(flow_name)
+                    if pid:
+                        campaign_project_id = pid
+                        break
+            # Fallback: check list name
+            if not campaign_project_id and list_name:
+                campaign_project_id = match_campaign_to_project(list_name)
+
         # Find existing contact
         existing = await self._find_contact(session, company_id, email, linkedin, getsales_id=getsales_id)
-        
+
         getsales_status = lead.get("status")
-        
+
         if existing:
             # Update existing contact
             existing.getsales_id = getsales_id
@@ -1360,7 +1375,160 @@ class CRMSyncService:
             contact.mark_synced("getsales")
             session.add(contact)
             return "created"
-    
+
+    async def sync_getsales_contacts_incremental(
+        self,
+        session: AsyncSession,
+        company_id: int,
+    ) -> Dict[str, Any]:
+        """
+        Incremental sync: only fetch NEW contacts since last check.
+
+        Stores {list_uuid: last_known_total} in Redis. Each cycle:
+        1. Fetch all lists (1 API call)
+        2. For each list, get current total (1 API call each)
+        3. If total increased, scan only the delta (newest-first)
+        4. Update stored totals
+
+        Returns dict with stats + api_calls count.
+        """
+        from app.services.cache_service import cache_service
+
+        if not self.getsales:
+            raise ValueError("GetSales API key not configured")
+
+        stats = {"created": 0, "updated": 0, "skipped": 0, "api_calls": 0, "lists_scanned": 0, "delta_contacts": 0}
+
+        # Load stored totals from Redis
+        REDIS_KEY = "leadgen:getsales:list_totals"
+        stored_totals = await cache_service.get(REDIS_KEY) or {}
+
+        # Fetch all lists
+        lists = await self.getsales.get_lists()
+        stats["api_calls"] += 1
+
+        new_totals = {}
+
+        for lst in lists:
+            list_uuid = lst.get("uuid")
+            list_name = lst.get("name")
+            if not list_uuid:
+                continue
+
+            # Get current total with a minimal query (limit=1)
+            _, current_total = await self.getsales.search_leads(
+                {"list_uuid": list_uuid}, limit=1, offset=0
+            )
+            stats["api_calls"] += 1
+            new_totals[list_uuid] = current_total
+
+            previous_total = stored_totals.get(list_uuid, 0)
+            delta = current_total - previous_total
+
+            if delta <= 0:
+                # No new contacts (or contacts removed — reconciliation handles that)
+                continue
+
+            # Scan the delta — API returns newest-first, so offset=0..delta gets new contacts
+            stats["lists_scanned"] += 1
+            logger.info(f"[DELTA-SYNC] List '{list_name}': {previous_total} -> {current_total} (+{delta} new)")
+
+            offset = 0
+            while offset < delta:
+                batch_size = min(100, delta - offset)
+                leads, _ = await self.getsales.get_leads_by_list(
+                    list_uuid, limit=batch_size, offset=offset
+                )
+                stats["api_calls"] += 1
+
+                if not leads:
+                    break
+
+                for item in leads:
+                    result = await self._process_getsales_lead(session, company_id, item, list_name)
+                    stats[result] += 1
+                    stats["delta_contacts"] += 1
+
+                offset += len(leads)
+
+            await session.commit()
+
+        # Store updated totals in Redis (no TTL — persistent until reconciliation resets)
+        await cache_service.set(REDIS_KEY, new_totals)
+
+        logger.info(
+            f"[DELTA-SYNC] Complete: {stats['delta_contacts']} new contacts across {stats['lists_scanned']} lists, "
+            f"{stats['api_calls']} API calls (created={stats['created']}, updated={stats['updated']})"
+        )
+        return stats
+
+    async def sync_getsales_contacts(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        force_full: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Smart sync dispatcher: incremental by default, full on reconciliation.
+
+        Full scan triggers when:
+        - force_full=True (manual trigger)
+        - First run (no stored totals in Redis)
+        - >24h since last full reconciliation
+        """
+        from app.services.cache_service import cache_service
+
+        RECONCILIATION_KEY = "leadgen:getsales:last_full_reconciliation"
+        TOTALS_KEY = "leadgen:getsales:list_totals"
+
+        # Check if we need a full scan
+        needs_full = force_full
+        reason = "forced" if force_full else ""
+
+        if not needs_full:
+            stored_totals = await cache_service.get(TOTALS_KEY)
+            if not stored_totals:
+                needs_full = True
+                reason = "cold_start"
+
+        if not needs_full:
+            last_reconciliation = await cache_service.get(RECONCILIATION_KEY)
+            if not last_reconciliation:
+                needs_full = True
+                reason = "no_reconciliation_record"
+            else:
+                last_ts = datetime.fromisoformat(last_reconciliation)
+                hours_since = (datetime.utcnow() - last_ts).total_seconds() / 3600
+                if hours_since >= 24:
+                    needs_full = True
+                    reason = f"reconciliation_due ({hours_since:.0f}h since last)"
+
+        if needs_full:
+            logger.info(f"[GETSALES-SYNC] Running FULL reconciliation (reason: {reason})")
+            stats = await self.sync_getsales_contacts_full(session, company_id)
+
+            # Reset Redis totals to match reality
+            lists = await self.getsales.get_lists()
+            fresh_totals = {}
+            for lst in lists:
+                list_uuid = lst.get("uuid")
+                if list_uuid:
+                    _, total = await self.getsales.search_leads(
+                        {"list_uuid": list_uuid}, limit=1, offset=0
+                    )
+                    fresh_totals[list_uuid] = total
+            await cache_service.set(TOTALS_KEY, fresh_totals)
+            await cache_service.set(RECONCILIATION_KEY, datetime.utcnow().isoformat())
+
+            stats["sync_type"] = "full_reconciliation"
+            stats["reason"] = reason
+            return stats
+        else:
+            logger.info("[GETSALES-SYNC] Running incremental delta sync")
+            stats = await self.sync_getsales_contacts_incremental(session, company_id)
+            stats["sync_type"] = "incremental"
+            return stats
+
     async def _find_contact(
         self,
         session: AsyncSession,

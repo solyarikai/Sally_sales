@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Shield, Check, AlertTriangle, Loader2, ChevronRight, Plus, Minus, Info, Clock, ExternalLink, Users, MessageSquare } from 'lucide-react';
+import { Shield, Check, AlertTriangle, Loader2, ChevronRight, ChevronDown, Plus, Minus, Info, Clock, ExternalLink, Users, MessageSquare, AlertCircle } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useAppStore } from '../store/appStore';
 import { godPanelApi } from '../api/godPanel';
-import type { GodPanelCampaign, ProjectRules, CampaignAuditLogEntry, ProjectMetricsResponse } from '../api/godPanel';
+import type { GodPanelCampaign, ProjectRules, CampaignAuditLogEntry, ProjectMetricsResponse, CampaignMetricsResponse } from '../api/godPanel';
 
 type Tab = 'campaigns' | 'rules' | 'analytics';
 
@@ -437,12 +437,36 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
   const [data, setData] = useState<ProjectMetricsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>('7d');
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [campaignData, setCampaignData] = useState<Record<number, CampaignMetricsResponse>>({});
+  const [campaignLoading, setCampaignLoading] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     setLoading(true);
+    setExpandedId(null);
+    setCampaignData({});
     godPanelApi.getProjectMetrics(period).then(setData).catch(console.error).finally(() => setLoading(false));
   }, [period]);
+
+  const toggleExpand = async (projectId: number) => {
+    if (expandedId === projectId) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(projectId);
+    if (!campaignData[projectId]) {
+      setCampaignLoading(projectId);
+      try {
+        const metrics = await godPanelApi.getCampaignMetrics(projectId, period);
+        setCampaignData(prev => ({ ...prev, [projectId]: metrics }));
+      } catch (e) {
+        console.error('Failed to load campaign metrics', e);
+      } finally {
+        setCampaignLoading(null);
+      }
+    }
+  };
 
   const totals = useMemo(() => {
     if (!data) return { contacts: 0, warm: 0 };
@@ -505,71 +529,157 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
         <div className="rounded-lg border overflow-hidden" style={{ borderColor: t.cardBorder }}>
           {/* Header */}
           <div
-            className="grid grid-cols-[1fr_140px_160px_60px] gap-3 px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide border-b"
+            className="grid grid-cols-[24px_1fr_140px_180px_40px] gap-3 px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide border-b"
             style={{ backgroundColor: isDark ? '#1e1e1e' : '#f8f8f8', borderColor: t.cardBorder, color: t.text5 }}
           >
+            <span></span>
             <span>Project</span>
-            <span className="text-right">Contacts Uploaded</span>
+            <span className="text-right">Contacts</span>
             <span>Warm Replies</span>
             <span></span>
           </div>
           {/* Rows */}
           {data.projects.map((p, i) => {
             const barWidth = maxWarm > 0 ? (p.warm_replies / maxWarm) * 100 : 0;
+            const isExpanded = expandedId === p.project_id;
+            const cd = campaignData[p.project_id];
+            const isLoadingCampaigns = campaignLoading === p.project_id;
             return (
-              <div
-                key={p.project_id}
-                className="grid grid-cols-[1fr_140px_160px_60px] gap-3 px-4 py-2.5 border-b items-center transition-colors cursor-pointer group"
-                style={{ borderColor: t.cardBorder, backgroundColor: t.cardBg }}
-                onClick={() => {
-                  const warmCats = 'interested,meeting_request,question';
-                  const now = new Date();
-                  const sinceDate = period === '7d'
-                    ? new Date(now.getTime() - 7 * 86400000).toISOString().split('T')[0]
-                    : period === '30d'
-                    ? new Date(now.getTime() - 30 * 86400000).toISOString().split('T')[0]
-                    : undefined;
-                  navigate(
-                    `/contacts?project_id=${p.project_id}&reply_category=${warmCats}` +
-                    (sinceDate ? `&reply_since=${sinceDate}` : '')
-                  );
-                }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = isDark ? '#2a2a2a' : '#f5f5f5')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = t.cardBg)}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span
-                    className="text-[12px] font-semibold w-6 h-6 rounded flex items-center justify-center flex-shrink-0"
-                    style={{
-                      backgroundColor: i < 3 ? (isDark ? '#422006' : '#fef3c7') : (isDark ? '#1e1e1e' : '#f0f0f0'),
-                      color: i < 3 ? (isDark ? '#fcd34d' : '#92400e') : t.text5,
-                    }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="text-[13px] font-medium truncate" style={{ color: t.text1 }}>{p.project_name}</span>
-                </div>
-                <div className="text-[13px] tabular-nums text-right font-medium" style={{ color: t.text2 }}>
-                  {p.contacts_uploaded.toLocaleString()}
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: isDark ? '#2d2d2d' : '#e8e8e8' }}>
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${barWidth}%`,
-                        backgroundColor: isDark ? '#4ade80' : '#22c55e',
-                        minWidth: p.warm_replies > 0 ? '4px' : '0',
-                      }}
-                    />
+              <div key={p.project_id}>
+                <div
+                  className="grid grid-cols-[24px_1fr_140px_180px_40px] gap-3 px-4 py-2.5 border-b items-center transition-colors cursor-pointer group"
+                  style={{ borderColor: t.cardBorder, backgroundColor: t.cardBg }}
+                  onClick={() => toggleExpand(p.project_id)}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = isDark ? '#2a2a2a' : '#f5f5f5')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = t.cardBg)}
+                >
+                  {/* Expand chevron */}
+                  <div className="flex items-center justify-center">
+                    {isExpanded
+                      ? <ChevronDown className="w-3.5 h-3.5 transition-transform" style={{ color: t.text4 }} />
+                      : <ChevronRight className="w-3.5 h-3.5 transition-transform" style={{ color: t.text4 }} />
+                    }
                   </div>
-                  <span className="text-[13px] tabular-nums font-semibold w-10 text-right" style={{ color: p.warm_replies > 0 ? (isDark ? '#4ade80' : '#16a34a') : t.text5 }}>
-                    {p.warm_replies}
-                  </span>
+                  {/* Project name with rank */}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className="text-[12px] font-semibold w-6 h-6 rounded flex items-center justify-center flex-shrink-0"
+                      style={{
+                        backgroundColor: i < 3 ? (isDark ? '#422006' : '#fef3c7') : (isDark ? '#1e1e1e' : '#f0f0f0'),
+                        color: i < 3 ? (isDark ? '#fcd34d' : '#92400e') : t.text5,
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    <span className="text-[13px] font-medium truncate" style={{ color: t.text1 }}>{p.project_name}</span>
+                  </div>
+                  {/* Contacts */}
+                  <div className="text-[13px] tabular-nums text-right font-medium" style={{ color: t.text2 }}>
+                    {p.contacts_uploaded.toLocaleString()}
+                  </div>
+                  {/* Warm replies bar */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: isDark ? '#2d2d2d' : '#e8e8e8' }}>
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${barWidth}%`,
+                          backgroundColor: isDark ? '#4ade80' : '#22c55e',
+                          minWidth: p.warm_replies > 0 ? '4px' : '0',
+                        }}
+                      />
+                    </div>
+                    <span className="text-[13px] tabular-nums font-semibold w-10 text-right" style={{ color: p.warm_replies > 0 ? (isDark ? '#4ade80' : '#16a34a') : t.text5 }}>
+                      {p.warm_replies}
+                    </span>
+                  </div>
+                  {/* CRM link for entire project */}
+                  <div
+                    className="flex justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={e => {
+                      e.stopPropagation();
+                      navigate(`/contacts?project_id=${p.project_id}`);
+                    }}
+                    title="Open in CRM"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+                  </div>
                 </div>
-                <div className="flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ExternalLink className="w-3.5 h-3.5" style={{ color: t.text4 }} />
-                </div>
+                {/* Expanded: per-campaign breakdown */}
+                {isExpanded && (
+                  <div style={{ backgroundColor: isDark ? '#1a1a1a' : '#fafafa', borderColor: t.cardBorder }} className="border-b">
+                    {isLoadingCampaigns ? (
+                      <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin" style={{ color: t.text4 }} /></div>
+                    ) : cd ? (
+                      <>
+                        {/* Checksum warning */}
+                        {!cd.checksum.match && (
+                          <div className="flex items-center gap-2 px-6 py-2 text-[11px]" style={{ color: isDark ? '#fca5a5' : '#991b1b', backgroundColor: isDark ? '#350a0a' : '#fef2f2' }}>
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>Checksum mismatch: campaigns total {cd.checksum.campaigns_warm_total} vs project total {cd.checksum.project_warm_total}</span>
+                          </div>
+                        )}
+                        {cd.campaigns.length === 0 ? (
+                          <div className="px-6 py-3 text-[12px]" style={{ color: t.text5 }}>No campaigns assigned</div>
+                        ) : (
+                          <div>
+                            {/* Campaign sub-header */}
+                            <div
+                              className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 text-[10px] font-medium uppercase tracking-wide"
+                              style={{ color: t.text5 }}
+                            >
+                              <span></span>
+                              <span className="pl-9">Campaign</span>
+                              <span>Platform</span>
+                              <span className="text-right">Leads</span>
+                              <span className="text-right">Warm</span>
+                              <span></span>
+                            </div>
+                            {cd.campaigns.map(c => (
+                              <div
+                                key={c.campaign_id}
+                                className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 items-center group/camp"
+                                style={{ borderTop: `1px solid ${isDark ? '#2a2a2a' : '#f0f0f0'}` }}
+                              >
+                                <span></span>
+                                <div className="flex items-center gap-1.5 min-w-0 pl-9">
+                                  <span className="text-[12px] truncate" style={{ color: t.text2 }}>{c.campaign_name}</span>
+                                </div>
+                                <PlatformBadge platform={c.platform} isDark={isDark} />
+                                <div className="text-[12px] tabular-nums text-right" style={{ color: t.text3 }}>
+                                  {c.leads_count.toLocaleString()}
+                                </div>
+                                <div className="text-[12px] tabular-nums text-right font-medium" style={{ color: c.warm_replies > 0 ? (isDark ? '#4ade80' : '#16a34a') : t.text5 }}>
+                                  {c.warm_replies}
+                                </div>
+                                {/* CRM link for specific campaign */}
+                                <div
+                                  className="flex justify-center opacity-0 group-hover/camp:opacity-100 transition-opacity cursor-pointer"
+                                  onClick={() => navigate(`/contacts?project_id=${p.project_id}&campaign=${encodeURIComponent(c.campaign_name)}`)}
+                                  title={`Open ${c.campaign_name} in CRM`}
+                                >
+                                  <ExternalLink className="w-3 h-3" style={{ color: t.text4 }} />
+                                </div>
+                              </div>
+                            ))}
+                            {/* Totals row */}
+                            <div
+                              className="grid grid-cols-[24px_1fr_80px_100px_100px_40px] gap-2 px-4 py-1.5 text-[11px] font-medium"
+                              style={{ borderTop: `1px solid ${isDark ? '#333' : '#e0e0e0'}`, color: t.text4 }}
+                            >
+                              <span></span>
+                              <span className="pl-9">Total ({cd.campaigns.length} campaigns)</span>
+                              <span></span>
+                              <span className="text-right tabular-nums">{cd.campaigns.reduce((s, c) => s + c.leads_count, 0).toLocaleString()}</span>
+                              <span className="text-right tabular-nums">{cd.checksum.campaigns_warm_total}</span>
+                              <span></span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
+                )}
               </div>
             );
           })}

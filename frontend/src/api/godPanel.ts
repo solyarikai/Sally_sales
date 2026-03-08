@@ -48,6 +48,23 @@ export interface ProjectMetricsResponse {
   period: string;
 }
 
+export interface CampaignMetric {
+  campaign_id: number;
+  campaign_name: string;
+  platform: string;
+  leads_count: number;
+  warm_replies: number;
+}
+
+export interface CampaignMetricsResponse {
+  campaigns: CampaignMetric[];
+  checksum: {
+    campaigns_warm_total: number;
+    project_warm_total: number;
+    match: boolean;
+  };
+}
+
 export interface CleanupLogEntry {
   id: number;
   project_id?: number;
@@ -125,6 +142,13 @@ export const godPanelApi = {
   async getCampaignLogs(projectId: number, page = 1, pageSize = 50): Promise<CampaignAuditLogEntry[]> {
     const { data } = await api.get(`/god-panel/projects/${projectId}/campaign-logs`, {
       params: { page, page_size: pageSize },
+    });
+    return data;
+  },
+
+  async getCampaignMetrics(projectId: number, period: string = '30d'): Promise<CampaignMetricsResponse> {
+    const { data } = await api.get(`/god-panel/projects/${projectId}/campaign-metrics`, {
+      params: { period },
     });
     return data;
   },

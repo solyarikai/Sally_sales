@@ -2,7 +2,7 @@
 CRM Sync Scheduler - Robust background job system.
 
 Features:
-- Full CRM sync every 30 minutes
+- Incremental GetSales sync every 10 minutes (daily full reconciliation)
 - Adaptive reply polling: 3 min fast (startup/degraded), 10 min steady state
 - Webhook registration every 60 min (5 min retry on failure)
 - Webhook health monitoring
@@ -64,7 +64,7 @@ class CRMScheduler:
     
     def __init__(
         self,
-        sync_interval_minutes: int = 30,
+        sync_interval_minutes: int = 10,
         report_interval_hours: int = 4,
         prompt_refresh_interval_hours: int = 168,  # Weekly
         company_id: int = 1
@@ -147,7 +147,7 @@ class CRMScheduler:
         self._running = True
         self._start_all_tasks()
         self._watchdog_task = asyncio.create_task(self._run_watchdog())
-        logger.info("CRM scheduler started (sync: 30min, replies: adaptive 3-10min, webhooks: 1h, reports: 4h, recovery: 5min)")
+        logger.info("CRM scheduler started (sync: 10min incremental, replies: adaptive 3-10min, webhooks: 1h, reports: 4h, recovery: 5min)")
     
     async def stop(self):
         """Stop all scheduler tasks."""
@@ -212,10 +212,10 @@ class CRMScheduler:
                     else:
                         self._webhook_healthy = True
     
-    # ===== Main CRM Sync Loop (30 min) =====
-    
+    # ===== Main CRM Sync Loop (10 min incremental, daily full reconciliation) =====
+
     async def _run_loop(self):
-        """Full CRM sync loop."""
+        """CRM sync loop — incremental by default, full reconciliation daily."""
         while self._running:
             try:
                 await self._run_sync()
@@ -253,7 +253,8 @@ class CRMScheduler:
                     logger.info(f"Smartlead replies: {replies.get('new_replies', 0)} new")
                 if results.get("getsales", {}).get("contacts"):
                     gs = results["getsales"]["contacts"]
-                    logger.info(f"GetSales sync: {gs.get('created', 0)} created, {gs.get('updated', 0)} updated")
+                    sync_type = gs.get("sync_type", "unknown")
+                    logger.info(f"GetSales sync ({sync_type}): {gs.get('created', 0)} created, {gs.get('updated', 0)} updated, {gs.get('api_calls', '?')} API calls")
                 
                 logger.info("Scheduled CRM sync completed")
             except Exception as e:

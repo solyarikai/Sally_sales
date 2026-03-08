@@ -1056,8 +1056,19 @@ async def getsales_webhook(
         else:
             location_str = contact_data.get("raw_address", "")
         
+        # Resolve project from automation data
+        from app.services.crm_sync_service import match_campaign_to_project, _getsales_flow_cache
+        webhook_project_id = None
+        if automation_name:
+            webhook_project_id = match_campaign_to_project(automation_name)
+        if not webhook_project_id and automation_uuid:
+            flow_name = _getsales_flow_cache.get(automation_uuid, "")
+            if flow_name:
+                webhook_project_id = match_campaign_to_project(flow_name)
+
         contact = Contact(
             company_id=1,  # Default company
+            project_id=webhook_project_id,
             email=lead_email or f"gs_{lead_uuid}@linkedin.placeholder",
             first_name=contact_data.get("first_name"),
             last_name=contact_data.get("last_name"),
@@ -1080,6 +1091,29 @@ async def getsales_webhook(
             }]})
         session.add(contact)
         await session.flush()
+
+        # Register unknown automation as campaign if not already in DB
+        if automation_uuid and automation_name:
+            from app.models.campaign import Campaign
+            existing_camp = await session.execute(
+                select(Campaign).where(
+                    and_(Campaign.platform == "getsales", Campaign.external_id == automation_uuid)
+                )
+            )
+            if not existing_camp.scalar():
+                camp = Campaign(
+                    company_id=1, project_id=webhook_project_id,
+                    platform="getsales", channel="linkedin",
+                    external_id=automation_uuid, name=automation_name,
+                    status="active",
+                    resolution_method="webhook" if webhook_project_id else None,
+                    resolution_detail="Auto-registered from GetSales webhook",
+                )
+                session.add(camp)
+                logger.info(f"Registered new campaign from webhook: {automation_name} (project_id={webhook_project_id})")
+
+        if webhook_project_id:
+            logger.info(f"New contact from webhook assigned to project_id={webhook_project_id}")
     
     # Determine activity type
     if is_reply:

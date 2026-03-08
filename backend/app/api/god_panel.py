@@ -521,6 +521,94 @@ async def get_project_metrics(
     return ProjectMetricsOut(projects=metrics, period=period)
 
 
+@router.get("/projects/{project_id}/campaign-metrics")
+async def get_campaign_metrics(
+    project_id: int,
+    period: str = Query("30d", description="Time period: 7d, 30d, or all"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Per-campaign breakdown for a project: leads count + warm replies."""
+    from app.models.reply import ProcessedReply
+
+    now = datetime.utcnow()
+    if period == "7d":
+        since = now - timedelta(days=7)
+    elif period == "30d":
+        since = now - timedelta(days=30)
+    else:
+        since = None
+
+    # All campaigns assigned to this project
+    camp_query = select(Campaign).where(
+        and_(Campaign.project_id == project_id)
+    ).order_by(Campaign.name)
+    camp_result = await session.execute(camp_query)
+    campaigns = camp_result.scalars().all()
+
+    if not campaigns:
+        return {"campaigns": [], "checksum": {"campaigns_warm_total": 0, "project_warm_total": 0, "match": True}}
+
+    # Warm replies per campaign_name (case-insensitive)
+    warm_categories = ["interested", "meeting_request", "question"]
+    warm_query = (
+        select(
+            func.lower(ProcessedReply.campaign_name).label("cname"),
+            func.count(ProcessedReply.id).label("warm_count"),
+        )
+        .where(ProcessedReply.category.in_(warm_categories))
+        .group_by(func.lower(ProcessedReply.campaign_name))
+    )
+    if since:
+        warm_query = warm_query.where(ProcessedReply.received_at >= since)
+    warm_result = await session.execute(warm_query)
+    warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
+
+    # Build response
+    campaign_metrics = []
+    campaigns_warm_total = 0
+    for c in campaigns:
+        warm = warm_by_campaign.get(c.name.lower(), 0)
+        campaigns_warm_total += warm
+        campaign_metrics.append({
+            "campaign_id": c.id,
+            "campaign_name": c.name,
+            "platform": c.platform,
+            "leads_count": c.leads_count or 0,
+            "warm_replies": warm,
+        })
+
+    # Sort by warm replies desc, then leads desc
+    campaign_metrics.sort(key=lambda x: (-x["warm_replies"], -x["leads_count"]))
+
+    # Checksum: project-level warm total via same logic as project-metrics endpoint
+    campaign_map = (
+        select(
+            func.lower(Campaign.name).label("cname"),
+            func.min(Campaign.project_id).label("pid"),
+        )
+        .where(Campaign.project_id.isnot(None))
+        .group_by(func.lower(Campaign.name))
+    ).subquery()
+    project_warm_query = (
+        select(func.count(ProcessedReply.id))
+        .join(campaign_map, func.lower(ProcessedReply.campaign_name) == campaign_map.c.cname)
+        .where(and_(campaign_map.c.pid == project_id, ProcessedReply.category.in_(warm_categories)))
+    )
+    if since:
+        project_warm_query = project_warm_query.where(ProcessedReply.received_at >= since)
+    project_warm_result = await session.execute(project_warm_query)
+    project_warm_total = project_warm_result.scalar() or 0
+
+    return {
+        "campaigns": campaign_metrics,
+        "checksum": {
+            "campaigns_warm_total": campaigns_warm_total,
+            "project_warm_total": project_warm_total,
+            "match": campaigns_warm_total == project_warm_total,
+        },
+    }
+
+
 @router.get("/unresolved-count")
 async def get_unresolved_count(
     session: AsyncSession = Depends(get_session),
