@@ -600,18 +600,6 @@ async def get_campaign_metrics(
                 "warm_replies": warm,
             }
 
-    # Also include campaigns found in platform_state but not in campaigns table
-    for cname_lower, cnt in contacts_by_campaign.items():
-        if cname_lower not in seen_names:
-            warm = warm_by_campaign.get(cname_lower, 0)
-            seen_names[cname_lower] = {
-                "campaign_id": 0,
-                "campaign_name": cname_lower,
-                "platform": "unknown",
-                "leads_count": cnt,
-                "warm_replies": warm,
-            }
-
     campaign_metrics = list(seen_names.values())
     campaigns_warm_total = sum(m["warm_replies"] for m in campaign_metrics)
 
