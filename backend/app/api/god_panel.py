@@ -482,14 +482,13 @@ async def get_project_metrics(
     if not projects_list:
         return ProjectMetricsOut(projects=[], period=period)
 
-    # 2. Contacts uploaded — COUNT of contacts per project from Contact table, time-filtered
+    # 2. Contacts uploaded — SUM(Campaign.leads_count) per project
+    #    leads_count is synced from SmartLead API (accurate total per campaign)
     contacts_query = (
-        select(Contact.project_id, func.count(Contact.id).label("cnt"))
-        .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
-        .group_by(Contact.project_id)
+        select(Campaign.project_id, func.coalesce(func.sum(Campaign.leads_count), 0).label("cnt"))
+        .where(and_(Campaign.project_id.isnot(None), Campaign.leads_count > 0))
+        .group_by(Campaign.project_id)
     )
-    if since_dt:
-        contacts_query = contacts_query.where(Contact.created_at >= since_dt)
     contacts_result = await session.execute(contacts_query)
     leads_map: dict[int, int] = {row.project_id: row.cnt for row in contacts_result.all()}
 
@@ -538,18 +537,27 @@ async def get_campaign_metrics(
     until: Optional[str] = Query(None, alias="until", description="Custom end date ISO"),
     session: AsyncSession = Depends(get_session),
 ):
-    """Per-campaign breakdown for a project: leads count + warm replies."""
+    """Per-campaign breakdown for a project: leads count + warm replies.
+
+    Leads count source:
+    - SmartLead campaigns: Campaign.leads_count (synced from SmartLead API, accurate)
+    - GetSales campaigns: CRM contacts with campaign in platform_state (best available)
+    """
     from app.models.reply import ProcessedReply
 
     since_dt, _until_dt = _parse_period(period, since, until)
 
-    # 1. Per-campaign CONTACTS from platform_state JSON, time-filtered
+    # 1. All campaigns assigned to this project
+    camp_query = select(Campaign).where(Campaign.project_id == project_id).order_by(Campaign.name)
+    camp_result = await session.execute(camp_query)
+    campaigns = camp_result.scalars().all()
+
+    # 2. GetSales contacts from platform_state (for campaigns not in Campaign table)
     since_clause = "AND c.created_at >= :since" if since_dt else ""
-    contacts_per_campaign_sql = text(f"""
+    gs_contacts_sql = text(f"""
         SELECT campaign_elem->>'name' AS campaign_name, COUNT(DISTINCT c.id) AS contacts_added
         FROM contacts c,
              jsonb_array_elements(
-               COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', CAST('[]' AS jsonb)) ||
                COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', CAST('[]' AS jsonb))
              ) AS campaign_elem
         WHERE c.project_id = :project_id
@@ -561,15 +569,13 @@ async def get_campaign_metrics(
     params: dict = {"project_id": project_id}
     if since_dt:
         params["since"] = since_dt
-    contacts_result = await session.execute(contacts_per_campaign_sql, params)
-    contacts_by_campaign: dict[str, int] = {row.campaign_name.lower(): row.contacts_added for row in contacts_result.all() if row.campaign_name}
+    gs_result = await session.execute(gs_contacts_sql, params)
+    gs_contacts_by_campaign: dict[str, int] = {
+        row.campaign_name.lower(): row.contacts_added
+        for row in gs_result.all() if row.campaign_name
+    }
 
-    # 2. All campaigns assigned to this project (for platform info + campaign IDs)
-    camp_query = select(Campaign).where(Campaign.project_id == project_id).order_by(Campaign.name)
-    camp_result = await session.execute(camp_query)
-    campaigns = camp_result.scalars().all()
-
-    # 2b. Get project's campaign_filters for matching GetSales campaigns not in Campaign table
+    # 3. Get project's campaign_filters for matching GetSales campaigns not in Campaign table
     proj_result = await session.execute(select(Project.campaign_filters).where(Project.id == project_id))
     proj_row = proj_result.first()
     campaign_filters_set: set[str] = set()
@@ -581,10 +587,10 @@ async def get_campaign_metrics(
         except Exception:
             pass
 
-    if not campaigns and not contacts_by_campaign:
+    if not campaigns and not gs_contacts_by_campaign:
         return {"campaigns": [], "checksum": {"campaigns_warm_total": 0, "project_warm_total": 0, "match": True}}
 
-    # 3. Warm replies per campaign_name (case-insensitive)
+    # 4. Warm replies per campaign_name (case-insensitive)
     warm_categories = ["interested", "meeting_request", "question"]
     warm_query = (
         select(
@@ -599,12 +605,17 @@ async def get_campaign_metrics(
     warm_result = await session.execute(warm_query)
     warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
 
-    # 4. Build response — deduplicate by lowercase campaign name
+    # 5. Build response — deduplicate by lowercase campaign name
+    #    SmartLead: use Campaign.leads_count (accurate from API)
+    #    GetSales: use CRM contacts from platform_state
     seen_names: dict[str, dict] = {}
     for c in campaigns:
         name_lower = c.name.lower()
         warm = warm_by_campaign.get(name_lower, 0)
-        contacts = contacts_by_campaign.get(name_lower, 0)
+        if c.platform == "smartlead":
+            contacts = c.leads_count or 0
+        else:
+            contacts = gs_contacts_by_campaign.get(name_lower, 0)
         if name_lower in seen_names:
             existing = seen_names[name_lower]
             existing["leads_count"] = max(existing["leads_count"], contacts)
@@ -618,18 +629,16 @@ async def get_campaign_metrics(
                 "external_id": c.external_id,
             }
 
-    # 4b. Include GetSales campaigns from campaign_filters that have contacts in platform_state
-    #     Skip junk names: "Unknown (uuid...)", "KYD*", sender-style "ProjectName - SenderName"
+    # 5b. Include GetSales campaigns from campaign_filters not in Campaign table
     def _is_display_worthy(name: str) -> bool:
         if name.startswith("unknown (") or name.startswith("kyd"):
             return False
-        # Skip sender-style entries like "easystaff ru - alex" (used for routing, not real campaigns)
         parts = name.split(" - ", 1)
         if len(parts) == 2 and parts[1].strip() and not any(kw in parts[1] for kw in ["dm", "list", "hq", "ice", "crypto"]):
             return False
         return True
 
-    for cname_lower, cnt in contacts_by_campaign.items():
+    for cname_lower, cnt in gs_contacts_by_campaign.items():
         if cname_lower not in seen_names and cname_lower in campaign_filters_set and cnt > 0 and _is_display_worthy(cname_lower):
             warm = warm_by_campaign.get(cname_lower, 0)
             seen_names[cname_lower] = {

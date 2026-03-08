@@ -330,14 +330,16 @@ class CRMScheduler:
                 # ── Phase 2: Register/update all campaigns in Campaign table ──
                 registered = 0
 
-                # SmartLead campaigns
+                # SmartLead campaigns — register and refresh lead counts
+                sync_service = get_crm_sync_service()
+                sl_client = sync_service.smartlead if sync_service else None
+                leads_refreshed = 0
                 for c in sl_campaigns:
                     c_name = c.get("name", "")
                     c_id = str(c.get("id", ""))
                     if not c_name or not c_id:
                         continue
                     c_tags = [t.get("name", "") for t in c.get("tags", []) if isinstance(t, dict)]
-                    c_leads = c.get("total_lead_count", c.get("lead_count", 0)) or 0
                     existing = await session.execute(
                         select(Campaign).where(
                             and_(Campaign.platform == "smartlead", Campaign.external_id == c_id)
@@ -349,8 +351,6 @@ class CRMScheduler:
                             camp.name = c_name
                         if c_tags:
                             camp.config = {**(camp.config or {}), "tags": c_tags}
-                        if c_leads and camp.leads_count != c_leads:
-                            camp.leads_count = c_leads
                     else:
                         matched_pid = match_campaign_to_project(c_name, c_tags)
                         camp = Campaign(
@@ -358,13 +358,24 @@ class CRMScheduler:
                             platform="smartlead", channel="email",
                             external_id=c_id, name=c_name,
                             status=c.get("status", "active"),
-                            leads_count=c_leads,
+                            leads_count=0,
                             resolution_method="auto_discovery" if matched_pid else None,
                             resolution_detail=f"Auto-discovered from SmartLead" if matched_pid else None,
                             config={"tags": c_tags} if c_tags else None,
                         )
                         session.add(camp)
                         registered += 1
+                    # Refresh lead count from SmartLead API (1 call per campaign)
+                    if sl_client and camp.external_id:
+                        try:
+                            total = await sl_client.get_campaign_lead_count(camp.external_id)
+                            if total and total != (camp.leads_count or 0):
+                                camp.leads_count = total
+                                leads_refreshed += 1
+                        except Exception:
+                            pass  # non-critical, will retry next cycle
+                if leads_refreshed:
+                    logger.info(f"Refreshed leads_count for {leads_refreshed} SmartLead campaigns")
 
                 # GetSales automations
                 for a in gs_automations:

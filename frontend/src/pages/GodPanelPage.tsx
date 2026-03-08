@@ -433,9 +433,15 @@ function RulesTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeCo
 // ─── Analytics tab ──────────────────────────────────────────
 type Period = '7d' | '30d' | 'all' | 'custom';
 
-function getSmartLeadUrl(externalId: string | null | undefined) {
+function getSourceUrl(platform: string, externalId: string | null | undefined) {
   if (!externalId) return null;
-  return `https://app.smartlead.ai/app/email-campaigns-v2/${externalId}/analytics`;
+  if (platform === 'smartlead') {
+    return `https://app.smartlead.ai/app/email-campaigns-v2/${externalId}/analytics`;
+  }
+  if (platform === 'getsales') {
+    return `https://amazing.getsales.io/flow/${externalId}/builder`;
+  }
+  return null;
 }
 
 function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeColors> }) {
@@ -673,7 +679,7 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
                                 <span></span>
                               </div>
                               {activeCampaigns.map(c => {
-                                const sourceUrl = c.platform === 'smartlead' ? getSmartLeadUrl(c.external_id) : null;
+                                const sourceUrl = getSourceUrl(c.platform, c.external_id);
                                 return (
                                   <div
                                     key={c.campaign_id + c.campaign_name}
@@ -701,7 +707,7 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
                                         <ExternalLink className="w-3 h-3" style={{ color: t.text4 }} />
                                       </span>
                                       {sourceUrl && (
-                                        <a href={sourceUrl} target="_blank" rel="noopener noreferrer" title="Open in SmartLead" onClick={e => e.stopPropagation()}>
+                                        <a href={sourceUrl} target="_blank" rel="noopener noreferrer" title={`Open in ${c.platform === 'smartlead' ? 'SmartLead' : 'GetSales'}`} onClick={e => e.stopPropagation()}>
                                           <ExternalLink className="w-3 h-3" style={{ color: isDark ? '#93c5fd' : '#3b82f6' }} />
                                         </a>
                                       )}
