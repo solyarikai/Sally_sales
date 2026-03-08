@@ -435,7 +435,7 @@ type Period = '7d' | '30d' | 'all' | 'custom';
 
 function getSmartLeadUrl(externalId: string | null | undefined) {
   if (!externalId) return null;
-  return `https://app.smartlead.ai/app/email-campaign/${externalId}/lead-management`;
+  return `https://app.smartlead.ai/app/email-campaigns-v2/${externalId}/analytics`;
 }
 
 function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeColors> }) {
