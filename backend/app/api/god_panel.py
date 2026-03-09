@@ -820,8 +820,7 @@ async def refresh_leads_counts(
                     and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None))
                 ).order_by(
                     # Prioritize campaigns that already have leads (refresh their counts + add snapshots)
-                    (Campaign.leads_count > 0).desc(),
-                    Campaign.leads_count.desc().nullslast(),
+                    func.coalesce(Campaign.leads_count, 0).desc(),
                     Campaign.id.desc(),
                 )
             )
