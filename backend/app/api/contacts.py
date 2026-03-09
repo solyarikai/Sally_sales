@@ -1994,6 +1994,42 @@ async def trigger_sheet_sync(
     return {"sync_type": sync_type, "results": results}
 
 
+@router.post("/projects/{project_id}/sheet-sync/bootstrap-reference")
+async def bootstrap_reference_data(
+    project_id: int,
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """One-time: copy reference tab data to the replies tab for initial bootstrap."""
+    from app.services.sheet_sync_service import sheet_sync_service
+
+    result = await session.execute(
+        select(Project).where(
+            and_(
+                Project.id == project_id,
+                Project.company_id == company_id if company_id else True,
+                Project.deleted_at.is_(None),
+            )
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    config = project.sheet_sync_config or {}
+    if not config.get("sheet_id"):
+        raise HTTPException(status_code=400, detail="No sheet_id configured")
+    if not config.get("reference_tab"):
+        raise HTTPException(status_code=400, detail="No reference_tab configured")
+
+    stats = await sheet_sync_service.copy_reference_to_tab(project_id)
+
+    if stats["errors"]:
+        raise HTTPException(status_code=400, detail=stats["errors"][0])
+
+    return {"rows_copied": stats["rows_copied"]}
+
+
 @router.delete("/projects/{project_id}")
 async def delete_project(
     project_id: int,
@@ -3339,6 +3375,16 @@ async def update_contact_status(
         tasks_created = 2
 
     await session.commit()
+
+    # Propagate status_external to Google Sheet (fire-and-forget)
+    if contact.status_external and contact.project_id and contact.email:
+        try:
+            from app.services.sheet_sync_service import sheet_sync_service
+            await sheet_sync_service.update_sheet_status(
+                contact.project_id, contact.email, contact.status_external
+            )
+        except Exception as e:
+            logger.warning(f"Sheet status update failed for {contact.email}: {e}")
 
     return {
         "id": contact.id,

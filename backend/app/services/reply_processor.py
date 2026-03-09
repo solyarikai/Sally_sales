@@ -1549,6 +1549,14 @@ async def process_reply_webhook(
                 )
                 if ext:
                     contact.status_external = ext
+                    # Propagate to Google Sheet (fire-and-forget)
+                    try:
+                        from app.services.sheet_sync_service import sheet_sync_service
+                        await sheet_sync_service.update_sheet_status(
+                            contact.project_id, contact.email, ext
+                        )
+                    except Exception as sheet_err:
+                        logger.debug(f"Sheet status update skipped: {sheet_err}")
             logger.info(f"[PROCESSOR] Updated contact {contact.id} with reply data from {lead_email}")
         except Exception as activity_err:
             logger.warning(f"[PROCESSOR] Failed to create ContactActivity (non-fatal): {activity_err}")

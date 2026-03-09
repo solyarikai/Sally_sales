@@ -323,6 +323,7 @@ GETSALES_SENDER_PROFILES: Dict[str, str] = {
     "8c7d77fa-5d07-4c7a-844d-8e833488eaa1": "Dmitry Isaev",
     "09f85665-1e7d-482c-9e8f-1c74d5d1ea15": "Nikita Melnikov",
     "7c58101c-675d-4ed3-9463-c39b03399d45": "Maxim Savichev",
+    "41b709f2-6d25-46cc-91a5-7f15ce84f5a7": "Daniel Rew",
     "91fb80ab-4430-4b07-bc19-330d3f4ac8fd": "Elena Shamaeva",
     "abf28dba-0834-432b-a57d-b7fc03bb0db7": "Pavel Tikhonov",
     "d16d6837-4156-4022-bd38-51945de1bf4a": "Max Ionin",

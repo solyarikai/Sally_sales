@@ -188,44 +188,18 @@ class SheetSyncService:
                 for c in contact_result.scalars().all():
                     contact_map[c.email.lower()] = c
 
-            # Build 16-column rows for Replies tab
-            rows = []
-            latest_received = None
-            for reply in replies:
-                contact = contact_map.get((reply.lead_email or "").lower())
-                received_str = ""
-                if reply.received_at:
-                    received_str = reply.received_at.strftime("%d.%m.%Y")
-                    if not latest_received or reply.received_at > latest_received:
-                        latest_received = reply.received_at
+            # OOO filtering (configurable per project)
+            if config.get("exclude_ooo"):
+                replies = [r for r in replies if r.category != "out_of_office"]
+                if not replies:
+                    return stats
 
-                text = (reply.reply_text or reply.email_body or "")[:2000]
-
-                # Extract from_email from raw webhook data if available
-                from_email = ""
-                raw = getattr(reply, 'raw_webhook_data', None)
-                if isinstance(raw, dict):
-                    from_email = raw.get("from_email", "")
-
-                row = [
-                    reply.lead_first_name or "",                         # first name
-                    reply.lead_last_name or "",                          # last name
-                    (contact.job_title if contact else "") or "",        # Position
-                    (contact.linkedin_url if contact else "") or "",     # Linkedin
-                    reply.lead_email or "",                              # target_lead_email
-                    reply.lead_company or "",                            # Company
-                    (contact.domain if contact else "") or "",           # Website
-                    (contact.location if contact else "") or "",         # Company Location
-                    "",                                                  # Employees
-                    text,                                                # text
-                    received_str,                                        # date
-                    reply.campaign_name or "",                           # campaign
-                    reply.campaign_id or "",                             # campaign_id
-                    reply.category or "",                                # category
-                    from_email,                                          # from_email
-                    reply.lead_email or "",                              # to_email
-                ]
-                rows.append(row)
+            # Dispatch row builder based on format
+            row_format = config.get("row_format", "default")
+            if row_format == "rizzult_28col":
+                rows, latest_received = self._build_rizzult_rows(replies, contact_map, config)
+            else:
+                rows, latest_received = self._build_default_rows(replies, contact_map)
 
             # Batch append
             first_row = google_sheets_service.append_rows(sheet_id, replies_tab, rows)
@@ -236,12 +210,263 @@ class SheetSyncService:
                 new_config = dict(config)
                 new_config["last_replies_sync_at"] = (latest_received or datetime.utcnow()).isoformat()
                 new_config["replies_synced_count"] = (config.get("replies_synced_count") or 0) + len(rows)
+                # Track next_row_index for rizzult format
+                if row_format == "rizzult_28col" and rows:
+                    last_index = rows[-1][0] if isinstance(rows[-1][0], int) else len(rows)
+                    new_config["next_row_index"] = last_index + 1
                 project.sheet_sync_config = new_config
                 await session.commit()
             else:
                 stats["errors"].append("append_rows returned 0")
 
         return stats
+
+    def _build_default_rows(self, replies, contact_map):
+        """Build 16-column rows for the default Replies tab format (EasyStaff RU etc)."""
+        rows = []
+        latest_received = None
+        for reply in replies:
+            contact = contact_map.get((reply.lead_email or "").lower())
+            received_str = ""
+            if reply.received_at:
+                received_str = reply.received_at.strftime("%d.%m.%Y")
+                if not latest_received or reply.received_at > latest_received:
+                    latest_received = reply.received_at
+
+            text = (reply.reply_text or reply.email_body or "")[:2000]
+
+            from_email = ""
+            raw = getattr(reply, 'raw_webhook_data', None)
+            if isinstance(raw, dict):
+                from_email = raw.get("from_email", "")
+
+            row = [
+                reply.lead_first_name or "",                         # first name
+                reply.lead_last_name or "",                          # last name
+                (contact.job_title if contact else "") or "",        # Position
+                (contact.linkedin_url if contact else "") or "",     # Linkedin
+                reply.lead_email or "",                              # target_lead_email
+                reply.lead_company or "",                            # Company
+                (contact.domain if contact else "") or "",           # Website
+                (contact.location if contact else "") or "",         # Company Location
+                "",                                                  # Employees
+                text,                                                # text
+                received_str,                                        # date
+                reply.campaign_name or "",                           # campaign
+                reply.campaign_id or "",                             # campaign_id
+                reply.category or "",                                # category
+                from_email,                                          # from_email
+                reply.lead_email or "",                              # to_email
+            ]
+            rows.append(row)
+        return rows, latest_received
+
+    def _build_rizzult_rows(self, replies, contact_map, config):
+        """Build 29-column rows for Rizzult 28-col format (A-AC)."""
+        rows = []
+        latest_received = None
+        # Get starting index from config (auto-increment from last known row)
+        next_index = config.get("next_row_index", 1)
+
+        for reply in replies:
+            contact = contact_map.get((reply.lead_email or "").lower())
+            if reply.received_at:
+                if not latest_received or reply.received_at > latest_received:
+                    latest_received = reply.received_at
+
+            text = (reply.reply_text or reply.email_body or "")[:2000]
+
+            # from_email: SmartLead raw webhook or GetSales sender name
+            from_email = ""
+            raw = getattr(reply, 'raw_webhook_data', None)
+            if isinstance(raw, dict):
+                from_email = raw.get("from_email", "")
+
+            # Source: Email vs LinkedIn
+            source_label = "Email" if (reply.source or "") == "smartlead" else "LinkedIn"
+
+            # Week number
+            week_str = ""
+            if reply.received_at:
+                week_str = f"Week {reply.received_at.isocalendar()[1]}"
+
+            # Time formatted
+            time_str = ""
+            if reply.received_at:
+                time_str = reply.received_at.strftime("%d.%m.%Y %H:%M")
+
+            # Status external from contact
+            status_ext = (contact.status_external if contact else "") or ""
+
+            row = [
+                next_index,                                                  # A: index
+                (contact.email if contact else reply.lead_email) or "",      # B: updated email
+                "",                                                          # C: status (legacy, unused)
+                status_ext,                                                  # D: current status
+                "",                                                          # E: (blank)
+                (contact.first_name if contact else None) or reply.lead_first_name or "",  # F: first name
+                (contact.last_name if contact else None) or reply.lead_last_name or "",    # G: last name
+                (contact.job_title if contact else "") or "",                # H: Position
+                (contact.linkedin_url if contact else "") or "",             # I: Linkedin
+                reply.lead_email or "",                                      # J: target_lead_email
+                (contact.segment if contact else "") or "",                  # K: segment
+                (contact.company_name if contact else None) or reply.lead_company or "",   # L: Company
+                (contact.domain if contact else "") or "",                   # M: Website
+                (contact.location if contact else "") or "",                 # N: Company Location
+                "",                                                          # O: Employees
+                text,                                                        # P: text
+                time_str,                                                    # Q: time
+                reply.campaign_name or "",                                   # R: campaign
+                reply.campaign_id or "",                                     # S: campaign_id
+                reply.category or "",                                        # T: category
+                from_email,                                                  # U: from_email
+                reply.lead_email or "",                                      # V: to_email
+                reply.received_at.isoformat() if reply.received_at else "",  # W: created time
+                source_label,                                                # X: Source
+                status_ext,                                                  # Y: Status
+                week_str,                                                    # Z: Week
+                "",                                                          # AA: Sequence + message
+                "",                                                          # AB: Comment
+                datetime.utcnow().isoformat(),                               # AC: auto_updated_at
+            ]
+            rows.append(row)
+            next_index += 1
+
+        return rows, latest_received
+
+    async def copy_reference_to_tab(self, project_id: int) -> dict:
+        """One-time bootstrap: copy reference tab data to the replies tab.
+
+        Safety: only writes if the target tab is empty (prevents double-copy).
+        Returns stats dict with rows_copied.
+        """
+        stats = {"rows_copied": 0, "errors": []}
+
+        async with async_session_maker() as session:
+            project = await session.get(Project, project_id)
+            if not project or not project.sheet_sync_config:
+                stats["errors"].append("Project not found or no sheet config")
+                return stats
+
+            config = project.sheet_sync_config
+            sheet_id = config.get("sheet_id")
+            reference_tab = config.get("reference_tab")
+            replies_tab = config.get("replies_tab")
+
+            if not sheet_id or not reference_tab or not replies_tab:
+                stats["errors"].append("Missing sheet_id, reference_tab, or replies_tab in config")
+                return stats
+
+            # Safety: check target tab is empty
+            existing = google_sheets_service.read_sheet_raw(sheet_id, replies_tab)
+            if existing and len(existing) > 1:
+                stats["errors"].append(
+                    f"Target tab '{replies_tab}' already has {len(existing)} rows. "
+                    "Aborting to prevent double-copy."
+                )
+                return stats
+
+            # Read reference data
+            ref_rows = google_sheets_service.read_sheet_raw(sheet_id, reference_tab)
+            if not ref_rows:
+                stats["errors"].append(f"Reference tab '{reference_tab}' is empty")
+                return stats
+
+            # Separate header and data
+            header = ref_rows[0]
+            data_rows = ref_rows[1:]
+
+            # Ensure header has auto_updated_at column
+            if len(header) < 29 or header[-1].strip().lower() != "auto_updated_at":
+                header = header + ["auto_updated_at"]
+
+            # Pad data rows to match header length
+            header_len = len(header)
+            padded_rows = []
+            for row in data_rows:
+                padded = row + [""] * max(0, header_len - len(row))
+                padded_rows.append(padded[:header_len])
+
+            # Write header + data to target tab
+            all_rows = [header] + padded_rows
+            first_row = google_sheets_service.append_rows(sheet_id, replies_tab, all_rows)
+
+            if first_row > 0:
+                stats["rows_copied"] = len(padded_rows)
+
+                # Update config with next_row_index for future appends
+                new_config = dict(config)
+                # The last index from reference data
+                # Try to read the index column (A) from last data row
+                last_index = len(padded_rows)
+                try:
+                    if padded_rows and padded_rows[-1][0]:
+                        last_index = int(padded_rows[-1][0])
+                except (ValueError, IndexError):
+                    pass
+                new_config["next_row_index"] = last_index + 1
+                new_config["reference_copied_at"] = datetime.utcnow().isoformat()
+                new_config["reference_rows_copied"] = len(padded_rows)
+                project.sheet_sync_config = new_config
+                await session.commit()
+
+                logger.info(
+                    f"Copied {len(padded_rows)} rows from '{reference_tab}' "
+                    f"to '{replies_tab}' for project {project_id}"
+                )
+            else:
+                stats["errors"].append("append_rows returned 0")
+
+        return stats
+
+    async def update_sheet_status(self, project_id: int, email: str, new_status: str):
+        """Update status column(s) in the sheet for a specific contact.
+
+        For rizzult_28col format: updates columns D and Y (current status + Status).
+        For default format: no-op (status lives in Leads tab, not Replies tab).
+        """
+        async with async_session_maker() as session:
+            project = await session.get(Project, project_id)
+            if not project or not project.sheet_sync_config:
+                return
+
+            config = project.sheet_sync_config
+            if config.get("row_format") != "rizzult_28col":
+                return  # Only Rizzult format has status in replies tab
+
+            sheet_id = config.get("sheet_id")
+            replies_tab = config.get("replies_tab")
+            if not sheet_id or not replies_tab:
+                return
+
+            # Find rows matching this email (column J = target_lead_email, 0-indexed col 9)
+            try:
+                all_rows = google_sheets_service.read_sheet_raw(sheet_id, replies_tab)
+                if not all_rows or len(all_rows) < 2:
+                    return
+
+                updates = []
+                email_lower = email.strip().lower()
+                for row_num, row in enumerate(all_rows[1:], start=2):
+                    # Column J (index 9) = target_lead_email
+                    if len(row) > 9 and row[9].strip().lower() == email_lower:
+                        updates.append({
+                            "range": f"D{row_num}",
+                            "values": [[new_status]],
+                        })
+                        updates.append({
+                            "range": f"Y{row_num}",
+                            "values": [[new_status]],
+                        })
+
+                if updates:
+                    google_sheets_service.update_cells(sheet_id, replies_tab, updates)
+                    logger.info(
+                        f"Updated {len(updates)//2} rows in sheet for "
+                        f"{email} status → {new_status}"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to update sheet status for {email}: {e}")
 
     async def push_leads_to_sheet(self, project_id: int) -> dict:
         """Push/update warm leads to the Leads tab (system-owned columns A-O only).
