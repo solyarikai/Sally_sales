@@ -468,6 +468,17 @@ class SmartleadClient:
             logger.warning(f"CSV export failed for campaign {campaign_id}: {e}")
             return []
 
+    async def get_campaign_lead_count(self, campaign_id: str) -> int:
+        """Get total lead count for a campaign (1 lightweight API call)."""
+        try:
+            data = await self._get(f"/campaigns/{campaign_id}/leads", {"limit": 1, "offset": 0})
+            if isinstance(data, dict):
+                return data.get("total_leads", data.get("total", 0))
+            return len(data) if isinstance(data, list) else 0
+        except Exception as e:
+            logger.warning(f"Failed to get lead count for campaign {campaign_id}: {e}")
+            return 0
+
     async def get_campaign_leads(self, campaign_id: int, limit: int = 100, offset: int = 0, lead_category_id: int = None) -> List[dict]:
         """Get leads from a campaign.
         
@@ -1092,10 +1103,13 @@ class CRMSyncService:
         for idx, camp in enumerate(campaigns):
             csv_rows = await self.smartlead.export_campaign_leads(camp.external_id)
 
-            # Update leads_count from actual export
+            # Update leads_count and synced_leads_count from actual export
             actual_count = len(csv_rows)
             if actual_count > 0 and actual_count != (camp.leads_count or 0):
                 camp.leads_count = actual_count
+            if actual_count > 0:
+                camp.synced_leads_count = actual_count
+                camp.last_contact_sync_at = datetime.utcnow()
 
             if not csv_rows:
                 await asyncio.sleep(0.3)
@@ -1156,7 +1170,127 @@ class CRMSyncService:
             f"created={stats['created']}, updated={stats['updated']}, skipped={stats['skipped']}"
         )
         return stats
-    
+
+    async def sync_smartlead_contacts_delta(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        batch_size: int = 50,
+    ) -> Dict[str, Any]:
+        """Delta sync: check lead counts for a batch of campaigns, export only changed ones.
+
+        Round-robin: each cycle checks ``batch_size`` campaigns ordered by
+        ``last_contact_sync_at`` (oldest first, NULLs first so new campaigns
+        get checked immediately).  Full rotation across all active campaigns
+        takes ~100 min at default settings.
+
+        Returns stats dict with campaigns_checked, campaigns_synced, created, updated.
+        """
+        if not self.smartlead:
+            return {"error": "SmartLead not configured"}
+
+        import json as json_mod
+        from app.models.campaign import Campaign
+
+        # Get next batch of campaigns to check (round-robin by last_contact_sync_at)
+        result = await session.execute(
+            select(Campaign).where(
+                and_(
+                    Campaign.platform == "smartlead",
+                    Campaign.external_id.isnot(None),
+                    Campaign.project_id.isnot(None),
+                    Campaign.status == "active",
+                )
+            ).order_by(
+                Campaign.last_contact_sync_at.asc().nullsfirst()
+            ).limit(batch_size)
+        )
+        batch = result.scalars().all()
+        if not batch:
+            return {"campaigns_checked": 0, "campaigns_synced": 0, "created": 0, "updated": 0}
+
+        # Phase 1: Quick count checks (1 API call per campaign, ~15s for 50)
+        need_sync = []
+        for camp in batch:
+            try:
+                sl_count = await self.smartlead.get_campaign_lead_count(camp.external_id)
+                our_count = camp.synced_leads_count or camp.leads_count or 0
+                if sl_count > our_count:
+                    need_sync.append((camp, sl_count))
+                    logger.info(
+                        f"[SL-DELTA] {camp.name[:40]}: {our_count} → {sl_count} (+{sl_count - our_count})"
+                    )
+                # Mark as checked regardless
+                camp.last_contact_sync_at = datetime.utcnow()
+            except Exception as e:
+                logger.warning(f"[SL-DELTA] Count check failed for {camp.name[:30]}: {e}")
+            await asyncio.sleep(0.3)
+
+        if not need_sync:
+            await session.commit()
+            logger.info(f"[SL-DELTA] Checked {len(batch)} campaigns, no changes")
+            return {"campaigns_checked": len(batch), "campaigns_synced": 0, "created": 0, "updated": 0}
+
+        # Phase 2: Export CSV and process only changed campaigns
+        stats = {"created": 0, "updated": 0, "skipped": 0}
+        for camp, sl_count in need_sync:
+            csv_rows = await self.smartlead.export_campaign_leads(camp.external_id)
+            actual_count = len(csv_rows)
+            if actual_count > 0:
+                camp.leads_count = actual_count
+                camp.synced_leads_count = actual_count
+
+            for row in csv_rows:
+                try:
+                    custom_fields_raw = row.get("custom_fields", "{}")
+                    try:
+                        custom_fields = json_mod.loads(custom_fields_raw) if custom_fields_raw else {}
+                    except (json_mod.JSONDecodeError, TypeError):
+                        custom_fields = {}
+                    reply_count = int(row.get("reply_count", 0) or 0)
+                    lead = {
+                        "id": row.get("id", ""),
+                        "email": row.get("email", ""),
+                        "first_name": row.get("first_name", ""),
+                        "last_name": row.get("last_name", ""),
+                        "company_name": row.get("company_name", ""),
+                        "phone_number": row.get("phone_number", ""),
+                        "linkedin_profile": row.get("linkedin_profile", ""),
+                        "location": row.get("location", ""),
+                        "custom_fields": custom_fields,
+                        "created_at": row.get("created_at", ""),
+                        "campaigns": [{
+                            "campaign_name": camp.name,
+                            "campaign_id": camp.external_id,
+                            "lead_status": row.get("status", "ACTIVE"),
+                            "created_at": row.get("created_at", ""),
+                            "reply_time": True if reply_count > 0 else None,
+                        }],
+                    }
+                    action = await self._process_smartlead_lead(
+                        session, company_id, lead, campaign_project_id=camp.project_id
+                    )
+                    stats[action] += 1
+                except Exception:
+                    stats["skipped"] += 1
+
+            await session.commit()
+            logger.info(
+                f"[SL-DELTA] Synced '{camp.name[:40]}': {actual_count} leads "
+                f"(+{stats['created']} new, {stats['updated']} updated)"
+            )
+            await asyncio.sleep(0.5)
+
+        logger.info(
+            f"[SL-DELTA] Done: checked {len(batch)}, synced {len(need_sync)} campaigns, "
+            f"created={stats['created']}, updated={stats['updated']}"
+        )
+        return {
+            "campaigns_checked": len(batch),
+            "campaigns_synced": len(need_sync),
+            **stats,
+        }
+
     async def _process_smartlead_lead(
         self,
         session: AsyncSession,
@@ -1771,6 +1905,9 @@ class CRMSyncService:
                     actual_count = len(csv_rows)
                     if actual_count > 0 and actual_count != (camp.leads_count or 0):
                         camp.leads_count = actual_count
+                    if actual_count > 0:
+                        camp.synced_leads_count = actual_count
+                        camp.last_contact_sync_at = datetime.utcnow()
 
                     for row in csv_rows:
                         try:

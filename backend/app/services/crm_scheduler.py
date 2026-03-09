@@ -474,19 +474,50 @@ class CRMScheduler:
                 await session.rollback()
                 logger.error(f"Auto-assign campaigns failed: {e}", exc_info=True)
 
-        # ── Phase 4: Global contact sync (SmartLead + GetSales) ──
-        # Uses global-leads endpoint: single paginated scan instead of per-campaign calls.
-        # Resumes from saved offset each cycle (3000 leads/cycle ≈ 30 API calls).
+        # ── Phase 4: SmartLead delta contact sync ──
+        # Checks lead counts for 50 campaigns per cycle (round-robin).
+        # Only exports CSV for campaigns where count increased.
+        # Full rotation ~100 min. Daily reconciliation catches edge cases.
         try:
             sync_service = get_crm_sync_service()
             async with async_session_maker() as sync_session:
-                sync_stats = await sync_service.sync_contacts_global(
-                    sync_session, self.company_id, max_leads=3000
-                )
-                if sync_stats["processed"] > 0:
-                    logger.info(f"[GLOBAL-SYNC] Phase 4 complete: {sync_stats}")
+                # Check if daily reconciliation is due (every 24h)
+                import redis.asyncio as aioredis
+                redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+                force_full = False
+                try:
+                    r = aioredis.from_url(redis_url)
+                    last_full = await r.get("smartlead:last_full_reconciliation")
+                    if not last_full:
+                        force_full = True
+                    else:
+                        age_h = (datetime.utcnow() - datetime.fromisoformat(last_full.decode())).total_seconds() / 3600
+                        if age_h >= 24:
+                            force_full = True
+                    await r.aclose()
+                except Exception:
+                    pass
+
+                if force_full:
+                    logger.info("[SL-RECONCILIATION] Starting daily full sync")
+                    full_stats = await sync_service.sync_smartlead_contacts(
+                        sync_session, self.company_id
+                    )
+                    logger.info(f"[SL-RECONCILIATION] Done: {full_stats}")
+                    try:
+                        r = aioredis.from_url(redis_url)
+                        await r.set("smartlead:last_full_reconciliation", datetime.utcnow().isoformat())
+                        await r.aclose()
+                    except Exception:
+                        pass
+                else:
+                    delta_stats = await sync_service.sync_smartlead_contacts_delta(
+                        sync_session, self.company_id, batch_size=50
+                    )
+                    if delta_stats.get("campaigns_synced", 0) > 0:
+                        logger.info(f"[SL-DELTA] Phase 4: {delta_stats}")
         except Exception as e:
-            logger.error(f"[GLOBAL-SYNC] Phase 4 failed: {e}", exc_info=True)
+            logger.error(f"[SL-DELTA] Phase 4 failed: {e}", exc_info=True)
     
     async def _check_replies(self):
         """Check for new replies — scoped to enabled project campaigns only."""
