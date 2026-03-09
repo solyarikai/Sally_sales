@@ -47,10 +47,11 @@ def upgrade():
 
     # Seed Rizzult (project_id=22) config
     import json
+    config_json = json.dumps(RIZZULT_CONFIG)
     op.execute(
         sa.text(
-            "UPDATE projects SET external_status_config = :config WHERE id = 22"
-        ).bindparams(config=json.dumps(RIZZULT_CONFIG))
+            "UPDATE projects SET external_status_config = cast(:config as json) WHERE id = 22"
+        ).bindparams(config=config_json)
     )
 
 
