@@ -194,6 +194,26 @@ class SheetSyncService:
                 if not replies:
                     return stats
 
+            # Dedup: skip replies whose lead_email already exists in the sheet
+            # (handles reference data that had no timestamp — date cutoff alone is insufficient)
+            try:
+                existing_rows = google_sheets_service.read_sheet_raw(sheet_id, replies_tab)
+                existing_emails = set()
+                for row in existing_rows[1:]:  # skip header
+                    # Column J (index 9) = target_lead_email for rizzult, col 4 for default
+                    email_col = 9 if config.get("row_format") == "rizzult_28col" else 4
+                    if len(row) > email_col and row[email_col]:
+                        existing_emails.add(row[email_col].strip().lower())
+                before = len(replies)
+                replies = [r for r in replies if (r.lead_email or "").lower() not in existing_emails]
+                skipped = before - len(replies)
+                if skipped:
+                    logger.info(f"Sheet dedup: skipped {skipped} replies already in sheet")
+                if not replies:
+                    return stats
+            except Exception as e:
+                logger.warning(f"Sheet dedup check failed (proceeding without): {e}")
+
             # Dispatch row builder based on format
             row_format = config.get("row_format", "default")
             if row_format == "rizzult_28col":
