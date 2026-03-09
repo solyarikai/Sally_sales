@@ -78,13 +78,19 @@ async def backfill():
     total_updated = 0
     total_campaigns = 0
 
-    for camp in campaigns:
+    for idx, camp in enumerate(campaigns):
         t0 = time.time()
-        leads = await export_campaign_leads(client, camp.external_id)
+        try:
+            leads = await export_campaign_leads(client, camp.external_id)
+        except Exception as e:
+            logger.warning(f"  [{idx+1}/{len(campaigns)}] {camp.name[:40]}: export error: {e}")
+            await asyncio.sleep(2)
+            continue
         t1 = time.time()
 
         if not leads:
-            logger.info(f"  {camp.name[:60]}: 0 leads exported, skipping")
+            if idx % 50 == 0:
+                logger.info(f"  [{idx+1}/{len(campaigns)}] {camp.name[:60]}: 0 leads exported, skipping")
             await asyncio.sleep(0.5)
             continue
 
@@ -145,9 +151,10 @@ async def backfill():
 
             total_updated += batch_updated
             elapsed = t1 - t0
-            logger.info(
-                f"  {camp.name[:60]:60s} {len(leads):>6,} exported  {batch_updated:>5} updated  {elapsed:.1f}s"
-            )
+            if batch_updated > 0 or idx % 50 == 0:
+                logger.info(
+                    f"  [{idx+1}/{len(campaigns)}] {camp.name[:50]:50s} {len(leads):>6,} exported  {batch_updated:>5} updated  {elapsed:.1f}s"
+                )
 
         # Rate limit: ~1s between campaigns
         await asyncio.sleep(1)
