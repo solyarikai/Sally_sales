@@ -860,3 +860,136 @@ async def refresh_leads_counts(
 
     background_tasks.add_task(_batch_refresh)
     return {"status": "started", "total_campaigns": total_campaigns, "message": "Refreshing in background (~1.5s per campaign)"}
+
+
+@router.post("/backfill-source-dates")
+async def backfill_source_dates(
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+):
+    """Backfill SmartLead source created_at into contacts' platform_state via CSV export.
+
+    Uses /campaigns/{id}/leads-export (full CSV in one API call per campaign).
+    Much faster than pagination — exports 30K+ leads in seconds.
+    """
+    import csv
+    import io
+    import httpx
+    from sqlalchemy.orm.attributes import flag_modified
+
+    result = await session.execute(
+        select(func.count(Campaign.id)).where(
+            and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None), Campaign.leads_count > 0)
+        )
+    )
+    total_campaigns = result.scalar() or 0
+
+    async def _backfill():
+        logger.info("[BACKFILL] Starting source date backfill via CSV export")
+        api_key = None
+        try:
+            from app.services.crm_sync_service import get_crm_sync_service
+            svc = get_crm_sync_service()
+            api_key = svc.smartlead_key if svc else None
+        except Exception:
+            pass
+        if not api_key:
+            api_key = "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"
+
+        client = httpx.AsyncClient(timeout=120)
+        total_updated = 0
+        processed = 0
+        errors = 0
+
+        async with async_session_maker() as bg_session:
+            camp_result = await bg_session.execute(
+                select(Campaign).where(
+                    and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None), Campaign.leads_count > 0)
+                ).order_by(Campaign.leads_count.desc())
+            )
+            campaigns_list = camp_result.scalars().all()
+            logger.info(f"[BACKFILL] Processing {len(campaigns_list)} campaigns")
+
+            for camp in campaigns_list:
+                processed += 1
+                try:
+                    resp = await client.get(
+                        f"https://server.smartlead.ai/api/v1/campaigns/{camp.external_id}/leads-export",
+                        params={"api_key": api_key},
+                    )
+                    if resp.status_code != 200:
+                        errors += 1
+                        await asyncio.sleep(2)
+                        continue
+
+                    reader = csv.DictReader(io.StringIO(resp.text))
+                    date_by_email = {}
+                    for row in reader:
+                        email = (row.get("email") or "").strip().lower()
+                        created_at = row.get("created_at", "")
+                        if email and created_at:
+                            date_by_email[email] = created_at
+
+                    if not date_by_email:
+                        await asyncio.sleep(0.5)
+                        continue
+
+                    # Update contacts in batches
+                    from app.models.contact import Contact as ContactModel
+                    emails = list(date_by_email.keys())
+                    batch_updated = 0
+                    for i in range(0, len(emails), 500):
+                        batch = emails[i:i + 500]
+                        cr = await bg_session.execute(
+                            select(ContactModel).where(
+                                and_(ContactModel.email.in_(batch), ContactModel.deleted_at.is_(None))
+                            )
+                        )
+                        for contact in cr.scalars().all():
+                            ps = contact.platform_state
+                            if not ps or not isinstance(ps, dict):
+                                continue
+                            sl_campaigns = ps.get("smartlead", {}).get("campaigns", [])
+                            email_lower = (contact.email or "").lower()
+                            source_date = date_by_email.get(email_lower)
+                            if not source_date or not sl_campaigns:
+                                continue
+
+                            changed = False
+                            camp_lower = camp.name.lower()
+                            for c_entry in sl_campaigns:
+                                if not isinstance(c_entry, dict):
+                                    continue
+                                c_name = (c_entry.get("name") or "").lower()
+                                if (c_name == camp_lower or str(c_entry.get("id")) == camp.external_id) and not c_entry.get("added_at"):
+                                    c_entry["added_at"] = source_date
+                                    changed = True
+
+                            if changed:
+                                contact.platform_state = ps
+                                flag_modified(contact, "platform_state")
+                                batch_updated += 1
+
+                    total_updated += batch_updated
+                    await bg_session.commit()
+
+                    if processed % 10 == 0:
+                        logger.info(f"[BACKFILL] {processed}/{len(campaigns_list)} campaigns, {total_updated} contacts updated")
+
+                except Exception as e:
+                    errors += 1
+                    logger.warning(f"[BACKFILL] Error on {camp.name[:40]}: {e}")
+                    if errors > 30:
+                        logger.error(f"[BACKFILL] Too many errors, stopping")
+                        break
+
+                await asyncio.sleep(1)  # rate limit
+
+            await bg_session.commit()
+
+        await client.aclose()
+        logger.info(f"[BACKFILL] Complete: {processed} campaigns, {total_updated} contacts updated, {errors} errors")
+
+    import asyncio
+    background_tasks.add_task(_backfill)
+    return {"status": "started", "total_campaigns": total_campaigns, "message": "Backfilling source dates via CSV export (~1-2s per campaign)"}
