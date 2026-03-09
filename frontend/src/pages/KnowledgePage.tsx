@@ -10,10 +10,12 @@ import { ICPPanel } from '../components/knowledge/ICPPanel';
 import { TemplatesPanel } from '../components/knowledge/TemplatesPanel';
 import { LearningLogsPanel } from '../components/knowledge/LearningLogsPanel';
 import { GTMPanel } from '../components/knowledge/GTMPanel';
+import { ChatIntelPanel } from '../components/knowledge/ChatIntelPanel';
 
-type Tab = 'icp' | 'templates' | 'logs' | 'gtm';
+type Tab = 'icp' | 'templates' | 'logs' | 'gtm' | 'chat-intel';
 
 const TABS: { key: Tab; label: string }[] = [
+  { key: 'chat-intel', label: 'Chat Intel' },
   { key: 'icp', label: 'ICP' },
   { key: 'templates', label: 'Templates' },
   { key: 'logs', label: 'Learning Logs' },
@@ -224,6 +226,11 @@ export function KnowledgePage() {
           </div>
         ) : (
           <>
+            <div className={`absolute inset-0 overflow-y-auto ${activeTab === 'chat-intel' ? '' : 'invisible pointer-events-none'}`}>
+              <div className="p-5">
+                <ChatIntelPanel projectId={currentProject.id} />
+              </div>
+            </div>
             <div className={`absolute inset-0 overflow-y-auto ${activeTab === 'icp' ? '' : 'invisible pointer-events-none'}`}>
               <ICPPanel entries={overview?.icp || []} isDark={isDark} t={t} />
             </div>

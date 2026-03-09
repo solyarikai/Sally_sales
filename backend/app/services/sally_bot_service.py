@@ -21,23 +21,17 @@ from app.models.telegram_chat import TelegramChat, TelegramChatMessage
 logger = logging.getLogger(__name__)
 
 GREETING = (
-    "Hey team! I'm Sally AI — Petr just added me to help keep track of everything here. "
-    "I'll stay quiet and just listen, no interruptions."
+    "Hey! I'm Sally AI BDM — Petr just added me to maximize the result for Rizzult project — "
+    "result… Rizzult… get it? "
+    "I'll be back with brilliant thoughts!"
 )
 
-# Track recent DM bot replies per chat to avoid overpushing links
-# Key: chat_id, Value: list of last N bot reply texts
-_recent_bot_replies: dict[int, list[str]] = defaultdict(list)
-_MAX_TRACKED = 10
+# Track DM reply count per chat — share links on 1st reply, then every 10th
+_dm_reply_count: dict[int, int] = defaultdict(int)
 
-
-def _recently_mentioned_links(chat_id: int) -> bool:
-    """Check if bot already mentioned website/channel in last 10 replies."""
-    recent = _recent_bot_replies.get(chat_id, [])
-    for text in recent[-_MAX_TRACKED:]:
-        if "getsally.io" in text or "@rinatkhat" in text:
-            return True
-    return False
+SALES_LINKS = (
+    "\n\nCheck out what we do: getsally.io | Follow updates: @rinatkhat"
+)
 
 
 async def _generate_dm_reply(user_name: str, user_message: str, chat_id: int) -> str:
@@ -53,30 +47,16 @@ async def _generate_dm_reply(user_name: str, user_message: str, chat_id: int) ->
     else:
         time_of_day = "night"
 
-    include_links = not _recently_mentioned_links(chat_id)
-
-    link_instruction = ""
-    if include_links:
-        link_instruction = (
-            "Naturally mention that they can check out the Sally team's work at getsally.io "
-            "or follow updates on Telegram @rinatkhat. Keep it casual, not pushy — "
-            "like a friendly suggestion, not a sales pitch."
-        )
-    else:
-        link_instruction = (
-            "Do NOT mention getsally.io or @rinatkhat — you already shared those recently."
-        )
-
-    system_prompt = f"""You are Sally AI, a friendly bot for the Sally B2B lead generation team.
+    system_prompt = f"""You are Sally AI BDM, a friendly bot for the Sally B2B lead generation team.
 Someone is messaging you directly. Respond with warmth and personality — like a chill,
 helpful bro. Keep it concise (1-3 sentences max).
 
 It's currently {time_of_day} (UTC). Use appropriate greeting if natural.
 
-You can only act internally for the Sally team right now, so if someone asks what you do,
-explain that kindly — you're an internal assistant for Sally's lead gen operations.
+If they ask what you do — you're an AI assistant for the Sally team, helping with
+B2B lead generation, project tracking, and outreach operations.
 
-{link_instruction}
+Do NOT include any links or mentions of websites/channels — that's handled separately.
 
 Never be robotic. Be genuine, casual, human."""
 
@@ -125,11 +105,14 @@ Never be robotic. Be genuine, casual, human."""
             logger.warning(f"Gemini failed: {e}")
 
     if not reply:
-        reply = f"Hey {user_name}! Have a great {time_of_day}! I'm Sally AI — currently working behind the scenes for the Sally lead gen team."
+        reply = f"Hey {user_name}! Have a great {time_of_day}! I'm Sally AI BDM — working behind the scenes for the Sally lead gen team."
 
-    _recent_bot_replies[chat_id].append(reply)
-    if len(_recent_bot_replies[chat_id]) > _MAX_TRACKED:
-        _recent_bot_replies[chat_id] = _recent_bot_replies[chat_id][-_MAX_TRACKED:]
+    # Hardcode links: first reply always, then every 10th — don't trust GPT for this
+    _dm_reply_count[chat_id] += 1
+    count = _dm_reply_count[chat_id]
+    if count == 1 or count % 10 == 0:
+        reply += SALES_LINKS
+
     return reply
 
 
@@ -162,6 +145,7 @@ class SallyBotService:
         """Process a single Telegram update."""
         msg = update.get("message") or update.get("edited_message")
         if not msg:
+            logger.debug(f"Sally update skipped (no message): {list(update.keys())}")
             return
 
         chat = msg.get("chat", {})
@@ -169,6 +153,7 @@ class SallyBotService:
         chat_type = chat.get("type", "")
         sender = msg.get("from", {})
         text = msg.get("text") or msg.get("caption") or ""
+        logger.info(f"Sally update: chat={chat_id} type={chat_type} from={sender.get('first_name')} text={text[:50] if text else '(empty)'}")
 
         # Bot added to a group — send greeting
         new_members = msg.get("new_chat_members", [])
@@ -224,6 +209,7 @@ class SallyBotService:
                 tc.last_message_at = chat_msg.sent_at
 
             await session.commit()
+            logger.info(f"Sally stored msg #{chat_msg.message_id} from {chat_msg.sender_name} in chat {chat_id}")
 
     async def _ensure_chat(self, chat_id: int, title: str, chat_type: str, session: AsyncSession = None):
         """Create TelegramChat record if it doesn't exist."""
@@ -265,7 +251,11 @@ class SallyBotService:
                     timeout=30,
                     allowed_updates=["message", "edited_message", "my_chat_member"],
                 )
+                if not data.get("ok"):
+                    logger.error(f"Sally poll failed: {data}")
                 updates = data.get("result", [])
+                if updates:
+                    logger.info(f"Sally poll: got {len(updates)} updates")
                 for update in updates:
                     self._offset = update["update_id"] + 1
                     try:
