@@ -441,22 +441,32 @@ class SmartleadClient:
         SmartleadClient._campaigns_cache_at = now
         return result
     
-    async def get_campaign_lead_count(self, campaign_id: str) -> int:
-        """Get total lead count for a campaign (1 API call, minimal data)."""
+    async def export_campaign_leads(self, campaign_id: str) -> List[dict]:
+        """Export ALL leads from a campaign via CSV in one API call.
+
+        Returns list of dicts with: id, email, first_name, last_name,
+        company_name, phone_number, location, linkedin_profile,
+        custom_fields (JSON string), created_at, status, reply_count, etc.
+
+        Much faster than paginated /leads endpoint (1 call vs N×100).
+        """
+        import csv as csv_mod
+        import io
+
         try:
-            from app.services.smartlead_service import smartlead_request
-            resp = await smartlead_request(
-                "GET", f"{self.BASE_URL}/campaigns/{campaign_id}/leads",
-                params={"api_key": self.api_key, "limit": 1, "offset": 0},
-                client=self.client,
+            resp = await self.client.get(
+                f"{self.BASE_URL}/campaigns/{campaign_id}/leads-export",
+                params={"api_key": self.api_key},
+                timeout=120,
             )
-            if resp.status_code == 200:
-                data = resp.json()
-                return data.get("total_leads", 0) if isinstance(data, dict) else 0
-            return 0
+            if resp.status_code != 200:
+                return []
+
+            reader = csv_mod.DictReader(io.StringIO(resp.text))
+            return list(reader)
         except Exception as e:
-            logger.warning(f"Failed to get lead count for campaign {campaign_id}: {e}")
-            return 0
+            logger.warning(f"CSV export failed for campaign {campaign_id}: {e}")
+            return []
 
     async def get_campaign_leads(self, campaign_id: int, limit: int = 100, offset: int = 0, lead_category_id: int = None) -> List[dict]:
         """Get leads from a campaign.
@@ -473,13 +483,6 @@ class SmartleadClient:
         data = await self._get(f"/campaigns/{campaign_id}/leads", params)
         return data if isinstance(data, list) else data.get("data", [])
     
-    async def get_global_leads(self, limit: int = 100, offset: int = 0) -> Tuple[List[dict], bool]:
-        """Get global leads with hasMore flag."""
-        data = await self._get("/leads/global-leads", {"limit": limit, "offset": offset})
-        if isinstance(data, dict):
-            return data.get("data", []), data.get("hasMore", False)
-        return data, False
-    
     async def get_lead_message_history(self, lead_id: int) -> List[dict]:
         """Get message history for a lead."""
         try:
@@ -495,30 +498,6 @@ class SmartleadClient:
             return await self._get(f"/campaigns/{campaign_id}/statistics")
         except Exception:
             return {}
-    
-    async def get_all_leads_with_status(self, status: str = "REPLIED", limit: int = 1000) -> List[dict]:
-        """Get all leads with a specific status across campaigns."""
-        all_leads = []
-        offset = 0
-        
-        while len(all_leads) < limit:
-            leads, has_more = await self.get_global_leads(limit=100, offset=offset)
-            if not leads:
-                break
-            
-            # Filter by status
-            for lead in leads:
-                campaigns = lead.get("campaigns", [])
-                for camp in campaigns:
-                    if camp.get("lead_status") == status:
-                        all_leads.append(lead)
-                        break
-            
-            offset += 100
-            if not has_more:
-                break
-        
-        return all_leads[:limit]
     
     # ============= Webhook Management =============
     
@@ -1077,38 +1056,105 @@ class CRMSyncService:
         limit: int = 50000,
         only_campaigns: set = None,
     ) -> Dict[str, int]:
-        """
-        Sync contacts from Smartlead.
-        When only_campaigns is set, skips the expensive global lead sync
-        (contacts are created during reply processing instead).
+        """Sync contacts from SmartLead using per-campaign CSV export.
+
+        Uses /campaigns/{id}/leads-export (full CSV in one API call per campaign)
+        instead of paginated global-leads. ~795 API calls vs 6000+ paginated calls.
+
+        When only_campaigns is set, skips contact sync (contacts are created
+        during reply processing instead).
         """
         if not self.smartlead:
             raise ValueError("Smartlead API key not configured")
-        
+
         if only_campaigns:
             logger.info(f"Smartlead contact sync skipped (scoped mode: {len(only_campaigns)} campaigns)")
             return {"created": 0, "updated": 0, "skipped": 0, "scoped": True}
 
-        stats = {"created": 0, "updated": 0, "skipped": 0, "activities": 0}
-        offset = 0
-        
-        while stats["created"] + stats["updated"] + stats["skipped"] < limit:
-            leads, has_more = await self.smartlead.get_global_leads(limit=100, offset=offset)
-            
-            if not leads:
-                break
-            
-            for lead in leads:
-                result = await self._process_smartlead_lead(session, company_id, lead)
-                stats[result] += 1
-            
-            offset += 100
-            if not has_more:
-                break
-            
+        import json as json_mod
+        from app.models.campaign import Campaign
+
+        stats = {"created": 0, "updated": 0, "skipped": 0}
+
+        # Get campaigns with leads, ordered by leads_count desc (biggest first)
+        camp_result = await session.execute(
+            select(Campaign).where(
+                and_(
+                    Campaign.platform == "smartlead",
+                    Campaign.external_id.isnot(None),
+                    func.coalesce(Campaign.leads_count, 0) > 0,
+                )
+            ).order_by(Campaign.leads_count.desc())
+        )
+        campaigns = camp_result.scalars().all()
+        logger.info(f"[SL-SYNC] Syncing {len(campaigns)} campaigns via CSV export")
+
+        for idx, camp in enumerate(campaigns):
+            csv_rows = await self.smartlead.export_campaign_leads(camp.external_id)
+
+            # Update leads_count from actual export
+            actual_count = len(csv_rows)
+            if actual_count > 0 and actual_count != (camp.leads_count or 0):
+                camp.leads_count = actual_count
+
+            if not csv_rows:
+                await asyncio.sleep(0.3)
+                continue
+
+            # Convert CSV rows to lead dicts compatible with _process_smartlead_lead
+            for row in csv_rows:
+                try:
+                    custom_fields_raw = row.get("custom_fields", "{}")
+                    try:
+                        custom_fields = json_mod.loads(custom_fields_raw) if custom_fields_raw else {}
+                    except (json_mod.JSONDecodeError, TypeError):
+                        custom_fields = {}
+
+                    reply_count = int(row.get("reply_count", 0) or 0)
+                    lead = {
+                        "id": row.get("id", ""),
+                        "email": row.get("email", ""),
+                        "first_name": row.get("first_name", ""),
+                        "last_name": row.get("last_name", ""),
+                        "company_name": row.get("company_name", ""),
+                        "phone_number": row.get("phone_number", ""),
+                        "linkedin_profile": row.get("linkedin_profile", ""),
+                        "location": row.get("location", ""),
+                        "custom_fields": custom_fields,
+                        "created_at": row.get("created_at", ""),
+                        "campaigns": [{
+                            "campaign_name": camp.name,
+                            "campaign_id": camp.external_id,
+                            "lead_status": row.get("status", "ACTIVE"),
+                            "created_at": row.get("created_at", ""),
+                            "reply_time": True if reply_count > 0 else None,
+                        }],
+                    }
+                    result = await self._process_smartlead_lead(
+                        session, company_id, lead, campaign_project_id=camp.project_id
+                    )
+                    stats[result] += 1
+                except Exception:
+                    stats["skipped"] += 1
+
             await session.commit()
-        
+
+            total = stats["created"] + stats["updated"] + stats["skipped"]
+            if (idx + 1) % 50 == 0 or idx < 3:
+                logger.info(
+                    f"[SL-SYNC] {idx+1}/{len(campaigns)} campaigns, "
+                    f"created={stats['created']}, updated={stats['updated']}, skipped={stats['skipped']}"
+                )
+
+            if total >= limit:
+                break
+            await asyncio.sleep(0.5)
+
         await session.commit()
+        logger.info(
+            f"[SL-SYNC] Complete: {len(campaigns)} campaigns, "
+            f"created={stats['created']}, updated={stats['updated']}, skipped={stats['skipped']}"
+        )
         return stats
     
     async def _process_smartlead_lead(
@@ -1651,18 +1697,16 @@ class CRMSyncService:
         report_progress: bool = False,
         platform: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Sync contacts via SmartLead global-leads + GetSales bulk search.
+        """Sync contacts via SmartLead CSV export + GetSales bulk search.
 
-        Much faster than per-campaign sync:
-        - Single paginated stream vs. 1000+ per-campaign calls
-        - Each lead includes all campaign assignments
-        - Skips empty campaigns entirely
-        - For re-sync: starts from saved offset (only new leads)
+        SmartLead: Uses /campaigns/{id}/leads-export (full CSV per campaign,
+        1 API call each). ~795 calls for all campaigns vs 6000+ paginated.
+        GetSales: Uses bulk search with data_source chunking.
 
-        Uses a stored offset (in Redis or DB) to resume from last position.
         When report_progress=True, writes live stats to Redis and checks cancel flag.
         platform: None="all", "smartlead", or "getsales" — run only one platform.
         """
+        import json as json_mod
         from app.models.campaign import Campaign
         from app.db import async_session_maker
         import redis.asyncio as aioredis
@@ -1681,53 +1725,36 @@ class CRMSyncService:
         campaign_project_map = {}
         for row in camp_result.all():
             campaign_project_map[row.name.lower()] = row.project_id
-            # Also store with campaign_id for SmartLead lookup
-        # Also build external_id → project_id
-        camp_id_result = await session.execute(
-            select(Campaign.external_id, Campaign.project_id).where(
-                Campaign.project_id.isnot(None)
-            )
-        )
-        campaign_id_map = {row.external_id: row.project_id for row in camp_id_result.all()}
-
-        def _resolve_project(lead_campaigns: list) -> Optional[int]:
-            """Find project_id from lead's campaign list."""
-            for camp in lead_campaigns:
-                # Try by campaign_id first (most precise)
-                cid = str(camp.get("campaign_id", ""))
-                if cid in campaign_id_map:
-                    return campaign_id_map[cid]
-                # Fall back to name match
-                cname = (camp.get("campaign_name") or "").lower()
-                if cname in campaign_project_map:
-                    return campaign_project_map[cname]
-            return None
 
         # Single Redis connection for entire sync
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
         redis = None
         try:
             redis = aioredis.from_url(redis_url)
-
-            saved_offset = await redis.get("contact_sync:smartlead_offset")
-            offset = int(saved_offset) if saved_offset else 0
-
-            saved_gs = await redis.get("contact_sync:getsales_offset")
-            gs_offset_start = int(saved_gs) if saved_gs else 0
         except Exception:
-            offset = 0
-            gs_offset_start = 0
+            pass
 
         run_smartlead = platform in (None, "smartlead")
         run_getsales = platform in (None, "getsales")
 
-        # ── SmartLead global-leads scan ──
-        has_more = True
         processed = 0
 
         try:
-            if run_smartlead:
-                while has_more and processed < max_leads:
+            if run_smartlead and self.smartlead:
+                # Get campaigns with leads
+                sl_camps_result = await session.execute(
+                    select(Campaign).where(
+                        and_(
+                            Campaign.platform == "smartlead",
+                            Campaign.external_id.isnot(None),
+                            func.coalesce(Campaign.leads_count, 0) > 0,
+                        )
+                    ).order_by(Campaign.leads_count.desc())
+                )
+                sl_campaigns = sl_camps_result.scalars().all()
+                logger.info(f"[GLOBAL-SYNC] SmartLead: exporting {len(sl_campaigns)} campaigns via CSV")
+
+                for idx, camp in enumerate(sl_campaigns):
                     # Check cancel flag
                     if report_progress and redis:
                         try:
@@ -1740,78 +1767,79 @@ class CRMSyncService:
                         except Exception:
                             pass
 
-                    try:
-                        leads, has_more = await self.smartlead.get_global_leads(
-                            limit=100, offset=offset
-                        )
-                    except Exception as e:
-                        logger.error(f"[GLOBAL-SYNC] SmartLead global-leads failed at offset={offset}: {e}")
-                        break
+                    csv_rows = await self.smartlead.export_campaign_leads(camp.external_id)
+                    actual_count = len(csv_rows)
+                    if actual_count > 0 and actual_count != (camp.leads_count or 0):
+                        camp.leads_count = actual_count
 
-                    if not leads:
-                        break
-
-                    for lead in leads:
-                        lead_campaigns = lead.get("campaigns", [])
-                        project_id = _resolve_project(lead_campaigns)
-
-                        # Inject campaign info for _process_smartlead_lead
-                        if lead_campaigns and not lead.get("campaigns_injected"):
-                            lead["campaigns"] = [{
-                                "campaign_name": c.get("campaign_name", ""),
-                                "campaign_id": str(c.get("campaign_id", "")),
-                                "lead_status": c.get("lead_status", "ACTIVE"),
-                            } for c in lead_campaigns]
-
+                    for row in csv_rows:
                         try:
+                            custom_fields_raw = row.get("custom_fields", "{}")
+                            try:
+                                custom_fields = json_mod.loads(custom_fields_raw) if custom_fields_raw else {}
+                            except (json_mod.JSONDecodeError, TypeError):
+                                custom_fields = {}
+                            reply_count = int(row.get("reply_count", 0) or 0)
+                            lead = {
+                                "id": row.get("id", ""),
+                                "email": row.get("email", ""),
+                                "first_name": row.get("first_name", ""),
+                                "last_name": row.get("last_name", ""),
+                                "company_name": row.get("company_name", ""),
+                                "phone_number": row.get("phone_number", ""),
+                                "linkedin_profile": row.get("linkedin_profile", ""),
+                                "location": row.get("location", ""),
+                                "custom_fields": custom_fields,
+                                "created_at": row.get("created_at", ""),
+                                "campaigns": [{
+                                    "campaign_name": camp.name,
+                                    "campaign_id": camp.external_id,
+                                    "lead_status": row.get("status", "ACTIVE"),
+                                    "created_at": row.get("created_at", ""),
+                                    "reply_time": True if reply_count > 0 else None,
+                                }],
+                            }
                             async with session.begin_nested():
                                 action = await self._process_smartlead_lead(
-                                    session, company_id, lead, campaign_project_id=project_id
+                                    session, company_id, lead, campaign_project_id=camp.project_id
                                 )
                             stats[action] += 1
                         except Exception:
                             stats["skipped"] += 1
-
                         processed += 1
 
-                    offset += len(leads)
-
-                    if len(leads) < 100:
-                        has_more = False
-
-                    # Flush every 500 leads
-                    if processed % 500 == 0:
+                    if csv_rows and processed % 500 == 0:
                         await session.flush()
 
-                    # Report progress to Redis (only own fields)
-                    if report_progress and redis and processed % 100 == 0:
+                    # Report progress
+                    if report_progress and redis and (idx + 1) % 10 == 0:
                         try:
                             await redis.hset("contact_sync:progress", mapping={
                                 "sl_processed": str(processed),
                                 "sl_created": str(stats["created"]),
                                 "sl_updated": str(stats["updated"]),
-                                "sl_skipped": str(stats["skipped"]),
-                                "sl_offset": str(offset),
-                                "sl_has_more": "1" if has_more else "0",
+                                "sl_campaigns": f"{idx+1}/{len(sl_campaigns)}",
                                 "status": "running",
                                 "elapsed": str(int(_time.time() - started_at)),
                             })
                         except Exception:
                             pass
 
-                stats["processed"] = processed
+                    if (idx + 1) % 50 == 0 or idx < 3:
+                        logger.info(
+                            f"[GLOBAL-SYNC] SmartLead {idx+1}/{len(sl_campaigns)} campaigns, "
+                            f"created={stats['created']}, updated={stats['updated']}"
+                        )
 
-                # Save SmartLead offset
-                if redis:
-                    try:
-                        await redis.set("contact_sync:smartlead_offset", str(offset))
-                    except Exception:
-                        pass
+                    if processed >= max_leads:
+                        break
+                    await asyncio.sleep(0.5)
 
                 await session.commit()
+                stats["processed"] = processed
                 logger.info(
-                    f"[GLOBAL-SYNC] SmartLead: processed={processed}, created={stats['created']}, "
-                    f"updated={stats['updated']}, skipped={stats['skipped']}, offset={offset}"
+                    f"[GLOBAL-SYNC] SmartLead complete: {processed} leads, "
+                    f"created={stats['created']}, updated={stats['updated']}, skipped={stats['skipped']}"
                 )
 
             if cancelled:

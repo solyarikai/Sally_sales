@@ -365,43 +365,8 @@ class CRMScheduler:
                         )
                         session.add(camp)
                         registered += 1
-                # Refresh lead counts: pick 10 campaigns per cycle (avoid rate limits)
-                # Prioritize: never-counted first, then oldest refresh
-                if sl_client:
-                    refresh_q = await session.execute(
-                        select(Campaign).where(
-                            and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None))
-                        ).order_by(
-                            Campaign.leads_count.is_(None).desc(),
-                            (Campaign.leads_count == 0).desc(),
-                            Campaign.id.desc(),  # newest campaigns first
-                        ).limit(10)
-                    )
-                    from sqlalchemy.orm.attributes import flag_modified
-                    today_key = datetime.utcnow().strftime("%Y-%m-%d")
-                    for camp_to_refresh in refresh_q.scalars().all():
-                        try:
-                            total = await sl_client.get_campaign_lead_count(camp_to_refresh.external_id)
-                            total = int(total) if total else 0
-                            if total > 0 and total != (camp_to_refresh.leads_count or 0):
-                                camp_to_refresh.leads_count = total
-                                leads_refreshed += 1
-                            # Store daily snapshot for time-filtered analytics
-                            if total > 0:
-                                config = dict(camp_to_refresh.config or {})
-                                snapshots = config.setdefault("daily_snapshots", {})
-                                snapshots[today_key] = total
-                                if len(snapshots) > 180:
-                                    sorted_keys = sorted(snapshots.keys())
-                                    for old_key in sorted_keys[:-180]:
-                                        del snapshots[old_key]
-                                camp_to_refresh.config = config
-                                flag_modified(camp_to_refresh, "config")
-                            await asyncio.sleep(2)  # rate limit friendly
-                        except Exception:
-                            pass
-                if leads_refreshed:
-                    logger.info(f"Refreshed leads_count for {leads_refreshed} SmartLead campaigns")
+                # leads_count is now refreshed during CSV export sync
+                # (sync_smartlead_contacts uses export_campaign_leads which returns actual counts)
 
                 # GetSales automations
                 for a in gs_automations:

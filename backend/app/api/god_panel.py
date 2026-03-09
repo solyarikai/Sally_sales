@@ -482,57 +482,57 @@ async def get_project_metrics(
     if not projects_list:
         return ProjectMetricsOut(projects=[], period=period)
 
-    # 2. Contacts uploaded — uses daily snapshots for time-filtered SmartLead data
-    #    All Time: SUM(Campaign.leads_count) per project
-    #    Time period: SUM(current_total - snapshot_at_period_start) per project
+    # 2. Contacts uploaded per project
+    #    All Time: SUM(Campaign.leads_count) — accurate totals from SmartLead API
+    #    Time-filtered: count contacts with added_at in period (from SmartLead CSV export)
     if since_dt:
-        # Time-filtered: compute delta from snapshots per SmartLead campaign
-        # If snapshot history doesn't cover the period, skip (let CRM fallback handle it)
-        camp_result = await session.execute(
-            select(Campaign).where(
-                and_(Campaign.project_id.isnot(None), Campaign.leads_count > 0, Campaign.platform == "smartlead")
-            )
+        # Time-filtered: use per-contact added_at (backfilled from SmartLead CSV export)
+        contacts_by_project = text("""
+            SELECT c.project_id, COUNT(DISTINCT c.id) as cnt
+            FROM contacts c,
+                 json_array_elements(c.platform_state->'smartlead'->'campaigns') as camp_elem
+            WHERE c.project_id IS NOT NULL
+              AND c.deleted_at IS NULL
+              AND COALESCE(
+                  (camp_elem->>'added_at')::timestamp,
+                  c.created_at
+              ) >= :since
+            GROUP BY c.project_id
+        """)
+        crm_result = await session.execute(contacts_by_project, {"since": since_dt})
+        leads_map: dict[int, int] = {row.project_id: row.cnt for row in crm_result.all()}
+        # Also add GetSales contacts (no added_at, use CRM created_at)
+        gs_by_project = (
+            select(Contact.project_id, func.count(Contact.id).label("cnt"))
+            .where(and_(
+                Contact.project_id.isnot(None),
+                Contact.deleted_at.is_(None),
+                Contact.created_at >= since_dt,
+                Contact.source.ilike("%getsales%"),
+            ))
+            .group_by(Contact.project_id)
         )
-        sl_leads_map: dict[int, int] = {}
-        since_key = since_dt.strftime("%Y-%m-%d")
-        for camp in camp_result.scalars().all():
-            total = camp.leads_count or 0
-            snapshots = (camp.config or {}).get("daily_snapshots", {})
-            if snapshots:
-                candidates = [(k, v) for k, v in snapshots.items() if k <= since_key]
-                if candidates:
-                    baseline = max(candidates, key=lambda x: x[0])[1]
-                    delta = max(0, total - baseline)
-                    sl_leads_map[camp.project_id] = sl_leads_map.get(camp.project_id, 0) + delta
-                # else: no snapshot before period start, skip this campaign (CRM fallback)
-            # else: no snapshots at all, skip (CRM fallback)
+        gs_result = await session.execute(gs_by_project)
+        for row in gs_result.all():
+            leads_map[row.project_id] = leads_map.get(row.project_id, 0) + row.cnt
     else:
-        # All Time: SUM(Campaign.leads_count)
+        # All Time: SUM(Campaign.leads_count) for accuracy
         sl_query = (
             select(Campaign.project_id, func.coalesce(func.sum(Campaign.leads_count), 0).label("cnt"))
             .where(and_(Campaign.project_id.isnot(None), Campaign.leads_count > 0))
             .group_by(Campaign.project_id)
         )
         sl_result = await session.execute(sl_query)
-        sl_leads_map = {row.project_id: row.cnt for row in sl_result.all()}
-
-    # GetSales + fallback: CRM contacts, time-filtered
-    crm_query = (
-        select(Contact.project_id, func.count(Contact.id).label("cnt"))
-        .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
-        .group_by(Contact.project_id)
-    )
-    if since_dt:
-        crm_query = crm_query.where(Contact.created_at >= since_dt)
-    crm_result = await session.execute(crm_query)
-    crm_leads_map: dict[int, int] = {row.project_id: row.cnt for row in crm_result.all()}
-
-    # Use max of both sources per project
-    all_pids = set(sl_leads_map.keys()) | set(crm_leads_map.keys())
-    leads_map: dict[int, int] = {
-        pid: max(sl_leads_map.get(pid, 0), crm_leads_map.get(pid, 0))
-        for pid in all_pids
-    }
+        leads_map = {row.project_id: row.cnt for row in sl_result.all()}
+        # Add CRM contacts not covered by SmartLead campaigns
+        crm_query = (
+            select(Contact.project_id, func.count(Contact.id).label("cnt"))
+            .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
+            .group_by(Contact.project_id)
+        )
+        crm_result = await session.execute(crm_query)
+        for row in crm_result.all():
+            leads_map[row.project_id] = max(leads_map.get(row.project_id, 0), row.cnt)
 
     # 3. Warm replies per project (interested + meeting_request + question)
     #    Use distinct campaign_name→project_id mapping to avoid duplicate counting
@@ -659,39 +659,15 @@ async def get_campaign_metrics(
     warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
 
     # 5. Build response — deduplicate by lowercase campaign name
-    #    SmartLead contacts: uses daily snapshots for time-filtered views
-    #      - All Time: Campaign.leads_count (total from SmartLead API)
-    #      - Time period: current_total - snapshot_at_period_start (contacts added in period)
+    #    SmartLead: All Time uses Campaign.leads_count, time-filtered uses platform_state added_at
     #    GetSales: platform_state count (CRM contacts)
-    def _snapshot_contacts(campaign, since_dt_inner):
-        """Compute contacts added in period using daily snapshots.
-        Returns int if snapshot data covers the period, None if insufficient history."""
-        total = campaign.leads_count or 0
-        if not since_dt_inner or total == 0:
-            return total
-        snapshots = (campaign.config or {}).get("daily_snapshots", {})
-        if not snapshots:
-            return None  # no snapshots yet, caller should use fallback
-        since_key = since_dt_inner.strftime("%Y-%m-%d")
-        # Find closest snapshot at or before the period start
-        candidates = [(k, v) for k, v in snapshots.items() if k <= since_key]
-        if candidates:
-            baseline = max(candidates, key=lambda x: x[0])[1]
-            return max(0, total - baseline)
-        # No snapshot before period start — insufficient history
-        return None
-
     seen_names: dict[str, dict] = {}
     for c in campaigns:
         name_lower = c.name.lower()
         warm = warm_by_campaign.get(name_lower, 0)
         ps_count = ps_contacts.get(name_lower, 0)
-        if c.platform == "smartlead":
-            if since_dt:
-                snapshot_val = _snapshot_contacts(c, since_dt)
-                contacts = snapshot_val if snapshot_val is not None else ps_count
-            else:
-                contacts = max(c.leads_count or 0, ps_count)
+        if c.platform == "smartlead" and not since_dt:
+            contacts = max(c.leads_count or 0, ps_count)
         else:
             contacts = ps_count
         if name_lower in seen_names:
@@ -784,212 +760,3 @@ async def get_unresolved_count(
     return {"count": count, "new_count": new_count}
 
 
-@router.post("/refresh-leads-counts")
-async def refresh_leads_counts(
-    background_tasks: BackgroundTasks,
-    session: AsyncSession = Depends(get_session),
-):
-    """Batch refresh leads_count for ALL SmartLead campaigns (background job with rate limiting)."""
-    # Count how many need refresh
-    result = await session.execute(
-        select(func.count(Campaign.id)).where(
-            and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None))
-        )
-    )
-    total_campaigns = result.scalar() or 0
-
-    async def _batch_refresh():
-        import asyncio
-        from sqlalchemy.orm.attributes import flag_modified
-        from app.services.crm_sync_service import get_crm_sync_service
-        logger.info("[BATCH] Starting leads_count refresh for all SmartLead campaigns")
-        sync_service = get_crm_sync_service()
-        sl_client = sync_service.smartlead if sync_service else None
-        if not sl_client:
-            logger.warning("[BATCH] No SmartLead client available")
-            return
-
-        today_key = datetime.utcnow().strftime("%Y-%m-%d")
-        refreshed = 0
-        processed = 0
-        errors = 0
-
-        async with async_session_maker() as bg_session:
-            result = await bg_session.execute(
-                select(Campaign).where(
-                    and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None))
-                ).order_by(
-                    # Prioritize campaigns that already have leads (refresh their counts + add snapshots)
-                    func.coalesce(Campaign.leads_count, 0).desc(),
-                    Campaign.id.desc(),
-                )
-            )
-            campaigns_to_refresh = result.scalars().all()
-            logger.info(f"[BATCH] Processing {len(campaigns_to_refresh)} campaigns")
-
-            for camp in campaigns_to_refresh:
-                processed += 1
-                try:
-                    total = await sl_client.get_campaign_lead_count(camp.external_id)
-                    total = int(total) if total else 0
-                    if total > 0:
-                        camp.leads_count = total
-                        config = dict(camp.config or {})
-                        snapshots = config.setdefault("daily_snapshots", {})
-                        snapshots[today_key] = total
-                        camp.config = config
-                        flag_modified(camp, "config")
-                        refreshed += 1
-                    await asyncio.sleep(1.5)
-                except Exception as e:
-                    errors += 1
-                    logger.warning(f"[BATCH] Error on campaign {camp.external_id}: {e}")
-                    if errors > 50:
-                        logger.error(f"[BATCH] Too many errors ({errors}), stopping")
-                        break
-                    await asyncio.sleep(3)
-
-                # Commit every 25 campaigns
-                if processed % 25 == 0:
-                    await bg_session.commit()
-                    if processed % 100 == 0:
-                        logger.info(f"[BATCH] Progress: {processed}/{len(campaigns_to_refresh)} processed, {refreshed} with leads, {errors} errors")
-
-            await bg_session.commit()
-            logger.info(f"[BATCH] Complete: {refreshed} campaigns with leads, {errors} errors out of {processed} processed")
-
-    background_tasks.add_task(_batch_refresh)
-    return {"status": "started", "total_campaigns": total_campaigns, "message": "Refreshing in background (~1.5s per campaign)"}
-
-
-@router.post("/backfill-source-dates")
-async def backfill_source_dates(
-    background_tasks: BackgroundTasks,
-    session: AsyncSession = Depends(get_session),
-):
-    """Backfill SmartLead source created_at into contacts' platform_state via CSV export.
-
-    Uses /campaigns/{id}/leads-export (full CSV in one API call per campaign).
-    Much faster than pagination — exports 30K+ leads in seconds.
-    """
-    import csv
-    import io
-    import httpx
-    from sqlalchemy.orm.attributes import flag_modified
-
-    result = await session.execute(
-        select(func.count(Campaign.id)).where(
-            and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None), Campaign.leads_count > 0)
-        )
-    )
-    total_campaigns = result.scalar() or 0
-
-    async def _backfill():
-        logger.info("[BACKFILL] Starting source date backfill via CSV export")
-        api_key = None
-        try:
-            from app.services.crm_sync_service import get_crm_sync_service
-            svc = get_crm_sync_service()
-            api_key = svc.smartlead_key if svc else None
-        except Exception:
-            pass
-        if not api_key:
-            api_key = "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"
-
-        client = httpx.AsyncClient(timeout=120)
-        total_updated = 0
-        processed = 0
-        errors = 0
-
-        async with async_session_maker() as bg_session:
-            camp_result = await bg_session.execute(
-                select(Campaign).where(
-                    and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None), Campaign.leads_count > 0)
-                ).order_by(Campaign.leads_count.desc())
-            )
-            campaigns_list = camp_result.scalars().all()
-            logger.info(f"[BACKFILL] Processing {len(campaigns_list)} campaigns")
-
-            for camp in campaigns_list:
-                processed += 1
-                try:
-                    resp = await client.get(
-                        f"https://server.smartlead.ai/api/v1/campaigns/{camp.external_id}/leads-export",
-                        params={"api_key": api_key},
-                    )
-                    if resp.status_code != 200:
-                        errors += 1
-                        await asyncio.sleep(2)
-                        continue
-
-                    reader = csv.DictReader(io.StringIO(resp.text))
-                    date_by_email = {}
-                    for row in reader:
-                        email = (row.get("email") or "").strip().lower()
-                        created_at = row.get("created_at", "")
-                        if email and created_at:
-                            date_by_email[email] = created_at
-
-                    if not date_by_email:
-                        await asyncio.sleep(0.5)
-                        continue
-
-                    # Update contacts in batches
-                    from app.models.contact import Contact as ContactModel
-                    emails = list(date_by_email.keys())
-                    batch_updated = 0
-                    for i in range(0, len(emails), 500):
-                        batch = emails[i:i + 500]
-                        cr = await bg_session.execute(
-                            select(ContactModel).where(
-                                and_(ContactModel.email.in_(batch), ContactModel.deleted_at.is_(None))
-                            )
-                        )
-                        for contact in cr.scalars().all():
-                            ps = contact.platform_state
-                            if not ps or not isinstance(ps, dict):
-                                continue
-                            sl_campaigns = ps.get("smartlead", {}).get("campaigns", [])
-                            email_lower = (contact.email or "").lower()
-                            source_date = date_by_email.get(email_lower)
-                            if not source_date or not sl_campaigns:
-                                continue
-
-                            changed = False
-                            camp_lower = camp.name.lower()
-                            for c_entry in sl_campaigns:
-                                if not isinstance(c_entry, dict):
-                                    continue
-                                c_name = (c_entry.get("name") or "").lower()
-                                if (c_name == camp_lower or str(c_entry.get("id")) == camp.external_id) and not c_entry.get("added_at"):
-                                    c_entry["added_at"] = source_date
-                                    changed = True
-
-                            if changed:
-                                contact.platform_state = ps
-                                flag_modified(contact, "platform_state")
-                                batch_updated += 1
-
-                    total_updated += batch_updated
-                    await bg_session.commit()
-
-                    if processed % 10 == 0:
-                        logger.info(f"[BACKFILL] {processed}/{len(campaigns_list)} campaigns, {total_updated} contacts updated")
-
-                except Exception as e:
-                    errors += 1
-                    logger.warning(f"[BACKFILL] Error on {camp.name[:40]}: {e}")
-                    if errors > 30:
-                        logger.error(f"[BACKFILL] Too many errors, stopping")
-                        break
-
-                await asyncio.sleep(1)  # rate limit
-
-            await bg_session.commit()
-
-        await client.aclose()
-        logger.info(f"[BACKFILL] Complete: {processed} campaigns, {total_updated} contacts updated, {errors} errors")
-
-    import asyncio
-    background_tasks.add_task(_backfill)
-    return {"status": "started", "total_campaigns": total_campaigns, "message": "Backfilling source dates via CSV export (~1-2s per campaign)"}
