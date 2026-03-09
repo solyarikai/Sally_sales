@@ -281,6 +281,15 @@ class SheetSyncService:
             rows.append(row)
         return rows, latest_received
 
+    @staticmethod
+    def _clean_email(email: str) -> str:
+        """Strip synthetic placeholder emails (gs_*@linkedin.placeholder) → empty string."""
+        if not email:
+            return ""
+        if "@linkedin.placeholder" in email or email.startswith("gs_"):
+            return ""
+        return email
+
     def _build_rizzult_rows(self, replies, contact_map, config):
         """Build 29-column rows for Rizzult 28-col format (A-AC)."""
         rows = []
@@ -295,6 +304,8 @@ class SheetSyncService:
                     latest_received = reply.received_at
 
             text = (reply.reply_text or reply.email_body or "")[:2000]
+            lead_email = self._clean_email(reply.lead_email or "")
+            contact_email = self._clean_email(contact.email if contact else "")
 
             # from_email: SmartLead raw webhook or GetSales sender name
             from_email = ""
@@ -320,7 +331,7 @@ class SheetSyncService:
 
             row = [
                 next_index,                                                  # A: index
-                (contact.email if contact else reply.lead_email) or "",      # B: updated email
+                contact_email or lead_email,                                 # B: updated email
                 "",                                                          # C: status (legacy, unused)
                 status_ext,                                                  # D: current status
                 "",                                                          # E: (blank)
@@ -328,7 +339,7 @@ class SheetSyncService:
                 (contact.last_name if contact else None) or reply.lead_last_name or "",    # G: last name
                 (contact.job_title if contact else "") or "",                # H: Position
                 (contact.linkedin_url if contact else "") or "",             # I: Linkedin
-                reply.lead_email or "",                                      # J: target_lead_email
+                lead_email,                                                  # J: target_lead_email
                 (contact.segment if contact else "") or "",                  # K: segment
                 (contact.company_name if contact else None) or reply.lead_company or "",   # L: Company
                 (contact.domain if contact else "") or "",                   # M: Website
@@ -340,7 +351,7 @@ class SheetSyncService:
                 reply.campaign_id or "",                                     # S: campaign_id
                 reply.category or "",                                        # T: category
                 from_email,                                                  # U: from_email
-                reply.lead_email or "",                                      # V: to_email
+                lead_email,                                                  # V: to_email
                 reply.received_at.isoformat() if reply.received_at else "",  # W: created time
                 source_label,                                                # X: Source
                 status_ext,                                                  # Y: Status
