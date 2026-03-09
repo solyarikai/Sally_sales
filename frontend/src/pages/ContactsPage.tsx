@@ -528,6 +528,16 @@ export function ContactsPage() {
       },
     },
     {
+      field: 'status_external',
+      headerName: 'Client Status',
+      width: 130,
+      sortable: true,
+      cellRenderer: (params: { value: string }) => {
+        if (!params.value) return <span className="text-xs" style={{ color: t.text6 }}>—</span>;
+        return <span className="text-xs font-medium" style={{ color: isDark ? '#93c5fd' : '#2563eb' }}>{params.value}</span>;
+      },
+    },
+    {
       field: 'email',
       headerName: 'Email',
       filter: 'agTextColumnFilter',

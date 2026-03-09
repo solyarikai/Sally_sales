@@ -16,6 +16,7 @@ export interface Contact {
   source: string;
   source_id?: string;
   status: string;
+  status_external?: string;
   phone?: string;
   linkedin_url?: string;
   location?: string;

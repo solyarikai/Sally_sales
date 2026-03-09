@@ -73,6 +73,9 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # Google Sheet bidirectional sync config
     sheet_sync_config = Column(JSON, nullable=True)
 
+    # Client-facing external status config (per-project status taxonomy)
+    external_status_config = Column(JSON, nullable=True)
+
     # Generated content (for AI SDR)
     tam_analysis = Column(Text, nullable=True)
     gtm_plan = Column(Text, nullable=True)
@@ -150,6 +153,9 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     sheet_qualification = Column(String(100), nullable=True)
     sheet_client_comment = Column(String(2000), nullable=True)
     sheet_row = Column(Integer, nullable=True)
+
+    # Project-specific external status (derived from reply category + internal status)
+    status_external = Column(String(100), nullable=True)
 
     # Operator
     notes = Column(Text, nullable=True)

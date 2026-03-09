@@ -2970,7 +2970,7 @@ class CRMSyncService:
 
                     # Update contact — use status machine for forward-only transition
                     contact.mark_replied("linkedin", at=activity.activity_at)
-                    from app.services.status_machine import transition_status
+                    from app.services.status_machine import transition_status, derive_external_status
                     new_st, ok, _msg = transition_status(contact.status, "interested")
                     if ok:
                         contact.status = new_st
@@ -3046,6 +3046,26 @@ class CRMSyncService:
                         )
                     except Exception as pr_err:
                         logger.warning(f"[GETSALES] ProcessedReply creation failed (non-fatal): {pr_err}")
+
+                    # Derive client-facing external status using actual classification
+                    if _pr and contact.project_id:
+                        try:
+                            from app.models.contact import Project
+                            _proj_result = await session.execute(
+                                select(Project).where(Project.id == contact.project_id)
+                            )
+                            _proj = _proj_result.scalar()
+                            if _proj and _proj.external_status_config:
+                                from app.services.status_machine import derive_external_status
+                                ext = derive_external_status(
+                                    _proj.external_status_config,
+                                    reply_category=_pr.category,
+                                    internal_status=contact.status,
+                                )
+                                if ext:
+                                    contact.status_external = ext
+                        except Exception:
+                            pass  # Non-fatal
 
                     # Collect for post-commit notification
                     if _pr:

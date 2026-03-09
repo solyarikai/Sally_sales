@@ -1534,11 +1534,21 @@ async def process_reply_webhook(
 
             # Use status machine for forward-only transition
             category = classification.get("category", "other")
-            from app.services.status_machine import transition_status, status_from_ai_category
+            from app.services.status_machine import transition_status, status_from_ai_category, derive_external_status
             target = status_from_ai_category(category)
             new_st, ok, _msg = transition_status(contact.status, target)
             if ok:
                 contact.status = new_st
+
+            # Derive client-facing external status if project has config
+            if project and project.external_status_config:
+                ext = derive_external_status(
+                    project.external_status_config,
+                    reply_category=category,
+                    internal_status=contact.status,
+                )
+                if ext:
+                    contact.status_external = ext
             logger.info(f"[PROCESSOR] Updated contact {contact.id} with reply data from {lead_email}")
         except Exception as activity_err:
             logger.warning(f"[PROCESSOR] Failed to create ContactActivity (non-fatal): {activity_err}")

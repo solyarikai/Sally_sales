@@ -104,6 +104,7 @@ class ContactResponse(BaseModel):
     source: str
     source_id: Optional[str] = None
     status: str
+    status_external: Optional[str] = None
     phone: Optional[str] = None
     linkedin_url: Optional[str] = None
     location: Optional[str] = None
@@ -209,6 +210,7 @@ class ProjectResponse(BaseModel):
     sender_position: Optional[str] = None
     sender_company: Optional[str] = None
     reply_prompt_template_id: Optional[int] = None
+    external_status_config: Optional[Dict[str, Any]] = None
     contact_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -283,6 +285,7 @@ async def _build_filtered_query(
     suitable_for: Optional[str] = None,
     reply_category: Optional[str] = None,
     reply_since: Optional[str] = None,
+    status_external: Optional[str] = None,
 ):
     """Build a filtered Contact query. Shared by list, CSV export, and Google Sheet export."""
     query = select(Contact).where(
@@ -461,6 +464,13 @@ async def _build_filtered_query(
         ).subquery()
         query = query.where(Contact.email.in_(select(latest_cat.c.lead_email)))
 
+    if status_external:
+        ext_list = [s.strip() for s in status_external.split(',') if s.strip()]
+        if len(ext_list) == 1:
+            query = query.where(Contact.status_external == ext_list[0])
+        elif ext_list:
+            query = query.where(Contact.status_external.in_(ext_list))
+
     return query
 
 
@@ -489,6 +499,7 @@ async def list_contacts(
     suitable_for: Optional[str] = Query(None, description="Filter by suitable_for project name"),
     reply_category: Optional[str] = Query(None, description="Filter by latest reply category (comma-separated)"),
     reply_since: Optional[str] = Query(None, description="Only include replies received after this date (ISO format)"),
+    status_external: Optional[str] = Query(None, description="Filter by external status (comma-separated)"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -500,7 +511,7 @@ async def list_contacts(
         campaign=campaign, campaign_id=campaign_id, needs_followup=needs_followup,
         created_after=created_after, created_before=created_before, search=search,
         domain=domain, suitable_for=suitable_for, reply_category=reply_category,
-        reply_since=reply_since,
+        reply_since=reply_since, status_external=status_external,
     )
     
     # Count total
@@ -3243,7 +3254,22 @@ async def update_contact_status(
     
     old_status = contact.status
     contact.status = request.status
-    
+
+    # Re-derive external status on manual status change
+    if contact.project_id:
+        proj_result = await session.execute(
+            select(Project).where(Project.id == contact.project_id)
+        )
+        proj = proj_result.scalar()
+        if proj and proj.external_status_config:
+            from app.services.status_machine import derive_external_status
+            ext = derive_external_status(
+                proj.external_status_config,
+                internal_status=request.status,
+            )
+            if ext:
+                contact.status_external = ext
+
     # Sync to Smartlead if enabled and contact has smartlead_id
     smartlead_synced = False
     if request.sync_to_smartlead and contact.smartlead_id and request.status in SMARTLEAD_STATUS_MAPPING:
