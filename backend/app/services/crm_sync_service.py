@@ -1184,7 +1184,8 @@ class CRMSyncService:
                     "name": c.get("campaign_name"),
                     "id": c.get("campaign_id"),
                     "source": "smartlead",
-                    "status": c.get("lead_status")
+                    "status": c.get("lead_status"),
+                    "added_at": c.get("created_at") or lead.get("created_at"),
                 }
                 for c in campaigns if c.get("campaign_name")
             ]
@@ -1206,7 +1207,8 @@ class CRMSyncService:
                     "name": c.get("campaign_name"),
                     "id": c.get("campaign_id"),
                     "source": "smartlead",
-                    "status": c.get("lead_status")
+                    "status": c.get("lead_status"),
+                    "added_at": c.get("created_at") or lead.get("created_at"),
                 }
                 for c in campaigns if c.get("campaign_name")
             ]

@@ -597,7 +597,14 @@ async def get_campaign_metrics(
     # 2. Per-campaign contacts from platform_state (both SmartLead + GetSales)
     #    Used as fallback for SmartLead when Campaign.leads_count not yet populated,
     #    and as primary source for GetSales campaigns.
-    since_clause = "AND c.created_at >= :since" if since_dt else ""
+    # Filter by source added_at (from SmartLead/GetSales) when available, else fall back to CRM created_at
+    if since_dt:
+        since_clause = """AND COALESCE(
+            (campaign_elem->>'added_at')::timestamp,
+            c.created_at
+        ) >= :since"""
+    else:
+        since_clause = ""
     contacts_sql = text(f"""
         SELECT campaign_elem->>'name' AS campaign_name,
                COUNT(DISTINCT c.id) AS contacts_added
@@ -812,8 +819,9 @@ async def refresh_leads_counts(
                 select(Campaign).where(
                     and_(Campaign.platform == "smartlead", Campaign.external_id.isnot(None))
                 ).order_by(
-                    Campaign.leads_count.is_(None).desc(),
-                    (Campaign.leads_count == 0).desc(),
+                    # Prioritize campaigns that already have leads (refresh their counts + add snapshots)
+                    (Campaign.leads_count > 0).desc(),
+                    Campaign.leads_count.desc().nullslast(),
                     Campaign.id.desc(),
                 )
             )
