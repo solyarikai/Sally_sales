@@ -52,6 +52,9 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
     setMessages([]);
     setHistoryLoaded(false);
     setSuggestions(DEFAULT_SUGGESTIONS);
+    setIsLoading(false);
+    setIsStreaming(false);
+    setStreamingText('');
 
     loadChatHistory();
     setupLiveUpdates();
