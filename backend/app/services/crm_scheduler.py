@@ -86,6 +86,7 @@ class CRMScheduler:
         self._telegram_poll_task: Optional[asyncio.Task] = None
         self._sheet_sync_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
+        self._follow_up_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         
         # Per-task tracking: last_run, interval_seconds, next_run
@@ -99,6 +100,7 @@ class CRMScheduler:
             "prompt_refresh": {"last_run": None, "interval": prompt_refresh_interval_hours * 3600, "label": "Prompt refresh"},
             "report": {"last_run": None, "interval": report_interval_hours * 3600, "label": "Reports"},
             "needs_reply_cleanup": {"last_run": None, "interval": 21600, "label": "Needs-reply cleanup"},
+            "follow_up_check": {"last_run": None, "interval": 3600, "label": "Follow-up drafts"},
         }
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
@@ -157,7 +159,7 @@ class CRMScheduler:
             self._report_task, self._prompt_refresh_task,
             self._recovery_task, self._conversation_sync_task,
             self._telegram_poll_task, self._sheet_sync_task,
-            self._cleanup_task, self._watchdog_task
+            self._cleanup_task, self._follow_up_task, self._watchdog_task
         ]
         for task in all_tasks:
             if task:
@@ -181,6 +183,7 @@ class CRMScheduler:
             ("_telegram_poll_task", self._run_telegram_poll_loop, "Telegram poll"),
             ("_sheet_sync_task", self._run_sheet_sync_loop, "Sheet sync"),
             ("_cleanup_task", self._run_needs_reply_cleanup_loop, "Needs-reply cleanup"),
+            ("_follow_up_task", self._run_follow_up_loop, "Follow-up drafts"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -709,6 +712,33 @@ class CRMScheduler:
                 self._mark_task_run("needs_reply_cleanup")
             except Exception as e:
                 logger.error(f"Needs-reply cleanup error: {e}")
+            await asyncio.sleep(interval)
+
+    # ===== Follow-up Draft Generation (every 1 hour) =====
+
+    async def _run_follow_up_loop(self):
+        """Generate follow-up drafts for leads who haven't responded after 3 days.
+
+        Runs every hour. Follow-ups appear in operator queue for approval — never auto-sends.
+        """
+        await asyncio.sleep(600)  # Wait 10 min after startup
+
+        interval = 3600  # 1 hour
+
+        while self._running:
+            try:
+                from app.services.follow_up_service import generate_follow_up_drafts
+
+                async with async_session_maker() as session:
+                    stats = await generate_follow_up_drafts(session)
+                    logger.info(
+                        f"[FOLLOW-UP] Check complete: checked={stats['checked']} "
+                        f"created={stats['created']} skipped_inbound={stats['skipped_inbound']} "
+                        f"skipped_existing={stats['skipped_existing']} errors={stats['errors']}"
+                    )
+                self._mark_task_run("follow_up_check")
+            except Exception as e:
+                logger.error(f"Follow-up draft generation error: {e}")
             await asyncio.sleep(interval)
 
     # ===== Telegram Bot Polling (long-poll every 30s) =====

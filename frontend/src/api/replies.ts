@@ -153,6 +153,9 @@ export interface ProcessedReply {
   approved_by: string | null;
   approved_at: string | null;
   created_at: string;
+  // Follow-up tracking
+  parent_reply_id: number | null;
+  follow_up_number: number | null;
   // Contact dedup: how many campaigns this contact has (only set with group_by_contact)
   contact_campaign_count?: number;
 }

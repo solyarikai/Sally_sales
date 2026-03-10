@@ -1014,6 +1014,14 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                                 Updated
                               </span>
                             )}
+                            {reply.follow_up_number && (
+                              <span
+                                className="text-[11px] px-1.5 py-0.5 rounded font-medium"
+                                style={{ background: isDark ? '#1e1b4b' : '#eef2ff', color: isDark ? '#a5b4fc' : '#4338ca' }}
+                              >
+                                Follow-up
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0 text-[11px]" style={{ color: t.text5 }}>
                             <span className="flex items-center gap-0.5">

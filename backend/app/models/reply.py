@@ -154,6 +154,10 @@ class ProcessedReply(Base, TimestampMixin):
     # while allowing multiple DIFFERENT replies from the same lead.
     message_hash = Column(String(32), nullable=True, index=True)
 
+    # Follow-up tracking — links auto-generated follow-up to original sent reply
+    parent_reply_id = Column(Integer, ForeignKey("processed_replies.id"), nullable=True, index=True)
+    follow_up_number = Column(Integer, nullable=True)  # 1 = first follow-up, 2 = second, etc.
+
     # Relationships
     automation = relationship("ReplyAutomation", back_populates="processed_replies")
     thread_messages = relationship(

@@ -192,6 +192,10 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     # Cohort tracking
     last_touched_at: Optional[datetime] = None
 
+    # Follow-up tracking
+    parent_reply_id: Optional[int] = None
+    follow_up_number: Optional[int] = None
+
     # Contact dedup: how many campaigns this contact has (only set with group_by_contact)
     contact_campaign_count: Optional[int] = None
 
