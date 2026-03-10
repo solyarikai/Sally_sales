@@ -655,12 +655,12 @@ class CRMScheduler:
     # ===== Conversation History Sync (every 3 min) =====
 
     async def _run_conversation_sync_loop(self):
-        """Sync Smartlead message histories to detect operator replies.
+        """Sync SmartLead + GetSales message histories to detect operator replies.
 
-        Checks pending replies for outbound messages in Smartlead's thread API.
-        Marks replied-to conversations as 'replied_externally' and creates
+        Checks pending replies for outbound messages in SmartLead/GetSales thread APIs.
+        Marks replied-to conversations as 'auto_resolved' and creates
         missing outbound ContactActivity records.
-        Runs every 3 minutes, processing up to 100 leads per run.
+        Runs every 3 minutes, processing up to 100 leads per platform per run.
         """
         await asyncio.sleep(60)  # Wait 1 min after startup for other syncs to settle
         interval = 180  # 3 minutes
@@ -674,6 +674,7 @@ class CRMScheduler:
                     if stats.get("checked", 0) > 0:
                         logger.info(
                             f"Conversation sync: checked={stats['checked']} "
+                            f"(sl={stats.get('smartlead_checked', 0)} gs={stats.get('getsales_checked', 0)}) "
                             f"replied_externally={stats['replied_externally']} "
                             f"still_pending={stats['still_pending']} "
                             f"activities_created={stats['activities_created']} "

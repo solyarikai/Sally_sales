@@ -3184,20 +3184,25 @@ async def sync_conversation_histories(
     limit: int = 100,
     days_back: int = 7,
 ) -> Dict[str, Any]:
-    """Sync Smartlead message histories for recent pending replies.
+    """Sync SmartLead + GetSales message histories for recent pending replies.
 
     Resolves lead_id from DB only (zero API calls for resolution).
-    Fetches message-history only for recent pending leads (~5-10 API calls).
-    Marks replies as 'replied_externally' when the last message is outbound.
+    Fetches message-history for recent pending leads (~5-10 API calls per platform).
+    Marks replies as 'auto_resolved' when the last message is outbound.
     Creates missing outbound ContactActivity records so future checks are instant.
+    Uses actual outbound message timestamp for approved_at (not detection time).
 
     Args:
         session: Async DB session
-        limit: Max unique leads to check per run
+        limit: Max unique leads to check per run (per platform)
         days_back: Only check replies from last N days (default: 7 = 1 week)
     """
+    import time as _time
     from app.models.reply import ProcessedReply
     from app.services.smartlead_service import SmartleadService
+    import os
+
+    t0 = _time.monotonic()
 
     stats = {
         "checked": 0,
@@ -3206,11 +3211,16 @@ async def sync_conversation_histories(
         "no_lead_id": 0,
         "errors": 0,
         "activities_created": 0,
+        "smartlead_checked": 0,
+        "getsales_checked": 0,
     }
 
     sl = SmartleadService()
-    if not sl._api_key:
-        logger.warning("sync_conversation_histories: SMARTLEAD_API_KEY not set, skipping")
+    sl_available = bool(sl._api_key)
+    gs_key = os.getenv("GETSALES_API_KEY", "")
+
+    if not sl_available and not gs_key:
+        logger.warning("sync_conversation_histories: no API keys set, skipping")
         return stats
 
     # Only check recent replies
@@ -3248,7 +3258,6 @@ async def sync_conversation_histories(
                     ProcessedReply.approval_status == None,
                     ProcessedReply.approval_status == "pending",
                 ),
-                ProcessedReply.campaign_id.isnot(None),
                 ProcessedReply.lead_email.isnot(None),
                 ProcessedReply.received_at >= cutoff,
                 # Latest activity is NOT outbound (lead sent last msg, or no activities)
@@ -3256,162 +3265,298 @@ async def sync_conversation_histories(
             )
         )
         .order_by(ProcessedReply.received_at.desc())
-        .limit(limit)
+        .limit(limit * 2)  # Overfetch since we split by source
     )
 
     result = await session.execute(pending_q)
     pending_replies = result.scalars().all()
 
     if not pending_replies:
-        logger.info("sync_conversation_histories: no recent pending replies to check")
+        elapsed = int((_time.monotonic() - t0) * 1000)
+        logger.info(f"sync_conversation_histories: no recent pending replies to check ({elapsed}ms)")
         return stats
 
-    # Deduplicate by (campaign_id, lead_email)
+    # Split by source and deduplicate
+    sl_to_check = []
+    gs_to_check = []
     seen = set()
-    to_check = []
     reply_groups = {}
 
     for r in pending_replies:
         email_lower = (r.lead_email or "").lower()
-        group_key = (r.campaign_id, email_lower)
+        source = r.source or "smartlead"
+        group_key = (source, r.campaign_id or "", email_lower)
         reply_groups.setdefault(group_key, []).append(r)
-        if group_key not in seen and r.campaign_id and r.lead_email:
+        if group_key not in seen and r.lead_email:
             seen.add(group_key)
-            to_check.append(r)
+            if source == "getsales":
+                if len(gs_to_check) < limit:
+                    gs_to_check.append(r)
+            else:
+                if len(sl_to_check) < limit and r.campaign_id:
+                    sl_to_check.append(r)
 
     logger.info(
         f"sync_conversation_histories: {len(pending_replies)} recent pending, "
-        f"{len(to_check)} unique leads to check"
+        f"{len(sl_to_check)} SmartLead + {len(gs_to_check)} GetSales to check"
     )
 
-    # Fetch message histories — resolve lead_id from DB only
-    from app.services.smartlead_service import smartlead_request as _sl_request
+    # ── SmartLead: fetch message histories ──
+    if sl_available and sl_to_check:
+        from app.services.smartlead_service import smartlead_request as _sl_request
 
-    for reply in to_check:
-        email_lower = (reply.lead_email or "").lower()
-        group_key = (reply.campaign_id, email_lower)
+        for reply in sl_to_check:
+            email_lower = (reply.lead_email or "").lower()
+            source = reply.source or "smartlead"
+            group_key = (source, reply.campaign_id or "", email_lower)
 
-        # Resolve lead_id from local data only
-        lead_id = None
-        contact_id_for_backfill = None
+            # Resolve lead_id from local data only
+            lead_id = None
+            contact_id_for_backfill = None
 
-        # 1. Contact.smartlead_id from DB
-        contact_result = await session.execute(
-            select(Contact.id, Contact.smartlead_id).where(
-                func.lower(Contact.email) == email_lower,
-                Contact.deleted_at.is_(None),
-            )
-        )
-        row = contact_result.first()
-        if row and row[1]:
-            lead_id = str(row[1])
-        if row:
-            contact_id_for_backfill = row[0]
-
-        # 2. Webhook raw data (sl_email_lead_id is the primary field Smartlead sends)
-        if not lead_id and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
-            lead_id = str(
-                reply.raw_webhook_data.get("sl_email_lead_id")
-                or reply.raw_webhook_data.get("sl_lead_id")
-                or reply.raw_webhook_data.get("lead_id")
-                or ""
-            ).strip() or None
-
-        if not lead_id:
-            stats["no_lead_id"] += 1
-            continue
-
-        # Backfill Contact.smartlead_id if it was null
-        if contact_id_for_backfill and row and not row[1]:
-            from sqlalchemy import update as sa_update
-            await session.execute(
-                sa_update(Contact)
-                .where(Contact.id == contact_id_for_backfill)
-                .values(smartlead_id=lead_id)
-            )
-            logger.info(f"Backfilled smartlead_id={lead_id} for contact {contact_id_for_backfill} ({email_lower})")
-
-        stats["checked"] += 1
-
-        try:
-            resp = await _sl_request(
-                "GET",
-                f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
-                params={"api_key": sl._api_key},
-            )
-
-            if resp.status_code != 200:
-                stats["errors"] += 1
-                continue
-
-            from app.services.smartlead_service import parse_history_response
-            history = parse_history_response(resp.json())
-            if not history:
-                stats["still_pending"] += 1
-                continue
-
-            last_msg = history[-1]
-            last_type = last_msg.get("type", "")
-
-            if last_type != "REPLY":
-                stats["replied_externally"] += 1
-
-                # Mark as auto_resolved so follow-up detection works within 3 min
-                if reply.approval_status in (None, "pending"):
-                    reply.approval_status = "auto_resolved"
-                    reply.approved_at = datetime.utcnow()
-
-                # Create missing outbound ContactActivity records (CRM data)
-                reply_received = reply.received_at
-                contact_result = await session.execute(
-                    select(Contact).where(
-                        func.lower(Contact.email) == email_lower,
-                        Contact.deleted_at.is_(None),
-                    )
+            # 1. Contact.smartlead_id from DB
+            contact_result = await session.execute(
+                select(Contact.id, Contact.smartlead_id).where(
+                    func.lower(Contact.email) == email_lower,
+                    Contact.deleted_at.is_(None),
                 )
-                contact = contact_result.scalar_one_or_none()
+            )
+            row = contact_result.first()
+            if row and row[1]:
+                lead_id = str(row[1])
+            if row:
+                contact_id_for_backfill = row[0]
 
-                if contact:
-                    for msg in history:
-                        if msg.get("type") != "REPLY" and msg.get("time"):
-                            try:
-                                msg_time = datetime.fromisoformat(
-                                    msg["time"].replace("Z", "+00:00").replace("+00:00", "")
-                                )
-                            except (ValueError, TypeError):
-                                continue
+            # 2. Webhook raw data
+            if not lead_id and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+                lead_id = str(
+                    reply.raw_webhook_data.get("sl_email_lead_id")
+                    or reply.raw_webhook_data.get("sl_lead_id")
+                    or reply.raw_webhook_data.get("lead_id")
+                    or ""
+                ).strip() or None
 
-                            if reply_received and msg_time > reply_received:
-                                existing = await session.execute(
-                                    select(ContactActivity.id).where(
-                                        and_(
-                                            ContactActivity.contact_id == contact.id,
-                                            ContactActivity.direction == "outbound",
-                                            ContactActivity.source_id == msg.get("message_id", ""),
+            if not lead_id:
+                stats["no_lead_id"] += 1
+                continue
+
+            # Backfill Contact.smartlead_id if it was null
+            if contact_id_for_backfill and row and not row[1]:
+                from sqlalchemy import update as sa_update
+                await session.execute(
+                    sa_update(Contact)
+                    .where(Contact.id == contact_id_for_backfill)
+                    .values(smartlead_id=lead_id)
+                )
+                logger.info(f"Backfilled smartlead_id={lead_id} for contact {contact_id_for_backfill} ({email_lower})")
+
+            stats["checked"] += 1
+            stats["smartlead_checked"] += 1
+
+            try:
+                resp = await _sl_request(
+                    "GET",
+                    f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
+                    params={"api_key": sl._api_key},
+                )
+
+                if resp.status_code != 200:
+                    stats["errors"] += 1
+                    continue
+
+                from app.services.smartlead_service import parse_history_response
+                history = parse_history_response(resp.json())
+                if not history:
+                    stats["still_pending"] += 1
+                    continue
+
+                last_msg = history[-1]
+                last_type = last_msg.get("type", "")
+
+                if last_type != "REPLY":
+                    stats["replied_externally"] += 1
+
+                    # Use actual outbound message time (not detection time)
+                    outbound_time = None
+                    if last_msg.get("time"):
+                        try:
+                            outbound_time = datetime.fromisoformat(
+                                last_msg["time"].replace("Z", "+00:00").replace("+00:00", "")
+                            )
+                        except (ValueError, TypeError):
+                            pass
+
+                    # Mark all replies in group as auto_resolved
+                    # CRITICAL: explicit session.add() needed because autoflush=False
+                    for gr in reply_groups.get(group_key, []):
+                        if gr.approval_status in (None, "pending"):
+                            gr.approval_status = "auto_resolved"
+                            gr.approved_at = outbound_time or datetime.utcnow()
+                            session.add(gr)
+
+                    # Create missing outbound ContactActivity records
+                    reply_received = reply.received_at
+                    contact_result = await session.execute(
+                        select(Contact).where(
+                            func.lower(Contact.email) == email_lower,
+                            Contact.deleted_at.is_(None),
+                        )
+                    )
+                    contact = contact_result.scalar_one_or_none()
+
+                    if contact:
+                        for msg in history:
+                            if msg.get("type") != "REPLY" and msg.get("time"):
+                                try:
+                                    msg_time = datetime.fromisoformat(
+                                        msg["time"].replace("Z", "+00:00").replace("+00:00", "")
+                                    )
+                                except (ValueError, TypeError):
+                                    continue
+
+                                if reply_received and msg_time > reply_received:
+                                    existing = await session.execute(
+                                        select(ContactActivity.id).where(
+                                            and_(
+                                                ContactActivity.contact_id == contact.id,
+                                                ContactActivity.direction == "outbound",
+                                                ContactActivity.source_id == msg.get("message_id", ""),
+                                            )
                                         )
                                     )
-                                )
-                                if not existing.first():
-                                    activity = ContactActivity(
-                                        contact_id=contact.id,
-                                        company_id=contact.company_id,
-                                        activity_type="email_sent",
-                                        channel="email",
-                                        direction="outbound",
-                                        source="smartlead_sync",
-                                        source_id=msg.get("message_id", ""),
-                                        subject=msg.get("email_subject"),
-                                        body=(msg.get("email_body", "") or "")[:500],
-                                        activity_at=msg_time,
-                                    )
-                                    session.add(activity)
-                                    stats["activities_created"] += 1
-            else:
-                stats["still_pending"] += 1
+                                    if not existing.first():
+                                        activity = ContactActivity(
+                                            contact_id=contact.id,
+                                            company_id=contact.company_id,
+                                            activity_type="email_sent",
+                                            channel="email",
+                                            direction="outbound",
+                                            source="smartlead_sync",
+                                            source_id=msg.get("message_id", ""),
+                                            subject=msg.get("email_subject"),
+                                            body=(msg.get("email_body", "") or "")[:500],
+                                            activity_at=msg_time,
+                                        )
+                                        session.add(activity)
+                                        stats["activities_created"] += 1
+                else:
+                    stats["still_pending"] += 1
 
-        except Exception as e:
-            logger.error(f"sync_conversation_histories: error checking lead {reply.lead_email}: {e}")
-            stats["errors"] += 1
+            except Exception as e:
+                logger.error(f"sync_conversation_histories: error checking SmartLead lead {reply.lead_email}: {e}")
+                stats["errors"] += 1
+
+    # ── GetSales: fetch LinkedIn conversation histories ──
+    if gs_key and gs_to_check:
+        gs_client = GetSalesClient(gs_key)
+        try:
+            for reply in gs_to_check:
+                email_lower = (reply.lead_email or "").lower()
+                source = reply.source or "getsales"
+                group_key = (source, reply.campaign_id or "", email_lower)
+
+                # Get conversation UUID from raw_webhook_data
+                conv_uuid = None
+                if reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+                    conv_uuid = (
+                        reply.raw_webhook_data.get("linkedin_conversation_uuid")
+                        or reply.raw_webhook_data.get("conversation_uuid")
+                        or (reply.raw_webhook_data.get("contact", {}) or {}).get("linkedin_conversation_uuid")
+                    )
+                if not conv_uuid:
+                    stats["no_lead_id"] += 1
+                    continue
+
+                stats["checked"] += 1
+                stats["getsales_checked"] += 1
+
+                try:
+                    messages = await gs_client.get_conversation_messages(conv_uuid)
+                    if not messages:
+                        stats["still_pending"] += 1
+                        continue
+
+                    # Find last message — check if outbound after reply's received_at
+                    last_outbound_time = None
+                    for msg in reversed(messages):
+                        if msg.get("type") == "outbox":
+                            ts = msg.get("sent_at") or msg.get("created_at")
+                            if ts:
+                                try:
+                                    from dateutil.parser import parse as dt_parse
+                                    last_outbound_time = dt_parse(ts)
+                                    if last_outbound_time.tzinfo:
+                                        last_outbound_time = last_outbound_time.replace(tzinfo=None)
+                                except Exception:
+                                    pass
+
+                            if last_outbound_time and reply.received_at and last_outbound_time > reply.received_at:
+                                stats["replied_externally"] += 1
+
+                                # Mark all replies in group as auto_resolved with actual send time
+                                # CRITICAL: explicit session.add() needed because autoflush=False
+                                for gr in reply_groups.get(group_key, []):
+                                    if gr.approval_status in (None, "pending"):
+                                        gr.approval_status = "auto_resolved"
+                                        gr.approved_at = last_outbound_time
+                                        session.add(gr)
+
+                                # Create outbound ContactActivity
+                                contact_result = await session.execute(
+                                    select(Contact).where(
+                                        func.lower(Contact.email) == email_lower,
+                                        Contact.deleted_at.is_(None),
+                                    )
+                                )
+                                contact = contact_result.scalar_one_or_none()
+                                if contact:
+                                    msg_source_id = msg.get("uuid") or msg.get("id") or ""
+                                    existing = await session.execute(
+                                        select(ContactActivity.id).where(
+                                            and_(
+                                                ContactActivity.contact_id == contact.id,
+                                                ContactActivity.direction == "outbound",
+                                                ContactActivity.source_id == str(msg_source_id),
+                                            )
+                                        )
+                                    )
+                                    if not existing.first():
+                                        activity = ContactActivity(
+                                            contact_id=contact.id,
+                                            company_id=contact.company_id,
+                                            activity_type="linkedin_sent",
+                                            channel="linkedin",
+                                            direction="outbound",
+                                            source="getsales_sync",
+                                            source_id=str(msg_source_id),
+                                            body=(msg.get("text", "") or "")[:500],
+                                            activity_at=last_outbound_time,
+                                        )
+                                        session.add(activity)
+                                        stats["activities_created"] += 1
+                            elif not reply.received_at:
+                                # No received_at — assume resolved
+                                stats["replied_externally"] += 1
+                                for gr in reply_groups.get(group_key, []):
+                                    if gr.approval_status in (None, "pending"):
+                                        gr.approval_status = "auto_resolved"
+                                        gr.approved_at = last_outbound_time or datetime.utcnow()
+                                        session.add(gr)
+                            else:
+                                stats["still_pending"] += 1
+                            break
+                        elif msg.get("type") == "inbox":
+                            # Last message is inbound — still pending
+                            stats["still_pending"] += 1
+                            break
+                    else:
+                        stats["still_pending"] += 1
+
+                except Exception as e:
+                    logger.error(f"sync_conversation_histories: error checking GetSales lead {reply.lead_email}: {e}")
+                    stats["errors"] += 1
+        finally:
+            await gs_client.close()
 
     # Commit all changes
     try:
@@ -3421,24 +3566,28 @@ async def sync_conversation_histories(
         await session.rollback()
         stats["errors"] += 1
 
-    logger.info(f"sync_conversation_histories: {stats}")
+    elapsed = int((_time.monotonic() - t0) * 1000)
+    logger.info(f"sync_conversation_histories: {stats} ({elapsed}ms)")
     return stats
 
 
 async def deep_cleanup_needs_reply(session: AsyncSession, batch_limit: int = 200) -> Dict[str, Any]:
     """Daily deep cleanup: load pending reply threads, resolve where operator already replied.
 
-    Unlike sync_conversation_histories (3-min, 7-day, SmartLead-only), this:
+    Unlike sync_conversation_histories (3-min, 7-day), this:
     - Has no date cutoff — checks ALL pending replies (oldest first, batch_limit per run)
     - Handles both SmartLead and GetSales
     - Sets approval_status='auto_resolved' directly
     - Writes per-project ReplyCleanupLog entries
+    - Uses actual outbound message timestamp for approved_at
     """
+    import time as _time
     from app.models.reply import ProcessedReply, ReplyCleanupLog, ThreadMessage
     from app.models.contact import Project
     from app.services.smartlead_service import SmartleadService, parse_history_response, smartlead_request as _sl_request
     import os
 
+    t0 = _time.monotonic()
     stats = {"checked": 0, "resolved": 0, "errors": 0, "by_project": {}}
 
     # Find ALL pending needs_reply replies (no date limit)
@@ -3509,6 +3658,7 @@ async def deep_cleanup_needs_reply(session: AsyncSession, batch_limit: int = 200
         seen.add(dedup_key)
 
         resolved = False
+        _outbound_time = None
         try:
             if source == "getsales":
                 # GetSales: check if thread has outbound after reply
@@ -3547,8 +3697,10 @@ async def deep_cleanup_needs_reply(session: AsyncSession, batch_limit: int = 200
                                     pass
                             if msg_time and reply.received_at and msg_time > reply.received_at:
                                 resolved = True
+                                _outbound_time = msg_time
                             elif not reply.received_at:
                                 resolved = True
+                                _outbound_time = msg_time
                             break
             else:
                 # SmartLead: check message history
@@ -3589,16 +3741,26 @@ async def deep_cleanup_needs_reply(session: AsyncSession, batch_limit: int = 200
 
                 history = parse_history_response(resp.json())
                 if history:
-                    last_type = history[-1].get("type", "")
+                    last_msg = history[-1]
+                    last_type = last_msg.get("type", "")
                     if last_type != "REPLY":
                         resolved = True
+                        # Use actual outbound message time
+                        if last_msg.get("time"):
+                            try:
+                                _outbound_time = datetime.fromisoformat(
+                                    last_msg["time"].replace("Z", "+00:00").replace("+00:00", "")
+                                )
+                            except (ValueError, TypeError):
+                                pass
 
             stats["checked"] += 1
             api_calls += 1
 
             if resolved:
                 reply.approval_status = "auto_resolved"
-                reply.approved_at = datetime.utcnow()
+                reply.approved_at = _outbound_time or datetime.utcnow()
+                session.add(reply)  # explicit add needed because autoflush=False
                 stats["resolved"] += 1
 
                 # Track per-project
@@ -3645,7 +3807,8 @@ async def deep_cleanup_needs_reply(session: AsyncSession, batch_limit: int = 200
         logger.error(f"[CLEANUP] Commit failed: {e}")
         await session.rollback()
 
-    logger.info(f"[CLEANUP] Deep cleanup done: checked={stats['checked']}, resolved={stats['resolved']}, errors={stats['errors']}")
+    elapsed = int((_time.monotonic() - t0) * 1000)
+    logger.info(f"[CLEANUP] Deep cleanup done: checked={stats['checked']}, resolved={stats['resolved']}, errors={stats['errors']} ({elapsed}ms)")
     return stats
 
 
