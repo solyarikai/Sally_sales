@@ -20,7 +20,8 @@ def upgrade():
           "replies_tab": "Replies 09/03",
           "reference_tab": "Replies 10.02",
           "row_format": "rizzult_28col",
-          "exclude_ooo": true
+          "exclude_ooo": true,
+          "week_epoch": "2025-11-24"
         }' WHERE id = 22
     """)
 
