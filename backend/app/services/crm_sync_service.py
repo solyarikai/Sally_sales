@@ -3356,6 +3356,11 @@ async def sync_conversation_histories(
             if last_type != "REPLY":
                 stats["replied_externally"] += 1
 
+                # Mark as auto_resolved so follow-up detection works within 3 min
+                if reply.approval_status in (None, "pending"):
+                    reply.approval_status = "auto_resolved"
+                    reply.approved_at = datetime.utcnow()
+
                 # Create missing outbound ContactActivity records (CRM data)
                 reply_received = reply.received_at
                 contact_result = await session.execute(
