@@ -850,7 +850,8 @@ async def list_replies(
             )), '').in_(empty_bodies)
         )
 
-    # needs_followup: show approved replies where lead hasn't responded
+    # needs_followup: show replies where operator sent but lead hasn't responded since
+    # Covers BOTH system-sent (approved) and externally-sent (auto_resolved via deep_cleanup)
     if needs_followup:
         from app.models.contact import Project as ProjectModel
         # Get project's follow-up delay (default 3 days)
@@ -864,11 +865,11 @@ async def list_replies(
                 fu_delay = fu_cfg.get("delay_days", 3)
 
         fu_cutoff = datetime.utcnow() - timedelta(days=fu_delay)
-        conditions.append(ProcessedReply.approval_status == "approved")
+        conditions.append(ProcessedReply.approval_status.in_(["approved", "auto_resolved"]))
         conditions.append(ProcessedReply.approved_at < fu_cutoff)
         conditions.append(ProcessedReply.parent_reply_id.is_(None))
         conditions.append(ProcessedReply.category.in_(["meeting_request", "interested", "question"]))
-        # Exclude if lead sent a newer message
+        # Exclude if lead sent a newer message after operator's reply
         from sqlalchemy.orm import aliased
         newer_inbound = aliased(ProcessedReply)
         conditions.append(
@@ -881,7 +882,7 @@ async def list_replies(
                 )
             )
         )
-        # Exclude if a follow-up was already sent for this reply
+        # Exclude if a follow-up was already sent/dismissed for this reply
         fu_child = aliased(ProcessedReply)
         conditions.append(
             ~exists(
@@ -1094,7 +1095,7 @@ async def get_reply_counts(
     base = []
 
     if needs_followup:
-        # Count approved replies where lead hasn't responded
+        # Count replies where operator sent but lead hasn't responded
         from app.models.contact import Project as ProjectModel
         from sqlalchemy.orm import aliased
         fu_delay = 3
@@ -1107,7 +1108,7 @@ async def get_reply_counts(
                 fu_delay = fu_cfg.get("delay_days", 3)
 
         fu_cutoff = datetime.utcnow() - timedelta(days=fu_delay)
-        base.append(ProcessedReply.approval_status == "approved")
+        base.append(ProcessedReply.approval_status.in_(["approved", "auto_resolved"]))
         base.append(ProcessedReply.approved_at < fu_cutoff)
         base.append(ProcessedReply.parent_reply_id.is_(None))
         base.append(ProcessedReply.category.in_(["meeting_request", "interested", "question"]))
@@ -3004,6 +3005,7 @@ async def approve_and_send_reply(
         if not lead_id:
             reply.approval_status = "approved_dry_run"
             reply.approved_at = datetime.utcnow()
+
             db.add(reply)
             await db.commit()
             await db.refresh(reply)
@@ -3035,6 +3037,7 @@ async def approve_and_send_reply(
             logger.warning(f"test_mode send_reply failed ({send_result['error']}), falling back to approved_dry_run")
             reply.approval_status = "approved_dry_run"
             reply.approved_at = datetime.utcnow()
+
             db.add(reply)
             await db.commit()
             await db.refresh(reply)
