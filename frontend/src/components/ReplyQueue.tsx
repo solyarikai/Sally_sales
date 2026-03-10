@@ -276,12 +276,38 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     }
   }, [currentProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Track which replies already got calendly auto-regen (prevent infinite loops)
+  const calendlyRegenRef = useRef<Set<number>>(new Set());
+
   // Auto-fetch slots when meeting/interested tab is active and we have calendly
   useEffect(() => {
     if (!hasCalendly || !selectedCalendlyMember) return;
     if (categoryFilter !== 'meeting_request' && categoryFilter !== 'interested') return;
     fetchCalendlySlots(selectedCalendlyMember);
   }, [hasCalendly, selectedCalendlyMember, categoryFilter, fetchCalendlySlots]);
+
+  // Auto-regen drafts that don't have slots yet (once slots are loaded)
+  useEffect(() => {
+    if (!calendlyPrompt || !hasCalendly) return;
+    if (categoryFilter !== 'meeting_request' && categoryFilter !== 'interested') return;
+
+    // Find meeting/interested replies without slot-like text in their draft
+    const slotPattern = /\d{2}\.\d{2}\s+с\s+\d{1,2}:\d{2}/;
+    const needsRegen = replies.filter(r =>
+      (r.category === 'meeting_request' || r.category === 'interested') &&
+      r.draft_reply &&
+      !slotPattern.test(r.draft_reply) &&
+      !calendlyRegenRef.current.has(r.id) &&
+      !regeneratingIds.has(r.id)
+    );
+
+    if (needsRegen.length === 0) return;
+
+    // Regen sequentially to avoid API overload — first visible one
+    const first = needsRegen[0];
+    calendlyRegenRef.current.add(first.id);
+    handleRegenerate(first, calendlyPrompt);
+  }, [calendlyPrompt, hasCalendly, replies, categoryFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- Learning feedback polling ---- */
   useEffect(() => {
