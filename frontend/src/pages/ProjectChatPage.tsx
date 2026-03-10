@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+
+// Fallback for non-HTTPS contexts where crypto.randomUUID is unavailable
+const uuid = () =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? uuid()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 import {
   Send, BookOpen, Target, Layers, ChevronRight, ChevronDown,
   RefreshCw, BarChart3, MessageSquare, User,
@@ -191,7 +197,7 @@ export function ProjectChatPage() {
     try {
       const response = await api.get(`/search/chat/messages/${pid}`, { params: { limit: 200 } });
       const msgs: ChatMessageData[] = response.data.map((m: any) => ({
-        id: m.id ?? crypto.randomUUID(),
+        id: m.id ?? uuid(),
         role: m.role,
         content: m.content,
         timestamp: m.timestamp,
@@ -307,7 +313,7 @@ export function ProjectChatPage() {
 
     // Add user message locally
     const userMsg: ChatMessageData = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       role: 'user',
       content: text || query.trim(), // Show original text (including slash command)
     };
@@ -324,7 +330,7 @@ export function ProjectChatPage() {
 
     const companyId = currentCompany?.id;
     if (!companyId) {
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'system', content: 'No company selected.' }]);
+      setMessages(prev => [...prev, { id: uuid(), role: 'system', content: 'No company selected.' }]);
       setIsStreaming(false);
       return;
     }
@@ -373,7 +379,7 @@ export function ProjectChatPage() {
       try {
         const data = JSON.parse(event.data);
         const assistantMsg: ChatMessageData = {
-          id: crypto.randomUUID(),
+          id: uuid(),
           role: 'assistant',
           content: data.reply || accumulated,
           action_type: data.action,
@@ -405,7 +411,7 @@ export function ProjectChatPage() {
         try {
           const data = JSON.parse((event as any).data);
           setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
+            id: uuid(),
             role: 'system',
             content: `Error: ${data.message}`,
           }]);
@@ -446,7 +452,7 @@ export function ProjectChatPage() {
       const data = response.data;
 
       setMessages(prev => [...prev, {
-        id: crypto.randomUUID(),
+        id: uuid(),
         role: 'assistant',
         content: data.reply,
         action_type: data.action,
@@ -462,7 +468,7 @@ export function ProjectChatPage() {
       }
     } catch (err) {
       setMessages(prev => [...prev, {
-        id: crypto.randomUUID(),
+        id: uuid(),
         role: 'system',
         content: 'Failed to get response. Please try again.',
       }]);

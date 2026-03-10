@@ -3,6 +3,12 @@ import { Send, MessageSquare } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppStore } from '../../store/appStore';
 import { useTheme } from '../../hooks/useTheme';
+
+// Fallback for non-HTTPS contexts where crypto.randomUUID is unavailable
+const uuid = () =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? uuid()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 import { api } from '../../api/client';
 import {
   ChatMessage,
@@ -71,7 +77,7 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
         params: { limit: 200 },
       });
       const msgs: ChatMessageData[] = response.data.map((m: any) => ({
-        id: m.id ?? crypto.randomUUID(),
+        id: m.id ?? uuid(),
         role: m.role,
         content: m.content,
         timestamp: m.timestamp,
@@ -162,17 +168,13 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
   const handleSendSSE = useCallback(
     async (text?: string) => {
       let msg = (text || query).trim();
-      console.log('[ChatSend] msg:', msg, 'isLoading:', isLoading, 'isStreaming:', isStreaming, 'query:', query);
-      if (!msg || isLoading || isStreaming) {
-        console.log('[ChatSend] BLOCKED — msg empty:', !msg, 'loading:', isLoading, 'streaming:', isStreaming);
-        return;
-      }
+      if (!msg || isLoading || isStreaming) return;
 
       const resolved = resolveSlashCommand(msg);
       if (resolved) msg = resolved;
 
       const userMsg: ChatMessageData = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         role: 'user',
         content: text || query.trim(),
       };
@@ -188,7 +190,7 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
       if (!companyId) {
         setMessages((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), role: 'system', content: 'No company selected.' },
+          { id: uuid(), role: 'system', content: 'No company selected.' },
         ]);
         setIsStreaming(false);
         return;
@@ -235,7 +237,7 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
         try {
           const data = JSON.parse(event.data);
           const assistantMsg: ChatMessageData = {
-            id: crypto.randomUUID(),
+            id: uuid(),
             role: 'assistant',
             content: data.reply || accumulated,
             action_type: data.action,
@@ -259,7 +261,7 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
             const data = JSON.parse((event as any).data);
             setMessages((prev) => [
               ...prev,
-              { id: crypto.randomUUID(), role: 'system', content: `Error: ${data.message}` },
+              { id: uuid(), role: 'system', content: `Error: ${data.message}` },
             ]);
           } catch {
             es.close();
@@ -297,7 +299,7 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
       setMessages((prev) => [
         ...prev,
         {
-          id: crypto.randomUUID(),
+          id: uuid(),
           role: 'assistant',
           content: data.reply,
           action_type: data.action,
@@ -310,7 +312,7 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
       setMessages((prev) => [
         ...prev,
         {
-          id: crypto.randomUUID(),
+          id: uuid(),
           role: 'system',
           content: 'Failed to get response. Please try again.',
         },
@@ -355,7 +357,6 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      console.log('[ChatKeyDown] Enter pressed, calling handleSendSSE');
       handleSendSSE();
     }
   }
