@@ -1093,11 +1093,6 @@ export function ContactsPage() {
             const p = new URLSearchParams(searchParams);
             p.delete('contact_id');
             p.delete('campaign');
-            if (selectedContact?.email) {
-              setSearch(selectedContact.email);
-              setDebouncedSearch(selectedContact.email);
-              p.set('search', selectedContact.email);
-            }
             setSearchParams(p, { replace: true });
           }}
           replyMode={replyMode}
