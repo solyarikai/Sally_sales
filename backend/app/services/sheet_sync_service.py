@@ -195,15 +195,23 @@ class SheetSyncService:
                     return stats
 
             # Dedup: skip replies whose lead_email already exists in the sheet
-            # (handles reference data that had no timestamp — date cutoff alone is insufficient)
+            # Also read last index value for sequential numbering
             try:
                 existing_rows = google_sheets_service.read_sheet_raw(sheet_id, replies_tab)
                 existing_emails = set()
+                last_sheet_index = 0
                 for row in existing_rows[1:]:  # skip header
                     # Column J (index 9) = target_lead_email for rizzult, col 4 for default
                     email_col = 9 if config.get("row_format") == "rizzult_28col" else 4
                     if len(row) > email_col and row[email_col]:
                         existing_emails.add(row[email_col].strip().lower())
+                    # Track last index (column A)
+                    if row and row[0]:
+                        try:
+                            last_sheet_index = max(last_sheet_index, int(row[0]))
+                        except (ValueError, TypeError):
+                            pass
+                config["_last_sheet_index"] = last_sheet_index + 1
                 before = len(replies)
                 replies = [r for r in replies if (r.lead_email or "").lower() not in existing_emails]
                 skipped = before - len(replies)
@@ -294,8 +302,8 @@ class SheetSyncService:
         """Build 29-column rows for Rizzult 28-col format (A-AC)."""
         rows = []
         latest_received = None
-        # Get starting index from config (auto-increment from last known row)
-        next_index = config.get("next_row_index", 1)
+        # Read last index from sheet (more reliable than config tracking)
+        next_index = config.get("_last_sheet_index", config.get("next_row_index", 1))
 
         for reply in replies:
             contact = contact_map.get((reply.lead_email or "").lower())
@@ -305,7 +313,6 @@ class SheetSyncService:
 
             text = (reply.reply_text or reply.email_body or "")[:2000]
             lead_email = self._clean_email(reply.lead_email or "")
-            contact_email = self._clean_email(contact.email if contact else "")
 
             # from_email: SmartLead raw webhook or GetSales sender name
             from_email = ""
@@ -333,14 +340,11 @@ class SheetSyncService:
             if reply.received_at:
                 time_str = reply.received_at.strftime("%d.%m.%Y %H:%M")
 
-            # Status external from contact
-            status_ext = (contact.status_external if contact else "") or ""
-
             row = [
                 next_index,                                                  # A: index
-                contact_email or lead_email,                                 # B: updated email
+                "",                                                          # B: updated email (operator fills manually)
                 "",                                                          # C: status (legacy, unused)
-                status_ext,                                                  # D: current status
+                "",                                                          # D: current status (operator fills manually)
                 "",                                                          # E: (blank)
                 (contact.first_name if contact else None) or reply.lead_first_name or "",  # F: first name
                 (contact.last_name if contact else None) or reply.lead_last_name or "",    # G: last name
@@ -361,7 +365,7 @@ class SheetSyncService:
                 lead_email,                                                  # V: to_email
                 reply.received_at.isoformat() if reply.received_at else "",  # W: created time
                 source_label,                                                # X: Source
-                status_ext,                                                  # Y: Status
+                "",                                                          # Y: Status (operator fills manually)
                 week_str,                                                    # Z: Week
                 "",                                                          # AA: Sequence + message
                 "",                                                          # AB: Comment
