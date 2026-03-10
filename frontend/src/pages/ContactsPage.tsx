@@ -1079,7 +1079,7 @@ export function ContactsPage() {
       {showEnrichModal && (
         <EnrichContactsModal
           projects={projects}
-          activeProjectId={activeProject}
+          activeProjectId={activeProject?.id ?? null}
           onClose={() => setShowEnrichModal(false)}
           onSuccess={() => {
             setShowEnrichModal(false);
