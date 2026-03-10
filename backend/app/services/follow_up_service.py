@@ -113,7 +113,7 @@ async def generate_follow_up_drafts(session: AsyncSession) -> dict:
                 draft_subject=reply.draft_subject,  # keep original subject
                 draft_generated_at=datetime.utcnow(),
                 processed_at=datetime.utcnow(),
-                received_at=reply.approved_at,  # for ordering — show when original was sent
+                received_at=datetime.utcnow(),  # use current time so it appears in time window
                 approval_status=None,  # pending — appears in operator queue
                 inbox_link=reply.inbox_link,
                 raw_webhook_data=reply.raw_webhook_data,  # needed for send (lead_uuid, sender_profile_uuid)
