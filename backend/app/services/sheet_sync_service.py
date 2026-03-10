@@ -13,7 +13,7 @@ Column ownership rules:
 """
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 
 from sqlalchemy import select, and_, func
@@ -316,10 +316,17 @@ class SheetSyncService:
             # Source: Email vs LinkedIn
             source_label = "Email" if (reply.source or "") == "smartlead" else "LinkedIn"
 
-            # Week number
+            # Week number (project-relative from week_epoch, or ISO fallback)
             week_str = ""
             if reply.received_at:
-                week_str = f"Week {reply.received_at.isocalendar()[1]}"
+                week_epoch = config.get("week_epoch")
+                if week_epoch:
+                    epoch = date.fromisoformat(week_epoch)
+                    delta_days = (reply.received_at.date() if hasattr(reply.received_at, 'date') else reply.received_at) - epoch
+                    week_num = delta_days.days // 7 + 1
+                else:
+                    week_num = reply.received_at.isocalendar()[1]
+                week_str = str(week_num)
 
             # Time formatted
             time_str = ""
