@@ -139,6 +139,7 @@ class ClayService:
         project_id: Optional[int] = None,
         max_results: int = 5000,
         test_mode: bool = False,
+        on_progress: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Run full TAM export pipeline.
 
@@ -147,11 +148,21 @@ class ClayService:
         3. Returns company data
 
         Returns dict with {filters, companies, credits_spent, table_id}.
+        on_progress: optional async callback(message: str) for live status updates.
         """
+        async def _emit(msg: str):
+            if on_progress:
+                try:
+                    await on_progress(msg)
+                except Exception:
+                    pass
+
         # Step 1: Map ICP to filters
+        await _emit("AI mapping ICP description to Clay filters (GPT-4o-mini)...")
         logger.info(f"Clay TAM: mapping ICP to filters...")
         filters = await map_icp_to_clay_filters(icp_text)
         logger.info(f"Clay TAM: filters = {json.dumps(filters)}")
+        await _emit("Filters mapped. Launching headless browser...")
 
         # Step 2: Run Node.js Puppeteer script
         if not CLAY_TAM_SCRIPT.exists():
@@ -184,13 +195,49 @@ class ClayService:
             cwd=str(CLAY_SCRIPT_DIR),
             env=env,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
 
-        log_output = stdout.decode("utf-8", errors="replace")
+        # Stream stdout line-by-line for live progress
+        log_lines: list[str] = []
+        _STEP_MAP = {
+            "[3] Validating": "Validating Clay session...",
+            "Session valid": "Session valid. Checking credits...",
+            "[4] Opening Find": "Opening Find Companies page...",
+            "[5] Applying filters": "Applying search filters...",
+            "Location:": None,  # skip, too noisy
+            "[6] Opening Continue": "Clicking Continue → Save to new table...",
+            "Found:": None,  # dropdown option found
+            "[7] Handling enrichment": "Skipping enrichments → Creating table...",
+            "Table ID:": "Table created. Waiting for data...",
+            "Reading table": "Reading company data from Clay API...",
+            "Record IDs:": None,  # sub-detail
+            "Batch ": None,  # sub-detail
+            "CREDITS SPENT": None,  # handled separately
+        }
+        try:
+            assert proc.stdout is not None
+            while True:
+                raw = await asyncio.wait_for(proc.stdout.readline(), timeout=600)
+                if not raw:
+                    break
+                line = raw.decode("utf-8", errors="replace").strip()
+                log_lines.append(line)
+                for prefix, msg in _STEP_MAP.items():
+                    if prefix in line and msg:
+                        await _emit(msg)
+                        break
+        except asyncio.TimeoutError:
+            proc.kill()
+
+        stderr_data = b""
+        if proc.stderr:
+            stderr_data = await proc.stderr.read()
+        await proc.wait()
+
+        log_output = "\n".join(log_lines)
         logger.info(f"Clay TAM script output:\n{log_output[-2000:]}")
 
         if proc.returncode != 0:
-            logger.error(f"Clay TAM script failed: {stderr.decode('utf-8', errors='replace')[-500:]}")
+            logger.error(f"Clay TAM script failed: {stderr_data.decode('utf-8', errors='replace')[-500:]}")
 
         # Step 3: Read results
         companies_file = CLAY_EXPORTS_DIR / "tam_companies.json"
@@ -309,12 +356,21 @@ class ClayService:
         self,
         domains: List[str],
         project_id: Optional[int] = None,
+        on_progress: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
         """Run Clay People search via Puppeteer.
 
         Writes domains to a temp CSV, runs clay_people_search.js --domains-file,
         reads output JSON/CSV. Returns list of person dicts.
+        on_progress: optional async callback(message: str) for live status updates.
         """
+        async def _emit(msg: str):
+            if on_progress:
+                try:
+                    await on_progress(msg)
+                except Exception:
+                    pass
+
         if not CLAY_PEOPLE_SCRIPT.exists():
             raise FileNotFoundError(f"Clay People script not found: {CLAY_PEOPLE_SCRIPT}")
 
@@ -324,6 +380,7 @@ class ClayService:
         domains_file = CLAY_EXPORTS_DIR / f"domains_input_{project_id or 'tmp'}.csv"
         domains_file.write_text("\n".join(domains))
         logger.info(f"Clay People: wrote {len(domains)} domains to {domains_file}")
+        await _emit(f"Launching headless browser for People search ({len(domains)} domains)...")
 
         # Run Puppeteer script
         args = [
@@ -347,13 +404,63 @@ class ClayService:
             cwd=str(CLAY_SCRIPT_DIR),
             env=env,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=900)
 
-        log_output = stdout.decode("utf-8", errors="replace")
+        # Stream stdout line-by-line for live progress
+        log_lines: list[str] = []
+        _STEP_MAP = {
+            "Session valid": "Session valid.",
+            "Selected People tab": "Opened People search tab...",
+            "Applying filters": "Applying filters...",
+            "Typing": None,  # domain typing progress
+            "Job titles:": "Setting job title filters...",
+            "company domains": None,  # will handle typed X/Y below
+            "Continue dropdown": "Clicking Continue → Save to new table...",
+            "Create table": "Creating table (skipping enrichments)...",
+            "Table ID:": "Table created.",
+            "Waiting for table": "Waiting for table data to load...",
+            "CSV export": None,  # sub-detail
+            "reading via browser": "Reading contact data from Clay API...",
+            "Record IDs:": None,
+            "Saved": None,  # handled by result count
+        }
+        typed_last_emitted = 0
+        try:
+            assert proc.stdout is not None
+            while True:
+                raw = await asyncio.wait_for(proc.stdout.readline(), timeout=900)
+                if not raw:
+                    break
+                line = raw.decode("utf-8", errors="replace").strip()
+                log_lines.append(line)
+                # Emit domain typing progress every 100
+                if "Typed " in line and "/" in line:
+                    try:
+                        parts = line.split("Typed ")[1].split("/")
+                        typed_n = int(parts[0])
+                        if typed_n - typed_last_emitted >= 100:
+                            total_n = parts[1].split()[0]
+                            await _emit(f"Typing company domains... {typed_n}/{total_n}")
+                            typed_last_emitted = typed_n
+                    except (IndexError, ValueError):
+                        pass
+                    continue
+                for prefix, msg in _STEP_MAP.items():
+                    if prefix in line and msg:
+                        await _emit(msg)
+                        break
+        except asyncio.TimeoutError:
+            proc.kill()
+
+        stderr_data = b""
+        if proc.stderr:
+            stderr_data = await proc.stderr.read()
+        await proc.wait()
+
+        log_output = "\n".join(log_lines)
         logger.info(f"Clay People script output:\n{log_output[-3000:]}")
 
         if proc.returncode != 0:
-            err_output = stderr.decode("utf-8", errors="replace")[-500:]
+            err_output = stderr_data.decode("utf-8", errors="replace")[-500:]
             logger.error(f"Clay People script failed (exit {proc.returncode}): {err_output}")
 
         # Read results — script saves to people_*.json or downloads CSV

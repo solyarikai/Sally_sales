@@ -188,6 +188,19 @@ function SystemBanner({ message }: { message: ChatMessageData }) {
   const { isDark } = useTheme();
   const action = message.action_type;
 
+  // Substep — compact inline status line
+  if (action?.includes('substep')) {
+    return (
+      <div className={cn(
+        "rounded-lg px-3 py-1.5 border text-xs flex items-center gap-2",
+        isDark ? "bg-[#1e1e2e] border-indigo-800/30 text-indigo-300/80" : "bg-indigo-50/50 border-indigo-100 text-indigo-600/80"
+      )}>
+        <RefreshCw className={cn("w-3 h-3 animate-spin flex-shrink-0", isDark ? "text-indigo-500/60" : "text-indigo-400/60")} />
+        <span>{message.content}</span>
+      </div>
+    );
+  }
+
   // Progress — blue/indigo with spinner
   if (action?.includes('progress')) {
     return (

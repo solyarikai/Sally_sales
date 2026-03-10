@@ -2348,13 +2348,25 @@ async def _handle_clay_gather(
                 parts.append(f"**Types:** {', '.join(f['types'])}")
             return "\n".join(f"- {p}" for p in parts) if parts else "No filters"
 
+        async def _substep(status: str):
+            """Send a lightweight live substep message."""
+            try:
+                async with async_session_maker() as _db:
+                    _db.add(ProjectChatMessage(
+                        project_id=project_id, role="system",
+                        content=status,
+                        action_type="clay_gather_substep",
+                    ))
+                    await _db.commit()
+            except Exception:
+                pass
+
         try:
             async with async_session_maker() as task_db:
                 # ── Phase 1: Find companies ──
                 await _save_chat_message(
                     task_db, project_id, "system",
-                    f"**Step 1/5 — Finding companies** (headless browser → Clay.com, 3-8 min)\n\n"
-                    f"{_filter_summary(filters)}",
+                    f"**Step 1/5 — Finding companies** (3-8 min)\n\n{_filter_summary(filters)}",
                     action_type="clay_gather_progress",
                 )
                 await task_db.commit()
@@ -2363,6 +2375,7 @@ async def _handle_clay_gather(
                 result = await clay_service.run_tam_export(
                     icp_text=icp_text,
                     project_id=project_id,
+                    on_progress=_substep,
                 )
                 phase1_sec = int(_t.time() - phase1_start)
 
@@ -2468,7 +2481,7 @@ async def _handle_clay_gather(
                 # ── Phase 3: Find people ──
                 await _save_chat_message(
                     task_db, project_id, "system",
-                    f"**Step 3/5 — Finding contacts** [{_elapsed()}] (headless browser → Clay People, 3-8 min)\n\n"
+                    f"**Step 3/5 — Finding contacts** [{_elapsed()}] (3-8 min)\n\n"
                     f"Searching at **{len(domains)}** company domains...",
                     action_type="clay_gather_progress",
                 )
@@ -2478,6 +2491,7 @@ async def _handle_clay_gather(
                 people = await clay_service.run_people_search(
                     domains=domains,
                     project_id=project_id,
+                    on_progress=_substep,
                 )
                 phase3_sec = int(_t.time() - phase3_start)
                 phase3_str = f"{phase3_sec // 60}m {phase3_sec % 60}s" if phase3_sec >= 60 else f"{phase3_sec}s"
