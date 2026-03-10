@@ -8,10 +8,11 @@ import { ReplyQueue } from '../components/ReplyQueue';
 import { MeetingsPanel } from '../components/MeetingsPanel';
 import { QualifiedPanel } from '../components/QualifiedPanel';
 
-type Tab = 'replies' | 'meetings' | 'qualified';
+type Tab = 'replies' | 'followups' | 'meetings' | 'qualified';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'replies', label: 'Replies' },
+  { key: 'followups', label: 'Follow-ups' },
   { key: 'meetings', label: 'Meetings' },
   { key: 'qualified', label: 'Qualified' },
 ];
@@ -29,6 +30,7 @@ export function TasksPage() {
   const activeTab: Tab = VALID_TABS.has(tabParam || '') ? (tabParam as Tab) : 'replies';
 
   const [repliesCount, setRepliesCount] = useState(0);
+  const [followupsCount, setFollowupsCount] = useState(0);
   const [meetingsCount, setMeetingsCount] = useState(0);
   const [qualifiedCount, setQualifiedCount] = useState(0);
 
@@ -79,6 +81,10 @@ export function TasksPage() {
     setRepliesCount(total);
   }, []);
 
+  const handleFollowupsCounts = useCallback((_counts: Record<string, number>, total: number) => {
+    setFollowupsCount(total);
+  }, []);
+
   const handleMeetingsCount = useCallback((count: number) => {
     setMeetingsCount(count);
   }, []);
@@ -90,6 +96,7 @@ export function TasksPage() {
   const getBadgeCount = (tab: Tab): number => {
     switch (tab) {
       case 'replies': return repliesCount;
+      case 'followups': return followupsCount;
       case 'meetings': return meetingsCount;
       case 'qualified': return qualifiedCount;
     }
@@ -98,6 +105,7 @@ export function TasksPage() {
   const getBadgeColor = (tab: Tab): string => {
     switch (tab) {
       case 'replies': return isDark ? '#ef4444' : '#dc2626';
+      case 'followups': return isDark ? '#8b5cf6' : '#7c3aed';
       case 'meetings': return isDark ? '#f59e0b' : '#d97706';
       case 'qualified': return isDark ? '#3b82f6' : '#2563eb';
     }
@@ -166,7 +174,10 @@ export function TasksPage() {
       {/* Tab content — all panels stay mounted so counters persist across tab switches */}
       <div className="flex-1 min-h-0 relative">
         <div className={`absolute inset-0 ${activeTab === 'replies' ? '' : 'invisible pointer-events-none'}`}>
-          <ReplyQueue isDark={isDark} onCountsChange={handleRepliesCounts} initialSearch={searchParams.get('lead') || undefined} />
+          <ReplyQueue isDark={isDark} mode="replies" onCountsChange={handleRepliesCounts} initialSearch={searchParams.get('lead') || undefined} />
+        </div>
+        <div className={`absolute inset-0 ${activeTab === 'followups' ? '' : 'invisible pointer-events-none'}`}>
+          <ReplyQueue isDark={isDark} mode="followups" onCountsChange={handleFollowupsCounts} />
         </div>
         <div className={`absolute inset-0 ${activeTab === 'meetings' ? '' : 'invisible pointer-events-none'}`}>
           <MeetingsPanel isDark={isDark} onCountChange={handleMeetingsCount} />

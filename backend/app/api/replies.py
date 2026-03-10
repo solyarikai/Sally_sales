@@ -765,6 +765,7 @@ async def list_replies(
     category: Optional[str] = None,
     approval_status: Optional[str] = Query(None, description="Filter by status: pending, approved, dismissed"),
     needs_reply: Optional[bool] = Query(None, description="Filter to replies with no outbound activity after received_at"),
+    is_followup: Optional[bool] = Query(None, description="Filter follow-up drafts: true=only follow-ups, false=exclude follow-ups"),
     channel: Optional[str] = Query(None, description="Filter by channel: email, linkedin"),
     source: Optional[str] = Query(None, description="Filter by source: smartlead, getsales"),
     lead_email: Optional[str] = Query(None, description="Filter by lead email (exact match)"),
@@ -848,6 +849,12 @@ async def list_replies(
                 func.coalesce(ProcessedReply.email_body, ProcessedReply.reply_text)
             )), '').in_(empty_bodies)
         )
+
+    # Follow-up filter
+    if is_followup is True:
+        conditions.append(ProcessedReply.follow_up_number.isnot(None))
+    elif is_followup is False:
+        conditions.append(ProcessedReply.follow_up_number.is_(None))
 
     # Time window filter
     cutoff = _parse_received_since(received_since)
@@ -1043,6 +1050,7 @@ async def get_reply_counts(
     campaign_names: Optional[str] = Query(None),
     received_since: Optional[str] = Query("1w", description="Time window: 1w, 1m, all"),
     include_all: bool = Query(False, description="Include archive categories (OOO, wrong_person, etc.)"),
+    is_followup: Optional[bool] = Query(None, description="Filter follow-up drafts: true=only, false=exclude"),
     session: AsyncSession = Depends(get_session)
 ):
     """Lightweight endpoint for polling: returns total + category counts only.
@@ -1050,6 +1058,10 @@ async def get_reply_counts(
     """
     base = []
     base.append(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
+    if is_followup is True:
+        base.append(ProcessedReply.follow_up_number.isnot(None))
+    elif is_followup is False:
+        base.append(ProcessedReply.follow_up_number.is_(None))
     if not include_all:
         no_reply_cats = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
         base.append(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))

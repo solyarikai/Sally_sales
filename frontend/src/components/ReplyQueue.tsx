@@ -102,6 +102,7 @@ export interface ReplyQueueProps {
   isDark: boolean;
   campaignNames?: string;
   initialSearch?: string;
+  mode?: 'replies' | 'followups';
   onCountsChange?: (categoryCounts: Record<string, number>, total: number) => void;
 }
 
@@ -136,7 +137,7 @@ const VALID_CATEGORIES = new Set<string>([
   ...ARCHIVE_CATEGORY_FILTERS.map(f => f.key),
 ]);
 
-export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChange }: ReplyQueueProps) {
+export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'replies', onCountsChange }: ReplyQueueProps) {
   const { currentProject } = useAppStore();
   const t = themeColors(isDark);
   const navigate = useNavigate();
@@ -426,9 +427,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       const response = await repliesApi.getReplies({
         project_id: currentProject?.id,
         campaign_names: campaignNames,
-        needs_reply: useNeedsReply,
+        needs_reply: mode === 'followups' ? true : useNeedsReply,
+        is_followup: mode === 'followups' ? true : (mode === 'replies' ? false : undefined),
         lead_email: isDeepLink ? initialSearch : undefined,
-        category: useCategory,
+        category: mode === 'followups' ? undefined : useCategory,
         group_by_contact: true,
         received_since: isDeepLink ? 'all' : timingFilter,
         page: pg,
@@ -493,6 +495,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
           project_id: currentProject?.id,
           campaign_names: campaignNames,
           received_since: timingFilter,
+          is_followup: mode === 'followups' ? true : (mode === 'replies' ? false : undefined),
         });
         if (cancelled) return;
         const serverTotal = resp.total || 0;
@@ -509,7 +512,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     fetchCounts();
     const interval = setInterval(fetchCounts, 30_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [currentProject, campaignNames, isDeepLink, timingFilter]);
+  }, [currentProject, campaignNames, isDeepLink, timingFilter, mode]);
 
   /* ---- Fetch all counts (include_all) — drives "All" tab total + archive tab counts ---- */
   useEffect(() => {
@@ -522,6 +525,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
           campaign_names: campaignNames,
           received_since: timingFilter,
           include_all: true,
+          is_followup: mode === 'followups' ? true : (mode === 'replies' ? false : undefined),
         });
         if (cancelled) return;
         setAllCounts(resp.category_counts || {});
@@ -530,7 +534,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     fetchAllCounts();
     const interval = setInterval(fetchAllCounts, 60_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [currentProject, campaignNames, isDeepLink, timingFilter]);
+  }, [currentProject, campaignNames, isDeepLink, timingFilter, mode]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -555,6 +559,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       project_id: currentProject?.id,
       campaign_names: campaignNames,
       received_since: timingFilter,
+      is_followup: mode === 'followups' ? true : (mode === 'replies' ? false : undefined),
     }).then(response => {
       setCategoryCounts(response.category_counts || {});
       setTotal(response.total || 0);
@@ -782,56 +787,64 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
         className="border-b px-5 py-2.5 flex items-center gap-3"
         style={{ background: t.headerBg, borderColor: t.cardBorder }}
       >
-        {/* Category tabs: All | actionable tabs | separator | archive tabs */}
+        {/* Category tabs: All | actionable tabs | separator | archive tabs — hidden in followup mode */}
         <div className="flex items-center gap-1">
-          {/* "All" tab */}
-          <button
-            onClick={() => setCategoryFilter('__all__')}
-            className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", isAllMode ? "font-medium" : "")}
-            style={{
-              background: isAllMode ? t.btnPrimaryBg : 'transparent',
-              color: isAllMode ? t.btnPrimaryText : t.text4,
-            }}
-          >
-            All{allTotal > 0 ? ` ${allTotal}` : ''}
-          </button>
-          {/* Actionable category tabs (needs_reply) */}
-          {ACTIONABLE_CATEGORY_FILTERS.map(f => {
-            const active = categoryFilter === f.key;
-            const count = getActionableCount(f.countKey);
-            return (
+          {mode === 'followups' ? (
+            <span className="px-2.5 py-1 rounded text-[12px] font-medium" style={{ background: t.btnPrimaryBg, color: t.btnPrimaryText }}>
+              All{allTotal > 0 ? ` ${allTotal}` : ''}
+            </span>
+          ) : (
+            <>
+              {/* "All" tab */}
               <button
-                key={f.key}
-                onClick={() => setCategoryFilter(f.key)}
-                className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", active ? "font-medium" : "")}
+                onClick={() => setCategoryFilter('__all__')}
+                className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", isAllMode ? "font-medium" : "")}
                 style={{
-                  background: active ? t.btnPrimaryBg : 'transparent',
-                  color: active ? t.btnPrimaryText : t.text4,
+                  background: isAllMode ? t.btnPrimaryBg : 'transparent',
+                  color: isAllMode ? t.btnPrimaryText : t.text4,
                 }}
               >
-                {f.label}{count > 0 ? ` ${count}` : ''}
+                All{allTotal > 0 ? ` ${allTotal}` : ''}
               </button>
-            );
-          })}
-          {/* Separator + archive tabs (always visible) */}
-          <div className="w-px h-4 mx-1" style={{ background: t.cardBorder }} />
-          {ARCHIVE_CATEGORY_FILTERS.map(f => {
-            const count = getArchiveCount(f.countKey);
-            const active = categoryFilter === f.key;
-            return (
-              <button
-                key={f.key}
-                onClick={() => setCategoryFilter(f.key)}
-                className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", active ? "font-medium" : "")}
-                style={{
-                  background: active ? (isDark ? '#4a3333' : '#fef2f2') : 'transparent',
-                  color: active ? (isDark ? '#fca5a5' : '#b91c1c') : t.text5,
-                }}
-              >
-                {f.label}{count > 0 ? ` ${count}` : ''}
-              </button>
-            );
-          })}
+              {/* Actionable category tabs (needs_reply) */}
+              {ACTIONABLE_CATEGORY_FILTERS.map(f => {
+                const active = categoryFilter === f.key;
+                const count = getActionableCount(f.countKey);
+                return (
+                  <button
+                    key={f.key}
+                    onClick={() => setCategoryFilter(f.key)}
+                    className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", active ? "font-medium" : "")}
+                    style={{
+                      background: active ? t.btnPrimaryBg : 'transparent',
+                      color: active ? t.btnPrimaryText : t.text4,
+                    }}
+                  >
+                    {f.label}{count > 0 ? ` ${count}` : ''}
+                  </button>
+                );
+              })}
+              {/* Separator + archive tabs (always visible) */}
+              <div className="w-px h-4 mx-1" style={{ background: t.cardBorder }} />
+              {ARCHIVE_CATEGORY_FILTERS.map(f => {
+                const count = getArchiveCount(f.countKey);
+                const active = categoryFilter === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    onClick={() => setCategoryFilter(f.key)}
+                    className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", active ? "font-medium" : "")}
+                    style={{
+                      background: active ? (isDark ? '#4a3333' : '#fef2f2') : 'transparent',
+                      color: active ? (isDark ? '#fca5a5' : '#b91c1c') : t.text5,
+                    }}
+                  >
+                    {f.label}{count > 0 ? ` ${count}` : ''}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
 
         <div className="flex-1" />

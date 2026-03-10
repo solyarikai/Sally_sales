@@ -323,6 +323,7 @@ export async function getReplies(params: {
   source?: string;
   lead_email?: string;
   group_by_contact?: boolean;
+  is_followup?: boolean;
   received_since?: string;
   page?: number;
   page_size?: number;
@@ -410,6 +411,7 @@ export async function getReplyCounts(params: {
   campaign_names?: string;
   received_since?: string;
   include_all?: boolean;
+  is_followup?: boolean;
 }): Promise<{ total: number; category_counts: Record<string, number> }> {
   const response = await api.get('/replies/counts', { params });
   return response.data;
