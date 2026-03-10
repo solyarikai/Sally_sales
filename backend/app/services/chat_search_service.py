@@ -33,6 +33,7 @@ CHAT_ACTIONS = [
     "show_segments",     # Show segment breakdown across pipeline
     "toggle_verification",  # Enable/disable Findymail for project
     "show_contacts",     # Show CRM contacts with filters, open CRM view
+    "clay_export",       # Export TAM from Clay — find companies matching ICP, export to Google Sheets
     "info",              # General question / unknown
 ]
 
@@ -194,7 +195,13 @@ AVAILABLE ACTIONS:
     contact_campaign (optional), contact_replied (optional bool), contact_source (optional).
     The reply should summarize the contacts and tell user a CRM view is opening.
 
-19. "info" — Fallback for anything that doesn't map to any action. Reply conversationally.
+19. "clay_export" — Export TAM from Clay.com. Searches Clay's company database for companies matching an ICP description, creates a table, and exports to Google Sheets. NO credits used.
+    Use when user says "find in clay", "clay export", "export from clay", "search clay for", "find companies in clay",
+    "gather TAM from clay", "clay TAM", or describes companies to find and mentions clay/Clay.
+    Parameter: "clay_icp" — the ICP description text (what kind of companies to find).
+    The reply should confirm the Clay export is starting and mention it takes 3-5 minutes.
+
+20. "info" — Fallback for anything that doesn't map to any action. Reply conversationally.
 
 AVAILABLE SEGMENTS: {', '.join(available_segments)}
 
@@ -215,7 +222,7 @@ RULES:
 
 Respond ONLY with JSON:
 {{
-    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|show_knowledge|update_knowledge|ask|verify_emails|show_verification_stats|show_segments|toggle_verification|show_contacts|info",
+    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|show_knowledge|update_knowledge|ask|verify_emails|show_verification_stats|show_segments|toggle_verification|show_contacts|clay_export|info",
     "engine": "yandex|google|both|null",
     "segments": ["segment_key", ...] or null,
     "geos": ["geo_key", ...] or null,
@@ -236,6 +243,7 @@ Respond ONLY with JSON:
     "contact_campaign": "campaign name or null",
     "contact_replied": true,
     "contact_source": "source or null",
+    "clay_icp": "ICP description for Clay export or null",
     "reply": "..."
 }}"""
 

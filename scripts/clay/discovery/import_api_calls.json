@@ -1,0 +1,22 @@
+[
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources_v2/",
+    "postData": "{\"parentResource\":null,\"filters\":{},\"isGlobalSearch\":false}"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources_v2/",
+    "postData": "{\"filters\":{\"resourceTypes\":[\"TABLE\"]},\"isGlobalSearch\":true}"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/imports/signed-s3-post-url",
+    "postData": "{\"filename\":\"inxy_gaming_companies.csv\",\"uploadMode\":\"import\"}"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/imports",
+    "postData": "{\"config\":{\"source\":{\"type\":\"S3_CSV\",\"filename\":\"inxy_gaming_companies.csv\",\"key\":\"1044584/inxy_gaming_companie-1772836648877.csv\",\"recordKeys\":[\"Website\"],\"records\":[{\"Website\":\"Website\"},{\"Website\":\"tf2hunt.com\"},{\"Website\":\"cobaltlab.tech\"},{\"Website\":\"csgo.net\"},{\"Website\":\"csgo500.com\"},{\"Website\":\"csgobig.com\"}],\"hasHeader\":true,\"fieldDelimiter\":\",\",\"uploadMode\":\"import\"},\"destination\":{\"type\":\"NOOP\"},\"map\":{},\"isImportWithoutRun\":false},\"workspaceId\":\"889252\"}"
+  }
+]

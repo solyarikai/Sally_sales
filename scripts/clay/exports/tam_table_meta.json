@@ -1,0 +1,1194 @@
+{
+  "tableMeta": {
+    "table": {
+      "id": "t_0tbi6y4thVNYVeDqXGB",
+      "workspaceId": 889252,
+      "createdByUserId": "1044584",
+      "name": "Find companies Table",
+      "description": "",
+      "type": "company",
+      "icon": null,
+      "parentFolderId": null,
+      "tableSettings": {
+        "DEDUPE_FIELD_ID": "f_0tbi6y5G6qZ7vSXNqKy",
+        "HAS_SCHEDULED_RUNS": false
+      },
+      "createdAt": "2026-03-07T00:34:52.427Z",
+      "updatedAt": "2026-03-07T00:34:54.339Z",
+      "deletedAt": null,
+      "fieldGroupMap": {},
+      "workbookId": "wb_0tbi6y3cSNcbrRano6g",
+      "defaultAccess": "all",
+      "ownerId": "1044584",
+      "isSandbox": false,
+      "isHiddenFromNavigation": false,
+      "abilities": {
+        "canUpdate": true,
+        "canDelete": true,
+        "canManageAccess": false,
+        "canUpdateFromSandbox": true
+      },
+      "firstViewId": "gv_0tbi6y6xufKDm9f73kD",
+      "owner": {
+        "id": 1044584,
+        "username": "hi",
+        "email": "hi@crona.ai",
+        "name": "Crona Ai",
+        "profilePicture": "https://lh3.googleusercontent.com/a/ACg8ocIiWNpccDyuy_M92mhqwvbg9I8nwJ5DJ1MbiZoUtMFqyagJ3w=s96-c",
+        "fullName": "Crona Ai"
+      },
+      "fields": [
+        {
+          "id": "f_0tbi6y4h47xZGEfAXkk",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "formula",
+          "name": "Name",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:52.941Z",
+          "updatedAt": "2026-03-07T00:34:52.941Z",
+          "isLocked": false,
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{f_companies_search}}.name"
+          },
+          "isExtractedField": true,
+          "extractedField": {
+            "fieldIdExtractedFrom": "f_companies_search",
+            "extractedKeyPath": ".name"
+          },
+          "groupId": null,
+          "inputFieldIds": [
+            "f_companies_search"
+          ]
+        },
+        {
+          "id": "f_0tbi6y55AG8vCit77xK",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "formula",
+          "name": "Description",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:53.052Z",
+          "updatedAt": "2026-03-07T00:34:53.052Z",
+          "isLocked": false,
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{f_companies_search}}.description"
+          },
+          "isExtractedField": true,
+          "extractedField": {
+            "fieldIdExtractedFrom": "f_companies_search",
+            "extractedKeyPath": ".description"
+          },
+          "groupId": null,
+          "inputFieldIds": [
+            "f_companies_search"
+          ]
+        },
+        {
+          "id": "f_0tbi6y5APfF6EHeAnNV",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "formula",
+          "name": "Country",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:53.698Z",
+          "updatedAt": "2026-03-07T00:34:53.698Z",
+          "isLocked": false,
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{f_companies_search}}.country"
+          },
+          "isExtractedField": true,
+          "extractedField": {
+            "fieldIdExtractedFrom": "f_companies_search",
+            "extractedKeyPath": ".country"
+          },
+          "groupId": null,
+          "inputFieldIds": [
+            "f_companies_search"
+          ]
+        },
+        {
+          "id": "f_0tbi6y5ff4rnkyJnMyC",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "formula",
+          "name": "Domain",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:53.818Z",
+          "updatedAt": "2026-03-07T00:34:53.818Z",
+          "isLocked": false,
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "url"
+            },
+            "formulaType": "text",
+            "formulaText": "{{f_companies_search}}.domain"
+          },
+          "isExtractedField": true,
+          "extractedField": {
+            "fieldIdExtractedFrom": "f_companies_search",
+            "extractedKeyPath": ".domain"
+          },
+          "groupId": null,
+          "inputFieldIds": [
+            "f_companies_search"
+          ]
+        },
+        {
+          "id": "f_0tbi6y5G6qZ7vSXNqKy",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "formula",
+          "name": "LinkedIn URL",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:53.941Z",
+          "updatedAt": "2026-03-07T00:34:53.941Z",
+          "isLocked": false,
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "url"
+            },
+            "formulaType": "text",
+            "formulaText": "{{f_companies_search}}.linkedin_url"
+          },
+          "isExtractedField": true,
+          "extractedField": {
+            "fieldIdExtractedFrom": "f_companies_search",
+            "extractedKeyPath": ".linkedin_url"
+          },
+          "groupId": null,
+          "inputFieldIds": [
+            "f_companies_search"
+          ]
+        },
+        {
+          "id": "f_0tbi6y5MBDPn2zzWwaT",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "formula",
+          "name": "Location",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:53.579Z",
+          "updatedAt": "2026-03-07T00:34:53.579Z",
+          "isLocked": false,
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{f_companies_search}}.location"
+          },
+          "isExtractedField": true,
+          "extractedField": {
+            "fieldIdExtractedFrom": "f_companies_search",
+            "extractedKeyPath": ".location"
+          },
+          "groupId": null,
+          "inputFieldIds": [
+            "f_companies_search"
+          ]
+        },
+        {
+          "id": "f_0tbi6y5PGGQFApcNzRK",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "formula",
+          "name": "Primary Industry",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:53.164Z",
+          "updatedAt": "2026-03-07T00:34:53.164Z",
+          "isLocked": false,
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{f_companies_search}}.industry"
+          },
+          "isExtractedField": true,
+          "extractedField": {
+            "fieldIdExtractedFrom": "f_companies_search",
+            "extractedKeyPath": ".industry"
+          },
+          "groupId": null,
+          "inputFieldIds": [
+            "f_companies_search"
+          ]
+        },
+        {
+          "id": "f_0tbi6y5QxreSjkShS5i",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "formula",
+          "name": "Type",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_CONTAIN_ANY",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:53.410Z",
+          "updatedAt": "2026-03-07T00:34:53.410Z",
+          "isLocked": false,
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "text"
+            },
+            "formulaType": "text",
+            "formulaText": "{{f_companies_search}}.type"
+          },
+          "isExtractedField": true,
+          "extractedField": {
+            "fieldIdExtractedFrom": "f_companies_search",
+            "extractedKeyPath": ".type"
+          },
+          "groupId": null,
+          "inputFieldIds": [
+            "f_companies_search"
+          ]
+        },
+        {
+          "id": "f_0tbi6y5tMHPc74tEPZT",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "formula",
+          "name": "Size",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "SELECT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "SELECT_NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:53.285Z",
+          "updatedAt": "2026-03-07T00:34:53.285Z",
+          "isLocked": false,
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "select",
+              "options": [
+                {
+                  "id": "1aa55dc1-e4cd-4718-8f9a-0ebce0b1e9b2",
+                  "text": "Self-employed",
+                  "color": "yellow"
+                },
+                {
+                  "id": "ce382551-e80b-4ff3-83cd-e86dff160cf3",
+                  "text": "2-10 employees",
+                  "color": "blue"
+                },
+                {
+                  "id": "e08df9f4-89ef-4615-82fc-57b4551c8f10",
+                  "text": "11-50 employees",
+                  "color": "green"
+                },
+                {
+                  "id": "0dbc3862-855e-4420-b6a6-23b48db7bb3b",
+                  "text": "51-200 employees",
+                  "color": "red"
+                },
+                {
+                  "id": "972b1ced-487b-49cf-893d-516f12f12c2e",
+                  "text": "201-500 employees",
+                  "color": "violet"
+                },
+                {
+                  "id": "5459d225-d042-4ecf-9128-566b82d67aa8",
+                  "text": "501-1,000 employees",
+                  "color": "grey"
+                },
+                {
+                  "id": "227dcfd5-1eeb-40ee-b517-208041b65518",
+                  "text": "1,001-5,000 employees",
+                  "color": "orange"
+                },
+                {
+                  "id": "c64c3923-2bdb-436f-aa77-0b49868e2a0c",
+                  "text": "5,001-10,000 employees",
+                  "color": "pink"
+                },
+                {
+                  "id": "1b2688d0-8b62-4a09-b31a-2a0e31e4cf05",
+                  "text": "10,001+ employees",
+                  "color": "yellow"
+                }
+              ]
+            },
+            "formulaType": "text",
+            "formulaText": "{{f_companies_search}}.size"
+          },
+          "isExtractedField": true,
+          "extractedField": {
+            "fieldIdExtractedFrom": "f_companies_search",
+            "extractedKeyPath": ".size"
+          },
+          "groupId": null,
+          "inputFieldIds": [
+            "f_companies_search"
+          ]
+        },
+        {
+          "id": "f_companies_search",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "source",
+          "name": "Find companies",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "SELECT_SOURCE",
+              "needsValue": true
+            },
+            {
+              "operator": "SELECT_NOT_SOURCE",
+              "needsValue": true
+            }
+          ],
+          "isSortable": false,
+          "createdAt": "2026-03-07T00:34:52.818Z",
+          "updatedAt": "2026-03-07T00:34:52.818Z",
+          "isLocked": false,
+          "typeSettings": {
+            "sourceIds": [
+              "s_0tbi6y3tP6FTad2pQsG"
+            ],
+            "canCreateRecords": true,
+            "deleteSourceLinkOnTableRecordDelete": true,
+            "destroySourceRecordOnTableRecordDelete": true
+          },
+          "groupId": null
+        },
+        {
+          "id": "f_created_at",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "date",
+          "name": "Created At",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "GREATER_THAN",
+              "needsValue": true
+            },
+            {
+              "operator": "GREATER_THAN_OR_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "LESS_THAN",
+              "needsValue": true
+            },
+            {
+              "operator": "LESS_THAN_OR_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:52.563Z",
+          "updatedAt": "2026-03-07T00:34:52.563Z",
+          "isLocked": false,
+          "lockSettings": {
+            "lockDelete": true,
+            "lockUpdateCells": true,
+            "lockUpdateSettings": true
+          },
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "date"
+            }
+          },
+          "isExtractedField": false,
+          "extractedField": null,
+          "groupId": null
+        },
+        {
+          "id": "f_updated_at",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "type": "date",
+          "name": "Updated At",
+          "description": null,
+          "supportedFilterOperators": [
+            {
+              "operator": "EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "NOT_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "GREATER_THAN",
+              "needsValue": true
+            },
+            {
+              "operator": "GREATER_THAN_OR_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "LESS_THAN",
+              "needsValue": true
+            },
+            {
+              "operator": "LESS_THAN_OR_EQUAL",
+              "needsValue": true
+            },
+            {
+              "operator": "EMPTY",
+              "needsValue": false
+            },
+            {
+              "operator": "NOT_EMPTY",
+              "needsValue": false
+            }
+          ],
+          "isSortable": true,
+          "createdAt": "2026-03-07T00:34:52.700Z",
+          "updatedAt": "2026-03-07T00:34:52.700Z",
+          "isLocked": false,
+          "lockSettings": {
+            "lockDelete": true,
+            "lockUpdateCells": true,
+            "lockUpdateSettings": true
+          },
+          "typeSettings": {
+            "dataTypeSettings": {
+              "type": "date"
+            }
+          },
+          "isExtractedField": false,
+          "extractedField": null,
+          "groupId": null
+        }
+      ],
+      "views": [
+        {
+          "id": "gv_0tbi6y6wJgv2kHNQddW",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "name": "Fully enriched rows",
+          "description": null,
+          "order": "x",
+          "fields": {
+            "f_created_at": {
+              "order": "2",
+              "width": 200,
+              "isVisible": false
+            },
+            "f_updated_at": {
+              "order": "5",
+              "width": 200,
+              "isVisible": false
+            },
+            "f_companies_search": {
+              "order": "8",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y4h47xZGEfAXkk": {
+              "order": "b",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y55AG8vCit77xK": {
+              "order": "d",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5APfF6EHeAnNV": {
+              "order": "r",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5G6qZ7vSXNqKy": {
+              "order": "x",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5MBDPn2zzWwaT": {
+              "order": "o",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5PGGQFApcNzRK": {
+              "order": "g",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5QxreSjkShS5i": {
+              "order": "m",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5ff4rnkyJnMyC": {
+              "order": "u",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5tMHPc74tEPZT": {
+              "order": "j",
+              "width": 200,
+              "isVisible": true
+            }
+          },
+          "sort": null,
+          "filter": null,
+          "limit": null,
+          "offset": null,
+          "createdAt": "2026-03-07T00:34:54.258Z",
+          "updatedAt": "2026-03-07T00:34:54.258Z",
+          "deletedAt": null,
+          "typeSettings": {
+            "isPreconfigured": true,
+            "preconfiguredType": "fully-enriched-rows"
+          }
+        },
+        {
+          "id": "gv_0tbi6y6XxfdczjKfiDe",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "name": "Non enrichment columns",
+          "description": null,
+          "order": "w",
+          "fields": {
+            "f_created_at": {
+              "order": "2",
+              "width": 200,
+              "isVisible": false
+            },
+            "f_updated_at": {
+              "order": "5",
+              "width": 200,
+              "isVisible": false
+            },
+            "f_companies_search": {
+              "order": "8",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y4h47xZGEfAXkk": {
+              "order": "b",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y55AG8vCit77xK": {
+              "order": "d",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5APfF6EHeAnNV": {
+              "order": "r",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5G6qZ7vSXNqKy": {
+              "order": "x",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5MBDPn2zzWwaT": {
+              "order": "o",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5PGGQFApcNzRK": {
+              "order": "g",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5QxreSjkShS5i": {
+              "order": "m",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5ff4rnkyJnMyC": {
+              "order": "u",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5tMHPc74tEPZT": {
+              "order": "j",
+              "width": 200,
+              "isVisible": true
+            }
+          },
+          "sort": null,
+          "filter": null,
+          "limit": null,
+          "offset": null,
+          "createdAt": "2026-03-07T00:34:54.233Z",
+          "updatedAt": "2026-03-07T00:34:54.233Z",
+          "deletedAt": null,
+          "typeSettings": {
+            "isPreconfigured": true,
+            "preconfiguredType": "non-enrichment-columns"
+          }
+        },
+        {
+          "id": "gv_0tbi6y6cwfpyjF5mJzf",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "name": "Errored rows",
+          "description": null,
+          "order": "u",
+          "fields": {
+            "f_created_at": {
+              "order": "2",
+              "width": 200,
+              "isVisible": false
+            },
+            "f_updated_at": {
+              "order": "5",
+              "width": 200,
+              "isVisible": false
+            },
+            "f_companies_search": {
+              "order": "8",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y4h47xZGEfAXkk": {
+              "order": "b",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y55AG8vCit77xK": {
+              "order": "d",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5APfF6EHeAnNV": {
+              "order": "r",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5G6qZ7vSXNqKy": {
+              "order": "x",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5MBDPn2zzWwaT": {
+              "order": "o",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5PGGQFApcNzRK": {
+              "order": "g",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5QxreSjkShS5i": {
+              "order": "m",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5ff4rnkyJnMyC": {
+              "order": "u",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5tMHPc74tEPZT": {
+              "order": "j",
+              "width": 200,
+              "isVisible": true
+            }
+          },
+          "sort": null,
+          "filter": {
+            "items": [
+              {
+                "type": "EMPTY",
+                "fieldId": "f_created_at"
+              }
+            ],
+            "combinationMode": "OR"
+          },
+          "limit": null,
+          "offset": null,
+          "createdAt": "2026-03-07T00:34:54.159Z",
+          "updatedAt": "2026-03-07T00:34:54.183Z",
+          "deletedAt": null,
+          "typeSettings": {
+            "isPreconfigured": true,
+            "preconfiguredType": "errored-rows"
+          }
+        },
+        {
+          "id": "gv_0tbi6y6CmBWGiChiqf9",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "name": "All rows",
+          "description": null,
+          "order": "q",
+          "fields": {
+            "f_created_at": {
+              "order": "2",
+              "width": 200,
+              "isVisible": false
+            },
+            "f_updated_at": {
+              "order": "5",
+              "width": 200,
+              "isVisible": false
+            },
+            "f_companies_search": {
+              "order": "8",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y4h47xZGEfAXkk": {
+              "order": "b",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y55AG8vCit77xK": {
+              "order": "d",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5APfF6EHeAnNV": {
+              "order": "r",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5G6qZ7vSXNqKy": {
+              "order": "x",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5MBDPn2zzWwaT": {
+              "order": "o",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5PGGQFApcNzRK": {
+              "order": "g",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5QxreSjkShS5i": {
+              "order": "m",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5ff4rnkyJnMyC": {
+              "order": "u",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5tMHPc74tEPZT": {
+              "order": "j",
+              "width": 200,
+              "isVisible": true
+            }
+          },
+          "sort": null,
+          "filter": null,
+          "limit": null,
+          "offset": null,
+          "createdAt": "2026-03-07T00:34:54.137Z",
+          "updatedAt": "2026-03-07T00:34:54.137Z",
+          "deletedAt": null,
+          "typeSettings": {
+            "isPreconfigured": true,
+            "preconfiguredType": "all-rows"
+          }
+        },
+        {
+          "id": "gv_0tbi6y6xufKDm9f73kD",
+          "tableId": "t_0tbi6y4thVNYVeDqXGB",
+          "name": "Default view",
+          "description": null,
+          "order": "h",
+          "fields": {
+            "f_created_at": {
+              "order": "2",
+              "width": 200,
+              "isVisible": false
+            },
+            "f_updated_at": {
+              "order": "5",
+              "width": 200,
+              "isVisible": false
+            },
+            "f_companies_search": {
+              "order": "1",
+              "width": 200,
+              "isPinned": true,
+              "isVisible": true
+            },
+            "f_0tbi6y4h47xZGEfAXkk": {
+              "order": "b",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y55AG8vCit77xK": {
+              "order": "d",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5APfF6EHeAnNV": {
+              "order": "r",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5G6qZ7vSXNqKy": {
+              "order": "x",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5MBDPn2zzWwaT": {
+              "order": "o",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5PGGQFApcNzRK": {
+              "order": "g",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5QxreSjkShS5i": {
+              "order": "m",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5ff4rnkyJnMyC": {
+              "order": "u",
+              "width": 200,
+              "isVisible": true
+            },
+            "f_0tbi6y5tMHPc74tEPZT": {
+              "order": "j",
+              "width": 200,
+              "isVisible": true
+            }
+          },
+          "sort": null,
+          "filter": null,
+          "limit": null,
+          "offset": null,
+          "createdAt": "2026-03-07T00:34:54.101Z",
+          "updatedAt": "2026-03-07T00:34:54.302Z",
+          "deletedAt": null,
+          "typeSettings": {}
+        }
+      ]
+    },
+    "extraData": null
+  },
+  "fieldMap": {
+    "f_0tbi6y4h47xZGEfAXkk": "Name",
+    "f_0tbi6y55AG8vCit77xK": "Description",
+    "f_0tbi6y5APfF6EHeAnNV": "Country",
+    "f_0tbi6y5ff4rnkyJnMyC": "Domain",
+    "f_0tbi6y5G6qZ7vSXNqKy": "LinkedIn URL",
+    "f_0tbi6y5MBDPn2zzWwaT": "Location",
+    "f_0tbi6y5PGGQFApcNzRK": "Primary Industry",
+    "f_0tbi6y5QxreSjkShS5i": "Type",
+    "f_0tbi6y5tMHPc74tEPZT": "Size",
+    "f_companies_search": "Find companies",
+    "f_created_at": "Created At",
+    "f_updated_at": "Updated At"
+  },
+  "totalRecords": 871
+}

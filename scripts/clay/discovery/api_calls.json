@@ -1,0 +1,652 @@
+[
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/me"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/my-workspaces"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/actions?workspaceId=889252"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/me"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/my-workspaces"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/actions?workspaceId=889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/permissions"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/permissions"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/subscriptions/889252"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/billingplans/889252?source=frontend"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/rollover-multiplier?billingSchedule=monthly"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/ad-audiences/sync-limit-status"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/credit-accrual?workspaceId=889252&rewardsOnly=true"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/clayback-analytics?resourceType=user&resourceId=1044584"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/users"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources_v2/"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/subscriptions/889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/billingplans/889252?source=frontend"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/rollover-multiplier?billingSchedule=monthly"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/ad-audiences/sync-limit-status"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/credit-accrual?workspaceId=889252&rewardsOnly=true"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/clayback-analytics?resourceType=user&resourceId=1044584"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/users"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources_v2/",
+    "postData": "{\"parentResource\":null,\"filters\":{},\"isGlobalSearch\":false}"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/tables",
+    "postData": "{\"icon\":{\"emoji\":\"🛣\"},\"callerName\":\"routing action\",\"name\":\"2026-03-07 New campaign\",\"template\":\"empty\",\"type\":\"spreadsheet\",\"workbookMetadata\":{\"isHiddenFromNavigation\":true},\"workspaceId\":\"889252\",\"tableSettings\":{\"BLOCK_TYPE\":\"MESSAGING\",\"AUTO_RUN_ON\":false},\"sourceSettings\":{}}"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/889252/workbooks/wb_0tbi1egJTG2ryMHCfnY"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbi1egrAZWxQuqfrab/fieldrun"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/analytics/campaigns/3005606/30d"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/analytics/campaigns/3005606"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/analytics/day-wise"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/campaigns/3005606/settings"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/campaigns/3005606/email-accounts/list"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/campaigns/3005606/webhooks"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbi1egrAZWxQuqfrab/count"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/889252/workbooks/wb_0tbi1egJTG2ryMHCfnY/overview"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources/t_0tbi1egrAZWxQuqfrab/activity"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/889252/workbooks/wb_0tbi1egJTG2ryMHCfnY"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbi1egrAZWxQuqfrab/fieldrun"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/analytics/campaigns/3005606/30d"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/analytics/campaigns/3005606"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/analytics/day-wise",
+    "postData": "{\"request\":{\"campaign_ids\":\"3005606\",\"start_date\":\"2026-03-07\",\"end_date\":\"2026-03-07\",\"timezone\":\"America/New_York\"}}"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/campaigns/3005606/settings"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/campaigns/3005606/email-accounts/list"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/clay-sequencer/campaigns/3005606/webhooks"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbi1egrAZWxQuqfrab/count"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/889252/workbooks/wb_0tbi1egJTG2ryMHCfnY/overview"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources/t_0tbi1egrAZWxQuqfrab/activity",
+    "postData": "{\"resourceType\":\"TABLE\",\"activityType\":\"LAST_OPENED\"}"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbi1egrAZWxQuqfrab?extraDataViewId=gv_0tbi1eg6pQqmHGiAuhM&includeExtraData=true"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/billingplans/889252?source=frontend"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbi1egrAZWxQuqfrab?extraDataViewId=gv_0tbi1eg6pQqmHGiAuhM&includeExtraData=true"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/me"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/my-workspaces"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/actions?workspaceId=889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/permissions"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/fieldrun"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/889252/workbooks/wb_0tbheobqR3SnoNUZkac"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/sources?tableId=t_0tbheobyJd7BQgJxWNT"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/views/gv_0tbheob2RDyK3Jht4e9/records/ids"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/count"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/tables/t_0tbheobyJd7BQgJxWNT/fields/runstatus"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/app-accounts"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/subroutines"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources/t_0tbheobyJd7BQgJxWNT/activity"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/subscriptions/889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/billingplans/889252?source=frontend"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/rollover-multiplier?billingSchedule=monthly"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/fieldrun"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/889252/workbooks/wb_0tbheobqR3SnoNUZkac"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/sources?tableId=t_0tbheobyJd7BQgJxWNT"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/views/gv_0tbheob2RDyK3Jht4e9/records/ids"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/count"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/tables/t_0tbheobyJd7BQgJxWNT/fields/runstatus"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/app-accounts"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/subroutines"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/credit-accrual?workspaceId=889252&rewardsOnly=true"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources/t_0tbheobyJd7BQgJxWNT/activity",
+    "postData": "{\"resourceType\":\"TABLE\",\"activityType\":\"LAST_OPENED\"}"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/bulk-fetch-records"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/bulk-fetch-records"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/bulk-fetch-records",
+    "postData": "{\"recordIds\":[\"r_0tbheodMCFab2TRrBNu\",\"r_0tbheodfEfeZsjC6gF5\",\"r_0tbheod2bZDPdqptDp5\",\"r_0tbheodPz7VVzscotxJ\",\"r_0tbheodta76k5V3k3sn\",\"r_0tbheod2xbg8hFaGTH4\",\"r_0tbheodrgMPspuDagux\",\"r_0tbheodJNSTtKg5tMmJ\",\"r_0tbheodzcEm8aKfyx7E\",\"r_0tbheodR6U3us2hg6DV\",\"r_0tbheodNVGRMhtxsHAE\",\"r_0tbheodfD8gJHE8pihz\",\"r_0tbheodmXaACXTx4iDT\",\"r_0tbheodiMkFTCMDsEQf\",\"r_0tbheodfoAbmBcSporh\",\"r_0tbheodv2y36r6tsJZS\",\"r_0tbheodm7NVCTjHZXYh\",\"r_0tbheodaerCqsfazG7n\",\"r_0tbheodCCWzyzK7eiZJ\",\"r_0tbheodFd9Qmu5FpWw8\",\"r_0tb"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/bulk-fetch-records",
+    "postData": "{\"recordIds\":[\"r_0tbheodMCFab2TRrBNu\",\"r_0tbheodfEfeZsjC6gF5\",\"r_0tbheod2bZDPdqptDp5\",\"r_0tbheodPz7VVzscotxJ\",\"r_0tbheodta76k5V3k3sn\",\"r_0tbheod2xbg8hFaGTH4\",\"r_0tbheodrgMPspuDagux\",\"r_0tbheodJNSTtKg5tMmJ\",\"r_0tbheodzcEm8aKfyx7E\",\"r_0tbheodR6U3us2hg6DV\",\"r_0tbheodNVGRMhtxsHAE\",\"r_0tbheodfD8gJHE8pihz\",\"r_0tbheodmXaACXTx4iDT\",\"r_0tbheodiMkFTCMDsEQf\",\"r_0tbheodfoAbmBcSporh\",\"r_0tbheodv2y36r6tsJZS\",\"r_0tbheodm7NVCTjHZXYh\",\"r_0tbheodaerCqsfazG7n\",\"r_0tbheodCCWzyzK7eiZJ\",\"r_0tbheodFd9Qmu5FpWw8\",\"r_0tb"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbheobyJd7BQgJxWNT/count"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/me"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/my-workspaces"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/actions?workspaceId=889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/permissions"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/fieldrun"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/sources?tableId=t_0tbhfg9U7AzTVe7QhRs"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/views/gv_0tbhfgbfwnCieMZisUS/records/ids"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/count"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/tables/t_0tbhfg9U7AzTVe7QhRs/fields/runstatus"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources/t_0tbhfg9U7AzTVe7QhRs/activity"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/sources/s_0tbhfg8Afoyd4oCZ68W"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/subscriptions/889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/billingplans/889252?source=frontend"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/rollover-multiplier?billingSchedule=monthly"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/fieldrun"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/889252/workbooks/wb_0tbheobqR3SnoNUZkac"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/sources?tableId=t_0tbhfg9U7AzTVe7QhRs"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/views/gv_0tbhfgbfwnCieMZisUS/records/ids"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/count"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/tables/t_0tbhfg9U7AzTVe7QhRs/fields/runstatus"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/app-accounts"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/subroutines"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/credit-accrual?workspaceId=889252&rewardsOnly=true"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources/t_0tbhfg9U7AzTVe7QhRs/activity",
+    "postData": "{\"resourceType\":\"TABLE\",\"activityType\":\"LAST_OPENED\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/sources/s_0tbhfg8Afoyd4oCZ68W"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/bulk-fetch-records"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/bulk-fetch-records"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/bulk-fetch-records",
+    "postData": "{\"recordIds\":[\"r_0tbhfgdcCxsJUn3nVo5\",\"r_0tbhfgd2VtdBEnoYmHc\",\"r_0tbhfgdprbgNug9axr7\",\"r_0tbhfgdFQStVMT4aGB8\",\"r_0tbhfgd4TFghdwGemxX\",\"r_0tbhfgdDZNZmDMe6nUv\",\"r_0tbhfgdTUkdQMoi93UC\",\"r_0tbhfgda6MeyTuJM3FJ\",\"r_0tbhfgduVnnTiM5nJHT\",\"r_0tbhfgdW3XJdrsJwgWV\",\"r_0tbhfgdXqFEkoCoEw8r\",\"r_0tbhfgd5esodygkMsEE\",\"r_0tbhfgd3YVsvbXeePxS\",\"r_0tbhfgdzsQ8d7KFP6uo\",\"r_0tbhfgddHKgxGu452AH\",\"r_0tbhfgdqFUSd4crpk74\",\"r_0tbhfgdnmpwNQCHChj6\",\"r_0tbhfgdKA9mGxUZn4zJ\",\"r_0tbhfgdaoBgUPt9Y8em\",\"r_0tbhfgdGhyfVaHThefF\",\"r_0tb"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/bulk-fetch-records",
+    "postData": "{\"recordIds\":[\"r_0tbhfgdcCxsJUn3nVo5\",\"r_0tbhfgd2VtdBEnoYmHc\",\"r_0tbhfgdprbgNug9axr7\",\"r_0tbhfgdFQStVMT4aGB8\",\"r_0tbhfgd4TFghdwGemxX\",\"r_0tbhfgdDZNZmDMe6nUv\",\"r_0tbhfgdTUkdQMoi93UC\",\"r_0tbhfgda6MeyTuJM3FJ\",\"r_0tbhfgduVnnTiM5nJHT\",\"r_0tbhfgdW3XJdrsJwgWV\",\"r_0tbhfgdXqFEkoCoEw8r\",\"r_0tbhfgd5esodygkMsEE\",\"r_0tbhfgd3YVsvbXeePxS\",\"r_0tbhfgdzsQ8d7KFP6uo\",\"r_0tbhfgddHKgxGu452AH\",\"r_0tbhfgdqFUSd4crpk74\",\"r_0tbhfgdnmpwNQCHChj6\",\"r_0tbhfgdKA9mGxUZn4zJ\",\"r_0tbhfgdaoBgUPt9Y8em\",\"r_0tbhfgdGhyfVaHThefF\",\"r_0tb"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbhfg9U7AzTVe7QhRs/count"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/sources/s_0tbhfg8Afoyd4oCZ68W/runs?limit=1"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/sources/s_0tbhfg8Afoyd4oCZ68W/runs?limit=1"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/me"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/my-workspaces"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/actions?workspaceId=889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/permissions"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/fieldrun"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/889252/workbooks/wb_0tbhca9hpg5PMaJG4oZ"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/sources?tableId=t_0tbhcaasK4dxeffMEKR"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/views/gv_0tbhcacGHVnDTJkVTV2/records/ids"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/count"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/tables/t_0tbhcaasK4dxeffMEKR/fields/runstatus"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources/t_0tbhcaasK4dxeffMEKR/activity"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/sources/s_0tbhca9V8QBKh6gianN"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/subscriptions/889252"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/billingplans/889252?source=frontend"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/rollover-multiplier?billingSchedule=monthly"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/fieldrun"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/889252/workbooks/wb_0tbhca9hpg5PMaJG4oZ"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/sources?tableId=t_0tbhcaasK4dxeffMEKR"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/views/gv_0tbhcacGHVnDTJkVTV2/records/ids"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/count"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/tables/t_0tbhcaasK4dxeffMEKR/fields/runstatus"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/app-accounts"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/workspaces/889252/subroutines"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/credit-accrual?workspaceId=889252&rewardsOnly=true"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/workspaces/889252/resources/t_0tbhcaasK4dxeffMEKR/activity",
+    "postData": "{\"resourceType\":\"TABLE\",\"activityType\":\"LAST_OPENED\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/sources/s_0tbhca9V8QBKh6gianN"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/bulk-fetch-records"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/bulk-fetch-records"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/bulk-fetch-records",
+    "postData": "{\"recordIds\":[\"r_0tbhcadyRVz8E2C4Kkh\",\"r_0tbhcadz27xMWBZMGpe\",\"r_0tbhcadp9rbvpGvSoy7\",\"r_0tbhcadSBaeUPvh5zE6\",\"r_0tbhcadmep9XocGbuDy\",\"r_0tbhcadcfjiXfSWMx5F\",\"r_0tbhcadH3w6xmVG2Aaq\",\"r_0tbhcadjPytyDdcoP5E\",\"r_0tbhcadycCCnSiYut33\",\"r_0tbhcad4zG5SsMeXafj\",\"r_0tbhcadTC4vbKQFqK4V\",\"r_0tbhcadNz4urxAGZP79\",\"r_0tbhcaddJcZf9ft9Fho\",\"r_0tbhcadxxHoUMwFnoSN\",\"r_0tbhcadDVz554eCNfeg\",\"r_0tbhcad2UJbjaWFyeqK\",\"r_0tbhcadNDAZvTWgohn5\",\"r_0tbhcaddrWqefk8KsoA\",\"r_0tbhcadVBYobPbTHYCf\",\"r_0tbhcadFwaaBf2ZTJ4m\",\"r_0tb"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/bulk-fetch-records",
+    "postData": "{\"recordIds\":[\"r_0tbhcadyRVz8E2C4Kkh\",\"r_0tbhcadz27xMWBZMGpe\",\"r_0tbhcadp9rbvpGvSoy7\",\"r_0tbhcadSBaeUPvh5zE6\",\"r_0tbhcadmep9XocGbuDy\",\"r_0tbhcadcfjiXfSWMx5F\",\"r_0tbhcadH3w6xmVG2Aaq\",\"r_0tbhcadjPytyDdcoP5E\",\"r_0tbhcadycCCnSiYut33\",\"r_0tbhcad4zG5SsMeXafj\",\"r_0tbhcadTC4vbKQFqK4V\",\"r_0tbhcadNz4urxAGZP79\",\"r_0tbhcaddJcZf9ft9Fho\",\"r_0tbhcadxxHoUMwFnoSN\",\"r_0tbhcadDVz554eCNfeg\",\"r_0tbhcad2UJbjaWFyeqK\",\"r_0tbhcadNDAZvTWgohn5\",\"r_0tbhcaddrWqefk8KsoA\",\"r_0tbhcadVBYobPbTHYCf\",\"r_0tbhcadFwaaBf2ZTJ4m\",\"r_0tb"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/sources/s_0tbhca9V8QBKh6gianN/runs?limit=1"
+  },
+  {
+    "method": "OPTIONS",
+    "url": "https://api.clay.com/v3/sources/s_0tbhca9V8QBKh6gianN/runs?limit=1"
+  },
+  {
+    "method": "GET",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/count"
+  },
+  {
+    "method": "POST",
+    "url": "https://api.clay.com/v3/tables/t_0tbhcaasK4dxeffMEKR/bulk-fetch-records",
+    "postData": "{\"recordIds\":[\"r_0tbhcadyRVz8E2C4Kkh\",\"r_0tbhcadz27xMWBZMGpe\",\"r_0tbhcadp9rbvpGvSoy7\",\"r_0tbhcadSBaeUPvh5zE6\",\"r_0tbhcadmep9XocGbuDy\",\"r_0tbhcadcfjiXfSWMx5F\",\"r_0tbhcadH3w6xmVG2Aaq\",\"r_0tbhcadjPytyDdcoP5E\",\"r_0tbhcadycCCnSiYut33\",\"r_0tbhcad4zG5SsMeXafj\",\"r_0tbhcadTC4vbKQFqK4V\",\"r_0tbhcadNz4urxAGZP79\",\"r_0tbhcaddJcZf9ft9Fho\",\"r_0tbhcadxxHoUMwFnoSN\",\"r_0tbhcadDVz554eCNfeg\",\"r_0tbhcad2UJbjaWFyeqK\",\"r_0tbhcadNDAZvTWgohn5\",\"r_0tbhcaddrWqefk8KsoA\",\"r_0tbhcadVBYobPbTHYCf\",\"r_0tbhcadFwaaBf2ZTJ4m\",\"r_0tb"
+  }
+]

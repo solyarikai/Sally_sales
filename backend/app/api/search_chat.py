@@ -280,6 +280,8 @@ async def chat_search(
         response = await _handle_toggle_verification(parsed, body, db, company, project)
     elif action == "show_contacts":
         response = await _handle_show_contacts(parsed, body, db, company, project)
+    elif action == "clay_export":
+        response = await _handle_clay_export(parsed, body, background_tasks, db, company, project)
     elif action == "search":
         response = await _handle_new_search(body, background_tasks, db, company)
     else:
@@ -1806,6 +1808,142 @@ async def _handle_show_contacts(
             f"show {segment or 'all'} contacts" if not replied else "show all contacts",
             "show RU contacts" if geo != "RU" else "show Global contacts",
             "show replied contacts" if not replied else "show all contacts",
+            "show stats",
+        ],
+    )
+
+
+async def _handle_clay_export(
+    parsed: Dict, body: ChatRequest, background_tasks: BackgroundTasks,
+    db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Handle Clay TAM export — search Clay for companies matching ICP, export to Google Sheets."""
+    from app.services.clay_service import clay_service, map_icp_to_clay_filters
+
+    icp_text = parsed.get("clay_icp") or body.message
+    project_id = body.project_id
+
+    # Map ICP to filters for the immediate response
+    try:
+        filters = await map_icp_to_clay_filters(icp_text)
+    except Exception as e:
+        return ChatResponse(
+            action="clay_export",
+            reply=f"Failed to map ICP to Clay filters: {e}",
+            project_id=project_id,
+        )
+
+    filter_summary = []
+    if filters.get("industries"):
+        filter_summary.append(f"Industries: {', '.join(filters['industries'])}")
+    if filters.get("description_keywords"):
+        filter_summary.append(f"Keywords: {', '.join(filters['description_keywords'][:5])}")
+    if filters.get("country_names"):
+        filter_summary.append(f"Countries: {', '.join(filters['country_names'][:5])}")
+    if filters.get("sizes"):
+        filter_summary.append(f"Sizes: {', '.join(filters['sizes'])}")
+
+    # Start background task for the full Clay export
+    async def _run_clay_export_task():
+        try:
+            async with async_session_maker() as task_db:
+                # Save progress message
+                await _save_chat_message(
+                    task_db, project_id, "assistant",
+                    "Clay export in progress... Applying filters and creating table.",
+                    action_type="clay_export_progress",
+                )
+                await task_db.commit()
+
+                # Run the export
+                result = await clay_service.run_tam_export(
+                    icp_text=icp_text,
+                    project_id=project_id,
+                )
+
+                companies = result.get("companies", [])
+                credits_spent = result.get("credits_spent", 0)
+
+                if credits_spent > 0:
+                    await _save_chat_message(
+                        task_db, project_id, "assistant",
+                        f"WARNING: {credits_spent} Clay credits were spent!",
+                        action_type="clay_export_warning",
+                    )
+                    await task_db.commit()
+                    return
+
+                if not companies:
+                    await _save_chat_message(
+                        task_db, project_id, "assistant",
+                        "Clay export complete but no companies were found. Try broader filters.",
+                        action_type="clay_export_done",
+                    )
+                    await task_db.commit()
+                    return
+
+                # Export to Google Sheets (Shared Drive)
+                debug_meta = {
+                    "ICP": icp_text,
+                    "Filters": result.get("filters"),
+                    "Total Companies": len(companies),
+                    "Credits Spent": credits_spent,
+                    "Clay Table URL": result.get("table_url"),
+                    "Clay Table ID": result.get("table_id"),
+                }
+                sheet_url = await clay_service.export_to_google_sheets(
+                    companies=companies,
+                    sheet_title=f"Clay TAM - {icp_text[:50]}",
+                    project_id=project_id,
+                    debug_meta=debug_meta,
+                )
+
+                # Save completion message with sheet URL
+                await _save_chat_message(
+                    task_db, project_id, "assistant",
+                    f"Clay export complete! Found {len(companies)} companies. "
+                    f"Credits spent: {credits_spent}.\n\n"
+                    f"Google Sheet: {sheet_url}",
+                    action_type="clay_export_done",
+                    action_data={
+                        "sheet_url": sheet_url,
+                        "total_companies": len(companies),
+                        "credits_spent": credits_spent,
+                        "filters": result.get("filters"),
+                        "table_id": result.get("table_id"),
+                    },
+                )
+                await task_db.commit()
+
+        except Exception as e:
+            logger.error(f"Clay export failed: {e}", exc_info=True)
+            try:
+                async with async_session_maker() as err_db:
+                    await _save_chat_message(
+                        err_db, project_id, "assistant",
+                        f"Clay export failed: {str(e)[:200]}",
+                        action_type="clay_export_error",
+                    )
+                    await err_db.commit()
+            except Exception:
+                pass
+
+    background_tasks.add_task(_run_clay_export_task)
+
+    return ChatResponse(
+        action="clay_export",
+        reply=(
+            f"Starting Clay TAM export. This will take 3-5 minutes.\n\n"
+            f"Filters mapped from your ICP:\n"
+            + "\n".join(f"- {s}" for s in filter_summary) +
+            f"\n\nI'll search Clay's database, create a table, and export results to Google Sheets. "
+            f"No Clay credits will be spent."
+        ),
+        project_id=project_id,
+        data={"filters": filters, "status": "started"},
+        suggestions=[
+            "show status",
+            "show targets",
             "show stats",
         ],
     )
