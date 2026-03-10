@@ -76,6 +76,10 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # Client-facing external status config (per-project status taxonomy)
     external_status_config = Column(JSON, nullable=True)
 
+    # Calendly integration — members with PAT tokens for fetching available time slots
+    # JSON: {"members": [{"id": str, "display_name": str, "pat_token": str, "is_default": bool}]}
+    calendly_config = Column(JSON, nullable=True)
+
     # Generated content (for AI SDR)
     tam_analysis = Column(Text, nullable=True)
     gtm_plan = Column(Text, nullable=True)

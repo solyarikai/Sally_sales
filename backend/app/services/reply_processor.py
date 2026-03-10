@@ -1328,6 +1328,22 @@ async def process_reply_webhook(
             except Exception as proj_err:
                 logger.warning(f"[PROCESSOR] Project prompt lookup failed (non-fatal): {proj_err}")
 
+        # Auto-inject Calendly slots for meeting_request/interested categories
+        if project and classification.get("category") in ("meeting_request", "interested"):
+            try:
+                calendly_cfg = project.calendly_config
+                if calendly_cfg and calendly_cfg.get("members"):
+                    from app.services.calendly_service import get_slots_with_fallback
+                    cal_data = await get_slots_with_fallback(calendly_cfg)
+                    if cal_data.get("formatted_for_prompt"):
+                        if custom_reply_prompt:
+                            custom_reply_prompt += "\n\n" + cal_data["formatted_for_prompt"]
+                        else:
+                            custom_reply_prompt = cal_data["formatted_for_prompt"]
+                        logger.info(f"[PROCESSOR] Injected Calendly slots ({len(cal_data.get('slots_display', []))} days) for {classification['category']}")
+            except Exception as cal_err:
+                logger.warning(f"[PROCESSOR] Calendly slot injection failed (non-fatal): {cal_err}")
+
         # Track classification cost (non-fatal)
         try:
             if project:
@@ -1999,6 +2015,22 @@ async def process_getsales_reply(
                 logger.info(f"[GETSALES] Loaded reference examples for project '{_project_for_refs.name}'")
         except Exception as ref_err:
             logger.warning(f"[GETSALES] Reference examples loading failed (non-fatal): {ref_err}")
+
+    # --- Auto-inject Calendly slots for meeting/interested ---
+    if project and classification.get("category") in ("meeting_request", "interested"):
+        try:
+            calendly_cfg = project.calendly_config
+            if calendly_cfg and calendly_cfg.get("members"):
+                from app.services.calendly_service import get_slots_with_fallback
+                cal_data = await get_slots_with_fallback(calendly_cfg)
+                if cal_data.get("formatted_for_prompt"):
+                    if custom_reply_prompt:
+                        custom_reply_prompt += "\n\n" + cal_data["formatted_for_prompt"]
+                    else:
+                        custom_reply_prompt = cal_data["formatted_for_prompt"]
+                    logger.info(f"[GETSALES] Injected Calendly slots for {classification['category']}")
+        except Exception as cal_err:
+            logger.warning(f"[GETSALES] Calendly slot injection failed (non-fatal): {cal_err}")
 
     # --- Generate draft ---
     linkedin_draft_suffix = (

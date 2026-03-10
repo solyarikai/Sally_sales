@@ -559,7 +559,7 @@ export async function approveAndSendReply(
   return response.data;
 }
 
-export async function regenerateDraft(replyId: number, model?: string): Promise<{
+export async function regenerateDraft(replyId: number, model?: string, calendlyContext?: string): Promise<{
   reply_id: number;
   draft_reply: string;
   draft_subject: string;
@@ -568,8 +568,38 @@ export async function regenerateDraft(replyId: number, model?: string): Promise<
   category: string;
   classification_reasoning: string;
 }> {
-  const params = model ? { model } : {};
+  const params: Record<string, string> = {};
+  if (model) params.model = model;
+  if (calendlyContext) params.calendly_context = calendlyContext;
   const response = await api.post(`/replies/${replyId}/regenerate-draft`, null, { params });
+  return response.data;
+}
+
+// Calendly
+export interface CalendlyMember {
+  id: string;
+  display_name: string;
+  is_default: boolean;
+}
+
+export async function getCalendlyConfig(projectId: number): Promise<{
+  members: CalendlyMember[];
+  has_calendly: boolean;
+}> {
+  const response = await api.get('/replies/calendly/config', { params: { project_id: projectId } });
+  return response.data;
+}
+
+export async function getCalendlySlots(projectId: number, memberId?: string): Promise<{
+  member_id: string;
+  display_name: string;
+  slots_display: string[];
+  formatted_for_prompt: string;
+  is_fallback: boolean;
+}> {
+  const params: Record<string, string | number> = { project_id: projectId };
+  if (memberId) params.member_id = memberId;
+  const response = await api.get('/replies/calendly/slots', { params });
   return response.data;
 }
 
@@ -638,6 +668,9 @@ export const repliesApi = {
   getCampaignStatus,
   launchCampaign,
   pauseCampaign,
+  // Calendly
+  getCalendlyConfig,
+  getCalendlySlots,
 };
 
 

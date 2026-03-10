@@ -1647,6 +1647,60 @@ async def delete_reply_prompt_template(
 
 
 
+# ============ Calendly Time Slots ============
+
+@router.get("/calendly/config")
+async def get_calendly_config(
+    project_id: int = Query(...),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return Calendly member list (without tokens) for dropdown UI."""
+    from app.models.contact import Project
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project or not project.calendly_config:
+        return {"members": [], "has_calendly": False}
+
+    members = project.calendly_config.get("members", [])
+    # Strip tokens before sending to frontend
+    safe_members = [
+        {"id": m["id"], "display_name": m.get("display_name", m["id"]),
+         "is_default": m.get("is_default", False)}
+        for m in members
+    ]
+    return {"members": safe_members, "has_calendly": True}
+
+
+@router.get("/calendly/slots")
+async def get_calendly_slots(
+    project_id: int = Query(...),
+    member_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_session),
+):
+    """Fetch available Calendly time slots for a team member."""
+    from app.models.contact import Project
+    from app.services.calendly_service import get_slots_with_fallback
+
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project or not project.calendly_config:
+        raise HTTPException(status_code=404, detail="Project has no Calendly config")
+
+    try:
+        data = await get_slots_with_fallback(project.calendly_config, member_id)
+    except Exception as e:
+        logger.error(f"Calendly slot fetch failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Calendly API error: {e}")
+
+    return {
+        "member_id": data["member_id"],
+        "display_name": data["display_name"],
+        "slots_display": data["slots_display"],
+        "formatted_for_prompt": data["formatted_for_prompt"],
+        "is_fallback": data["is_fallback"],
+    }
+
+
 # ============ Webhook History & Replay ============
 
 @router.get("/webhook-history")
@@ -2451,6 +2505,7 @@ async def send_reply(
 async def regenerate_draft(
     reply_id: int,
     model: Optional[str] = None,
+    calendly_context: Optional[str] = Query(None, description="Calendly slots formatted for prompt injection"),
     db: AsyncSession = Depends(get_session),
 ):
     """Re-classify and regenerate draft for a failed reply.
@@ -2562,6 +2617,13 @@ async def regenerate_draft(
                     logger.warning(f"Reference examples loading failed (non-fatal): {ref_err}")
         except Exception as e:
             logger.warning(f"Project lookup failed for regenerate (non-fatal): {e}")
+
+    # Append Calendly slots to prompt if provided
+    if calendly_context:
+        if custom_reply_prompt:
+            custom_reply_prompt += "\n\n" + calendly_context
+        else:
+            custom_reply_prompt = calendly_context
 
     # Capture old draft before overwriting (for learning signal)
     _old_draft = reply.draft_reply

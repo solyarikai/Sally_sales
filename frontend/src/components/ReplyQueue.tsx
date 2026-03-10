@@ -7,6 +7,7 @@ import {
   XCircle, Edit3, AlertTriangle,
   Clock, MessageCircle, ArrowRight, Brain, Command, Loader2,
   Linkedin, Phone, MapPin, Tag, User, Copy, Mail, Download, FileText, Languages,
+  CalendarClock, ChevronDown,
 } from 'lucide-react';
 import {
   repliesApi,
@@ -14,6 +15,7 @@ import {
   type ReplyCategory,
   type ContactInfo,
   type FullHistoryResponse,
+  type CalendlyMember,
 } from '../api/replies';
 import { knowledgeApi, type KnowledgeEntry } from '../api/knowledge';
 import { getLearningStatus } from '../api/learning';
@@ -213,6 +215,15 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
   const setPendingLearning = useAppStore(s => s.setPendingLearning);
   const [learningBanner, setLearningBanner] = useState<string | null>(null);
 
+  // Calendly time slots
+  const [calendlyMembers, setCalendlyMembers] = useState<CalendlyMember[]>([]);
+  const [hasCalendly, setHasCalendly] = useState(false);
+  const [selectedCalendlyMember, setSelectedCalendlyMember] = useState<string>('');
+  const [calendlySlots, setCalendlySlots] = useState<string[]>([]);
+  const [calendlyPrompt, setCalendlyPrompt] = useState<string>('');
+  const [calendlyLoading, setCalendlyLoading] = useState(false);
+  const [calendlyFallback, setCalendlyFallback] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -232,6 +243,45 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       () => setProjectDocs([]),
     );
   }, [currentProject?.id]);
+
+  /* ---- Load Calendly config for project ---- */
+  useEffect(() => {
+    if (!currentProject) { setHasCalendly(false); setCalendlyMembers([]); return; }
+    repliesApi.getCalendlyConfig(currentProject.id).then(
+      res => {
+        setHasCalendly(res.has_calendly);
+        setCalendlyMembers(res.members);
+        const defaultMember = res.members.find(m => m.is_default) || res.members[0];
+        if (defaultMember) setSelectedCalendlyMember(defaultMember.id);
+      },
+      () => { setHasCalendly(false); setCalendlyMembers([]); },
+    );
+  }, [currentProject?.id]);
+
+  const fetchCalendlySlots = useCallback(async (memberId: string) => {
+    if (!currentProject) return null;
+    setCalendlyLoading(true);
+    try {
+      const data = await repliesApi.getCalendlySlots(currentProject.id, memberId);
+      setCalendlySlots(data.slots_display);
+      setCalendlyPrompt(data.formatted_for_prompt);
+      setCalendlyFallback(data.is_fallback);
+      return data;
+    } catch {
+      setCalendlySlots([]);
+      setCalendlyPrompt('');
+      return null;
+    } finally {
+      setCalendlyLoading(false);
+    }
+  }, [currentProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-fetch slots when meeting/interested tab is active and we have calendly
+  useEffect(() => {
+    if (!hasCalendly || !selectedCalendlyMember) return;
+    if (categoryFilter !== 'meeting_request' && categoryFilter !== 'interested') return;
+    fetchCalendlySlots(selectedCalendlyMember);
+  }, [hasCalendly, selectedCalendlyMember, categoryFilter, fetchCalendlySlots]);
 
   /* ---- Learning feedback polling ---- */
   useEffect(() => {
@@ -644,10 +694,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
     return () => document.removeEventListener('click', handler);
   }, [expandedCampaigns.size]);
 
-  const handleRegenerate = async (reply: ProcessedReply) => {
+  const handleRegenerate = async (reply: ProcessedReply, calendlyCtx?: string) => {
     setRegeneratingIds(prev => new Set(prev).add(reply.id));
     try {
-      const result = await repliesApi.regenerateDraft(reply.id);
+      const result = await repliesApi.regenerateDraft(reply.id, undefined, calendlyCtx);
       setReplies(prev => prev.map(r => {
         if (r.id !== reply.id) return r;
         return {
@@ -665,6 +715,14 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
       toast.error(err.response?.data?.detail || 'Regeneration failed', { style: toastErr });
     } finally {
       setRegeneratingIds(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+    }
+  };
+
+  const handleCalendlyMemberChange = async (reply: ProcessedReply, memberId: string) => {
+    setSelectedCalendlyMember(memberId);
+    const data = await fetchCalendlySlots(memberId);
+    if (data?.formatted_for_prompt) {
+      handleRegenerate(reply, data.formatted_for_prompt);
     }
   };
 
@@ -1390,9 +1448,90 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                           </>
                         )}
 
+                        {/* Calendar section — only for meeting_request/interested with Calendly config */}
+                        {hasCalendly && (reply.category === 'meeting_request' || reply.category === 'interested') && (
+                          <>
+                            {hasReasoning && <div className="my-2.5" style={{ borderTop: `1px solid ${t.divider}` }} />}
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <CalendarClock className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+                              <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: t.text4 }}>
+                                Calendar
+                              </span>
+                            </div>
+
+                            {/* Member dropdown */}
+                            {calendlyMembers.length > 1 && (
+                              <div className="mb-2">
+                                <select
+                                  value={selectedCalendlyMember}
+                                  onChange={e => handleCalendlyMemberChange(reply, e.target.value)}
+                                  disabled={calendlyLoading || regeneratingIds.has(reply.id)}
+                                  className="w-full text-[12px] px-2 py-1 rounded border appearance-none cursor-pointer"
+                                  style={{
+                                    background: t.cardBg,
+                                    borderColor: t.divider,
+                                    color: t.text2,
+                                    opacity: (calendlyLoading || regeneratingIds.has(reply.id)) ? 0.6 : 1,
+                                  }}
+                                >
+                                  {calendlyMembers.map(m => (
+                                    <option key={m.id} value={m.id}>{m.display_name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            {/* Slot display */}
+                            {calendlyLoading ? (
+                              <div className="flex items-center gap-1.5 text-[11px]" style={{ color: t.text5 }}>
+                                <Loader2 className="w-3 h-3 animate-spin" /> Loading slots...
+                              </div>
+                            ) : calendlySlots.length > 0 ? (
+                              <div className="space-y-0.5 mb-2">
+                                {calendlySlots.map((line, i) => (
+                                  <div key={i} className="text-[12px] font-mono" style={{ color: t.text2 }}>
+                                    {line}
+                                  </div>
+                                ))}
+                                {calendlyFallback && (
+                                  <div className="text-[10px] mt-1" style={{ color: t.text5 }}>
+                                    Merged from team calendars
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] mb-2" style={{ color: t.text5 }}>
+                                No available slots found
+                              </div>
+                            )}
+
+                            {/* Regen with slots button */}
+                            {calendlyPrompt && !regeneratingIds.has(reply.id) && (
+                              <button
+                                onClick={() => handleRegenerate(reply, calendlyPrompt)}
+                                className="flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors w-full justify-center"
+                                style={{
+                                  background: t.btnPrimaryBg,
+                                  color: t.btnPrimaryText,
+                                }}
+                                onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
+                                onMouseOut={e => (e.currentTarget.style.opacity = '1')}
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                Regen with slots
+                              </button>
+                            )}
+                            {regeneratingIds.has(reply.id) && calendlyPrompt && (
+                              <div className="flex items-center gap-1.5 text-[11px] justify-center py-1" style={{ color: t.text5 }}>
+                                <Loader2 className="w-3 h-3 animate-spin" /> Regenerating...
+                              </div>
+                            )}
+                          </>
+                        )}
+
                         {/* Contact section */}
                         <>
-                          {hasReasoning && <div className="my-2.5" style={{ borderTop: `1px solid ${t.divider}` }} />}
+                          {(hasReasoning || (hasCalendly && (reply.category === 'meeting_request' || reply.category === 'interested'))) && <div className="my-2.5" style={{ borderTop: `1px solid ${t.divider}` }} />}
                           <div className="flex items-center gap-1.5 mb-2">
                             <User className="w-3.5 h-3.5" style={{ color: t.text4 }} />
                             <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: t.text4 }}>
