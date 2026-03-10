@@ -16,8 +16,9 @@ import logging
 import time as _time
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, and_, text as sa_text
+from sqlalchemy import select, and_, exists, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.models.reply import ProcessedReply
 
@@ -42,7 +43,11 @@ async def generate_follow_up_drafts(session: AsyncSession, limit: int = 20) -> d
     cutoff = datetime.utcnow() - timedelta(days=FOLLOW_UP_DELAY_DAYS)
     max_age = datetime.utcnow() - timedelta(days=MAX_AGE_DAYS)
 
-    # Find approved/auto_resolved replies that need follow-up
+    # Find approved/auto_resolved replies that need follow-up.
+    # All filtering done at SQL level — no wasted slots on already-processed candidates.
+    existing_child = aliased(ProcessedReply)
+    newer_inbound = aliased(ProcessedReply)
+
     candidates = await session.execute(
         select(ProcessedReply).where(
             and_(
@@ -50,10 +55,25 @@ async def generate_follow_up_drafts(session: AsyncSession, limit: int = 20) -> d
                 ProcessedReply.approved_at.isnot(None),
                 ProcessedReply.approved_at < cutoff,
                 ProcessedReply.approved_at > max_age,
-                ProcessedReply.received_at > max_age,  # Skip ancient conversations
+                ProcessedReply.received_at > max_age,
                 ProcessedReply.follow_up_number.is_(None),
                 ProcessedReply.parent_reply_id.is_(None),
                 ProcessedReply.category.in_(["meeting_request", "interested", "question"]),
+                # No existing child follow-up
+                ~exists(
+                    select(existing_child.id).where(
+                        existing_child.parent_reply_id == ProcessedReply.id,
+                    )
+                ),
+                # No newer inbound from lead
+                ~exists(
+                    select(newer_inbound.id).where(
+                        newer_inbound.lead_email == ProcessedReply.lead_email,
+                        newer_inbound.received_at > ProcessedReply.approved_at,
+                        newer_inbound.parent_reply_id.is_(None),
+                        newer_inbound.id != ProcessedReply.id,
+                    )
+                ),
             )
         ).order_by(ProcessedReply.approved_at.asc()).limit(limit)
     )
@@ -67,29 +87,6 @@ async def generate_follow_up_drafts(session: AsyncSession, limit: int = 20) -> d
 
     for reply in replies:
         try:
-            # Check if follow-up already exists
-            existing_fu = await session.execute(
-                select(ProcessedReply.id).where(
-                    ProcessedReply.parent_reply_id == reply.id
-                ).limit(1)
-            )
-            if existing_fu.scalar():
-                stats["skipped_existing"] += 1
-                continue
-
-            # Check if lead sent a newer inbound message
-            newer_inbound = await session.execute(
-                select(ProcessedReply.id).where(
-                    and_(
-                        ProcessedReply.lead_email == reply.lead_email,
-                        ProcessedReply.received_at > reply.approved_at,
-                        ProcessedReply.parent_reply_id.is_(None),
-                    )
-                ).limit(1)
-            )
-            if newer_inbound.scalar():
-                stats["skipped_inbound"] += 1
-                continue
 
             # Generate AI follow-up draft
             draft_text = await _generate_ai_followup_draft(session, reply)
