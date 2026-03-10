@@ -119,6 +119,9 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_CHAT_ID: Optional[str] = None
 
+    # Telegram Sally Bot — client chat monitoring
+    TELEGRAM_SALLY_BOT_TOKEN: Optional[str] = None
+
     # Test recipient for test_mode sends
     TEST_RECIPIENT_EMAIL: Optional[str] = None
 

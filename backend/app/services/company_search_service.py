@@ -211,6 +211,10 @@ class CompanySearchService:
             "estonia", "эстони", "tallinn", "таллин",
             "georgia", "грузи", "tbilisi", "тбилиси",
             "portugal", "португал", "lisbon", "лиссабон",
+            # Gaming / crypto / global digital platforms
+            "gaming", "skins", "crypto", "payment gateway",
+            "germany", "france", "sweden", "canada", "australia", "japan",
+            "finland", "denmark", "norway", "austria", "belgium", "ireland",
         ])
 
         # Rule 1: Non-Russian site with Russian-only target → force language_match=0
@@ -970,34 +974,51 @@ class CompanySearchService:
             )
         return new_domains
 
-    async def scrape_domain(self, domain: str) -> Optional[str]:
+    async def scrape_domain(self, domain: str, proxy_url: Optional[str] = None) -> Optional[str]:
         """
-        Scrape website HTML via httpx.
+        Scrape website HTML via httpx, optionally through a proxy.
         Returns HTML content or None if scraping fails.
         """
         url = f"https://{domain}"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
         }
 
         try:
-            async with httpx.AsyncClient(
-                timeout=15,
+            client_kwargs = dict(
+                timeout=20,
                 follow_redirects=True,
-                verify=False,  # Some sites have bad SSL
-            ) as client:
+                verify=False,
+            )
+            if proxy_url:
+                client_kwargs["proxy"] = proxy_url
+
+            async with httpx.AsyncClient(**client_kwargs) as client:
                 resp = await client.get(url, headers=headers)
 
                 if resp.status_code == 200:
-                    return resp.text[:50000]  # Cap at 50KB to avoid huge pages
+                    return resp.text[:50000]
                 else:
                     logger.warning(f"Scrape {domain}: HTTP {resp.status_code}")
                     return None
         except Exception as e:
             logger.warning(f"Scrape {domain} failed: {e}")
             return None
+
+    def _build_apify_proxy_url(self, session_id: str = "") -> Optional[str]:
+        """Build Apify residential proxy URL for website scraping."""
+        if not settings.APIFY_PROXY_PASSWORD:
+            return None
+        import random
+        if not session_id:
+            session_id = f"scrape_{random.randint(10000, 99999)}"
+        return (
+            f"http://groups-RESIDENTIAL,session-{session_id}:"
+            f"{settings.APIFY_PROXY_PASSWORD}@"
+            f"{settings.APIFY_PROXY_HOST}:{settings.APIFY_PROXY_PORT}"
+        )
 
     async def analyze_company(
         self,
@@ -1211,15 +1232,42 @@ CRITICAL FALSE POSITIVE RULES:
         if not to_analyze:
             return
 
-        # --- Scrape phase: Crona batch or direct httpx fallback ---
+        # --- Scrape phase: choose method based on project config ---
+        # Priority: project.auto_enrich_config.scrape_method > crona > apify_proxy > httpx
         from app.services.crona_service import crona_service
 
         scraped_texts: Dict[str, Optional[str]] = {}
-        used_crona = False
+        scrape_method = "httpx"  # default
 
-        if crona_service.is_configured:
-            # Batch scrape via Crona (JS-rendered, handles SPA sites)
-            # Run up to 3 Crona batches in parallel for speed
+        # Check project-level scrape method preference
+        project_scrape_method = None
+        if job.project_id:
+            proj_result = await session.execute(
+                select(Project).where(Project.id == job.project_id)
+            )
+            proj = proj_result.scalar_one_or_none()
+            if proj and proj.auto_enrich_config:
+                project_scrape_method = proj.auto_enrich_config.get("scrape_method")
+
+        if project_scrape_method == "apify_proxy" and settings.APIFY_PROXY_PASSWORD:
+            # Apify residential proxy — IP rotation, no JS rendering but handles blocks
+            import random
+            logger.info(f"Using Apify residential proxy to scrape {len(to_analyze)} domains")
+            semaphore = asyncio.Semaphore(10)
+
+            async def scrape_apify(domain: str):
+                async with semaphore:
+                    proxy_url = self._build_apify_proxy_url(f"s_{random.randint(10000,99999)}")
+                    html = await self.scrape_domain(domain, proxy_url=proxy_url)
+                    scraped_texts[domain] = html
+
+            await asyncio.gather(*[scrape_apify(d) for d in to_analyze], return_exceptions=True)
+            apify_success = sum(1 for v in scraped_texts.values() if v and len(v) >= 50)
+            logger.info(f"Apify proxy scraped {len(to_analyze)} domains: {apify_success} with content")
+            scrape_method = "apify_proxy"
+
+        elif project_scrape_method != "httpx" and crona_service.is_configured:
+            # Crona batch scrape (JS-rendered, handles SPA sites)
             batch_size = 50
             crona_semaphore = asyncio.Semaphore(3)
 
@@ -1239,17 +1287,16 @@ CRITICAL FALSE POSITIVE RULES:
                     logger.error(f"Crona batch failed: {result}")
 
             crona_credits_used = crona_service.credits_used
-            # Check if Crona actually returned any content (402 = out of credits)
             crona_success = sum(1 for v in scraped_texts.values() if v)
             if crona_success > 0:
-                used_crona = True
+                scrape_method = "crona"
                 logger.info(f"Crona scraped {len(to_analyze)} domains: {crona_success} success, credits_used={crona_credits_used}")
             else:
-                logger.warning(f"Crona returned 0 content for {len(to_analyze)} domains (likely out of credits), falling back to httpx")
+                logger.warning(f"Crona returned 0 content (likely out of credits), falling back to httpx")
                 scraped_texts.clear()
 
-        if not used_crona:
-            # Fallback: direct httpx (won't render JS but works for most sites)
+        if scrape_method == "httpx":
+            # Fallback: direct httpx (no proxy, no JS rendering)
             logger.info(f"Using httpx to scrape {len(to_analyze)} domains")
             semaphore = asyncio.Semaphore(10)
 
@@ -1305,10 +1352,10 @@ CRITICAL FALSE POSITIVE RULES:
                     session.add(sr)
                     return
 
-                # Crona returns clean text; direct httpx returns HTML
+                # Crona returns clean text; httpx and apify_proxy return HTML
                 analysis = await self.analyze_company(
                     content, target_segments, domain,
-                    is_html=not used_crona,
+                    is_html=(scrape_method != "crona"),
                 )
                 analyzed_at = datetime.utcnow()
 
@@ -1343,8 +1390,9 @@ CRITICAL FALSE POSITIVE RULES:
         # Update job config with token and credit usage
         config = dict(job.config or {})
         config["openai_tokens_used"] = total_tokens
-        config["crona_credits_used"] = config.get("crona_credits_used", 0) + crona_credits_used
-        config["scrape_method"] = "crona" if used_crona else "httpx"
+        if scrape_method == "crona":
+            config["crona_credits_used"] = config.get("crona_credits_used", 0) + crona_credits_used
+        config["scrape_method"] = scrape_method
         config["analysis_model"] = "gpt-4o-mini"
         job.config = config
 

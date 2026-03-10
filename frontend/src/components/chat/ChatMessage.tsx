@@ -117,6 +117,30 @@ function ActionButtons({ action_type, action_data }: { action_type?: string; act
     );
   }
 
+  if ((action_type === 'clay_gather_done' || action_type === 'clay_people_done') && action_data.crm_url) {
+    buttons.push(
+      <button key="crm" onClick={() => navigate(action_data.crm_url)} className={btnClass}>
+        <Users className="w-3.5 h-3.5" /> Open in CRM
+      </button>
+    );
+  }
+
+  if ((action_type === 'clay_gather' || action_type === 'clay_people') && action_data.status === 'started') {
+    buttons.push(
+      <span key="loading" className={cn(btnClass, "cursor-default opacity-70")}>
+        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Gathering contacts...
+      </span>
+    );
+  }
+
+  if ((action_type === 'clay_people_done') && action_data.sheet_url) {
+    buttons.push(
+      <a key="sheet" href={action_data.sheet_url} target="_blank" rel="noopener noreferrer" className={btnClass}>
+        <ExternalLink className="w-3.5 h-3.5" /> Open Google Sheet
+      </a>
+    );
+  }
+
   if (buttons.length === 0) return null;
 
   return <div className="flex flex-wrap">{buttons}</div>;

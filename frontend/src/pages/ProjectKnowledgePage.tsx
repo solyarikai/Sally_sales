@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Target, Globe, Mail, Building2,
   ChevronDown, ChevronRight, BarChart3, ExternalLink,
-  Loader2, AlertCircle,
+  Loader2, AlertCircle, MessageSquare,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -12,6 +12,7 @@ import {
   type ProjectKnowledge,
   type ProjectKnowledgeSegment,
 } from '../api/dataSearch';
+import { ChatIntelPanel } from '../components/knowledge/ChatIntelPanel';
 
 function StatCard({ label, value, sub, icon: Icon, color = 'neutral' }: {
   label: string;
@@ -194,6 +195,8 @@ function SegmentPanel({ name, data, isExpanded, onToggle, projectId }: {
   );
 }
 
+type Tab = 'segments' | 'chat-intel';
+
 export function ProjectKnowledgePage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { currentCompany } = useAppStore();
@@ -201,6 +204,7 @@ export function ProjectKnowledgePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedSegments, setExpandedSegments] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<Tab>('chat-intel');
 
   useEffect(() => {
     if (!projectId || !currentCompany) return;
@@ -284,7 +288,37 @@ export function ProjectKnowledgePage() {
         )}
       </div>
 
-      {/* Overall stats */}
+      {/* Tab bar */}
+      <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-neutral-100 w-fit">
+        <button
+          onClick={() => setActiveTab('chat-intel')}
+          className={cn(
+            'flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-medium transition-all',
+            activeTab === 'chat-intel' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'
+          )}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          Chat Intel
+        </button>
+        <button
+          onClick={() => setActiveTab('segments')}
+          className={cn(
+            'flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-medium transition-all',
+            activeTab === 'segments' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'
+          )}
+        >
+          <Target className="w-3.5 h-3.5" />
+          Segments
+        </button>
+      </div>
+
+      {/* Chat Intel Tab */}
+      {activeTab === 'chat-intel' && (
+        <ChatIntelPanel projectId={Number(projectId)} />
+      )}
+
+      {/* Segments Tab - Overall stats */}
+      {activeTab === 'segments' && <>
       <div className="grid grid-cols-5 gap-4">
         <StatCard
           icon={Building2}
@@ -358,6 +392,7 @@ export function ProjectKnowledgePage() {
           ))}
         </div>
       </div>
+      </>}
     </div>
   );
 }

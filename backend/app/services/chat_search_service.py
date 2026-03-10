@@ -34,6 +34,8 @@ CHAT_ACTIONS = [
     "toggle_verification",  # Enable/disable Findymail for project
     "show_contacts",     # Show CRM contacts with filters, open CRM view
     "clay_export",       # Export TAM from Clay — find companies matching ICP, export to Google Sheets
+    "clay_people",       # Search Clay for contacts at known target companies
+    "clay_gather",       # Full Clay pipeline: find companies + find contacts + promote to CRM
     "info",              # General question / unknown
 ]
 
@@ -201,7 +203,18 @@ AVAILABLE ACTIONS:
     Parameter: "clay_icp" — the ICP description text (what kind of companies to find).
     The reply should confirm the Clay export is starting and mention it takes 3-5 minutes.
 
-20. "info" — Fallback for anything that doesn't map to any action. Reply conversationally.
+20. "clay_people" — Search Clay for CONTACTS (people) at known target companies. Uses company domains already in the pipeline.
+    Use when user says "find contacts", "get people at companies", "clay people search", "find contacts at clay companies",
+    "search contacts in clay", "get decision makers", or asks for contacts/people at target companies.
+    The reply should confirm people search is starting with domains from the pipeline.
+
+21. "clay_gather" — Full Clay pipeline: find companies matching a segment, find contacts at those companies, apply office rules, save to CRM as draft contacts.
+    Use when user says "gather X contacts from Y companies in Z segment", "gather segment", "full clay pipeline", "find companies and contacts",
+    or describes both a segment/ICP AND a desired number of companies/contacts in one message.
+    Parameters: "clay_segment" (string — the segment/ICP description), "clay_company_count" (int, default 10), "clay_contact_count" (int, default 30).
+    The reply should confirm the gather pipeline is starting with the segment and counts.
+
+22. "info" — Fallback for anything that doesn't map to any action. Reply conversationally.
 
 AVAILABLE SEGMENTS: {', '.join(available_segments)}
 
@@ -222,7 +235,7 @@ RULES:
 
 Respond ONLY with JSON:
 {{
-    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|show_knowledge|update_knowledge|ask|verify_emails|show_verification_stats|show_segments|toggle_verification|show_contacts|clay_export|info",
+    "action": "start_search|stop|status|push|show_targets|show_stats|search|lookup_domain|show_config|edit_config|show_knowledge|update_knowledge|ask|verify_emails|show_verification_stats|show_segments|toggle_verification|show_contacts|clay_export|clay_people|clay_gather|info",
     "engine": "yandex|google|both|null",
     "segments": ["segment_key", ...] or null,
     "geos": ["geo_key", ...] or null,
@@ -244,6 +257,9 @@ Respond ONLY with JSON:
     "contact_replied": true,
     "contact_source": "source or null",
     "clay_icp": "ICP description for Clay export or null",
+    "clay_segment": "segment/ICP description for clay_gather or null",
+    "clay_company_count": 10,
+    "clay_contact_count": 30,
     "reply": "..."
 }}"""
 
@@ -267,6 +283,15 @@ Respond ONLY with JSON:
                 )
                 raw = extract_json_from_gemini(gen_result["content"])
                 logger.info(f"Chat action parsing: {gen_result['tokens']['total']} tokens, model={gen_result['model']}")
+                if not raw or not raw.strip():
+                    logger.warning("Gemini returned empty content for intent parsing, defaulting to ask")
+                    return {
+                        "action": "ask",
+                        "reply": "",
+                        "engine": None, "segments": None, "geos": None,
+                        "max_queries": None, "target_goal": None,
+                        "skip_smartlead_push": True, "stats_scope": None, "domains": None,
+                    }
                 result = json.loads(raw)
             else:
                 # OpenAI fallback
@@ -286,15 +311,24 @@ Respond ONLY with JSON:
 
             # Validate action
             if result.get("action") not in CHAT_ACTIONS:
-                result["action"] = "info"
+                result["action"] = "ask"
 
             return result
 
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse Gemini JSON response: {e}, defaulting to ask")
+            return {
+                "action": "ask",
+                "reply": "",
+                "engine": None, "segments": None, "geos": None,
+                "max_queries": None, "target_goal": None,
+                "skip_smartlead_push": True, "stats_scope": None, "domains": None,
+            }
         except Exception as e:
             logger.error(f"Failed to parse chat action: {e}", exc_info=True)
             return {
-                "action": "info",
-                "reply": f"I couldn't process your request. Please try rephrasing. (Error: {str(e)[:100]})",
+                "action": "ask",
+                "reply": "",
                 "engine": None, "segments": None, "geos": None,
                 "max_queries": None, "target_goal": None,
                 "skip_smartlead_push": True, "stats_scope": None, "domains": None,

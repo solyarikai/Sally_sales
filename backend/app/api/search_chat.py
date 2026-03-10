@@ -14,6 +14,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 import logging
+import time as _time_mod
 
 from app.db import get_session, async_session_maker
 from app.api.companies import get_required_company
@@ -282,6 +283,10 @@ async def chat_search(
         response = await _handle_show_contacts(parsed, body, db, company, project)
     elif action == "clay_export":
         response = await _handle_clay_export(parsed, body, background_tasks, db, company, project)
+    elif action == "clay_people":
+        response = await _handle_clay_people(parsed, body, background_tasks, db, company, project)
+    elif action == "clay_gather":
+        response = await _handle_clay_gather(parsed, body, background_tasks, db, company, project)
     elif action == "search":
         response = await _handle_new_search(body, background_tasks, db, company)
     else:
@@ -1820,8 +1825,22 @@ async def _handle_clay_export(
     """Handle Clay TAM export — search Clay for companies matching ICP, export to Google Sheets."""
     from app.services.clay_service import clay_service, map_icp_to_clay_filters
 
-    icp_text = parsed.get("clay_icp") or body.message
+    raw_icp = parsed.get("clay_icp") or body.message
     project_id = body.project_id
+
+    # Enrich ICP with project knowledge (target_segments, knowledge base)
+    icp_parts = [raw_icp]
+    if project and project.target_segments:
+        icp_parts.append(f"\n\nProject target description:\n{project.target_segments}")
+    try:
+        from app.services.project_knowledge_service import project_knowledge_service
+        kb_summary = await project_knowledge_service.get_summary(db, project_id)
+        if kb_summary:
+            # Extract ICP-related knowledge only (first 1000 chars)
+            icp_parts.append(f"\n\nProject knowledge:\n{kb_summary[:1000]}")
+    except Exception:
+        pass
+    icp_text = "\n".join(icp_parts)
 
     # Map ICP to filters for the immediate response
     try:
@@ -1847,10 +1866,10 @@ async def _handle_clay_export(
     async def _run_clay_export_task():
         try:
             async with async_session_maker() as task_db:
-                # Save progress message
+                # Save progress message (role=system for live SSE pickup)
                 await _save_chat_message(
-                    task_db, project_id, "assistant",
-                    "Clay export in progress... Applying filters and creating table.",
+                    task_db, project_id, "system",
+                    "Step 1/3 — Applying filters and searching Clay database...",
                     action_type="clay_export_progress",
                 )
                 await task_db.commit()
@@ -1866,8 +1885,8 @@ async def _handle_clay_export(
 
                 if credits_spent > 0:
                     await _save_chat_message(
-                        task_db, project_id, "assistant",
-                        f"WARNING: {credits_spent} Clay credits were spent!",
+                        task_db, project_id, "system",
+                        f"WARNING: {credits_spent} Clay credits were spent! Export stopped.",
                         action_type="clay_export_warning",
                     )
                     await task_db.commit()
@@ -1875,14 +1894,21 @@ async def _handle_clay_export(
 
                 if not companies:
                     await _save_chat_message(
-                        task_db, project_id, "assistant",
-                        "Clay export complete but no companies were found. Try broader filters.",
+                        task_db, project_id, "system",
+                        "Clay export complete but no companies found. Try broader filters.",
                         action_type="clay_export_done",
                     )
                     await task_db.commit()
                     return
 
-                # Export to Google Sheets (Shared Drive)
+                # Step 2: Export to Google Sheets
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Step 2/3 — Found {len(companies)} companies. Exporting to Google Sheets...",
+                    action_type="clay_export_progress",
+                )
+                await task_db.commit()
+
                 debug_meta = {
                     "ICP": icp_text,
                     "Filters": result.get("filters"),
@@ -1898,20 +1924,79 @@ async def _handle_clay_export(
                     debug_meta=debug_meta,
                 )
 
-                # Save completion message with sheet URL
+                # Step 3: Save companies to pipeline
                 await _save_chat_message(
-                    task_db, project_id, "assistant",
-                    f"Clay export complete! Found {len(companies)} companies. "
+                    task_db, project_id, "system",
+                    f"Step 3/3 — Saving {len(companies)} companies to pipeline...",
+                    action_type="clay_export_progress",
+                )
+                await task_db.commit()
+
+                # Save companies as DiscoveredCompany records with source=CLAY
+                saved_count = 0
+                try:
+                    from app.models.pipeline import DiscoveredCompany
+                    from sqlalchemy.dialects.postgresql import insert as pg_insert_dc
+                    from app.models.contact import Project as ProjectModel
+
+                    # Get company_id from project
+                    proj_row = await task_db.execute(
+                        select(ProjectModel.company_id).where(ProjectModel.id == project_id)
+                    )
+                    company_id_val = proj_row.scalar_one_or_none()
+                    if not company_id_val:
+                        logger.error(f"No company_id for project {project_id}")
+                    else:
+                        for comp in companies:
+                            domain = (comp.get("domain") or "").strip().lower()
+                            if not domain:
+                                continue
+                            stmt = pg_insert_dc(DiscoveredCompany).values(
+                                company_id=company_id_val,
+                                project_id=project_id,
+                                domain=domain,
+                                name=comp.get("name", ""),
+                                company_info={
+                                    "source": "clay",
+                                    "description": comp.get("description", ""),
+                                    "industry": comp.get("industry"),
+                                    "size": comp.get("size"),
+                                    "type": comp.get("type"),
+                                    "location": comp.get("location"),
+                                    "country": comp.get("country"),
+                                    "linkedin_url": comp.get("linkedin_url"),
+                                },
+                                is_target=True,
+                                confidence=0.7,
+                                matched_segment="clay_tam_export",
+                            ).on_conflict_do_nothing(
+                                index_elements=["company_id", "project_id", "domain"],
+                            )
+                            result_proxy = await task_db.execute(stmt)
+                            if result_proxy.rowcount > 0:
+                                saved_count += 1
+                        await task_db.commit()
+                except Exception as e:
+                    logger.error(f"Failed to save Clay companies to pipeline: {e}")
+                    await task_db.rollback()
+
+                # Completion message
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Clay export complete! Found **{len(companies)}** companies "
+                    f"({saved_count} new added to pipeline). "
                     f"Credits spent: {credits_spent}.\n\n"
-                    f"Google Sheet: {sheet_url}",
+                    f"[Open Google Sheet]({sheet_url})",
                     action_type="clay_export_done",
                     action_data={
                         "sheet_url": sheet_url,
                         "total_companies": len(companies),
+                        "saved_to_pipeline": saved_count,
                         "credits_spent": credits_spent,
                         "filters": result.get("filters"),
                         "table_id": result.get("table_id"),
                     },
+                    suggestions=["show targets", "show contacts", f"find contacts at clay companies"],
                 )
                 await task_db.commit()
 
@@ -1920,7 +2005,7 @@ async def _handle_clay_export(
             try:
                 async with async_session_maker() as err_db:
                     await _save_chat_message(
-                        err_db, project_id, "assistant",
+                        err_db, project_id, "system",
                         f"Clay export failed: {str(e)[:200]}",
                         action_type="clay_export_error",
                     )
@@ -1946,4 +2031,642 @@ async def _handle_clay_export(
             "show targets",
             "show stats",
         ],
+    )
+
+
+async def _handle_clay_people(
+    parsed: Dict, body: ChatRequest, background_tasks: BackgroundTasks,
+    db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Search Clay for contacts at known target companies, apply 5-per-office rule."""
+    from app.services.clay_service import clay_service
+    from app.models.pipeline import DiscoveredCompany
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+
+    project_id = proj.id
+
+    # Get target company domains from pipeline
+    result = await db.execute(
+        select(DiscoveredCompany.domain, DiscoveredCompany.name)
+        .where(
+            DiscoveredCompany.project_id == project_id,
+            DiscoveredCompany.is_target == True,
+        )
+    )
+    targets = result.all()
+    domains = [t.domain for t in targets if t.domain]
+
+    if not domains:
+        return ChatResponse(
+            action="clay_people",
+            reply="No target companies in pipeline. Run a Clay company export first (`find companies in clay`).",
+            project_id=project_id,
+            suggestions=["find companies in clay", "show targets"],
+        )
+
+    async def _run_clay_people_task():
+        try:
+            async with async_session_maker() as task_db:
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Step 1/4 — Searching Clay for contacts at {len(domains)} target companies...",
+                    action_type="clay_people_progress",
+                )
+                await task_db.commit()
+
+                # Run Puppeteer people search
+                people = await clay_service.run_people_search(
+                    domains=domains,
+                    project_id=project_id,
+                )
+
+                if not people:
+                    await _save_chat_message(
+                        task_db, project_id, "system",
+                        "People search complete but no contacts found.",
+                        action_type="clay_people_done",
+                    )
+                    await task_db.commit()
+                    return
+
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Step 2/4 — Found {len(people)} raw contacts. Applying office rules (max 5 per office, role priority)...",
+                    action_type="clay_people_progress",
+                )
+                await task_db.commit()
+
+                # Apply 5-per-office rule with role prioritization
+                from app.services.contact_rules_service import apply_office_rules
+                filtered, stats = apply_office_rules(
+                    people,
+                    company_field="company",
+                    location_field="location",
+                    title_field="title",
+                )
+
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Step 3/4 — {stats['total_output']} contacts after filtering "
+                    f"({stats['decision_makers']} decision-makers, {stats['unique_companies']} companies). "
+                    f"Saving to pipeline as draft...",
+                    action_type="clay_people_progress",
+                )
+                await task_db.commit()
+
+                # Save contacts as ExtractedContact
+                from app.models.pipeline import ExtractedContact, ContactSource
+
+                proj_row = await task_db.execute(
+                    select(Project.company_id).where(Project.id == project_id)
+                )
+                company_id_val = proj_row.scalar_one_or_none()
+
+                saved = 0
+                if company_id_val:
+                    for person in filtered:
+                        domain = (person.get("company_domain") or person.get("domain") or "").strip().lower()
+                        if not domain:
+                            continue
+
+                        # Find matching DiscoveredCompany
+                        dc_result = await task_db.execute(
+                            select(DiscoveredCompany.id).where(
+                                DiscoveredCompany.project_id == project_id,
+                                DiscoveredCompany.domain == domain,
+                            ).limit(1)
+                        )
+                        dc_id = dc_result.scalar_one_or_none()
+                        if not dc_id:
+                            continue
+
+                        # Split name into first/last
+                        full_name = person.get("name", "")
+                        name_parts = full_name.strip().split(None, 1) if full_name else []
+                        first_name = name_parts[0] if name_parts else ""
+                        last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+                        task_db.add(ExtractedContact(
+                            discovered_company_id=dc_id,
+                            first_name=first_name,
+                            last_name=last_name,
+                            email=person.get("email") or None,
+                            phone=person.get("phone"),
+                            job_title=person.get("title", ""),
+                            linkedin_url=person.get("linkedin_url"),
+                            source=ContactSource.CLAY,
+                            raw_data={
+                                "company": person.get("company"),
+                                "location": person.get("location"),
+                                "role_priority": person.get("_role_priority", 99),
+                                "is_decision_maker": person.get("_is_decision_maker", False),
+                                "status": "draft",
+                            },
+                        ))
+                        saved += 1
+
+                    try:
+                        await task_db.commit()
+                    except Exception as e:
+                        logger.error(f"Failed to save Clay contacts: {e}")
+                        await task_db.rollback()
+                        saved = 0
+
+                # Step 4: Export to Google Sheet
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Step 4/4 — Exporting {len(filtered)} contacts to Google Sheet...",
+                    action_type="clay_people_progress",
+                )
+                await task_db.commit()
+
+                sheet_url = await clay_service.export_people_to_sheets(
+                    people=filtered,
+                    sheet_title=f"Clay Contacts - {proj.name}",
+                    project_id=project_id,
+                )
+
+                crm_url = f"/contacts?project_id={project_id}&source=pipeline"
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"People search complete! **{len(filtered)}** contacts "
+                    f"({stats['decision_makers']} decision-makers) at "
+                    f"{stats['unique_companies']} companies. "
+                    f"{saved} saved to pipeline as draft.\n\n"
+                    f"[Open in CRM →]({crm_url}) | [Open Google Sheet]({sheet_url})",
+                    action_type="clay_people_done",
+                    action_data={
+                        "crm_url": crm_url,
+                        "sheet_url": sheet_url,
+                        "total_contacts": len(filtered),
+                        "decision_makers": stats["decision_makers"],
+                        "unique_companies": stats["unique_companies"],
+                        "saved_to_pipeline": saved,
+                        "skipped": stats["skipped_office_limit"],
+                    },
+                    suggestions=["show contacts", "push to smartlead", "show targets"],
+                )
+                await task_db.commit()
+
+        except Exception as e:
+            logger.error(f"Clay people search failed: {e}", exc_info=True)
+            try:
+                async with async_session_maker() as err_db:
+                    await _save_chat_message(
+                        err_db, project_id, "system",
+                        f"People search failed: {str(e)[:200]}",
+                        action_type="clay_people_error",
+                    )
+                    await err_db.commit()
+            except Exception:
+                pass
+
+    background_tasks.add_task(_run_clay_people_task)
+
+    return ChatResponse(
+        action="clay_people",
+        reply=(
+            f"Starting Clay people search at **{len(domains)}** target companies.\n\n"
+            f"Rules applied:\n"
+            f"- Max 5 contacts per office (company + location)\n"
+            f"- Prioritized by role: CEO > CTO > VP > Director > Head > Manager\n"
+            f"- Decision-makers weighted first\n\n"
+            f"This will take 5-10 minutes. I'll update you with progress."
+        ),
+        project_id=project_id,
+        suggestions=["show status", "show targets"],
+    )
+
+
+async def _handle_clay_gather(
+    parsed: Dict, body: ChatRequest, background_tasks: BackgroundTasks,
+    db: AsyncSession, company: Company, project: Optional[Project],
+) -> ChatResponse:
+    """Full Clay pipeline: find companies → find contacts → apply office rules → save to CRM.
+
+    Combined clay_export + clay_people + CRM promotion in one action.
+    """
+    from app.services.clay_service import clay_service, map_icp_to_clay_filters
+
+    proj, err = await _require_project(body, db, company, project)
+    if err:
+        return err
+
+    project_id = proj.id
+    company_id = company.id
+
+    # Extract parameters from GPT parse
+    segment_desc = parsed.get("clay_segment") or parsed.get("clay_icp") or body.message
+    company_count = parsed.get("clay_company_count") or 10
+    contact_count = parsed.get("clay_contact_count") or 30
+
+    # Enrich segment with project knowledge
+    icp_parts = [segment_desc]
+    if proj.target_segments:
+        icp_parts.append(f"\n\nProject target description:\n{proj.target_segments}")
+    try:
+        from app.services.project_knowledge_service import project_knowledge_service
+        kb_summary = await project_knowledge_service.get_summary(db, project_id)
+        if kb_summary:
+            icp_parts.append(f"\n\nProject knowledge:\n{kb_summary[:1000]}")
+    except Exception:
+        pass
+    icp_text = "\n".join(icp_parts)
+
+    # Map ICP to Clay filters for the preview
+    try:
+        filters = await map_icp_to_clay_filters(icp_text)
+    except Exception as e:
+        return ChatResponse(
+            action="clay_gather",
+            reply=f"Failed to map segment to Clay filters: {e}",
+            project_id=project_id,
+        )
+
+    filter_summary = []
+    if filters.get("industries"):
+        filter_summary.append(f"Industries: {', '.join(filters['industries'])}")
+    if filters.get("description_keywords"):
+        filter_summary.append(f"Keywords: {', '.join(filters['description_keywords'][:5])}")
+    if filters.get("country_names"):
+        filter_summary.append(f"Countries: {', '.join(filters['country_names'][:5])}")
+
+    # Create a SearchJob for tracking
+    search_job = SearchJob(
+        company_id=company_id,
+        project_id=project_id,
+        status=SearchJobStatus.RUNNING,
+        search_engine=SearchEngine.CLAY,
+        config={
+            "action": "clay_gather",
+            "segment": segment_desc,
+            "company_count": company_count,
+            "contact_count": contact_count,
+            "filters": filters,
+        },
+    )
+    db.add(search_job)
+    await db.commit()
+    await db.refresh(search_job)
+    job_id = search_job.id
+
+    # Segment label (short, for CRM tagging)
+    segment_label = segment_desc[:100].strip()
+
+    async def _run_clay_gather_task():
+        try:
+            async with async_session_maker() as task_db:
+                # ── Phase 1: Find companies ──
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Step 1/5 — Searching Clay for **{segment_label}** companies...",
+                    action_type="clay_gather_progress",
+                )
+                await task_db.commit()
+
+                result = await clay_service.run_tam_export(
+                    icp_text=icp_text,
+                    project_id=project_id,
+                )
+
+                companies = result.get("companies", [])
+                credits_spent = result.get("credits_spent", 0)
+
+                if credits_spent > 0:
+                    await _save_chat_message(
+                        task_db, project_id, "system",
+                        f"WARNING: {credits_spent} Clay credits were spent! Pipeline stopped.",
+                        action_type="clay_gather_error",
+                    )
+                    await task_db.commit()
+                    return
+
+                if not companies:
+                    await _save_chat_message(
+                        task_db, project_id, "system",
+                        "No companies found in Clay for this segment. Try broader filters.",
+                        action_type="clay_gather_done",
+                    )
+                    await task_db.commit()
+                    # Update job status
+                    job_row = await task_db.get(SearchJob, job_id)
+                    if job_row:
+                        job_row.status = SearchJobStatus.COMPLETED
+                        job_row.domains_found = 0
+                        await task_db.commit()
+                    return
+
+                # Limit to requested company count
+                if len(companies) > company_count:
+                    companies = companies[:company_count]
+
+                # ── Phase 2: Save companies to pipeline ──
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Step 2/5 — Found {len(companies)} companies. Saving to pipeline...",
+                    action_type="clay_gather_progress",
+                )
+                await task_db.commit()
+
+                from app.models.pipeline import DiscoveredCompany
+                from sqlalchemy.dialects.postgresql import insert as pg_insert_dc
+
+                saved_companies = 0
+                domains = []
+                for comp in companies:
+                    domain = (comp.get("Domain") or comp.get("domain") or "").strip().lower().replace("www.", "")
+                    if not domain:
+                        continue
+                    domains.append(domain)
+                    stmt = pg_insert_dc(DiscoveredCompany).values(
+                        company_id=company_id,
+                        project_id=project_id,
+                        domain=domain,
+                        name=comp.get("Name") or comp.get("name") or "",
+                        company_info={
+                            "source": "clay_gather",
+                            "segment": segment_label,
+                            "description": comp.get("Description") or comp.get("description", ""),
+                            "industry": comp.get("Primary Industry") or comp.get("industry"),
+                            "size": comp.get("Size") or comp.get("size"),
+                            "type": comp.get("Type") or comp.get("type"),
+                            "location": comp.get("Location") or comp.get("location"),
+                            "country": comp.get("Country") or comp.get("country"),
+                            "linkedin_url": comp.get("LinkedIn URL") or comp.get("linkedin_url"),
+                            "clay_filters": filters,
+                        },
+                        is_target=True,
+                        confidence=0.7,
+                        matched_segment=segment_label,
+                        search_job_id=job_id,
+                    ).on_conflict_do_nothing(
+                        index_elements=["company_id", "project_id", "domain"],
+                    )
+                    result_proxy = await task_db.execute(stmt)
+                    if result_proxy.rowcount > 0:
+                        saved_companies += 1
+                await task_db.commit()
+
+                # Update search job
+                job_row = await task_db.get(SearchJob, job_id)
+                if job_row:
+                    job_row.domains_found = len(domains)
+                    await task_db.commit()
+
+                if not domains:
+                    await _save_chat_message(
+                        task_db, project_id, "system",
+                        "No valid company domains found. Cannot search for contacts.",
+                        action_type="clay_gather_done",
+                    )
+                    await task_db.commit()
+                    return
+
+                # ── Phase 3: Find people ──
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Step 3/5 — Searching Clay for contacts at {len(domains)} companies...",
+                    action_type="clay_gather_progress",
+                )
+                await task_db.commit()
+
+                people = await clay_service.run_people_search(
+                    domains=domains,
+                    project_id=project_id,
+                )
+
+                if not people:
+                    crm_url = f"/contacts?project_id={project_id}&source=pipeline&segment={segment_label}"
+                    await _save_chat_message(
+                        task_db, project_id, "system",
+                        f"Found **{len(domains)}** companies but no contacts. "
+                        f"{saved_companies} companies saved to pipeline with segment **{segment_label}**.",
+                        action_type="clay_gather_done",
+                        action_data={
+                            "crm_url": crm_url,
+                            "total_companies": len(domains),
+                            "total_contacts": 0,
+                        },
+                    )
+                    await task_db.commit()
+                    return
+
+                # ── Phase 4: Apply office rules ──
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Step 4/5 — Found {len(people)} contacts. Applying office rules (max 5 per office, role priority)...",
+                    action_type="clay_gather_progress",
+                )
+                await task_db.commit()
+
+                from app.services.contact_rules_service import apply_office_rules
+                filtered, stats = apply_office_rules(
+                    people,
+                    company_field="company",
+                    location_field="location",
+                    title_field="title",
+                )
+
+                # ── Phase 5: Save contacts + promote to CRM ──
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Step 5/5 — Saving {stats['total_output']} contacts to CRM as draft "
+                    f"({stats['decision_makers']} decision-makers, {stats['unique_companies']} companies)...",
+                    action_type="clay_gather_progress",
+                )
+                await task_db.commit()
+
+                from app.models.pipeline import ExtractedContact, ContactSource
+                from app.models.contact import Contact
+
+                saved_contacts = 0
+                promoted_contacts = 0
+
+                for person in filtered:
+                    domain = (person.get("company_domain") or person.get("domain") or "").strip().lower()
+                    if not domain:
+                        continue
+
+                    # Find matching DiscoveredCompany
+                    dc_result = await task_db.execute(
+                        select(DiscoveredCompany.id, DiscoveredCompany.name).where(
+                            DiscoveredCompany.project_id == project_id,
+                            DiscoveredCompany.domain == domain,
+                        ).limit(1)
+                    )
+                    dc_row = dc_result.first()
+                    if not dc_row:
+                        continue
+
+                    # Split name
+                    full_name = person.get("name", "")
+                    name_parts = full_name.strip().split(None, 1) if full_name else []
+                    first_name = name_parts[0] if name_parts else ""
+                    last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+                    # Save as ExtractedContact
+                    ec = ExtractedContact(
+                        discovered_company_id=dc_row.id,
+                        first_name=first_name,
+                        last_name=last_name,
+                        email=person.get("email") or None,
+                        phone=person.get("phone"),
+                        job_title=person.get("title", ""),
+                        linkedin_url=person.get("linkedin_url"),
+                        source=ContactSource.CLAY,
+                        raw_data={
+                            "company": person.get("company"),
+                            "location": person.get("location"),
+                            "role_priority": person.get("_role_priority", 99),
+                            "is_decision_maker": person.get("_is_decision_maker", False),
+                            "segment": segment_label,
+                            "clay_filters": filters,
+                            "status": "draft",
+                        },
+                    )
+                    task_db.add(ec)
+                    saved_contacts += 1
+
+                    # Directly promote to CRM Contact
+                    email = person.get("email")
+                    if email:
+                        email_clean = email.lower().strip()
+                        provenance = {
+                            "source": "clay_gather",
+                            "segment": segment_label,
+                            "clay_filters": filters,
+                            "domain": domain,
+                            "search_job_id": job_id,
+                            "gathered_at": _time_mod.strftime("%Y-%m-%dT%H:%M:%S"),
+                            "role_priority": person.get("_role_priority", 99),
+                            "is_decision_maker": person.get("_is_decision_maker", False),
+                        }
+                        try:
+                            # Check if contact exists
+                            existing = await task_db.execute(
+                                select(Contact.id).where(
+                                    Contact.company_id == company_id,
+                                    Contact.email == email_clean,
+                                    Contact.deleted_at.is_(None),
+                                ).limit(1)
+                            )
+                            existing_id = existing.scalar_one_or_none()
+                            if existing_id:
+                                # Update existing
+                                from sqlalchemy import update as sql_update
+                                await task_db.execute(
+                                    sql_update(Contact).where(Contact.id == existing_id).values(
+                                        project_id=project_id,
+                                        segment=segment_label,
+                                        provenance=provenance,
+                                    )
+                                )
+                            else:
+                                # Insert new
+                                task_db.add(Contact(
+                                    company_id=company_id,
+                                    project_id=project_id,
+                                    email=email_clean,
+                                    first_name=first_name,
+                                    last_name=last_name,
+                                    job_title=person.get("title", ""),
+                                    company_name=dc_row.name or person.get("company", ""),
+                                    domain=domain,
+                                    linkedin_url=person.get("linkedin_url"),
+                                    location=person.get("location"),
+                                    segment=segment_label,
+                                    source="pipeline",
+                                    status="draft",
+                                    provenance=provenance,
+                                ))
+                            promoted_contacts += 1
+                        except Exception as e:
+                            logger.warning(f"CRM upsert failed for {email}: {e}")
+
+                try:
+                    await task_db.commit()
+                except Exception as e:
+                    logger.error(f"Failed to save clay_gather contacts: {e}")
+                    await task_db.rollback()
+                    saved_contacts = 0
+                    promoted_contacts = 0
+
+                # Update search job
+                job_row = await task_db.get(SearchJob, job_id)
+                if job_row:
+                    job_row.status = SearchJobStatus.COMPLETED
+                    job_row.config = {
+                        **job_row.config,
+                        "total_contacts": saved_contacts,
+                        "promoted_to_crm": promoted_contacts,
+                        "decision_makers": stats["decision_makers"],
+                    }
+                    await task_db.commit()
+
+                # ── Done ──
+                crm_url = f"/contacts?project_id={project_id}&source=pipeline&segment={segment_label}"
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"Gather complete! Found **{saved_contacts}** contacts "
+                    f"({stats['decision_makers']} decision-makers) at "
+                    f"**{stats['unique_companies']}** {segment_label} companies.\n\n"
+                    f"**{promoted_contacts}** contacts promoted to CRM as draft.\n\n"
+                    f"[Open in CRM →]({crm_url})",
+                    action_type="clay_gather_done",
+                    action_data={
+                        "crm_url": crm_url,
+                        "total_contacts": saved_contacts,
+                        "decision_makers": stats["decision_makers"],
+                        "unique_companies": stats["unique_companies"],
+                        "promoted_to_crm": promoted_contacts,
+                        "segment": segment_label,
+                        "filters": filters,
+                        "search_job_id": job_id,
+                    },
+                    suggestions=["show contacts", "show targets", "push to smartlead"],
+                )
+                await task_db.commit()
+
+        except Exception as e:
+            logger.error(f"Clay gather failed: {e}", exc_info=True)
+            try:
+                async with async_session_maker() as err_db:
+                    await _save_chat_message(
+                        err_db, project_id, "system",
+                        f"Gather pipeline failed: {str(e)[:200]}",
+                        action_type="clay_gather_error",
+                    )
+                    await err_db.commit()
+                    # Mark job as failed
+                    job_row = await err_db.get(SearchJob, job_id)
+                    if job_row:
+                        job_row.status = SearchJobStatus.FAILED
+                        await err_db.commit()
+            except Exception:
+                pass
+
+    background_tasks.add_task(_run_clay_gather_task)
+
+    return ChatResponse(
+        action="clay_gather",
+        reply=(
+            f"Starting full gather pipeline for **{segment_label}**.\n\n"
+            f"Target: ~{company_count} companies, ~{contact_count} contacts\n\n"
+            f"Clay filters:\n"
+            + "\n".join(f"- {s}" for s in filter_summary) +
+            f"\n\nPipeline steps:\n"
+            f"1. Find companies in Clay\n"
+            f"2. Save companies to pipeline\n"
+            f"3. Find contacts at those companies\n"
+            f"4. Apply office rules (max 5 per office, role priority)\n"
+            f"5. Save to CRM as draft contacts\n\n"
+            f"This will take 10-15 minutes. I'll update you with progress."
+        ),
+        project_id=project_id,
+        job_id=job_id,
+        data={"filters": filters, "status": "started", "segment": segment_label},
+        suggestions=["show status", "show targets"],
     )

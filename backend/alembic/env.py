@@ -24,6 +24,7 @@ from app.models import (
     EnrichmentAttempt, EnrichmentEffectiveness, EmailVerification,
     ProjectChatMessage,
     PipelineRun, PipelinePhaseLog, CostEvent,
+    TelegramChat, TelegramChatMessage, TelegramChatInsight,
 )
 
 config = context.config
