@@ -399,14 +399,14 @@ export function ContactDetailModal({
 
   // Keyboard navigation
   useEffect(() => {
-    if (!isOpen || !replyMode) return;
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' && onNavigate && currentIndex > 0) {
-        onNavigate(currentIndex - 1);
-      } else if (e.key === 'ArrowRight' && onNavigate && currentIndex < contactList.length - 1) {
-        onNavigate(currentIndex + 1);
-      } else if (e.key === 'Escape') {
+      if (e.key === 'Escape') {
         onClose();
+      } else if (replyMode && e.key === 'ArrowLeft' && onNavigate && currentIndex > 0) {
+        onNavigate(currentIndex - 1);
+      } else if (replyMode && e.key === 'ArrowRight' && onNavigate && currentIndex < contactList.length - 1) {
+        onNavigate(currentIndex + 1);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
