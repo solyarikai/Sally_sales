@@ -100,7 +100,7 @@ class CRMScheduler:
             "prompt_refresh": {"last_run": None, "interval": prompt_refresh_interval_hours * 3600, "label": "Prompt refresh"},
             "report": {"last_run": None, "interval": report_interval_hours * 3600, "label": "Reports"},
             "needs_reply_cleanup": {"last_run": None, "interval": 21600, "label": "Needs-reply cleanup"},
-            "followup_generation": {"last_run": None, "interval": 3600, "label": "Follow-up generation"},
+            "followup_generation": {"last_run": None, "interval": 180, "label": "Follow-up generation"},
         }
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
@@ -721,11 +721,11 @@ class CRMScheduler:
     async def _run_followup_generation_loop(self):
         """Pre-generate AI follow-up drafts for approved replies without responses.
 
-        Runs every hour, generating up to 20 drafts per cycle.
-        Drafts appear in the Follow-ups tab ready for operator review.
+        Runs every 3 minutes — same cadence as conversation sync.
+        Like regular replies, drafts are ready by the time operator opens the tab.
         """
-        await asyncio.sleep(120)  # Wait 2 min after startup
-        interval = 3600  # 1 hour
+        await asyncio.sleep(30)  # Quick startup — drafts should be ready fast
+        interval = 180  # 3 minutes — same as conversation sync
 
         while self._running:
             try:

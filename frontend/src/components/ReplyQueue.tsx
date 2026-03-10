@@ -1072,7 +1072,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                           <div className="flex items-center gap-2 flex-shrink-0 text-[11px]" style={{ color: t.text5 }}>
                             <span className="flex items-center gap-0.5">
                               <Clock className="w-3 h-3" />
-                              {reply.received_at ? timeAgo(reply.received_at) : '?'}
+                              {mode === 'followups' && reply.approved_at
+                                ? timeAgo(reply.approved_at)
+                                : reply.received_at ? timeAgo(reply.received_at) : '?'}
                             </span>
                             {(() => {
                               const selKey = selectedHistoryCampaign[reply.id];
@@ -1261,28 +1263,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                           <span className="text-[11px] uppercase tracking-wider" style={{ color: draftFailed ? t.errorText : t.text5 }}>
                             {mode === 'followups' ? 'Follow-up Draft' : (draftFailed ? 'Draft (failed)' : 'Draft')}
                           </span>
-                          {mode === 'followups' && !fuDraft && !isFuGenerating ? (
-                            <button
-                              onClick={async () => {
-                                setFollowupGenerating(prev => new Set(prev).add(reply.id));
-                                try {
-                                  const data = await repliesApi.generateFollowupDraft(reply.id, calendlyPrompt || undefined);
-                                  setFollowupDrafts(prev => ({
-                                    ...prev,
-                                    [reply.id]: { reply: data.draft_reply, subject: data.draft_subject || '' },
-                                  }));
-                                } catch (err: any) {
-                                  toast.error(err.response?.data?.detail || 'Failed to generate follow-up', { style: toastErr });
-                                } finally {
-                                  setFollowupGenerating(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
-                                }
-                              }}
-                              className="text-[11px] flex items-center gap-1 transition-colors cursor-pointer px-2 py-1 rounded"
-                              style={{ background: t.btnPrimaryBg, color: t.btnPrimaryText }}
-                            >
-                              <RefreshCw className="w-3 h-3" /> Generate Follow-up
-                            </button>
-                          ) : mode === 'followups' && fuDraft && !isEditing ? (
+                          {mode === 'followups' && fuDraft && !isEditing ? (
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={async () => {
@@ -1410,13 +1391,6 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                           >
                             <Loader2 className="w-4 h-4 animate-spin" />
                             Generating follow-up draft...
-                          </div>
-                        ) : mode === 'followups' && !fuDraft ? (
-                          <div
-                            className="text-[13px] leading-relaxed rounded p-2.5"
-                            style={{ background: t.draftBg, color: t.text5 }}
-                          >
-                            Draft pending — will be generated automatically
                           </div>
                         ) : (
                           <>

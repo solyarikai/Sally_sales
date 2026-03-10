@@ -50,6 +50,7 @@ async def generate_follow_up_drafts(session: AsyncSession, limit: int = 20) -> d
                 ProcessedReply.approved_at.isnot(None),
                 ProcessedReply.approved_at < cutoff,
                 ProcessedReply.approved_at > max_age,
+                ProcessedReply.received_at > max_age,  # Skip ancient conversations
                 ProcessedReply.follow_up_number.is_(None),
                 ProcessedReply.parent_reply_id.is_(None),
                 ProcessedReply.category.in_(["meeting_request", "interested", "question"]),
