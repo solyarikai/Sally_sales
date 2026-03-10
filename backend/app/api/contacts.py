@@ -1329,6 +1329,165 @@ jane@company.com,Jane,Smith,Tech Inc,techinc.com,CTO,FinTech,,,San Francisco,Fol
     )
 
 
+class EnrichResult(BaseModel):
+    """Result of CSV enrich operation."""
+    success: bool
+    total_rows: int
+    enriched: int
+    skipped: int
+    not_found: int
+    errors: List[str]
+
+
+@router.post("/enrich/csv", response_model=EnrichResult)
+async def enrich_contacts_csv(
+    file: UploadFile = File(...),
+    project_id: Optional[int] = Query(None, description="Only enrich contacts in this project"),
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """
+    Enrich existing contacts from a CSV file.
+
+    Matches contacts by email (case-insensitive) and fills in empty fields only.
+    Never overwrites existing data.
+
+    Supported CSV columns (same aliases as import):
+    - email (required, used for matching)
+    - first_name, last_name, company, job_title, phone, linkedin_url, location, notes
+    """
+    if not file.filename or not file.filename.lower().endswith('.csv'):
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+
+    try:
+        content = await file.read()
+        text_content = content.decode('utf-8-sig')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
+
+    try:
+        reader = csv.DictReader(io.StringIO(text_content))
+        rows = list(reader)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse CSV: {str(e)}")
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="CSV file is empty")
+
+    # Same column mapping as import
+    column_mapping = {
+        'email': ['email', 'e-mail', 'email_address', 'emailaddress'],
+        'first_name': ['first_name', 'firstname', 'first name', 'first'],
+        'last_name': ['last_name', 'lastname', 'last name', 'last', 'surname'],
+        'company_name': ['company', 'company_name', 'companyname', 'organization', 'org'],
+        'domain': ['domain', 'website', 'company_domain'],
+        'job_title': ['job_title', 'jobtitle', 'title', 'position', 'role'],
+        'phone': ['phone', 'phone_number', 'phonenumber', 'mobile', 'tel'],
+        'linkedin_url': ['linkedin_url', 'linkedin', 'linkedin_profile', 'linkedinurl'],
+        'location': ['location', 'city', 'country', 'region', 'address'],
+        'notes': ['notes', 'note', 'comments', 'comment'],
+    }
+
+    available_columns = {col.lower().strip(): col for col in (rows[0].keys() if rows else [])}
+    field_to_csv_col = {}
+
+    for field, aliases in column_mapping.items():
+        for alias in aliases:
+            if alias.lower() in available_columns:
+                field_to_csv_col[field] = available_columns[alias.lower()]
+                break
+
+    if 'email' not in field_to_csv_col:
+        raise HTTPException(
+            status_code=400,
+            detail=f"CSV must have an 'email' column. Found columns: {list(available_columns.values())}"
+        )
+
+    enrichable_fields = ['first_name', 'last_name', 'company_name', 'domain', 'job_title', 'phone', 'linkedin_url', 'location', 'notes']
+    csv_fields = [f for f in enrichable_fields if f in field_to_csv_col]
+
+    if not csv_fields:
+        raise HTTPException(
+            status_code=400,
+            detail="CSV has no enrichable columns besides email. Need at least one of: first_name, last_name, company, job_title, phone, linkedin_url, location, notes"
+        )
+
+    logger.info(f"CSV enrich: {len(rows)} rows, fields to enrich: {csv_fields}")
+
+    enriched = 0
+    skipped = 0
+    not_found = 0
+    errors = []
+
+    for idx, row in enumerate(rows, start=2):
+        try:
+            email_col = field_to_csv_col['email']
+            email = row.get(email_col, '').strip().lower()
+
+            if not email:
+                errors.append(f"Row {idx}: Empty email")
+                continue
+
+            if not validate_email(email):
+                errors.append(f"Row {idx}: Invalid email '{email}'")
+                continue
+
+            # Find existing contact by email
+            conditions = [
+                func.lower(Contact.email) == email,
+                Contact.deleted_at.is_(None),
+            ]
+            if company_id:
+                conditions.append(Contact.company_id == company_id)
+            if project_id:
+                conditions.append(Contact.project_id == project_id)
+
+            result = await session.execute(
+                select(Contact).where(and_(*conditions)).limit(1)
+            )
+            contact = result.scalar_one_or_none()
+
+            if not contact:
+                not_found += 1
+                continue
+
+            # Enrich: fill only empty fields
+            updated = False
+            for field in csv_fields:
+                csv_col = field_to_csv_col[field]
+                csv_value = row.get(csv_col, '').strip()
+                if not csv_value:
+                    continue
+                current_value = getattr(contact, field, None)
+                if not current_value:
+                    setattr(contact, field, csv_value)
+                    updated = True
+
+            if updated:
+                enriched += 1
+            else:
+                skipped += 1
+
+        except Exception as e:
+            errors.append(f"Row {idx}: {str(e)}")
+            if len(errors) > 100:
+                errors.append("... (more errors truncated)")
+                break
+
+    await session.commit()
+
+    logger.info(f"CSV enrich complete: {enriched} enriched, {skipped} skipped, {not_found} not found, {len(errors)} errors")
+
+    return EnrichResult(
+        success=enriched > 0,
+        total_rows=len(rows),
+        enriched=enriched,
+        skipped=skipped,
+        not_found=not_found,
+        errors=errors[:20],
+    )
+
+
 def _format_campaigns(campaigns_raw) -> str:
     """Format campaigns JSON into a readable comma-separated string."""
     camps = parse_campaigns(campaigns_raw) if campaigns_raw else []

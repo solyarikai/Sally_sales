@@ -16,7 +16,7 @@ export type { DashboardResponse, DashboardStats, ActivityItem, QuickStats } from
 // Old tasksApi removed — task functionality now uses contactsApi.listTasks/updateTask
 export { dataSearchApi } from './dataSearch';
 export type { SearchFilter, CompanyResult, SearchResponse, ParsedQuery, ChatMessage } from './dataSearch';
-export type { Contact, ContactListResponse, ContactStats, Project, FilterOptions, AISDRProject, AISDRGenerationResult, ImportResult, ContactActivity, ContactWithActivities, SyncStatus, OperatorTask, TasksListResponse } from './contacts';
+export type { Contact, ContactListResponse, ContactStats, Project, FilterOptions, AISDRProject, AISDRGenerationResult, ImportResult, EnrichResult, ContactActivity, ContactWithActivities, SyncStatus, OperatorTask, TasksListResponse } from './contacts';
 export { queryDashboardApi } from './queryDashboard';
 export type { QueryRecord, QueryListResponse, QuerySummaryResponse, FilterOptionsResponse as QueryFilterOptions, GeoHierarchyResponse, QueryDashboardFilters, SegmentSaturation } from './queryDashboard';
 export type { 

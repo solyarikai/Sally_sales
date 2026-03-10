@@ -22,7 +22,7 @@ import {
   FileSpreadsheet,
   Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3
 } from 'lucide-react';
-import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult } from '../api';
+import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type EnrichResult } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
@@ -183,6 +183,7 @@ export function ContactsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showEnrichModal, setShowEnrichModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
 
   // Dialogs
@@ -915,6 +916,9 @@ export function ContactsPage() {
             <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Import">
               <Upload className="w-3.5 h-3.5" />
             </button>
+            <button onClick={() => setShowEnrichModal(true)} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Enrich from CSV">
+              <Sparkles className="w-3.5 h-3.5" />
+            </button>
             <button onClick={handleExportCsv} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Export CSV">
               <Download className="w-3.5 h-3.5" />
             </button>
@@ -1067,6 +1071,20 @@ export function ContactsPage() {
             loadContacts();
             loadStats();
             loadFilterOptions();
+          }}
+        />
+      )}
+
+      {/* Enrich Modal */}
+      {showEnrichModal && (
+        <EnrichContactsModal
+          projects={projects}
+          activeProjectId={activeProject}
+          onClose={() => setShowEnrichModal(false)}
+          onSuccess={() => {
+            setShowEnrichModal(false);
+            loadContacts();
+            loadStats();
           }}
         />
       )}
@@ -2047,6 +2065,238 @@ function ImportContactsModal({
                 <><Loader2 className="w-4 h-4 animate-spin" /> Importing...</>
               ) : (
                 <><Upload className="w-4 h-4" /> Import Contacts</>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ─── Enrich Contacts Modal ─── */
+function EnrichContactsModal({
+  projects,
+  activeProjectId,
+  onClose,
+  onSuccess,
+}: {
+  projects: Project[];
+  activeProjectId: number | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const { isDark } = useTheme();
+  const t = themeColors(isDark);
+  const toast = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [projectId, setProjectId] = useState<number | undefined>(activeProjectId || undefined);
+  const [isUploading, setIsUploading] = useState(false);
+  const [result, setResult] = useState<EnrichResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
+        setError('Please select a CSV file');
+        return;
+      }
+      setFile(selectedFile);
+      setError(null);
+      setResult(null);
+    }
+  };
+
+  const handleEnrich = async () => {
+    if (!file) {
+      setError('Please select a file');
+      return;
+    }
+
+    setIsUploading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const enrichResult = await contactsApi.enrichCsv(file, {
+        project_id: projectId,
+      });
+      setResult(enrichResult);
+
+      if (enrichResult.enriched > 0) {
+        toast.success('Enrichment complete', `${enrichResult.enriched} contacts enriched`);
+        setTimeout(() => onSuccess(), 2000);
+      } else if (enrichResult.not_found > 0) {
+        toast.warning('No matches', `${enrichResult.not_found} emails not found in CRM`);
+      } else {
+        toast.info('Nothing to enrich', 'All matched contacts already have complete data');
+      }
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      setError(message);
+      toast.error('Enrich failed', message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" style={{ background: t.cardBg }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${t.cardBorder}` }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold" style={{ color: t.text1 }}>Enrich Contacts</h2>
+              <p className="text-sm" style={{ color: t.text3 }}>Fill missing data from CSV (match by email)</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg" style={{ color: t.text3 }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-auto p-6 space-y-6">
+          {/* File Upload */}
+          <div
+            className={cn(
+              "border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer",
+              file
+                ? "border-green-300 bg-green-50"
+                : (isDark ? "border-neutral-700 hover:border-purple-500" : "border-neutral-200 hover:border-purple-300 hover:bg-purple-50/30")
+            )}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            {file ? (
+              <div className="flex items-center justify-center gap-3">
+                <Check className="w-6 h-6 text-green-600" />
+                <div className="text-left">
+                  <p className="font-medium text-green-700">{file.name}</p>
+                  <p className="text-sm text-green-600">{(file.size / 1024).toFixed(1)} KB</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <Sparkles className="w-10 h-10 mx-auto mb-3" style={{ color: t.text4 }} />
+                <p className="text-sm mb-1" style={{ color: t.text2 }}>Click to select a CSV file</p>
+                <p className="text-xs" style={{ color: t.text4 }}>Must have an email column + data columns (name, title, company...)</p>
+              </>
+            )}
+          </div>
+
+          {/* Project filter */}
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: t.text2 }}>
+              Match within Project (optional)
+            </label>
+            <select
+              value={projectId || ''}
+              onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : undefined)}
+              className="input w-full"
+            >
+              <option value="">All projects</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <p className="text-xs mt-1" style={{ color: t.text3 }}>
+              Only enrich contacts in selected project, or all if empty
+            </p>
+          </div>
+
+          {/* Info */}
+          <div className="text-xs p-3 rounded-xl" style={{ background: isDark ? '#1a1a2e' : '#f0f0ff', color: t.text3 }}>
+            Only fills empty fields. Existing data is never overwritten.
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="flex items-start gap-2 p-4 rounded-xl bg-red-50 text-red-700">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div className="text-sm">{error}</div>
+            </div>
+          )}
+
+          {/* Results */}
+          {result && (
+            <div className={cn(
+              "p-4 rounded-xl",
+              result.enriched > 0 ? "bg-green-50" : "bg-amber-50"
+            )}>
+              <div className="flex items-center gap-2 mb-3">
+                {result.enriched > 0 ? (
+                  <Check className="w-5 h-5 text-green-600" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                )}
+                <span className={cn(
+                  "font-medium",
+                  result.enriched > 0 ? "text-green-700" : "text-amber-700"
+                )}>
+                  Enrichment {result.enriched > 0 ? 'Complete' : 'Results'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 mb-3">
+                <div className="text-center p-2 bg-white rounded-lg">
+                  <div className="text-lg font-semibold text-green-600">{result.enriched}</div>
+                  <div className="text-xs text-neutral-500">Enriched</div>
+                </div>
+                <div className="text-center p-2 bg-white rounded-lg">
+                  <div className="text-lg font-semibold text-amber-600">{result.skipped}</div>
+                  <div className="text-xs text-neutral-500">Already full</div>
+                </div>
+                <div className="text-center p-2 bg-white rounded-lg">
+                  <div className="text-lg font-semibold text-neutral-500">{result.not_found}</div>
+                  <div className="text-xs text-neutral-500">Not found</div>
+                </div>
+              </div>
+
+              {result.errors.length > 0 && (
+                <div className="mt-2 text-xs text-red-600 space-y-1">
+                  {result.errors.map((e, i) => <div key={i}>{e}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 flex gap-3" style={{ borderTop: `1px solid ${t.cardBorder}` }}>
+          <button onClick={onClose} className="btn btn-secondary flex-1">
+            {result ? 'Close' : 'Cancel'}
+          </button>
+          {!result && (
+            <button
+              onClick={handleEnrich}
+              disabled={!file || isUploading}
+              className="btn btn-primary flex-1"
+            >
+              {isUploading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Enriching...</>
+              ) : (
+                <><Sparkles className="w-4 h-4" /> Enrich Contacts</>
               )}
             </button>
           )}

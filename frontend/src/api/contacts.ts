@@ -202,6 +202,15 @@ export interface ImportResult {
   sample_created: string[];
 }
 
+export interface EnrichResult {
+  success: boolean;
+  total_rows: number;
+  enriched: number;
+  skipped: number;
+  not_found: number;
+  errors: string[];
+}
+
 export interface ContactCreate {
   email: string;
   first_name?: string;
@@ -408,6 +417,24 @@ export const contactsApi = {
     if (options?.skip_duplicates !== undefined) params.append('skip_duplicates', String(options.skip_duplicates));
     
     const url = `/contacts/import/csv${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await api.post(url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  // Enrich existing contacts from CSV (fill empty fields only)
+  async enrichCsv(
+    file: File,
+    options?: { project_id?: number }
+  ): Promise<EnrichResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const params = new URLSearchParams();
+    if (options?.project_id) params.append('project_id', String(options.project_id));
+
+    const url = `/contacts/enrich/csv${params.toString() ? '?' + params.toString() : ''}`;
     const response = await api.post(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
