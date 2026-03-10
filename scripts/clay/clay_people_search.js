@@ -674,6 +674,8 @@ async function main() {
   const splitByGeo = args.includes('--split-geo');
   const headless = args.includes('--headless');
   const useTitles = args.includes('--titles');
+  const domainsFileIdx = args.indexOf('--domains-file');
+  const externalDomainsFile = domainsFileIdx >= 0 ? args[domainsFileIdx + 1] : null;
 
   if (useTitles) {
     GAMING_ICP_FILTERS.job_titles = ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
@@ -739,9 +741,16 @@ async function main() {
   const creditsBefore = check.credits;
   console.log(`  Credits: ${JSON.stringify(creditsBefore)}`);
 
-  // Load known gaming ICP domains
-  const allDomains = loadKnownDomains();
-  console.log(`  Known gaming ICP domains: ${allDomains.length}`);
+  // Load domains — from external file if provided, else from known sources
+  let allDomains;
+  if (externalDomainsFile && fs.existsSync(externalDomainsFile)) {
+    const lines = fs.readFileSync(externalDomainsFile, 'utf-8').split('\n');
+    allDomains = lines.map(l => l.trim().toLowerCase().replace(/^www\./, '')).filter(d => d && d.includes('.'));
+    console.log(`  External domains file: ${externalDomainsFile} (${allDomains.length} domains)`);
+  } else {
+    allDomains = loadKnownDomains();
+    console.log(`  Known gaming ICP domains: ${allDomains.length}`);
+  }
   GAMING_ICP_FILTERS.company_domains = allDomains;
 
   // Build search configs

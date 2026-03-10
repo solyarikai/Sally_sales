@@ -176,6 +176,9 @@ RULES:
                         _handle_verify_emails, _handle_verification_stats,
                         _handle_show_segments, _handle_toggle_verification,
                         _handle_show_contacts, _handle_new_search, _handle_ask,
+                        _handle_clay_export,
+                        _handle_clay_people,
+                        _handle_clay_gather,
                     )
                     from fastapi import BackgroundTasks
 
@@ -200,6 +203,9 @@ RULES:
                         "toggle_verification": lambda: _handle_toggle_verification(parsed, body, db, company, project),
                         "show_contacts": lambda: _handle_show_contacts(parsed, body, db, company, project),
                         "search": lambda: _handle_new_search(body, bg_tasks, db, company),
+                        "clay_export": lambda: _handle_clay_export(parsed, body, bg_tasks, db, company, project),
+                        "clay_people": lambda: _handle_clay_people(parsed, body, bg_tasks, db, company, project),
+                        "clay_gather": lambda: _handle_clay_gather(parsed, body, bg_tasks, db, company, project),
                     }
 
                     handler = handlers.get(action)
