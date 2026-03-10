@@ -146,7 +146,7 @@ class SmartleadService:
         try:
             response = await smartlead_request(
                 "GET", f"{self.base_url}/campaigns",
-                params={"api_key": self._api_key},
+                params={"api_key": self._api_key, "include_tags": "true"},
             )
 
             if response.status_code == 200:
@@ -165,6 +165,23 @@ class SmartleadService:
             logger.error(f"Error fetching Smartlead campaigns: {e}")
             raise
     
+    async def get_campaign_lead_count(self, campaign_id: str) -> int:
+        """Get total lead count for a campaign (1 API call, minimal data)."""
+        if not self._api_key:
+            return 0
+        try:
+            response = await smartlead_request(
+                "GET", f"{self.base_url}/campaigns/{campaign_id}/leads",
+                params={"api_key": self._api_key, "limit": 1, "offset": 0},
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("total_leads", 0) if isinstance(data, dict) else 0
+            return 0
+        except Exception as e:
+            logger.warning(f"Failed to get lead count for campaign {campaign_id}: {e}")
+            return 0
+
     async def add_leads_to_campaign(
         self,
         campaign_id: str,

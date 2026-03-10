@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, String, text as sql_text, desc
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from datetime import datetime
 import csv
 import io
@@ -104,6 +104,7 @@ class ContactResponse(BaseModel):
     source: str
     source_id: Optional[str] = None
     status: str
+    status_external: Optional[str] = None
     phone: Optional[str] = None
     linkedin_url: Optional[str] = None
     location: Optional[str] = None
@@ -132,24 +133,25 @@ class ContactResponse(BaseModel):
             return True
         return bool(v)
 
-    @field_validator('campaigns', mode='before')
-    @classmethod
-    def derive_campaigns(cls, v, info):
-        """Derive campaigns list from platform_state since the campaigns column was dropped."""
-        if isinstance(v, list):
-            return v
-        ps = info.data.get('platform_state')
-        if not isinstance(ps, dict):
-            return None
+    @model_validator(mode='after')
+    def derive_campaigns(self):
+        """Derive campaigns list from platform_state since the campaigns column was dropped.
+        Uses model_validator instead of field_validator because Pydantic v2 skips
+        field validators when the ORM object lacks the attribute entirely."""
+        if self.campaigns:
+            return self
+        if not isinstance(self.platform_state, dict):
+            return self
         result = []
-        for plat_name, plat_data in ps.items():
+        for plat_name, plat_data in self.platform_state.items():
             if isinstance(plat_data, dict):
                 for camp in plat_data.get("campaigns", []):
                     if isinstance(camp, dict):
                         camp_copy = dict(camp)
                         camp_copy.setdefault("source", plat_name)
                         result.append(camp_copy)
-        return result or None
+        self.campaigns = result or None
+        return self
 
     class Config:
         from_attributes = True
@@ -181,6 +183,7 @@ class ProjectUpdate(BaseModel):
     target_industries: Optional[str] = None
     target_segments: Optional[str] = None
     campaign_filters: Optional[List[str]] = None
+    campaign_ownership_rules: Optional[Dict[str, Any]] = None
     telegram_chat_id: Optional[str] = None  # Resolved chat ID (set automatically)
     telegram_username: Optional[str] = None  # Operator @username for notifications
     webhooks_enabled: Optional[bool] = None
@@ -198,6 +201,7 @@ class ProjectResponse(BaseModel):
     target_industries: Optional[str] = None
     target_segments: Optional[str] = None
     campaign_filters: Optional[List[str]] = None
+    campaign_ownership_rules: Optional[Dict[str, Any]] = None
     telegram_chat_id: Optional[str] = None
     telegram_username: Optional[str] = None
     webhooks_enabled: bool = True
@@ -206,6 +210,7 @@ class ProjectResponse(BaseModel):
     sender_position: Optional[str] = None
     sender_company: Optional[str] = None
     reply_prompt_template_id: Optional[int] = None
+    external_status_config: Optional[Dict[str, Any]] = None
     contact_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -279,6 +284,8 @@ async def _build_filtered_query(
     domain: Optional[str] = None,
     suitable_for: Optional[str] = None,
     reply_category: Optional[str] = None,
+    reply_since: Optional[str] = None,
+    status_external: Optional[str] = None,
 ):
     """Build a filtered Contact query. Shared by list, CSV export, and Google Sheet export."""
     query = select(Contact).where(
@@ -441,14 +448,28 @@ async def _build_filtered_query(
     if reply_category:
         from app.models.reply import ProcessedReply
         cats = [c.strip() for c in reply_category.split(',') if c.strip()]
-        # Subquery: latest reply category per lead_email
+        # Subquery: leads with matching reply category (optionally time-bounded)
+        cat_filter = [ProcessedReply.category.in_(cats)]
+        if reply_since:
+            try:
+                since_dt = datetime.fromisoformat(reply_since)
+                cat_filter.append(ProcessedReply.received_at >= since_dt)
+            except ValueError:
+                pass
         latest_cat = (
             select(ProcessedReply.lead_email)
             .distinct(ProcessedReply.lead_email)
-            .where(ProcessedReply.category.in_(cats))
+            .where(and_(*cat_filter))
             .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at))
         ).subquery()
         query = query.where(Contact.email.in_(select(latest_cat.c.lead_email)))
+
+    if status_external:
+        ext_list = [s.strip() for s in status_external.split(',') if s.strip()]
+        if len(ext_list) == 1:
+            query = query.where(Contact.status_external == ext_list[0])
+        elif ext_list:
+            query = query.where(Contact.status_external.in_(ext_list))
 
     return query
 
@@ -477,6 +498,8 @@ async def list_contacts(
     domain: Optional[str] = Query(None, description="Filter by domain(s), comma-separated"),
     suitable_for: Optional[str] = Query(None, description="Filter by suitable_for project name"),
     reply_category: Optional[str] = Query(None, description="Filter by latest reply category (comma-separated)"),
+    reply_since: Optional[str] = Query(None, description="Only include replies received after this date (ISO format)"),
+    status_external: Optional[str] = Query(None, description="Filter by external status (comma-separated)"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -488,6 +511,7 @@ async def list_contacts(
         campaign=campaign, campaign_id=campaign_id, needs_followup=needs_followup,
         created_after=created_after, created_before=created_before, search=search,
         domain=domain, suitable_for=suitable_for, reply_category=reply_category,
+        reply_since=reply_since, status_external=status_external,
     )
     
     # Count total
@@ -1587,6 +1611,7 @@ async def list_projects(
             target_industries=project.target_industries,
             target_segments=project.target_segments,
             campaign_filters=project.campaign_filters,
+            campaign_ownership_rules=project.campaign_ownership_rules,
             telegram_chat_id=project.telegram_chat_id,
             webhooks_enabled=project.webhooks_enabled,
             sheet_sync_config=project.sheet_sync_config,
@@ -1636,6 +1661,7 @@ async def create_project(
         target_industries=db_project.target_industries,
         target_segments=db_project.target_segments,
         campaign_filters=db_project.campaign_filters,
+        campaign_ownership_rules=db_project.campaign_ownership_rules,
         telegram_chat_id=db_project.telegram_chat_id,
         webhooks_enabled=db_project.webhooks_enabled,
         sheet_sync_config=db_project.sheet_sync_config,
@@ -1693,6 +1719,7 @@ async def get_project(
         target_industries=project.target_industries,
         target_segments=project.target_segments,
         campaign_filters=project.campaign_filters,
+        campaign_ownership_rules=project.campaign_ownership_rules,
         telegram_chat_id=project.telegram_chat_id,
         webhooks_enabled=project.webhooks_enabled,
         sheet_sync_config=project.sheet_sync_config,
@@ -1793,6 +1820,14 @@ async def update_project(
     )
     contact_count = count_result.scalar() or 0
     
+    # Refresh project prefix cache if ownership rules changed
+    if "campaign_ownership_rules" in update_data:
+        try:
+            from app.services.crm_sync_service import refresh_project_prefixes
+            await refresh_project_prefixes()
+        except Exception:
+            pass
+
     return ProjectResponse(
         id=project.id,
         name=project.name,
@@ -1800,6 +1835,7 @@ async def update_project(
         target_industries=project.target_industries,
         target_segments=project.target_segments,
         campaign_filters=project.campaign_filters,
+        campaign_ownership_rules=project.campaign_ownership_rules,
         telegram_chat_id=project.telegram_chat_id,
         telegram_username=project.telegram_username,
         webhooks_enabled=project.webhooks_enabled,
@@ -1956,6 +1992,42 @@ async def trigger_sheet_sync(
         results["qualification"] = await sheet_sync_service.poll_qualification_from_sheet(project_id)
 
     return {"sync_type": sync_type, "results": results}
+
+
+@router.post("/projects/{project_id}/sheet-sync/bootstrap-reference")
+async def bootstrap_reference_data(
+    project_id: int,
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """One-time: copy reference tab data to the replies tab for initial bootstrap."""
+    from app.services.sheet_sync_service import sheet_sync_service
+
+    result = await session.execute(
+        select(Project).where(
+            and_(
+                Project.id == project_id,
+                Project.company_id == company_id if company_id else True,
+                Project.deleted_at.is_(None),
+            )
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    config = project.sheet_sync_config or {}
+    if not config.get("sheet_id"):
+        raise HTTPException(status_code=400, detail="No sheet_id configured")
+    if not config.get("reference_tab"):
+        raise HTTPException(status_code=400, detail="No reference_tab configured")
+
+    stats = await sheet_sync_service.copy_reference_to_tab(project_id)
+
+    if stats["errors"]:
+        raise HTTPException(status_code=400, detail=stats["errors"][0])
+
+    return {"rows_copied": stats["rows_copied"]}
 
 
 @router.delete("/projects/{project_id}")
@@ -3218,7 +3290,22 @@ async def update_contact_status(
     
     old_status = contact.status
     contact.status = request.status
-    
+
+    # Re-derive external status on manual status change
+    if contact.project_id:
+        proj_result = await session.execute(
+            select(Project).where(Project.id == contact.project_id)
+        )
+        proj = proj_result.scalar()
+        if proj and proj.external_status_config:
+            from app.services.status_machine import derive_external_status
+            ext = derive_external_status(
+                proj.external_status_config,
+                internal_status=request.status,
+            )
+            if ext:
+                contact.status_external = ext
+
     # Sync to Smartlead if enabled and contact has smartlead_id
     smartlead_synced = False
     if request.sync_to_smartlead and contact.smartlead_id and request.status in SMARTLEAD_STATUS_MAPPING:
@@ -3288,6 +3375,16 @@ async def update_contact_status(
         tasks_created = 2
 
     await session.commit()
+
+    # Propagate status_external to Google Sheet (fire-and-forget)
+    if contact.status_external and contact.project_id and contact.email:
+        try:
+            from app.services.sheet_sync_service import sheet_sync_service
+            await sheet_sync_service.update_sheet_status(
+                contact.project_id, contact.email, contact.status_external
+            )
+        except Exception as e:
+            logger.warning(f"Sheet status update failed for {contact.email}: {e}")
 
     return {
         "id": contact.id,

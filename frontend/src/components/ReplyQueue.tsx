@@ -1400,7 +1400,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, onCountsChang
                             </span>
                           </div>
 
-                          {reply.lead_email && (
+                          {reply.lead_email && !reply.lead_email.includes('@linkedin.placeholder') && !reply.lead_email.startsWith('gs_') && (
                             <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text3 }}>
                               <Mail className="w-3 h-3 flex-shrink-0" />
                               <span>{reply.lead_email}</span>

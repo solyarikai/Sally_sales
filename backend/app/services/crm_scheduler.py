@@ -2,7 +2,7 @@
 CRM Sync Scheduler - Robust background job system.
 
 Features:
-- Full CRM sync every 30 minutes
+- Incremental GetSales sync every 10 minutes (daily full reconciliation)
 - Adaptive reply polling: 3 min fast (startup/degraded), 10 min steady state
 - Webhook registration every 60 min (5 min retry on failure)
 - Webhook health monitoring
@@ -64,7 +64,7 @@ class CRMScheduler:
     
     def __init__(
         self,
-        sync_interval_minutes: int = 30,
+        sync_interval_minutes: int = 10,
         report_interval_hours: int = 4,
         prompt_refresh_interval_hours: int = 168,  # Weekly
         company_id: int = 1
@@ -85,6 +85,7 @@ class CRMScheduler:
         self._conversation_sync_task: Optional[asyncio.Task] = None
         self._telegram_poll_task: Optional[asyncio.Task] = None
         self._sheet_sync_task: Optional[asyncio.Task] = None
+        self._cleanup_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         
         # Per-task tracking: last_run, interval_seconds, next_run
@@ -97,6 +98,7 @@ class CRMScheduler:
             "event_recovery": {"last_run": None, "interval": 300, "label": "Event recovery"},
             "prompt_refresh": {"last_run": None, "interval": prompt_refresh_interval_hours * 3600, "label": "Prompt refresh"},
             "report": {"last_run": None, "interval": report_interval_hours * 3600, "label": "Reports"},
+            "needs_reply_cleanup": {"last_run": None, "interval": 21600, "label": "Needs-reply cleanup"},
         }
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
@@ -145,7 +147,7 @@ class CRMScheduler:
         self._running = True
         self._start_all_tasks()
         self._watchdog_task = asyncio.create_task(self._run_watchdog())
-        logger.info("CRM scheduler started (sync: 30min, replies: adaptive 3-10min, webhooks: 1h, reports: 4h, recovery: 5min)")
+        logger.info("CRM scheduler started (sync: 10min incremental, replies: adaptive 3-10min, webhooks: 1h, reports: 4h, recovery: 5min)")
     
     async def stop(self):
         """Stop all scheduler tasks."""
@@ -155,7 +157,7 @@ class CRMScheduler:
             self._report_task, self._prompt_refresh_task,
             self._recovery_task, self._conversation_sync_task,
             self._telegram_poll_task, self._sheet_sync_task,
-            self._watchdog_task
+            self._cleanup_task, self._watchdog_task
         ]
         for task in all_tasks:
             if task:
@@ -178,6 +180,7 @@ class CRMScheduler:
             ("_conversation_sync_task", self._run_conversation_sync_loop, "Conversation sync"),
             ("_telegram_poll_task", self._run_telegram_poll_loop, "Telegram poll"),
             ("_sheet_sync_task", self._run_sheet_sync_loop, "Sheet sync"),
+            ("_cleanup_task", self._run_needs_reply_cleanup_loop, "Needs-reply cleanup"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -209,10 +212,10 @@ class CRMScheduler:
                     else:
                         self._webhook_healthy = True
     
-    # ===== Main CRM Sync Loop (30 min) =====
-    
+    # ===== Main CRM Sync Loop (10 min incremental, daily full reconciliation) =====
+
     async def _run_loop(self):
-        """Full CRM sync loop."""
+        """CRM sync loop — incremental by default, full reconciliation daily."""
         while self._running:
             try:
                 await self._run_sync()
@@ -250,7 +253,8 @@ class CRMScheduler:
                     logger.info(f"Smartlead replies: {replies.get('new_replies', 0)} new")
                 if results.get("getsales", {}).get("contacts"):
                     gs = results["getsales"]["contacts"]
-                    logger.info(f"GetSales sync: {gs.get('created', 0)} created, {gs.get('updated', 0)} updated")
+                    sync_type = gs.get("sync_type", "unknown")
+                    logger.info(f"GetSales sync ({sync_type}): {gs.get('created', 0)} created, {gs.get('updated', 0)} updated, {gs.get('api_calls', '?')} API calls")
                 
                 logger.info("Scheduled CRM sync completed")
             except Exception as e:
@@ -293,77 +297,173 @@ class CRMScheduler:
             await asyncio.sleep(interval)
     
     async def _auto_assign_new_campaigns(self):
-        """Auto-discover new Smartlead campaigns and assign to matching projects."""
+        """Auto-discover campaigns from SmartLead + GetSales, register in Campaign table, assign to projects."""
         from app.models.contact import Project
+        from app.models.campaign import Campaign
+        from app.services.crm_sync_service import match_campaign_to_project, refresh_getsales_flow_cache, refresh_project_prefixes
         from sqlalchemy import select, and_
 
+        # ── Phase 1: Fetch campaigns from both platforms ──
+        sl_campaigns = []
+        gs_automations = []
+
         try:
-            all_campaigns = await self._get_campaigns_cached()
+            sl_campaigns = await self._get_campaigns_cached()
         except Exception as e:
-            logger.warning(f"Failed to fetch campaigns for auto-assign: {e}")
-            return
-        if not all_campaigns:
+            logger.warning(f"Failed to fetch SmartLead campaigns: {e}")
+
+        try:
+            from app.services.crm_sync_service import GetSalesClient
+            import os
+            gs_key = os.getenv("GETSALES_API_KEY")
+            if gs_key:
+                gs_client = GetSalesClient(gs_key)
+                gs_automations = await gs_client.get_flows()
+        except Exception as e:
+            logger.warning(f"Failed to fetch GetSales automations: {e}")
+
+        if not sl_campaigns and not gs_automations:
             return
 
         async with async_session_maker() as session:
             try:
-                result = await session.execute(
-                    select(Project).where(
-                        and_(
-                            Project.campaign_filters.isnot(None),
-                            Project.deleted_at.is_(None),
+                # ── Phase 2: Register/update all campaigns in Campaign table ──
+                registered = 0
+
+                # SmartLead campaigns — register and refresh lead counts
+                sync_service = get_crm_sync_service()
+                sl_client = sync_service.smartlead if sync_service else None
+                leads_refreshed = 0
+                for c in sl_campaigns:
+                    c_name = c.get("name", "")
+                    c_id = str(c.get("id", ""))
+                    if not c_name or not c_id:
+                        continue
+                    c_tags = [t.get("name", "") for t in c.get("tags", []) if isinstance(t, dict)]
+                    existing = await session.execute(
+                        select(Campaign).where(
+                            and_(Campaign.platform == "smartlead", Campaign.external_id == c_id)
                         )
                     )
+                    camp = existing.scalar()
+                    if camp:
+                        if camp.name != c_name:
+                            camp.name = c_name
+                        if c_tags:
+                            camp.config = {**(camp.config or {}), "tags": c_tags}
+                    else:
+                        matched_pid = match_campaign_to_project(c_name, c_tags)
+                        camp = Campaign(
+                            company_id=1, project_id=matched_pid,
+                            platform="smartlead", channel="email",
+                            external_id=c_id, name=c_name,
+                            status=c.get("status", "active"),
+                            leads_count=0,
+                            resolution_method="auto_discovery" if matched_pid else None,
+                            resolution_detail=f"Auto-discovered from SmartLead" if matched_pid else None,
+                            config={"tags": c_tags} if c_tags else None,
+                        )
+                        session.add(camp)
+                        registered += 1
+                # leads_count is now refreshed during CSV export sync
+                # (sync_smartlead_contacts uses export_campaign_leads which returns actual counts)
+
+                # GetSales automations
+                for a in gs_automations:
+                    a_name = a.get("name", "")
+                    a_uuid = a.get("uuid", "")
+                    if not a_name or not a_uuid:
+                        continue
+                    existing = await session.execute(
+                        select(Campaign).where(
+                            and_(Campaign.platform == "getsales", Campaign.external_id == a_uuid)
+                        )
+                    )
+                    camp = existing.scalar()
+                    if camp:
+                        if camp.name != a_name:
+                            camp.name = a_name
+                    else:
+                        matched_pid = match_campaign_to_project(a_name)
+                        camp = Campaign(
+                            company_id=1, project_id=matched_pid,
+                            platform="getsales", channel="linkedin",
+                            external_id=a_uuid, name=a_name,
+                            status=a.get("status", "active"),
+                            resolution_method="auto_discovery" if matched_pid else None,
+                            resolution_detail=f"Auto-discovered from GetSales" if matched_pid else None,
+                        )
+                        session.add(camp)
+                        registered += 1
+
+                if registered:
+                    await session.flush()
+                    logger.info(f"Registered {registered} new campaigns in Campaign table")
+
+                # ── Phase 3: Assign unassigned campaigns to projects ──
+                result = await session.execute(
+                    select(Project).where(Project.deleted_at.is_(None))
                 )
                 projects = result.scalars().all()
+                project_by_id = {p.id: p for p in projects}
 
-                if not projects:
-                    return
-
-                # Collect all campaign names already assigned to any project
+                # Collect already-assigned campaign names across all projects
                 assigned_names = set()
                 for p in projects:
                     for name in (p.campaign_filters or []):
                         assigned_names.add(name.lower())
 
-                # Sort projects by name length descending so longer (more specific)
-                # names match first — "EasyStaff Russian" before "EasyStaff"
-                sorted_projects = sorted(projects, key=lambda p: len(p.name), reverse=True)
+                # Find campaigns in Campaign table with project_id but not in campaign_filters
+                assigned_in_table = await session.execute(
+                    select(Campaign).where(Campaign.project_id.isnot(None))
+                )
+                for camp in assigned_in_table.scalars():
+                    if camp.name.lower() not in assigned_names and camp.project_id in project_by_id:
+                        project = project_by_id[camp.project_id]
+                        filters = list(project.campaign_filters or [])
+                        filters.append(camp.name)
+                        project.campaign_filters = filters
+                        assigned_names.add(camp.name.lower())
 
-                # Build prefix lookup: project name + custom prefixes from campaign_auto_prefixes
-                project_prefixes = []  # [(prefix_lower, project)]
-                for project in sorted_projects:
-                    p_lower = project.name.lower()
-                    project_prefixes.append((p_lower, project))
-                    project_prefixes.append((p_lower.replace(" ", " - "), project))
-                    for custom_prefix in (project.campaign_auto_prefixes or []):
-                        cp_lower = custom_prefix.lower().strip()
-                        if cp_lower and cp_lower != p_lower:
-                            project_prefixes.append((cp_lower, project))
-                # Sort by prefix length DESC (longest match wins)
-                project_prefixes.sort(key=lambda x: len(x[0]), reverse=True)
-
+                # Try to assign unassigned campaigns via ownership rules
+                unassigned_result = await session.execute(
+                    select(Campaign).where(Campaign.project_id.is_(None))
+                )
                 assigned_count = 0
-                for campaign in all_campaigns:
-                    c_name = campaign.get("name", "")
-                    if not c_name or c_name.lower() in assigned_names:
-                        continue
-
-                    # Match: campaign name must START WITH a project prefix (case-insensitive)
-                    c_lower = c_name.lower()
-                    for prefix, project in project_prefixes:
-                        if c_lower.startswith(prefix):
+                for camp in unassigned_result.scalars():
+                    c_tags = (camp.config or {}).get("tags", []) if camp.config else []
+                    matched_pid = match_campaign_to_project(camp.name, c_tags)
+                    if matched_pid and matched_pid in project_by_id:
+                        camp.project_id = matched_pid
+                        camp.resolution_method = "auto_discovery"
+                        camp.resolution_detail = f"Auto-matched to project {project_by_id[matched_pid].name}"
+                        # Append to campaign_filters
+                        project = project_by_id[matched_pid]
+                        if camp.name.lower() not in assigned_names:
                             filters = list(project.campaign_filters or [])
-                            filters.append(c_name)
+                            filters.append(camp.name)
                             project.campaign_filters = filters
-                            assigned_names.add(c_name.lower())
-                            assigned_count += 1
-                            logger.info(f"Auto-assigned campaign '{c_name}' to project '{project.name}' (prefix: '{prefix}')")
-                            break
+                            assigned_names.add(camp.name.lower())
+                        assigned_count += 1
+                        # Audit log
+                        from app.models.campaign_audit_log import CampaignAuditLog
+                        session.add(CampaignAuditLog(
+                            project_id=matched_pid, action="add", campaign_name=camp.name,
+                            source="auto_discovery",
+                            details=f"Auto-discovered and assigned by scheduler",
+                        ))
+                        logger.info(f"Auto-assigned '{camp.name}' to project '{project.name}'")
 
-                if assigned_count > 0:
+                if assigned_count > 0 or registered > 0:
                     await session.commit()
-                    logger.info(f"Auto-assigned {assigned_count} new campaigns to projects")
+                    if assigned_count:
+                        logger.info(f"Auto-assigned {assigned_count} campaigns to projects")
+                    # Refresh caches after DB changes
+                    try:
+                        await refresh_getsales_flow_cache()
+                        await refresh_project_prefixes()
+                    except Exception as e:
+                        logger.warning(f"Cache refresh after auto-assign failed: {e}")
                     # Trigger webhook setup for new campaigns
                     try:
                         await setup_crm_webhooks_on_startup()
@@ -372,7 +472,52 @@ class CRMScheduler:
 
             except Exception as e:
                 await session.rollback()
-                logger.error(f"Auto-assign campaigns failed: {e}")
+                logger.error(f"Auto-assign campaigns failed: {e}", exc_info=True)
+
+        # ── Phase 4: SmartLead delta contact sync ──
+        # Checks lead counts for 50 campaigns per cycle (round-robin).
+        # Only exports CSV for campaigns where count increased.
+        # Full rotation ~100 min. Daily reconciliation catches edge cases.
+        try:
+            sync_service = get_crm_sync_service()
+            async with async_session_maker() as sync_session:
+                # Check if daily reconciliation is due (every 24h)
+                import redis.asyncio as aioredis
+                redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+                force_full = False
+                try:
+                    r = aioredis.from_url(redis_url)
+                    last_full = await r.get("smartlead:last_full_reconciliation")
+                    if not last_full:
+                        force_full = True
+                    else:
+                        age_h = (datetime.utcnow() - datetime.fromisoformat(last_full.decode())).total_seconds() / 3600
+                        if age_h >= 24:
+                            force_full = True
+                    await r.aclose()
+                except Exception:
+                    pass
+
+                if force_full:
+                    logger.info("[SL-RECONCILIATION] Starting daily full sync")
+                    full_stats = await sync_service.sync_smartlead_contacts(
+                        sync_session, self.company_id
+                    )
+                    logger.info(f"[SL-RECONCILIATION] Done: {full_stats}")
+                    try:
+                        r = aioredis.from_url(redis_url)
+                        await r.set("smartlead:last_full_reconciliation", datetime.utcnow().isoformat())
+                        await r.aclose()
+                    except Exception:
+                        pass
+                else:
+                    delta_stats = await sync_service.sync_smartlead_contacts_delta(
+                        sync_session, self.company_id, batch_size=50
+                    )
+                    if delta_stats.get("campaigns_synced", 0) > 0:
+                        logger.info(f"[SL-DELTA] Phase 4: {delta_stats}")
+        except Exception as e:
+            logger.error(f"[SL-DELTA] Phase 4 failed: {e}", exc_info=True)
     
     async def _check_replies(self):
         """Check for new replies — scoped to enabled project campaigns only."""
@@ -537,6 +682,33 @@ class CRMScheduler:
                 self._mark_task_run("conversation_sync")
             except Exception as e:
                 logger.error(f"Conversation sync error: {e}")
+            await asyncio.sleep(interval)
+
+    # ===== Daily Needs-Reply Cleanup (once per day) =====
+
+    async def _run_needs_reply_cleanup_loop(self):
+        """Deep cleanup: load pending reply threads, auto-resolve where operator replied.
+
+        Runs every 6 hours, processing 200 replies per batch. Processes the full
+        backlog over multiple cycles, then maintains cleanliness.
+        """
+        await asyncio.sleep(300)  # Wait 5 min after startup
+
+        interval = 21600  # 6 hours
+
+        while self._running:
+            try:
+                from app.services.crm_sync_service import deep_cleanup_needs_reply
+
+                async with async_session_maker() as session:
+                    stats = await deep_cleanup_needs_reply(session)
+                    logger.info(
+                        f"[CLEANUP] Daily cleanup: checked={stats['checked']} "
+                        f"resolved={stats['resolved']} errors={stats['errors']}"
+                    )
+                self._mark_task_run("needs_reply_cleanup")
+            except Exception as e:
+                logger.error(f"Needs-reply cleanup error: {e}")
             await asyncio.sleep(interval)
 
     # ===== Telegram Bot Polling (long-poll every 30s) =====

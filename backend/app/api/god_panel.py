@@ -9,12 +9,12 @@ from typing import Optional, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select, and_, func, desc, case, literal_column
+from sqlalchemy import select, and_, func, desc, case, literal_column, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session, async_session_maker
 from app.models.campaign import Campaign
-from app.models.contact import Project
+from app.models.contact import Contact, Project
 from app.models.learning import LearningLog
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,20 @@ class CampaignAuditLogOut(BaseModel):
         from_attributes = True
 
 
+class CleanupLogOut(BaseModel):
+    id: int
+    project_id: Optional[int] = None
+    project_name: Optional[str] = None
+    replies_checked: int = 0
+    replies_resolved: int = 0
+    resolved_replies: Optional[list] = None
+    errors: int = 0
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class StatsOut(BaseModel):
     total_campaigns: int
     smartlead_campaigns: int
@@ -82,6 +96,18 @@ class StatsOut(BaseModel):
     reply_volume_30d: int
     newest_campaign: Optional[str] = None
     newest_campaign_at: Optional[datetime] = None
+
+
+class ProjectMetric(BaseModel):
+    project_id: int
+    project_name: str
+    contacts_uploaded: int = 0
+    warm_replies: int = 0
+
+
+class ProjectMetricsOut(BaseModel):
+    projects: List[ProjectMetric]
+    period: str
 
 
 # ─── Endpoints ─────────────────────────────────────────────────
@@ -229,18 +255,18 @@ async def get_project_rules(
         raise HTTPException(404, "Project not found")
 
     rules = []
+    ownership = project.campaign_ownership_rules or {}
 
-    # 1. Prefix rules from _PROJECT_PREFIXES
-    try:
-        from app.services.crm_sync_service import _PROJECT_PREFIXES
-        matching_prefixes = [
-            prefix for prefix, pid in _PROJECT_PREFIXES.items()
-            if pid == project_id
-        ]
-        if matching_prefixes:
-            rules.append(f"GetSales automation prefix match: {', '.join(repr(p) for p in matching_prefixes)}")
-    except ImportError:
-        pass
+    # 1. Ownership rules (replaces hardcoded _PROJECT_PREFIXES)
+    rule_prefixes = ownership.get("prefixes", [])
+    rule_contains = ownership.get("contains", [])
+    rule_tags = ownership.get("smartlead_tags", [])
+    if rule_prefixes:
+        rules.append(f"Prefix match: campaigns starting with {', '.join(repr(p) for p in rule_prefixes)}")
+    if rule_contains:
+        rules.append(f"Contains match: campaigns containing {', '.join(repr(s) for s in rule_contains)}")
+    if rule_tags:
+        rules.append(f"SmartLead tag match: {', '.join(repr(t) for t in rule_tags)}")
 
     # 2. Campaign filters
     filters = project.campaign_filters or []
@@ -249,11 +275,6 @@ async def get_project_rules(
             rules.append(f"Explicit campaign filters: {', '.join(filters)}")
         else:
             rules.append(f"Explicit campaign filters: {len(filters)} campaigns ({', '.join(filters[:3])}, ...)")
-
-    # 3. Custom auto-assign prefixes (from AI feedback)
-    auto_prefixes = project.campaign_auto_prefixes or []
-    if auto_prefixes:
-        rules.append(f"Auto-assign prefixes (future campaigns): {', '.join(repr(p) for p in auto_prefixes)}")
 
     # 4. GetSales senders — resolve UUIDs to human names
     senders = project.getsales_senders or []
@@ -407,6 +428,316 @@ async def submit_rule_feedback(
     return {"learning_log_id": log_id, "status": "processing"}
 
 
+@router.get("/projects/{project_id}/cleanup-logs", response_model=List[CleanupLogOut])
+async def get_cleanup_logs(
+    project_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+):
+    """Needs-reply cleanup history for a project."""
+    from app.models.reply import ReplyCleanupLog
+    result = await session.execute(
+        select(ReplyCleanupLog)
+        .where(ReplyCleanupLog.project_id == project_id)
+        .order_by(desc(ReplyCleanupLog.created_at))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    return result.scalars().all()
+
+
+def _parse_period(period: str, since_param: Optional[str] = None, until_param: Optional[str] = None):
+    """Parse period string or custom date range into (since, until) datetimes."""
+    now = datetime.utcnow()
+    if since_param:
+        since = datetime.fromisoformat(since_param)
+        until = datetime.fromisoformat(until_param) if until_param else now
+        return since, until
+    if period == "7d":
+        return now - timedelta(days=7), now
+    elif period == "30d":
+        return now - timedelta(days=30), now
+    return None, now
+
+
+@router.get("/project-metrics", response_model=ProjectMetricsOut)
+async def get_project_metrics(
+    period: str = Query("30d", description="Time period: 7d, 30d, or all"),
+    since: Optional[str] = Query(None, description="Custom start date ISO"),
+    until: Optional[str] = Query(None, description="Custom end date ISO"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Per-project metrics: contacts uploaded to campaigns + warm replies."""
+    from app.models.reply import ProcessedReply
+
+    # Time filter
+    since_dt, _until_dt = _parse_period(period, since, until)
+
+    # 1. All active projects
+    proj_result = await session.execute(
+        select(Project.id, Project.name).where(Project.deleted_at.is_(None)).order_by(Project.name)
+    )
+    projects_list = proj_result.all()
+    if not projects_list:
+        return ProjectMetricsOut(projects=[], period=period)
+
+    # 2. Contacts uploaded per project
+    #    All Time: SUM(Campaign.leads_count) — accurate totals from SmartLead API
+    #    Time-filtered: count contacts with added_at in period (from SmartLead CSV export)
+    if since_dt:
+        # Time-filtered: use per-contact added_at (backfilled from SmartLead CSV export)
+        contacts_by_project = text("""
+            SELECT c.project_id, COUNT(DISTINCT c.id) as cnt
+            FROM contacts c,
+                 json_array_elements(c.platform_state->'smartlead'->'campaigns') as camp_elem
+            WHERE c.project_id IS NOT NULL
+              AND c.deleted_at IS NULL
+              AND COALESCE(
+                  (camp_elem->>'added_at')::timestamp,
+                  c.created_at
+              ) >= :since
+            GROUP BY c.project_id
+        """)
+        crm_result = await session.execute(contacts_by_project, {"since": since_dt})
+        leads_map: dict[int, int] = {row.project_id: row.cnt for row in crm_result.all()}
+        # Also add GetSales contacts (no added_at, use CRM created_at)
+        gs_by_project = (
+            select(Contact.project_id, func.count(Contact.id).label("cnt"))
+            .where(and_(
+                Contact.project_id.isnot(None),
+                Contact.deleted_at.is_(None),
+                Contact.created_at >= since_dt,
+                Contact.source.ilike("%getsales%"),
+            ))
+            .group_by(Contact.project_id)
+        )
+        gs_result = await session.execute(gs_by_project)
+        for row in gs_result.all():
+            leads_map[row.project_id] = leads_map.get(row.project_id, 0) + row.cnt
+    else:
+        # All Time: SUM(Campaign.leads_count) for accuracy
+        sl_query = (
+            select(Campaign.project_id, func.coalesce(func.sum(Campaign.leads_count), 0).label("cnt"))
+            .where(and_(Campaign.project_id.isnot(None), Campaign.leads_count > 0))
+            .group_by(Campaign.project_id)
+        )
+        sl_result = await session.execute(sl_query)
+        leads_map = {row.project_id: row.cnt for row in sl_result.all()}
+        # Add CRM contacts not covered by SmartLead campaigns
+        crm_query = (
+            select(Contact.project_id, func.count(Contact.id).label("cnt"))
+            .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
+            .group_by(Contact.project_id)
+        )
+        crm_result = await session.execute(crm_query)
+        for row in crm_result.all():
+            leads_map[row.project_id] = max(leads_map.get(row.project_id, 0), row.cnt)
+
+    # 3. Warm replies per project (interested + meeting_request + question)
+    #    Use distinct campaign_name→project_id mapping to avoid duplicate counting
+    warm_categories = ["interested", "meeting_request", "question"]
+    campaign_map = (
+        select(
+            func.lower(Campaign.name).label("cname"),
+            func.min(Campaign.project_id).label("pid"),
+        )
+        .where(Campaign.project_id.isnot(None))
+        .group_by(func.lower(Campaign.name))
+    ).subquery()
+
+    warm_query = (
+        select(campaign_map.c.pid, func.count(ProcessedReply.id).label("warm_count"))
+        .join(campaign_map, func.lower(ProcessedReply.campaign_name) == campaign_map.c.cname)
+        .where(ProcessedReply.category.in_(warm_categories))
+        .group_by(campaign_map.c.pid)
+    )
+    if since_dt:
+        warm_query = warm_query.where(ProcessedReply.received_at >= since_dt)
+    warm_result = await session.execute(warm_query)
+    warm_map = {row.pid: row.warm_count for row in warm_result.all()}
+
+    # 4. Build response sorted by warm replies desc
+    metrics = []
+    for pid, pname in projects_list:
+        metrics.append(ProjectMetric(
+            project_id=pid,
+            project_name=pname,
+            contacts_uploaded=leads_map.get(pid, 0),
+            warm_replies=warm_map.get(pid, 0),
+        ))
+    metrics.sort(key=lambda m: m.warm_replies, reverse=True)
+
+    return ProjectMetricsOut(projects=metrics, period=period)
+
+
+@router.get("/projects/{project_id}/campaign-metrics")
+async def get_campaign_metrics(
+    project_id: int,
+    period: str = Query("30d", description="Time period: 7d, 30d, or all"),
+    since: Optional[str] = Query(None, alias="since", description="Custom start date ISO"),
+    until: Optional[str] = Query(None, alias="until", description="Custom end date ISO"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Per-campaign breakdown for a project: leads count + warm replies.
+
+    Leads count source:
+    - SmartLead campaigns: Campaign.leads_count (synced from SmartLead API, accurate)
+    - GetSales campaigns: CRM contacts with campaign in platform_state (best available)
+    """
+    from app.models.reply import ProcessedReply
+
+    since_dt, _until_dt = _parse_period(period, since, until)
+
+    # 1. All campaigns assigned to this project
+    camp_query = select(Campaign).where(Campaign.project_id == project_id).order_by(Campaign.name)
+    camp_result = await session.execute(camp_query)
+    campaigns = camp_result.scalars().all()
+
+    # 2. Per-campaign contacts from platform_state (both SmartLead + GetSales)
+    #    Used as fallback for SmartLead when Campaign.leads_count not yet populated,
+    #    and as primary source for GetSales campaigns.
+    # Filter by source added_at (from SmartLead/GetSales) when available, else fall back to CRM created_at
+    if since_dt:
+        since_clause = """AND COALESCE(
+            (campaign_elem->>'added_at')::timestamp,
+            c.created_at
+        ) >= :since"""
+    else:
+        since_clause = ""
+    contacts_sql = text(f"""
+        SELECT campaign_elem->>'name' AS campaign_name,
+               COUNT(DISTINCT c.id) AS contacts_added
+        FROM contacts c,
+             jsonb_array_elements(
+               COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', CAST('[]' AS jsonb)) ||
+               COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', CAST('[]' AS jsonb))
+             ) AS campaign_elem
+        WHERE c.project_id = :project_id
+          AND c.deleted_at IS NULL
+          {since_clause}
+        GROUP BY campaign_elem->>'name'
+        ORDER BY contacts_added DESC
+    """)
+    params: dict = {"project_id": project_id}
+    if since_dt:
+        params["since"] = since_dt
+    ps_result = await session.execute(contacts_sql, params)
+    ps_contacts: dict[str, int] = {
+        row.campaign_name.lower(): row.contacts_added
+        for row in ps_result.all() if row.campaign_name
+    }
+
+    # 3. Get project's campaign_filters for matching GetSales campaigns not in Campaign table
+    proj_result = await session.execute(select(Project.campaign_filters).where(Project.id == project_id))
+    proj_row = proj_result.first()
+    campaign_filters_set: set[str] = set()
+    if proj_row and proj_row.campaign_filters:
+        import json as json_lib
+        try:
+            filters = proj_row.campaign_filters if isinstance(proj_row.campaign_filters, list) else json_lib.loads(proj_row.campaign_filters)
+            campaign_filters_set = {f.lower() for f in filters}
+        except Exception:
+            pass
+
+    if not campaigns and not ps_contacts:
+        return {"campaigns": [], "checksum": {"campaigns_warm_total": 0, "project_warm_total": 0, "match": True}}
+
+    # 4. Warm replies per campaign_name (case-insensitive)
+    warm_categories = ["interested", "meeting_request", "question"]
+    warm_query = (
+        select(
+            func.lower(ProcessedReply.campaign_name).label("cname"),
+            func.count(ProcessedReply.id).label("warm_count"),
+        )
+        .where(ProcessedReply.category.in_(warm_categories))
+        .group_by(func.lower(ProcessedReply.campaign_name))
+    )
+    if since_dt:
+        warm_query = warm_query.where(ProcessedReply.received_at >= since_dt)
+    warm_result = await session.execute(warm_query)
+    warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
+
+    # 5. Build response — deduplicate by lowercase campaign name
+    #    SmartLead: All Time uses Campaign.leads_count, time-filtered uses platform_state added_at
+    #    GetSales: platform_state count (CRM contacts)
+    seen_names: dict[str, dict] = {}
+    for c in campaigns:
+        name_lower = c.name.lower()
+        warm = warm_by_campaign.get(name_lower, 0)
+        ps_count = ps_contacts.get(name_lower, 0)
+        if c.platform == "smartlead" and not since_dt:
+            contacts = max(c.leads_count or 0, ps_count)
+        else:
+            contacts = ps_count
+        if name_lower in seen_names:
+            existing = seen_names[name_lower]
+            existing["leads_count"] = max(existing["leads_count"], contacts)
+        else:
+            seen_names[name_lower] = {
+                "campaign_id": c.id,
+                "campaign_name": c.name,
+                "platform": c.platform,
+                "leads_count": contacts,
+                "warm_replies": warm,
+                "external_id": c.external_id,
+            }
+
+    # 5b. Include GetSales campaigns from campaign_filters not in Campaign table
+    def _is_display_worthy(name: str) -> bool:
+        if name.startswith("unknown (") or name.startswith("kyd"):
+            return False
+        parts = name.split(" - ", 1)
+        if len(parts) == 2 and parts[1].strip() and not any(kw in parts[1] for kw in ["dm", "list", "hq", "ice", "crypto"]):
+            return False
+        return True
+
+    for cname_lower, cnt in ps_contacts.items():
+        if cname_lower not in seen_names and cname_lower in campaign_filters_set and cnt > 0 and _is_display_worthy(cname_lower):
+            warm = warm_by_campaign.get(cname_lower, 0)
+            seen_names[cname_lower] = {
+                "campaign_id": 0,
+                "campaign_name": cname_lower,
+                "platform": "getsales",
+                "leads_count": cnt,
+                "warm_replies": warm,
+                "external_id": None,
+            }
+
+    campaign_metrics = list(seen_names.values())
+    campaigns_warm_total = sum(m["warm_replies"] for m in campaign_metrics)
+
+    # Sort by contacts desc, then warm desc
+    campaign_metrics.sort(key=lambda x: (-x["leads_count"], -x["warm_replies"]))
+
+    # Checksum: project-level warm total — count warm replies where campaign_name
+    # matches ANY campaign shown in the metrics (Campaign table + campaign_filters)
+    all_campaign_names = list(seen_names.keys())  # lowercase names
+    if all_campaign_names:
+        project_warm_query = (
+            select(func.count(ProcessedReply.id))
+            .where(and_(
+                func.lower(ProcessedReply.campaign_name).in_(all_campaign_names),
+                ProcessedReply.category.in_(warm_categories),
+            ))
+        )
+        if since_dt:
+            project_warm_query = project_warm_query.where(ProcessedReply.received_at >= since_dt)
+        project_warm_result = await session.execute(project_warm_query)
+        project_warm_total = project_warm_result.scalar() or 0
+    else:
+        project_warm_total = 0
+
+    return {
+        "campaigns": campaign_metrics,
+        "checksum": {
+            "campaigns_warm_total": campaigns_warm_total,
+            "project_warm_total": project_warm_total,
+            "match": campaigns_warm_total == project_warm_total,
+        },
+    }
+
+
 @router.get("/unresolved-count")
 async def get_unresolved_count(
     session: AsyncSession = Depends(get_session),
@@ -427,3 +758,5 @@ async def get_unresolved_count(
     new_count = new_result.scalar() or 0
 
     return {"count": count, "new_count": new_count}
+
+

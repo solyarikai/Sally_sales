@@ -19,8 +19,8 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Target, Mail, Loader2, Upload, AlertCircle, Check,
-  Edit3, ChevronLeft, Linkedin, FileSpreadsheet,
-  Sparkles, ChevronRight, ChevronDown, Users, FileText
+  FileSpreadsheet,
+  Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -96,11 +96,12 @@ export function ContactsPage() {
   );
   const [createdAfter, setCreatedAfter] = useState<string | null>(searchParams.get('after'));
   const [createdBefore, setCreatedBefore] = useState<string | null>(searchParams.get('before'));
-  const [domainFilter, setDomainFilter] = useState<string | null>(searchParams.get('domain'));
-  const [suitableForFilter, setSuitableForFilter] = useState<string | null>(searchParams.get('suitable_for'));
+  const [domainFilter, _setDomainFilter] = useState<string | null>(searchParams.get('domain'));
+  const [suitableForFilter, _setSuitableForFilter] = useState<string | null>(searchParams.get('suitable_for'));
   const [replyCategoryFilters, setReplyCategoryFilters] = useState<string[]>(
     searchParams.get('reply_category')?.split(',').filter(Boolean) || []
   );
+  const [replySince] = useState<string | null>(searchParams.get('reply_since'));
 
   // Contact Detail Modal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -110,15 +111,60 @@ export function ContactsPage() {
   // Project view
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const currentProject = useAppStore(s => s.currentProject);
-  const [editingProject, setEditingProject] = useState(false);
-  const [editProjectName, setEditProjectName] = useState('');
-  const [editCampaignFilters, setEditCampaignFilters] = useState<string[]>([]);
-  const [editCampaignSearch, setEditCampaignSearch] = useState('');
 
   // Reply processing mode
   const [replyMode, setReplyMode] = useState(false);
   const [replyContactIndex, setReplyContactIndex] = useState(0);
   const [processedContacts, setProcessedContacts] = useState<Set<number>>(new Set());
+
+  // Column visibility
+  const DEFAULT_HIDDEN_COLUMNS = ['Project', 'Suitable For', 'Segment', 'Status', 'Replied', 'Reply Type'];
+  const HIDDEN_COLS_VERSION = 2; // bump to reset user prefs when defaults change
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => {
+    try {
+      const ver = localStorage.getItem('crm:hiddenColumnsVer');
+      if (ver && Number(ver) >= HIDDEN_COLS_VERSION) {
+        const stored = localStorage.getItem('crm:hiddenColumns');
+        return stored ? JSON.parse(stored) : DEFAULT_HIDDEN_COLUMNS;
+      }
+      // Version mismatch — reset to new defaults
+      localStorage.setItem('crm:hiddenColumnsVer', String(HIDDEN_COLS_VERSION));
+      localStorage.setItem('crm:hiddenColumns', JSON.stringify(DEFAULT_HIDDEN_COLUMNS));
+      return DEFAULT_HIDDEN_COLUMNS;
+    } catch { return DEFAULT_HIDDEN_COLUMNS; }
+  });
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const columnPickerRef = useRef<HTMLDivElement>(null);
+
+  const toggleColumnVisibility = useCallback((headerName: string) => {
+    setHiddenColumns(prev => {
+      const next = prev.includes(headerName)
+        ? prev.filter(n => n !== headerName)
+        : [...prev, headerName];
+      localStorage.setItem('crm:hiddenColumns', JSON.stringify(next));
+      localStorage.setItem('crm:hiddenColumnsVer', String(HIDDEN_COLS_VERSION));
+      return next;
+    });
+  }, []);
+
+  // Close column picker on outside click or Escape
+  useEffect(() => {
+    if (!showColumnPicker) return;
+    const handleClick = (e: MouseEvent) => {
+      if (columnPickerRef.current && !columnPickerRef.current.contains(e.target as Node)) {
+        setShowColumnPicker(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowColumnPicker(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [showColumnPicker]);
 
   // Tasks (kept for future use)
 
@@ -182,6 +228,7 @@ export function ContactsPage() {
       domain: domainFilter,
       suitable_for: suitableForFilter,
       reply_category: replyCategoryFilters.length ? replyCategoryFilters.join(',') : null,
+      reply_since: replySince,
     };
     for (const [key, value] of Object.entries(managed)) {
       if (value) {
@@ -195,7 +242,7 @@ export function ContactsPage() {
     if (existingContactId) params.set('contact_id', existingContactId);
 
     setSearchParams(params, { replace: true });
-  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters]);
+  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, replySince]);
 
   // Sync CRM project from global navbar project selector
   useEffect(() => {
@@ -268,7 +315,8 @@ export function ContactsPage() {
     domain: domainFilter || undefined,
     suitable_for: suitableForFilter || undefined,
     reply_category: replyCategoryFilters.length > 0 ? replyCategoryFilters.join(',') : undefined,
-  }), [pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters]);
+    reply_since: replySince || undefined,
+  }), [pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, replySince]);
 
   // Load first page (resets list)
   const loadContacts = useCallback(async () => {
@@ -480,18 +528,28 @@ export function ContactsPage() {
       },
     },
     {
+      field: 'status_external',
+      headerName: 'Client Status',
+      width: 130,
+      sortable: true,
+      cellRenderer: (params: { value: string }) => {
+        if (!params.value) return <span className="text-xs" style={{ color: t.text6 }}>—</span>;
+        return <span className="text-xs font-medium" style={{ color: isDark ? '#93c5fd' : '#2563eb' }}>{params.value}</span>;
+      },
+    },
+    {
       field: 'email',
       headerName: 'Email',
       filter: 'agTextColumnFilter',
       sortable: true,
-      flex: 2,
+      flex: 1.5,
       minWidth: 160,
     },
     {
       headerName: 'Name',
       filter: 'agTextColumnFilter',
       sortable: true,
-      flex: 1.5,
+      flex: 1,
       minWidth: 120,
       valueGetter: (params) => {
         const c = params.data as Contact;
@@ -503,7 +561,7 @@ export function ContactsPage() {
       headerName: 'Company',
       filter: 'agTextColumnFilter',
       sortable: true,
-      flex: 1.5,
+      flex: 1,
       minWidth: 110,
     },
     {
@@ -518,7 +576,7 @@ export function ContactsPage() {
       headerName: 'Campaign',
       filter: CampaignColumnFilter,
       sortable: true,
-      flex: 1.5,
+      flex: 1,
       minWidth: 120,
       valueGetter: (params) => {
         const c = params.data as Contact;
@@ -615,6 +673,20 @@ export function ContactsPage() {
     },
   ], [isDark, t]);
 
+  // System columns excluded from toggle list
+  const SYSTEM_COLUMNS = new Set([undefined, 'Done']);
+  const toggleableColumns = useMemo(() =>
+    columnDefs.filter(c => c.headerName && !SYSTEM_COLUMNS.has(c.headerName)).map(c => c.headerName!),
+    [columnDefs]
+  );
+
+  // Filter columns through visibility set + auto-hide Project when project is selected
+  const visibleColumnDefs = useMemo(() => {
+    const effectiveHidden = new Set(hiddenColumns);
+    if (activeProject) effectiveHidden.add('Project');
+    return columnDefs.filter(c => !c.headerName || !effectiveHidden.has(c.headerName));
+  }, [columnDefs, hiddenColumns, activeProject]);
+
   // Default column settings
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
@@ -622,6 +694,7 @@ export function ContactsPage() {
     filter: 'agTextColumnFilter',
     floatingFilter: false,
     filterParams: { debounceMs: 300 },
+    cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), []);
 
   // Grid events
@@ -750,23 +823,6 @@ export function ContactsPage() {
     loadFilterOptions();
   };
 
-  const clearFilters = () => {
-    setStatusFilters([]);
-    setSourceFilter(null);
-    setSegmentFilters([]);
-    setGeoFilter(null);
-    setCampaignFilters([]);
-    setCampaignIdFilter(null);
-    setFollowupFilter(null);
-    setRepliedFilter(null);
-    setCreatedAfter(null);
-    setCreatedBefore(null);
-    setDomainFilter(null);
-    setSuitableForFilter(null);
-    setReplyCategoryFilters([]);
-    setSearch('');
-    setReplyMode(false);
-  };
 
   // Select a project
   const selectProject = (project: Project | null) => {
@@ -779,22 +835,6 @@ export function ContactsPage() {
   };
 
 
-  // Update project filters
-  const handleUpdateProject = async () => {
-    if (!activeProject) return;
-    try {
-      const updated = await contactsApi.updateProject(activeProject.id, {
-        name: editProjectName.trim() || activeProject.name,
-        campaign_filters: editCampaignFilters,
-      });
-      setActiveProject({ ...activeProject, ...updated, campaign_filters: editCampaignFilters });
-      setEditingProject(false);
-      await loadProjects();
-      toast.success('Project updated');
-    } catch (err) {
-      toast.error('Failed to update project', getErrorMessage(err));
-    }
-  };
 
   // Reply contacts (contacts with replies, not yet processed)
   const replyContacts = useMemo(() => {
@@ -849,23 +889,6 @@ export function ContactsPage() {
       {/* Command bar — minimal */}
       <div className="px-5 py-2" style={{ borderBottom: `1px solid ${isDark ? '#2a2a2a' : '#eee'}` }}>
         <div className="flex items-center gap-2.5">
-          {activeProject ? (
-            <>
-              <button onClick={() => { selectProject(null); clearFilters(); }} className="p-1 rounded-md transition-colors" style={{ color: t.text4 }} title="Back to all contacts">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => { setEditingProject(!editingProject); setEditProjectName(activeProject.name); setEditCampaignFilters(activeProject.campaign_filters || []); setEditCampaignSearch(''); ensureCampaignsLoaded(); }}
-                className="text-sm font-medium flex items-center gap-1.5 shrink-0 transition-colors"
-                style={{ color: t.text1 }}
-              >
-                {activeProject.name}
-                <Edit3 className="w-3 h-3" style={{ color: t.text5 }} />
-              </button>
-            </>
-          ) : (
-            <h1 className="text-sm font-medium shrink-0" style={{ color: t.text1 }}>Contacts</h1>
-          )}
           <span className="text-xs shrink-0 tabular-nums" style={{ color: t.text5 }}>{formatNumber(total)}</span>
 
           {/* Search */}
@@ -906,6 +929,50 @@ export function ContactsPage() {
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 : <FileSpreadsheet className="w-3.5 h-3.5" />}
             </button>
+            <div className="relative" ref={columnPickerRef}>
+              <button
+                onClick={() => setShowColumnPicker(v => !v)}
+                className="flex items-center gap-1 px-1.5 py-1 rounded-md transition-colors hover:opacity-70 text-[11px]"
+                style={{ color: t.text4 }}
+                title="Toggle columns"
+              >
+                <Columns3 className="w-3.5 h-3.5" />
+                <span>Columns</span>
+              </button>
+              {showColumnPicker && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-50 rounded-lg shadow-lg py-1 min-w-[160px]"
+                  style={{ background: isDark ? '#1e1e1e' : '#fff', border: `1px solid ${isDark ? '#333' : '#e5e5e5'}` }}
+                >
+                  {toggleableColumns.map(name => {
+                    const isHidden = hiddenColumns.includes(name) || (name === 'Project' && !!activeProject);
+                    const isAutoHidden = name === 'Project' && !!activeProject;
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => !isAutoHidden && toggleColumnVisibility(name)}
+                        className="w-full text-left px-3 py-1 flex items-center gap-2 text-xs transition-colors"
+                        style={{
+                          color: isAutoHidden ? (isDark ? '#555' : '#bbb') : (isDark ? '#ccc' : '#444'),
+                          cursor: isAutoHidden ? 'default' : 'pointer',
+                        }}
+                        onMouseEnter={e => { if (!isAutoHidden) (e.currentTarget.style.background = isDark ? '#2a2a2a' : '#f5f5f5'); }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <span className={cn(
+                          "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
+                          !isHidden ? (isDark ? "bg-indigo-500 border-indigo-500" : "bg-indigo-600 border-indigo-600") : (isDark ? "border-neutral-600" : "border-neutral-300")
+                        )}>
+                          {!isHidden && <Check className="w-2.5 h-2.5 text-white" />}
+                        </span>
+                        {name}
+                        {isAutoHidden && <span className="text-[10px] ml-auto" style={{ color: isDark ? '#555' : '#bbb' }}>auto</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             {selectedContacts.length > 0 && (
               <button onClick={handleDeleteSelected} className="p-1.5 rounded-md transition-colors text-red-400 hover:text-red-300" title="Delete Selected">
                 <Trash2 className="w-3.5 h-3.5" />
@@ -915,140 +982,6 @@ export function ContactsPage() {
           </div>
         </div>
       </div>
-
-      {/* Project Settings Modal */}
-      {editingProject && activeProject && (() => {
-        const q = editCampaignSearch.toLowerCase();
-        const slCampaigns = campaigns.filter(c => c.source === 'smartlead' && (!q || c.name.toLowerCase().includes(q)));
-        const gsCampaigns = campaigns.filter(c => c.source === 'getsales' && (!q || c.name.toLowerCase().includes(q)));
-        const toggleEditCampaign = (name: string) => {
-          setEditCampaignFilters(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
-        };
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 backdrop-blur-sm" style={{ background: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setEditingProject(false)} />
-            <div className="relative rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
-              {/* Modal header */}
-              <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${t.cardBorder}` }}>
-                <h3 className="text-base font-semibold" style={{ color: t.text1 }}>Project Settings</h3>
-                <button onClick={() => setEditingProject(false)} className="p-1.5 rounded-lg transition-colors" style={{ color: t.text3 }}>
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Modal body */}
-              <div className="flex-1 overflow-auto px-6 py-4 space-y-5">
-                {/* Name */}
-                <div>
-                  <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: t.text4 }}>Name</label>
-                  <input
-                    value={editProjectName}
-                    onChange={(e) => setEditProjectName(e.target.value)}
-                    className="mt-1 w-full text-sm font-semibold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
-                    onKeyDown={(e) => { if (e.key === 'Escape') setEditingProject(false); }}
-                  />
-                </div>
-
-                {/* Campaigns */}
-                <div>
-                  <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: t.text4 }}>Campaigns</label>
-                  <div className="relative mt-1 mb-3 max-w-xs">
-                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: t.text4 }} />
-                    <input
-                      type="text"
-                      placeholder="Search campaigns..."
-                      value={editCampaignSearch}
-                      onChange={(e) => setEditCampaignSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.text1 }}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* SmartLead campaigns */}
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <Mail className="w-3 h-3 text-blue-500" />
-                        <span className="text-[10px] font-medium text-blue-600 uppercase tracking-wide">SmartLead — Email</span>
-                        <span className="text-[10px]" style={{ color: t.text4 }}>
-                          {editCampaignFilters.filter(n => campaigns.find(c => c.name === n && c.source === 'smartlead')).length}/{slCampaigns.length}
-                        </span>
-                      </div>
-                      <div className="max-h-48 overflow-auto space-y-0.5 pr-1">
-                        {slCampaigns.length === 0 ? (
-                          <div className="text-[11px] py-2" style={{ color: t.text5 }}>No SmartLead campaigns</div>
-                        ) : slCampaigns.map(c => {
-                          const checked = editCampaignFilters.includes(c.name);
-                          return (
-                            <button
-                              key={c.name}
-                              onClick={() => toggleEditCampaign(c.name)}
-                              className={cn(
-                                "w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors",
-                                checked ? (isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-50 text-blue-700") : (isDark ? "hover:bg-neutral-700 text-neutral-400" : "hover:bg-neutral-50 text-neutral-600")
-                              )}
-                            >
-                              <span className={cn(
-                                "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
-                                checked ? "bg-blue-500 border-blue-500" : (isDark ? "border-neutral-500" : "border-neutral-300")
-                              )}>
-                                {checked && <Check className="w-2.5 h-2.5 text-white" />}
-                              </span>
-                              <span className="truncate">{c.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* GetSales campaigns */}
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <Linkedin className="w-3 h-3 text-amber-500" />
-                        <span className="text-[10px] font-medium text-amber-600 uppercase tracking-wide">GetSales — LinkedIn</span>
-                        <span className="text-[10px]" style={{ color: t.text4 }}>
-                          {editCampaignFilters.filter(n => campaigns.find(c => c.name === n && c.source === 'getsales')).length}/{gsCampaigns.length}
-                        </span>
-                      </div>
-                      <div className="max-h-48 overflow-auto space-y-0.5 pr-1">
-                        {gsCampaigns.length === 0 ? (
-                          <div className="text-[11px] py-2" style={{ color: t.text5 }}>No GetSales campaigns</div>
-                        ) : gsCampaigns.map(c => {
-                          const checked = editCampaignFilters.includes(c.name);
-                          return (
-                            <button
-                              key={c.name}
-                              onClick={() => toggleEditCampaign(c.name)}
-                              className={cn(
-                                "w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors",
-                                checked ? (isDark ? "bg-amber-900/40 text-amber-300" : "bg-amber-50 text-amber-700") : (isDark ? "hover:bg-neutral-700 text-neutral-400" : "hover:bg-neutral-50 text-neutral-600")
-                              )}
-                            >
-                              <span className={cn(
-                                "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0",
-                                checked ? "bg-amber-500 border-amber-500" : (isDark ? "border-neutral-500" : "border-neutral-300")
-                              )}>
-                                {checked && <Check className="w-2.5 h-2.5 text-white" />}
-                              </span>
-                              <span className="truncate">{c.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Modal footer */}
-              <div className="flex items-center justify-end gap-2 px-6 py-3" style={{ borderTop: `1px solid ${t.cardBorder}` }}>
-                <button onClick={() => setEditingProject(false)} className="px-4 py-1.5 rounded-lg text-xs font-medium transition-colors" style={{ color: t.text3 }}>Cancel</button>
-                <button onClick={handleUpdateProject} className="px-4 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">Save</button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* AG Grid */}
       <div className="flex-1 px-3 pt-1 pb-0">
@@ -1064,7 +997,7 @@ export function ContactsPage() {
                 }
               }}
               rowData={contacts}
-              columnDefs={columnDefs}
+              columnDefs={visibleColumnDefs}
               defaultColDef={defaultColDef}
               rowSelection={{
                 mode: 'multiRow',

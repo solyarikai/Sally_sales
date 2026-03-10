@@ -37,10 +37,13 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # Kept for backward compat — services still read this during transition.
     campaign_filters = Column(JSON, nullable=True)
 
-    # Auto-assign prefixes — campaigns starting with any of these prefixes are auto-assigned.
-    # Set via AI feedback (e.g. "track future campaigns matching SquareFi ES").
-    # Checked in _auto_assign_new_campaigns alongside implicit project name prefix.
+    # DEPRECATED: use campaign_ownership_rules instead.
     campaign_auto_prefixes = Column(JSON, nullable=True)
+
+    # Campaign ownership rules — declarative rules for auto-discovering campaigns.
+    # JSON: {"prefixes": ["str"], "contains": ["str"], "smartlead_tags": ["str"]}
+    # Evaluation order: tags (most explicit) > longest prefix > contains (loosest).
+    campaign_ownership_rules = Column(JSON, nullable=True)
 
     # GetSales LinkedIn sender filter — list of sender_profile_uuids allowed for this project.
     # When set, LinkedIn replies are only shown if their sender matches this list.
@@ -69,6 +72,9 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
 
     # Google Sheet bidirectional sync config
     sheet_sync_config = Column(JSON, nullable=True)
+
+    # Client-facing external status config (per-project status taxonomy)
+    external_status_config = Column(JSON, nullable=True)
 
     # Generated content (for AI SDR)
     tam_analysis = Column(Text, nullable=True)
@@ -147,6 +153,9 @@ class Contact(Base, SoftDeleteMixin, TimestampMixin):
     sheet_qualification = Column(String(100), nullable=True)
     sheet_client_comment = Column(String(2000), nullable=True)
     sheet_row = Column(Integer, nullable=True)
+
+    # Project-specific external status (derived from reply category + internal status)
+    status_external = Column(String(100), nullable=True)
 
     # Operator
     notes = Column(Text, nullable=True)

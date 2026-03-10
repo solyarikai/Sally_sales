@@ -404,16 +404,14 @@ Incorporate this feedback into the template and ICP knowledge."""
                 return log
 
             current_filters = project.campaign_filters or []
-            current_prefixes = project.campaign_auto_prefixes or []
+            ownership_rules = project.campaign_ownership_rules or {}
+            current_prefixes = ownership_rules.get("prefixes", [])
+            current_contains = ownership_rules.get("contains", [])
+            current_tags = ownership_rules.get("smartlead_tags", [])
             senders = project.getsales_senders or []
 
-            # Get prefix rules
-            prefix_rules = []
-            try:
-                from app.services.crm_sync_service import _PROJECT_PREFIXES
-                prefix_rules = [p for p, pid in _PROJECT_PREFIXES.items() if pid == project_id]
-            except ImportError:
-                pass
+            # Get prefix rules from ownership rules (replaces hardcoded _PROJECT_PREFIXES)
+            prefix_rules = current_prefixes
 
             # Get unassigned campaigns
             from app.models.campaign import Campaign
@@ -424,7 +422,7 @@ Incorporate this feedback into the template and ICP knowledge."""
 
             log.before_snapshot = {
                 "campaign_filters": current_filters,
-                "campaign_auto_prefixes": current_prefixes,
+                "campaign_ownership_rules": ownership_rules,
                 "getsales_senders": senders,
                 "prefix_rules": prefix_rules,
                 "unassigned_campaigns": unassigned,
@@ -434,11 +432,10 @@ Incorporate this feedback into the template and ICP knowledge."""
 
 CURRENT CAMPAIGN FILTERS: {json.dumps(current_filters)}
 
-CURRENT AUTO-ASSIGN PREFIXES: {json.dumps(current_prefixes) if current_prefixes else '(none)'}
+CAMPAIGN OWNERSHIP RULES: {json.dumps(ownership_rules) if ownership_rules else '(none)'}
+(Rule types: "prefixes" = campaign name starts with, "contains" = campaign name includes substring, "smartlead_tags" = SmartLead tag match)
 
 GETSALES SENDERS: {json.dumps(senders)}
-
-PREFIX RULES: {json.dumps(prefix_rules)}
 
 UNASSIGNED CAMPAIGNS ({len(unassigned)}):
 {chr(10).join(f'- {c}' for c in unassigned) if unassigned else '(none)'}
@@ -446,7 +443,7 @@ UNASSIGNED CAMPAIGNS ({len(unassigned)}):
 OPERATOR FEEDBACK:
 {feedback_text}
 
-Decide which campaigns to add or remove for this project."""
+Decide which campaigns to add or remove for this project. You may also update campaign_ownership_rules (add/remove prefixes, contains, or smartlead_tags)."""
 
             if not openai_service.is_connected():
                 log.status = "failed"
@@ -464,7 +461,10 @@ Decide which campaigns to add or remove for this project."""
             parsed = json.loads(response)
 
             final_campaigns = parsed.get("final_campaigns", [])
-            new_prefixes = parsed.get("auto_assign_prefixes", current_prefixes)
+            new_rules = parsed.get("campaign_ownership_rules", ownership_rules)
+            # Backward compat: if AI returns old-style auto_assign_prefixes, merge into rules
+            if "auto_assign_prefixes" in parsed and "campaign_ownership_rules" not in parsed:
+                new_rules = {**ownership_rules, "prefixes": parsed["auto_assign_prefixes"]}
 
             # Compute diffs
             current_lower = {f.lower(): f for f in current_filters}
@@ -474,10 +474,12 @@ Decide which campaigns to add or remove for this project."""
 
             project.campaign_filters = final_campaigns
 
-            # Update auto-assign prefixes if AI provided them
-            if new_prefixes != current_prefixes:
-                project.campaign_auto_prefixes = new_prefixes if new_prefixes else None
-                logger.info(f"[RULE_FEEDBACK] Updated auto-assign prefixes for '{project.name}': {new_prefixes}")
+            # Update ownership rules if AI modified them
+            if new_rules != ownership_rules:
+                # Clean empty lists
+                clean_rules = {k: v for k, v in new_rules.items() if v}
+                project.campaign_ownership_rules = clean_rules if clean_rules else None
+                logger.info(f"[RULE_FEEDBACK] Updated ownership rules for '{project.name}': {clean_rules}")
             logger.info(f"[RULE_FEEDBACK] Project '{project.name}': +{len(added)} -{len(removed)} campaigns")
 
             # Update campaign project_id in campaigns table
@@ -521,7 +523,7 @@ Decide which campaigns to add or remove for this project."""
 
             log.after_snapshot = {
                 "campaign_filters": final_campaigns,
-                "campaign_auto_prefixes": new_prefixes,
+                "campaign_ownership_rules": new_rules,
                 "added": added,
                 "removed": removed,
             }

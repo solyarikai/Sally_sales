@@ -199,6 +199,23 @@ class ThreadMessage(Base):
         return f"<ThreadMessage(id={self.id}, reply_id={self.reply_id}, direction='{self.direction}', pos={self.position})>"
 
 
+class ReplyCleanupLog(Base):
+    """Log of daily needs_reply cleanup runs — tracks which replies were auto-resolved."""
+    __tablename__ = "reply_cleanup_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True)
+    project_name = Column(String(255), nullable=True)
+    replies_checked = Column(Integer, default=0)
+    replies_resolved = Column(Integer, default=0)
+    resolved_replies = Column(JSON, nullable=True)  # [{reply_id, lead_email, campaign_name}]
+    errors = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<ReplyCleanupLog(id={self.id}, project={self.project_name}, resolved={self.replies_resolved})>"
+
+
 class ReplyPromptTemplateModel(Base):
     """Templates for reply classification and generation prompts."""
     __tablename__ = "reply_prompt_templates"
