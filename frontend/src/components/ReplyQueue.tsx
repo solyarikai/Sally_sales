@@ -446,6 +446,21 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
       } else {
         setReplies(prev => [...prev, ...newReplies]);
       }
+      // Auto-populate follow-up drafts from pre-generated child records
+      if (mode === 'followups') {
+        const pregen: Record<number, { reply: string; subject: string }> = {};
+        for (const r of newReplies) {
+          if ((r as any).followup_draft?.reply) {
+            pregen[r.id] = {
+              reply: (r as any).followup_draft.reply,
+              subject: (r as any).followup_draft.subject || '',
+            };
+          }
+        }
+        if (Object.keys(pregen).length > 0) {
+          setFollowupDrafts(prev => reset ? pregen : { ...prev, ...pregen });
+        }
+      }
       setTotal(response.total || 0);
       // Actionable tab counts come from the reply list response (needs_reply=true context).
       // All/archive modes have different filter contexts, so only update from actionable tabs.
@@ -1401,7 +1416,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                             className="text-[13px] leading-relaxed rounded p-2.5"
                             style={{ background: t.draftBg, color: t.text5 }}
                           >
-                            Click "Generate Follow-up" to create a draft
+                            Draft pending — will be generated automatically
                           </div>
                         ) : (
                           <>

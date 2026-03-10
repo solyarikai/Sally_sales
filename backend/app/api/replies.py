@@ -865,8 +865,10 @@ async def list_replies(
                 fu_delay = fu_cfg.get("delay_days", 3)
 
         fu_cutoff = datetime.utcnow() - timedelta(days=fu_delay)
+        fu_max_age = datetime.utcnow() - timedelta(days=60)  # No follow-ups for conversations older than 60 days
         conditions.append(ProcessedReply.approval_status.in_(["approved", "auto_resolved"]))
         conditions.append(ProcessedReply.approved_at < fu_cutoff)
+        conditions.append(ProcessedReply.approved_at > fu_max_age)  # Skip stale conversations
         conditions.append(ProcessedReply.parent_reply_id.is_(None))
         conditions.append(ProcessedReply.category.in_(["meeting_request", "interested", "question"]))
         # Exclude if lead sent a newer message after operator's reply
@@ -882,12 +884,14 @@ async def list_replies(
                 )
             )
         )
-        # Exclude if a follow-up was already sent/dismissed for this reply
+        # Exclude if a follow-up was already sent or dismissed (handled)
+        # Keep showing if child is pending (pre-generated draft ready for review)
         fu_child = aliased(ProcessedReply)
         conditions.append(
             ~exists(
                 select(fu_child.id).where(
                     fu_child.parent_reply_id == ProcessedReply.id,
+                    fu_child.approval_status.in_(["approved", "dismissed", "auto_resolved"]),
                 )
             )
         )
@@ -961,11 +965,30 @@ async def list_replies(
             count_result = await session.execute(count_q)
             campaign_count_map = {row[0]: row[1] for row in count_result.all()}
 
+        # Batch-load pre-generated follow-up drafts for followup tab
+        fu_draft_map: dict = {}
+        if needs_followup and replies:
+            parent_ids = [r.id for r in replies]
+            fu_q = await session.execute(
+                select(ProcessedReply).where(
+                    ProcessedReply.parent_reply_id.in_(parent_ids),
+                    ProcessedReply.approval_status.is_(None),
+                )
+            )
+            for child in fu_q.scalars().all():
+                fu_draft_map[child.parent_reply_id] = {
+                    "reply": child.draft_reply or "",
+                    "subject": child.draft_subject or "",
+                    "child_id": child.id,
+                }
+
         reply_responses = []
         for r in replies:
             resp = ProcessedReplyResponse.model_validate(r)
             resp.contact_campaign_count = campaign_count_map.get(r.lead_email, 1)
             resp.sender_name = _extract_sender_name(r)
+            if r.id in fu_draft_map:
+                resp.followup_draft = fu_draft_map[r.id]
             reply_responses.append(resp)
 
         # Category counts — deduped, using base_conditions (without category filter) for global tab counts
@@ -1063,11 +1086,30 @@ async def list_replies(
         for c in contact_result.scalars().all():
             contact_map[c.email.lower()] = _build_contact_info(c)
 
+    # Batch-load pre-generated follow-up drafts for followup tab
+    fu_draft_map: dict = {}
+    if needs_followup and replies:
+        parent_ids = [r.id for r in replies]
+        fu_q = await session.execute(
+            select(ProcessedReply).where(
+                ProcessedReply.parent_reply_id.in_(parent_ids),
+                ProcessedReply.approval_status.is_(None),
+            )
+        )
+        for child in fu_q.scalars().all():
+            fu_draft_map[child.parent_reply_id] = {
+                "reply": child.draft_reply or "",
+                "subject": child.draft_subject or "",
+                "child_id": child.id,
+            }
+
     reply_responses = []
     for r in replies:
         resp = ProcessedReplyResponse.model_validate(r)
         resp.sender_name = _extract_sender_name(r)
         resp.contact_info = contact_map.get(r.lead_email.lower()) if r.lead_email else None
+        if r.id in fu_draft_map:
+            resp.followup_draft = fu_draft_map[r.id]
         reply_responses.append(resp)
 
     return ProcessedReplyListResponse(
@@ -1108,8 +1150,10 @@ async def get_reply_counts(
                 fu_delay = fu_cfg.get("delay_days", 3)
 
         fu_cutoff = datetime.utcnow() - timedelta(days=fu_delay)
+        fu_max_age = datetime.utcnow() - timedelta(days=60)
         base.append(ProcessedReply.approval_status.in_(["approved", "auto_resolved"]))
         base.append(ProcessedReply.approved_at < fu_cutoff)
+        base.append(ProcessedReply.approved_at > fu_max_age)
         base.append(ProcessedReply.parent_reply_id.is_(None))
         base.append(ProcessedReply.category.in_(["meeting_request", "interested", "question"]))
         newer = aliased(ProcessedReply)
@@ -1123,7 +1167,10 @@ async def get_reply_counts(
         ))
         fu_child = aliased(ProcessedReply)
         base.append(~exists(
-            select(fu_child.id).where(fu_child.parent_reply_id == ProcessedReply.id)
+            select(fu_child.id).where(
+                fu_child.parent_reply_id == ProcessedReply.id,
+                fu_child.approval_status.in_(["approved", "dismissed", "auto_resolved"]),
+            )
         ))
     else:
         base.append(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))

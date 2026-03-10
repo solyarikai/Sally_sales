@@ -196,6 +196,9 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     parent_reply_id: Optional[int] = None
     follow_up_number: Optional[int] = None
 
+    # Pre-generated follow-up draft (child ProcessedReply with pending status)
+    followup_draft: Optional[dict] = None
+
     # Contact dedup: how many campaigns this contact has (only set with group_by_contact)
     contact_campaign_count: Optional[int] = None
 
