@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 // Fallback for non-HTTPS contexts where crypto.randomUUID is unavailable
-const uuid = () =>
+const uuid = (): string =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? uuid()
+    ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 import {
   Send, BookOpen, Target, Layers, ChevronRight, ChevronDown,

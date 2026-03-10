@@ -5,9 +5,9 @@ import { useAppStore } from '../../store/appStore';
 import { useTheme } from '../../hooks/useTheme';
 
 // Fallback for non-HTTPS contexts where crypto.randomUUID is unavailable
-const uuid = () =>
+const uuid = (): string =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? uuid()
+    ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 import { api } from '../../api/client';
 import {
