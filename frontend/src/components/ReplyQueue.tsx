@@ -7,7 +7,7 @@ import {
   XCircle, Edit3, AlertTriangle,
   Clock, MessageCircle, ArrowRight, Brain, Command, Loader2,
   Linkedin, Phone, MapPin, Tag, User, Copy, Mail, Download, FileText, Languages,
-  CalendarClock, ChevronDown,
+  CalendarClock,
 } from 'lucide-react';
 import {
   repliesApi,
