@@ -36,6 +36,47 @@ export interface GodPanelStats {
   newest_campaign_at?: string;
 }
 
+export interface ProjectMetric {
+  project_id: number;
+  project_name: string;
+  contacts_uploaded: number;
+  warm_replies: number;
+}
+
+export interface ProjectMetricsResponse {
+  projects: ProjectMetric[];
+  period: string;
+}
+
+export interface CampaignMetric {
+  campaign_id: number;
+  campaign_name: string;
+  platform: string;
+  leads_count: number;
+  warm_replies: number;
+  external_id?: string | null;
+}
+
+export interface CampaignMetricsResponse {
+  campaigns: CampaignMetric[];
+  checksum: {
+    campaigns_warm_total: number;
+    project_warm_total: number;
+    match: boolean;
+  };
+}
+
+export interface CleanupLogEntry {
+  id: number;
+  project_id?: number;
+  project_name?: string;
+  replies_checked: number;
+  replies_resolved: number;
+  resolved_replies?: { reply_id: number; lead_email: string; campaign_name?: string }[];
+  errors: number;
+  created_at?: string;
+}
+
 export interface CampaignAuditLogEntry {
   id: number;
   action: string;
@@ -87,10 +128,30 @@ export const godPanelApi = {
     return data;
   },
 
+  async getProjectMetrics(period: string = '30d', since?: string, until?: string): Promise<ProjectMetricsResponse> {
+    const { data } = await api.get('/god-panel/project-metrics', { params: { period, since, until } });
+    return data;
+  },
+
+  async getCleanupLogs(projectId: number, page = 1, pageSize = 20): Promise<CleanupLogEntry[]> {
+    const { data } = await api.get(`/god-panel/projects/${projectId}/cleanup-logs`, {
+      params: { page, page_size: pageSize },
+    });
+    return data;
+  },
+
   async getCampaignLogs(projectId: number, page = 1, pageSize = 50): Promise<CampaignAuditLogEntry[]> {
     const { data } = await api.get(`/god-panel/projects/${projectId}/campaign-logs`, {
       params: { page, page_size: pageSize },
     });
     return data;
   },
+
+  async getCampaignMetrics(projectId: number, period: string = '30d', since?: string, until?: string): Promise<CampaignMetricsResponse> {
+    const { data } = await api.get(`/god-panel/projects/${projectId}/campaign-metrics`, {
+      params: { period, since, until },
+    });
+    return data;
+  },
+
 };

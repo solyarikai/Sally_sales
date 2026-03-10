@@ -139,80 +139,149 @@ def get_sentiment_from_category(category: str) -> str:
     else:
         return "neutral"
 
-# Sender profile UUID / automation UUID -> project ID
-# Used for Telegram notification routing when campaign_name lookup fails
+# Sender profile UUID / automation UUID -> project ID (DB-backed cache)
+# Populated by refresh_project_prefixes() from Campaign table + project ownership rules.
 GETSALES_UUID_TO_PROJECT: dict[str, int] = {}
 
-# GetSales AUTOMATION UUIDs -> campaign names.
+# DB-backed cache: GetSales automation UUID -> campaign name.
+# Populated from Campaign table by refresh_getsales_flow_cache().
 # IMPORTANT: ONLY automation UUIDs go here (from webhook data).
-# NEVER put sender_profile UUIDs here — a sender can work across
-# multiple projects, so sender != campaign.
-GETSALES_FLOW_NAMES: Dict[str, str] = {
-    # EasyStaff automations
-    "b4188b80-4e23-47df-83cf-29d2654fc943": "EasyStaff - Russian DM [>500 connects]",
-    "f62647b1-c054-4434-8402-7adac1c26e64": "Inxy - Russian DM's",
-    "073fbf20-a196-45f2-8f10-d6fde419ee64": "EasyStaff - Qatar - South Africa",
-    "e98903f7-5617-4e63-a907-618bb7433dd0": "EasyStaff - UAE - India",
-    "cbf94285-cf1e-4f86-b6bc-9910f9d18ca7": "SquareFi - ES - RUS DMs",
-    # Rizzult automations
-    "4bbd26d3-706b-4168-9262-d70fe09a5b25": "RIzzult_Wellness apps 10 01 26",
-    "6bfeca8c-23a6-49da-a8e8-b0dacae88857": "Rizzult_shopping_apps",
-    "df157019-c1fb-4562-b136-b92c9a9c99ab": "RIzzult Cleaning 14 02 26",
-    "0089aa05-f8a3-4a0b-ab94-00db9603dd7d": "RIzzult Farmacies 14 02 26",
-    "60b1ab51-5139-4256-a2fa-92bd88252d7d": "RIzzult Streaming 14 02 26",
-    "779377b5-4856-4f0e-b028-19ebff994dce": "RIzzult Telemed 20 02 26",
-    "3323b4f3-d0e9-427e-9540-191e10b8d4d7": "RIzzult partner agencies Miami 20 02 26 networking msg",
-    "8c164da8-d63c-42b9-9a83-1c5e7194d5ba": "RIzzult_Food&Drink apps 02 02 26",
-    "f917f58a-2b77-4613-9adb-63ca94183dac": "RIzzult_QSR_LPR_20.11.25",
-    # Mifort automations
-    "cc73c018-510d-4edc-b41c-59f4dccff6bb": "Mifort Partners BizDevs",
-    "a8d7562b-fdea-4394-8a39-b40910f5a8af": "Mifort Partners Clutch",
-    "d793c3dc-78db-46a7-9916-13346d66ce97": "Mifort Partners Salesforce",
-    "b7930e29-9247-4586-aeb3-eccc6841d18d": "Mifort Partners Java Enterprise",
-    "04d46b71-9d62-44bd-9c22-0a4cd6cdfc97": "Mifort Partners PHP",
-    "89961bab-733e-4857-956e-810231c1448c": "Mifort iGaming Providers",
-    "02469dd6-a727-4ef7-86e7-d85ac2729ed9": "Mifort iGaming Marketing",
-    "81ed1274-1d39-455f-be37-8548cbc9ae42": "MFT. Marketing New vacs",
-    "7895a776-a21d-4d3a-9b8a-4b32a03fc857": "MFT. Marketing",
-    "107ee83a-3259-4ece-a7b7-5319c0605568": "Mifort iGaming Operators",
-    # TFP automations
-    "99eab5dd-3abb-4387-8757-7b908a0d7bb2": "TFP - Apparel&fashion--only Dias",
-    "ce0035f2-0f22-42c9-b84c-d1a71852e3ef": "TFP - France Explee",
-    "90acfa5f-3ed8-4f23-a7ff-cc494ac0d004": "TFP - UK contacts",
-    "5bf9a955-e404-4f94-8aa2-904fafc1f98a": "TFP - Who is Next",
-    "a576670f-2ce6-4810-9918-4753dd4a4e51": "TFP - Zalando contacts",
-    "2ccbefdb-c1a7-4665-bcc1-630306281b60": "TFP - UK Directories",
-    "5723168d-15de-486d-a0bb-306d924231c3": "TFP - Fashion brands Italy 3",
-    "c5ac34f7-cd68-4d4b-abdf-c540d65219a4": "TFP - Li groups contacts",
-    "bd1f5ffb-2dbe-429a-b0f3-dcab147e4f99": "TFP - Apparel&fashion",
-    # Archistruct automations
-    "1c05ddab-2d69-4735-a3c8-1eb6a9a91dfe": "Archistruct Devs Dubai",
-    "a8c636e9-c5c1-4426-bd16-35066c112ecb": "Archistruct Devs Dubai NEW",
-    "7aad9446-7712-4588-8e48-3a1c7f98ac85": "Archistruct Architects 4/12",
-    "7b8d0ada-e7b7-457a-aa3b-9feb1f2ed56d": "Archistruct Devs outDubai(BV)",
-    # GWC automations
-    "33c589e4-0fc4-4c05-a711-e6196d0cf010": "GWC - ICE Orchestrations Nataliya",
-    "2cf4a1da-310c-4b24-8c5b-78c688041b09": "GWC - ICE Platforms Post Conf Hugo",
-    # Inxy automations
-    "b7a31e91-9166-41f8-9d16-4c2f8823ba5b": "Inxy - Crypto Payments",
-    "f9c239c3-313f-4c02-9a4c-0550f9d08118": "Inxy - Tokenization [Personalization] 2",
-    "2ebe0504-810c-4782-9f47-82f0eb98fac2": "Inxy - Luma 2",
-    # OnSocial automations
-    "c7465183-9bc3-4bb7-8cb1-854b6b54f37e": "OnSocial | Generic",
-    "b5307c82-c997-4cc5-84c7-8340b1428fb8": "OnSocial | Marketing agencies",
-    "2238070f-e038-4209-9c0c-3fddb4946654": "OnSocial | IM platforms & SaaS",
-    # Palark automations
-    "3df443f1-1e7c-4ac9-9636-c95bbc52bb04": "Palark - After ICE 19/02 - Nikita",
-    # EasyStaff Global automations
-    "5d5daa90-2746-470f-952d-66223afd13d6": "EasyStaff - AU - PH",
-    # Deliryo automations
-    "e567a094-7915-4476-8f69-4f69f1024fed": "Deliryo Недвижимость за рубежом (ОАЭ/Дубай)",
-    # Rizzult additional
-    "9515a70b-0020-4955-8bea-9c2f7b904be8": "RIzzult big 5 agencies 27 02 26",
-    "5a8628e0-f8b5-43f7-9477-0bd825bb7ee5": "RIzzult partner agencies 15 02 26",
-    # Mifort additional
-    "c3d72e1c-061a-4b75-92e1-75669d08bcdc": "Mifort Fintech Crypto Clay",
-}
+# NEVER put sender_profile UUIDs here.
+_getsales_flow_cache: Dict[str, str] = {}
+
+# Backward-compat alias — all read sites use this name
+GETSALES_FLOW_NAMES = _getsales_flow_cache
+
+
+async def refresh_getsales_flow_cache():
+    """Reload GetSales automation UUID→name mapping from Campaign table."""
+    from app.db import async_session_maker
+    from app.models.campaign import Campaign
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Campaign.external_id, Campaign.name).where(
+                and_(
+                    Campaign.platform == "getsales",
+                    Campaign.external_id.isnot(None),
+                )
+            )
+        )
+        rows = result.all()
+
+    _getsales_flow_cache.clear()
+    for ext_id, name in rows:
+        _getsales_flow_cache[ext_id] = name
+    logger.info(f"[CACHE] Refreshed GetSales flow cache: {len(_getsales_flow_cache)} automations")
+
+
+# DB-backed cache: campaign name prefix -> project_id (sorted by length DESC).
+# Populated from project.campaign_ownership_rules by refresh_project_prefixes().
+_project_prefixes: list[tuple[str, int]] = []  # [(prefix_lower, project_id)]
+_project_contains: list[tuple[str, int]] = []  # [(substring_lower, project_id)]
+_project_tags: dict[str, int] = {}  # {tag_lower: project_id}
+
+# Backward-compat alias for imports — returns a dict view
+_PROJECT_PREFIXES: Dict[str, int] = {}
+
+
+async def refresh_project_prefixes():
+    """Reload project prefix/contains/tag rules from campaign_ownership_rules column."""
+    from app.db import async_session_maker
+    from app.models.contact import Project
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Project.id, Project.name, Project.campaign_ownership_rules).where(
+                Project.deleted_at.is_(None)
+            )
+        )
+        projects = result.all()
+
+    prefixes = []
+    contains = []
+    tags = {}
+    compat_dict = {}
+
+    for pid, pname, rules in projects:
+        rules = rules or {}
+
+        # Ownership rules: prefixes
+        for prefix in rules.get("prefixes", []):
+            p_lower = prefix.lower().strip()
+            if p_lower:
+                prefixes.append((p_lower, pid))
+                compat_dict[p_lower] = pid
+
+        # Ownership rules: contains
+        for substr in rules.get("contains", []):
+            s_lower = substr.lower().strip()
+            if s_lower:
+                contains.append((s_lower, pid))
+
+        # Ownership rules: smartlead_tags
+        for tag in rules.get("smartlead_tags", []):
+            t_lower = tag.lower().strip()
+            if t_lower:
+                tags[t_lower] = pid
+
+        # Implicit project name prefix (always active)
+        if pname and len(pname) >= 3:
+            p_lower = pname.lower()
+            if p_lower not in compat_dict:
+                prefixes.append((p_lower, pid))
+                compat_dict[p_lower] = pid
+
+    # Sort prefixes by length DESC (longest match wins)
+    prefixes.sort(key=lambda x: len(x[0]), reverse=True)
+
+    _project_prefixes.clear()
+    _project_prefixes.extend(prefixes)
+    _project_contains.clear()
+    _project_contains.extend(contains)
+    _project_tags.clear()
+    _project_tags.update(tags)
+    _PROJECT_PREFIXES.clear()
+    _PROJECT_PREFIXES.update(compat_dict)
+
+    # Rebuild GETSALES_UUID_TO_PROJECT from flow cache + prefix matching
+    GETSALES_UUID_TO_PROJECT.clear()
+    for uuid, name in _getsales_flow_cache.items():
+        pid = match_campaign_to_project(name)
+        if pid:
+            GETSALES_UUID_TO_PROJECT[uuid] = pid
+
+    logger.info(f"[CACHE] Refreshed project prefixes: {len(prefixes)} prefixes, {len(contains)} contains, {len(tags)} tags")
+
+
+def match_campaign_to_project(campaign_name: str, campaign_tags: list[str] | None = None) -> int | None:
+    """Match a campaign name (and optional tags) to a project using ownership rules.
+
+    Evaluation order: tags > longest prefix > contains.
+    Returns project_id or None.
+    """
+    if not campaign_name:
+        return None
+
+    # 1. Tag match (most explicit)
+    if campaign_tags:
+        for tag in campaign_tags:
+            t_lower = tag.lower().strip()
+            if t_lower in _project_tags:
+                return _project_tags[t_lower]
+
+    # 2. Prefix match (longest wins — list is pre-sorted)
+    name_lower = campaign_name.lower()
+    for prefix, pid in _project_prefixes:
+        if name_lower.startswith(prefix):
+            return pid
+
+    # 3. Contains match
+    for substr, pid in _project_contains:
+        if substr in name_lower:
+            return pid
+
+    return None
 
 # Sender profile UUID → human name (LinkedIn account owner).
 # DISPLAY ONLY — never use for campaign routing or project classification.
@@ -254,41 +323,13 @@ GETSALES_SENDER_PROFILES: Dict[str, str] = {
     "8c7d77fa-5d07-4c7a-844d-8e833488eaa1": "Dmitry Isaev",
     "09f85665-1e7d-482c-9e8f-1c74d5d1ea15": "Nikita Melnikov",
     "7c58101c-675d-4ed3-9463-c39b03399d45": "Maxim Savichev",
+    "41b709f2-6d25-46cc-91a5-7f15ce84f5a7": "Daniel Rew",
     "91fb80ab-4430-4b07-bc19-330d3f4ac8fd": "Elena Shamaeva",
     "abf28dba-0834-432b-a57d-b7fc03bb0db7": "Pavel Tikhonov",
     "d16d6837-4156-4022-bd38-51945de1bf4a": "Max Ionin",
     "b0399ffb-8f6e-47e4-b909-2b23847cf74c": "Jegors Zubarevs",
 }
 
-
-# Auto-populate automation_uuid -> project_id mapping from flow names
-_PROJECT_PREFIXES = {
-    # Longer prefixes first — first match wins
-    "squarefi - es": 47,          # squarefi evgeny
-    "squarefi - psp": 46,         # squarefi fedor
-    "squarefi - igaming fedor": 46,
-    "squarefi - fedor": 46,
-    "squarefi - agencies - fedor": 46,
-    "squarefi - amazon - fedor": 46,
-    "squarefi": 46,               # remaining squarefi → fedor (general campaigns)
-    "easystaff": 40,
-    "inxy": 10,
-    "rizzult": 22,
-    "mifort": 21,
-    "mft": 21,
-    "tfp": 13,
-    "archistruct": 24,
-    "gwc": 17,
-    "onsocial": 42,
-    "palark": 16,
-    "paybis": 15,
-}
-for _uuid, _name in GETSALES_FLOW_NAMES.items():
-    _name_lower = _name.lower()
-    for _prefix, _pid in _PROJECT_PREFIXES.items():
-        if _name_lower.startswith(_prefix) and _pid is not None:
-            GETSALES_UUID_TO_PROJECT[_uuid] = _pid
-            break
 
 
 def _is_valid_campaign_name(name: str) -> bool:
@@ -401,6 +442,44 @@ class SmartleadClient:
         SmartleadClient._campaigns_cache_at = now
         return result
     
+    async def export_campaign_leads(self, campaign_id: str) -> List[dict]:
+        """Export ALL leads from a campaign via CSV in one API call.
+
+        Returns list of dicts with: id, email, first_name, last_name,
+        company_name, phone_number, location, linkedin_profile,
+        custom_fields (JSON string), created_at, status, reply_count, etc.
+
+        Much faster than paginated /leads endpoint (1 call vs N×100).
+        """
+        import csv as csv_mod
+        import io
+
+        try:
+            resp = await self.client.get(
+                f"{self.BASE_URL}/campaigns/{campaign_id}/leads-export",
+                params={"api_key": self.api_key},
+                timeout=120,
+            )
+            if resp.status_code != 200:
+                return []
+
+            reader = csv_mod.DictReader(io.StringIO(resp.text))
+            return list(reader)
+        except Exception as e:
+            logger.warning(f"CSV export failed for campaign {campaign_id}: {e}")
+            return []
+
+    async def get_campaign_lead_count(self, campaign_id: str) -> int:
+        """Get total lead count for a campaign (1 lightweight API call)."""
+        try:
+            data = await self._get(f"/campaigns/{campaign_id}/leads", {"limit": 1, "offset": 0})
+            if isinstance(data, dict):
+                return data.get("total_leads", data.get("total", 0))
+            return len(data) if isinstance(data, list) else 0
+        except Exception as e:
+            logger.warning(f"Failed to get lead count for campaign {campaign_id}: {e}")
+            return 0
+
     async def get_campaign_leads(self, campaign_id: int, limit: int = 100, offset: int = 0, lead_category_id: int = None) -> List[dict]:
         """Get leads from a campaign.
         
@@ -415,13 +494,6 @@ class SmartleadClient:
             params["lead_category_id"] = lead_category_id
         data = await self._get(f"/campaigns/{campaign_id}/leads", params)
         return data if isinstance(data, list) else data.get("data", [])
-    
-    async def get_global_leads(self, limit: int = 100, offset: int = 0) -> Tuple[List[dict], bool]:
-        """Get global leads with hasMore flag."""
-        data = await self._get("/leads/global-leads", {"limit": limit, "offset": offset})
-        if isinstance(data, dict):
-            return data.get("data", []), data.get("hasMore", False)
-        return data, False
     
     async def get_lead_message_history(self, lead_id: int) -> List[dict]:
         """Get message history for a lead."""
@@ -438,30 +510,6 @@ class SmartleadClient:
             return await self._get(f"/campaigns/{campaign_id}/statistics")
         except Exception:
             return {}
-    
-    async def get_all_leads_with_status(self, status: str = "REPLIED", limit: int = 1000) -> List[dict]:
-        """Get all leads with a specific status across campaigns."""
-        all_leads = []
-        offset = 0
-        
-        while len(all_leads) < limit:
-            leads, has_more = await self.get_global_leads(limit=100, offset=offset)
-            if not leads:
-                break
-            
-            # Filter by status
-            for lead in leads:
-                campaigns = lead.get("campaigns", [])
-                for camp in campaigns:
-                    if camp.get("lead_status") == status:
-                        all_leads.append(lead)
-                        break
-            
-            offset += 100
-            if not has_more:
-                break
-        
-        return all_leads[:limit]
     
     # ============= Webhook Management =============
     
@@ -521,7 +569,17 @@ class SmartleadClient:
         }
         
         return await self._post(f"/campaigns/{campaign_id}/webhooks", webhook_data)
-    
+
+    async def _delete_campaign_webhook(self, campaign_id: int, webhook_id: int) -> bool:
+        """Delete a specific webhook from a SmartLead campaign."""
+        from app.services.smartlead_service import smartlead_request
+        params = {"api_key": self.api_key}
+        resp = await smartlead_request(
+            "DELETE", f"{self.BASE_URL}/campaigns/{campaign_id}/webhooks/{webhook_id}",
+            params=params, client=self.client
+        )
+        return resp.status_code in (200, 204)
+
     _verified_webhooks: dict = {}
     _VERIFIED_CACHE_TTL = 3600
     _VERIFIED_CACHE_MAX = 2000
@@ -583,7 +641,9 @@ class SmartleadClient:
             sem = asyncio.Semaphore(10)
 
             from urllib.parse import urlparse
-            our_host = urlparse(webhook_url).netloc
+            parsed_target = urlparse(webhook_url)
+            our_host = parsed_target.netloc
+            our_path = parsed_target.path  # e.g. /api/smartlead/webhook
 
             async def _check_one(campaign: dict):
                 campaign_id = campaign.get("id")
@@ -591,12 +651,29 @@ class SmartleadClient:
                 async with sem:
                     try:
                         existing_webhooks = await self.get_campaign_webhooks(campaign_id)
+                        has_correct = False
+                        stale_ids = []
                         for wh in existing_webhooks:
                             wh_url = wh.get("webhook_url", "")
-                            if urlparse(wh_url).netloc == our_host:
-                                results["existing"].append({"id": campaign_id, "name": campaign_name})
-                                self._cache_verified(campaign_id)
-                                return
+                            parsed_wh = urlparse(wh_url)
+                            if parsed_wh.netloc != our_host:
+                                continue
+                            if parsed_wh.path == our_path:
+                                has_correct = True
+                            else:
+                                # Same host but wrong path — stale/broken webhook
+                                stale_ids.append(wh.get("id"))
+                        # Delete stale webhooks with wrong path
+                        for stale_id in stale_ids:
+                            try:
+                                await self._delete_campaign_webhook(campaign_id, stale_id)
+                                logger.info(f"Deleted stale webhook {stale_id} from campaign {campaign_id}")
+                            except Exception as de:
+                                logger.warning(f"Failed to delete stale webhook {stale_id}: {de}")
+                        if has_correct:
+                            results["existing"].append({"id": campaign_id, "name": campaign_name})
+                            self._cache_verified(campaign_id)
+                            return
                         await self.create_campaign_webhook(
                             campaign_id=campaign_id,
                             webhook_url=webhook_url,
@@ -774,6 +851,11 @@ class GetSalesClient:
         }
         data = await self._post("/leads/api/leads/search", payload)
         return data.get("data", []), data.get("total", 0)
+
+    async def get_data_sources(self) -> List[dict]:
+        """Get all data sources (lead import batches)."""
+        data = await self._get("/leads/api/data-sources")
+        return data if isinstance(data, list) else data.get("data", [])
     
     async def get_leads_by_list(self, list_uuid: str, limit: int = 100, offset: int = 0) -> Tuple[List[dict], int]:
         """Get leads from a specific list."""
@@ -986,45 +1068,236 @@ class CRMSyncService:
         limit: int = 50000,
         only_campaigns: set = None,
     ) -> Dict[str, int]:
-        """
-        Sync contacts from Smartlead.
-        When only_campaigns is set, skips the expensive global lead sync
-        (contacts are created during reply processing instead).
+        """Sync contacts from SmartLead using per-campaign CSV export.
+
+        Uses /campaigns/{id}/leads-export (full CSV in one API call per campaign)
+        instead of paginated global-leads. ~795 API calls vs 6000+ paginated calls.
+
+        When only_campaigns is set, skips contact sync (contacts are created
+        during reply processing instead).
         """
         if not self.smartlead:
             raise ValueError("Smartlead API key not configured")
-        
+
         if only_campaigns:
             logger.info(f"Smartlead contact sync skipped (scoped mode: {len(only_campaigns)} campaigns)")
             return {"created": 0, "updated": 0, "skipped": 0, "scoped": True}
 
-        stats = {"created": 0, "updated": 0, "skipped": 0, "activities": 0}
-        offset = 0
-        
-        while stats["created"] + stats["updated"] + stats["skipped"] < limit:
-            leads, has_more = await self.smartlead.get_global_leads(limit=100, offset=offset)
-            
-            if not leads:
-                break
-            
-            for lead in leads:
-                result = await self._process_smartlead_lead(session, company_id, lead)
-                stats[result] += 1
-            
-            offset += 100
-            if not has_more:
-                break
-            
+        import json as json_mod
+        from app.models.campaign import Campaign
+
+        stats = {"created": 0, "updated": 0, "skipped": 0}
+
+        # Get campaigns with leads, ordered by leads_count desc (biggest first)
+        camp_result = await session.execute(
+            select(Campaign).where(
+                and_(
+                    Campaign.platform == "smartlead",
+                    Campaign.external_id.isnot(None),
+                    func.coalesce(Campaign.leads_count, 0) > 0,
+                )
+            ).order_by(Campaign.leads_count.desc())
+        )
+        campaigns = camp_result.scalars().all()
+        logger.info(f"[SL-SYNC] Syncing {len(campaigns)} campaigns via CSV export")
+
+        for idx, camp in enumerate(campaigns):
+            csv_rows = await self.smartlead.export_campaign_leads(camp.external_id)
+
+            # Update leads_count and synced_leads_count from actual export
+            actual_count = len(csv_rows)
+            if actual_count > 0 and actual_count != (camp.leads_count or 0):
+                camp.leads_count = actual_count
+            if actual_count > 0:
+                camp.synced_leads_count = actual_count
+                camp.last_contact_sync_at = datetime.utcnow()
+
+            if not csv_rows:
+                await asyncio.sleep(0.3)
+                continue
+
+            # Convert CSV rows to lead dicts compatible with _process_smartlead_lead
+            for row in csv_rows:
+                try:
+                    custom_fields_raw = row.get("custom_fields", "{}")
+                    try:
+                        custom_fields = json_mod.loads(custom_fields_raw) if custom_fields_raw else {}
+                    except (json_mod.JSONDecodeError, TypeError):
+                        custom_fields = {}
+
+                    reply_count = int(row.get("reply_count", 0) or 0)
+                    lead = {
+                        "id": row.get("id", ""),
+                        "email": row.get("email", ""),
+                        "first_name": row.get("first_name", ""),
+                        "last_name": row.get("last_name", ""),
+                        "company_name": row.get("company_name", ""),
+                        "phone_number": row.get("phone_number", ""),
+                        "linkedin_profile": row.get("linkedin_profile", ""),
+                        "location": row.get("location", ""),
+                        "custom_fields": custom_fields,
+                        "created_at": row.get("created_at", ""),
+                        "campaigns": [{
+                            "campaign_name": camp.name,
+                            "campaign_id": camp.external_id,
+                            "lead_status": row.get("status", "ACTIVE"),
+                            "created_at": row.get("created_at", ""),
+                            "reply_time": True if reply_count > 0 else None,
+                        }],
+                    }
+                    result = await self._process_smartlead_lead(
+                        session, company_id, lead, campaign_project_id=camp.project_id
+                    )
+                    stats[result] += 1
+                except Exception:
+                    stats["skipped"] += 1
+
             await session.commit()
-        
+
+            total = stats["created"] + stats["updated"] + stats["skipped"]
+            if (idx + 1) % 50 == 0 or idx < 3:
+                logger.info(
+                    f"[SL-SYNC] {idx+1}/{len(campaigns)} campaigns, "
+                    f"created={stats['created']}, updated={stats['updated']}, skipped={stats['skipped']}"
+                )
+
+            if total >= limit:
+                break
+            await asyncio.sleep(0.5)
+
         await session.commit()
+        logger.info(
+            f"[SL-SYNC] Complete: {len(campaigns)} campaigns, "
+            f"created={stats['created']}, updated={stats['updated']}, skipped={stats['skipped']}"
+        )
         return stats
-    
+
+    async def sync_smartlead_contacts_delta(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        batch_size: int = 50,
+    ) -> Dict[str, Any]:
+        """Delta sync: check lead counts for a batch of campaigns, export only changed ones.
+
+        Round-robin: each cycle checks ``batch_size`` campaigns ordered by
+        ``last_contact_sync_at`` (oldest first, NULLs first so new campaigns
+        get checked immediately).  Full rotation across all active campaigns
+        takes ~100 min at default settings.
+
+        Returns stats dict with campaigns_checked, campaigns_synced, created, updated.
+        """
+        if not self.smartlead:
+            return {"error": "SmartLead not configured"}
+
+        import json as json_mod
+        from app.models.campaign import Campaign
+
+        # Get next batch of campaigns to check (round-robin by last_contact_sync_at)
+        result = await session.execute(
+            select(Campaign).where(
+                and_(
+                    Campaign.platform == "smartlead",
+                    Campaign.external_id.isnot(None),
+                    Campaign.project_id.isnot(None),
+                    Campaign.status == "active",
+                )
+            ).order_by(
+                Campaign.last_contact_sync_at.asc().nullsfirst()
+            ).limit(batch_size)
+        )
+        batch = result.scalars().all()
+        if not batch:
+            return {"campaigns_checked": 0, "campaigns_synced": 0, "created": 0, "updated": 0}
+
+        # Phase 1: Quick count checks (1 API call per campaign, ~15s for 50)
+        need_sync = []
+        for camp in batch:
+            try:
+                sl_count = await self.smartlead.get_campaign_lead_count(camp.external_id)
+                our_count = camp.synced_leads_count or camp.leads_count or 0
+                if sl_count > our_count:
+                    need_sync.append((camp, sl_count))
+                    logger.info(
+                        f"[SL-DELTA] {camp.name[:40]}: {our_count} → {sl_count} (+{sl_count - our_count})"
+                    )
+                # Mark as checked regardless
+                camp.last_contact_sync_at = datetime.utcnow()
+            except Exception as e:
+                logger.warning(f"[SL-DELTA] Count check failed for {camp.name[:30]}: {e}")
+            await asyncio.sleep(0.3)
+
+        if not need_sync:
+            await session.commit()
+            logger.info(f"[SL-DELTA] Checked {len(batch)} campaigns, no changes")
+            return {"campaigns_checked": len(batch), "campaigns_synced": 0, "created": 0, "updated": 0}
+
+        # Phase 2: Export CSV and process only changed campaigns
+        stats = {"created": 0, "updated": 0, "skipped": 0}
+        for camp, sl_count in need_sync:
+            csv_rows = await self.smartlead.export_campaign_leads(camp.external_id)
+            actual_count = len(csv_rows)
+            if actual_count > 0:
+                camp.leads_count = actual_count
+                camp.synced_leads_count = actual_count
+
+            for row in csv_rows:
+                try:
+                    custom_fields_raw = row.get("custom_fields", "{}")
+                    try:
+                        custom_fields = json_mod.loads(custom_fields_raw) if custom_fields_raw else {}
+                    except (json_mod.JSONDecodeError, TypeError):
+                        custom_fields = {}
+                    reply_count = int(row.get("reply_count", 0) or 0)
+                    lead = {
+                        "id": row.get("id", ""),
+                        "email": row.get("email", ""),
+                        "first_name": row.get("first_name", ""),
+                        "last_name": row.get("last_name", ""),
+                        "company_name": row.get("company_name", ""),
+                        "phone_number": row.get("phone_number", ""),
+                        "linkedin_profile": row.get("linkedin_profile", ""),
+                        "location": row.get("location", ""),
+                        "custom_fields": custom_fields,
+                        "created_at": row.get("created_at", ""),
+                        "campaigns": [{
+                            "campaign_name": camp.name,
+                            "campaign_id": camp.external_id,
+                            "lead_status": row.get("status", "ACTIVE"),
+                            "created_at": row.get("created_at", ""),
+                            "reply_time": True if reply_count > 0 else None,
+                        }],
+                    }
+                    action = await self._process_smartlead_lead(
+                        session, company_id, lead, campaign_project_id=camp.project_id
+                    )
+                    stats[action] += 1
+                except Exception:
+                    stats["skipped"] += 1
+
+            await session.commit()
+            logger.info(
+                f"[SL-DELTA] Synced '{camp.name[:40]}': {actual_count} leads "
+                f"(+{stats['created']} new, {stats['updated']} updated)"
+            )
+            await asyncio.sleep(0.5)
+
+        logger.info(
+            f"[SL-DELTA] Done: checked {len(batch)}, synced {len(need_sync)} campaigns, "
+            f"created={stats['created']}, updated={stats['updated']}"
+        )
+        return {
+            "campaigns_checked": len(batch),
+            "campaigns_synced": len(need_sync),
+            **stats,
+        }
+
     async def _process_smartlead_lead(
         self,
         session: AsyncSession,
         company_id: int,
-        lead: dict
+        lead: dict,
+        campaign_project_id: int = None,
     ) -> str:
         """Process a single Smartlead lead. Returns 'created', 'updated', or 'skipped'."""
         email = self.normalize_email(lead.get("email"))
@@ -1065,6 +1338,8 @@ class CRMSyncService:
             # Update existing contact
             existing.smartlead_id = smartlead_id
             existing.update_platform_status("smartlead", smartlead_status)
+            if campaign_project_id and not existing.project_id:
+                existing.project_id = campaign_project_id
             if not existing.domain and email and '@' in email:
                 existing.domain = email.split('@')[1].lower()
             # Upgrade placeholder email with real email from Smartlead
@@ -1090,7 +1365,8 @@ class CRMSyncService:
                     "name": c.get("campaign_name"),
                     "id": c.get("campaign_id"),
                     "source": "smartlead",
-                    "status": c.get("lead_status")
+                    "status": c.get("lead_status"),
+                    "added_at": c.get("created_at") or lead.get("created_at"),
                 }
                 for c in campaigns if c.get("campaign_name")
             ]
@@ -1112,12 +1388,14 @@ class CRMSyncService:
                     "name": c.get("campaign_name"),
                     "id": c.get("campaign_id"),
                     "source": "smartlead",
-                    "status": c.get("lead_status")
+                    "status": c.get("lead_status"),
+                    "added_at": c.get("created_at") or lead.get("created_at"),
                 }
                 for c in campaigns if c.get("campaign_name")
             ]
             contact = Contact(
                 company_id=company_id,
+                project_id=campaign_project_id,
                 email=email,
                 domain=email.split('@')[1].lower() if email and '@' in email else None,
                 first_name=_truncate(lead.get("first_name"), 255),
@@ -1138,15 +1416,15 @@ class CRMSyncService:
                 contact.set_platform("smartlead", {"campaigns": campaign_data})
             return "created"
     
-    async def sync_getsales_contacts(
+    async def sync_getsales_contacts_full(
         self,
         session: AsyncSession,
         company_id: int,
         limit: int = 50000
     ) -> Dict[str, int]:
         """
-        Sync contacts from GetSales.
-        
+        Full sync of ALL contacts from GetSales (used for daily reconciliation).
+
         Returns dict with created, updated, skipped counts.
         """
         if not self.getsales:
@@ -1186,31 +1464,49 @@ class CRMSyncService:
         session: AsyncSession,
         company_id: int,
         item: dict,
-        list_name: str = None
+        list_name: str = None,
+        campaign_project_id: int = None,
     ) -> str:
         """Process a single GetSales lead. Returns 'created', 'updated', or 'skipped'."""
         lead = item.get("lead", {})
-        
+
         email = self.normalize_email(lead.get("work_email") or lead.get("personal_email"))
         linkedin_raw = lead.get("linkedin")
         linkedin = self.normalize_linkedin(linkedin_raw)
         if linkedin_raw and not linkedin_raw.startswith("http"):
             linkedin_raw = f"https://linkedin.com/in/{linkedin_raw}"
-        
+
         getsales_id = lead.get("uuid")
-        
+
         if not email and not linkedin:
             return "skipped"
-        
+
+        # Auto-detect project from flow names or list name if not explicitly set
+        if not campaign_project_id:
+            # Check flow names against ownership rules
+            for flow in item.get("flows", []):
+                flow_uuid = flow.get("flow_uuid", "")
+                flow_name = _getsales_flow_cache.get(flow_uuid, "")
+                if flow_name:
+                    pid = match_campaign_to_project(flow_name)
+                    if pid:
+                        campaign_project_id = pid
+                        break
+            # Fallback: check list name
+            if not campaign_project_id and list_name:
+                campaign_project_id = match_campaign_to_project(list_name)
+
         # Find existing contact
         existing = await self._find_contact(session, company_id, email, linkedin, getsales_id=getsales_id)
-        
+
         getsales_status = lead.get("status")
-        
+
         if existing:
             # Update existing contact
             existing.getsales_id = getsales_id
             existing.update_platform_status("getsales", getsales_status)
+            if campaign_project_id and not existing.project_id:
+                existing.project_id = campaign_project_id
             if not existing.domain and email and '@' in email:
                 existing.domain = email.split('@')[1].lower()
             if not existing.linkedin_url and linkedin_raw:
@@ -1259,6 +1555,7 @@ class CRMSyncService:
             actual_email = email or f"gs_{getsales_id or linkedin}@linkedin.placeholder"
             contact = Contact(
                 company_id=company_id,
+                project_id=campaign_project_id,
                 email=actual_email,
                 domain=email.split('@')[1].lower() if email and '@' in email else None,
                 first_name=lead.get("first_name"),
@@ -1278,7 +1575,160 @@ class CRMSyncService:
             contact.mark_synced("getsales")
             session.add(contact)
             return "created"
-    
+
+    async def sync_getsales_contacts_incremental(
+        self,
+        session: AsyncSession,
+        company_id: int,
+    ) -> Dict[str, Any]:
+        """
+        Incremental sync: only fetch NEW contacts since last check.
+
+        Stores {list_uuid: last_known_total} in Redis. Each cycle:
+        1. Fetch all lists (1 API call)
+        2. For each list, get current total (1 API call each)
+        3. If total increased, scan only the delta (newest-first)
+        4. Update stored totals
+
+        Returns dict with stats + api_calls count.
+        """
+        from app.services.cache_service import cache_service
+
+        if not self.getsales:
+            raise ValueError("GetSales API key not configured")
+
+        stats = {"created": 0, "updated": 0, "skipped": 0, "api_calls": 0, "lists_scanned": 0, "delta_contacts": 0}
+
+        # Load stored totals from Redis
+        REDIS_KEY = "leadgen:getsales:list_totals"
+        stored_totals = await cache_service.get(REDIS_KEY) or {}
+
+        # Fetch all lists
+        lists = await self.getsales.get_lists()
+        stats["api_calls"] += 1
+
+        new_totals = {}
+
+        for lst in lists:
+            list_uuid = lst.get("uuid")
+            list_name = lst.get("name")
+            if not list_uuid:
+                continue
+
+            # Get current total with a minimal query (limit=1)
+            _, current_total = await self.getsales.search_leads(
+                {"list_uuid": list_uuid}, limit=1, offset=0
+            )
+            stats["api_calls"] += 1
+            new_totals[list_uuid] = current_total
+
+            previous_total = stored_totals.get(list_uuid, 0)
+            delta = current_total - previous_total
+
+            if delta <= 0:
+                # No new contacts (or contacts removed — reconciliation handles that)
+                continue
+
+            # Scan the delta — API returns newest-first, so offset=0..delta gets new contacts
+            stats["lists_scanned"] += 1
+            logger.info(f"[DELTA-SYNC] List '{list_name}': {previous_total} -> {current_total} (+{delta} new)")
+
+            offset = 0
+            while offset < delta:
+                batch_size = min(100, delta - offset)
+                leads, _ = await self.getsales.get_leads_by_list(
+                    list_uuid, limit=batch_size, offset=offset
+                )
+                stats["api_calls"] += 1
+
+                if not leads:
+                    break
+
+                for item in leads:
+                    result = await self._process_getsales_lead(session, company_id, item, list_name)
+                    stats[result] += 1
+                    stats["delta_contacts"] += 1
+
+                offset += len(leads)
+
+            await session.commit()
+
+        # Store updated totals in Redis (no TTL — persistent until reconciliation resets)
+        await cache_service.set(REDIS_KEY, new_totals)
+
+        logger.info(
+            f"[DELTA-SYNC] Complete: {stats['delta_contacts']} new contacts across {stats['lists_scanned']} lists, "
+            f"{stats['api_calls']} API calls (created={stats['created']}, updated={stats['updated']})"
+        )
+        return stats
+
+    async def sync_getsales_contacts(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        force_full: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Smart sync dispatcher: incremental by default, full on reconciliation.
+
+        Full scan triggers when:
+        - force_full=True (manual trigger)
+        - First run (no stored totals in Redis)
+        - >24h since last full reconciliation
+        """
+        from app.services.cache_service import cache_service
+
+        RECONCILIATION_KEY = "leadgen:getsales:last_full_reconciliation"
+        TOTALS_KEY = "leadgen:getsales:list_totals"
+
+        # Check if we need a full scan
+        needs_full = force_full
+        reason = "forced" if force_full else ""
+
+        if not needs_full:
+            stored_totals = await cache_service.get(TOTALS_KEY)
+            if not stored_totals:
+                needs_full = True
+                reason = "cold_start"
+
+        if not needs_full:
+            last_reconciliation = await cache_service.get(RECONCILIATION_KEY)
+            if not last_reconciliation:
+                needs_full = True
+                reason = "no_reconciliation_record"
+            else:
+                last_ts = datetime.fromisoformat(last_reconciliation)
+                hours_since = (datetime.utcnow() - last_ts).total_seconds() / 3600
+                if hours_since >= 24:
+                    needs_full = True
+                    reason = f"reconciliation_due ({hours_since:.0f}h since last)"
+
+        if needs_full:
+            logger.info(f"[GETSALES-SYNC] Running FULL reconciliation (reason: {reason})")
+            stats = await self.sync_getsales_contacts_full(session, company_id)
+
+            # Reset Redis totals to match reality
+            lists = await self.getsales.get_lists()
+            fresh_totals = {}
+            for lst in lists:
+                list_uuid = lst.get("uuid")
+                if list_uuid:
+                    _, total = await self.getsales.search_leads(
+                        {"list_uuid": list_uuid}, limit=1, offset=0
+                    )
+                    fresh_totals[list_uuid] = total
+            await cache_service.set(TOTALS_KEY, fresh_totals)
+            await cache_service.set(RECONCILIATION_KEY, datetime.utcnow().isoformat())
+
+            stats["sync_type"] = "full_reconciliation"
+            stats["reason"] = reason
+            return stats
+        else:
+            logger.info("[GETSALES-SYNC] Running incremental delta sync")
+            stats = await self.sync_getsales_contacts_incremental(session, company_id)
+            stats["sync_type"] = "incremental"
+            return stats
+
     async def _find_contact(
         self,
         session: AsyncSession,
@@ -1373,6 +1823,704 @@ class CRMSyncService:
                         text = parts[0].strip()
                         break
         return text.strip()
+
+    async def sync_contacts_global(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        max_leads: int = 3000,
+        report_progress: bool = False,
+        platform: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Sync contacts via SmartLead CSV export + GetSales bulk search.
+
+        SmartLead: Uses /campaigns/{id}/leads-export (full CSV per campaign,
+        1 API call each). ~795 calls for all campaigns vs 6000+ paginated.
+        GetSales: Uses bulk search with data_source chunking.
+
+        When report_progress=True, writes live stats to Redis and checks cancel flag.
+        platform: None="all", "smartlead", or "getsales" — run only one platform.
+        """
+        import json as json_mod
+        from app.models.campaign import Campaign
+        from app.db import async_session_maker
+        import redis.asyncio as aioredis
+        import time as _time
+
+        stats = {"created": 0, "updated": 0, "skipped": 0, "processed": 0}
+        started_at = _time.time()
+        cancelled = False
+
+        # Build campaign name → project_id lookup from DB
+        camp_result = await session.execute(
+            select(Campaign.name, Campaign.project_id).where(
+                Campaign.project_id.isnot(None)
+            )
+        )
+        campaign_project_map = {}
+        for row in camp_result.all():
+            campaign_project_map[row.name.lower()] = row.project_id
+
+        # Single Redis connection for entire sync
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis = None
+        try:
+            redis = aioredis.from_url(redis_url)
+        except Exception:
+            pass
+
+        run_smartlead = platform in (None, "smartlead")
+        run_getsales = platform in (None, "getsales")
+
+        processed = 0
+
+        try:
+            if run_smartlead and self.smartlead:
+                # Get campaigns with leads
+                sl_camps_result = await session.execute(
+                    select(Campaign).where(
+                        and_(
+                            Campaign.platform == "smartlead",
+                            Campaign.external_id.isnot(None),
+                            func.coalesce(Campaign.leads_count, 0) > 0,
+                        )
+                    ).order_by(Campaign.leads_count.desc())
+                )
+                sl_campaigns = sl_camps_result.scalars().all()
+                logger.info(f"[GLOBAL-SYNC] SmartLead: exporting {len(sl_campaigns)} campaigns via CSV")
+
+                for idx, camp in enumerate(sl_campaigns):
+                    # Check cancel flag
+                    if report_progress and redis:
+                        try:
+                            cancel = await redis.get("contact_sync:cancel")
+                            if cancel:
+                                await redis.delete("contact_sync:cancel")
+                                cancelled = True
+                                logger.info("[GLOBAL-SYNC] Cancelled by user")
+                                break
+                        except Exception:
+                            pass
+
+                    csv_rows = await self.smartlead.export_campaign_leads(camp.external_id)
+                    actual_count = len(csv_rows)
+                    if actual_count > 0 and actual_count != (camp.leads_count or 0):
+                        camp.leads_count = actual_count
+                    if actual_count > 0:
+                        camp.synced_leads_count = actual_count
+                        camp.last_contact_sync_at = datetime.utcnow()
+
+                    for row in csv_rows:
+                        try:
+                            custom_fields_raw = row.get("custom_fields", "{}")
+                            try:
+                                custom_fields = json_mod.loads(custom_fields_raw) if custom_fields_raw else {}
+                            except (json_mod.JSONDecodeError, TypeError):
+                                custom_fields = {}
+                            reply_count = int(row.get("reply_count", 0) or 0)
+                            lead = {
+                                "id": row.get("id", ""),
+                                "email": row.get("email", ""),
+                                "first_name": row.get("first_name", ""),
+                                "last_name": row.get("last_name", ""),
+                                "company_name": row.get("company_name", ""),
+                                "phone_number": row.get("phone_number", ""),
+                                "linkedin_profile": row.get("linkedin_profile", ""),
+                                "location": row.get("location", ""),
+                                "custom_fields": custom_fields,
+                                "created_at": row.get("created_at", ""),
+                                "campaigns": [{
+                                    "campaign_name": camp.name,
+                                    "campaign_id": camp.external_id,
+                                    "lead_status": row.get("status", "ACTIVE"),
+                                    "created_at": row.get("created_at", ""),
+                                    "reply_time": True if reply_count > 0 else None,
+                                }],
+                            }
+                            async with session.begin_nested():
+                                action = await self._process_smartlead_lead(
+                                    session, company_id, lead, campaign_project_id=camp.project_id
+                                )
+                            stats[action] += 1
+                        except Exception:
+                            stats["skipped"] += 1
+                        processed += 1
+
+                    if csv_rows and processed % 500 == 0:
+                        await session.flush()
+
+                    # Report progress
+                    if report_progress and redis and (idx + 1) % 10 == 0:
+                        try:
+                            await redis.hset("contact_sync:progress", mapping={
+                                "sl_processed": str(processed),
+                                "sl_created": str(stats["created"]),
+                                "sl_updated": str(stats["updated"]),
+                                "sl_campaigns": f"{idx+1}/{len(sl_campaigns)}",
+                                "status": "running",
+                                "elapsed": str(int(_time.time() - started_at)),
+                            })
+                        except Exception:
+                            pass
+
+                    if (idx + 1) % 50 == 0 or idx < 3:
+                        logger.info(
+                            f"[GLOBAL-SYNC] SmartLead {idx+1}/{len(sl_campaigns)} campaigns, "
+                            f"created={stats['created']}, updated={stats['updated']}"
+                        )
+
+                    if processed >= max_leads:
+                        break
+                    await asyncio.sleep(0.5)
+
+                await session.commit()
+                stats["processed"] = processed
+                logger.info(
+                    f"[GLOBAL-SYNC] SmartLead complete: {processed} leads, "
+                    f"created={stats['created']}, updated={stats['updated']}, skipped={stats['skipped']}"
+                )
+
+            if cancelled:
+                if report_progress and redis:
+                    try:
+                        await redis.hset("contact_sync:progress", mapping={
+                            "status": "cancelled",
+                            "elapsed": str(int(_time.time() - started_at)),
+                        })
+                    except Exception:
+                        pass
+                return stats
+
+            # ── GetSales bulk scan ──
+            # ES hard limit: offset+size <= 10,000. For full loads (max_leads > 10K),
+            # iterate by data_source_uuid so each chunk stays under the limit.
+            gs_processed = 0
+            gs_total = 0
+
+            if run_getsales:
+                use_datasource_chunking = max_leads > 9000
+
+                if use_datasource_chunking:
+                    # Get all data sources, then paginate within each
+                    try:
+                        data_sources = await self.getsales.get_data_sources()
+                    except Exception as e:
+                        logger.error(f"[GLOBAL-SYNC] GetSales get_data_sources failed: {e}")
+                        data_sources = []
+
+                    # Also get unfiltered total for progress
+                    try:
+                        _, gs_total = await self.getsales.search_leads(filter_={}, limit=1, offset=0)
+                    except Exception:
+                        pass
+
+                    # Track which data sources we've completed (Redis set)
+                    completed_ds_key = "contact_sync:gs_completed_ds"
+                    completed_ds = set()
+                    if redis:
+                        try:
+                            completed_ds = {m.decode() for m in await redis.smembers(completed_ds_key)}
+                        except Exception:
+                            pass
+
+                    for ds in data_sources:
+                        ds_uuid = ds.get("uuid", "")
+                        if not ds_uuid or ds_uuid in completed_ds:
+                            continue
+
+                        if cancelled:
+                            break
+
+                        ds_offset = 0
+                        while gs_processed < max_leads:
+                            # Check cancel flag
+                            if report_progress and redis:
+                                try:
+                                    cancel = await redis.get("contact_sync:cancel")
+                                    if cancel:
+                                        await redis.delete("contact_sync:cancel")
+                                        cancelled = True
+                                        logger.info("[GLOBAL-SYNC] Cancelled during GetSales phase")
+                                        break
+                                except Exception:
+                                    pass
+
+                            try:
+                                gs_leads, ds_total = await self.getsales.search_leads(
+                                    filter_={"data_source_uuid": ds_uuid},
+                                    limit=100, offset=ds_offset,
+                                )
+                            except Exception as e:
+                                logger.error(f"[GLOBAL-SYNC] GetSales ds={ds_uuid[:8]} offset={ds_offset}: {e}")
+                                break
+
+                            if not gs_leads:
+                                break
+
+                            for item in gs_leads:
+                                flow_name = ""
+                                if isinstance(item, dict):
+                                    flow_name = item.get("automation_name") or item.get("flow_name") or ""
+
+                                project_id = None
+                                if flow_name:
+                                    project_id = campaign_project_map.get(flow_name.lower())
+
+                                try:
+                                    async with session.begin_nested():
+                                        action = await self._process_getsales_lead(
+                                            session, company_id, item, list_name=flow_name,
+                                            campaign_project_id=project_id,
+                                        )
+                                    stats[action] += 1
+                                except Exception:
+                                    stats["skipped"] += 1
+
+                                gs_processed += 1
+
+                            ds_offset += len(gs_leads)
+
+                            if len(gs_leads) < 100 or ds_offset >= ds_total:
+                                break
+
+                            if gs_processed % 500 == 0:
+                                await session.flush()
+
+                            if report_progress and redis and gs_processed % 100 == 0:
+                                try:
+                                    await redis.hset("contact_sync:progress", mapping={
+                                        "gs_processed": str(gs_processed),
+                                        "gs_total": str(gs_total),
+                                        "status": "running",
+                                        "elapsed": str(int(_time.time() - started_at)),
+                                    })
+                                except Exception:
+                                    pass
+
+                        # Mark data source as completed
+                        if redis and not cancelled:
+                            try:
+                                await redis.sadd(completed_ds_key, ds_uuid)
+                            except Exception:
+                                pass
+
+                    # Also scan leads with no data source (list_uuid filter)
+                    if not cancelled:
+                        try:
+                            lists = await self.getsales.get_lists()
+                        except Exception:
+                            lists = []
+                        for lst in lists:
+                            list_uuid = lst.get("uuid", "")
+                            if not list_uuid or list_uuid in completed_ds:
+                                continue
+                            if cancelled:
+                                break
+
+                            ds_offset = 0
+                            while gs_processed < max_leads:
+                                if report_progress and redis:
+                                    try:
+                                        cancel = await redis.get("contact_sync:cancel")
+                                        if cancel:
+                                            await redis.delete("contact_sync:cancel")
+                                            cancelled = True
+                                            break
+                                    except Exception:
+                                        pass
+
+                                try:
+                                    gs_leads, ds_total = await self.getsales.search_leads(
+                                        filter_={"list_uuid": list_uuid},
+                                        limit=100, offset=ds_offset,
+                                    )
+                                except Exception as e:
+                                    logger.error(f"[GLOBAL-SYNC] GetSales list={list_uuid[:8]} offset={ds_offset}: {e}")
+                                    break
+
+                                if not gs_leads:
+                                    break
+
+                                for item in gs_leads:
+                                    flow_name = ""
+                                    if isinstance(item, dict):
+                                        flow_name = item.get("automation_name") or item.get("flow_name") or ""
+                                    project_id = None
+                                    if flow_name:
+                                        project_id = campaign_project_map.get(flow_name.lower())
+                                    try:
+                                        async with session.begin_nested():
+                                            action = await self._process_getsales_lead(
+                                                session, company_id, item, list_name=flow_name,
+                                                campaign_project_id=project_id,
+                                            )
+                                        stats[action] += 1
+                                    except Exception:
+                                        stats["skipped"] += 1
+                                    gs_processed += 1
+
+                                ds_offset += len(gs_leads)
+                                if len(gs_leads) < 100 or ds_offset >= ds_total:
+                                    break
+                                if gs_processed % 500 == 0:
+                                    await session.flush()
+
+                            if redis and not cancelled:
+                                try:
+                                    await redis.sadd(completed_ds_key, list_uuid)
+                                except Exception:
+                                    pass
+
+                else:
+                    # Incremental: start from offset 0 (newest first), stop when
+                    # we hit a streak of already-known contacts (all "updated").
+                    # This correctly picks up new leads regardless of position shifts.
+                    gs_offset = 0
+                    consecutive_known = 0
+                    KNOWN_STREAK_THRESHOLD = 200  # stop after 200 consecutive known leads
+                    while gs_processed < max_leads and gs_offset < 9900:
+                        if report_progress and redis:
+                            try:
+                                cancel = await redis.get("contact_sync:cancel")
+                                if cancel:
+                                    await redis.delete("contact_sync:cancel")
+                                    cancelled = True
+                                    logger.info("[GLOBAL-SYNC] Cancelled during GetSales phase")
+                                    break
+                            except Exception:
+                                pass
+
+                        try:
+                            gs_leads, gs_total = await self.getsales.search_leads(
+                                filter_={}, limit=100, offset=gs_offset
+                            )
+                        except Exception as e:
+                            logger.error(f"[GLOBAL-SYNC] GetSales search failed at offset={gs_offset}: {e}")
+                            break
+
+                        if not gs_leads:
+                            break
+
+                        batch_created = 0
+                        for item in gs_leads:
+                            flow_name = ""
+                            if isinstance(item, dict):
+                                flow_name = item.get("automation_name") or item.get("flow_name") or ""
+                            project_id = None
+                            if flow_name:
+                                project_id = campaign_project_map.get(flow_name.lower())
+                            try:
+                                async with session.begin_nested():
+                                    action = await self._process_getsales_lead(
+                                        session, company_id, item, list_name=flow_name,
+                                        campaign_project_id=project_id,
+                                    )
+                                stats[action] += 1
+                                if action == "created":
+                                    batch_created += 1
+                            except Exception:
+                                stats["skipped"] += 1
+                            gs_processed += 1
+
+                        gs_offset += len(gs_leads)
+
+                        # Track consecutive batches with no new contacts
+                        if batch_created == 0:
+                            consecutive_known += len(gs_leads)
+                        else:
+                            consecutive_known = 0
+
+                        if consecutive_known >= KNOWN_STREAK_THRESHOLD:
+                            logger.info(
+                                f"[GLOBAL-SYNC] GetSales incremental: stopping after "
+                                f"{consecutive_known} consecutive known leads"
+                            )
+                            break
+
+                        if len(gs_leads) < 100 or gs_offset >= gs_total:
+                            break
+                        if gs_processed % 500 == 0:
+                            await session.flush()
+
+                        if report_progress and redis and gs_processed % 100 == 0:
+                            try:
+                                await redis.hset("contact_sync:progress", mapping={
+                                    "gs_processed": str(gs_processed),
+                                    "gs_offset": str(gs_offset),
+                                    "gs_total": str(gs_total),
+                                    "status": "running",
+                                    "elapsed": str(int(_time.time() - started_at)),
+                                })
+                            except Exception:
+                                pass
+
+                await session.commit()
+                stats["processed"] += gs_processed
+                logger.info(
+                    f"[GLOBAL-SYNC] GetSales: processed={gs_processed}, total={gs_total}"
+                )
+
+            # Final progress update
+            if report_progress and redis:
+                final_status = "cancelled" if cancelled else "completed"
+                suffix = f"_{platform}" if platform else ""
+                try:
+                    await redis.hset("contact_sync:progress", mapping={
+                        "status" + suffix: final_status,
+                        "elapsed" + suffix: str(int(_time.time() - started_at)),
+                    })
+                except Exception:
+                    pass
+
+        except Exception as e:
+            logger.error(f"[GLOBAL-SYNC] Fatal error: {e}")
+            if report_progress and redis:
+                try:
+                    await redis.hset("contact_sync:progress", mapping={
+                        "status": "failed",
+                        "error": str(e)[:500],
+                        "elapsed": str(int(_time.time() - started_at)),
+                    })
+                except Exception:
+                    pass
+            raise
+        finally:
+            if redis:
+                try:
+                    await redis.aclose()
+                except Exception:
+                    pass
+
+        return stats
+
+    async def sync_campaign_contacts(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        max_campaigns: int = 5,
+        max_leads_per_campaign: int = 500,
+    ) -> Dict[str, Any]:
+        """Sync contacts from campaigns that have more leads than we've synced.
+
+        Picks campaigns with largest delta between leads_count and synced_leads_count.
+        Returns stats dict with campaigns_synced, contacts_created, contacts_updated.
+        """
+        from app.models.campaign import Campaign
+
+        stats = {"campaigns_synced": 0, "contacts_created": 0, "contacts_updated": 0, "contacts_skipped": 0}
+
+        # Find campaigns needing sync: assigned to a project AND either:
+        # 1. Never synced (last_contact_sync_at IS NULL), or
+        # 2. Have more leads than synced (leads_count > synced_leads_count), or
+        # 3. Active campaign last synced >7 days ago (detect new leads)
+        # Prioritize active campaigns first (currently sending outreach)
+        active_statuses = ("active", "ACTIVE", "INPROGRESS")
+        resync_cutoff = datetime.utcnow() - timedelta(days=7)
+        result = await session.execute(
+            select(Campaign).where(
+                and_(
+                    Campaign.project_id.isnot(None),
+                    or_(
+                        Campaign.last_contact_sync_at.is_(None),
+                        Campaign.leads_count > Campaign.synced_leads_count,
+                        # Re-sync active campaigns weekly to detect new leads
+                        and_(
+                            Campaign.status.in_(active_statuses),
+                            Campaign.last_contact_sync_at < resync_cutoff,
+                        ),
+                    ),
+                )
+            ).order_by(
+                # Active campaigns first, then unsynced, then by delta
+                Campaign.status.in_(active_statuses).desc(),
+                Campaign.last_contact_sync_at.is_(None).desc(),
+                (Campaign.leads_count - Campaign.synced_leads_count).desc(),
+            ).limit(max_campaigns)
+        )
+        campaigns_to_sync = result.scalars().all()
+
+        if not campaigns_to_sync:
+            return stats
+
+        # Capture campaign data for parallel processing (detach from main session)
+        campaign_data = [
+            {"id": c.id, "name": c.name, "platform": c.platform, "external_id": c.external_id,
+             "project_id": c.project_id, "synced_leads_count": c.synced_leads_count or 0,
+             "is_resync": c.last_contact_sync_at is not None}
+            for c in campaigns_to_sync
+        ]
+
+        from app.db import async_session_maker
+
+        async def _sync_one(cdata):
+            """Sync one campaign with its own session."""
+            try:
+                async with async_session_maker() as camp_session:
+                    # Reload campaign in this session
+                    camp_result = await camp_session.execute(
+                        select(Campaign).where(Campaign.id == cdata["id"])
+                    )
+                    campaign = camp_result.scalar()
+                    if not campaign:
+                        return None
+
+                    start_offset = cdata["synced_leads_count"] if cdata["is_resync"] else 0
+
+                    if cdata["platform"] == "smartlead":
+                        synced = await self._sync_smartlead_campaign_contacts(
+                            camp_session, company_id, campaign, max_leads_per_campaign,
+                            start_offset=start_offset,
+                        )
+                    elif cdata["platform"] == "getsales":
+                        synced = await self._sync_getsales_campaign_contacts(
+                            camp_session, company_id, campaign, max_leads_per_campaign,
+                            start_offset=start_offset,
+                        )
+                    else:
+                        return None
+
+                    campaign.last_contact_sync_at = datetime.utcnow()
+                    await camp_session.commit()
+
+                    logger.info(
+                        f"[CONTACT-SYNC] Campaign '{cdata['name']}' (id={cdata['id']}): "
+                        f"created={synced.get('created', 0)}, updated={synced.get('updated', 0)}, "
+                        f"synced_leads_count={campaign.synced_leads_count}"
+                    )
+                    return synced
+            except Exception as e:
+                logger.error(f"[CONTACT-SYNC] Failed to sync campaign '{cdata['name']}': {e}", exc_info=True)
+                return None
+
+        # Run in parallel batches of 5 (each with own session)
+        for i in range(0, len(campaign_data), 5):
+            batch = campaign_data[i:i + 5]
+            results = await asyncio.gather(*[_sync_one(c) for c in batch], return_exceptions=True)
+
+            for r in results:
+                if isinstance(r, Exception) or r is None:
+                    continue
+                stats["contacts_created"] += r.get("created", 0)
+                stats["contacts_updated"] += r.get("updated", 0)
+                stats["contacts_skipped"] += r.get("skipped", 0)
+                stats["campaigns_synced"] += 1
+
+        return stats
+
+    async def _sync_smartlead_campaign_contacts(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        campaign,
+        max_leads: int,
+        start_offset: int = 0,
+    ) -> Dict[str, int]:
+        """Sync contacts from a single SmartLead campaign.
+
+        For re-syncs, start_offset skips already-synced leads (1 API call if no new leads).
+        """
+        result = {"created": 0, "updated": 0, "skipped": 0}
+        offset = start_offset
+        total_synced = start_offset  # preserve count from previous sync
+
+        while total_synced < max_leads + start_offset:
+            batch_size = min(100, max_leads + start_offset - total_synced)
+            raw_leads = await self.smartlead.get_campaign_leads(
+                campaign.external_id, offset=offset, limit=batch_size
+            )
+
+            if not raw_leads:
+                break
+
+            # Flatten: API may return [{campaign_lead_map_id, lead: {...}}, ...] wrappers
+            leads = []
+            for item in raw_leads:
+                if isinstance(item, dict) and "lead" in item:
+                    leads.append(item["lead"])
+                else:
+                    leads.append(item)
+
+            for lead in leads:
+                if not lead.get("campaigns"):
+                    lead["campaigns"] = [{
+                        "campaign_name": campaign.name,
+                        "campaign_id": campaign.external_id,
+                        "lead_status": lead.get("status", "ACTIVE"),
+                    }]
+                try:
+                    async with session.begin_nested():
+                        action = await self._process_smartlead_lead(
+                            session, company_id, lead, campaign_project_id=campaign.project_id
+                        )
+                    result[action] += 1
+                except Exception:
+                    result["skipped"] += 1
+
+            total_synced += len(leads)
+            offset += len(leads)
+
+            if len(leads) < batch_size:
+                break
+
+            await session.flush()
+
+        # Update campaign stats
+        campaign.leads_count = max(campaign.leads_count or 0, total_synced)
+        campaign.synced_leads_count = total_synced
+        await session.flush()
+        return result
+
+    async def _sync_getsales_campaign_contacts(
+        self,
+        session: AsyncSession,
+        company_id: int,
+        campaign,
+        max_leads: int,
+        start_offset: int = 0,
+    ) -> Dict[str, int]:
+        """Sync contacts from a single GetSales campaign (flow).
+
+        For re-syncs, start_offset skips already-synced leads.
+        """
+        result = {"created": 0, "updated": 0, "skipped": 0}
+        offset = start_offset
+        total_synced = start_offset
+        api_total = 0
+
+        while total_synced < max_leads + start_offset:
+            batch_size = min(100, max_leads + start_offset - total_synced)
+            leads, api_total = await self.getsales.search_leads(
+                filter_={"flow_uuid": campaign.external_id},
+                limit=batch_size, offset=offset,
+            )
+
+            if not leads:
+                break
+
+            for item in leads:
+                try:
+                    async with session.begin_nested():
+                        action = await self._process_getsales_lead(
+                            session, company_id, item, list_name=campaign.name,
+                            campaign_project_id=campaign.project_id,
+                        )
+                    result[action] += 1
+                except Exception:
+                    result["skipped"] += 1
+
+            total_synced += len(leads)
+            offset += len(leads)
+
+            if len(leads) < batch_size or offset >= api_total:
+                break
+
+            await session.flush()
+
+        # Update campaign stats
+        campaign.leads_count = max(campaign.leads_count or 0, api_total or total_synced)
+        campaign.synced_leads_count = total_synced
+        await session.flush()
+        return result
 
     async def sync_smartlead_replies(
         self,
@@ -1823,7 +2971,7 @@ class CRMSyncService:
 
                     # Update contact — use status machine for forward-only transition
                     contact.mark_replied("linkedin", at=activity.activity_at)
-                    from app.services.status_machine import transition_status
+                    from app.services.status_machine import transition_status, derive_external_status
                     new_st, ok, _msg = transition_status(contact.status, "interested")
                     if ok:
                         contact.status = new_st
@@ -1899,6 +3047,26 @@ class CRMSyncService:
                         )
                     except Exception as pr_err:
                         logger.warning(f"[GETSALES] ProcessedReply creation failed (non-fatal): {pr_err}")
+
+                    # Derive client-facing external status using actual classification
+                    if _pr and contact.project_id:
+                        try:
+                            from app.models.contact import Project
+                            _proj_result = await session.execute(
+                                select(Project).where(Project.id == contact.project_id)
+                            )
+                            _proj = _proj_result.scalar()
+                            if _proj and _proj.external_status_config:
+                                from app.services.status_machine import derive_external_status
+                                ext = derive_external_status(
+                                    _proj.external_status_config,
+                                    reply_category=_pr.category,
+                                    internal_status=contact.status,
+                                )
+                                if ext:
+                                    contact.status_external = ext
+                        except Exception:
+                            pass  # Non-fatal
 
                     # Collect for post-commit notification
                     if _pr:
@@ -2249,6 +3417,230 @@ async def sync_conversation_histories(
         stats["errors"] += 1
 
     logger.info(f"sync_conversation_histories: {stats}")
+    return stats
+
+
+async def deep_cleanup_needs_reply(session: AsyncSession, batch_limit: int = 200) -> Dict[str, Any]:
+    """Daily deep cleanup: load pending reply threads, resolve where operator already replied.
+
+    Unlike sync_conversation_histories (3-min, 7-day, SmartLead-only), this:
+    - Has no date cutoff — checks ALL pending replies (oldest first, batch_limit per run)
+    - Handles both SmartLead and GetSales
+    - Sets approval_status='auto_resolved' directly
+    - Writes per-project ReplyCleanupLog entries
+    """
+    from app.models.reply import ProcessedReply, ReplyCleanupLog, ThreadMessage
+    from app.models.contact import Project
+    from app.services.smartlead_service import SmartleadService, parse_history_response, smartlead_request as _sl_request
+    import os
+
+    stats = {"checked": 0, "resolved": 0, "errors": 0, "by_project": {}}
+
+    # Find ALL pending needs_reply replies (no date limit)
+    no_reply_categories = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
+    pending_q = (
+        select(ProcessedReply)
+        .where(
+            and_(
+                or_(
+                    ProcessedReply.approval_status == None,
+                    ProcessedReply.approval_status == "pending",
+                ),
+                ProcessedReply.lead_email.isnot(None),
+                or_(
+                    ProcessedReply.category == None,
+                    ~ProcessedReply.category.in_(no_reply_categories),
+                ),
+            )
+        )
+        .order_by(ProcessedReply.received_at.asc())  # Oldest first — work through backlog
+        .limit(batch_limit * 5)  # Overfetch since dedup reduces the set
+    )
+    result = await session.execute(pending_q)
+    pending_replies = result.scalars().all()
+
+    if not pending_replies:
+        logger.info("[CLEANUP] No pending needs_reply items to check")
+        return stats
+
+    logger.info(f"[CLEANUP] Starting deep cleanup: {len(pending_replies)} pending replies")
+
+    # Build campaign_name → project mapping
+    from app.models.campaign import Campaign
+    camp_result = await session.execute(
+        select(func.lower(Campaign.name), Campaign.project_id)
+        .where(Campaign.project_id.isnot(None))
+    )
+    campaign_to_project: Dict[str, int] = {}
+    for cname, pid in camp_result.all():
+        if cname not in campaign_to_project:
+            campaign_to_project[cname] = pid
+
+    # Project names
+    proj_result = await session.execute(
+        select(Project.id, Project.name).where(Project.deleted_at.is_(None))
+    )
+    project_names = {pid: pname for pid, pname in proj_result.all()}
+
+    # SmartLead API
+    sl = SmartleadService()
+    sl_available = bool(sl._api_key)
+
+    # GetSales API
+    gs_key = os.getenv("GETSALES_API_KEY", "")
+
+    # Deduplicate by (source, campaign_id, lead_email), cap at batch_limit
+    seen = set()
+    api_calls = 0
+
+    for reply in pending_replies:
+        if api_calls >= batch_limit:
+            break
+        email_lower = (reply.lead_email or "").lower()
+        source = reply.source or "smartlead"
+        dedup_key = (source, reply.campaign_id or "", email_lower)
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+
+        resolved = False
+        try:
+            if source == "getsales":
+                # GetSales: check if thread has outbound after reply
+                if not gs_key:
+                    continue
+                # Get conversation UUID from raw_webhook_data
+                conv_uuid = None
+                if reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+                    conv_uuid = (
+                        reply.raw_webhook_data.get("linkedin_conversation_uuid")
+                        or reply.raw_webhook_data.get("conversation_uuid")
+                        or (reply.raw_webhook_data.get("contact", {}) or {}).get("linkedin_conversation_uuid")
+                    )
+                if not conv_uuid:
+                    continue
+
+                gs_client = GetSalesClient(gs_key)
+                try:
+                    messages = await gs_client.get_conversation_messages(conv_uuid)
+                finally:
+                    await gs_client.close()
+
+                if messages:
+                    # Check if any outbound message after reply's received_at
+                    for msg in reversed(messages):
+                        if msg.get("type") == "outbox":
+                            msg_time = None
+                            ts = msg.get("sent_at") or msg.get("created_at")
+                            if ts:
+                                try:
+                                    from dateutil.parser import parse as dt_parse
+                                    msg_time = dt_parse(ts)
+                                    if msg_time.tzinfo:
+                                        msg_time = msg_time.replace(tzinfo=None)
+                                except Exception:
+                                    pass
+                            if msg_time and reply.received_at and msg_time > reply.received_at:
+                                resolved = True
+                            elif not reply.received_at:
+                                resolved = True
+                            break
+            else:
+                # SmartLead: check message history
+                if not sl_available or not reply.campaign_id:
+                    continue
+
+                lead_id = reply.smartlead_lead_id
+                if not lead_id:
+                    row = (await session.execute(
+                        select(Contact.smartlead_id).where(
+                            func.lower(Contact.email) == email_lower,
+                            Contact.deleted_at.is_(None),
+                        )
+                    )).first()
+                    if row and row[0]:
+                        lead_id = str(row[0])
+
+                if not lead_id and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+                    lead_id = str(
+                        reply.raw_webhook_data.get("sl_email_lead_id")
+                        or reply.raw_webhook_data.get("sl_lead_id")
+                        or reply.raw_webhook_data.get("lead_id")
+                        or ""
+                    ).strip() or None
+
+                if not lead_id:
+                    continue
+
+                resp = await _sl_request(
+                    "GET",
+                    f"https://server.smartlead.ai/api/v1/campaigns/{reply.campaign_id}/leads/{lead_id}/message-history",
+                    params={"api_key": sl._api_key},
+                    timeout=15.0,
+                )
+                if resp.status_code != 200:
+                    stats["errors"] += 1
+                    continue
+
+                history = parse_history_response(resp.json())
+                if history:
+                    last_type = history[-1].get("type", "")
+                    if last_type != "REPLY":
+                        resolved = True
+
+            stats["checked"] += 1
+            api_calls += 1
+
+            if resolved:
+                reply.approval_status = "auto_resolved"
+                reply.approved_at = datetime.utcnow()
+                stats["resolved"] += 1
+
+                # Track per-project
+                cname_lower = (reply.campaign_name or "").lower()
+                pid = campaign_to_project.get(cname_lower)
+                if pid:
+                    if pid not in stats["by_project"]:
+                        stats["by_project"][pid] = {"checked": 0, "resolved": 0, "resolved_items": []}
+                    stats["by_project"][pid]["resolved"] += 1
+                    stats["by_project"][pid]["resolved_items"].append({
+                        "reply_id": reply.id,
+                        "lead_email": reply.lead_email,
+                        "campaign_name": reply.campaign_name,
+                    })
+
+        except Exception as e:
+            logger.warning(f"[CLEANUP] Error checking reply {reply.id}: {e}")
+            stats["errors"] += 1
+
+    # Write per-project cleanup logs
+    for pid, pstats in stats["by_project"].items():
+        if pstats["resolved"] > 0:
+            session.add(ReplyCleanupLog(
+                project_id=pid,
+                project_name=project_names.get(pid, "Unknown"),
+                replies_checked=pstats.get("checked", 0),
+                replies_resolved=pstats["resolved"],
+                resolved_replies=pstats["resolved_items"][:50],  # Cap stored items
+                errors=0,
+            ))
+
+    # Also write a global summary log (project_id=None)
+    session.add(ReplyCleanupLog(
+        project_id=None,
+        project_name="[Global Summary]",
+        replies_checked=stats["checked"],
+        replies_resolved=stats["resolved"],
+        errors=stats["errors"],
+    ))
+
+    try:
+        await session.commit()
+    except Exception as e:
+        logger.error(f"[CLEANUP] Commit failed: {e}")
+        await session.rollback()
+
+    logger.info(f"[CLEANUP] Deep cleanup done: checked={stats['checked']}, resolved={stats['resolved']}, errors={stats['errors']}")
     return stats
 
 

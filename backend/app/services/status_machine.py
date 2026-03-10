@@ -203,3 +203,38 @@ def is_meeting_stage(status: str) -> bool:
 def needs_qualification(status: str) -> bool:
     """Check if a status needs qualification (meeting held, no verdict yet)."""
     return normalize_status(status) == "meeting_held"
+
+
+def derive_external_status(
+    config: dict,
+    reply_category: Optional[str] = None,
+    internal_status: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Derive client-facing external status from project config.
+
+    Priority:
+      1. internal_status_mapping (meeting stages are most specific)
+      2. category_mapping (from AI reply classification)
+      3. default_status
+    """
+    if not config:
+        return None
+
+    # Priority 1: internal status → external
+    if internal_status:
+        mapping = config.get("internal_status_mapping", {})
+        ext = mapping.get(normalize_status(internal_status))
+        if ext:
+            return ext
+
+    # Priority 2: reply category → external
+    if reply_category:
+        mapping = config.get("category_mapping", {})
+        if reply_category in mapping:
+            ext = mapping[reply_category]
+            if ext is not None:  # None means "don't change"
+                return ext
+
+    # Priority 3: default
+    return config.get("default_status")

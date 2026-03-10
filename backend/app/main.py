@@ -86,6 +86,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to setup file sync: {e}")
     
+    # Initialize campaign routing caches from DB (must run before scheduler)
+    try:
+        from app.services.crm_sync_service import refresh_getsales_flow_cache, refresh_project_prefixes
+        await refresh_getsales_flow_cache()
+        await refresh_project_prefixes()
+        logger.info("Campaign routing caches initialized")
+    except Exception as e:
+        logger.warning(f"Campaign cache init failed (will retry on first sync): {e}")
+
     # Start CRM sync scheduler (optional - comment out to disable)
     # Note: webhook registration is handled by the scheduler's startup routine
     # (setup_crm_webhooks_on_startup) which covers ALL active campaigns.

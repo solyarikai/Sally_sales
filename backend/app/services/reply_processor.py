@@ -1030,6 +1030,13 @@ async def _fetch_and_cache_thread(
                 except Exception:
                     pass
 
+        # Auto-dismiss if the last message in the thread is outbound
+        # (operator already replied before we processed this inbound)
+        if last_direction == "outbound" and reply.approval_status in (None, "pending"):
+            reply.approval_status = "dismissed"
+            reply.approved_at = datetime.utcnow()
+            logger.info(f"[AUTO-DISMISS] Reply {reply.id} auto-dismissed at processing time — operator already replied via email")
+
         logger.info(
             f"[THREAD_CACHE] Cached {len(history_entries)} messages for reply {reply.id}"
         )
@@ -1228,6 +1235,39 @@ async def process_reply_webhook(
                     ).params(cname=campaign_name).limit(1)
                 )
                 project = project_result.scalar()
+
+                # Fallback: prefix/tag/contains matching (mirrors GetSales path)
+                matched_via_prefix = False
+                if not project:
+                    from app.services.crm_sync_service import match_campaign_to_project
+                    matched_pid = match_campaign_to_project(campaign_name)
+                    if matched_pid:
+                        proj_result = await session.execute(
+                            select(Project).where(
+                                and_(Project.id == matched_pid, Project.deleted_at.is_(None))
+                            )
+                        )
+                        project = proj_result.scalar()
+                        if project:
+                            matched_via_prefix = True
+
+                # Auto-register: add campaign to project's campaign_filters for future exact matches
+                if project and matched_via_prefix and project.campaign_filters is not None:
+                    existing_lower = {c.lower() for c in project.campaign_filters if isinstance(c, str)}
+                    if campaign_name.lower() not in existing_lower:
+                        project.campaign_filters = project.campaign_filters + [campaign_name]
+                        logger.info(f"[PROCESSOR] Auto-registered SmartLead campaign '{campaign_name}' to project '{project.name}'")
+                        # Audit log
+                        try:
+                            from app.models.campaign_audit_log import CampaignAuditLog
+                            session.add(CampaignAuditLog(
+                                project_id=project.id, action="add", campaign_name=campaign_name,
+                                source="auto_discovery",
+                                details=f"Auto-registered from SmartLead reply webhook (prefix match)",
+                            ))
+                        except Exception:
+                            pass
+
                 if project:
                     # Extract sender identity fields
                     proj_sender_name = project.sender_name
@@ -1494,11 +1534,29 @@ async def process_reply_webhook(
 
             # Use status machine for forward-only transition
             category = classification.get("category", "other")
-            from app.services.status_machine import transition_status, status_from_ai_category
+            from app.services.status_machine import transition_status, status_from_ai_category, derive_external_status
             target = status_from_ai_category(category)
             new_st, ok, _msg = transition_status(contact.status, target)
             if ok:
                 contact.status = new_st
+
+            # Derive client-facing external status if project has config
+            if project and project.external_status_config:
+                ext = derive_external_status(
+                    project.external_status_config,
+                    reply_category=category,
+                    internal_status=contact.status,
+                )
+                if ext:
+                    contact.status_external = ext
+                    # Propagate to Google Sheet (fire-and-forget)
+                    try:
+                        from app.services.sheet_sync_service import sheet_sync_service
+                        await sheet_sync_service.update_sheet_status(
+                            contact.project_id, contact.email, ext
+                        )
+                    except Exception as sheet_err:
+                        logger.debug(f"Sheet status update skipped: {sheet_err}")
             logger.info(f"[PROCESSOR] Updated contact {contact.id} with reply data from {lead_email}")
         except Exception as activity_err:
             logger.warning(f"[PROCESSOR] Failed to create ContactActivity (non-fatal): {activity_err}")
@@ -1799,20 +1857,20 @@ async def process_getsales_reply(
             )
             project = project_result.scalar()
 
-            # Prefix match: campaign name starts with project name
+            # Fallback: prefix/tag/contains matching via ownership rules
             matched_via_prefix = False
             if not project:
-                proj_result = await session.execute(
-                    select(Project).where(
-                        and_(
-                            Project.deleted_at.is_(None),
-                            sa_text("LOWER(:cname) LIKE LOWER(projects.name) || '%'"),
+                from app.services.crm_sync_service import match_campaign_to_project
+                matched_pid = match_campaign_to_project(flow_name)
+                if matched_pid:
+                    proj_result = await session.execute(
+                        select(Project).where(
+                            and_(Project.id == matched_pid, Project.deleted_at.is_(None))
                         )
-                    ).params(cname=flow_name).limit(1)
-                )
-                project = proj_result.scalar()
-                if project:
-                    matched_via_prefix = True
+                    )
+                    project = proj_result.scalar()
+                    if project:
+                        matched_via_prefix = True
 
             if project:
                 # Auto-register new campaign name so future exact matches work
@@ -2052,7 +2110,19 @@ async def process_getsales_reply(
     conv_uuid = raw_data.get("linkedin_conversation_uuid")
     if conv_uuid and sender_profile_uuid:
         try:
-            await _fetch_getsales_thread(session, processed_reply, conv_uuid, sender_profile_uuid)
+            thread_ok = await _fetch_getsales_thread(session, processed_reply, conv_uuid, sender_profile_uuid)
+            # Auto-dismiss if the last message in the thread is outbound
+            # (operator/automation already replied before we processed this inbound)
+            if thread_ok:
+                from app.models.reply import ThreadMessage as TM
+                last_msg = (await session.execute(
+                    select(TM.direction).where(TM.reply_id == processed_reply.id)
+                    .order_by(TM.position.desc()).limit(1)
+                )).scalar()
+                if last_msg == "outbound" and processed_reply.approval_status in (None, "pending"):
+                    processed_reply.approval_status = "dismissed"
+                    processed_reply.approved_at = datetime.utcnow()
+                    logger.info(f"[AUTO-DISMISS] Reply {processed_reply.id} auto-dismissed at processing time — operator already replied via LinkedIn")
         except Exception as thread_err:
             logger.warning(f"[GETSALES] Thread fetch failed (non-fatal): {thread_err}")
 
