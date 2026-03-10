@@ -126,9 +126,12 @@ function ActionButtons({ action_type, action_data }: { action_type?: string; act
   }
 
   if ((action_type === 'clay_gather' || action_type === 'clay_people') && action_data.status === 'started') {
+    const label = action_type === 'clay_gather'
+      ? `Running pipeline for "${action_data.segment || 'segment'}" — see progress below`
+      : 'Searching contacts in Clay...';
     buttons.push(
       <span key="loading" className={cn(btnClass, "cursor-default opacity-70")}>
-        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Gathering contacts...
+        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {label}
       </span>
     );
   }
@@ -146,9 +149,59 @@ function ActionButtons({ action_type, action_data }: { action_type?: string; act
   return <div className="flex flex-wrap">{buttons}</div>;
 }
 
+function SystemMarkdown({ content, isDark }: { content: string; isDark: boolean }) {
+  return (
+    <div className="text-sm leading-relaxed prose-sm max-w-none">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target={href?.startsWith('/') ? undefined : '_blank'}
+              rel="noopener noreferrer"
+              className="underline cursor-pointer font-medium opacity-90 hover:opacity-100"
+            >
+              {children}
+            </a>
+          ),
+          p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,
+          li: ({ children }) => <li className="text-sm">{children}</li>,
+          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+          code: ({ children }) => (
+            <code className={cn(
+              "px-1 py-0.5 rounded text-xs",
+              isDark ? "bg-black/20" : "bg-black/5"
+            )}>{children}</code>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
 function SystemBanner({ message }: { message: ChatMessageData }) {
   const { isDark } = useTheme();
   const action = message.action_type;
+
+  // Progress — blue/indigo with spinner
+  if (action?.includes('progress')) {
+    return (
+      <div className={cn(
+        "rounded-xl px-4 py-3 border",
+        isDark ? "bg-indigo-900/20 border-indigo-700/30 text-indigo-200" : "bg-indigo-50 border-indigo-200 text-indigo-900"
+      )}>
+        <div className="flex gap-2.5">
+          <RefreshCw className={cn("w-4 h-4 flex-shrink-0 mt-0.5 animate-spin", isDark ? "text-indigo-400" : "text-indigo-500")} />
+          <SystemMarkdown content={message.content} isDark={isDark} />
+        </div>
+      </div>
+    );
+  }
 
   // Pipeline completion
   if (action?.includes('completed') || action?.includes('done')) {
@@ -157,8 +210,9 @@ function SystemBanner({ message }: { message: ChatMessageData }) {
         "rounded-xl px-4 py-3 border",
         isDark ? "bg-green-900/20 border-green-700/30 text-green-300" : "bg-green-50 border-green-200 text-green-800"
       )}>
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Check className="w-4 h-4" /> {message.content}
+        <div className="flex gap-2.5">
+          <Check className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <SystemMarkdown content={message.content} isDark={isDark} />
         </div>
       </div>
     );
@@ -171,8 +225,9 @@ function SystemBanner({ message }: { message: ChatMessageData }) {
         "rounded-xl px-4 py-3 border",
         isDark ? "bg-amber-900/20 border-amber-700/30 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-800"
       )}>
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <AlertTriangle className="w-4 h-4" /> {message.content}
+        <div className="flex gap-2.5">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <SystemMarkdown content={message.content} isDark={isDark} />
         </div>
       </div>
     );
@@ -185,8 +240,9 @@ function SystemBanner({ message }: { message: ChatMessageData }) {
         "rounded-xl px-4 py-3 border",
         isDark ? "bg-red-900/20 border-red-700/30 text-red-300" : "bg-red-50 border-red-200 text-red-800"
       )}>
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <AlertTriangle className="w-4 h-4" /> {message.content}
+        <div className="flex gap-2.5">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <SystemMarkdown content={message.content} isDark={isDark} />
         </div>
       </div>
     );
@@ -196,11 +252,11 @@ function SystemBanner({ message }: { message: ChatMessageData }) {
   return (
     <div className={cn(
       "rounded-xl px-4 py-3 border",
-      isDark ? "bg-amber-900/20 border-amber-700/30 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-800"
+      isDark ? "bg-[#2a2a2e] border-[#3c3c3c] text-[#c0c0c0]" : "bg-gray-50 border-gray-200 text-gray-700"
     )}>
-      <div className="flex items-center gap-2">
-        <Zap className="w-4 h-4 flex-shrink-0" />
-        <span className="text-sm">{message.content}</span>
+      <div className="flex gap-2.5">
+        <Zap className="w-4 h-4 flex-shrink-0 mt-0.5 opacity-60" />
+        <SystemMarkdown content={message.content} isDark={isDark} />
       </div>
     </div>
   );
