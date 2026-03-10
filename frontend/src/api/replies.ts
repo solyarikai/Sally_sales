@@ -323,7 +323,7 @@ export async function getReplies(params: {
   source?: string;
   lead_email?: string;
   group_by_contact?: boolean;
-  is_followup?: boolean;
+  needs_followup?: boolean;
   received_since?: string;
   page?: number;
   page_size?: number;
@@ -411,7 +411,7 @@ export async function getReplyCounts(params: {
   campaign_names?: string;
   received_since?: string;
   include_all?: boolean;
-  is_followup?: boolean;
+  needs_followup?: boolean;
 }): Promise<{ total: number; category_counts: Record<string, number> }> {
   const response = await api.get('/replies/counts', { params });
   return response.data;
@@ -608,6 +608,39 @@ export async function getCalendlySlots(projectId: number, memberId?: string): Pr
   return response.data;
 }
 
+// Follow-up
+export async function generateFollowupDraft(replyId: number, calendlyContext?: string): Promise<{
+  draft_reply: string;
+  draft_subject: string | null;
+  parent_reply_id: number;
+  days_since_sent: number;
+}> {
+  const params: Record<string, string> = {};
+  if (calendlyContext) params.calendly_context = calendlyContext;
+  const response = await api.post(`/replies/${replyId}/generate-followup-draft`, null, { params });
+  return response.data;
+}
+
+export async function sendFollowup(
+  replyId: number,
+  draft: { draft_reply: string; draft_subject?: string },
+): Promise<{
+  status: string;
+  reply_id: number;
+  parent_reply_id: number;
+  lead_email?: string;
+  message?: string;
+  contact_id?: number;
+  channel?: string;
+  getsales_sent?: boolean;
+  send_error?: string | null;
+}> {
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const params = isLocal ? { test_mode: true } : {};
+  const response = await api.post(`/replies/${replyId}/send-followup`, draft, { params });
+  return response.data;
+}
+
 export async function dismissReply(replyId: number): Promise<{
   success: boolean;
   reply_id: number;
@@ -616,6 +649,14 @@ export async function dismissReply(replyId: number): Promise<{
   const response = await api.patch(`/replies/${replyId}/status`, null, {
     params: { approval_status: 'dismissed' }
   });
+  return response.data;
+}
+
+export async function dismissFollowup(replyId: number): Promise<{
+  status: string;
+  reply_id: number;
+}> {
+  const response = await api.post(`/replies/${replyId}/dismiss-followup`);
   return response.data;
 }
 
@@ -676,6 +717,10 @@ export const repliesApi = {
   // Calendly
   getCalendlyConfig,
   getCalendlySlots,
+  // Follow-up
+  generateFollowupDraft,
+  sendFollowup,
+  dismissFollowup,
 };
 
 

@@ -171,7 +171,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
   // Timing filter state + URL sync
   const urlTiming = searchParams.get('timing');
   const [timingFilter, setTimingFilterState] = useState<string>(
-    urlTiming && ['1w', '1m', 'all'].includes(urlTiming) ? urlTiming : '1w'
+    urlTiming && ['1w', '1m', 'all'].includes(urlTiming) ? urlTiming : (mode === 'followups' ? 'all' : '1w')
   );
   const setTimingFilter = useCallback((val: string) => {
     setTimingFilterState(val);
@@ -224,6 +224,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
   const [calendlyPrompt, setCalendlyPrompt] = useState<string>('');
   const [calendlyLoading, setCalendlyLoading] = useState(false);
   const [calendlyFallback, setCalendlyFallback] = useState(false);
+
+  // Follow-up drafts (stored in component state, not DB)
+  const [followupDrafts, setFollowupDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
+  const [followupGenerating, setFollowupGenerating] = useState<Set<number>>(new Set());
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -427,8 +431,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
       const response = await repliesApi.getReplies({
         project_id: currentProject?.id,
         campaign_names: campaignNames,
-        needs_reply: mode === 'followups' ? true : useNeedsReply,
-        is_followup: mode === 'followups' ? true : (mode === 'replies' ? false : undefined),
+        needs_reply: mode === 'followups' ? undefined : useNeedsReply,
+        needs_followup: mode === 'followups' ? true : undefined,
         lead_email: isDeepLink ? initialSearch : undefined,
         category: mode === 'followups' ? undefined : useCategory,
         group_by_contact: true,
@@ -495,7 +499,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
           project_id: currentProject?.id,
           campaign_names: campaignNames,
           received_since: timingFilter,
-          is_followup: mode === 'followups' ? true : (mode === 'replies' ? false : undefined),
+          needs_followup: mode === 'followups' ? true : undefined,
         });
         if (cancelled) return;
         const serverTotal = resp.total || 0;
@@ -525,7 +529,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
           campaign_names: campaignNames,
           received_since: timingFilter,
           include_all: true,
-          is_followup: mode === 'followups' ? true : (mode === 'replies' ? false : undefined),
+          needs_followup: mode === 'followups' ? true : undefined,
         });
         if (cancelled) return;
         setAllCounts(resp.category_counts || {});
@@ -559,7 +563,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
       project_id: currentProject?.id,
       campaign_names: campaignNames,
       received_since: timingFilter,
-      is_followup: mode === 'followups' ? true : (mode === 'replies' ? false : undefined),
+      needs_followup: mode === 'followups' ? true : undefined,
     }).then(response => {
       setCategoryCounts(response.category_counts || {});
       setTotal(response.total || 0);
@@ -945,8 +949,11 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
               const isThreadOpen = expandedThreads.has(reply.id);
               const isThreadLoading = loadingThreads.has(reply.id);
               const history = historyData[reply.id];
-              const draftText = isEditing ? editingDrafts[reply.id].reply : (reply.draft_reply || '');
-              const draftFailed = isDraftFailed(reply.draft_reply);
+              const fuDraft = mode === 'followups' ? followupDrafts[reply.id] : undefined;
+              const isFuGenerating = mode === 'followups' && followupGenerating.has(reply.id);
+              const draftText = isEditing ? editingDrafts[reply.id].reply
+                : (mode === 'followups' ? (fuDraft?.reply || '') : (reply.draft_reply || ''));
+              const draftFailed = mode === 'followups' ? false : isDraftFailed(reply.draft_reply);
               const classificationFailed = FAILED_CLASS_RE.test(reply.classification_reasoning || '');
               const catLabel = CATEGORY_LABEL[reply.category || ''] || reply.category || '';
               const hasReasoning = !!reply.classification_reasoning;
@@ -1033,6 +1040,17 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                                 style={{ background: isDark ? '#1e1b4b' : '#eef2ff', color: isDark ? '#a5b4fc' : '#4338ca' }}
                               >
                                 Follow-up
+                              </span>
+                            )}
+                            {mode === 'followups' && reply.approved_at && (
+                              <span
+                                className="text-[11px] px-1.5 py-0.5 rounded"
+                                style={{ background: isDark ? '#422006' : '#fff7ed', color: isDark ? '#fdba74' : '#c2410c' }}
+                              >
+                                Sent {(() => {
+                                  const days = Math.floor((Date.now() - new Date(reply.approved_at).getTime()) / 86400000);
+                                  return days === 1 ? '1 day ago' : `${days} days ago`;
+                                })()}
                               </span>
                             )}
                           </div>
@@ -1226,9 +1244,66 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                       <div className="px-4 py-2.5">
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-[11px] uppercase tracking-wider" style={{ color: draftFailed ? t.errorText : t.text5 }}>
-                            {draftFailed ? 'Draft (failed)' : 'Draft'}
+                            {mode === 'followups' ? 'Follow-up Draft' : (draftFailed ? 'Draft (failed)' : 'Draft')}
                           </span>
-                          {!isEditing && reply.draft_reply ? (
+                          {mode === 'followups' && !fuDraft && !isFuGenerating ? (
+                            <button
+                              onClick={async () => {
+                                setFollowupGenerating(prev => new Set(prev).add(reply.id));
+                                try {
+                                  const data = await repliesApi.generateFollowupDraft(reply.id, calendlyPrompt || undefined);
+                                  setFollowupDrafts(prev => ({
+                                    ...prev,
+                                    [reply.id]: { reply: data.draft_reply, subject: data.draft_subject || '' },
+                                  }));
+                                } catch (err: any) {
+                                  toast.error(err.response?.data?.detail || 'Failed to generate follow-up', { style: toastErr });
+                                } finally {
+                                  setFollowupGenerating(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+                                }
+                              }}
+                              className="text-[11px] flex items-center gap-1 transition-colors cursor-pointer px-2 py-1 rounded"
+                              style={{ background: t.btnPrimaryBg, color: t.btnPrimaryText }}
+                            >
+                              <RefreshCw className="w-3 h-3" /> Generate Follow-up
+                            </button>
+                          ) : mode === 'followups' && fuDraft && !isEditing ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={async () => {
+                                  setFollowupGenerating(prev => new Set(prev).add(reply.id));
+                                  try {
+                                    const data = await repliesApi.generateFollowupDraft(reply.id, calendlyPrompt || undefined);
+                                    setFollowupDrafts(prev => ({
+                                      ...prev,
+                                      [reply.id]: { reply: data.draft_reply, subject: data.draft_subject || '' },
+                                    }));
+                                    setEditingDrafts(prev => { const d = { ...prev }; delete d[reply.id]; return d; });
+                                  } catch (err: any) {
+                                    toast.error('Regen failed', { style: toastErr });
+                                  } finally {
+                                    setFollowupGenerating(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+                                  }
+                                }}
+                                className="text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                                style={{ color: t.text5 }}
+                              >
+                                <RefreshCw className={cn("w-3 h-3", isFuGenerating && "animate-spin")} /> Regen
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingDrafts(prev => ({
+                                    ...prev,
+                                    [reply.id]: { reply: fuDraft.reply, subject: fuDraft.subject },
+                                  }));
+                                }}
+                                className="text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                                style={{ color: t.text5 }}
+                              >
+                                <Edit3 className="w-3 h-3" /> Edit
+                              </button>
+                            </div>
+                          ) : !isEditing && reply.draft_reply && mode !== 'followups' ? (
                             <button
                               onClick={() => startEditing(reply)}
                               className="text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
@@ -1312,6 +1387,21 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                               <RefreshCw className={cn("w-3.5 h-3.5", regeneratingIds.has(reply.id) && "animate-spin")} />
                               {regeneratingIds.has(reply.id) ? 'Regenerating...' : 'Regenerate'}
                             </button>
+                          </div>
+                        ) : isFuGenerating ? (
+                          <div
+                            className="text-[13px] leading-relaxed rounded p-2.5 flex items-center gap-2"
+                            style={{ background: t.draftBg, color: t.text4 }}
+                          >
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Generating follow-up draft...
+                          </div>
+                        ) : mode === 'followups' && !fuDraft ? (
+                          <div
+                            className="text-[13px] leading-relaxed rounded p-2.5"
+                            style={{ background: t.draftBg, color: t.text5 }}
+                          >
+                            Click "Generate Follow-up" to create a draft
                           </div>
                         ) : (
                           <>
@@ -1401,48 +1491,119 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                         className="px-4 pb-3 pt-2 flex items-center gap-1.5"
                         style={{ position: 'sticky', bottom: 0, zIndex: 10, background: t.cardBg, borderTop: `1px solid ${t.divider}` }}
                       >
-                        <button
-                          onClick={() => guardSend(reply)}
-                          disabled={isSending || !reply.draft_reply || (draftFailed && !isEditing)}
-                          className={cn(
-                            "flex items-center gap-1.5 px-3.5 py-1.5 rounded text-[13px] font-medium transition-all",
-                            isSending ? "cursor-wait" : "cursor-pointer active:scale-[0.98]"
-                          )}
-                          style={{
-                            background: (isSending || (draftFailed && !isEditing)) ? t.divider : t.btnPrimaryBg,
-                            color: (isSending || (draftFailed && !isEditing)) ? t.text5 : t.btnPrimaryText,
-                            opacity: (draftFailed && !isEditing) ? 0.5 : 1,
-                          }}
-                          onMouseEnter={e => {
-                            if (!isSending && !(draftFailed && !isEditing)) {
-                              (e.currentTarget as HTMLElement).style.background = t.btnPrimaryHover;
-                            }
-                          }}
-                          onMouseLeave={e => {
-                            (e.currentTarget as HTMLElement).style.background =
-                              (isSending || (draftFailed && !isEditing)) ? t.divider : t.btnPrimaryBg;
-                          }}
-                        >
-                          {isSending ? (
-                            <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Sending...</>
-                          ) : (
-                            <><ArrowRight className="w-3.5 h-3.5" /> {isEditing ? 'Send edited' : 'Send'
-                            }{reply.campaign_name
-                              ? ` via ${displayCampaignName(reply.campaign_name)}`
-                              : ''
-                            }</>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDismiss(reply)}
-                          disabled={isSending}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-all cursor-pointer active:scale-[0.98]"
-                          style={{ color: t.text4 }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.btnGhostHover; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Skip
-                        </button>
+                        {mode === 'followups' ? (
+                          <>
+                            <button
+                              onClick={async () => {
+                                const draft = isEditing ? editingDrafts[reply.id] : fuDraft;
+                                if (!draft?.reply) return;
+                                setSendingIds(prev => new Set(prev).add(reply.id));
+                                try {
+                                  const result = await repliesApi.sendFollowup(reply.id, {
+                                    draft_reply: draft.reply,
+                                    draft_subject: draft.subject || undefined,
+                                  });
+                                  toast.success(result.message || 'Follow-up sent', { style: toastOk });
+                                  optimisticRemoveReply(reply);
+                                  setFollowupDrafts(prev => { const d = { ...prev }; delete d[reply.id]; return d; });
+                                  setEditingDrafts(prev => { const d = { ...prev }; delete d[reply.id]; return d; });
+                                } catch (err: any) {
+                                  toast.error(err.response?.data?.detail || 'Failed to send follow-up', { style: toastErr });
+                                } finally {
+                                  setSendingIds(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+                                }
+                              }}
+                              disabled={isSending || !(isEditing ? editingDrafts[reply.id]?.reply : fuDraft?.reply)}
+                              className={cn(
+                                "flex items-center gap-1.5 px-3.5 py-1.5 rounded text-[13px] font-medium transition-all",
+                                isSending ? "cursor-wait" : "cursor-pointer active:scale-[0.98]"
+                              )}
+                              style={{
+                                background: isSending || !(isEditing ? editingDrafts[reply.id]?.reply : fuDraft?.reply) ? t.divider : t.btnPrimaryBg,
+                                color: isSending || !(isEditing ? editingDrafts[reply.id]?.reply : fuDraft?.reply) ? t.text5 : t.btnPrimaryText,
+                              }}
+                              onMouseEnter={e => {
+                                if (!isSending && (isEditing ? editingDrafts[reply.id]?.reply : fuDraft?.reply)) {
+                                  (e.currentTarget as HTMLElement).style.background = t.btnPrimaryHover;
+                                }
+                              }}
+                              onMouseLeave={e => {
+                                (e.currentTarget as HTMLElement).style.background =
+                                  isSending || !(isEditing ? editingDrafts[reply.id]?.reply : fuDraft?.reply) ? t.divider : t.btnPrimaryBg;
+                              }}
+                            >
+                              {isSending ? (
+                                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Sending...</>
+                              ) : (
+                                <><ArrowRight className="w-3.5 h-3.5" /> Send Follow-up</>
+                              )}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await repliesApi.dismissFollowup(reply.id);
+                                  toast.success('Follow-up skipped', { style: toastOk });
+                                  optimisticRemoveReply(reply);
+                                  setFollowupDrafts(prev => { const d = { ...prev }; delete d[reply.id]; return d; });
+                                } catch (err: any) {
+                                  toast.error(err.response?.data?.detail || 'Failed', { style: toastErr });
+                                }
+                              }}
+                              disabled={isSending}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-all cursor-pointer active:scale-[0.98]"
+                              style={{ color: t.text4 }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.btnGhostHover; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Skip
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => guardSend(reply)}
+                              disabled={isSending || !reply.draft_reply || (draftFailed && !isEditing)}
+                              className={cn(
+                                "flex items-center gap-1.5 px-3.5 py-1.5 rounded text-[13px] font-medium transition-all",
+                                isSending ? "cursor-wait" : "cursor-pointer active:scale-[0.98]"
+                              )}
+                              style={{
+                                background: (isSending || (draftFailed && !isEditing)) ? t.divider : t.btnPrimaryBg,
+                                color: (isSending || (draftFailed && !isEditing)) ? t.text5 : t.btnPrimaryText,
+                                opacity: (draftFailed && !isEditing) ? 0.5 : 1,
+                              }}
+                              onMouseEnter={e => {
+                                if (!isSending && !(draftFailed && !isEditing)) {
+                                  (e.currentTarget as HTMLElement).style.background = t.btnPrimaryHover;
+                                }
+                              }}
+                              onMouseLeave={e => {
+                                (e.currentTarget as HTMLElement).style.background =
+                                  (isSending || (draftFailed && !isEditing)) ? t.divider : t.btnPrimaryBg;
+                              }}
+                            >
+                              {isSending ? (
+                                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Sending...</>
+                              ) : (
+                                <><ArrowRight className="w-3.5 h-3.5" /> {isEditing ? 'Send edited' : 'Send'
+                                }{reply.campaign_name
+                                  ? ` via ${displayCampaignName(reply.campaign_name)}`
+                                  : ''
+                                }</>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleDismiss(reply)}
+                              disabled={isSending}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-all cursor-pointer active:scale-[0.98]"
+                              style={{ color: t.text4 }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.btnGhostHover; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Skip
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
 

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, and_, or_
+from sqlalchemy import select, func, desc, and_, or_, exists
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime, timedelta
@@ -765,7 +765,7 @@ async def list_replies(
     category: Optional[str] = None,
     approval_status: Optional[str] = Query(None, description="Filter by status: pending, approved, dismissed"),
     needs_reply: Optional[bool] = Query(None, description="Filter to replies with no outbound activity after received_at"),
-    is_followup: Optional[bool] = Query(None, description="Filter follow-up drafts: true=only follow-ups, false=exclude follow-ups"),
+    needs_followup: Optional[bool] = Query(None, description="Show approved replies where lead hasn't responded (for follow-up tab)"),
     channel: Optional[str] = Query(None, description="Filter by channel: email, linkedin"),
     source: Optional[str] = Query(None, description="Filter by source: smartlead, getsales"),
     lead_email: Optional[str] = Query(None, description="Filter by lead email (exact match)"),
@@ -850,11 +850,46 @@ async def list_replies(
             )), '').in_(empty_bodies)
         )
 
-    # Follow-up filter
-    if is_followup is True:
-        conditions.append(ProcessedReply.follow_up_number.isnot(None))
-    elif is_followup is False:
-        conditions.append(ProcessedReply.follow_up_number.is_(None))
+    # needs_followup: show approved replies where lead hasn't responded
+    if needs_followup:
+        from app.models.contact import Project as ProjectModel
+        # Get project's follow-up delay (default 3 days)
+        fu_delay = 3
+        if project_id:
+            fu_proj = await session.execute(
+                select(ProjectModel.follow_up_config).where(ProjectModel.id == project_id)
+            )
+            fu_cfg = fu_proj.scalar_one_or_none()
+            if fu_cfg and isinstance(fu_cfg, dict):
+                fu_delay = fu_cfg.get("delay_days", 3)
+
+        fu_cutoff = datetime.utcnow() - timedelta(days=fu_delay)
+        conditions.append(ProcessedReply.approval_status == "approved")
+        conditions.append(ProcessedReply.approved_at < fu_cutoff)
+        conditions.append(ProcessedReply.parent_reply_id.is_(None))
+        conditions.append(ProcessedReply.category.in_(["meeting_request", "interested", "question"]))
+        # Exclude if lead sent a newer message
+        from sqlalchemy.orm import aliased
+        newer_inbound = aliased(ProcessedReply)
+        conditions.append(
+            ~exists(
+                select(newer_inbound.id).where(
+                    newer_inbound.lead_email == ProcessedReply.lead_email,
+                    newer_inbound.received_at > ProcessedReply.approved_at,
+                    newer_inbound.parent_reply_id.is_(None),
+                    newer_inbound.id != ProcessedReply.id,
+                )
+            )
+        )
+        # Exclude if a follow-up was already sent for this reply
+        fu_child = aliased(ProcessedReply)
+        conditions.append(
+            ~exists(
+                select(fu_child.id).where(
+                    fu_child.parent_reply_id == ProcessedReply.id,
+                )
+            )
+        )
 
     # Time window filter
     cutoff = _parse_received_since(received_since)
@@ -1050,18 +1085,47 @@ async def get_reply_counts(
     campaign_names: Optional[str] = Query(None),
     received_since: Optional[str] = Query("1w", description="Time window: 1w, 1m, all"),
     include_all: bool = Query(False, description="Include archive categories (OOO, wrong_person, etc.)"),
-    is_followup: Optional[bool] = Query(None, description="Filter follow-up drafts: true=only, false=exclude"),
+    needs_followup: Optional[bool] = Query(None, description="Count follow-up candidates instead of pending replies"),
     session: AsyncSession = Depends(get_session)
 ):
     """Lightweight endpoint for polling: returns total + category counts only.
     Deduped by contact: each lead counted once under their newest reply's category.
     """
     base = []
-    base.append(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
-    if is_followup is True:
-        base.append(ProcessedReply.follow_up_number.isnot(None))
-    elif is_followup is False:
-        base.append(ProcessedReply.follow_up_number.is_(None))
+
+    if needs_followup:
+        # Count approved replies where lead hasn't responded
+        from app.models.contact import Project as ProjectModel
+        from sqlalchemy.orm import aliased
+        fu_delay = 3
+        if project_id:
+            fu_proj = await session.execute(
+                select(ProjectModel.follow_up_config).where(ProjectModel.id == project_id)
+            )
+            fu_cfg = fu_proj.scalar_one_or_none()
+            if fu_cfg and isinstance(fu_cfg, dict):
+                fu_delay = fu_cfg.get("delay_days", 3)
+
+        fu_cutoff = datetime.utcnow() - timedelta(days=fu_delay)
+        base.append(ProcessedReply.approval_status == "approved")
+        base.append(ProcessedReply.approved_at < fu_cutoff)
+        base.append(ProcessedReply.parent_reply_id.is_(None))
+        base.append(ProcessedReply.category.in_(["meeting_request", "interested", "question"]))
+        newer = aliased(ProcessedReply)
+        base.append(~exists(
+            select(newer.id).where(
+                newer.lead_email == ProcessedReply.lead_email,
+                newer.received_at > ProcessedReply.approved_at,
+                newer.parent_reply_id.is_(None),
+                newer.id != ProcessedReply.id,
+            )
+        ))
+        fu_child = aliased(ProcessedReply)
+        base.append(~exists(
+            select(fu_child.id).where(fu_child.parent_reply_id == ProcessedReply.id)
+        ))
+    else:
+        base.append(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
     if not include_all:
         no_reply_cats = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
         base.append(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))
@@ -3100,6 +3164,463 @@ async def approve_and_send_reply(
         "smartlead_response": send_result.get("message"),
         "contact_id": contact.id if contact else None,
     }
+
+
+class FollowupSendBody(BaseModel):
+    """Body for send-followup: the follow-up draft to send."""
+    draft_reply: str
+    draft_subject: Optional[str] = None
+
+
+@router.post("/{reply_id}/generate-followup-draft")
+async def generate_followup_draft(
+    reply_id: int,
+    model: Optional[str] = None,
+    calendly_context: Optional[str] = Query(None, description="Calendly slots for prompt injection"),
+    db: AsyncSession = Depends(get_session),
+):
+    """Generate a follow-up draft for an approved reply where the lead hasn't responded.
+
+    Returns draft text only — no DB record is created.
+    The operator reviews/edits, then calls send-followup to create + send.
+    """
+    from app.services.reply_processor import generate_draft_reply
+    from app.models.contact import Project
+    from sqlalchemy import text as sa_text
+
+    result = await db.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    if reply.approval_status != "approved":
+        raise HTTPException(status_code=400, detail="Reply is not approved — cannot generate follow-up")
+
+    # Build follow-up context: include the original sent draft
+    original_sent = reply.draft_reply or ""
+    days_ago = (datetime.utcnow() - (reply.approved_at or reply.processed_at)).days
+
+    followup_instruction = (
+        f"\n\nКОНТЕКСТ ФОЛЛОУ-АП:\n"
+        f"Это фоллоу-ап. Ты уже отправил лиду сообщение {days_ago} дней назад, но ответа не было.\n"
+        f"Твоё предыдущее сообщение:\n---\n{original_sent}\n---\n"
+        f"Напиши короткий фоллоу-ап. Не повторяй всё предложение заново — просто вежливо напомни и спроси, "
+        f"было ли время ознакомиться. Пример формата:\n"
+        f'"Здравствуйте, [имя]!\n\nПодскажите, пожалуйста, было время ознакомиться с нашим предложением?"\n'
+        f"Можно адаптировать под контекст, но держи сообщение коротким (2-3 предложения максимум)."
+    )
+
+    # Look up project for sender identity + prompt template
+    custom_reply_prompt = None
+    sender_name = None
+    sender_position = None
+    sender_company = None
+
+    if reply.campaign_name:
+        try:
+            project_result = await db.execute(
+                select(Project).where(
+                    and_(
+                        Project.campaign_filters.isnot(None),
+                        Project.deleted_at.is_(None),
+                        sa_text(
+                            "EXISTS (SELECT 1 FROM jsonb_array_elements_text(projects.campaign_filters) AS cf "
+                            "WHERE LOWER(cf) = LOWER(:cname))"
+                        ),
+                    )
+                ).params(cname=reply.campaign_name).limit(1)
+            )
+            project = project_result.scalar()
+            if project:
+                sender_name = project.sender_name
+                sender_position = project.sender_position
+                sender_company = project.sender_company
+                if project.reply_prompt_template_id:
+                    template_result = await db.execute(
+                        select(ReplyPromptTemplateModel).where(
+                            ReplyPromptTemplateModel.id == project.reply_prompt_template_id
+                        )
+                    )
+                    template = template_result.scalar()
+                    if template:
+                        custom_reply_prompt = template.prompt_text
+                # Load project knowledge
+                try:
+                    from app.models.project_knowledge import ProjectKnowledge
+                    knowledge_result = await db.execute(
+                        select(ProjectKnowledge).where(
+                            ProjectKnowledge.project_id == project.id
+                        )
+                    )
+                    knowledge_entries = knowledge_result.scalars().all()
+                    if knowledge_entries:
+                        from app.services.reply_processor import _format_knowledge_context
+                        knowledge_context = _format_knowledge_context(knowledge_entries, category=reply.category or "other")
+                        if custom_reply_prompt:
+                            custom_reply_prompt += knowledge_context
+                        else:
+                            custom_reply_prompt = knowledge_context
+                except Exception as ke:
+                    logger.warning(f"Knowledge loading failed (non-fatal): {ke}")
+        except Exception as e:
+            logger.warning(f"Project lookup failed for follow-up draft (non-fatal): {e}")
+
+    # Append follow-up instruction
+    if custom_reply_prompt:
+        custom_reply_prompt += followup_instruction
+    else:
+        custom_reply_prompt = followup_instruction
+
+    # Append Calendly slots if provided
+    if calendly_context:
+        custom_reply_prompt += "\n\n" + calendly_context
+
+    # Generate draft
+    allowed_models = {"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "gemini-2.5-pro", "gemini-2.5-flash"}
+    draft_model = model if model in allowed_models else None
+    try:
+        draft = await generate_draft_reply(
+            subject=reply.email_subject or "",
+            body=reply.email_body or reply.reply_text or "",
+            category=reply.category or "other",
+            first_name=reply.lead_first_name or "",
+            last_name=reply.lead_last_name or "",
+            company=reply.lead_company or "",
+            custom_prompt=custom_reply_prompt,
+            sender_name=sender_name,
+            sender_position=sender_position,
+            sender_company=sender_company,
+            model=draft_model,
+        )
+    except Exception as e:
+        logger.error(f"Follow-up draft generation failed for reply {reply_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Draft generation failed: {e}")
+
+    return {
+        "draft_reply": draft.get("body", ""),
+        "draft_subject": draft.get("subject", reply.draft_subject),
+        "parent_reply_id": reply.id,
+        "days_since_sent": days_ago,
+    }
+
+
+@router.post("/{reply_id}/send-followup")
+async def send_followup(
+    reply_id: int,
+    body: FollowupSendBody,
+    test_mode: bool = Query(False, description="When true, sends to TEST_RECIPIENT_EMAIL"),
+    db: AsyncSession = Depends(get_session),
+):
+    """Send a follow-up for an approved reply. Creates a child ProcessedReply and sends it.
+
+    The parent reply must be approved. A child follow-up record is created,
+    marked approved, and sent via the appropriate channel.
+    """
+    import os
+    import hashlib
+    from app.core.config import settings
+    from app.services.smartlead_service import SmartleadService
+    from app.models.contact import Contact
+
+    TEST_RECIPIENT_EMAIL = os.environ.get("TEST_RECIPIENT_EMAIL", "pn@getsally.io")
+
+    # Load parent reply
+    result = await db.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    parent = result.scalar_one_or_none()
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent reply not found")
+
+    if parent.approval_status != "approved":
+        raise HTTPException(status_code=400, detail="Parent reply is not approved")
+
+    # Check if follow-up already exists
+    existing = await db.execute(
+        select(ProcessedReply.id).where(
+            ProcessedReply.parent_reply_id == parent.id
+        ).limit(1)
+    )
+    if existing.scalar():
+        raise HTTPException(status_code=400, detail="Follow-up already sent for this reply")
+
+    # Create child ProcessedReply
+    fu_hash = hashlib.md5(f"followup_{parent.id}_1".encode()).hexdigest()
+    child = ProcessedReply(
+        automation_id=parent.automation_id,
+        campaign_id=parent.campaign_id,
+        campaign_name=parent.campaign_name,
+        source=parent.source,
+        channel=parent.channel,
+        lead_email=parent.lead_email,
+        lead_first_name=parent.lead_first_name,
+        lead_last_name=parent.lead_last_name,
+        lead_company=parent.lead_company,
+        email_subject=body.draft_subject or parent.email_subject,
+        email_body=parent.email_body,
+        category=parent.category,
+        category_confidence="high",
+        classification_reasoning=f"Follow-up for reply #{parent.id}",
+        draft_reply=body.draft_reply,
+        draft_subject=body.draft_subject or parent.draft_subject,
+        draft_generated_at=datetime.utcnow(),
+        processed_at=datetime.utcnow(),
+        received_at=datetime.utcnow(),
+        approval_status="approved",
+        approved_at=datetime.utcnow(),
+        inbox_link=parent.inbox_link,
+        raw_webhook_data=parent.raw_webhook_data,
+        smartlead_lead_id=parent.smartlead_lead_id,
+        message_hash=fu_hash,
+        parent_reply_id=parent.id,
+        follow_up_number=1,
+    )
+    db.add(child)
+    await db.flush()
+
+    logger.info(f"[FOLLOW-UP] Created child #{child.id} for parent #{parent.id} ({parent.lead_email})")
+
+    # --- Send via appropriate channel ---
+    if child.channel == "linkedin" or child.source == "getsales":
+        # LinkedIn send via GetSales
+        raw = child.raw_webhook_data or {}
+        lead_uuid = raw.get("lead_uuid") or raw.get("lead", {}).get("uuid")
+        sender_profile_uuid = raw.get("sender_profile_uuid")
+
+        send_result = None
+        send_error = None
+
+        if test_mode:
+            logger.info(f"[TEST_MODE] GetSales follow-up send skipped for child {child.id}")
+        elif not lead_uuid or not sender_profile_uuid:
+            send_error = f"Missing GetSales identifiers — operator must send manually"
+            logger.warning(f"[SEND_FAIL] follow-up child_id={child.id}: {send_error}")
+        else:
+            try:
+                from app.services.crm_sync_service import GetSalesClient
+                gs = GetSalesClient(settings.GETSALES_API_KEY)
+                try:
+                    send_result = await gs.send_linkedin_message(
+                        sender_profile_uuid=sender_profile_uuid,
+                        lead_uuid=lead_uuid,
+                        text=child.draft_reply,
+                    )
+                    logger.info(f"GetSales follow-up sent for child {child.id}")
+                finally:
+                    await gs.close()
+            except Exception as gs_err:
+                send_error = str(gs_err)
+                logger.error(f"[SEND_FAIL] follow-up child_id={child.id}: GetSales error: {gs_err}")
+
+        # Create outbound activity
+        try:
+            from app.models.contact import Contact as _C, ContactActivity
+            _cr = await db.execute(
+                select(_C).where(
+                    func.lower(_C.email) == child.lead_email.lower(),
+                    _C.deleted_at.is_(None),
+                )
+            )
+            contact = _cr.scalar_one_or_none()
+            if contact:
+                outbound = ContactActivity(
+                    contact_id=contact.id,
+                    company_id=contact.company_id,
+                    activity_type="linkedin_replied",
+                    channel="linkedin",
+                    direction="outbound",
+                    source="getsales",
+                    body=child.draft_reply,
+                    snippet=(child.draft_reply or "")[:200],
+                    extra_data={
+                        "processed_reply_id": child.id,
+                        "parent_reply_id": parent.id,
+                        "approved_via": "send-followup",
+                        "getsales_sent": send_result is not None,
+                    },
+                    activity_at=datetime.utcnow(),
+                )
+                db.add(outbound)
+        except Exception as act_err:
+            logger.warning(f"Failed to create outbound activity for follow-up: {act_err}")
+
+        await db.commit()
+        await db.refresh(child)
+
+        status_msg = "Follow-up sent via LinkedIn" if send_result else "Follow-up approved — copy to LinkedIn"
+        if send_error:
+            status_msg = f"Follow-up approved (send failed: {send_error[:100]})"
+
+        return {
+            "status": "approved",
+            "channel": "linkedin",
+            "reply_id": child.id,
+            "parent_reply_id": parent.id,
+            "lead_email": child.lead_email,
+            "message": status_msg,
+            "contact_id": contact.id if contact else None,
+            "getsales_sent": send_result is not None,
+            "send_error": send_error,
+        }
+
+    # --- SmartLead email send ---
+    contact = None
+    if child.lead_email:
+        contact_result = await db.execute(
+            select(Contact).where(
+                func.lower(Contact.email) == child.lead_email.lower(),
+                Contact.deleted_at.is_(None),
+            )
+        )
+        contact = contact_result.scalar_one_or_none()
+
+    campaign_id = child.campaign_id
+    if not campaign_id and contact and contact.campaigns:
+        for c in parse_campaigns(contact.campaigns):
+            if isinstance(c, dict) and c.get("source") == "smartlead" and c.get("id"):
+                campaign_id = str(c["id"])
+                break
+
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="No SmartLead campaign_id found")
+
+    lead_id = contact.smartlead_id if contact else None
+
+    if test_mode:
+        body_prefix = f"<p><strong>[TEST FOLLOW-UP — original: {child.lead_email}]</strong></p><hr/>"
+        email_body = body_prefix + _text_to_html(child.draft_reply)
+        if not lead_id:
+            await db.commit()
+            await db.refresh(child)
+            return {
+                "status": "approved_dry_run",
+                "reply_id": child.id,
+                "parent_reply_id": parent.id,
+                "message": "No SmartLead lead_id — follow-up marked approved (dry run).",
+                "contact_id": contact.id if contact else None,
+            }
+    else:
+        email_body = _text_to_html(child.draft_reply)
+        if not contact or not lead_id:
+            raise HTTPException(status_code=400, detail="Contact not found or no SmartLead ID")
+
+    sl = SmartleadService()
+    send_result = await sl.send_reply(
+        campaign_id=str(campaign_id),
+        lead_id=lead_id,
+        email_body=email_body,
+    )
+
+    if "error" in send_result:
+        if test_mode:
+            await db.commit()
+            await db.refresh(child)
+            return {
+                "status": "approved_dry_run",
+                "reply_id": child.id,
+                "parent_reply_id": parent.id,
+                "message": f"SmartLead send failed — follow-up approved (dry run).",
+                "contact_id": contact.id if contact else None,
+            }
+        raise HTTPException(status_code=502, detail=send_result["error"])
+
+    # Create outbound activity
+    try:
+        from app.models.contact import ContactActivity
+        if contact:
+            outbound = ContactActivity(
+                contact_id=contact.id,
+                company_id=contact.company_id,
+                activity_type='email_sent',
+                channel='email',
+                direction='outbound',
+                source='app_send',
+                subject=child.draft_subject or child.email_subject,
+                body=child.draft_reply,
+                snippet=(child.draft_reply or '')[:200],
+                extra_data={
+                    'processed_reply_id': child.id,
+                    'parent_reply_id': parent.id,
+                    'campaign_id': str(campaign_id),
+                    'campaign_name': child.campaign_name,
+                    'approved_via': 'send-followup',
+                },
+                activity_at=datetime.utcnow(),
+            )
+            db.add(outbound)
+    except Exception as act_err:
+        logger.warning(f"Failed to create outbound activity for follow-up email: {act_err}")
+
+    await db.commit()
+    await db.refresh(child)
+
+    return {
+        "status": "approved",
+        "reply_id": child.id,
+        "parent_reply_id": parent.id,
+        "lead_email": child.lead_email,
+        "campaign_id": campaign_id,
+        "contact_id": contact.id if contact else None,
+        "message": "Follow-up sent",
+    }
+
+
+@router.post("/{reply_id}/dismiss-followup")
+async def dismiss_followup(
+    reply_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    """Skip follow-up for an approved reply. Creates a dismissed child so the parent
+    won't appear in the follow-up queue again.
+    """
+    import hashlib
+
+    result = await db.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    parent = result.scalar_one_or_none()
+    if not parent:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    # Check if child already exists
+    existing = await db.execute(
+        select(ProcessedReply.id).where(
+            ProcessedReply.parent_reply_id == parent.id
+        ).limit(1)
+    )
+    if existing.scalar():
+        return {"status": "already_dismissed", "reply_id": reply_id}
+
+    # Create dismissed child
+    fu_hash = hashlib.md5(f"followup_dismissed_{parent.id}".encode()).hexdigest()
+    child = ProcessedReply(
+        automation_id=parent.automation_id,
+        campaign_id=parent.campaign_id,
+        campaign_name=parent.campaign_name,
+        source=parent.source,
+        channel=parent.channel,
+        lead_email=parent.lead_email,
+        lead_first_name=parent.lead_first_name,
+        lead_last_name=parent.lead_last_name,
+        email_subject=parent.email_subject,
+        email_body="(follow-up skipped)",
+        category=parent.category,
+        draft_reply="(skipped)",
+        processed_at=datetime.utcnow(),
+        received_at=datetime.utcnow(),
+        approval_status="dismissed",
+        message_hash=fu_hash,
+        parent_reply_id=parent.id,
+        follow_up_number=1,
+    )
+    db.add(child)
+    await db.commit()
+
+    logger.info(f"[FOLLOW-UP] Dismissed follow-up for reply #{parent.id} ({parent.lead_email})")
+
+    return {"status": "dismissed", "reply_id": reply_id}
 
 
 async def _sync_approval_to_sheet(db, reply, status, google_sheets_service):

@@ -80,6 +80,10 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # JSON: {"members": [{"id": str, "display_name": str, "pat_token": str, "is_default": bool}]}
     calendly_config = Column(JSON, nullable=True)
 
+    # Follow-up config — controls when to show contacts needing follow-up
+    # JSON: {"enabled": bool, "delay_days": int}
+    follow_up_config = Column(JSON, nullable=True)
+
     # Generated content (for AI SDR)
     tam_analysis = Column(Text, nullable=True)
     gtm_plan = Column(Text, nullable=True)
