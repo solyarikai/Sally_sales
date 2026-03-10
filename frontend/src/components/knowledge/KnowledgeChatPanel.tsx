@@ -162,7 +162,11 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
   const handleSendSSE = useCallback(
     async (text?: string) => {
       let msg = (text || query).trim();
-      if (!msg || isLoading || isStreaming) return;
+      console.log('[ChatSend] msg:', msg, 'isLoading:', isLoading, 'isStreaming:', isStreaming, 'query:', query);
+      if (!msg || isLoading || isStreaming) {
+        console.log('[ChatSend] BLOCKED — msg empty:', !msg, 'loading:', isLoading, 'streaming:', isStreaming);
+        return;
+      }
 
       const resolved = resolveSlashCommand(msg);
       if (resolved) msg = resolved;
@@ -351,6 +355,7 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      console.log('[ChatKeyDown] Enter pressed, calling handleSendSSE');
       handleSendSSE();
     }
   }
