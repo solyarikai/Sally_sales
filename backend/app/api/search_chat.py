@@ -2317,28 +2317,58 @@ async def _handle_clay_gather(
     segment_label = segment_desc[:100].strip()
 
     async def _run_clay_gather_task():
+        import time as _t
+        pipeline_start = _t.time()
+
+        def _elapsed():
+            s = int(_t.time() - pipeline_start)
+            return f"{s // 60}m {s % 60}s" if s >= 60 else f"{s}s"
+
+        def _filter_summary(f):
+            parts = []
+            if f.get("industries"):
+                parts.append(f"**Industries:** {', '.join(f['industries'])}")
+            if f.get("industries_exclude"):
+                parts.append(f"**Exclude industries:** {', '.join(f['industries_exclude'])}")
+            if f.get("description_keywords"):
+                parts.append(f"**Keywords:** {', '.join(f['description_keywords'])}")
+            if f.get("description_keywords_exclude"):
+                parts.append(f"**Exclude keywords:** {', '.join(f['description_keywords_exclude'])}")
+            if f.get("country_names"):
+                parts.append(f"**Countries:** {', '.join(f['country_names'])}")
+            if f.get("sizes"):
+                parts.append(f"**Sizes:** {', '.join(f['sizes'])}")
+            if f.get("types"):
+                parts.append(f"**Types:** {', '.join(f['types'])}")
+            return "\n".join(f"- {p}" for p in parts) if parts else "No filters"
+
         try:
             async with async_session_maker() as task_db:
                 # ── Phase 1: Find companies ──
                 await _save_chat_message(
                     task_db, project_id, "system",
-                    f"Step 1/5 — Searching Clay for **{segment_label}** companies...",
+                    f"Step 1/5 — Launching Clay company search for **\"{segment_label}\"**\n\n"
+                    f"Filters applied:\n{_filter_summary(filters)}\n\n"
+                    f"Running headless browser → Clay.com (3-8 min)...",
                     action_type="clay_gather_progress",
                 )
                 await task_db.commit()
 
+                phase1_start = _t.time()
                 result = await clay_service.run_tam_export(
                     icp_text=icp_text,
                     project_id=project_id,
                 )
+                phase1_sec = int(_t.time() - phase1_start)
 
                 companies = result.get("companies", [])
                 credits_spent = result.get("credits_spent", 0)
+                table_url = result.get("table_url", "")
 
                 if credits_spent > 0:
                     await _save_chat_message(
                         task_db, project_id, "system",
-                        f"WARNING: {credits_spent} Clay credits were spent! Pipeline stopped.",
+                        f"⚠️ WARNING: {credits_spent} Clay credits were spent! Pipeline stopped.",
                         action_type="clay_gather_error",
                     )
                     await task_db.commit()
@@ -2347,11 +2377,11 @@ async def _handle_clay_gather(
                 if not companies:
                     await _save_chat_message(
                         task_db, project_id, "system",
-                        "No companies found in Clay for this segment. Try broader filters.",
+                        f"No companies found in Clay for this segment (took {phase1_sec}s). Try broader filters.\n\n"
+                        f"Filters used:\n{_filter_summary(filters)}",
                         action_type="clay_gather_done",
                     )
                     await task_db.commit()
-                    # Update job status
                     job_row = await task_db.get(SearchJob, job_id)
                     if job_row:
                         job_row.status = SearchJobStatus.COMPLETED
@@ -2360,13 +2390,17 @@ async def _handle_clay_gather(
                     return
 
                 # Limit to requested company count
+                total_found = len(companies)
                 if len(companies) > company_count:
                     companies = companies[:company_count]
 
                 # ── Phase 2: Save companies to pipeline ──
+                clay_link = f"[View in Clay]({table_url})" if table_url else ""
                 await _save_chat_message(
                     task_db, project_id, "system",
-                    f"Step 2/5 — Found {len(companies)} companies. Saving to pipeline...",
+                    f"Step 2/5 — Found **{total_found}** companies in Clay (took {phase1_sec}s). "
+                    f"Using top **{len(companies)}**. Saving to pipeline with segment \"{segment_label}\"... "
+                    f"{clay_link}",
                     action_type="clay_gather_progress",
                 )
                 await task_db.commit()
@@ -2426,24 +2460,29 @@ async def _handle_clay_gather(
                     return
 
                 # ── Phase 3: Find people ──
+                people_table_url = ""
                 await _save_chat_message(
                     task_db, project_id, "system",
-                    f"Step 3/5 — Searching Clay for contacts at {len(domains)} companies...",
+                    f"Step 3/5 [{_elapsed()}] — Searching Clay for contacts at **{len(domains)}** companies...\n\n"
+                    f"Running headless browser → Clay People Search (3-8 min)...",
                     action_type="clay_gather_progress",
                 )
                 await task_db.commit()
 
+                phase3_start = _t.time()
                 people = await clay_service.run_people_search(
                     domains=domains,
                     project_id=project_id,
                 )
+                phase3_sec = int(_t.time() - phase3_start)
 
                 if not people:
                     crm_url = f"/contacts?project_id={project_id}&source=pipeline&segment={segment_label}"
                     await _save_chat_message(
                         task_db, project_id, "system",
-                        f"Found **{len(domains)}** companies but no contacts. "
-                        f"{saved_companies} companies saved to pipeline with segment **{segment_label}**.",
+                        f"Found **{len(domains)}** companies but **0 contacts** (people search took {phase3_sec}s).\n\n"
+                        f"{saved_companies} companies saved to pipeline with segment **{segment_label}**.\n\n"
+                        f"Total time: {_elapsed()}",
                         action_type="clay_gather_done",
                         action_data={
                             "crm_url": crm_url,
@@ -2457,7 +2496,11 @@ async def _handle_clay_gather(
                 # ── Phase 4: Apply office rules ──
                 await _save_chat_message(
                     task_db, project_id, "system",
-                    f"Step 4/5 — Found {len(people)} contacts. Applying office rules (max 5 per office, role priority)...",
+                    f"Step 4/5 [{_elapsed()}] — Found **{len(people)}** contacts (took {phase3_sec}s). "
+                    f"Applying office rules:\n\n"
+                    f"- Max **5** contacts per office (company + location)\n"
+                    f"- Priority: CEO → CTO → VP → Director → Head → Manager → Other\n"
+                    f"- Decision-makers weighted first",
                     action_type="clay_gather_progress",
                 )
                 await task_db.commit()
@@ -2473,8 +2516,12 @@ async def _handle_clay_gather(
                 # ── Phase 5: Save contacts + promote to CRM ──
                 await _save_chat_message(
                     task_db, project_id, "system",
-                    f"Step 5/5 — Saving {stats['total_output']} contacts to CRM as draft "
-                    f"({stats['decision_makers']} decision-makers, {stats['unique_companies']} companies)...",
+                    f"Step 5/5 [{_elapsed()}] — Saving **{stats['total_output']}** contacts to CRM as draft\n\n"
+                    f"- **{stats['decision_makers']}** decision-makers\n"
+                    f"- **{stats['unique_companies']}** unique companies\n"
+                    f"- **{stats['unique_offices']}** offices\n"
+                    f"- **{stats['skipped_office_limit']}** skipped (over 5-per-office limit)\n\n"
+                    f"Promoting to CRM with segment **{segment_label}**, status=draft...",
                     action_type="clay_gather_progress",
                 )
                 await task_db.commit()
@@ -2608,12 +2655,18 @@ async def _handle_clay_gather(
 
                 # ── Done ──
                 crm_url = f"/contacts?project_id={project_id}&source=pipeline&segment={segment_label}"
+                clay_company_link = f"[View companies in Clay]({table_url})" if table_url else ""
                 await _save_chat_message(
                     task_db, project_id, "system",
-                    f"Gather complete! Found **{saved_contacts}** contacts "
-                    f"({stats['decision_makers']} decision-makers) at "
-                    f"**{stats['unique_companies']}** {segment_label} companies.\n\n"
-                    f"**{promoted_contacts}** contacts promoted to CRM as draft.\n\n"
+                    f"**Gather complete!** Total time: **{_elapsed()}**\n\n"
+                    f"**Results:**\n"
+                    f"- **{total_found}** companies found → **{saved_companies}** saved to pipeline\n"
+                    f"- **{len(people)}** contacts found → **{stats['total_output']}** after office rules\n"
+                    f"- **{promoted_contacts}** promoted to CRM as draft\n"
+                    f"- **{stats['decision_makers']}** decision-makers, **{stats['unique_companies']}** companies, **{stats['unique_offices']}** offices\n\n"
+                    f"**Filters used:**\n{_filter_summary(filters)}\n\n"
+                    f"**Segment:** {segment_label}\n\n"
+                    f"{clay_company_link}\n\n"
                     f"[Open in CRM →]({crm_url})",
                     action_type="clay_gather_done",
                     action_data={
