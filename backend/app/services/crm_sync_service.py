@@ -1374,6 +1374,15 @@ class CRMSyncService:
             for nc in new_campaigns:
                 if nc.get("id") not in campaign_ids:
                     existing_campaigns.append(nc)
+                else:
+                    # Enrich existing entry with fields it may be missing (e.g., added_at, status)
+                    for ec in existing_campaigns:
+                        if isinstance(ec, dict) and ec.get("id") == nc.get("id"):
+                            if not ec.get("added_at") and nc.get("added_at"):
+                                ec["added_at"] = nc["added_at"]
+                            if not ec.get("status") and nc.get("status"):
+                                ec["status"] = nc["status"]
+                            break
             existing_campaigns = [c for c in existing_campaigns if isinstance(c, dict)]
             if existing_campaigns:
                 existing.set_platform("smartlead", {"campaigns": existing_campaigns})
@@ -1519,17 +1528,34 @@ class CRMSyncService:
             # Merge campaign data into platform_state
             existing_campaigns = existing.get_platform("getsales").get("campaigns", [])
             new_campaigns = []
+            # Derive campaign ID from flows (flow_uuid) when available, fallback to item/lead uuid
+            _flow_uuid = None
+            for flow in item.get("flows", []):
+                if flow.get("flow_uuid"):
+                    _flow_uuid = flow["flow_uuid"]
+                    break
+            _campaign_id = _flow_uuid or item.get("uuid") or lead.get("uuid")
             if list_name:
                 new_campaigns.append({
                     "name": list_name,
-                    "id": item.get("uuid") or lead.get("uuid"),
+                    "id": _campaign_id,
                     "source": "getsales",
-                    "status": getsales_status
+                    "status": getsales_status,
+                    "added_at": lead.get("created_at") or datetime.utcnow().isoformat(),
                 })
             campaign_ids = {c.get("id") if isinstance(c, dict) else c for c in existing_campaigns}
             for nc in new_campaigns:
                 if nc.get("id") not in campaign_ids:
                     existing_campaigns.append(nc)
+                else:
+                    # Enrich existing entry with fields it may be missing
+                    for ec in existing_campaigns:
+                        if isinstance(ec, dict) and ec.get("id") == nc.get("id"):
+                            if not ec.get("added_at") and nc.get("added_at"):
+                                ec["added_at"] = nc["added_at"]
+                            if not ec.get("status") and nc.get("status"):
+                                ec["status"] = nc["status"]
+                            break
             existing_campaigns = [c for c in existing_campaigns if isinstance(c, dict)]
             if existing_campaigns:
                 existing.set_platform("getsales", {"campaigns": existing_campaigns})
@@ -1542,12 +1568,18 @@ class CRMSyncService:
 
             # Build campaign data from list_name
             campaign_data = None
+            _flow_uuid_new = None
+            for flow in item.get("flows", []):
+                if flow.get("flow_uuid"):
+                    _flow_uuid_new = flow["flow_uuid"]
+                    break
             if list_name:
                 campaign_data = [{
                     "name": list_name,
-                    "id": item.get("uuid") or lead.get("uuid"),
+                    "id": _flow_uuid_new or item.get("uuid") or lead.get("uuid"),
                     "source": "getsales",
-                    "status": getsales_status
+                    "status": getsales_status,
+                    "added_at": lead.get("created_at") or datetime.utcnow().isoformat(),
                 }]
 
             # Use a more descriptive placeholder email with getsales_id for traceability

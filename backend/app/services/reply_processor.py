@@ -1446,7 +1446,8 @@ async def process_reply_webhook(
             new_campaign_entry = {
                 "name": campaign_name,
                 "id": str(campaign_id) if campaign_id else None,
-                "source": "smartlead"
+                "source": "smartlead",
+                "added_at": datetime.utcnow().isoformat(),
             } if campaign_name or campaign_id else None
 
             if not contact:

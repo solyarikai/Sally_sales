@@ -319,7 +319,8 @@ async def fetch_smartlead_replies(
                                 contact.set_platform("smartlead", {"campaigns": [{
                                     "name": campaign.get("name"),
                                     "id": campaign_id,
-                                    "source": "smartlead"
+                                    "source": "smartlead",
+                                    "added_at": datetime.utcnow().isoformat(),
                                 }]})
                                 # Parse reply_time
                                 reply_time_str = reply.get("reply_time")
@@ -418,7 +419,8 @@ async def backfill_reply_contacts(
                         contact.set_platform("smartlead", {"campaigns": [{
                             "name": campaign_name,
                             "id": str(campaign_id) if campaign_id else None,
-                            "source": "smartlead"
+                            "source": "smartlead",
+                            "added_at": datetime.utcnow().isoformat(),
                         }]})
                     
                     bg_session.add(contact)
@@ -447,7 +449,8 @@ async def backfill_reply_contacts(
                            json_agg(DISTINCT jsonb_build_object(
                                'name', pr.campaign_name,
                                'id', CAST(pr.campaign_id AS text),
-                               'source', COALESCE(pr.source, 'smartlead')
+                               'source', COALESCE(pr.source, 'smartlead'),
+                               'added_at', COALESCE(pr.received_at::text, NOW()::text)
                            )) AS all_campaigns
                     FROM processed_replies pr
                     WHERE pr.lead_email IS NOT NULL AND pr.lead_email != ''
