@@ -615,39 +615,88 @@ async def get_campaign_metrics(
     camp_result = await session.execute(camp_query)
     campaigns = camp_result.scalars().all()
 
-    # 2. Per-campaign contacts from platform_state (both SmartLead + GetSales)
-    #    Used as fallback for SmartLead when Campaign.leads_count not yet populated,
-    #    and as primary source for GetSales campaigns.
-    # Filter by source added_at (from SmartLead/GetSales) when available, else fall back to CRM created_at
+    # 2. Get project ownership rules for filtering relevant campaigns
+    import json as json_lib
+    proj_result = await session.execute(
+        select(Project.campaign_ownership_rules).where(Project.id == project_id)
+    )
+    proj_row = proj_result.first()
+    ownership_prefixes: list[str] = []
+    ownership_contains: list[str] = []
+    if proj_row and proj_row.campaign_ownership_rules:
+        rules = proj_row.campaign_ownership_rules
+        if isinstance(rules, str):
+            rules = json_lib.loads(rules)
+        ownership_prefixes = [p.lower() for p in rules.get("prefixes", [])]
+        ownership_contains = [c.lower() for c in rules.get("contains", [])]
+
+    def _belongs_to_project(name: str) -> bool:
+        """Check if campaign name belongs to this project via ownership rules."""
+        if not name or name.startswith("unknown (") or name.startswith("kyd"):
+            return False
+        nl = name.lower()
+        # Check Campaign table first
+        if nl in campaign_table_map:
+            return True
+        # Check ownership rules
+        if ownership_prefixes:
+            for prefix in ownership_prefixes:
+                if nl.startswith(prefix):
+                    return True
+        if ownership_contains:
+            for pattern in ownership_contains:
+                if pattern in nl:
+                    return True
+        # No rules defined — show all (fallback)
+        if not ownership_prefixes and not ownership_contains and not campaigns:
+            return True
+        return False
+
+    # 3. Per-campaign contacts from platform_state — separate queries for correct platform detection
     if since_dt:
         since_clause = """AND COALESCE(
-            (campaign_elem->>'added_at')::timestamp,
+            (ce->>'added_at')::timestamp,
             c.created_at
         ) >= :since"""
     else:
         since_clause = ""
     contacts_sql = text(f"""
-        SELECT LOWER(COALESCE(campaign_elem->>'name', campaign_elem->>'campaign_name')) AS campaign_name,
-               COUNT(DISTINCT c.id) AS contacts_added
-        FROM contacts c,
-             jsonb_array_elements(
-               COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', CAST('[]' AS jsonb)) ||
-               COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', CAST('[]' AS jsonb))
-             ) AS campaign_elem
-        WHERE c.project_id = :project_id
-          AND c.deleted_at IS NULL
-          {since_clause}
-        GROUP BY LOWER(COALESCE(campaign_elem->>'name', campaign_elem->>'campaign_name'))
+        SELECT campaign_name, platform, SUM(contacts_added) AS contacts_added FROM (
+            SELECT LOWER(COALESCE(ce->>'name', ce->>'campaign_name')) AS campaign_name,
+                   'smartlead' AS platform,
+                   COUNT(DISTINCT c.id) AS contacts_added
+            FROM contacts c,
+                 jsonb_array_elements(
+                   COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', CAST('[]' AS jsonb))
+                 ) AS ce
+            WHERE c.project_id = :project_id AND c.deleted_at IS NULL {since_clause}
+            GROUP BY 1, 2
+            UNION ALL
+            SELECT LOWER(COALESCE(ce->>'name', ce->>'campaign_name')) AS campaign_name,
+                   'getsales' AS platform,
+                   COUNT(DISTINCT c.id) AS contacts_added
+            FROM contacts c,
+                 jsonb_array_elements(
+                   COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', CAST('[]' AS jsonb))
+                 ) AS ce
+            WHERE c.project_id = :project_id AND c.deleted_at IS NULL {since_clause}
+            GROUP BY 1, 2
+        ) sub
+        GROUP BY campaign_name, platform
         ORDER BY contacts_added DESC
     """)
     params: dict = {"project_id": project_id}
     if since_dt:
         params["since"] = since_dt
     ps_result = await session.execute(contacts_sql, params)
-    ps_contacts: dict[str, int] = {
-        row.campaign_name.lower(): row.contacts_added
-        for row in ps_result.all() if row.campaign_name
-    }
+    # Store as {name: {platform: str, count: int}}
+    ps_contacts: dict[str, dict] = {}
+    for row in ps_result.all():
+        if row.campaign_name:
+            ps_contacts[row.campaign_name.lower()] = {
+                "platform": row.platform,
+                "count": row.contacts_added,
+            }
 
     if not campaigns and not ps_contacts:
         return {"campaigns": [], "checksum": {"campaigns_warm_total": 0, "project_warm_total": 0, "match": True}}
@@ -667,23 +716,21 @@ async def get_campaign_metrics(
     warm_result = await session.execute(warm_query)
     warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
 
-    # 5. Build response from platform_state contacts (primary source)
-    #    Enrich with Campaign table data where available (external_id, platform)
+    # 5. Build response — filter to project-relevant campaigns only
     campaign_table_map: dict[str, Any] = {}
     for c in campaigns:
         campaign_table_map[c.name.lower()] = c
 
-    def _is_display_worthy(name: str) -> bool:
-        if name.startswith("unknown (") or name.startswith("kyd"):
-            return False
-        return True
-
     seen_names: dict[str, dict] = {}
-    for cname_lower, cnt in ps_contacts.items():
-        if cnt <= 0 or not _is_display_worthy(cname_lower):
+    for cname_lower, info in ps_contacts.items():
+        if not _belongs_to_project(cname_lower):
+            continue
+        cnt = info["count"]
+        if cnt <= 0:
             continue
         warm = warm_by_campaign.get(cname_lower, 0)
         camp = campaign_table_map.get(cname_lower)
+        platform = camp.platform if camp else info["platform"]
         if camp and camp.platform == "smartlead" and not since_dt:
             contacts = max(camp.leads_count or 0, cnt)
         else:
@@ -691,7 +738,7 @@ async def get_campaign_metrics(
         seen_names[cname_lower] = {
             "campaign_id": camp.id if camp else 0,
             "campaign_name": camp.name if camp else cname_lower,
-            "platform": camp.platform if camp else "getsales",
+            "platform": platform,
             "leads_count": contacts,
             "warm_replies": warm,
             "external_id": camp.external_id if camp else None,
@@ -700,8 +747,8 @@ async def get_campaign_metrics(
     campaign_metrics = list(seen_names.values())
     campaigns_warm_total = sum(m["warm_replies"] for m in campaign_metrics)
 
-    # Sort by contacts desc, then warm desc
-    campaign_metrics.sort(key=lambda x: (-x["leads_count"], -x["warm_replies"]))
+    # Sort: email (smartlead) first, then LinkedIn (getsales); within each group by contacts desc
+    campaign_metrics.sort(key=lambda x: (0 if x["platform"] == "smartlead" else 1, -x["leads_count"], -x["warm_replies"]))
 
     # Checksum: project-level warm total — count warm replies where campaign_name
     # matches ANY campaign shown in the metrics (Campaign table + campaign_filters)
