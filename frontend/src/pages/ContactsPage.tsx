@@ -98,6 +98,7 @@ export function ContactsPage() {
   const [createdBefore, setCreatedBefore] = useState<string | null>(searchParams.get('before'));
   const [domainFilter, _setDomainFilter] = useState<string | null>(searchParams.get('domain'));
   const [suitableForFilter, _setSuitableForFilter] = useState<string | null>(searchParams.get('suitable_for'));
+  const [sourceIdFilter, _setSourceIdFilter] = useState<string | null>(searchParams.get('source_id'));
   const [replyCategoryFilters, setReplyCategoryFilters] = useState<string[]>(
     searchParams.get('reply_category')?.split(',').filter(Boolean) || []
   );
@@ -232,6 +233,7 @@ export function ContactsPage() {
       suitable_for: suitableForFilter,
       reply_category: replyCategoryFilters.length ? replyCategoryFilters.join(',') : null,
       reply_since: replySince,
+      source_id: sourceIdFilter,
     };
     for (const [key, value] of Object.entries(managed)) {
       if (value) {
@@ -245,7 +247,7 @@ export function ContactsPage() {
     if (existingContactId) params.set('contact_id', existingContactId);
 
     setSearchParams(params, { replace: true });
-  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, replySince]);
+  }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, replySince, sourceIdFilter]);
 
   // Sync CRM project from global navbar project selector (only when URL doesn't specify one)
   useEffect(() => {
@@ -319,7 +321,8 @@ export function ContactsPage() {
     suitable_for: suitableForFilter || undefined,
     reply_category: replyCategoryFilters.length > 0 ? replyCategoryFilters.join(',') : undefined,
     reply_since: replySince || undefined,
-  }), [pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, replySince]);
+    source_id: sourceIdFilter || undefined,
+  }), [pageSize, sortBy, sortOrder, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, replyMode, activeProject, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, replySince, sourceIdFilter]);
 
   // Load first page (resets list)
   const loadContacts = useCallback(async () => {

@@ -287,6 +287,7 @@ async def _build_filtered_query(
     reply_category: Optional[str] = None,
     reply_since: Optional[str] = None,
     status_external: Optional[str] = None,
+    source_id: Optional[str] = None,
 ):
     """Build a filtered Contact query. Shared by list, CSV export, and Google Sheet export."""
     query = select(Contact).where(
@@ -366,6 +367,8 @@ async def _build_filtered_query(
             query = query.where(Contact.status.in_(statuses))
     if source:
         query = query.where(Contact.source == source)
+    if source_id:
+        query = query.where(Contact.source_id == source_id)
     if has_replied is not None:
         if has_replied:
             query = query.where(Contact.last_reply_at.isnot(None))
@@ -501,6 +504,7 @@ async def list_contacts(
     reply_category: Optional[str] = Query(None, description="Filter by latest reply category (comma-separated)"),
     reply_since: Optional[str] = Query(None, description="Only include replies received after this date (ISO format)"),
     status_external: Optional[str] = Query(None, description="Filter by external status (comma-separated)"),
+    source_id: Optional[str] = Query(None, description="Filter by source_id (e.g., clay_123 for gather run)"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -512,7 +516,7 @@ async def list_contacts(
         campaign=campaign, campaign_id=campaign_id, needs_followup=needs_followup,
         created_after=created_after, created_before=created_before, search=search,
         domain=domain, suitable_for=suitable_for, reply_category=reply_category,
-        reply_since=reply_since, status_external=status_external,
+        reply_since=reply_since, status_external=status_external, source_id=source_id,
     )
     
     # Count total
@@ -1784,7 +1788,7 @@ async def push_contacts_to_smartlead(
         return {
             "campaign_id": campaign_id,
             "campaign_name": campaign_name,
-            "campaign_url": f"https://app.smartlead.ai/app/email-campaign/{campaign_id}/campaign-overview",
+            "campaign_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{campaign_id}/analytics",
             "leads_added": 0,
             "leads_total": len(valid_contacts),
             "error": add_result.get("error"),
@@ -1804,7 +1808,7 @@ async def push_contacts_to_smartlead(
     return {
         "campaign_id": campaign_id,
         "campaign_name": campaign_name,
-        "campaign_url": f"https://app.smartlead.ai/app/email-campaign/{campaign_id}/campaign-overview",
+        "campaign_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{campaign_id}/analytics",
         "leads_added": len(valid_contacts),
         "leads_total": len(valid_contacts),
     }

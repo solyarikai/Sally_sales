@@ -278,6 +278,7 @@ export interface ContactFilters {
   suitable_for?: string;
   reply_category?: string;
   reply_since?: string;
+  source_id?: string;
 }
 
 export interface GenerateReplyResponse {

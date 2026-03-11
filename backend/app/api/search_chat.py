@@ -2620,7 +2620,7 @@ async def _handle_clay_gather(
                 domains = validated_domains
 
                 if not domains:
-                    crm_url = f"/contacts?project_id={project_id}&source=pipeline&segment={_urllib_parse.quote(segment_label)}"
+                    crm_url = f"/contacts?project_id={project_id}&source_id=clay_{job_id}"
                     await _save_chat_message(
                         task_db, project_id, "system",
                         f"No companies passed ICP validation. Try a different segment description.\n\n"
@@ -2652,7 +2652,7 @@ async def _handle_clay_gather(
                 phase3_str = f"{phase3_sec // 60}m {phase3_sec % 60}s" if phase3_sec >= 60 else f"{phase3_sec}s"
 
                 if not people:
-                    crm_url = f"/contacts?project_id={project_id}&source=pipeline&segment={_urllib_parse.quote(segment_label)}"
+                    crm_url = f"/contacts?project_id={project_id}&source_id=clay_{job_id}"
                     await _save_chat_message(
                         task_db, project_id, "system",
                         f"**No contacts found** ({phase3_str})\n\n"
@@ -2864,6 +2864,7 @@ async def _handle_clay_gather(
                                 sql_update(Contact).where(Contact.id == existing_id).values(
                                     project_id=project_id,
                                     segment=segment_label,
+                                    source_id=f"clay_{job_id}",
                                     provenance=provenance,
                                 )
                             )
@@ -2881,6 +2882,7 @@ async def _handle_clay_gather(
                                 location=person.get("location"),
                                 segment=segment_label,
                                 source="pipeline",
+                                source_id=f"clay_{job_id}",
                                 status="draft",
                                 provenance=provenance,
                             ))
@@ -2913,7 +2915,7 @@ async def _handle_clay_gather(
                     await task_db.commit()
 
                 # ── Done ──
-                crm_url = f"/contacts?project_id={project_id}&source=pipeline&segment={_urllib_parse.quote(segment_label)}"
+                crm_url = f"/contacts?project_id={project_id}&source_id=clay_{job_id}"
                 clay_company_link = f"[Companies in Clay →]({table_url})" if table_url else ""
                 clay_people_link = f"[People in Clay →]({people_table_url})" if people_table_url else "People table in Clay exports"
                 links = " | ".join(filter(None, [clay_company_link, clay_people_link, f"[Open CRM →]({crm_url})"]))
