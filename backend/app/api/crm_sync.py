@@ -1792,7 +1792,7 @@ async def fast_backfill(
                                 offset = 0
                                 page_size = 100
                                 while True:
-                                    leads = await gs_client.get_leads_by_list(list_uuid, limit=page_size, offset=offset)
+                                    leads, total = await gs_client.get_leads_by_list(list_uuid, limit=page_size, offset=offset)
                                     if not leads:
                                         break
                                     async with async_session_maker() as local_session:
@@ -1825,6 +1825,7 @@ async def fast_backfill(
                             stats["gs_created"] += local_stats["created"]
                             stats["gs_updated"] += local_stats["updated"]
                             stats["gs_skipped"] += local_stats["skipped"]
+                            stats["elapsed_seconds"] = (datetime.utcnow() - start_time).total_seconds()
                             return local_stats
 
                     await asyncio.gather(
