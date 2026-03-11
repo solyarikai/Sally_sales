@@ -79,6 +79,21 @@ services:
       - "80:80"
     depends_on:
       - backend
+      - moltbot-monitor
+    restart: unless-stopped
+
+  moltbot-monitor:
+    build:
+      context: ./moltbot-monitor
+      dockerfile: Dockerfile
+    container_name: moltbot-monitor
+    environment:
+      - MONITOR_PORT=18795
+      - MONITOR_TOKEN=s4lly2026
+      - MONITOR_PREFIX=/monitor
+      - HOME=/root
+    volumes:
+      - /home/leadokol/.openclaw/agents/main/sessions:/root/.openclaw/agents/main/sessions:ro
     restart: unless-stopped
 
   # Optional: Redis Commander for debugging
