@@ -494,91 +494,93 @@ async def get_project_metrics(
         return ProjectMetricsOut(projects=[], period=period)
 
     # 2. Contacts uploaded per project
-    #    Uses a CTE of project→campaign assignments (from Campaign table + campaign_filters)
-    #    to filter platform_state entries, guaranteeing consistency with campaign-metrics.
-    #    Without this filter, contacts with campaign entries from OTHER projects inflate counts.
-    # CTE: authoritative set of campaign names per project (from Campaign table only).
-    # campaign_filters is redundant — auto-discovery registers all campaigns in Campaign table.
-    # Using campaign_filters would inflate counts with junk entries (unknown UUIDs, legacy codes).
-    project_campaigns_cte = """
-        WITH project_campaigns AS (
-            SELECT project_id, LOWER(name) AS cname FROM campaigns WHERE project_id IS NOT NULL
-        )
-    """
+    #    Uses SAME logic as campaign-metrics endpoint: Campaign table names +
+    #    display-worthy campaign_filters entries. Hybrid SQL (aggregation) +
+    #    Python (campaign filtering) guarantees consistency with expanded view.
 
-    if since_dt:
-        # Time-filtered: per-campaign contacts from platform_state, summed by project
-        contacts_sql = text(f"""
-            {project_campaigns_cte}
-            SELECT sub.project_id, COALESCE(SUM(sub.camp_count), 0) as cnt
-            FROM (
-                SELECT c.project_id, LOWER(campaign_elem->>'name') AS cname,
-                       COUNT(DISTINCT c.id) AS camp_count
-                FROM contacts c,
-                     jsonb_array_elements(
-                       COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', '[]'::jsonb) ||
-                       COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', '[]'::jsonb)
-                     ) AS campaign_elem
-                WHERE c.project_id IS NOT NULL
-                  AND c.deleted_at IS NULL
-                  AND COALESCE(
-                      (campaign_elem->>'added_at')::timestamp,
-                      c.created_at
-                  ) >= :since
-                GROUP BY c.project_id, LOWER(campaign_elem->>'name')
-            ) sub
-            JOIN project_campaigns pc ON pc.project_id = sub.project_id AND pc.cname = sub.cname
-            GROUP BY sub.project_id
-        """)
-        crm_result = await session.execute(contacts_sql, {"since": since_dt})
-        leads_map: dict[int, int] = {row.project_id: row.cnt for row in crm_result.all()}
-    else:
-        # All Time: per-campaign platform_state counts + Campaign.leads_count overlay
-        # Step 1: platform_state per-campaign contacts, filtered by project's campaigns
-        ps_sql = text(f"""
-            {project_campaigns_cte}
-            SELECT sub.project_id, sub.cname, sub.ps_count
-            FROM (
-                SELECT c.project_id, LOWER(campaign_elem->>'name') AS cname,
-                       COUNT(DISTINCT c.id) AS ps_count
-                FROM contacts c,
-                     jsonb_array_elements(
-                       COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', '[]'::jsonb) ||
-                       COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', '[]'::jsonb)
-                     ) AS campaign_elem
-                WHERE c.project_id IS NOT NULL AND c.deleted_at IS NULL
-                GROUP BY c.project_id, LOWER(campaign_elem->>'name')
-            ) sub
-            JOIN project_campaigns pc ON pc.project_id = sub.project_id AND pc.cname = sub.cname
-        """)
-        ps_result = await session.execute(ps_sql)
-        ps_by_camp: dict[tuple, int] = {
-            (row.project_id, row.cname): row.ps_count for row in ps_result.all()
-        }
+    # Step A: Get per-campaign contacts from platform_state (all projects, no filtering)
+    since_clause = "AND COALESCE((campaign_elem->>'added_at')::timestamp, c.created_at) >= :since" if since_dt else ""
+    all_ps_sql = text(f"""
+        SELECT c.project_id, LOWER(campaign_elem->>'name') AS cname,
+               COUNT(DISTINCT c.id) AS ps_count
+        FROM contacts c,
+             jsonb_array_elements(
+               COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', '[]'::jsonb) ||
+               COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', '[]'::jsonb)
+             ) AS campaign_elem
+        WHERE c.project_id IS NOT NULL AND c.deleted_at IS NULL
+          AND campaign_elem->>'name' IS NOT NULL
+          AND campaign_elem->>'name' != ''
+          {since_clause}
+        GROUP BY c.project_id, LOWER(campaign_elem->>'name')
+    """)
+    ps_params = {"since": since_dt} if since_dt else {}
+    ps_result = await session.execute(all_ps_sql, ps_params)
+    # {(project_id, cname_lower): ps_count}
+    ps_by_camp: dict[tuple, int] = {
+        (row.project_id, row.cname): row.ps_count for row in ps_result.all()
+    }
 
-        # Step 2: Campaign.leads_count for SmartLead (more accurate than CRM for SmartLead)
-        sl_result = await session.execute(
-            select(
-                Campaign.project_id,
-                func.lower(Campaign.name).label("cname"),
-                Campaign.leads_count,
-                Campaign.platform,
-            ).where(Campaign.project_id.isnot(None))
-        )
-        sl_leads: dict[tuple, tuple] = {
-            (row.project_id, row.cname): (row.leads_count or 0, row.platform)
-            for row in sl_result.all()
-        }
+    # Step B: Campaign table entries per project (authoritative for SmartLead)
+    camp_result = await session.execute(
+        select(
+            Campaign.project_id,
+            func.lower(Campaign.name).label("cname"),
+            Campaign.leads_count,
+            Campaign.platform,
+        ).where(Campaign.project_id.isnot(None))
+    )
+    # {(project_id, cname_lower): (leads_count, platform)}
+    camp_entries: dict[tuple, tuple] = {
+        (row.project_id, row.cname): (row.leads_count or 0, row.platform)
+        for row in camp_result.all()
+    }
 
-        # Step 3: Merge — max(leads_count, ps_count) for SmartLead, ps_count for GetSales
-        all_keys = set(ps_by_camp.keys()) | set(sl_leads.keys())
-        leads_map = {}
-        for key in all_keys:
-            ps = ps_by_camp.get(key, 0)
-            sl_count, platform = sl_leads.get(key, (0, ""))
-            camp_count = max(ps, sl_count) if platform == "smartlead" else ps
-            pid = key[0]
-            leads_map[pid] = leads_map.get(pid, 0) + camp_count
+    # Step C: campaign_filters per project (for GetSales campaigns not in Campaign table)
+    filters_result = await session.execute(
+        select(Project.id, Project.campaign_filters)
+        .where(and_(Project.deleted_at.is_(None), Project.campaign_filters.isnot(None)))
+    )
+    project_filters: dict[int, set] = {}
+    for row in filters_result.all():
+        if row.campaign_filters and isinstance(row.campaign_filters, list):
+            project_filters[row.id] = {f.lower() for f in row.campaign_filters if isinstance(f, str)}
+
+    # Step D: display-worthy filter (same as campaign-metrics endpoint)
+    def _is_display_worthy(name: str) -> bool:
+        if name.startswith("unknown (") or name.startswith("kyd"):
+            return False
+        parts = name.split(" - ", 1)
+        if len(parts) == 2 and parts[1].strip() and not any(kw in parts[1] for kw in ["dm", "list", "hq", "ice", "crypto"]):
+            return False
+        return True
+
+    # Step E: Merge — same logic as campaign-metrics endpoint
+    # For each (project, campaign): include if in Campaign table OR (in campaign_filters AND display-worthy)
+    # Contacts = max(leads_count, ps_count) for SmartLead All Time, else ps_count
+    leads_map: dict[int, int] = {}
+    seen_per_project: dict[int, set] = {}
+
+    # E1: Campaign table entries
+    for (pid, cname), (lcount, platform) in camp_entries.items():
+        ps = ps_by_camp.get((pid, cname), 0)
+        if platform == "smartlead" and not since_dt:
+            contacts = max(lcount, ps)
+        else:
+            contacts = ps
+        if contacts > 0:
+            leads_map[pid] = leads_map.get(pid, 0) + contacts
+            seen_per_project.setdefault(pid, set()).add(cname)
+
+    # E2: campaign_filters entries not in Campaign table
+    for pid, filters_set in project_filters.items():
+        seen = seen_per_project.get(pid, set())
+        for cname in filters_set:
+            if cname not in seen and _is_display_worthy(cname):
+                ps = ps_by_camp.get((pid, cname), 0)
+                if ps > 0:
+                    leads_map[pid] = leads_map.get(pid, 0) + ps
+                    seen_per_project.setdefault(pid, set()).add(cname)
 
     # 3. Warm replies per project (interested + meeting_request + question)
     warm_categories = ["interested", "meeting_request", "question"]
