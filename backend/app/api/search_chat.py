@@ -2401,10 +2401,11 @@ async def _handle_clay_gather(
                         await task_db.commit()
                     return
 
-                # Limit to requested company count
+                # Use a large search pool for People search, not just company_count.
+                # company_count limits the FINAL output, not the search pool.
                 total_found = len(companies)
-                if len(companies) > company_count:
-                    companies = companies[:company_count]
+                search_pool_size = min(total_found, max(company_count * 10, 100))
+                search_pool = companies[:search_pool_size]
 
                 # ── Phase 2: Save companies to pipeline ──
                 clay_link = f" — [View in Clay →]({table_url})" if table_url else ""
@@ -2412,7 +2413,7 @@ async def _handle_clay_gather(
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Step 2/5 — Saving companies** ({phase1_str})\n\n"
-                    f"Found **{total_found}** companies, using top **{len(companies)}**{clay_link}\n\n"
+                    f"Found **{total_found}** companies, searching **{len(search_pool)}** for contacts{clay_link}\n\n"
                     f"Saving to pipeline as **\"{segment_label}\"**...",
                     action_type="clay_gather_progress",
                 )
@@ -2423,7 +2424,7 @@ async def _handle_clay_gather(
 
                 saved_companies = 0
                 domains = []
-                for comp in companies:
+                for comp in search_pool:
                     domain = (comp.get("Domain") or comp.get("domain") or "").strip().lower().replace("www.", "")
                     if not domain:
                         continue
@@ -2528,8 +2529,40 @@ async def _handle_clay_gather(
 
                 # Sort: decision-makers first, then by role priority
                 filtered.sort(key=lambda c: (0 if c.get("_is_decision_maker") else 1, c.get("_role_priority", 99)))
+
+                # Limit to requested company_count unique companies and contact_count contacts.
+                # Prioritize companies that have the most decision-makers.
+                if len(filtered) > contact_count or stats.get("unique_companies", 0) > company_count:
+                    from collections import defaultdict
+                    company_contacts = defaultdict(list)
+                    for c in filtered:
+                        co = (c.get("company") or "").strip().lower()
+                        company_contacts[co].append(c)
+
+                    # Rank companies: most DMs first, then by best role priority
+                    company_scores = []
+                    for co, contacts_list in company_contacts.items():
+                        dm_count = sum(1 for x in contacts_list if x.get("_is_decision_maker"))
+                        best_priority = min(x.get("_role_priority", 99) for x in contacts_list)
+                        company_scores.append((co, dm_count, best_priority, contacts_list))
+                    company_scores.sort(key=lambda x: (-x[1], x[2]))
+
+                    # Take contacts from the top company_count companies
+                    selected = []
+                    selected_companies = 0
+                    for co, dm_count, best_prio, contacts_list in company_scores:
+                        if selected_companies >= company_count and len(selected) >= contact_count:
+                            break
+                        selected.extend(contacts_list)
+                        selected_companies += 1
+
+                    filtered = selected[:contact_count]
+
                 stats["total_output"] = len(filtered)
                 stats["decision_makers"] = sum(1 for c in filtered if c.get("_is_decision_maker"))
+                stats["unique_companies"] = len(set(
+                    (c.get("company") or "").strip().lower() for c in filtered
+                ))
 
                 # ── Phase 5: Save contacts + promote to CRM ──
                 dm_label = f"**{stats['decision_makers']}** decision-makers" if stats["decision_makers"] else "0 decision-makers"
@@ -2721,9 +2754,10 @@ async def _handle_clay_gather(
                     task_db, project_id, "system",
                     f"**Gather complete** — {_elapsed()}\n\n"
                     f"| | |\n|---|---|\n"
-                    f"| Companies found | **{total_found}** (saved **{saved_companies}**) |\n"
-                    f"| Contacts found | **{len(people)}** → **{stats['total_output']}** after office rules |\n"
+                    f"| Companies found | **{total_found}** (searched **{len(domains)}** domains) |\n"
+                    f"| Contacts found | **{len(people)}** → **{stats['total_output']}** selected |\n"
                     f"| Decision-makers | **{stats['decision_makers']}** of {stats['total_output']} |\n"
+                    f"| Unique companies | **{stats.get('unique_companies', '?')}** |\n"
                     f"| CRM draft | **{promoted_contacts}** contacts |\n"
                     f"| Segment | {segment_label} |\n\n"
                     f"{_filter_summary(filters)}\n\n"

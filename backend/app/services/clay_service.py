@@ -406,10 +406,10 @@ class ClayService:
         logger.info(f"Clay People: wrote {len(domains)} domains to {domains_file}")
         await _emit(f"Launching headless browser for People search ({len(domains)} domains)...")
 
-        # Run Puppeteer script
+        # Run Puppeteer script — always filter for decision-maker titles
         args = [
             "node", str(CLAY_PEOPLE_SCRIPT),
-            "--headless", "--auto",
+            "--headless", "--auto", "--titles",
             "--domains-file", str(domains_file),
         ]
 
