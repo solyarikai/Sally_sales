@@ -18,6 +18,7 @@ import httpx
 
 from app.db import get_session
 from app.models.contact import Contact, Project, ContactActivity
+from app.utils.normalization import normalize_name
 from app.services.crm_sync_service import get_getsales_flow_name, parse_campaigns
 from app.services.smartlead_service import smartlead_service
 from app.core.config import settings
@@ -1270,8 +1271,11 @@ async def import_contacts_csv(
                 if field != 'email':
                     value = row.get(csv_col, '').strip()
                     if value:
+                        # Normalize name fields
+                        if field in ('first_name', 'last_name'):
+                            value = normalize_name(value) or value
                         contact_data[field] = value
-            
+
             # Override segment if provided in query
             if segment:
                 contact_data['segment'] = segment
@@ -1458,6 +1462,9 @@ async def enrich_contacts_csv(
                 csv_value = row.get(csv_col, '').strip()
                 if not csv_value:
                     continue
+                # Normalize name fields
+                if field in ('first_name', 'last_name'):
+                    csv_value = normalize_name(csv_value) or csv_value
                 current_value = getattr(contact, field, None)
                 if not current_value:
                     setattr(contact, field, csv_value)

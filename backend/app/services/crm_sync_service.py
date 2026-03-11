@@ -400,7 +400,7 @@ def get_getsales_flow_name(activity_extra_data: dict = None, contact_campaigns: 
 
 
 
-from app.utils.normalization import normalize_linkedin_url, truncate as _truncate
+from app.utils.normalization import normalize_linkedin_url, normalize_name, truncate as _truncate
 
 
 
@@ -1398,8 +1398,8 @@ class CRMSyncService:
                 project_id=campaign_project_id,
                 email=email,
                 domain=email.split('@')[1].lower() if email and '@' in email else None,
-                first_name=_truncate(lead.get("first_name"), 255),
-                last_name=_truncate(lead.get("last_name"), 255),
+                first_name=normalize_name(_truncate(lead.get("first_name"), 255)),
+                last_name=normalize_name(_truncate(lead.get("last_name"), 255)),
                 company_name=_truncate(lead.get("company_name"), 500),
                 job_title=_truncate(custom_fields.get("Title") or custom_fields.get("title"), 500),
                 phone=_truncate(lead.get("phone_number"), 100),
@@ -1558,8 +1558,8 @@ class CRMSyncService:
                 project_id=campaign_project_id,
                 email=actual_email,
                 domain=email.split('@')[1].lower() if email and '@' in email else None,
-                first_name=lead.get("first_name"),
-                last_name=lead.get("last_name"),
+                first_name=normalize_name(lead.get("first_name")),
+                last_name=normalize_name(lead.get("last_name")),
                 company_name=lead.get("company_name"),
                 job_title=lead.get("position"),
                 phone=phone,
