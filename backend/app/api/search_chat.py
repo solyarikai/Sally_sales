@@ -2603,10 +2603,24 @@ async def _handle_clay_gather(
                     task_db.add(ec)
                     saved_contacts += 1
 
-                    # Directly promote to CRM Contact
+                    # Directly promote to CRM Contact (per-contact commit for resilience)
                     email = person.get("email")
                     email_clean = email.lower().strip() if email else None
                     linkedin_url = person.get("linkedin_url")
+
+                    # Build a valid email: real email > linkedin placeholder > name placeholder
+                    contact_email = email_clean
+                    if not contact_email and linkedin_url:
+                        # Use linkedin-based placeholder so contact is trackable
+                        li_slug = linkedin_url.rstrip("/").split("/")[-1]
+                        contact_email = f"{li_slug}@linkedin.placeholder"
+                    elif not contact_email and first_name and last_name:
+                        contact_email = f"{first_name.lower()}.{last_name.lower()}@{domain}"
+
+                    if not contact_email:
+                        # No email, no linkedin, no name — skip CRM promotion
+                        continue
+
                     provenance = {
                         "source": "clay_gather",
                         "segment": segment_label,
@@ -2620,7 +2634,7 @@ async def _handle_clay_gather(
                     try:
                         existing_id = None
                         if email_clean:
-                            # Dedup by email
+                            # Dedup by real email
                             existing = await task_db.execute(
                                 select(Contact.id).where(
                                     Contact.company_id == company_id,
@@ -2653,7 +2667,6 @@ async def _handle_clay_gather(
                             existing_id = existing.scalar_one_or_none()
 
                         if existing_id:
-                            # Update existing
                             from sqlalchemy import update as sql_update
                             await task_db.execute(
                                 sql_update(Contact).where(Contact.id == existing_id).values(
@@ -2663,11 +2676,10 @@ async def _handle_clay_gather(
                                 )
                             )
                         else:
-                            # Insert new
                             task_db.add(Contact(
                                 company_id=company_id,
                                 project_id=project_id,
-                                email=email_clean,
+                                email=contact_email,
                                 first_name=first_name,
                                 last_name=last_name,
                                 job_title=person.get("title", ""),
@@ -2680,14 +2692,18 @@ async def _handle_clay_gather(
                                 status="draft",
                                 provenance=provenance,
                             ))
+
+                        # Flush per-contact to isolate failures
+                        await task_db.flush()
                         promoted_contacts += 1
                     except Exception as e:
-                        logger.warning(f"CRM upsert failed for {email or full_name}: {e}")
+                        logger.warning(f"CRM upsert failed for {contact_email or full_name}: {e}")
+                        await task_db.rollback()
 
                 try:
                     await task_db.commit()
                 except Exception as e:
-                    logger.error(f"Failed to save clay_gather contacts: {e}")
+                    logger.error(f"Failed to commit clay_gather contacts: {e}")
                     await task_db.rollback()
                     saved_contacts = 0
                     promoted_contacts = 0
