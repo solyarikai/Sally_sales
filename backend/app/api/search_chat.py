@@ -2526,16 +2526,17 @@ async def _handle_clay_gather(
                     title_field="title",
                 )
 
-                # Keep only decision-makers
-                filtered = [c for c in filtered if c.get("_is_decision_maker")]
+                # Sort: decision-makers first, then by role priority
+                filtered.sort(key=lambda c: (0 if c.get("_is_decision_maker") else 1, c.get("_role_priority", 99)))
                 stats["total_output"] = len(filtered)
-                stats["decision_makers"] = len(filtered)
+                stats["decision_makers"] = sum(1 for c in filtered if c.get("_is_decision_maker"))
 
                 # ── Phase 5: Save contacts + promote to CRM ──
+                dm_label = f"**{stats['decision_makers']}** decision-makers" if stats["decision_makers"] else "0 decision-makers"
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Step 5/5 — Saving to CRM** [{_elapsed()}]\n\n"
-                    f"**{stats['total_output']}** decision-makers (from {len(people)} total contacts), "
+                    f"**{stats['total_output']}** contacts ({dm_label}), "
                     f"**{stats['unique_companies']}** companies "
                     f"({stats['skipped_office_limit']} skipped by office limit)\n\n"
                     f"Promoting as draft → segment **\"{segment_label}\"**...",
@@ -2721,8 +2722,8 @@ async def _handle_clay_gather(
                     f"**Gather complete** — {_elapsed()}\n\n"
                     f"| | |\n|---|---|\n"
                     f"| Companies found | **{total_found}** (saved **{saved_companies}**) |\n"
-                    f"| Contacts found | **{len(people)}** → **{stats['total_output']}** DMs after rules |\n"
-                    f"| Decision-makers | **{stats['decision_makers']}** |\n"
+                    f"| Contacts found | **{len(people)}** → **{stats['total_output']}** after office rules |\n"
+                    f"| Decision-makers | **{stats['decision_makers']}** of {stats['total_output']} |\n"
                     f"| CRM draft | **{promoted_contacts}** contacts |\n"
                     f"| Segment | {segment_label} |\n\n"
                     f"{_filter_summary(filters)}\n\n"
