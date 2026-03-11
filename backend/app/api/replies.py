@@ -881,6 +881,18 @@ async def list_replies(
                 )
             )
         )
+        # Exclude if contact sent a newer inbound message (they replied — no follow-up needed)
+        fu_newer_inbound = aliased(ProcessedReply)
+        conditions.append(
+            ~exists(
+                select(fu_newer_inbound.id).where(
+                    fu_newer_inbound.lead_email == ProcessedReply.lead_email,
+                    fu_newer_inbound.received_at > ProcessedReply.approved_at,
+                    fu_newer_inbound.parent_reply_id.is_(None),
+                    fu_newer_inbound.id != ProcessedReply.id,
+                )
+            )
+        )
 
     # Time window filter (skip for follow-ups — they have their own 60-day staleness check)
     if not needs_followup:
@@ -1144,6 +1156,16 @@ async def get_reply_counts(
             select(fu_child_done.id).where(
                 fu_child_done.parent_reply_id == ProcessedReply.id,
                 fu_child_done.approval_status.in_(["approved", "dismissed", "auto_resolved"]),
+            )
+        ))
+        # Exclude if contact sent a newer inbound message
+        fu_newer_inbound = aliased(ProcessedReply)
+        base.append(~exists(
+            select(fu_newer_inbound.id).where(
+                fu_newer_inbound.lead_email == ProcessedReply.lead_email,
+                fu_newer_inbound.received_at > ProcessedReply.approved_at,
+                fu_newer_inbound.parent_reply_id.is_(None),
+                fu_newer_inbound.id != ProcessedReply.id,
             )
         ))
     else:
