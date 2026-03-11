@@ -535,12 +535,15 @@ class CRMScheduler:
             logger.warning(f"Failed to load enabled campaigns, falling back to all: {e}")
             enabled_campaigns = None
 
-        async with async_session_maker() as session:
+        # Run SmartLead and GetSales reply syncs in parallel (separate sessions)
+        async def _sl_sync():
+            if not sync_service.smartlead:
+                return
             try:
-                if sync_service.smartlead:
+                async with async_session_maker() as sl_session:
                     t0 = _time.monotonic()
                     results = await sync_service.sync_smartlead_replies(
-                        session, self.company_id,
+                        sl_session, self.company_id,
                         only_campaigns=enabled_campaigns,
                     )
                     sl_ms = int((_time.monotonic() - t0) * 1000)
@@ -550,15 +553,20 @@ class CRMScheduler:
             except Exception as e:
                 logger.error(f"Smartlead reply check failed: {e}")
 
+        async def _gs_sync():
+            if not sync_service.getsales:
+                return
             try:
-                if sync_service.getsales:
+                async with async_session_maker() as gs_session:
                     t0 = _time.monotonic()
-                    results = await sync_service.sync_getsales_replies(session, self.company_id)
+                    results = await sync_service.sync_getsales_replies(gs_session, self.company_id)
                     gs_ms = int((_time.monotonic() - t0) * 1000)
                     new_replies = results.get('new_replies', 0)
                     logger.info(f"GetSales poll: {gs_ms}ms, {new_replies} new")
             except Exception as e:
                 logger.error(f"GetSales reply check failed: {e}")
+
+        await asyncio.gather(_sl_sync(), _gs_sync())
     
     # ===== Webhook Registration (5 min, 1 min on failure) =====
     
