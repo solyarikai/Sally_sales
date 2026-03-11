@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -192,6 +192,28 @@ function SystemMarkdown({ content, isDark }: { content: string; isDark: boolean 
   );
 }
 
+function ElapsedTimer({ startTime }: { startTime?: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  const mountRef = useRef(Date.now());
+
+  useEffect(() => {
+    const start = startTime ? new Date(startTime).getTime() : mountRef.current;
+    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startTime]);
+
+  if (elapsed < 2) return null;
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  return (
+    <span className="opacity-50 tabular-nums ml-auto flex-shrink-0">
+      {mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}
+    </span>
+  );
+}
+
 function SystemBanner({ message, isLast }: { message: ChatMessageData; isLast?: boolean }) {
   const { isDark } = useTheme();
   const action = message.action_type;
@@ -206,6 +228,7 @@ function SystemBanner({ message, isLast }: { message: ChatMessageData; isLast?: 
       )}>
         <SubIcon className={cn("w-3 h-3 flex-shrink-0", isLast && "animate-spin", isDark ? "text-indigo-500/60" : "text-indigo-400/60")} />
         <span>{message.content}</span>
+        {isLast && <ElapsedTimer startTime={message.timestamp} />}
       </div>
     );
   }
@@ -221,6 +244,7 @@ function SystemBanner({ message, isLast }: { message: ChatMessageData; isLast?: 
         <div className="flex gap-2.5">
           <ProgressIcon className={cn("w-4 h-4 flex-shrink-0 mt-0.5", isLast && "animate-spin", isDark ? "text-indigo-400" : "text-indigo-500")} />
           <SystemMarkdown content={message.content} isDark={isDark} />
+          {isLast && <ElapsedTimer startTime={message.timestamp} />}
         </div>
       </div>
     );
