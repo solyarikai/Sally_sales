@@ -2913,12 +2913,9 @@ class CRMSyncService:
             stats["pages"] = 1
             logger.info(f"GetSales reply sync: {total} total inbox messages")
 
-            if redis and total > 0:
-                prev_total = await redis.get(GS_TOTAL_KEY)
-                if prev_total is not None and int(prev_total) == total:
-                    stats["skipped_unchanged"] = True
-                    logger.info(f"GetSales reply sync: total unchanged ({total}), skipping")
-                    return stats
+            # NOTE: total-count guard removed — it was too aggressive and caused
+            # LinkedIn replies to go unprocessed for days. The early_stop_threshold
+            # (20 consecutive cached hits) is sufficient to skip already-processed messages.
 
             if not messages:
                 if redis:
