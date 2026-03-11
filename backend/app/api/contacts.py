@@ -1740,9 +1740,24 @@ async def push_contacts_to_smartlead(
     if not valid_contacts:
         raise HTTPException(status_code=400, detail="No contacts with valid emails")
 
-    # Build campaign name
+    # Build campaign name: Project — Segment — Date (N leads)
     ts = datetime.utcnow().strftime("%m/%d %H:%M")
-    campaign_name = body.campaign_name or f"Draft {ts} ({len(valid_contacts)} leads)"
+    if body.campaign_name:
+        campaign_name = body.campaign_name
+    else:
+        # Derive project name and segment from contacts
+        project_name = ""
+        segment_name = ""
+        sample = valid_contacts[0]
+        if sample.project_id:
+            proj = await session.execute(
+                select(Project.name).where(Project.id == sample.project_id)
+            )
+            project_name = proj.scalar_one_or_none() or ""
+        segment_name = sample.segment or ""
+        parts = [p for p in [project_name, segment_name] if p]
+        prefix = " — ".join(parts) if parts else "Draft"
+        campaign_name = f"{prefix} {ts} ({len(valid_contacts)} leads)"
 
     # Create campaign in SmartLead
     try:
