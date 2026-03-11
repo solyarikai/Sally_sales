@@ -2078,10 +2078,11 @@ async def _handle_clay_people(
                 await task_db.commit()
 
                 # Run Puppeteer people search
-                people = await clay_service.run_people_search(
+                people_result = await clay_service.run_people_search(
                     domains=domains,
                     project_id=project_id,
                 )
+                people = people_result["people"]
 
                 if not people:
                     await _save_chat_message(
@@ -2263,17 +2264,19 @@ async def _handle_clay_gather(
     company_count = parsed.get("clay_company_count") or 10
     contact_count = parsed.get("clay_contact_count") or 30
 
-    # Enrich segment with project knowledge
+    # Build ICP text: user's segment is PRIMARY, project context only if segment is vague
     icp_parts = [segment_desc]
-    if proj.target_segments:
-        icp_parts.append(f"\n\nProject target description:\n{proj.target_segments}")
-    try:
-        from app.services.project_knowledge_service import project_knowledge_service
-        kb_summary = await project_knowledge_service.get_summary(db, project_id)
-        if kb_summary:
-            icp_parts.append(f"\n\nProject knowledge:\n{kb_summary[:1000]}")
-    except Exception:
-        pass
+    if len(segment_desc.strip()) < 20:
+        # Short/vague segment — enrich with project context as secondary hint
+        if proj.target_segments:
+            icp_parts.append(f"\n\nProject context (secondary):\n{proj.target_segments}")
+        try:
+            from app.services.project_knowledge_service import project_knowledge_service
+            kb_summary = await project_knowledge_service.get_summary(db, project_id)
+            if kb_summary:
+                icp_parts.append(f"\n\nProject knowledge:\n{kb_summary[:1000]}")
+        except Exception:
+            pass
     icp_text = "\n".join(icp_parts)
 
     # Map ICP to Clay filters for the preview
@@ -2314,7 +2317,7 @@ async def _handle_clay_gather(
     job_id = search_job.id
 
     # Segment label (short, for CRM tagging)
-    segment_label = segment_desc[:100].strip()
+    segment_label = f"{segment_desc[:80].strip()} #{job_id}"
 
     async def _run_clay_gather_task():
         import time as _t
@@ -2488,11 +2491,13 @@ async def _handle_clay_gather(
                 await task_db.commit()
 
                 phase3_start = _t.time()
-                people = await clay_service.run_people_search(
+                people_result = await clay_service.run_people_search(
                     domains=domains,
                     project_id=project_id,
                     on_progress=_substep,
                 )
+                people = people_result["people"]
+                people_table_url = people_result.get("table_url", "")
                 phase3_sec = int(_t.time() - phase3_start)
                 phase3_str = f"{phase3_sec // 60}m {phase3_sec % 60}s" if phase3_sec >= 60 else f"{phase3_sec}s"
 
@@ -2530,11 +2535,16 @@ async def _handle_clay_gather(
                     title_field="title",
                 )
 
+                # Keep only decision-makers
+                filtered = [c for c in filtered if c.get("_is_decision_maker")]
+                stats["total_output"] = len(filtered)
+                stats["decision_makers"] = len(filtered)
+
                 # ── Phase 5: Save contacts + promote to CRM ──
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Step 5/5 — Saving to CRM** [{_elapsed()}]\n\n"
-                    f"**{stats['total_output']}** contacts → **{stats['decision_makers']}** decision-makers, "
+                    f"**{stats['total_output']}** decision-makers (from {len(people)} total contacts), "
                     f"**{stats['unique_companies']}** companies "
                     f"({stats['skipped_office_limit']} skipped by office limit)\n\n"
                     f"Promoting as draft → segment **\"{segment_label}\"**...",
@@ -2595,20 +2605,22 @@ async def _handle_clay_gather(
 
                     # Directly promote to CRM Contact
                     email = person.get("email")
-                    if email:
-                        email_clean = email.lower().strip()
-                        provenance = {
-                            "source": "clay_gather",
-                            "segment": segment_label,
-                            "clay_filters": filters,
-                            "domain": domain,
-                            "search_job_id": job_id,
-                            "gathered_at": _time_mod.strftime("%Y-%m-%dT%H:%M:%S"),
-                            "role_priority": person.get("_role_priority", 99),
-                            "is_decision_maker": person.get("_is_decision_maker", False),
-                        }
-                        try:
-                            # Check if contact exists
+                    email_clean = email.lower().strip() if email else None
+                    linkedin_url = person.get("linkedin_url")
+                    provenance = {
+                        "source": "clay_gather",
+                        "segment": segment_label,
+                        "clay_filters": filters,
+                        "domain": domain,
+                        "search_job_id": job_id,
+                        "gathered_at": _time_mod.strftime("%Y-%m-%dT%H:%M:%S"),
+                        "role_priority": person.get("_role_priority", 99),
+                        "is_decision_maker": person.get("_is_decision_maker", False),
+                    }
+                    try:
+                        existing_id = None
+                        if email_clean:
+                            # Dedup by email
                             existing = await task_db.execute(
                                 select(Contact.id).where(
                                     Contact.company_id == company_id,
@@ -2617,37 +2629,60 @@ async def _handle_clay_gather(
                                 ).limit(1)
                             )
                             existing_id = existing.scalar_one_or_none()
-                            if existing_id:
-                                # Update existing
-                                from sqlalchemy import update as sql_update
-                                await task_db.execute(
-                                    sql_update(Contact).where(Contact.id == existing_id).values(
-                                        project_id=project_id,
-                                        segment=segment_label,
-                                        provenance=provenance,
-                                    )
-                                )
-                            else:
-                                # Insert new
-                                task_db.add(Contact(
-                                    company_id=company_id,
+                        elif linkedin_url:
+                            # Dedup by linkedin_url
+                            existing = await task_db.execute(
+                                select(Contact.id).where(
+                                    Contact.company_id == company_id,
+                                    Contact.linkedin_url == linkedin_url,
+                                    Contact.deleted_at.is_(None),
+                                ).limit(1)
+                            )
+                            existing_id = existing.scalar_one_or_none()
+                        elif first_name and last_name and domain:
+                            # Dedup by name + domain
+                            existing = await task_db.execute(
+                                select(Contact.id).where(
+                                    Contact.company_id == company_id,
+                                    Contact.first_name == first_name,
+                                    Contact.last_name == last_name,
+                                    Contact.domain == domain,
+                                    Contact.deleted_at.is_(None),
+                                ).limit(1)
+                            )
+                            existing_id = existing.scalar_one_or_none()
+
+                        if existing_id:
+                            # Update existing
+                            from sqlalchemy import update as sql_update
+                            await task_db.execute(
+                                sql_update(Contact).where(Contact.id == existing_id).values(
                                     project_id=project_id,
-                                    email=email_clean,
-                                    first_name=first_name,
-                                    last_name=last_name,
-                                    job_title=person.get("title", ""),
-                                    company_name=dc_row.name or person.get("company", ""),
-                                    domain=domain,
-                                    linkedin_url=person.get("linkedin_url"),
-                                    location=person.get("location"),
                                     segment=segment_label,
-                                    source="pipeline",
-                                    status="draft",
                                     provenance=provenance,
-                                ))
-                            promoted_contacts += 1
-                        except Exception as e:
-                            logger.warning(f"CRM upsert failed for {email}: {e}")
+                                )
+                            )
+                        else:
+                            # Insert new
+                            task_db.add(Contact(
+                                company_id=company_id,
+                                project_id=project_id,
+                                email=email_clean,
+                                first_name=first_name,
+                                last_name=last_name,
+                                job_title=person.get("title", ""),
+                                company_name=dc_row.name or person.get("company", ""),
+                                domain=domain,
+                                linkedin_url=linkedin_url,
+                                location=person.get("location"),
+                                segment=segment_label,
+                                source="pipeline",
+                                status="draft",
+                                provenance=provenance,
+                            ))
+                        promoted_contacts += 1
+                    except Exception as e:
+                        logger.warning(f"CRM upsert failed for {email or full_name}: {e}")
 
                 try:
                     await task_db.commit()
@@ -2671,14 +2706,15 @@ async def _handle_clay_gather(
 
                 # ── Done ──
                 crm_url = f"/contacts?project_id={project_id}&source=pipeline&segment={segment_label}"
-                clay_company_link = f"[View in Clay →]({table_url})" if table_url else ""
-                links = " | ".join(filter(None, [clay_company_link, f"[Open CRM →]({crm_url})"]))
+                clay_company_link = f"[Companies in Clay →]({table_url})" if table_url else ""
+                clay_people_link = f"[People in Clay →]({people_table_url})" if people_table_url else "People table in Clay exports"
+                links = " | ".join(filter(None, [clay_company_link, clay_people_link, f"[Open CRM →]({crm_url})"]))
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Gather complete** — {_elapsed()}\n\n"
                     f"| | |\n|---|---|\n"
                     f"| Companies found | **{total_found}** (saved **{saved_companies}**) |\n"
-                    f"| Contacts found | **{len(people)}** → **{stats['total_output']}** after rules |\n"
+                    f"| Contacts found | **{len(people)}** → **{stats['total_output']}** DMs after rules |\n"
                     f"| Decision-makers | **{stats['decision_makers']}** |\n"
                     f"| CRM draft | **{promoted_contacts}** contacts |\n"
                     f"| Segment | {segment_label} |\n\n"

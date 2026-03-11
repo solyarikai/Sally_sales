@@ -67,20 +67,25 @@ async def map_icp_to_clay_filters(icp_text: str) -> Dict[str, Any]:
 
     system_prompt = f"""You are a Clay.com search filter expert. Given an ICP description, output a JSON object with Clay search filters.
 
+CRITICAL: The first line of the ICP is the PRIMARY segment description. If "Project context (secondary)" is included, it's just background — the PRIMARY segment takes absolute priority. Map filters for the PRIMARY segment only.
+
 Available filter fields:
 {json.dumps(filter_schema, indent=2)}
 
 Rules:
-- Use description_keywords for THE MOST SPECIFIC niche terms that uniquely identify these companies. Generic terms like "gaming" or "e-commerce" alone are useless — use multi-word phrases that only target companies would have in their description.
+- Use description_keywords for THE MOST SPECIFIC niche terms that uniquely identify these companies. Generic terms alone are useless — use multi-word phrases.
 - Be specific with industries (LinkedIn-style taxonomy). Use narrow industries, not broad ones.
-- Use description_keywords_exclude to filter out obviously wrong companies (competitors, agencies, unrelated sectors).
+- Use description_keywords_exclude to filter out wrong companies (competitors, agencies, unrelated).
 - industries_exclude is critical — exclude industries that might match keywords but are wrong.
 - Only include filters clearly specified or strongly implied by the ICP.
 - If the ICP mentions geographic restrictions, include country_names.
 - Output ONLY valid JSON, no explanation.
 
-Example for "Companies selling gaming skins and virtual items for CS2, Dota2, Roblox":
-{{"industries":["Computer Games","Internet Marketplace Platforms"],"industries_exclude":["Gambling Facilities and Casinos","Staffing and Recruiting","Financial Services","Software Development"],"description_keywords":["skin trading","virtual items","loot box","case opening","game marketplace","skin marketplace","CS2","CSGO","Dota","Roblox","in-game items","game credits","top-up"],"description_keywords_exclude":["casino","betting","slot","recruitment","staffing"],"sizes":["1-10","11-50","51-200","201-500"]}}"""
+Example 1 — "payroll":
+{{"industries":["Human Resources Services","IT Services and IT Consulting","Financial Services"],"industries_exclude":["Staffing and Recruiting","Insurance","Banking"],"description_keywords":["payroll software","payroll processing","salary payments","wage management","employee payroll","payroll solution","payroll platform"],"description_keywords_exclude":["recruitment","staffing agency","temp agency"],"sizes":["11-50","51-200","201-500","501-1000"]}}
+
+Example 2 — "Companies selling gaming skins and virtual items":
+{{"industries":["Computer Games","Internet Marketplace Platforms"],"industries_exclude":["Gambling Facilities and Casinos","Staffing and Recruiting"],"description_keywords":["skin trading","virtual items","loot box","case opening","game marketplace","CS2","CSGO"],"description_keywords_exclude":["casino","betting","slot","recruitment"],"sizes":["1-10","11-50","51-200","201-500"]}}"""
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
@@ -357,11 +362,13 @@ class ClayService:
         domains: List[str],
         project_id: Optional[int] = None,
         on_progress: Optional[Any] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """Run Clay People search via Puppeteer.
 
         Writes domains to a temp CSV, runs clay_people_search.js --domains-file,
-        reads output JSON/CSV. Returns list of person dicts.
+        reads output JSON/CSV. Returns dict with:
+          - "people": list of normalized person dicts
+          - "table_url": Clay table URL if available, else None
         on_progress: optional async callback(message: str) for live status updates.
         """
         async def _emit(msg: str):
@@ -523,7 +530,24 @@ class ClayService:
                 normalized.append(person)
 
         logger.info(f"Clay People: {len(people)} raw → {len(normalized)} normalized contacts")
-        return normalized
+
+        # Extract table URL from results metadata if available
+        table_url = None
+        if results_file.exists():
+            try:
+                meta = json.loads(results_file.read_text())
+                for search in meta.get("searches", []):
+                    table_id = search.get("tableId")
+                    if table_id:
+                        table_url = f"https://app.clay.com/workspaces/889252/tables/{table_id}"
+                        break
+            except Exception:
+                pass
+
+        return {
+            "people": normalized,
+            "table_url": table_url,
+        }
 
     async def export_people_to_sheets(
         self,

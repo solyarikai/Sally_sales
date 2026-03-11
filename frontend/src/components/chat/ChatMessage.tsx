@@ -192,7 +192,7 @@ function SystemMarkdown({ content, isDark }: { content: string; isDark: boolean 
   );
 }
 
-function SystemBanner({ message }: { message: ChatMessageData }) {
+function SystemBanner({ message, isLast }: { message: ChatMessageData; isLast?: boolean }) {
   const { isDark } = useTheme();
   const action = message.action_type;
 
@@ -203,7 +203,7 @@ function SystemBanner({ message }: { message: ChatMessageData }) {
         "rounded-lg px-3 py-1.5 border text-xs flex items-center gap-2",
         isDark ? "bg-[#1e1e2e] border-indigo-800/30 text-indigo-300/80" : "bg-indigo-50/50 border-indigo-100 text-indigo-600/80"
       )}>
-        <RefreshCw className={cn("w-3 h-3 animate-spin flex-shrink-0", isDark ? "text-indigo-500/60" : "text-indigo-400/60")} />
+        <RefreshCw className={cn("w-3 h-3 flex-shrink-0", isLast && "animate-spin", isDark ? "text-indigo-500/60" : "text-indigo-400/60")} />
         <span>{message.content}</span>
       </div>
     );
@@ -217,7 +217,7 @@ function SystemBanner({ message }: { message: ChatMessageData }) {
         isDark ? "bg-indigo-900/20 border-indigo-700/30 text-indigo-200" : "bg-indigo-50 border-indigo-200 text-indigo-900"
       )}>
         <div className="flex gap-2.5">
-          <RefreshCw className={cn("w-4 h-4 flex-shrink-0 mt-0.5 animate-spin", isDark ? "text-indigo-400" : "text-indigo-500")} />
+          <RefreshCw className={cn("w-4 h-4 flex-shrink-0 mt-0.5", isLast && "animate-spin", isDark ? "text-indigo-400" : "text-indigo-500")} />
           <SystemMarkdown content={message.content} isDark={isDark} />
         </div>
       </div>
@@ -283,7 +283,7 @@ function SystemBanner({ message }: { message: ChatMessageData }) {
   );
 }
 
-export function ChatMessage({ message, onFeedback }: ChatMessageProps) {
+export function ChatMessage({ message, onFeedback, isLast }: ChatMessageProps) {
   const { isDark } = useTheme();
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
@@ -292,7 +292,7 @@ export function ChatMessage({ message, onFeedback }: ChatMessageProps) {
     return (
       <div className="flex justify-center px-4">
         <div className="max-w-[90%] w-full">
-          <SystemBanner message={message} />
+          <SystemBanner message={message} isLast={isLast} />
         </div>
       </div>
     );
