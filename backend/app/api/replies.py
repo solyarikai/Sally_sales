@@ -837,6 +837,8 @@ async def list_replies(
             ProcessedReply.approval_status == None,
             ProcessedReply.approval_status == "pending",
         ))
+        # Exclude follow-up children — they belong in the Follow-ups tab, not Replies
+        conditions.append(ProcessedReply.parent_reply_id.is_(None))
         no_reply_categories = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
         conditions.append(or_(
             ProcessedReply.category == None,
@@ -880,10 +882,11 @@ async def list_replies(
             )
         )
 
-    # Time window filter
-    cutoff = _parse_received_since(received_since)
-    if cutoff:
-        conditions.append(ProcessedReply.received_at >= cutoff)
+    # Time window filter (skip for follow-ups — they have their own 60-day staleness check)
+    if not needs_followup:
+        cutoff = _parse_received_since(received_since)
+        if cutoff:
+            conditions.append(ProcessedReply.received_at >= cutoff)
 
     # Snapshot conditions BEFORE adding category filter — used for global tab counts
     base_conditions = list(conditions)
@@ -1145,6 +1148,8 @@ async def get_reply_counts(
         ))
     else:
         base.append(or_(ProcessedReply.approval_status == None, ProcessedReply.approval_status == "pending"))
+        # Exclude follow-up children — they belong in the Follow-ups tab
+        base.append(ProcessedReply.parent_reply_id.is_(None))
     if not include_all:
         no_reply_cats = ("out_of_office", "unsubscribe", "wrong_person", "not_interested")
         base.append(or_(ProcessedReply.category == None, ~ProcessedReply.category.in_(no_reply_cats)))
@@ -1166,10 +1171,11 @@ async def get_reply_counts(
         if names:
             base.append(func.lower(ProcessedReply.campaign_name).in_(names))
 
-    # Time window filter
-    cutoff = _parse_received_since(received_since)
-    if cutoff:
-        base.append(ProcessedReply.received_at >= cutoff)
+    # Time window filter (skip for follow-ups — they have their own staleness check)
+    if not needs_followup:
+        cutoff = _parse_received_since(received_since)
+        if cutoff:
+            base.append(ProcessedReply.received_at >= cutoff)
 
     # Dedup: one category per contact (newest first, then best priority as tiebreaker)
     # Matches list_replies group_by_contact logic exactly
