@@ -956,12 +956,7 @@ class CRMScheduler:
         Every 5 min: push replies + leads.
         Every 3rd cycle (15 min): poll qualification from sheet.
         Controlled by per-project `sheet_sync_config.enabled` toggle.
-        Global kill switch: SHEET_SYNC_DISABLED=1 env var.
         """
-        if os.getenv("SHEET_SYNC_DISABLED", "").strip() in ("1", "true", "yes"):
-            logger.info("[SheetSync] Globally disabled via SHEET_SYNC_DISABLED env var")
-            return
-
         await asyncio.sleep(90)
         cycle = 0
 

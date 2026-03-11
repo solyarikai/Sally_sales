@@ -52,7 +52,6 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json
       - GOOGLE_IMPERSONATE_EMAIL=services@getsally.io
       - SHARED_DRIVE_ID=0AEvTjlJFlWnZUk9PVA
-      - SHEET_SYNC_DISABLED=1
     volumes:
       - ./backend:/app
       - ./scripts:/scripts

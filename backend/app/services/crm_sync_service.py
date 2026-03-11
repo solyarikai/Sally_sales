@@ -3022,6 +3022,7 @@ class CRMSyncService:
                         contact.status = new_st
 
                     # Create ProcessedReply with classification + draft (non-fatal)
+                    # Use savepoint so autoflush errors in thread-fetch don't kill the batch
                     _pr = None
                     try:
                         from app.services.reply_processor import process_getsales_reply
@@ -3080,16 +3081,17 @@ class CRMSyncService:
                                                 logger.info(f"[GETSALES] Resolved campaign from webhook history: {flow_name}")
                                     except Exception as _wh_err:
                                         logger.debug(f"[GETSALES] Webhook history lookup failed: {_wh_err}")
-                        _pr = await process_getsales_reply(
-                            message_text=message_text,
-                            contact=contact,
-                            flow_name=flow_name,
-                            flow_uuid=flow_uuid,
-                            message_id=str(message_id),
-                            activity_at=msg_time if created_at_str else datetime.utcnow(),
-                            raw_data=msg,
-                            session=session,
-                        )
+                        async with session.begin_nested():
+                            _pr = await process_getsales_reply(
+                                message_text=message_text,
+                                contact=contact,
+                                flow_name=flow_name,
+                                flow_uuid=flow_uuid,
+                                message_id=str(message_id),
+                                activity_at=msg_time if created_at_str else datetime.utcnow(),
+                                raw_data=msg,
+                                session=session,
+                            )
                     except Exception as pr_err:
                         logger.warning(f"[GETSALES] ProcessedReply creation failed (non-fatal): {pr_err}")
 
