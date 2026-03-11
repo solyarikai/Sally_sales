@@ -144,11 +144,11 @@ function ActionButtons({ action_type, action_data }: { action_type?: string; act
     );
   }
 
-  if ((action_type === 'clay_people_done') && action_data.sheet_url) {
+  if ((action_type === 'clay_people_done') && action_data.crm_url && !buttons.some(b => b.key === 'crm')) {
     buttons.push(
-      <a key="sheet" href={action_data.sheet_url} target="_blank" rel="noopener noreferrer" className={btnClass}>
-        <ExternalLink className="w-3.5 h-3.5" /> Open Google Sheet
-      </a>
+      <button key="crm" onClick={() => navigate(action_data.crm_url)} className={btnClass}>
+        <Users className="w-3.5 h-3.5" /> Open in CRM
+      </button>
     );
   }
 
@@ -198,26 +198,28 @@ function SystemBanner({ message, isLast }: { message: ChatMessageData; isLast?: 
 
   // Substep — compact inline status line
   if (action?.includes('substep')) {
+    const SubIcon = isLast ? RefreshCw : Check;
     return (
       <div className={cn(
         "rounded-lg px-3 py-1.5 border text-xs flex items-center gap-2",
         isDark ? "bg-[#1e1e2e] border-indigo-800/30 text-indigo-300/80" : "bg-indigo-50/50 border-indigo-100 text-indigo-600/80"
       )}>
-        <RefreshCw className={cn("w-3 h-3 flex-shrink-0", isLast && "animate-spin", isDark ? "text-indigo-500/60" : "text-indigo-400/60")} />
+        <SubIcon className={cn("w-3 h-3 flex-shrink-0", isLast && "animate-spin", isDark ? "text-indigo-500/60" : "text-indigo-400/60")} />
         <span>{message.content}</span>
       </div>
     );
   }
 
-  // Progress — blue/indigo with spinner
+  // Progress — blue/indigo with spinner (only spinning on last msg)
   if (action?.includes('progress')) {
+    const ProgressIcon = isLast ? RefreshCw : Check;
     return (
       <div className={cn(
         "rounded-xl px-4 py-3 border",
         isDark ? "bg-indigo-900/20 border-indigo-700/30 text-indigo-200" : "bg-indigo-50 border-indigo-200 text-indigo-900"
       )}>
         <div className="flex gap-2.5">
-          <RefreshCw className={cn("w-4 h-4 flex-shrink-0 mt-0.5", isLast && "animate-spin", isDark ? "text-indigo-400" : "text-indigo-500")} />
+          <ProgressIcon className={cn("w-4 h-4 flex-shrink-0 mt-0.5", isLast && "animate-spin", isDark ? "text-indigo-400" : "text-indigo-500")} />
           <SystemMarkdown content={message.content} isDark={isDark} />
         </div>
       </div>

@@ -21,6 +21,9 @@ parse_chat_action()  ── Gemini 2.5 Pro (fallback: GPT-4o-mini)
     ├── push          → SmartLead push
     ├── show_targets  → List top targets
     ├── show_stats    → Analytics (segment/geo/engine/cost/funnel/top_queries)
+    ├── clay_gather   → Full Clay pipeline (companies → contacts → CRM)
+    ├── clay_export   → Clay company export only
+    ├── clay_people   → Clay people search only
     ├── search        → Legacy ICP-based search
     └── info          → General questions
 ```
@@ -156,6 +159,179 @@ Each project has rules defining how contacts are routed to SmartLead campaigns:
 | `crypto` | 5 | dubai_crypto, moscow_crypto |
 | `family_office` | 6 | switzerland_fo, dubai_fo, moscow_fo, singapore_fo, ppli_insurance, private_banks_ru |
 | `importers` | 7 | moscow_import |
+
+## Clay TAM Gathering (clay_gather)
+
+The Clay gather pipeline finds companies and contacts via Clay.com automation. The operator types a natural-language gather command in the project chat; the system runs a 5-step background pipeline and writes results to CRM.
+
+### Trigger
+
+User writes in project chat:
+```
+gather 30 contacts from 10 companies in content creator platforms segment
+```
+
+Gemini 2.5 Pro parses this as:
+```json
+{
+  "action": "clay_gather",
+  "clay_segment": "content creator platforms",
+  "clay_company_count": 10,
+  "clay_contact_count": 30
+}
+```
+
+### Pipeline Steps
+
+```
+User message
+    │
+    ▼
+parse_chat_action()  ── Gemini 2.5 Pro
+    │  action = clay_gather
+    ▼
+Immediate SSE response (job plan + ETA)
+    │
+    ▼
+Background task: _run_clay_gather_task()
+    │
+    ├── Step 1/5: Find Companies ──────────────────────────
+    │   ├─ map_icp_to_clay_filters() — Gemini 2.5 Pro
+    │   │  ICP text → {industries, sizes, keywords, exclusions}
+    │   ├─ run_tam_export() — Puppeteer headless browser
+    │   │  Clay.com → Find Companies → apply filters → Save to table
+    │   └─ Read company data via Clay API (0 credits)
+    │
+    ├── Step 2/5: Save to Pipeline ────────────────────────
+    │   └─ Upsert DiscoveredCompany records (is_target=true)
+    │
+    ├── Step 3/5: Find Contacts ───────────────────────────
+    │   ├─ run_people_search() — Puppeteer headless browser
+    │   │  Clay.com → People tab → domain list → title filters → Save
+    │   └─ Read people data via Clay API (0 credits)
+    │
+    ├── Step 4/5: Apply Office Rules ──────────────────────
+    │   ├─ Max 5 contacts per company+location
+    │   ├─ Sort by role priority (CEO=1 … Manager=7 … Other=99)
+    │   └─ Tag decision-makers (priority ≤ 6)
+    │
+    └── Step 5/5: Save to CRM ─────────────────────────────
+        ├─ Build email: real > linkedin placeholder > name@domain
+        ├─ Dedup by email / linkedin / name+domain
+        ├─ INSERT contacts (status=draft, source=pipeline)
+        └─ Segment label: "{description} #{job_id}"
+```
+
+### ICP-to-Clay Filter Mapping
+
+Gemini 2.5 Pro (fallback: GPT-4o-mini) maps the operator's segment description to Clay search filters:
+
+```json
+{
+  "industries": ["Online Audio and Video Media", "Internet Publishing"],
+  "industries_exclude": ["Advertising Services", "Staffing and Recruiting"],
+  "sizes": ["11-50", "51-200", "201-500"],
+  "description_keywords": ["creator economy", "platform for creators"],
+  "description_keywords_exclude": ["agency", "consulting"],
+  "country_names": []
+}
+```
+
+The ICP text is the operator's segment description only — project context is never appended (it confuses the AI into mapping to the project's existing ICP instead of the requested segment).
+
+### Clay Puppeteer Automation
+
+Both company and people searches use headless Chrome via Puppeteer:
+
+1. **Session validation** — checks `claysession` cookie on `api.clay.com`
+2. **Apply filters** — clicks UI elements for industries, sizes, keywords, exclusions
+3. **Save to table** — Continue → "Save to new workbook and table" → Create table (skip enrichments)
+4. **Read via API** — `GET /v3/tables/{id}/records` with session cookie (not API key)
+5. **Zero credits** — table creation and export don't cost Clay credits
+
+**>5000 companies**: If results exceed 5000 (Clay's export limit), the pipeline splits by geographic region (NA, EU West, EU East, APAC, LATAM, MEA, Rest of World) and runs multiple searches.
+
+**Key files:**
+- `scripts/clay/clay_tam_export.js` — company search automation
+- `scripts/clay/clay_people_search.js` — people search automation
+- `backend/app/services/clay_service.py` — `map_icp_to_clay_filters()`, `run_tam_export()`, `run_people_search()`
+
+### Contact Email Strategy
+
+Clay People search often returns contacts with LinkedIn URLs but no emails:
+
+| Priority | Email source | Example |
+|----------|-------------|---------|
+| 1 | Real email from Clay | `john@company.com` |
+| 2 | LinkedIn placeholder | `john-doe-abc123@linkedin.placeholder` |
+| 3 | Name + domain | `john.doe@company.com` |
+| 4 | No email possible | Contact skipped |
+
+Placeholder emails ensure contacts are saved to CRM (email is NOT NULL). Real email verification via FindyMail happens later.
+
+### Office Rules (contact_rules_service.py)
+
+| Rule | Value |
+|------|-------|
+| Max contacts per office | 5 |
+| Office = | company name + normalized location |
+| Role priority | CEO=1, CTO/COO=2, CFO/CMO=3, VP=4, Director=5, Head=6, Manager=7, Other=99 |
+| Decision-maker | role_priority ≤ 6 |
+
+Contacts sorted: decision-makers first, then by role priority ascending.
+
+### Real-Time Progress Updates
+
+The background task emits progress via `ProjectChatMessage` records:
+
+| action_type | UI rendering |
+|-------------|-------------|
+| `clay_gather_substep` | Compact inline status (spinner on last) |
+| `clay_gather_progress` | Blue card with spinner + markdown |
+| `clay_gather_done` | Green card with checkmark + results table |
+| `clay_gather_error` | Red card with alert |
+
+Frontend receives updates via persistent EventSource on `/api/search/chat/live/{project_id}`.
+
+### Done Message
+
+The completion message includes a markdown table with stats plus three clickable links:
+
+```
+**Gather complete** — 4m 43s
+
+| | |
+|---|---|
+| Companies found | **209** (saved **5**) |
+| Contacts found | **22** → **17** after office rules |
+| Decision-makers | **0** of 17 |
+| CRM draft | **17** contacts |
+| Segment | content creator platforms #605 |
+
+- Industries: Online Audio and Video Media, Internet Publishing, ...
+- Keywords: creator economy, content creator platform, ...
+- Sizes: 1-10, 11-50, 51-200, ...
+
+[Companies in Clay →](clay_url) | [People in Clay →](clay_url) | [Open CRM →](/contacts?...)
+```
+
+### Segment Label in CRM
+
+Each gather run creates a unique segment label: `"{description} #{job_id}"` (e.g., "content creator platforms #605"). The CRM link filters by this segment so the operator sees only contacts from that specific run.
+
+### Data Flow Summary
+
+| Table | What's stored |
+|-------|--------------|
+| `project_chat_messages` | All chat messages + progress steps + done message |
+| `search_jobs` | Job metadata (engine=CLAY, status, config with filters) |
+| `discovered_companies` | Clay-found companies (domain, name, is_target, company_info with clay_filters) |
+| `extracted_contacts` | Raw contacts from Clay (source=CLAY, raw_data with role_priority) |
+| `contacts` | CRM contacts (status=draft, source=pipeline, segment label, provenance JSON) |
+
+### Costs
+
+Clay gather costs **zero Clay credits** — it uses table creation + API read, not enrichment. The only cost is Gemini 2.5 Pro for ICP filter mapping (~$0.001 per call).
 
 ## CRM Export
 

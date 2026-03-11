@@ -2308,7 +2308,11 @@ async def _handle_clay_gather(
     job_id = search_job.id
 
     # Segment label (short, for CRM tagging)
-    segment_label = f"{segment_desc[:80].strip()} #{job_id}"
+    # Strip commas — the CRM frontend uses comma as multi-segment delimiter
+    seg_short = segment_desc.replace(",", " /")[:80].strip()
+    if "(" in seg_short and ")" not in seg_short:
+        seg_short = seg_short[:seg_short.rfind("(")].strip() or seg_short
+    segment_label = f"{seg_short} #{job_id}"
 
     async def _run_clay_gather_task():
         import time as _t
@@ -2531,10 +2535,10 @@ async def _handle_clay_gather(
                 filtered.sort(key=lambda c: (0 if c.get("_is_decision_maker") else 1, c.get("_role_priority", 99)))
 
                 # Limit to requested company_count unique companies and contact_count contacts.
-                # Prioritize companies that have the most decision-makers.
+                # Use round-robin to ensure diversity across companies.
                 if len(filtered) > contact_count or stats.get("unique_companies", 0) > company_count:
                     from collections import defaultdict
-                    company_contacts = defaultdict(list)
+                    company_contacts: dict[str, list] = defaultdict(list)
                     for c in filtered:
                         co = (c.get("company") or "").strip().lower()
                         company_contacts[co].append(c)
@@ -2547,14 +2551,23 @@ async def _handle_clay_gather(
                         company_scores.append((co, dm_count, best_priority, contacts_list))
                     company_scores.sort(key=lambda x: (-x[1], x[2]))
 
-                    # Take contacts from the top company_count companies
-                    selected = []
-                    selected_companies = 0
-                    for co, dm_count, best_prio, contacts_list in company_scores:
-                        if selected_companies >= company_count and len(selected) >= contact_count:
-                            break
-                        selected.extend(contacts_list)
-                        selected_companies += 1
+                    # Take top company_count companies
+                    top_companies = company_scores[:company_count]
+                    n_companies = len(top_companies)
+
+                    # Round-robin: allocate contacts_per_company, then fill remaining slots
+                    base_per_company = max(1, contact_count // n_companies)
+                    selected: list = []
+                    remainder: list = []
+                    for _co, _dm, _bp, contacts_list in top_companies:
+                        selected.extend(contacts_list[:base_per_company])
+                        remainder.extend(contacts_list[base_per_company:])
+
+                    # Fill remaining slots from leftover contacts (best roles first)
+                    remainder.sort(key=lambda c: (0 if c.get("_is_decision_maker") else 1, c.get("_role_priority", 99)))
+                    remaining_slots = contact_count - len(selected)
+                    if remaining_slots > 0:
+                        selected.extend(remainder[:remaining_slots])
 
                     filtered = selected[:contact_count]
 

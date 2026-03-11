@@ -308,7 +308,7 @@ export function ContactsPage() {
     source: sourceFilter || undefined,
     segment: segmentFilters.length > 0 ? segmentFilters.join(',') : undefined,
     geo: geoFilter || undefined,
-    campaign: campaignFilters.length > 0 ? campaignFilters.join(',') : undefined,
+    campaign: (campaignFilters.length > 0 && segmentFilters.length === 0) ? campaignFilters.join(',') : undefined,
     campaign_id: campaignIdFilter || undefined,
     has_replied: replyMode ? true : (repliedFilter ?? undefined),
     needs_followup: followupFilter ?? undefined,
@@ -833,7 +833,10 @@ export function ContactsPage() {
     setActiveProject(project);
     setReplyMode(false);
     setPage(1);
-    if (project?.campaign_filters && project.campaign_filters.length > 0) {
+    // Don't override campaign filters when deep-linked with segment/source filters
+    // (pipeline contacts don't belong to campaigns)
+    if (project?.campaign_filters && project.campaign_filters.length > 0
+        && segmentFilters.length === 0 && sourceFilter !== 'pipeline') {
       setCampaignFilters(project.campaign_filters);
     }
   };
