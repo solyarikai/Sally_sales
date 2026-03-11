@@ -942,11 +942,7 @@ Analyze these patterns and produce an improved template + ICP insights."""
         log.ai_reasoning = parsed.get("reasoning", "")
         log.status = "completed"
 
-        # Send Telegram notification
-        try:
-            await self._notify_learning_complete(session, project, log)
-        except Exception as tg_err:
-            logger.warning(f"Telegram notification failed after learning: {tg_err}")
+        # Learning logs visible in UI only — no Telegram notifications
 
     async def _upsert_knowledge(
         self,
