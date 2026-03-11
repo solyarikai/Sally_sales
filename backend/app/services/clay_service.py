@@ -179,7 +179,8 @@ class ClayService:
                     pass
 
         # Step 1: Map ICP to filters
-        await _emit("AI mapping ICP description to Clay filters (GPT-4o-mini)...")
+        model_label = "Gemini 2.5 Pro" if settings.GEMINI_API_KEY else "GPT-4o-mini"
+        await _emit(f"AI mapping ICP description to Clay filters ({model_label})...")
         logger.info(f"Clay TAM: mapping ICP to filters...")
         filters = await map_icp_to_clay_filters(icp_text)
         logger.info(f"Clay TAM: filters = {json.dumps(filters)}")
