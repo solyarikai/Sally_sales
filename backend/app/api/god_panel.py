@@ -497,13 +497,12 @@ async def get_project_metrics(
     #    Uses a CTE of project→campaign assignments (from Campaign table + campaign_filters)
     #    to filter platform_state entries, guaranteeing consistency with campaign-metrics.
     #    Without this filter, contacts with campaign entries from OTHER projects inflate counts.
+    # CTE: authoritative set of campaign names per project (from Campaign table only).
+    # campaign_filters is redundant — auto-discovery registers all campaigns in Campaign table.
+    # Using campaign_filters would inflate counts with junk entries (unknown UUIDs, legacy codes).
     project_campaigns_cte = """
         WITH project_campaigns AS (
             SELECT project_id, LOWER(name) AS cname FROM campaigns WHERE project_id IS NOT NULL
-            UNION
-            SELECT p.id, LOWER(cf::text)
-            FROM projects p, jsonb_array_elements_text(CAST(p.campaign_filters AS jsonb)) AS cf
-            WHERE p.deleted_at IS NULL AND p.campaign_filters IS NOT NULL
         )
     """
 
