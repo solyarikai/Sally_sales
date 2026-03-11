@@ -1011,7 +1011,7 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
 
     if compact:
         label = _category_label(category)
-        parts = [f"{indicator} <b>{label}</b>"]
+        parts = [f"📧 Email · {indicator} <b>{label}</b>"]
         if "email" not in hide_fields:
             parts.append(f"<b>{reply.lead_email}</b>")
         if "company" not in hide_fields:
@@ -1152,7 +1152,7 @@ async def notify_linkedin_reply(
 
     if compact:
         label = _category_label(category) if category else "LinkedIn Reply"
-        parts = [f"{indicator} <b>{label}</b>"]
+        parts = [f"💼 LinkedIn · {indicator} <b>{label}</b>"]
         parts.append(f"<b>{contact_name}</b>")
         if "email" not in hide_fields and is_real_email:
             parts.append(contact_email)
