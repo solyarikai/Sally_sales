@@ -183,8 +183,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
     }, { replace: true });
   }, [setSearchParams]);
   // When opened via Telegram link (?lead=...), use server-side lead_email filter
-  // and skip needs_reply/category/group_by_contact so the reply is always visible
-  const isDeepLink = Boolean(initialSearch);
+  // and skip needs_reply/category/group_by_contact so the reply is always visible.
+  // Clears when user changes search or switches category tab.
+  const isDeepLink = Boolean(initialSearch) && search === initialSearch && categoryFilter === '__all__';
 
   const [allCounts, setAllCounts] = useState<Record<string, number>>({});
   const isArchiveMode = ARCHIVE_KEYS.has(categoryFilter);
