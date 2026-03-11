@@ -2477,11 +2477,165 @@ async def _handle_clay_gather(
                     await task_db.commit()
                     return
 
+                # ── Phase 2b: Validate companies against ICP via website scraping + GPT ──
+                from sqlalchemy import text as sql_text
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"**Step 2b/5 — Validating companies** [{_elapsed()}]\n\n"
+                    f"Scraping **{len(domains)}** websites and checking ICP fit...",
+                    action_type="clay_gather_progress",
+                )
+                await task_db.commit()
+
+                from app.services.scraper_service import ScraperService
+                import json as _json
+                _scraper = ScraperService()
+                import openai as _oai
+                _oai_client = _oai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+                # Build domain→company map for descriptions
+                domain_company_map = {}
+                for comp in search_pool:
+                    d = (comp.get("Domain") or comp.get("domain") or "").strip().lower().replace("www.", "")
+                    if d:
+                        domain_company_map[d] = {
+                            "name": comp.get("Name") or comp.get("name") or "",
+                            "description": comp.get("Description") or comp.get("description") or "",
+                            "industry": comp.get("Primary Industry") or comp.get("industry") or "",
+                        }
+
+                # Scrape websites concurrently (max 15 at a time)
+                import asyncio as _asyncio
+                _scrape_sem = _asyncio.Semaphore(15)
+                async def _scrape_one(domain: str):
+                    async with _scrape_sem:
+                        try:
+                            r = await _scraper.scrape_website(f"https://{domain}", timeout=12)
+                            return domain, r.get("text", "")[:3000] if r.get("success") else ""
+                        except Exception:
+                            return domain, ""
+                scrape_tasks = [_scrape_one(d) for d in domains]
+                scrape_results = await _asyncio.gather(*scrape_tasks)
+                domain_texts = {d: txt for d, txt in scrape_results}
+
+                scraped_count = sum(1 for txt in domain_texts.values() if txt)
+                await _substep(f"Scraped {scraped_count}/{len(domains)} websites, validating with GPT...")
+
+                # Validate with GPT-4o-mini in batches of 10
+                validated_domains = []
+                rejected_domains = []
+                _validate_batch_size = 10
+
+                for batch_start in range(0, len(domains), _validate_batch_size):
+                    batch_domains = domains[batch_start:batch_start + _validate_batch_size]
+                    batch_items = []
+                    for d in batch_domains:
+                        site_text = domain_texts.get(d, "")
+                        comp_info = domain_company_map.get(d, {})
+                        preview = site_text[:1500] if site_text else comp_info.get("description", "")[:500]
+                        batch_items.append({
+                            "domain": d,
+                            "name": comp_info.get("name", d),
+                            "clay_description": comp_info.get("description", ""),
+                            "clay_industry": comp_info.get("industry", ""),
+                            "website_text": preview,
+                        })
+
+                    _validate_prompt = (
+                        f"User is looking for: \"{segment_desc}\"\n\n"
+                        f"For each company below, decide if it matches the user's request.\n"
+                        f"Return JSON array of objects: {{\"domain\": \"...\", \"match\": true/false, \"reason\": \"...\"}}\n"
+                        f"Be strict — only mark match=true if the company clearly fits what the user described.\n\n"
+                    )
+                    for item in batch_items:
+                        _validate_prompt += (
+                            f"---\nDomain: {item['domain']}\n"
+                            f"Name: {item['name']}\n"
+                            f"Clay description: {item['clay_description']}\n"
+                            f"Clay industry: {item['clay_industry']}\n"
+                            f"Website text: {item['website_text'][:800]}\n"
+                        )
+
+                    try:
+                        resp = await _oai_client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[
+                                {"role": "system", "content": "You validate whether companies match a target ICP. Return only JSON."},
+                                {"role": "user", "content": _validate_prompt},
+                            ],
+                            temperature=0.1,
+                            response_format={"type": "json_object"},
+                            max_tokens=2000,
+                        )
+                        raw_resp = resp.choices[0].message.content
+                        parsed_resp = _json.loads(raw_resp)
+                        # Handle both {"results": [...]} and direct [...]
+                        verdicts = parsed_resp if isinstance(parsed_resp, list) else parsed_resp.get("results", parsed_resp.get("companies", []))
+
+                        verdict_map = {v.get("domain", "").lower(): v for v in verdicts if isinstance(v, dict)}
+                        for d in batch_domains:
+                            v = verdict_map.get(d, {})
+                            if v.get("match", True):  # default to True if missing
+                                validated_domains.append(d)
+                            else:
+                                rejected_domains.append(d)
+                                # Update confidence in DB
+                                await task_db.execute(
+                                    sql_text(
+                                        "UPDATE discovered_companies SET confidence = 0.2, "
+                                        "is_target = false "
+                                        "WHERE project_id = :pid AND domain = :domain"
+                                    ),
+                                    {"pid": project_id, "domain": d},
+                                )
+                    except Exception as e:
+                        logger.warning(f"ICP validation batch failed: {e}")
+                        # On failure, keep all domains (don't block pipeline)
+                        validated_domains.extend(batch_domains)
+
+                await task_db.commit()
+
+                # Update validated companies to higher confidence
+                if validated_domains:
+                    await task_db.execute(
+                        sql_text(
+                            "UPDATE discovered_companies SET confidence = 0.85 "
+                            "WHERE project_id = :pid AND domain = ANY(:domains)"
+                        ),
+                        {"pid": project_id, "domains": validated_domains},
+                    )
+                    await task_db.commit()
+
+                await _save_chat_message(
+                    task_db, project_id, "system",
+                    f"**Validation complete** [{_elapsed()}]\n\n"
+                    f"**{len(validated_domains)}** companies match ICP, "
+                    f"**{len(rejected_domains)}** rejected"
+                    + (f"\n\nRejected: {', '.join(rejected_domains[:10])}" if rejected_domains else ""),
+                    action_type="clay_gather_substep",
+                )
+                await task_db.commit()
+
+                # Use only validated domains for contact search
+                domains = validated_domains
+
+                if not domains:
+                    crm_url = f"/contacts?project_id={project_id}&source=pipeline&segment={_urllib_parse.quote(segment_label)}"
+                    await _save_chat_message(
+                        task_db, project_id, "system",
+                        f"No companies passed ICP validation. Try a different segment description.\n\n"
+                        f"All {len(rejected_domains)} companies were rejected as not matching: \"{segment_desc}\"",
+                        action_type="clay_gather_done",
+                        action_data={"crm_url": crm_url, "total_companies": 0, "total_contacts": 0},
+                    )
+                    await task_db.commit()
+                    return
+
                 # ── Phase 3: Find people ──
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Step 3/5 — Finding contacts** [{_elapsed()}] (3-8 min)\n\n"
-                    f"Searching at **{len(domains)}** company domains...",
+                    f"Searching at **{len(domains)}** validated company domains...",
                     action_type="clay_gather_progress",
                 )
                 await task_db.commit()
