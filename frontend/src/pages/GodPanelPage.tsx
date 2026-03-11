@@ -673,10 +673,7 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
                       onClick={e => {
                         if (p.meetings_booked != null && p.meetings_booked > 0) {
                           e.stopPropagation();
-                          const params = new URLSearchParams({ project_id: String(p.project_id), status: 'negotiating_meeting,scheduled,meeting_held,meeting_no_show,meeting_rescheduled' });
-                          if (data?.period_since) params.set('after', data.period_since.split('T')[0]);
-                          if (data?.period_until) params.set('before', data.period_until.split('T')[0]);
-                          navigate(`/contacts?${params.toString()}`);
+                          navigate(`/contacts?project_id=${p.project_id}&status=negotiating_meeting,scheduled,meeting_held,meeting_no_show,meeting_rescheduled`);
                         }
                       }}
                       title={p.meetings_booked != null && p.meetings_booked > 0 ? 'View scheduled leads in CRM' : undefined}

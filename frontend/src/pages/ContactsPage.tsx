@@ -108,9 +108,10 @@ export function ContactsPage() {
   const [showContactModal, setShowContactModal] = useState(false);
   const [initialCampaignKey, setInitialCampaignKey] = useState<string | null>(null);
 
-  // Project view
+  // Project view — URL project_id is highest priority, then global navbar
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const currentProject = useAppStore(s => s.currentProject);
+  const urlProjectRef = useRef(searchParams.get('project_id'));
 
   // Reply processing mode
   const [replyMode, setReplyMode] = useState(false);
@@ -245,9 +246,9 @@ export function ContactsPage() {
     setSearchParams(params, { replace: true });
   }, [activeProject, debouncedSearch, statusFilters, sourceFilter, segmentFilters, geoFilter, campaignFilters, campaignIdFilter, repliedFilter, followupFilter, createdAfter, createdBefore, domainFilter, suitableForFilter, replyCategoryFilters, replySince]);
 
-  // Sync CRM project from global navbar project selector
+  // Sync CRM project from global navbar project selector (only when URL doesn't specify one)
   useEffect(() => {
-    if (currentProject) {
+    if (currentProject && !urlProjectRef.current) {
       selectProject(currentProject);
     }
   }, [currentProject]);
@@ -441,9 +442,9 @@ export function ContactsPage() {
     try {
       const data = await contactsApi.listProjects();
       setProjects(data);
-      // Auto-select project from URL param
+      // Auto-select project from URL param (highest priority — overrides global store)
       const urlProjectId = searchParams.get('project_id');
-      if (urlProjectId && !activeProject) {
+      if (urlProjectId) {
         const proj = data.find((p: Project) => p.id === parseInt(urlProjectId));
         if (proj) {
           selectProject(proj);
