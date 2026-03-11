@@ -916,11 +916,11 @@ export function ContactsPage() {
             <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Import">
               <Upload className="w-3.5 h-3.5" />
             </button>
-            <button onClick={() => setShowEnrichModal(true)} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Enrich from CSV">
-              <Sparkles className="w-3.5 h-3.5" />
-            </button>
             <button onClick={handleExportCsv} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Export CSV">
               <Download className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => setShowEnrichModal(true)} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Enrich from CSV">
+              <Sparkles className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={handleExportGoogleSheet}
