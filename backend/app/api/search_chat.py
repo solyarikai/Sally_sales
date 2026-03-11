@@ -2264,20 +2264,10 @@ async def _handle_clay_gather(
     company_count = parsed.get("clay_company_count") or 10
     contact_count = parsed.get("clay_contact_count") or 30
 
-    # Build ICP text: user's segment is PRIMARY, project context only if segment is vague
-    icp_parts = [segment_desc]
-    if len(segment_desc.strip()) < 20:
-        # Short/vague segment — enrich with project context as secondary hint
-        if proj.target_segments:
-            icp_parts.append(f"\n\nProject context (secondary):\n{proj.target_segments}")
-        try:
-            from app.services.project_knowledge_service import project_knowledge_service
-            kb_summary = await project_knowledge_service.get_summary(db, project_id)
-            if kb_summary:
-                icp_parts.append(f"\n\nProject knowledge:\n{kb_summary[:1000]}")
-        except Exception:
-            pass
-    icp_text = "\n".join(icp_parts)
+    # Build ICP text: user's segment description stands alone.
+    # Never append project context — it confuses GPT into mapping to project's ICP
+    # instead of the operator's requested segment.
+    icp_text = segment_desc
 
     # Map ICP to Clay filters for the preview
     try:
