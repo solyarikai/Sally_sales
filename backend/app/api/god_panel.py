@@ -661,10 +661,13 @@ async def get_campaign_metrics(
     else:
         since_clause = ""
     contacts_sql = text(f"""
-        SELECT campaign_name, platform, SUM(contacts_added) AS contacts_added FROM (
+        SELECT campaign_name, platform, SUM(contacts_added) AS contacts_added,
+               MAX(ext_id) AS ext_id
+        FROM (
             SELECT LOWER(COALESCE(ce->>'name', ce->>'campaign_name')) AS campaign_name,
                    'smartlead' AS platform,
-                   COUNT(DISTINCT c.id) AS contacts_added
+                   COUNT(DISTINCT c.id) AS contacts_added,
+                   MAX(COALESCE(ce->>'campaign_id', ce->>'id')) AS ext_id
             FROM contacts c,
                  jsonb_array_elements(
                    COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', CAST('[]' AS jsonb))
@@ -674,7 +677,8 @@ async def get_campaign_metrics(
             UNION ALL
             SELECT LOWER(COALESCE(ce->>'name', ce->>'campaign_name')) AS campaign_name,
                    'getsales' AS platform,
-                   COUNT(DISTINCT c.id) AS contacts_added
+                   COUNT(DISTINCT c.id) AS contacts_added,
+                   NULL AS ext_id
             FROM contacts c,
                  jsonb_array_elements(
                    COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', CAST('[]' AS jsonb))
@@ -690,13 +694,26 @@ async def get_campaign_metrics(
         params["since"] = since_dt
     ps_result = await session.execute(contacts_sql, params)
     # Store as {name: {platform: str, count: int}}
+    # Merge counts when same campaign name appears in both platforms
+    # Keep the platform that has more contacts
     ps_contacts: dict[str, dict] = {}
     for row in ps_result.all():
         if row.campaign_name:
-            ps_contacts[row.campaign_name.lower()] = {
-                "platform": row.platform,
-                "count": row.contacts_added,
-            }
+            key = row.campaign_name.lower()
+            if key in ps_contacts:
+                ps_contacts[key]["count"] += row.contacts_added
+                if row.contacts_added > ps_contacts[key].get("_dominant_count", 0):
+                    ps_contacts[key]["platform"] = row.platform
+                    ps_contacts[key]["_dominant_count"] = row.contacts_added
+                if row.ext_id and not ps_contacts[key].get("ext_id"):
+                    ps_contacts[key]["ext_id"] = row.ext_id
+            else:
+                ps_contacts[key] = {
+                    "platform": row.platform,
+                    "count": row.contacts_added,
+                    "_dominant_count": row.contacts_added,
+                    "ext_id": row.ext_id,
+                }
 
     if not campaigns and not ps_contacts:
         return {"campaigns": [], "checksum": {"campaigns_warm_total": 0, "project_warm_total": 0, "match": True}}
@@ -730,18 +747,25 @@ async def get_campaign_metrics(
             continue
         warm = warm_by_campaign.get(cname_lower, 0)
         camp = campaign_table_map.get(cname_lower)
-        platform = camp.platform if camp else info["platform"]
-        if camp and camp.platform == "smartlead" and not since_dt:
+        # Use actual data source platform, not Campaign table override
+        platform = info["platform"]
+        if camp and camp.platform == "smartlead" and platform == "smartlead" and not since_dt:
             contacts = max(camp.leads_count or 0, cnt)
         else:
             contacts = cnt
+        # external_id: prefer Campaign table (if platform matches), then platform_state
+        ext_id = None
+        if camp and camp.external_id and camp.platform == platform:
+            ext_id = camp.external_id
+        if not ext_id and platform == "smartlead":
+            ext_id = info.get("ext_id")
         seen_names[cname_lower] = {
             "campaign_id": camp.id if camp else 0,
             "campaign_name": camp.name if camp else cname_lower,
             "platform": platform,
             "leads_count": contacts,
             "warm_replies": warm,
-            "external_id": camp.external_id if camp else None,
+            "external_id": ext_id,
         }
 
     campaign_metrics = list(seen_names.values())
