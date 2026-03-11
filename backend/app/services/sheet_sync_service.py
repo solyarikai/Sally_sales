@@ -203,12 +203,17 @@ class SheetSyncService:
             try:
                 existing_rows = google_sheets_service.read_sheet_raw(sheet_id, replies_tab)
                 existing_emails = set()
+                existing_usernames = set()  # email local part for fuzzy domain matching
                 last_sheet_index = 0
                 for row in existing_rows[1:]:  # skip header
                     # Column J (index 9) = target_lead_email for rizzult, col 4 for default
                     email_col = 9 if config.get("row_format") == "rizzult_28col" else 4
                     if len(row) > email_col and row[email_col]:
-                        existing_emails.add(row[email_col].strip().lower())
+                        email = row[email_col].strip().lower()
+                        existing_emails.add(email)
+                        # Track username for fuzzy dedup (pp@santabrisa.co vs pp@santabrisa.com)
+                        if "@" in email:
+                            existing_usernames.add(email.split("@")[0])
                     # Track last index (column A)
                     if row and row[0]:
                         try:
@@ -217,7 +222,19 @@ class SheetSyncService:
                             pass
                 config["_last_sheet_index"] = last_sheet_index + 1
                 before = len(replies)
-                replies = [r for r in replies if (r.lead_email or "").lower() not in existing_emails]
+
+                def _is_duplicate(reply_email: str) -> bool:
+                    email = (reply_email or "").lower()
+                    if email in existing_emails:
+                        return True
+                    # Fuzzy: same username + similar domain (e.g. .co vs .com)
+                    if "@" in email:
+                        username = email.split("@")[0]
+                        if username in existing_usernames:
+                            return True
+                    return False
+
+                replies = [r for r in replies if not _is_duplicate(r.lead_email)]
                 skipped = before - len(replies)
                 if skipped:
                     logger.info(f"Sheet dedup: skipped {skipped} replies already in sheet")
