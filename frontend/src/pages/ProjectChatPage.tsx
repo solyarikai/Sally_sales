@@ -236,7 +236,19 @@ export function ProjectChatPage() {
         if (data.role === 'system') {
           setMessages(prev => {
             if (prev.some(m => m.id === data.id)) return prev;
-            return [...prev, {
+            let updated = [...prev];
+            // When a pipeline finishes, mark the initial "started" message as completed
+            const at = data.action_type || '';
+            if (at.includes('done') || at.includes('error') || at.includes('completed')) {
+              const prefix = at.split('_done')[0].split('_error')[0].split('_completed')[0];
+              updated = updated.map((m) =>
+                m.action_data?.status === 'started' &&
+                m.action_type?.startsWith(prefix)
+                  ? { ...m, action_data: { ...m.action_data, status: 'completed' } }
+                  : m
+              );
+            }
+            return [...updated, {
               id: data.id,
               role: data.role,
               content: data.content,

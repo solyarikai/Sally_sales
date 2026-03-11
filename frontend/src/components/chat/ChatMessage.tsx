@@ -136,6 +136,14 @@ function ActionButtons({ action_type, action_data }: { action_type?: string; act
     );
   }
 
+  if ((action_type === 'clay_gather' || action_type === 'clay_people') && action_data.status === 'completed') {
+    buttons.push(
+      <span key="done" className={cn(btnClass, "cursor-default opacity-70")}>
+        <Check className="w-3.5 h-3.5" /> Pipeline completed
+      </span>
+    );
+  }
+
   if ((action_type === 'clay_people_done') && action_data.sheet_url) {
     buttons.push(
       <a key="sheet" href={action_data.sheet_url} target="_blank" rel="noopener noreferrer" className={btnClass}>

@@ -89,9 +89,26 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
         duration_ms: m.duration_ms,
       }));
       if (pidRef.current === projectId) {
-        setMessages(msgs);
+        // Mark "started" messages as completed if a done/error exists later
+        const doneTypes = new Set<string>();
+        for (const m of msgs) {
+          const at = m.action_type || '';
+          if (at.includes('done') || at.includes('error') || at.includes('completed')) {
+            doneTypes.add(at.split('_done')[0].split('_error')[0].split('_completed')[0]);
+          }
+        }
+        const fixed = msgs.map((m) => {
+          if (m.action_data?.status === 'started' && m.action_type) {
+            const prefix = m.action_type;
+            if (doneTypes.has(prefix)) {
+              return { ...m, action_data: { ...m.action_data, status: 'completed' } };
+            }
+          }
+          return m;
+        });
+        setMessages(fixed);
         setHistoryLoaded(true);
-        const lastWithSuggestions = [...msgs]
+        const lastWithSuggestions = [...fixed]
           .reverse()
           .find((m) => m.role === 'assistant' && m.suggestions?.length);
         if (lastWithSuggestions?.suggestions) {
@@ -118,8 +135,20 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
         if (data.role === 'system' && pidRef.current === projectId) {
           setMessages((prev) => {
             if (prev.some((m) => m.id === data.id)) return prev;
+            let updated = [...prev];
+            // When a pipeline finishes, mark the initial "started" message as completed
+            const at = data.action_type || '';
+            if (at.includes('done') || at.includes('error') || at.includes('completed')) {
+              const prefix = at.split('_done')[0].split('_error')[0].split('_completed')[0];
+              updated = updated.map((m) =>
+                m.action_data?.status === 'started' &&
+                m.action_type?.startsWith(prefix)
+                  ? { ...m, action_data: { ...m.action_data, status: 'completed' } }
+                  : m
+              );
+            }
             return [
-              ...prev,
+              ...updated,
               {
                 id: data.id,
                 role: data.role,
