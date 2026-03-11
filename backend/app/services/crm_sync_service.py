@@ -1137,6 +1137,7 @@ class CRMSyncService:
                         "location": row.get("location", ""),
                         "custom_fields": custom_fields,
                         "created_at": row.get("created_at", ""),
+                        "_raw_csv_row": dict(row),  # Store ALL SmartLead CSV fields
                         "campaigns": [{
                             "campaign_name": camp.name,
                             "campaign_id": camp.external_id,
@@ -1386,6 +1387,10 @@ class CRMSyncService:
             existing_campaigns = [c for c in existing_campaigns if isinstance(c, dict)]
             if existing_campaigns:
                 existing.set_platform("smartlead", {"campaigns": existing_campaigns})
+            # Store ALL raw SmartLead fields in smartlead_raw (full CSV row data)
+            raw_data = lead.get("_raw_csv_row")
+            if raw_data and isinstance(raw_data, dict):
+                existing.smartlead_raw = raw_data
             existing.mark_synced("smartlead")
             return "updated"
         else:
@@ -1423,6 +1428,10 @@ class CRMSyncService:
             contact.update_platform_status("smartlead", smartlead_status)
             if campaign_data:
                 contact.set_platform("smartlead", {"campaigns": campaign_data})
+            # Store ALL raw SmartLead fields
+            raw_data = lead.get("_raw_csv_row")
+            if raw_data and isinstance(raw_data, dict):
+                contact.smartlead_raw = raw_data
             return "created"
     
     async def sync_getsales_contacts_full(
@@ -1559,6 +1568,8 @@ class CRMSyncService:
             existing_campaigns = [c for c in existing_campaigns if isinstance(c, dict)]
             if existing_campaigns:
                 existing.set_platform("getsales", {"campaigns": existing_campaigns})
+            # Store ALL raw GetSales fields
+            existing.getsales_raw = {"lead": lead, "flows": item.get("flows"), "custom_fields": item.get("custom_fields")}
             existing.mark_synced("getsales")
             return "updated"
         else:
@@ -1604,6 +1615,8 @@ class CRMSyncService:
             contact.update_platform_status("getsales", getsales_status)
             if campaign_data:
                 contact.set_platform("getsales", {"campaigns": campaign_data})
+            # Store ALL raw GetSales fields
+            contact.getsales_raw = {"lead": lead, "flows": item.get("flows"), "custom_fields": item.get("custom_fields")}
             contact.mark_synced("getsales")
             session.add(contact)
             return "created"
