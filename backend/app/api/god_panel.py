@@ -5,7 +5,7 @@ Endpoints for monitoring campaign discovery, resolution, and assignment.
 """
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -649,18 +649,6 @@ async def get_campaign_metrics(
         for row in ps_result.all() if row.campaign_name
     }
 
-    # 3. Get project's campaign_filters for matching GetSales campaigns not in Campaign table
-    proj_result = await session.execute(select(Project.campaign_filters).where(Project.id == project_id))
-    proj_row = proj_result.first()
-    campaign_filters_set: set[str] = set()
-    if proj_row and proj_row.campaign_filters:
-        import json as json_lib
-        try:
-            filters = proj_row.campaign_filters if isinstance(proj_row.campaign_filters, list) else json_lib.loads(proj_row.campaign_filters)
-            campaign_filters_set = {f.lower() for f in filters}
-        except Exception:
-            pass
-
     if not campaigns and not ps_contacts:
         return {"campaigns": [], "checksum": {"campaigns_warm_total": 0, "project_warm_total": 0, "match": True}}
 
@@ -679,51 +667,35 @@ async def get_campaign_metrics(
     warm_result = await session.execute(warm_query)
     warm_by_campaign = {row.cname: row.warm_count for row in warm_result.all()}
 
-    # 5. Build response — deduplicate by lowercase campaign name
-    #    SmartLead: All Time uses Campaign.leads_count, time-filtered uses platform_state added_at
-    #    GetSales: platform_state count (CRM contacts)
-    seen_names: dict[str, dict] = {}
+    # 5. Build response from platform_state contacts (primary source)
+    #    Enrich with Campaign table data where available (external_id, platform)
+    campaign_table_map: dict[str, Any] = {}
     for c in campaigns:
-        name_lower = c.name.lower()
-        warm = warm_by_campaign.get(name_lower, 0)
-        ps_count = ps_contacts.get(name_lower, 0)
-        if c.platform == "smartlead" and not since_dt:
-            contacts = max(c.leads_count or 0, ps_count)
-        else:
-            contacts = ps_count
-        if name_lower in seen_names:
-            existing = seen_names[name_lower]
-            existing["leads_count"] = max(existing["leads_count"], contacts)
-        else:
-            seen_names[name_lower] = {
-                "campaign_id": c.id,
-                "campaign_name": c.name,
-                "platform": c.platform,
-                "leads_count": contacts,
-                "warm_replies": warm,
-                "external_id": c.external_id,
-            }
+        campaign_table_map[c.name.lower()] = c
 
-    # 5b. Include GetSales campaigns from campaign_filters not in Campaign table
     def _is_display_worthy(name: str) -> bool:
         if name.startswith("unknown (") or name.startswith("kyd"):
             return False
-        parts = name.split(" - ", 1)
-        if len(parts) == 2 and parts[1].strip() and not any(kw in parts[1] for kw in ["dm", "list", "hq", "ice", "crypto"]):
-            return False
         return True
 
+    seen_names: dict[str, dict] = {}
     for cname_lower, cnt in ps_contacts.items():
-        if cname_lower not in seen_names and cname_lower in campaign_filters_set and cnt > 0 and _is_display_worthy(cname_lower):
-            warm = warm_by_campaign.get(cname_lower, 0)
-            seen_names[cname_lower] = {
-                "campaign_id": 0,
-                "campaign_name": cname_lower,
-                "platform": "getsales",
-                "leads_count": cnt,
-                "warm_replies": warm,
-                "external_id": None,
-            }
+        if cnt <= 0 or not _is_display_worthy(cname_lower):
+            continue
+        warm = warm_by_campaign.get(cname_lower, 0)
+        camp = campaign_table_map.get(cname_lower)
+        if camp and camp.platform == "smartlead" and not since_dt:
+            contacts = max(camp.leads_count or 0, cnt)
+        else:
+            contacts = cnt
+        seen_names[cname_lower] = {
+            "campaign_id": camp.id if camp else 0,
+            "campaign_name": camp.name if camp else cname_lower,
+            "platform": camp.platform if camp else "getsales",
+            "leads_count": contacts,
+            "warm_replies": warm,
+            "external_id": camp.external_id if camp else None,
+        }
 
     campaign_metrics = list(seen_names.values())
     campaigns_warm_total = sum(m["warm_replies"] for m in campaign_metrics)
