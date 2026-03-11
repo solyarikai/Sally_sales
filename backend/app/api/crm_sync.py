@@ -1651,7 +1651,9 @@ async def fast_backfill(
         )
         campaigns = camp_result.scalars().all()
         stats["sl_campaigns"] = len(campaigns)
-        logger.info(f"[FAST-BACKFILL] SmartLead: {len(campaigns)} campaigns with leads, concurrency={concurrency}")
+        total_camps = len(campaigns)
+        completed_count = {"n": 0}
+        logger.info(f"[FAST-BACKFILL] SmartLead: {total_camps} campaigns with leads, concurrency={concurrency}")
 
         async def _export_and_process(camp):
             async with sem:
@@ -1669,45 +1671,65 @@ async def fast_backfill(
                     camp.synced_leads_count = actual_count
                     camp.last_contact_sync_at = datetime.utcnow()
 
-                    async with async_session_maker() as local_session:
-                        for row in csv_rows:
-                            try:
-                                custom_fields_raw = row.get("custom_fields", "{}")
+                    # Process in batches of 100 with per-row error isolation
+                    BATCH = 100
+                    for i in range(0, len(csv_rows), BATCH):
+                        batch = csv_rows[i:i + BATCH]
+                        async with async_session_maker() as local_session:
+                            for row in batch:
                                 try:
-                                    custom_fields = json_mod.loads(custom_fields_raw) if custom_fields_raw else {}
-                                except (json_mod.JSONDecodeError, TypeError):
-                                    custom_fields = {}
-                                reply_count = int(row.get("reply_count", 0) or 0)
-                                lead = {
-                                    "id": row.get("id", ""),
-                                    "email": row.get("email", ""),
-                                    "first_name": row.get("first_name", ""),
-                                    "last_name": row.get("last_name", ""),
-                                    "company_name": row.get("company_name", ""),
-                                    "phone_number": row.get("phone_number", ""),
-                                    "linkedin_profile": row.get("linkedin_profile", ""),
-                                    "location": row.get("location", ""),
-                                    "custom_fields": custom_fields,
-                                    "created_at": row.get("created_at", ""),
-                                    "_raw_csv_row": dict(row),  # Store ALL SmartLead CSV fields
-                                    "campaigns": [{
-                                        "campaign_name": camp.name,
-                                        "campaign_id": camp.external_id,
-                                        "lead_status": row.get("status", "ACTIVE"),
+                                    custom_fields_raw = row.get("custom_fields", "{}")
+                                    try:
+                                        custom_fields = json_mod.loads(custom_fields_raw) if custom_fields_raw else {}
+                                    except (json_mod.JSONDecodeError, TypeError):
+                                        custom_fields = {}
+                                    reply_count = int(row.get("reply_count", 0) or 0)
+                                    lead = {
+                                        "id": row.get("id", ""),
+                                        "email": row.get("email", ""),
+                                        "first_name": row.get("first_name", ""),
+                                        "last_name": row.get("last_name", ""),
+                                        "company_name": row.get("company_name", ""),
+                                        "phone_number": row.get("phone_number", ""),
+                                        "linkedin_profile": row.get("linkedin_profile", ""),
+                                        "location": row.get("location", ""),
+                                        "custom_fields": custom_fields,
                                         "created_at": row.get("created_at", ""),
-                                        "reply_time": True if reply_count > 0 else None,
-                                    }],
-                                }
-                                result = await sync_service._process_smartlead_lead(
-                                    local_session, company.id, lead, campaign_project_id=camp.project_id
-                                )
-                                local_stats[result] += 1
+                                        "_raw_csv_row": dict(row),
+                                        "campaigns": [{
+                                            "campaign_name": camp.name,
+                                            "campaign_id": camp.external_id,
+                                            "lead_status": row.get("status", "ACTIVE"),
+                                            "created_at": row.get("created_at", ""),
+                                            "reply_time": True if reply_count > 0 else None,
+                                        }],
+                                    }
+                                    result = await sync_service._process_smartlead_lead(
+                                        local_session, company.id, lead, campaign_project_id=camp.project_id
+                                    )
+                                    local_stats[result] += 1
+                                except Exception:
+                                    local_stats["skipped"] += 1
+                                    try:
+                                        await local_session.rollback()
+                                    except Exception:
+                                        pass
+                            try:
+                                await local_session.commit()
                             except Exception:
-                                local_stats["skipped"] += 1
-
-                        await local_session.commit()
+                                await local_session.rollback()
+                    completed_count["n"] += 1
+                    n = completed_count["n"]
+                    elapsed = (datetime.utcnow() - start_time).total_seconds()
+                    if n % 25 == 0 or n == total_camps:
+                        pct = n * 100 / total_camps
+                        eta = elapsed / n * (total_camps - n) if n > 0 else 0
+                        logger.info(f"[FAST-BACKFILL] Progress: {n}/{total_camps} ({pct:.0f}%) "
+                                    f"elapsed={elapsed:.0f}s eta={eta:.0f}s "
+                                    f"leads={local_stats['leads']} created={local_stats['created']} updated={local_stats['updated']}")
                     return local_stats
                 except Exception as e:
+                    completed_count["n"] += 1
                     logger.warning(f"[FAST-BACKFILL] Campaign {camp.name} failed: {e}")
                     return {"created": 0, "updated": 0, "skipped": 0, "leads": 0, "error": str(e)}
 
@@ -1759,7 +1781,14 @@ async def fast_backfill(
                                         local_stats["contacts"] += 1
                                     except Exception:
                                         local_stats["skipped"] += 1
-                                await local_session.commit()
+                                        try:
+                                            await local_session.rollback()
+                                        except Exception:
+                                            pass
+                                try:
+                                    await local_session.commit()
+                                except Exception:
+                                    await local_session.rollback()
                             offset += page_size
                             if len(leads) < page_size:
                                 break
