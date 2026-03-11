@@ -214,8 +214,9 @@ export function ContactsPage() {
     isFirstSync.current = false;
 
     // Managed params: set or delete based on current state
+    // urlProjectRef preserves project_id from URL until loadProjects resolves
     const managed: Record<string, string | null> = {
-      project_id: activeProject ? String(activeProject.id) : null,
+      project_id: activeProject ? String(activeProject.id) : (urlProjectRef.current || null),
       search: debouncedSearch || null,
       status: statusFilters.length ? statusFilters.join(',') : null,
       source: sourceFilter,
@@ -826,8 +827,9 @@ export function ContactsPage() {
   };
 
 
-  // Select a project
+  // Select a project — clears URL ref so sync effect uses activeProject from here on
   const selectProject = (project: Project | null) => {
+    urlProjectRef.current = null;
     setActiveProject(project);
     setReplyMode(false);
     setPage(1);
