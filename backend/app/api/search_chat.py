@@ -61,6 +61,7 @@ async def _load_chat_context(db: AsyncSession, project_id: int, limit: int = 20)
         .where(
             ProjectChatMessage.project_id == project_id,
             ProjectChatMessage.role.in_(["user", "assistant"]),
+            ProjectChatMessage.action_type != "cleared",
         )
         .order_by(ProjectChatMessage.created_at.desc())
         .limit(limit)
@@ -117,7 +118,10 @@ async def get_chat_messages(
 
     result = await db.execute(
         select(ProjectChatMessage)
-        .where(ProjectChatMessage.project_id == project_id)
+        .where(
+            ProjectChatMessage.project_id == project_id,
+            ProjectChatMessage.action_type != "cleared",
+        )
         .order_by(ProjectChatMessage.created_at.asc())
         .limit(limit)
     )
