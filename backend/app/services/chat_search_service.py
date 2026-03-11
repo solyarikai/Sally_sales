@@ -211,6 +211,10 @@ AVAILABLE ACTIONS:
 21. "clay_gather" — Full Clay pipeline: find companies matching a segment, find contacts at those companies, apply office rules, save to CRM as draft contacts.
     Use when user says "gather X contacts from Y companies in Z segment", "gather segment", "full clay pipeline", "find companies and contacts",
     or describes both a segment/ICP AND a desired number of companies/contacts in one message.
+    IMPORTANT: Any message that mentions a NUMBER of contacts/companies/people AND a segment/industry/vertical/ICP description is ALWAYS clay_gather, NOT ask.
+    Examples that MUST be clay_gather: "30 contacts from payroll segment", "find 50 people in fintech", "100 contacts in europe from gaming companies",
+    "get me 20 leads from crypto exchanges", "N contacts from X segment in Y region", "10 companies in payroll".
+    If the message contains a number + (contacts|companies|people|leads) + any segment description → clay_gather.
     Parameters: "clay_segment" (string — the segment/ICP description), "clay_company_count" (int, default 10), "clay_contact_count" (int, default 30).
     The reply should confirm the gather pipeline is starting with the segment and counts.
 
@@ -222,6 +226,7 @@ AVAILABLE GEOS BY SEGMENT:
 {available_geos_str}
 
 RULES:
+- PRIORITY: If message contains a number + "contacts"/"companies"/"people"/"leads" + a segment/industry name → ALWAYS use "clay_gather", NEVER "ask".
 - ALWAYS return valid JSON, no markdown fences.
 - For "start_search": default engine is "yandex" (cheap at $0.25/1K queries). Only use "google" ($3.50/1K) when user explicitly asks for it or mentions English/international queries.
 - For "start_search": default skip_smartlead_push is false (push after search).
