@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Shield, Check, AlertTriangle, Loader2, ChevronRight, ChevronDown, Plus, Minus, Info, Clock, ExternalLink, Users, MessageSquare, AlertCircle } from 'lucide-react';
+import { Shield, Check, AlertTriangle, Loader2, ChevronRight, ChevronDown, Plus, Minus, Info, Clock, ExternalLink, Users, MessageSquare, AlertCircle, Calendar } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useAppStore } from '../store/appStore';
@@ -489,12 +489,34 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
     }
   };
 
+  // Auto-fill date inputs from API response period dates
+  useEffect(() => {
+    if (data && period !== 'custom') {
+      if (data.period_since) {
+        setCustomSince(data.period_since.split('T')[0]);
+      } else {
+        setCustomSince('');
+      }
+      if (data.period_until) {
+        setCustomUntil(data.period_until.split('T')[0]);
+      } else {
+        setCustomUntil('');
+      }
+    }
+  }, [data, period]);
+
   const totals = useMemo(() => {
-    if (!data) return { contacts: 0, warm: 0 };
+    if (!data) return { contacts: 0, warm: 0, meetings: 0 };
     return data.projects.reduce((acc, p) => ({
       contacts: acc.contacts + p.contacts_uploaded,
       warm: acc.warm + p.warm_replies,
-    }), { contacts: 0, warm: 0 });
+      meetings: acc.meetings + (p.meetings_booked ?? 0),
+    }), { contacts: 0, warm: 0, meetings: 0 });
+  }, [data]);
+
+  const hasMeetings = useMemo(() => {
+    if (!data) return false;
+    return data.projects.some(p => p.meetings_booked != null);
   }, [data]);
 
   const maxWarm = useMemo(() => {
@@ -523,6 +545,15 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
               <div className="text-lg font-semibold tabular-nums" style={{ color: t.text1 }}>{totals.warm.toLocaleString()}</div>
             </div>
           </div>
+          {hasMeetings && (
+            <div className="flex items-center gap-2 rounded-lg px-4 py-2.5 border" style={{ backgroundColor: t.cardBg, borderColor: t.cardBorder }}>
+              <Calendar className="w-4 h-4" style={{ color: isDark ? '#c084fc' : '#7c3aed' }} />
+              <div>
+                <div className="text-[11px] uppercase tracking-wide" style={{ color: t.text5 }}>Meetings Booked</div>
+                <div className="text-lg font-semibold tabular-nums" style={{ color: t.text1 }}>{totals.meetings.toLocaleString()}</div>
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex gap-1 rounded-lg p-0.5 border" style={{ borderColor: t.cardBorder, backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }}>
@@ -569,13 +600,14 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
         <div className="rounded-lg border overflow-hidden" style={{ borderColor: t.cardBorder }}>
           {/* Header */}
           <div
-            className="grid grid-cols-[24px_1fr_140px_180px_40px] gap-3 px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide border-b"
+            className={`grid gap-3 px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide border-b ${hasMeetings ? 'grid-cols-[24px_1fr_140px_180px_100px_40px]' : 'grid-cols-[24px_1fr_140px_180px_40px]'}`}
             style={{ backgroundColor: isDark ? '#1e1e1e' : '#f8f8f8', borderColor: t.cardBorder, color: t.text5 }}
           >
             <span></span>
             <span>Project</span>
             <span className="text-right">Contacts</span>
             <span>Warm Replies</span>
+            {hasMeetings && <span className="text-right">Meetings</span>}
             <span></span>
           </div>
           {/* Rows */}
@@ -587,7 +619,7 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
             return (
               <div key={p.project_id}>
                 <div
-                  className="grid grid-cols-[24px_1fr_140px_180px_40px] gap-3 px-4 py-2.5 border-b items-center transition-colors cursor-pointer group"
+                  className={`grid gap-3 px-4 py-2.5 border-b items-center transition-colors cursor-pointer group ${hasMeetings ? 'grid-cols-[24px_1fr_140px_180px_100px_40px]' : 'grid-cols-[24px_1fr_140px_180px_40px]'}`}
                   style={{ borderColor: t.cardBorder, backgroundColor: t.cardBg }}
                   onClick={() => toggleExpand(p.project_id)}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = isDark ? '#2a2a2a' : '#f5f5f5')}
@@ -633,6 +665,12 @@ function AnalyticsTab({ isDark, t }: { isDark: boolean; t: ReturnType<typeof the
                       {p.warm_replies}
                     </span>
                   </div>
+                  {/* Meetings booked */}
+                  {hasMeetings && (
+                    <div className="text-[13px] tabular-nums text-right font-medium" style={{ color: p.meetings_booked != null && p.meetings_booked > 0 ? (isDark ? '#c084fc' : '#7c3aed') : t.text5 }}>
+                      {p.meetings_booked != null ? p.meetings_booked : '—'}
+                    </div>
+                  )}
                   {/* CRM link for entire project */}
                   <div
                     className="flex justify-center opacity-0 group-hover:opacity-100 transition-opacity"

@@ -103,11 +103,14 @@ class ProjectMetric(BaseModel):
     project_name: str
     contacts_uploaded: int = 0
     warm_replies: int = 0
+    meetings_booked: Optional[int] = None  # None = no Calendly integration
 
 
 class ProjectMetricsOut(BaseModel):
     projects: List[ProjectMetric]
     period: str
+    period_since: Optional[str] = None
+    period_until: Optional[str] = None
 
 
 # ─── Endpoints ─────────────────────────────────────────────────
@@ -468,74 +471,99 @@ async def get_project_metrics(
     until: Optional[str] = Query(None, description="Custom end date ISO"),
     session: AsyncSession = Depends(get_session),
 ):
-    """Per-project metrics: contacts uploaded to campaigns + warm replies."""
+    """Per-project metrics: contacts uploaded to campaigns + warm replies + meetings booked.
+
+    Contacts are calculated using the same per-campaign platform_state aggregation
+    as the campaign-metrics endpoint, guaranteeing consistency between main row
+    and expanded campaign breakdown.
+    """
+    import asyncio
     from app.models.reply import ProcessedReply
 
     # Time filter
-    since_dt, _until_dt = _parse_period(period, since, until)
+    since_dt, until_dt = _parse_period(period, since, until)
 
-    # 1. All active projects
+    # 1. All active projects (with calendly_config for meetings)
     proj_result = await session.execute(
-        select(Project.id, Project.name).where(Project.deleted_at.is_(None)).order_by(Project.name)
+        select(Project.id, Project.name, Project.calendly_config)
+        .where(Project.deleted_at.is_(None))
+        .order_by(Project.name)
     )
     projects_list = proj_result.all()
     if not projects_list:
         return ProjectMetricsOut(projects=[], period=period)
 
     # 2. Contacts uploaded per project
-    #    All Time: SUM(Campaign.leads_count) — accurate totals from SmartLead API
-    #    Time-filtered: count contacts with added_at in period (from SmartLead CSV export)
+    #    Uses SAME per-campaign platform_state query as campaign-metrics endpoint.
+    #    This guarantees: main_row_contacts == SUM(expanded_campaign_contacts).
     if since_dt:
-        # Time-filtered: use per-contact added_at (backfilled from SmartLead CSV export)
-        contacts_by_project = text("""
-            SELECT c.project_id, COUNT(DISTINCT c.id) as cnt
-            FROM contacts c,
-                 json_array_elements(c.platform_state->'smartlead'->'campaigns') as camp_elem
-            WHERE c.project_id IS NOT NULL
-              AND c.deleted_at IS NULL
-              AND COALESCE(
-                  (camp_elem->>'added_at')::timestamp,
-                  c.created_at
-              ) >= :since
-            GROUP BY c.project_id
+        # Time-filtered: per-campaign contacts from platform_state, summed by project
+        contacts_sql = text("""
+            SELECT sub.project_id, COALESCE(SUM(sub.camp_count), 0) as cnt
+            FROM (
+                SELECT c.project_id, campaign_elem->>'name' AS cname,
+                       COUNT(DISTINCT c.id) AS camp_count
+                FROM contacts c,
+                     jsonb_array_elements(
+                       COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', '[]'::jsonb) ||
+                       COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', '[]'::jsonb)
+                     ) AS campaign_elem
+                WHERE c.project_id IS NOT NULL
+                  AND c.deleted_at IS NULL
+                  AND COALESCE(
+                      (campaign_elem->>'added_at')::timestamp,
+                      c.created_at
+                  ) >= :since
+                GROUP BY c.project_id, campaign_elem->>'name'
+            ) sub
+            GROUP BY sub.project_id
         """)
-        crm_result = await session.execute(contacts_by_project, {"since": since_dt})
+        crm_result = await session.execute(contacts_sql, {"since": since_dt})
         leads_map: dict[int, int] = {row.project_id: row.cnt for row in crm_result.all()}
-        # Also add GetSales contacts (no added_at, use CRM created_at)
-        gs_by_project = (
-            select(Contact.project_id, func.count(Contact.id).label("cnt"))
-            .where(and_(
-                Contact.project_id.isnot(None),
-                Contact.deleted_at.is_(None),
-                Contact.created_at >= since_dt,
-                Contact.source.ilike("%getsales%"),
-            ))
-            .group_by(Contact.project_id)
-        )
-        gs_result = await session.execute(gs_by_project)
-        for row in gs_result.all():
-            leads_map[row.project_id] = leads_map.get(row.project_id, 0) + row.cnt
     else:
-        # All Time: SUM(Campaign.leads_count) for accuracy
-        sl_query = (
-            select(Campaign.project_id, func.coalesce(func.sum(Campaign.leads_count), 0).label("cnt"))
-            .where(and_(Campaign.project_id.isnot(None), Campaign.leads_count > 0))
-            .group_by(Campaign.project_id)
+        # All Time: per-campaign platform_state counts + Campaign.leads_count overlay
+        # Step 1: platform_state per-campaign contacts (both SmartLead + GetSales)
+        ps_sql = text("""
+            SELECT c.project_id, LOWER(campaign_elem->>'name') AS cname,
+                   COUNT(DISTINCT c.id) AS ps_count
+            FROM contacts c,
+                 jsonb_array_elements(
+                   COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', '[]'::jsonb) ||
+                   COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', '[]'::jsonb)
+                 ) AS campaign_elem
+            WHERE c.project_id IS NOT NULL AND c.deleted_at IS NULL
+            GROUP BY c.project_id, LOWER(campaign_elem->>'name')
+        """)
+        ps_result = await session.execute(ps_sql)
+        ps_by_camp: dict[tuple, int] = {
+            (row.project_id, row.cname): row.ps_count for row in ps_result.all()
+        }
+
+        # Step 2: Campaign.leads_count for SmartLead (more accurate than CRM for SmartLead)
+        sl_result = await session.execute(
+            select(
+                Campaign.project_id,
+                func.lower(Campaign.name).label("cname"),
+                Campaign.leads_count,
+                Campaign.platform,
+            ).where(Campaign.project_id.isnot(None))
         )
-        sl_result = await session.execute(sl_query)
-        leads_map = {row.project_id: row.cnt for row in sl_result.all()}
-        # Add CRM contacts not covered by SmartLead campaigns
-        crm_query = (
-            select(Contact.project_id, func.count(Contact.id).label("cnt"))
-            .where(and_(Contact.project_id.isnot(None), Contact.deleted_at.is_(None)))
-            .group_by(Contact.project_id)
-        )
-        crm_result = await session.execute(crm_query)
-        for row in crm_result.all():
-            leads_map[row.project_id] = max(leads_map.get(row.project_id, 0), row.cnt)
+        sl_leads: dict[tuple, tuple] = {
+            (row.project_id, row.cname): (row.leads_count or 0, row.platform)
+            for row in sl_result.all()
+        }
+
+        # Step 3: Merge — max(leads_count, ps_count) for SmartLead, ps_count for GetSales
+        all_keys = set(ps_by_camp.keys()) | set(sl_leads.keys())
+        leads_map = {}
+        for key in all_keys:
+            ps = ps_by_camp.get(key, 0)
+            sl_count, platform = sl_leads.get(key, (0, ""))
+            camp_count = max(ps, sl_count) if platform == "smartlead" else ps
+            pid = key[0]
+            leads_map[pid] = leads_map.get(pid, 0) + camp_count
 
     # 3. Warm replies per project (interested + meeting_request + question)
-    #    Use distinct campaign_name→project_id mapping to avoid duplicate counting
     warm_categories = ["interested", "meeting_request", "question"]
     campaign_map = (
         select(
@@ -557,18 +585,53 @@ async def get_project_metrics(
     warm_result = await session.execute(warm_query)
     warm_map = {row.pid: row.warm_count for row in warm_result.all()}
 
-    # 4. Build response sorted by warm replies desc
+    # 4. Calendly meetings for projects with calendly_config
+    meetings_map: dict[int, int] = {}
+    calendly_projects = [
+        (pid, cfg) for pid, pname, cfg in projects_list
+        if cfg and isinstance(cfg, dict) and cfg.get("members")
+    ]
+    if calendly_projects:
+        from app.services.calendly_service import count_project_meetings
+        # Use since_dt for time-filtered, or 365 days ago for All Time
+        cal_since = since_dt or (datetime.utcnow() - timedelta(days=365))
+        cal_until = until_dt or datetime.utcnow()
+
+        async def _fetch_meetings(pid: int, cfg: dict):
+            try:
+                count = await count_project_meetings(cfg, cal_since, cal_until)
+                return pid, count
+            except Exception as e:
+                logger.warning(f"[GOD_PANEL] Calendly fetch failed for project {pid}: {e}")
+                return pid, 0
+
+        results = await asyncio.gather(
+            *[_fetch_meetings(pid, cfg) for pid, cfg in calendly_projects],
+            return_exceptions=True,
+        )
+        for r in results:
+            if isinstance(r, tuple):
+                meetings_map[r[0]] = r[1]
+
+    # 5. Build response sorted by warm replies desc
+    calendly_project_ids = {pid for pid, _ in calendly_projects}
     metrics = []
-    for pid, pname in projects_list:
+    for pid, pname, _ in projects_list:
         metrics.append(ProjectMetric(
             project_id=pid,
             project_name=pname,
             contacts_uploaded=leads_map.get(pid, 0),
             warm_replies=warm_map.get(pid, 0),
+            meetings_booked=meetings_map.get(pid) if pid in calendly_project_ids else None,
         ))
     metrics.sort(key=lambda m: m.warm_replies, reverse=True)
 
-    return ProjectMetricsOut(projects=metrics, period=period)
+    return ProjectMetricsOut(
+        projects=metrics,
+        period=period,
+        period_since=since_dt.isoformat() if since_dt else None,
+        period_until=until_dt.isoformat() if until_dt else None,
+    )
 
 
 @router.get("/projects/{project_id}/campaign-metrics")
@@ -728,11 +791,14 @@ async def get_campaign_metrics(
     else:
         project_warm_total = 0
 
+    campaigns_contacts_total = sum(m["leads_count"] for m in campaign_metrics)
+
     return {
         "campaigns": campaign_metrics,
         "checksum": {
             "campaigns_warm_total": campaigns_warm_total,
             "project_warm_total": project_warm_total,
+            "campaigns_contacts_total": campaigns_contacts_total,
             "match": campaigns_warm_total == project_warm_total,
         },
     }

@@ -41,11 +41,14 @@ export interface ProjectMetric {
   project_name: string;
   contacts_uploaded: number;
   warm_replies: number;
+  meetings_booked?: number | null;  // null = no Calendly integration
 }
 
 export interface ProjectMetricsResponse {
   projects: ProjectMetric[];
   period: string;
+  period_since?: string | null;
+  period_until?: string | null;
 }
 
 export interface CampaignMetric {

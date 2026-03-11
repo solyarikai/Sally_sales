@@ -203,6 +203,55 @@ def format_slots_for_prompt(slots_display: list[str], person_name: str) -> str:
     )
 
 
+async def count_project_meetings(config: dict, since: datetime, until: datetime) -> int:
+    """Count unique scheduled meetings across all Calendly members for a project.
+
+    Uses organization-level query via the first available PAT token.
+    Returns total active (non-cancelled) events in the date range.
+    """
+    members = config.get("members", [])
+    if not members:
+        return 0
+
+    token = next((m.get("pat_token", "") for m in members if m.get("pat_token")), "")
+    if not token:
+        return 0
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Get organization URI from user profile
+            me_resp = await client.get(
+                f"{CALENDLY_API}/users/me",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if me_resp.status_code != 200:
+                logger.warning(f"[CALENDLY] /users/me failed: {me_resp.status_code}")
+                return 0
+            org_uri = me_resp.json().get("resource", {}).get("current_organization")
+            if not org_uri:
+                return 0
+
+            # Fetch all scheduled events for the organization in date range
+            resp = await client.get(
+                f"{CALENDLY_API}/scheduled_events",
+                headers={"Authorization": f"Bearer {token}"},
+                params={
+                    "organization": org_uri,
+                    "min_start_time": since.strftime("%Y-%m-%dT00:00:00.000000Z"),
+                    "max_start_time": until.strftime("%Y-%m-%dT23:59:59.000000Z"),
+                    "status": "active",
+                    "count": 100,
+                },
+            )
+            if resp.status_code != 200:
+                logger.warning(f"[CALENDLY] /scheduled_events failed: {resp.status_code}")
+                return 0
+            return len(resp.json().get("collection", []))
+    except Exception as e:
+        logger.warning(f"[CALENDLY] count_project_meetings failed: {e}")
+        return 0
+
+
 async def get_slots_with_fallback(
     config: dict, member_id: Optional[str] = None, days: int = 3,
 ) -> dict:
