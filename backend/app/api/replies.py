@@ -893,6 +893,25 @@ async def list_replies(
                 )
             )
         )
+        # Exclude if the last message in the thread is inbound (contact already replied)
+        from app.models.reply import ThreadMessage
+        from sqlalchemy.orm import aliased as orm_aliased
+        fu_last_msg = orm_aliased(ThreadMessage)
+        conditions.append(
+            ~exists(
+                select(fu_last_msg.id).where(
+                    fu_last_msg.reply_id == ProcessedReply.id,
+                    fu_last_msg.direction == "inbound",
+                    # Last message = highest position for this reply
+                    fu_last_msg.position == (
+                        select(func.max(ThreadMessage.position))
+                        .where(ThreadMessage.reply_id == ProcessedReply.id)
+                        .correlate(ProcessedReply)
+                        .scalar_subquery()
+                    ),
+                )
+            )
+        )
 
     # Time window filter (skip for follow-ups — they have their own 60-day staleness check)
     if not needs_followup:
@@ -1166,6 +1185,22 @@ async def get_reply_counts(
                 fu_newer_inbound.received_at > ProcessedReply.approved_at,
                 fu_newer_inbound.parent_reply_id.is_(None),
                 fu_newer_inbound.id != ProcessedReply.id,
+            )
+        ))
+        # Exclude if the last message in the thread is inbound (contact already replied)
+        from app.models.reply import ThreadMessage
+        from sqlalchemy.orm import aliased as orm_aliased
+        fu_last_msg = orm_aliased(ThreadMessage)
+        base.append(~exists(
+            select(fu_last_msg.id).where(
+                fu_last_msg.reply_id == ProcessedReply.id,
+                fu_last_msg.direction == "inbound",
+                fu_last_msg.position == (
+                    select(func.max(ThreadMessage.position))
+                    .where(ThreadMessage.reply_id == ProcessedReply.id)
+                    .correlate(ProcessedReply)
+                    .scalar_subquery()
+                ),
             )
         ))
     else:

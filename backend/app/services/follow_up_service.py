@@ -16,11 +16,11 @@ import logging
 import time as _time
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, and_, exists, text as sa_text
+from sqlalchemy import select, and_, exists, func, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.models.reply import ProcessedReply
+from app.models.reply import ProcessedReply, ThreadMessage
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,19 @@ async def generate_follow_up_drafts(session: AsyncSession, limit: int = 20) -> d
                         newer_inbound.received_at > ProcessedReply.approved_at,
                         newer_inbound.parent_reply_id.is_(None),
                         newer_inbound.id != ProcessedReply.id,
+                    )
+                ),
+                # Last message in thread must be outbound (we sent something, waiting for response)
+                ~exists(
+                    select(ThreadMessage.id).where(
+                        ThreadMessage.reply_id == ProcessedReply.id,
+                        ThreadMessage.direction == "inbound",
+                        ThreadMessage.position == (
+                            select(func.max(ThreadMessage.position))
+                            .where(ThreadMessage.reply_id == ProcessedReply.id)
+                            .correlate(ProcessedReply)
+                            .scalar_subquery()
+                        ),
                     )
                 ),
             )
