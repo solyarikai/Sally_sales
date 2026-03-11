@@ -288,6 +288,7 @@ async def live_chat_updates(
                         .where(
                             ProjectChatMessage.project_id == project_id,
                             ProjectChatMessage.id > last_id,
+                            ProjectChatMessage.action_type != "cleared",
                         )
                         .order_by(ProjectChatMessage.id.asc())
                         .limit(20)
