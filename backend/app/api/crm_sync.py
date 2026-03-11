@@ -10,7 +10,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Body, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, desc, String
+from sqlalchemy import select, and_, desc, String, func
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, field_validator
 from datetime import datetime
