@@ -46,10 +46,8 @@ GEO_SPLITS = [
 
 
 async def map_icp_to_clay_filters(icp_text: str) -> Dict[str, Any]:
-    """Map ICP text to Clay search filters using GPT-4o-mini."""
+    """Map ICP text to Clay search filters using Gemini 2.5 Pro (fallback: GPT-4o-mini)."""
     api_key = settings.OPENAI_API_KEY
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY not configured")
 
     filter_schema = {
         "industries": "Clay industry tags, e.g. ['Online gaming', 'E-commerce']",
@@ -87,6 +85,24 @@ Example 1 — "payroll":
 Example 2 — "Companies selling gaming skins and virtual items":
 {{"industries":["Computer Games","Internet Marketplace Platforms"],"industries_exclude":["Gambling Facilities and Casinos","Staffing and Recruiting"],"description_keywords":["skin trading","virtual items","loot box","case opening","game marketplace","CS2","CSGO"],"description_keywords_exclude":["casino","betting","slot","recruitment"],"sizes":["1-10","11-50","51-200","201-500"]}}"""
 
+    # Use Gemini 2.5 Pro for better ICP understanding, fallback to GPT-4o-mini
+    gemini_key = settings.GEMINI_API_KEY
+    if gemini_key:
+        model = settings.GEMINI_MODEL or "gemini-2.5-pro"
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}",
+                json={
+                    "contents": [{"parts": [{"text": f"{system_prompt}\n\nMap this ICP to Clay search filters:\n\n{icp_text}"}]}],
+                    "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"},
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            return json.loads(text)
+
+    # Fallback: GPT-4o-mini
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             "https://api.openai.com/v1/chat/completions",
