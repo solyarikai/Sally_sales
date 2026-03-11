@@ -1255,23 +1255,6 @@ async def getsales_webhook(
         
         # Telegram notification sent AFTER commit (see below)
 
-    # Enrich contact with flow/automation info if not already present
-    if automation_data.get("name") or automation_data.get("uuid"):
-        flow_entry = {
-            "name": automation_data.get("name"),
-            "id": automation_data.get("uuid"),
-            "source": "getsales",
-            "status": "active"
-        }
-        # Parse existing campaigns
-        existing_campaigns = parse_campaigns(contact.campaigns)
-        
-        # Check if this flow is already in campaigns
-        existing_flow_ids = {c.get("id") for c in existing_campaigns if isinstance(c, dict)}
-        if automation_data.get("uuid") not in existing_flow_ids:
-            existing_campaigns.append(flow_entry)
-            contact.campaigns = existing_campaigns
-    
     # Mark webhook event as processed
     webhook_event.processed = True
     webhook_event.processed_at = datetime.utcnow()
