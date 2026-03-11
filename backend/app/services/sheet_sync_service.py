@@ -156,7 +156,11 @@ class SheetSyncService:
                 return stats
 
             query = select(ProcessedReply).where(
-                ProcessedReply.campaign_name.in_(campaign_filters)
+                ProcessedReply.campaign_name.in_(campaign_filters),
+                # Exclude outbound "Email N sent to..." SmartLead notifications
+                ~ProcessedReply.reply_text.like("Email%sent to%for campaign%"),
+                # Exclude follow-up drafts (child records)
+                ProcessedReply.parent_reply_id.is_(None),
             )
             if last_sync:
                 try:
