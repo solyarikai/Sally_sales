@@ -1699,6 +1699,117 @@ async def export_contacts_google_sheet(
     return {"url": url, "rows": len(data) - 1}
 
 
+# ============= SmartLead Draft Campaign =============
+
+class PushToSmartleadRequest(BaseModel):
+    contact_ids: List[int]
+    campaign_name: Optional[str] = None
+
+
+@router.post("/push-to-smartlead")
+async def push_contacts_to_smartlead(
+    body: PushToSmartleadRequest = Body(...),
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Create a draft SmartLead campaign from selected contacts and add them as leads.
+
+    Returns campaign ID, name, and link.
+    """
+    if not body.contact_ids:
+        raise HTTPException(status_code=400, detail="No contacts selected")
+
+    if not smartlead_service.is_connected():
+        raise HTTPException(status_code=400, detail="SmartLead API key not configured")
+
+    # Fetch contacts
+    result = await session.execute(
+        select(Contact).where(Contact.id.in_(body.contact_ids))
+    )
+    contacts_list = list(result.scalars().all())
+
+    if not contacts_list:
+        raise HTTPException(status_code=400, detail="No contacts found for given IDs")
+
+    # Filter contacts with valid emails
+    valid_contacts = [c for c in contacts_list if c.email and "@" in c.email]
+    if not valid_contacts:
+        raise HTTPException(status_code=400, detail="No contacts with valid emails")
+
+    # Build campaign name
+    ts = datetime.utcnow().strftime("%m/%d %H:%M")
+    campaign_name = body.campaign_name or f"Draft {ts} ({len(valid_contacts)} leads)"
+
+    # Create campaign in SmartLead
+    try:
+        campaign_result = await smartlead_service.create_campaign(campaign_name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create SmartLead campaign: {e}")
+
+    campaign_id = campaign_result["id"]
+
+    # Format leads for SmartLead
+    leads = []
+    for c in valid_contacts:
+        lead = {
+            "email": c.email,
+            "first_name": c.first_name or "",
+            "last_name": c.last_name or "",
+        }
+        if c.company_name:
+            lead["company_name"] = c.company_name
+        if c.domain:
+            lead["website"] = c.domain if c.domain.startswith("http") else f"https://{c.domain}"
+        custom_fields = {}
+        if c.job_title:
+            custom_fields["job_title"] = c.job_title
+        if c.linkedin_url:
+            custom_fields["linkedin_url"] = c.linkedin_url
+        if c.phone:
+            custom_fields["phone"] = c.phone
+        if c.location:
+            custom_fields["location"] = c.location
+        if c.segment:
+            custom_fields["segment"] = c.segment
+        if custom_fields:
+            lead["custom_fields"] = custom_fields
+        leads.append(lead)
+
+    # Add leads to campaign
+    add_result = await smartlead_service.add_leads_to_campaign(campaign_id, leads)
+
+    if not add_result.get("success"):
+        logger.error(f"Failed to add leads to campaign {campaign_id}: {add_result.get('error')}")
+        # Campaign was created but leads failed — still return the campaign link
+        return {
+            "campaign_id": campaign_id,
+            "campaign_name": campaign_name,
+            "campaign_url": f"https://app.smartlead.ai/app/email-campaign/{campaign_id}/campaign-overview",
+            "leads_added": 0,
+            "leads_total": len(valid_contacts),
+            "error": add_result.get("error"),
+        }
+
+    # Update contacts' platform_state to track the campaign
+    for c in valid_contacts:
+        ps = dict(c.platform_state or {})
+        sl = dict(ps.get("smartlead", {}))
+        campaigns = list(sl.get("campaigns", []))
+        campaigns.append({"id": campaign_id, "name": campaign_name})
+        sl["campaigns"] = campaigns
+        ps["smartlead"] = sl
+        c.platform_state = ps
+    await session.commit()
+
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign_name,
+        "campaign_url": f"https://app.smartlead.ai/app/email-campaign/{campaign_id}/campaign-overview",
+        "leads_added": len(valid_contacts),
+        "leads_total": len(valid_contacts),
+    }
+
+
 # ============= Projects Endpoints =============
 
 @router.get("/projects/list-lite")

@@ -441,6 +441,22 @@ export const contactsApi = {
     return response.data;
   },
 
+  // Push selected contacts to a new SmartLead draft campaign
+  async pushToSmartlead(contactIds: number[], campaignName?: string): Promise<{
+    campaign_id: string;
+    campaign_name: string;
+    campaign_url: string;
+    leads_added: number;
+    leads_total: number;
+    error?: string;
+  }> {
+    const response = await api.post('/contacts/push-to-smartlead', {
+      contact_ids: contactIds,
+      campaign_name: campaignName || undefined,
+    });
+    return response.data;
+  },
+
   // Download import template
   async getImportTemplate(): Promise<Blob> {
     const response = await api.get('/contacts/import/template', { responseType: 'blob' });

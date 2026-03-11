@@ -19,7 +19,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Target, Mail, Loader2, Upload, AlertCircle, Check,
-  FileSpreadsheet,
+  FileSpreadsheet, ExternalLink, Send,
   Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type EnrichResult } from '../api';
@@ -820,6 +820,30 @@ export function ContactsPage() {
     });
   };
 
+  const [isPushingToSmartlead, setIsPushingToSmartlead] = useState(false);
+  const [smartleadCampaignUrl, setSmartleadCampaignUrl] = useState<string | null>(null);
+
+  const handlePushToSmartlead = async () => {
+    if (selectedContacts.length === 0) return;
+    setIsPushingToSmartlead(true);
+    setSmartleadCampaignUrl(null);
+    try {
+      const result = await contactsApi.pushToSmartlead(selectedContacts.map(c => c.id));
+      setSmartleadCampaignUrl(result.campaign_url);
+      toast.success(
+        `Campaign created: ${result.campaign_name}`,
+        `${result.leads_added} leads added`
+      );
+      setSelectedContacts([]);
+      loadContacts();
+    } catch (err) {
+      console.error('Failed to push to SmartLead:', err);
+      toast.error('SmartLead push failed', getErrorMessage(err));
+    } finally {
+      setIsPushingToSmartlead(false);
+    }
+  };
+
   const handleRefresh = () => {
     loadContacts();
     loadStats();
@@ -984,14 +1008,49 @@ export function ContactsPage() {
               )}
             </div>
             {selectedContacts.length > 0 && (
-              <button onClick={handleDeleteSelected} className="p-1.5 rounded-md transition-colors text-red-400 hover:text-red-300" title="Delete Selected">
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="ml-0.5 text-[10px]">{selectedContacts.length}</span>
-              </button>
+              <>
+                <button
+                  onClick={handlePushToSmartlead}
+                  disabled={isPushingToSmartlead}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md transition-colors text-[11px] hover:opacity-80 disabled:opacity-40"
+                  style={{ color: '#3b82f6' }}
+                  title="Create SmartLead draft campaign"
+                >
+                  {isPushingToSmartlead
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Send className="w-3.5 h-3.5" />}
+                  <span>SmartLead ({selectedContacts.length})</span>
+                </button>
+                <button onClick={handleDeleteSelected} className="p-1.5 rounded-md transition-colors text-red-400 hover:text-red-300" title="Delete Selected">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="ml-0.5 text-[10px]">{selectedContacts.length}</span>
+                </button>
+              </>
             )}
           </div>
         </div>
       </div>
+
+      {/* SmartLead campaign link banner */}
+      {smartleadCampaignUrl && (
+        <div className="mx-5 mt-1.5 mb-0.5 flex items-center gap-2 px-3 py-1.5 rounded-md text-xs"
+          style={{ background: isDark ? '#1a2332' : '#eff6ff', border: `1px solid ${isDark ? '#1e3a5f' : '#bfdbfe'}` }}>
+          <Send className="w-3.5 h-3.5 shrink-0" style={{ color: '#3b82f6' }} />
+          <span style={{ color: isDark ? '#93c5fd' : '#1d4ed8' }}>Draft campaign created</span>
+          <a
+            href={smartleadCampaignUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 hover:underline font-medium"
+            style={{ color: '#3b82f6' }}
+          >
+            Open in SmartLead <ExternalLink className="w-3 h-3" />
+          </a>
+          <button onClick={() => setSmartleadCampaignUrl(null)} className="ml-auto p-0.5 rounded hover:opacity-70" style={{ color: isDark ? '#64748b' : '#94a3b8' }}>
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
 
       {/* AG Grid */}
       <div className="flex-1 px-3 pt-1 pb-0">
