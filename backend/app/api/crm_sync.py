@@ -1197,6 +1197,7 @@ async def getsales_webhook(
         # process_getsales_reply which does proper GPT classification again.
         # Now: call process_getsales_reply once, use its result for contact status.
         category = "other"  # default fallback
+        pr = None
         try:
             from app.services.reply_processor import process_getsales_reply
 
@@ -1231,28 +1232,8 @@ async def getsales_webhook(
             logger.warning(f"[GETSALES] Blocked transition for {contact.email}: {msg}")
         contact.set_platform("getsales", {"reply_category": category})
 
-        # Append to touches JSON
-        from datetime import datetime as dt
-        touch = {
-            "at": activity_at.isoformat() if activity_at else dt.utcnow().isoformat(),
-            "campaign": automation_data.get("name"),
-            "source": "getsales",
-            "channel": "linkedin",
-            "type": "reply",
-            "category": category,
-            "message": message_text[:100] if message_text else None
-        }
-        if contact.touches:
-            try:
-                touches = json.loads(contact.touches) if isinstance(contact.touches, str) else contact.touches
-                touches.append(touch)
-                contact.touches = touches
-            except (json.JSONDecodeError, TypeError, AttributeError):
-                contact.touches = [touch]
-        else:
-            contact.touches = [touch]
-        
         # Append to getsales_raw for debugging
+        from datetime import datetime as dt
         webhook_entry = {
             "received_at": dt.utcnow().isoformat(),
             "type": "reply",
