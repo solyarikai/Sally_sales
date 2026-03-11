@@ -494,14 +494,26 @@ async def get_project_metrics(
         return ProjectMetricsOut(projects=[], period=period)
 
     # 2. Contacts uploaded per project
-    #    Uses SAME per-campaign platform_state query as campaign-metrics endpoint.
-    #    This guarantees: main_row_contacts == SUM(expanded_campaign_contacts).
+    #    Uses a CTE of project→campaign assignments (from Campaign table + campaign_filters)
+    #    to filter platform_state entries, guaranteeing consistency with campaign-metrics.
+    #    Without this filter, contacts with campaign entries from OTHER projects inflate counts.
+    project_campaigns_cte = """
+        WITH project_campaigns AS (
+            SELECT project_id, LOWER(name) AS cname FROM campaigns WHERE project_id IS NOT NULL
+            UNION ALL
+            SELECT p.id, LOWER(cf::text)
+            FROM projects p, jsonb_array_elements_text(CAST(p.campaign_filters AS jsonb)) AS cf
+            WHERE p.deleted_at IS NULL AND p.campaign_filters IS NOT NULL
+        )
+    """
+
     if since_dt:
         # Time-filtered: per-campaign contacts from platform_state, summed by project
-        contacts_sql = text("""
+        contacts_sql = text(f"""
+            {project_campaigns_cte}
             SELECT sub.project_id, COALESCE(SUM(sub.camp_count), 0) as cnt
             FROM (
-                SELECT c.project_id, campaign_elem->>'name' AS cname,
+                SELECT c.project_id, LOWER(campaign_elem->>'name') AS cname,
                        COUNT(DISTINCT c.id) AS camp_count
                 FROM contacts c,
                      jsonb_array_elements(
@@ -514,25 +526,31 @@ async def get_project_metrics(
                       (campaign_elem->>'added_at')::timestamp,
                       c.created_at
                   ) >= :since
-                GROUP BY c.project_id, campaign_elem->>'name'
+                GROUP BY c.project_id, LOWER(campaign_elem->>'name')
             ) sub
+            JOIN project_campaigns pc ON pc.project_id = sub.project_id AND pc.cname = sub.cname
             GROUP BY sub.project_id
         """)
         crm_result = await session.execute(contacts_sql, {"since": since_dt})
         leads_map: dict[int, int] = {row.project_id: row.cnt for row in crm_result.all()}
     else:
         # All Time: per-campaign platform_state counts + Campaign.leads_count overlay
-        # Step 1: platform_state per-campaign contacts (both SmartLead + GetSales)
-        ps_sql = text("""
-            SELECT c.project_id, LOWER(campaign_elem->>'name') AS cname,
-                   COUNT(DISTINCT c.id) AS ps_count
-            FROM contacts c,
-                 jsonb_array_elements(
-                   COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', '[]'::jsonb) ||
-                   COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', '[]'::jsonb)
-                 ) AS campaign_elem
-            WHERE c.project_id IS NOT NULL AND c.deleted_at IS NULL
-            GROUP BY c.project_id, LOWER(campaign_elem->>'name')
+        # Step 1: platform_state per-campaign contacts, filtered by project's campaigns
+        ps_sql = text(f"""
+            {project_campaigns_cte}
+            SELECT sub.project_id, sub.cname, sub.ps_count
+            FROM (
+                SELECT c.project_id, LOWER(campaign_elem->>'name') AS cname,
+                       COUNT(DISTINCT c.id) AS ps_count
+                FROM contacts c,
+                     jsonb_array_elements(
+                       COALESCE(CAST(c.platform_state AS jsonb)->'smartlead'->'campaigns', '[]'::jsonb) ||
+                       COALESCE(CAST(c.platform_state AS jsonb)->'getsales'->'campaigns', '[]'::jsonb)
+                     ) AS campaign_elem
+                WHERE c.project_id IS NOT NULL AND c.deleted_at IS NULL
+                GROUP BY c.project_id, LOWER(campaign_elem->>'name')
+            ) sub
+            JOIN project_campaigns pc ON pc.project_id = sub.project_id AND pc.cname = sub.cname
         """)
         ps_result = await session.execute(ps_sql)
         ps_by_camp: dict[tuple, int] = {
