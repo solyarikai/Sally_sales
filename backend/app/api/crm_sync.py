@@ -1614,34 +1614,35 @@ async def cancel_contact_sync(
         await redis.aclose()
 
 
+_backfill_status = {"running": False, "stats": {}, "started_at": None}
+
+
 @router.post("/fast-backfill")
 async def fast_backfill(
-    background_tasks: BackgroundTasks,
     platform: str = Query("all", description="smartlead, getsales, or all"),
     concurrency: int = Query(10, description="Max concurrent API calls"),
     session: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
-    """Fast parallel backfill: 10 concurrent CSV exports, no analytics pre-check.
+    """Fire-and-forget fast backfill. Returns immediately, work runs in background.
 
-    Skips campaigns with 0 leads. ~10x faster than sequential sync.
-    Enriches existing contacts with missing added_at.
+    Monitor progress via GET /crm-sync/fast-backfill/status or docker logs.
     """
+    if _backfill_status["running"]:
+        return {"status": "already_running", **_backfill_status["stats"]}
+
     import json as json_mod
+    from app.models.campaign import Campaign as CampaignModel
 
-    sync_service = get_crm_sync_service()
-    sem = asyncio.Semaphore(concurrency)
-    stats = {"sl_campaigns": 0, "sl_leads": 0, "sl_created": 0, "sl_updated": 0,
-             "sl_skipped": 0, "sl_errors": 0,
-             "gs_contacts": 0, "gs_created": 0, "gs_updated": 0, "gs_skipped": 0,
-             "gs_errors": 0, "elapsed_seconds": 0}
-    start_time = datetime.utcnow()
-
-    # --- SmartLead: parallel CSV export ---
+    # Pre-fetch campaign data while we have the session
+    camp_data = []
     if platform in ("all", "smartlead"):
-        from app.models.campaign import Campaign as CampaignModel
         camp_result = await session.execute(
-            select(CampaignModel).where(
+            select(
+                CampaignModel.id, CampaignModel.external_id,
+                CampaignModel.name, CampaignModel.leads_count,
+                CampaignModel.project_id,
+            ).where(
                 and_(
                     CampaignModel.platform == "smartlead",
                     CampaignModel.external_id.isnot(None),
@@ -1649,172 +1650,205 @@ async def fast_backfill(
                 )
             ).order_by(CampaignModel.leads_count.desc())
         )
-        campaigns = camp_result.scalars().all()
-        stats["sl_campaigns"] = len(campaigns)
-        total_camps = len(campaigns)
-        completed_count = {"n": 0}
-        logger.info(f"[FAST-BACKFILL] SmartLead: {total_camps} campaigns with leads, concurrency={concurrency}")
+        camp_data = camp_result.all()
 
-        async def _export_and_process(camp):
-            async with sem:
-                try:
-                    csv_rows = await sync_service.smartlead.export_campaign_leads(camp.external_id)
-                    if not csv_rows:
-                        return {"created": 0, "updated": 0, "skipped": 0, "leads": 0}
+    company_id = company.id
 
-                    local_stats = {"created": 0, "updated": 0, "skipped": 0, "leads": len(csv_rows)}
+    async def _run_backfill():
+        _backfill_status["running"] = True
+        _backfill_status["started_at"] = datetime.utcnow().isoformat()
+        sync_service = get_crm_sync_service()
+        sem = asyncio.Semaphore(concurrency)
+        stats = {"sl_campaigns": 0, "sl_leads": 0, "sl_created": 0, "sl_updated": 0,
+                 "sl_skipped": 0, "sl_errors": 0,
+                 "gs_contacts": 0, "gs_created": 0, "gs_updated": 0, "gs_skipped": 0,
+                 "gs_errors": 0, "elapsed_seconds": 0}
+        _backfill_status["stats"] = stats
+        start_time = datetime.utcnow()
 
-                    # Update campaign leads_count
-                    actual_count = len(csv_rows)
-                    if actual_count != (camp.leads_count or 0):
-                        camp.leads_count = actual_count
-                    camp.synced_leads_count = actual_count
-                    camp.last_contact_sync_at = datetime.utcnow()
-
-                    # Process in batches of 100 with per-row error isolation
-                    BATCH = 100
-                    for i in range(0, len(csv_rows), BATCH):
-                        batch = csv_rows[i:i + BATCH]
-                        async with async_session_maker() as local_session:
-                            for row in batch:
-                                try:
-                                    custom_fields_raw = row.get("custom_fields", "{}")
-                                    try:
-                                        custom_fields = json_mod.loads(custom_fields_raw) if custom_fields_raw else {}
-                                    except (json_mod.JSONDecodeError, TypeError):
-                                        custom_fields = {}
-                                    reply_count = int(row.get("reply_count", 0) or 0)
-                                    lead = {
-                                        "id": row.get("id", ""),
-                                        "email": row.get("email", ""),
-                                        "first_name": row.get("first_name", ""),
-                                        "last_name": row.get("last_name", ""),
-                                        "company_name": row.get("company_name", ""),
-                                        "phone_number": row.get("phone_number", ""),
-                                        "linkedin_profile": row.get("linkedin_profile", ""),
-                                        "location": row.get("location", ""),
-                                        "custom_fields": custom_fields,
-                                        "created_at": row.get("created_at", ""),
-                                        "_raw_csv_row": dict(row),
-                                        "campaigns": [{
-                                            "campaign_name": camp.name,
-                                            "campaign_id": camp.external_id,
-                                            "lead_status": row.get("status", "ACTIVE"),
-                                            "created_at": row.get("created_at", ""),
-                                            "reply_time": True if reply_count > 0 else None,
-                                        }],
-                                    }
-                                    result = await sync_service._process_smartlead_lead(
-                                        local_session, company.id, lead, campaign_project_id=camp.project_id
-                                    )
-                                    local_stats[result] += 1
-                                except Exception:
-                                    local_stats["skipped"] += 1
-                                    try:
-                                        await local_session.rollback()
-                                    except Exception:
-                                        pass
-                            try:
-                                await local_session.commit()
-                            except Exception:
-                                await local_session.rollback()
-                    completed_count["n"] += 1
-                    n = completed_count["n"]
-                    elapsed = (datetime.utcnow() - start_time).total_seconds()
-                    if n % 25 == 0 or n == total_camps:
-                        pct = n * 100 / total_camps
-                        eta = elapsed / n * (total_camps - n) if n > 0 else 0
-                        logger.info(f"[FAST-BACKFILL] Progress: {n}/{total_camps} ({pct:.0f}%) "
-                                    f"elapsed={elapsed:.0f}s eta={eta:.0f}s "
-                                    f"leads={local_stats['leads']} created={local_stats['created']} updated={local_stats['updated']}")
-                    return local_stats
-                except Exception as e:
-                    completed_count["n"] += 1
-                    logger.warning(f"[FAST-BACKFILL] Campaign {camp.name} failed: {e}")
-                    return {"created": 0, "updated": 0, "skipped": 0, "leads": 0, "error": str(e)}
-
-        results = await asyncio.gather(
-            *[_export_and_process(c) for c in campaigns],
-            return_exceptions=True,
-        )
-        for r in results:
-            if isinstance(r, dict):
-                stats["sl_leads"] += r.get("leads", 0)
-                stats["sl_created"] += r.get("created", 0)
-                stats["sl_updated"] += r.get("updated", 0)
-                stats["sl_skipped"] += r.get("skipped", 0)
-                if r.get("error"):
-                    stats["sl_errors"] += 1
-            elif isinstance(r, Exception):
-                stats["sl_errors"] += 1
-
-        await session.commit()
-        logger.info(f"[FAST-BACKFILL] SmartLead done: {stats['sl_leads']} leads, "
-                     f"created={stats['sl_created']}, updated={stats['sl_updated']}")
-
-    # --- GetSales: parallel list-based sync ---
-    if platform in ("all", "getsales"):
         try:
-            gs_client = sync_service.getsales
-            lists = await gs_client.get_lists()
-            logger.info(f"[FAST-BACKFILL] GetSales: {len(lists)} lists, concurrency={concurrency}")
+            # --- SmartLead ---
+            if platform in ("all", "smartlead"):
+                total_camps = len(camp_data)
+                stats["sl_campaigns"] = total_camps
+                completed_count = {"n": 0}
+                logger.info(f"[FAST-BACKFILL] SmartLead: {total_camps} campaigns, concurrency={concurrency}")
 
-            async def _sync_gs_list(lst):
-                async with sem:
-                    list_uuid = lst.get("uuid", "")
-                    list_name = lst.get("name", "")
-                    local_stats = {"created": 0, "updated": 0, "skipped": 0, "contacts": 0}
-                    try:
-                        offset = 0
-                        page_size = 100
-                        while True:
-                            leads = await gs_client.get_leads_by_list(list_uuid, limit=page_size, offset=offset)
-                            if not leads:
-                                break
-                            async with async_session_maker() as local_session:
-                                for item in leads:
+                async def _export_and_process(camp_row):
+                    camp_id, ext_id, camp_name, leads_count, project_id = camp_row
+                    async with sem:
+                        try:
+                            csv_rows = await sync_service.smartlead.export_campaign_leads(ext_id)
+                            if not csv_rows:
+                                completed_count["n"] += 1
+                                return {"created": 0, "updated": 0, "skipped": 0, "leads": 0}
+
+                            local_stats = {"created": 0, "updated": 0, "skipped": 0, "leads": len(csv_rows)}
+
+                            # Update campaign leads_count
+                            actual_count = len(csv_rows)
+                            async with async_session_maker() as camp_session:
+                                from app.models.campaign import Campaign as CM
+                                camp_obj = await camp_session.get(CM, camp_id)
+                                if camp_obj:
+                                    camp_obj.leads_count = actual_count
+                                    camp_obj.synced_leads_count = actual_count
+                                    camp_obj.last_contact_sync_at = datetime.utcnow()
+                                    await camp_session.commit()
+
+                            # Process in batches of 100
+                            BATCH = 100
+                            for i in range(0, len(csv_rows), BATCH):
+                                batch = csv_rows[i:i + BATCH]
+                                async with async_session_maker() as local_session:
+                                    for row in batch:
+                                        try:
+                                            custom_fields_raw = row.get("custom_fields", "{}")
+                                            try:
+                                                custom_fields = json_mod.loads(custom_fields_raw) if custom_fields_raw else {}
+                                            except (json_mod.JSONDecodeError, TypeError):
+                                                custom_fields = {}
+                                            reply_count = int(row.get("reply_count", 0) or 0)
+                                            lead = {
+                                                "id": row.get("id", ""),
+                                                "email": row.get("email", ""),
+                                                "first_name": row.get("first_name", ""),
+                                                "last_name": row.get("last_name", ""),
+                                                "company_name": row.get("company_name", ""),
+                                                "phone_number": row.get("phone_number", ""),
+                                                "linkedin_profile": row.get("linkedin_profile", ""),
+                                                "location": row.get("location", ""),
+                                                "custom_fields": custom_fields,
+                                                "created_at": row.get("created_at", ""),
+                                                "_raw_csv_row": dict(row),
+                                                "campaigns": [{
+                                                    "campaign_name": camp_name,
+                                                    "campaign_id": ext_id,
+                                                    "lead_status": row.get("status", "ACTIVE"),
+                                                    "created_at": row.get("created_at", ""),
+                                                    "reply_time": True if reply_count > 0 else None,
+                                                }],
+                                            }
+                                            result = await sync_service._process_smartlead_lead(
+                                                local_session, company_id, lead, campaign_project_id=project_id
+                                            )
+                                            local_stats[result] += 1
+                                        except Exception:
+                                            local_stats["skipped"] += 1
+                                            try:
+                                                await local_session.rollback()
+                                            except Exception:
+                                                pass
                                     try:
-                                        result = await sync_service._process_getsales_lead(
-                                            local_session, company.id, item, list_name=list_name,
-                                        )
-                                        local_stats[result] += 1
-                                        local_stats["contacts"] += 1
+                                        await local_session.commit()
                                     except Exception:
-                                        local_stats["skipped"] += 1
                                         try:
                                             await local_session.rollback()
                                         except Exception:
                                             pass
-                                try:
-                                    await local_session.commit()
-                                except Exception:
-                                    await local_session.rollback()
-                            offset += page_size
-                            if len(leads) < page_size:
-                                break
-                    except Exception as e:
-                        logger.warning(f"[FAST-BACKFILL] GetSales list {list_name} failed: {e}")
-                    return local_stats
 
-            gs_results = await asyncio.gather(
-                *[_sync_gs_list(lst) for lst in lists],
-                return_exceptions=True,
-            )
-            for r in gs_results:
-                if isinstance(r, dict):
-                    stats["gs_contacts"] += r.get("contacts", 0)
-                    stats["gs_created"] += r.get("created", 0)
-                    stats["gs_updated"] += r.get("updated", 0)
-                    stats["gs_skipped"] += r.get("skipped", 0)
-                elif isinstance(r, Exception):
+                            completed_count["n"] += 1
+                            n = completed_count["n"]
+                            elapsed = (datetime.utcnow() - start_time).total_seconds()
+                            # Update running stats
+                            stats["sl_leads"] += local_stats["leads"]
+                            stats["sl_created"] += local_stats["created"]
+                            stats["sl_updated"] += local_stats["updated"]
+                            stats["sl_skipped"] += local_stats["skipped"]
+                            stats["elapsed_seconds"] = elapsed
+                            if n % 10 == 0 or n == total_camps:
+                                pct = n * 100 / total_camps
+                                eta = elapsed / n * (total_camps - n) if n > 0 else 0
+                                logger.info(f"[FAST-BACKFILL] Progress: {n}/{total_camps} ({pct:.0f}%) "
+                                            f"elapsed={elapsed:.0f}s eta={eta:.0f}s "
+                                            f"total_leads={stats['sl_leads']} created={stats['sl_created']} updated={stats['sl_updated']}")
+                            return local_stats
+                        except Exception as e:
+                            completed_count["n"] += 1
+                            stats["sl_errors"] += 1
+                            logger.warning(f"[FAST-BACKFILL] Campaign {camp_name} failed: {e}")
+                            return {"created": 0, "updated": 0, "skipped": 0, "leads": 0, "error": str(e)}
+
+                await asyncio.gather(
+                    *[_export_and_process(c) for c in camp_data],
+                    return_exceptions=True,
+                )
+                logger.info(f"[FAST-BACKFILL] SmartLead done: {stats['sl_leads']} leads, "
+                             f"created={stats['sl_created']}, updated={stats['sl_updated']}")
+
+            # --- GetSales ---
+            if platform in ("all", "getsales"):
+                try:
+                    gs_client = sync_service.getsales
+                    lists = await gs_client.get_lists()
+                    logger.info(f"[FAST-BACKFILL] GetSales: {len(lists)} lists, concurrency={concurrency}")
+
+                    async def _sync_gs_list(lst):
+                        async with sem:
+                            list_uuid = lst.get("uuid", "")
+                            list_name = lst.get("name", "")
+                            local_stats = {"created": 0, "updated": 0, "skipped": 0, "contacts": 0}
+                            try:
+                                offset = 0
+                                page_size = 100
+                                while True:
+                                    leads = await gs_client.get_leads_by_list(list_uuid, limit=page_size, offset=offset)
+                                    if not leads:
+                                        break
+                                    async with async_session_maker() as local_session:
+                                        for item in leads:
+                                            try:
+                                                result = await sync_service._process_getsales_lead(
+                                                    local_session, company_id, item, list_name=list_name,
+                                                )
+                                                local_stats[result] += 1
+                                                local_stats["contacts"] += 1
+                                            except Exception:
+                                                local_stats["skipped"] += 1
+                                                try:
+                                                    await local_session.rollback()
+                                                except Exception:
+                                                    pass
+                                        try:
+                                            await local_session.commit()
+                                        except Exception:
+                                            try:
+                                                await local_session.rollback()
+                                            except Exception:
+                                                pass
+                                    offset += page_size
+                                    if len(leads) < page_size:
+                                        break
+                            except Exception as e:
+                                logger.warning(f"[FAST-BACKFILL] GetSales list {list_name} failed: {e}")
+                            stats["gs_contacts"] += local_stats["contacts"]
+                            stats["gs_created"] += local_stats["created"]
+                            stats["gs_updated"] += local_stats["updated"]
+                            stats["gs_skipped"] += local_stats["skipped"]
+                            return local_stats
+
+                    await asyncio.gather(
+                        *[_sync_gs_list(lst) for lst in lists],
+                        return_exceptions=True,
+                    )
+                    logger.info(f"[FAST-BACKFILL] GetSales done: {stats['gs_contacts']} contacts, "
+                                 f"created={stats['gs_created']}, updated={stats['gs_updated']}")
+                except Exception as e:
+                    logger.warning(f"[FAST-BACKFILL] GetSales failed: {e}")
                     stats["gs_errors"] += 1
 
-            logger.info(f"[FAST-BACKFILL] GetSales done: {stats['gs_contacts']} contacts, "
-                         f"created={stats['gs_created']}, updated={stats['gs_updated']}")
+            stats["elapsed_seconds"] = (datetime.utcnow() - start_time).total_seconds()
+            logger.info(f"[FAST-BACKFILL] COMPLETE in {stats['elapsed_seconds']:.0f}s: {stats}")
         except Exception as e:
-            logger.warning(f"[FAST-BACKFILL] GetSales failed: {e}")
-            stats["gs_errors"] += 1
+            logger.error(f"[FAST-BACKFILL] Fatal error: {e}")
+        finally:
+            _backfill_status["running"] = False
 
-    stats["elapsed_seconds"] = (datetime.utcnow() - start_time).total_seconds()
-    logger.info(f"[FAST-BACKFILL] Complete in {stats['elapsed_seconds']:.0f}s")
-    return stats
+    asyncio.create_task(_run_backfill())
+    return {"status": "started", "sl_campaigns": len(camp_data), "platform": platform, "concurrency": concurrency}
+
+
+@router.get("/fast-backfill/status")
+async def fast_backfill_status():
+    """Check progress of running fast-backfill."""
+    return {**_backfill_status}
