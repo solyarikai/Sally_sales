@@ -1741,7 +1741,7 @@ async def push_contacts_to_smartlead(
         raise HTTPException(status_code=400, detail="No contacts with valid emails")
 
     # Build campaign name: Project — Segment — Date (N leads)
-    ts = datetime.utcnow().strftime("%m/%d %H:%M")
+    ts = datetime.utcnow().strftime("%m/%d")
     if body.campaign_name:
         campaign_name = body.campaign_name
     else:
@@ -1754,7 +1754,9 @@ async def push_contacts_to_smartlead(
                 select(Project.name).where(Project.id == sample.project_id)
             )
             project_name = proj.scalar_one_or_none() or ""
-        segment_name = sample.segment or ""
+        segment_raw = sample.segment or ""
+        # Truncate segment: take only the part before parentheses/hash, max 40 chars
+        segment_name = segment_raw.split("(")[0].split("#")[0].strip()[:40].strip()
         parts = [p for p in [project_name, segment_name] if p]
         prefix = " — ".join(parts) if parts else "Draft"
         campaign_name = f"{prefix} {ts} ({len(valid_contacts)} leads)"
