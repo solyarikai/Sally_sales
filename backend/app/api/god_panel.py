@@ -500,7 +500,7 @@ async def get_project_metrics(
     project_campaigns_cte = """
         WITH project_campaigns AS (
             SELECT project_id, LOWER(name) AS cname FROM campaigns WHERE project_id IS NOT NULL
-            UNION ALL
+            UNION
             SELECT p.id, LOWER(cf::text)
             FROM projects p, jsonb_array_elements_text(CAST(p.campaign_filters AS jsonb)) AS cf
             WHERE p.deleted_at IS NULL AND p.campaign_filters IS NOT NULL
