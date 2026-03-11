@@ -218,6 +218,19 @@ class ClayService:
             env=env,
         )
 
+        # Drain stderr concurrently to prevent pipe deadlock
+        stderr_chunks_tam: list[bytes] = []
+
+        async def _drain_stderr_tam():
+            assert proc.stderr is not None
+            while True:
+                chunk = await proc.stderr.read(4096)
+                if not chunk:
+                    break
+                stderr_chunks_tam.append(chunk)
+
+        stderr_task_tam = asyncio.create_task(_drain_stderr_tam())
+
         # Stream stdout line-by-line for live progress
         log_lines: list[str] = []
         _STEP_MAP = {
@@ -250,9 +263,8 @@ class ClayService:
         except asyncio.TimeoutError:
             proc.kill()
 
-        stderr_data = b""
-        if proc.stderr:
-            stderr_data = await proc.stderr.read()
+        await stderr_task_tam
+        stderr_data = b"".join(stderr_chunks_tam)
         await proc.wait()
 
         log_output = "\n".join(log_lines)
@@ -429,6 +441,21 @@ class ClayService:
             env=env,
         )
 
+        # Drain stderr concurrently to prevent pipe deadlock.
+        # If stderr buffer fills up while we read stdout line-by-line,
+        # the subprocess blocks on stderr write → deadlock.
+        stderr_chunks: list[bytes] = []
+
+        async def _drain_stderr():
+            assert proc.stderr is not None
+            while True:
+                chunk = await proc.stderr.read(4096)
+                if not chunk:
+                    break
+                stderr_chunks.append(chunk)
+
+        stderr_task = asyncio.create_task(_drain_stderr())
+
         # Stream stdout line-by-line for live progress
         log_lines: list[str] = []
         _STEP_MAP = {
@@ -475,9 +502,8 @@ class ClayService:
         except asyncio.TimeoutError:
             proc.kill()
 
-        stderr_data = b""
-        if proc.stderr:
-            stderr_data = await proc.stderr.read()
+        await stderr_task
+        stderr_data = b"".join(stderr_chunks)
         await proc.wait()
 
         log_output = "\n".join(log_lines)
