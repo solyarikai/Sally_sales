@@ -688,7 +688,7 @@ async def get_campaign_metrics(
     else:
         since_clause = ""
     contacts_sql = text(f"""
-        SELECT campaign_elem->>'name' AS campaign_name,
+        SELECT LOWER(campaign_elem->>'name') AS campaign_name,
                COUNT(DISTINCT c.id) AS contacts_added
         FROM contacts c,
              jsonb_array_elements(
@@ -698,7 +698,7 @@ async def get_campaign_metrics(
         WHERE c.project_id = :project_id
           AND c.deleted_at IS NULL
           {since_clause}
-        GROUP BY campaign_elem->>'name'
+        GROUP BY LOWER(campaign_elem->>'name')
         ORDER BY contacts_added DESC
     """)
     params: dict = {"project_id": project_id}
