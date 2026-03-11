@@ -61,6 +61,12 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     telegram_username = Column(String(100), nullable=True)
     telegram_first_name = Column(String(100), nullable=True)
 
+    # Telegram notification display config (per-project operator UX)
+    # JSON: {"compact": bool, "hide_fields": ["campaign","company","subject","project","inbox","time"]}
+    # compact=true: status text label with color, minimal layout
+    # Default (null): full verbose format for all fields
+    telegram_notification_config = Column(JSON, nullable=True)
+
     # Sender identity for AI-drafted replies
     sender_name = Column(String(255), nullable=True)
     sender_position = Column(String(255), nullable=True)

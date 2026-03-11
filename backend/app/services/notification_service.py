@@ -872,6 +872,7 @@ async def _refresh_project_cache():
                 "telegram_subscribers": subs_by_project.get(p.id, []),
                 "campaign_filters": p.campaign_filters or [],
                 "getsales_senders": p.getsales_senders or [],
+                "telegram_notification_config": p.telegram_notification_config or {},
             }
         
         _project_cache["data"] = cache
@@ -889,6 +890,26 @@ def _category_indicator(category: str) -> str:
     if cat in ("out_of_office",):
         return "🟡"
     return "📧"
+
+
+# Human-readable status labels for compact mode
+_CATEGORY_LABELS = {
+    "interested": "Interested",
+    "meeting_request": "Meeting Request",
+    "question": "Question",
+    "not_interested": "Not Interested",
+    "unsubscribe": "Unsubscribe",
+    "wrong_person": "Wrong Person",
+    "out_of_office": "OOO",
+    "positive": "Positive",
+    "negotiating_meeting": "Meeting",
+    "scheduled": "Meeting Booked",
+}
+
+
+def _category_label(category: str) -> str:
+    """Human-readable status label."""
+    return _CATEGORY_LABELS.get((category or "").lower(), (category or "New Reply").replace("_", " ").title())
 
 
 async def notify_reply_needs_attention(reply, category: str, campaign_name: str = None) -> bool:
@@ -970,7 +991,8 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     _company = _html_escape(reply.lead_company or 'Unknown')
     _campaign = _html_escape(campaign_name or 'Unknown')
 
-    message = f"""{indicator} <b>New Email Reply!</b>
+    # Build full (default) message — always sent to admin
+    full_message = f"""{indicator} <b>New Email Reply!</b>
 
 <b>From:</b> {reply.lead_email}
 <b>Subject:</b> {_subj}
@@ -981,21 +1003,52 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
 <code>{body_trimmed}</code>{translation_line}
 
 <a href="{replies_ui_url}">📋 Open in Replies UI</a>  ·  <a href="{reply.inbox_link or 'https://app.smartlead.ai/app/master-inbox'}">📬 Open in SmartLead</a>"""
-    
-    # 1. Always send to admin chat
-    admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)
+
+    # Build compact message for projects that opted in
+    tg_config = project.get("telegram_notification_config", {}) if project else {}
+    hide_fields = set(tg_config.get("hide_fields", []))
+    compact = tg_config.get("compact", False)
+
+    if compact:
+        label = _category_label(category)
+        parts = [f"{indicator} <b>{label}</b>"]
+        if "email" not in hide_fields:
+            parts.append(f"<b>{reply.lead_email}</b>")
+        if "company" not in hide_fields:
+            parts.append(f"Company: {_company}")
+        if "subject" not in hide_fields:
+            parts.append(f"Subject: {_subj}")
+        if "campaign" not in hide_fields:
+            parts.append(f"Campaign: {_campaign}")
+        if "project" not in hide_fields and project:
+            parts.append(f"Project: {project['name']}")
+        if "inbox" not in hide_fields and from_email:
+            parts.append(f"Inbox: {from_email}")
+        if "time" not in hide_fields and time_line:
+            parts.append(f"Time: {received_at.strftime('%b %d, %H:%M') if received_at else ''}")
+        # Message body always shown
+        parts.append(f"\n<code>{body_trimmed}</code>")
+        if translation_line:
+            parts.append(translation_line.strip())
+        parts.append(f'\n<a href="{replies_ui_url}">📋 Open in Replies UI</a>  ·  <a href="{reply.inbox_link or "https://app.smartlead.ai/app/master-inbox"}">📬 Open in SmartLead</a>')
+        compact_message = "\n".join(parts)
+    else:
+        compact_message = None
+
+    # 1. Always send full message to admin chat
+    admin_sent = await send_telegram_notification(full_message.strip(), chat_id=TELEGRAM_CHAT_ID)
     sent_chats = {TELEGRAM_CHAT_ID}
-    
-    # 2. Route to all project subscribers
+
+    # 2. Route to project subscribers (compact if configured, full otherwise)
     if project:
+        subscriber_msg = compact_message or full_message
         for subscriber_chat in project.get("telegram_subscribers", []):
             if subscriber_chat not in sent_chats:
-                await send_telegram_notification(message.strip(), chat_id=subscriber_chat)
+                await send_telegram_notification(subscriber_msg.strip(), chat_id=subscriber_chat)
                 sent_chats.add(subscriber_chat)
         if len(sent_chats) > 1:
             logger.info(f"Reply notification sent to {len(sent_chats)} chats for project '{project.get('name')}'")
 
-    
     return admin_sent
 
 
@@ -1084,7 +1137,7 @@ async def notify_linkedin_reply(
         except Exception:
             pass
 
-    message = f"""{indicator} <b>New LinkedIn Reply!</b>
+    full_message = f"""{indicator} <b>New LinkedIn Reply!</b>
 
 <b>From:</b> {contact_name}{email_line}{campaign_line}{project_line}{sender_line}
 
@@ -1092,15 +1145,45 @@ async def notify_linkedin_reply(
 <code>{message_preview}</code>{translation_line}
 {replies_line}{inbox_line}"""
 
-    # 1. Always send to admin
-    admin_sent = await send_telegram_notification(message.strip(), chat_id=TELEGRAM_CHAT_ID)
+    # Build compact message for projects that opted in
+    tg_config = project.get("telegram_notification_config", {}) if project else {}
+    hide_fields = set(tg_config.get("hide_fields", []))
+    compact = tg_config.get("compact", False)
+
+    if compact:
+        label = _category_label(category) if category else "LinkedIn Reply"
+        parts = [f"{indicator} <b>{label}</b>"]
+        parts.append(f"<b>{contact_name}</b>")
+        if "email" not in hide_fields and is_real_email:
+            parts.append(contact_email)
+        if "campaign" not in hide_fields and campaign_display:
+            parts.append(f"Campaign: {campaign_display}")
+        if "project" not in hide_fields and project:
+            parts.append(f"Project: {project['name']}")
+        parts.append(f"\n<code>{message_preview}</code>")
+        if translation_line:
+            parts.append(translation_line.strip())
+        link_parts = []
+        if replies_line:
+            link_parts.append(replies_line.strip())
+        if inbox_line:
+            link_parts.append(inbox_line.strip())
+        if link_parts:
+            parts.append("\n" + "  ·  ".join(link_parts))
+        compact_message = "\n".join(parts)
+    else:
+        compact_message = None
+
+    # 1. Always send full message to admin
+    admin_sent = await send_telegram_notification(full_message.strip(), chat_id=TELEGRAM_CHAT_ID)
     sent_chats = {TELEGRAM_CHAT_ID}
 
-    # 2. Route to project subscribers
+    # 2. Route to project subscribers (compact if configured, full otherwise)
     if project:
+        subscriber_msg = compact_message or full_message
         for subscriber_chat in project.get("telegram_subscribers", []):
             if subscriber_chat not in sent_chats:
-                await send_telegram_notification(message.strip(), chat_id=subscriber_chat)
+                await send_telegram_notification(subscriber_msg.strip(), chat_id=subscriber_chat)
                 sent_chats.add(subscriber_chat)
         if len(sent_chats) > 1:
             logger.info(f"LinkedIn reply sent to {len(sent_chats)} chats for project '{project.get('name')}'")
