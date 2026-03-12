@@ -664,13 +664,17 @@ export function ContactsPage() {
       headerName: 'LinkedIn',
       filter: 'agTextColumnFilter',
       sortable: false,
-      width: 90,
+      minWidth: 180,
+      flex: 1,
       cellRenderer: (params: { value: string }) => {
         if (!params.value) return '-';
+        // Extract /in/slug from full URL for display
+        const slug = params.value.replace(/\/$/, '').split('/in/').pop() || params.value;
         return (
           <a href={params.value} target="_blank" rel="noopener noreferrer"
-            className="text-blue-500 hover:text-blue-700 underline text-xs">
-            Profile
+            className="text-blue-500 hover:text-blue-700 underline text-xs truncate block"
+            title={params.value}>
+            linkedin.com/in/{slug}
           </a>
         );
       },
