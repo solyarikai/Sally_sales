@@ -3068,6 +3068,90 @@ async def _handle_clay_gather(
                     saved_contacts = 0
                     promoted_contacts = 0
 
+                # ── Step 6: FindyMail email enrichment ──
+                findymail_found = 0
+                findymail_total = 0
+                try:
+                    from app.services.findymail_service import findymail_service
+                    if not findymail_service.is_connected():
+                        from app.core.config import settings as _app_settings
+                        if _app_settings.FINDYMAIL_API_KEY:
+                            findymail_service.set_api_key(_app_settings.FINDYMAIL_API_KEY)
+                    if findymail_service.is_connected():
+                        # Get contacts with linkedin placeholder emails
+                        placeholder_rows = (await task_db.execute(
+                            select(Contact).where(
+                                Contact.source_id == f"clay_{job_id}",
+                                Contact.deleted_at.is_(None),
+                                Contact.email.like("%@linkedin.placeholder"),
+                                Contact.linkedin_url.isnot(None),
+                            )
+                        )).scalars().all()
+                        findymail_total = len(placeholder_rows)
+                        if findymail_total > 0:
+                            await _substep(f"Finding real emails for {findymail_total} contacts via FindyMail...")
+                            await _save_chat_message(
+                                task_db, project_id, "system",
+                                f"**Step 6/6** — Finding real emails via FindyMail for **{findymail_total}** contacts...",
+                                action_type="clay_gather_progress",
+                            )
+                            await task_db.commit()
+                            import asyncio as _aio
+                            for _fm_i, _fm_row in enumerate(placeholder_rows, 1):
+                                try:
+                                    result = await findymail_service.find_email_by_linkedin(_fm_row.linkedin_url)
+                                    # Email may be in top level or contact sub-object
+                                    _fm_contact = result.get("data", {}).get("contact", {}) if result.get("data") else {}
+                                    _fm_email = result.get("email") or _fm_contact.get("email")
+                                    if result.get("success") and _fm_email:
+                                        # Check uniqueness before updating
+                                        _dup = await task_db.execute(
+                                            select(Contact.id).where(
+                                                func.lower(Contact.email) == _fm_email.lower(),
+                                                Contact.id != _fm_row.id,
+                                            ).limit(1)
+                                        )
+                                        if not _dup.scalar_one_or_none():
+                                            _fm_row.email = _fm_email
+                                            _fm_row.email_verification_result = "valid" if result.get("verified") or _fm_contact.get("verified") else "unverified"
+                                            await task_db.flush()
+                                            findymail_found += 1
+                                except Exception as _fm_e:
+                                    logger.warning(f"FindyMail lookup failed for {_fm_row.linkedin_url}: {_fm_e}")
+                                if _fm_i % 5 == 0:
+                                    await _substep(f"FindyMail: {findymail_found}/{_fm_i} emails found...")
+                                await _aio.sleep(0.3)
+                            await task_db.commit()
+                            logger.info(f"FindyMail enrichment: {findymail_found}/{findymail_total} emails found for clay_{job_id}")
+                except Exception as _fm_err:
+                    logger.warning(f"FindyMail enrichment step failed: {_fm_err}")
+
+                # ── Seed contacts: merge previously verified contacts for same segment ──
+                seed_count = 0
+                try:
+                    # Find contacts from earlier clay jobs in same project+segment that have real emails
+                    _seed_rows = (await task_db.execute(
+                        select(Contact).where(
+                            Contact.project_id == project_id,
+                            Contact.segment == segment_label,
+                            Contact.source_id != f"clay_{job_id}",
+                            Contact.deleted_at.is_(None),
+                            ~Contact.email.like("%@linkedin.placeholder"),
+                            ~Contact.email.like("%@%.placeholder"),
+                            Contact.email.isnot(None),
+                        )
+                    )).scalars().all()
+                    for _seed in _seed_rows:
+                        # Re-tag with current job source_id so they appear in CRM filter
+                        _seed.source_id = f"clay_{job_id}"
+                        seed_count += 1
+                    if seed_count > 0:
+                        await task_db.commit()
+                        promoted_contacts += seed_count
+                        logger.info(f"Seeded {seed_count} verified contacts from earlier jobs into clay_{job_id}")
+                except Exception as _seed_err:
+                    logger.warning(f"Seed contacts step failed: {_seed_err}")
+
                 # Update search job
                 job_row = await task_db.get(SearchJob, job_id)
                 if job_row:
@@ -3077,6 +3161,9 @@ async def _handle_clay_gather(
                         "total_contacts": saved_contacts,
                         "promoted_to_crm": promoted_contacts,
                         "decision_makers": stats["decision_makers"],
+                        "findymail_found": findymail_found,
+                        "findymail_total": findymail_total,
+                        "seed_contacts": seed_count,
                     }
                     await task_db.commit()
 
@@ -3091,6 +3178,16 @@ async def _handle_clay_gather(
                     for c in filtered if (c.get("company_domain") or c.get("domain"))
                 ))
                 validated_count = len(domains)  # domains = validated_domains at this point
+
+                # Real email stats
+                _real_email_count = promoted_contacts - findymail_total + findymail_found + seed_count
+                _email_line = ""
+                if findymail_found > 0 or seed_count > 0:
+                    _email_line = f"| Real emails | **{findymail_found}** found via FindyMail"
+                    if seed_count > 0:
+                        _email_line += f" + **{seed_count}** from previous runs"
+                    _email_line += " |\n"
+
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Gather complete** — {_elapsed()}\n\n"
@@ -3098,6 +3195,7 @@ async def _handle_clay_gather(
                     f"| Target companies | **{crm_unique}** (validated **{validated_count}** from {total_found} Clay results) |\n"
                     f"| Contacts | **{stats['total_output']}** ({stats['decision_makers']} decision-makers) |\n"
                     f"| CRM draft | **{promoted_contacts}** contacts |\n"
+                    f"{_email_line}"
                     f"| Segment | {segment_label} |\n\n"
                     f"{_filter_summary(filters)}\n\n"
                     f"{links}",
@@ -3112,6 +3210,8 @@ async def _handle_clay_gather(
                         "filters": filters,
                         "search_job_id": job_id,
                         "validated_companies": validated_count,
+                        "findymail_found": findymail_found,
+                        "seed_contacts": seed_count,
                     },
                     suggestions=["show contacts", "show targets", "push to smartlead"],
                 )
@@ -3146,7 +3246,8 @@ async def _handle_clay_gather(
             f"2. Save to pipeline\n"
             f"3. Find contacts (3-8 min)\n"
             f"4. Apply office rules\n"
-            f"5. Save to CRM as draft\n\n"
+            f"5. Save to CRM as draft\n"
+            f"6. Find real emails via FindyMail\n\n"
             f"~10-15 min total. Progress updates below."
         ),
         project_id=project_id,

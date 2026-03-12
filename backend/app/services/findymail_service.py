@@ -100,10 +100,13 @@ class FindymailService:
                 
                 if response.status_code == 200:
                     data = response.json()
+                    contact_obj = data.get("contact", {})
+                    email = data.get("email") or contact_obj.get("email")
+                    verified = data.get("verified", False) or contact_obj.get("verified", False)
                     return {
                         "success": True,
-                        "email": data.get("email"),
-                        "verified": data.get("verified", False),
+                        "email": email,
+                        "verified": verified,
                         "data": data
                     }
                 elif response.status_code == 402:
@@ -118,7 +121,7 @@ class FindymailService:
         except Exception as e:
             logger.error(f"Error finding email via Findymail: {e}")
             return {"success": False, "error": str(e)}
-    
+
     async def verify_email(self, email: str) -> Dict[str, Any]:
         """Verify an email for potential bounce.
         
@@ -190,10 +193,14 @@ class FindymailService:
                 
                 if response.status_code == 200:
                     data = response.json()
+                    # Email can be at top level or nested in "contact" object
+                    contact_obj = data.get("contact", {})
+                    email = data.get("email") or contact_obj.get("email")
+                    verified = data.get("verified", False) or contact_obj.get("verified", False)
                     return {
                         "success": True,
-                        "email": data.get("email"),
-                        "verified": data.get("verified", False),
+                        "email": email,
+                        "verified": verified,
                         "data": data
                     }
                 elif response.status_code == 402:
