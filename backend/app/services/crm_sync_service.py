@@ -3039,6 +3039,10 @@ class CRMSyncService:
                             if ok:
                                 contact.status = new_st
 
+                            # Flush activity + contact changes NOW so they don't trigger
+                            # autoflush errors during SELECTs inside process_getsales_reply()
+                            await session.flush()
+
                             # Resolve campaign name for ProcessedReply
                             from app.services.reply_processor import process_getsales_reply
                             automation_info = msg.get("automation") or {}
