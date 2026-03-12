@@ -39,8 +39,8 @@ export function KnowledgePage() {
   const logIdParam = searchParams.get('logId');
   const highlightLogId = logIdParam ? Number(logIdParam) : undefined;
 
-  // Auto-switch to logs tab when logId is in URL
-  const activeTab: Tab = highlightLogId
+  // logId overrides to logs tab UNLESS the URL explicitly says gtm
+  const activeTab: Tab = highlightLogId && tabParam !== 'gtm'
     ? 'logs'
     : VALID_TABS.has(tabParam || '') ? (tabParam as Tab) : 'chat';
 
