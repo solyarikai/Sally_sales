@@ -509,6 +509,8 @@ async def list_contacts(
     company_id: int | None = Depends(get_optional_company_id),
 ):
     """Get paginated list of contacts with filters"""
+    if source_id and source_id.startswith("clay_"):
+        logger.info(f"[CONTACTS_DEBUG] source_id={source_id} project_id={project_id} campaign={campaign} campaign_id={campaign_id}")
     query = await _build_filtered_query(
         session, company_id,
         project_id=project_id, segment=segment, geo=geo, status=status, source=source,
