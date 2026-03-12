@@ -315,7 +315,7 @@ export function ContactsPage() {
     campaign_id: campaignIdFilter || undefined,
     has_replied: replyMode ? true : (repliedFilter ?? undefined),
     needs_followup: followupFilter ?? undefined,
-    project_id: activeProject?.id,
+    project_id: activeProject?.id ?? (urlProjectRef.current ? parseInt(urlProjectRef.current) : undefined),
     created_after: createdAfter || undefined,
     created_before: createdBefore || undefined,
     domain: domainFilter || undefined,
