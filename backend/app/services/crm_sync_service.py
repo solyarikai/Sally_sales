@@ -3157,17 +3157,28 @@ class CRMSyncService:
             await session.commit()
 
             # Send notifications AFTER commit — prevents ghost notifications on rollback
+            # Only notify for recent replies (last 60 min) to avoid spamming operator
+            # with historical catch-up data on cold start or after extended downtime
             if _pending_notifications:
                 from app.services.reply_processor import send_getsales_notification
+                _notif_cutoff = datetime.utcnow() - timedelta(hours=1)
+                _notified = 0
+                _skipped_old = 0
                 for _pr, _contact, _fn, _fu, _mt, _rd in _pending_notifications:
+                    if _pr.received_at and _pr.received_at < _notif_cutoff:
+                        _skipped_old += 1
+                        continue
                     try:
                         await send_getsales_notification(
                             processed_reply=_pr, contact=_contact,
                             flow_name=_fn, flow_uuid=_fu,
                             message_text=_mt, raw_data=_rd, session=session,
                         )
+                        _notified += 1
                     except Exception:
                         pass  # Non-fatal
+                if _skipped_old:
+                    logger.info(f"[GETSALES] Skipped {_skipped_old} old notifications (>{_notif_cutoff}), sent {_notified}")
             
             # Update total count in Redis after successful sync
             if redis:
