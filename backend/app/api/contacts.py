@@ -2996,7 +2996,7 @@ async def crm_spotlight_gtm(
                 if body_preview:
                     summary += f"\n    [{direction}]: {body_preview}"
         elif reply:
-            body_preview = (reply.body or "")[:300].replace("\n", " ").strip()
+            body_preview = (reply.email_body or "")[:300].replace("\n", " ").strip()
             if body_preview:
                 summary += f"\n  Latest reply: {body_preview}"
 
