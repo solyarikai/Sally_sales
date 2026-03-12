@@ -903,7 +903,11 @@ export function ContactsPage() {
     setIsPushingToSmartlead(true);
     setSmartleadCampaignUrl(null);
     try {
-      const result = await contactsApi.pushToSmartlead(selectedContacts.map(c => c.id));
+      // If user selected all visible but there are more on server, use filter-based push
+      const allSelected = selectedContacts.length === contacts.length && total > contacts.length;
+      const result = allSelected && sourceIdFilter
+        ? await contactsApi.pushToSmartlead([], undefined, { source_id: sourceIdFilter, project_id: activeProject?.id })
+        : await contactsApi.pushToSmartlead(selectedContacts.map(c => c.id));
       setSmartleadCampaignUrl(result.campaign_url);
       toast.success(
         `Campaign created: ${result.campaign_name}`,

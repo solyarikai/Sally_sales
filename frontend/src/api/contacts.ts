@@ -488,7 +488,7 @@ export const contactsApi = {
   },
 
   // Push selected contacts to a new SmartLead draft campaign
-  async pushToSmartlead(contactIds: number[], campaignName?: string): Promise<{
+  async pushToSmartlead(contactIds: number[], campaignName?: string, opts?: { source_id?: string; project_id?: number }): Promise<{
     campaign_id: string;
     campaign_name: string;
     campaign_url: string;
@@ -499,6 +499,8 @@ export const contactsApi = {
     const response = await api.post('/contacts/push-to-smartlead', {
       contact_ids: contactIds,
       campaign_name: campaignName || undefined,
+      source_id: opts?.source_id,
+      project_id: opts?.project_id,
     });
     return response.data;
   },

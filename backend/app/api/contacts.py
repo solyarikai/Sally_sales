@@ -1809,8 +1809,11 @@ async def _generate_outreach_sequence(project_name: str, segment_name: str) -> l
 # ============= SmartLead Draft Campaign =============
 
 class PushToSmartleadRequest(BaseModel):
-    contact_ids: List[int]
+    contact_ids: List[int] = []
     campaign_name: Optional[str] = None
+    # Filter-based push: when contact_ids is empty, use these to select all matching contacts
+    source_id: Optional[str] = None
+    project_id: Optional[int] = None
 
 
 @router.post("/push-to-smartlead")
@@ -1821,18 +1824,29 @@ async def push_contacts_to_smartlead(
 ):
     """Create a draft SmartLead campaign from selected contacts and add them as leads.
 
+    Accepts contact_ids OR source_id+project_id to push all matching contacts.
     Returns campaign ID, name, and link.
     """
-    if not body.contact_ids:
-        raise HTTPException(status_code=400, detail="No contacts selected")
-
     if not smartlead_service.is_connected():
         raise HTTPException(status_code=400, detail="SmartLead API key not configured")
 
-    # Fetch contacts
-    result = await session.execute(
-        select(Contact).where(Contact.id.in_(body.contact_ids))
-    )
+    # Fetch contacts — by IDs or by filter
+    if body.contact_ids:
+        result = await session.execute(
+            select(Contact).where(Contact.id.in_(body.contact_ids))
+        )
+    elif body.source_id:
+        q = select(Contact).where(
+            Contact.source_id == body.source_id,
+            Contact.deleted_at.is_(None),
+            Contact.email.isnot(None),
+        )
+        if body.project_id:
+            q = q.where(Contact.project_id == body.project_id)
+        result = await session.execute(q)
+    else:
+        raise HTTPException(status_code=400, detail="Provide contact_ids or source_id")
+
     contacts_list = list(result.scalars().all())
 
     if not contacts_list:
@@ -1885,9 +1899,12 @@ async def push_contacts_to_smartlead(
                 project_name = proj_obj.name or ""
         segment_name = (valid_contacts[0].segment or "").split("#")[0].strip()
 
+        logger.info(f"[SEQUENCE] Generating for campaign {campaign_id}: project={project_name}, segment={segment_name}")
         sequences = await _generate_outreach_sequence(project_name, segment_name)
+        logger.info(f"[SEQUENCE] Got {len(sequences)} steps for campaign {campaign_id}")
         if sequences:
-            await smartlead_service.set_campaign_sequences(campaign_id, sequences)
+            result = await smartlead_service.set_campaign_sequences(campaign_id, sequences)
+            logger.info(f"[SEQUENCE] Set result for campaign {campaign_id}: {result}")
     except Exception as e:
         logger.warning(f"Failed to generate sequence for campaign {campaign_id}: {e}")
 
