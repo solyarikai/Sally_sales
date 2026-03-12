@@ -937,8 +937,22 @@ class CRMScheduler:
             for r in funnel_rows:
                 funnel_text += f"{r.segment:<16} {r.total_replies:>7} {r.unique_replied:>6} {r.positive:>8} {r.meeting_requests:>8} {r.interested:>10} {r.questions:>9} {r.not_interested:>7}\n"
 
-            # Warm conversations
-            warm_result = await session.execute(
+            # ALL replies (positive + negative) grouped by category
+            import re as re_mod
+
+            def _classify_seg(campaign_name: str) -> str:
+                if not campaign_name:
+                    return "Other"
+                cn_lower = campaign_name.lower()
+                for pat, s in segment_rules.items():
+                    if any(c in pat for c in ".*+?[](){}|\\^$"):
+                        if re_mod.search(pat, cn_lower, re_mod.IGNORECASE):
+                            return s
+                    elif pat in cn_lower:
+                        return s
+                return "Other"
+
+            all_replies_result = await session.execute(
                 select(ProcessedReply)
                 .join(Contact, and_(
                     func.lower(Contact.email) == func.lower(ProcessedReply.lead_email),
@@ -947,107 +961,159 @@ class CRMScheduler:
                 .where(
                     Contact.project_id == project_id,
                     ProcessedReply.parent_reply_id.is_(None),
-                    ProcessedReply.category.in_(["interested", "meeting_request", "question"]),
+                    ProcessedReply.category.in_([
+                        "meeting_request", "interested", "question",
+                        "not_interested", "wrong_person",
+                    ]),
                 )
                 .order_by(ProcessedReply.received_at.desc())
-                .limit(80)
+                .limit(120)
             )
-            warm_replies = list(warm_result.scalars().all())
+            all_replies = list(all_replies_result.scalars().all())
 
-            warm_ids = [r.id for r in warm_replies]
+            reply_ids = [r.id for r in all_replies]
             threads_map: dict = {}
-            if warm_ids:
+            if reply_ids:
                 threads_result = await session.execute(
                     select(ThreadMessage)
-                    .where(ThreadMessage.reply_id.in_(warm_ids))
+                    .where(ThreadMessage.reply_id.in_(reply_ids))
                     .order_by(ThreadMessage.reply_id, ThreadMessage.position)
                 )
                 for tm in threads_result.scalars().all():
                     threads_map.setdefault(tm.reply_id, []).append(tm)
 
-            import re as re_mod
-            convos_text = "WARM CONTACT CONVERSATIONS:\n\n"
-            for reply in warm_replies:
-                seg = "Other"
-                if reply.campaign_name:
-                    cn_lower = reply.campaign_name.lower()
-                    for pat, s in segment_rules.items():
-                        if any(c in pat for c in ".*+?[](){}|\\^$"):
-                            if re_mod.search(pat, cn_lower, re_mod.IGNORECASE):
-                                seg = s; break
-                        elif pat in cn_lower:
-                            seg = s; break
-                convos_text += f"--- [{seg}] {reply.lead_first_name or ''} {reply.lead_last_name or ''} ({reply.lead_email})"
+            positive_convos = "POSITIVE REPLIES (meetings + interested + questions):\n\n"
+            negative_convos = "OBJECTIONS & REJECTIONS (not_interested + wrong_person):\n\n"
+            pos_count = neg_count = 0
+
+            for reply in all_replies:
+                seg = _classify_seg(reply.campaign_name)
+                header = f"--- [{seg}] {reply.lead_first_name or ''} {reply.lead_last_name or ''}"
                 if reply.lead_company:
-                    convos_text += f" @ {reply.lead_company}"
-                convos_text += f" | {reply.category} | {reply.campaign_name or 'unknown'}\n"
+                    header += f" @ {reply.lead_company}"
+                header += f" | {reply.category}"
+                if reply.email_subject:
+                    header += f" | subj: {reply.email_subject[:80]}"
+                header += f" | {reply.campaign_name or 'unknown'}\n"
+
                 thread = threads_map.get(reply.id, [])
+                body_text = ""
                 if thread:
                     for msg in thread:
                         d = ">>>" if msg.direction == "outbound" else "<<<"
-                        body = (msg.body or "")[:400].strip()
-                        if body:
-                            convos_text += f"  {d} {body}\n"
+                        b = (msg.body or "")[:350].strip()
+                        if b:
+                            body_text += f"  {d} {b}\n"
                 else:
-                    body = (reply.reply_text or reply.email_body or "")[:400].strip()
-                    if body:
-                        convos_text += f"  <<< {body}\n"
-                convos_text += "\n"
+                    b = (reply.reply_text or reply.email_body or "")[:350].strip()
+                    if b:
+                        body_text += f"  <<< {b}\n"
+
+                if reply.category in ("meeting_request", "interested", "question") and pos_count < 70:
+                    positive_convos += header + body_text + "\n"
+                    pos_count += 1
+                elif reply.category in ("not_interested", "wrong_person") and neg_count < 50:
+                    negative_convos += header + body_text + "\n"
+                    neg_count += 1
 
             campaigns_text = "CAMPAIGNS:\n"
             for c in sorted(campaigns, key=lambda x: x.leads_count or 0, reverse=True):
                 campaigns_text += f"  {c.name} ({c.platform}, {c.leads_count or '?'} leads)\n"
 
-            input_summary = f"{len(campaigns)} campaigns, {sum(r.total_replies for r in funnel_rows)} replies, {len(warm_replies)} warm conversations"
+            input_summary = f"{len(campaigns)} campaigns, {sum(r.total_replies for r in funnel_rows)} replies, {pos_count} positive + {neg_count} objections"
 
             # Call Opus 4.6
             client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-            system_prompt = """You are an elite B2B outbound strategist analyzing REAL outreach data — segment funnel metrics and actual conversations with warm leads.
+            system_prompt = """You are an elite B2B outbound strategist analyzing REAL outreach data for a performance marketing / influencer marketing platform (Rizzult).
 
-Your analysis must be brutally honest and data-driven. No generic advice.
+The company helps brands acquire customers through influencers on a CPA (cost-per-action) basis. They're reaching out to potential clients across different business verticals via cold email and LinkedIn.
+
+You will receive:
+1. SEGMENT FUNNEL — reply counts and conversion by business vertical
+2. POSITIVE REPLIES — conversations that led to meetings or interest
+3. OBJECTIONS — not_interested and wrong_person replies (these reveal what's failing)
+4. CAMPAIGN LIST — all active outreach campaigns
+
+Your analysis must be:
+- BRUTALLY HONEST — call out what's not working
+- DATA-DRIVEN — cite specific numbers and conversation quotes
+- STATISTICALLY AWARE — segments with <20 replies have unreliable rates, flag them
+- ACTIONABLE — every recommendation must be specific enough to execute tomorrow
 
 Return ONLY valid JSON with this structure:
 {
-  "summary": "3-5 sentence executive strategy summary — the single most important insight first",
+  "summary": "5 sentence max. Lead with THE most important insight, then 2nd, 3rd.",
   "segments": [
     {
       "segment": "Segment Name",
       "priority": 1,
-      "size": 123,
-      "total_replies": 50,
-      "meetings": 5,
-      "verdict": "SCALE UP | MAINTAIN | PIVOT | PAUSE | DROP",
-      "rationale": "Data-backed reasoning",
-      "what_works": "Patterns from conversations that lead to meetings",
-      "what_fails": "Patterns that lead to not_interested/wrong_person",
-      "pitch_fix": "Concrete changes to messaging",
-      "sequence_recommendation": "Steps, timing, channel mix",
-      "outreach_angle": "Best messaging angle"
+      "contacts": 8000,
+      "total_replies": 661,
+      "unique_replied": 500,
+      "meetings": 27,
+      "reply_rate_pct": 6.3,
+      "meeting_conversion_pct": 4.1,
+      "verdict": "SCALE UP",
+      "confidence": "HIGH|MEDIUM|LOW (based on sample size)",
+      "rationale": "Why this verdict — cite numbers",
+      "winning_patterns": ["Pattern 1 from conversations that led to meetings", "Pattern 2"],
+      "objection_patterns": ["Common objection 1 from not_interested replies", "Objection 2"],
+      "recommended_opening": "Exact first email text (1-2 sentences) based on what works",
+      "recommended_subject": "Best subject line based on reply patterns",
+      "sequence": {"steps": 4, "days_between": [3,3,5], "channels": ["email","email","linkedin","email"]},
+      "target_titles": ["VP Marketing", "Head of Growth"],
+      "target_company_size": "50-500 employees",
+      "monthly_volume_target": 500,
+      "pitch_fix": "Stop saying X, start saying Y — quote actual conversations"
     }
   ],
-  "bottlenecks": ["Top issues killing conversion"],
-  "quick_wins": ["Actionable changes for next 2 weeks"],
-  "explore": ["Worth testing based on early signals"]
+  "new_segments_to_explore": [
+    {
+      "segment": "E-commerce D2C",
+      "why": "Reasoning based on what's working in similar segments",
+      "estimated_potential": "HIGH|MEDIUM",
+      "suggested_angle": "Specific messaging approach"
+    }
+  ],
+  "bottlenecks": [
+    {"issue": "Description", "impact": "HIGH|MEDIUM", "evidence": "Data/quote", "fix": "Specific action"}
+  ],
+  "thirty_day_plan": [
+    {"week": 1, "action": "Specific action", "segment": "Target segment", "volume": 500},
+    {"week": 2, "action": "Another action", "segment": "Target", "volume": 300}
+  ]
 }
 
-Rules:
-- VERDICT: SCALE UP, MAINTAIN, PIVOT, PAUSE, or DROP
-- Quote specific conversation snippets
-- Reference actual numbers from funnel data
-- Be specific about pitch changes — "say X instead of Y"
-- Diagnose high reply + low meeting segments from conversations"""
+CRITICAL RULES:
+- Include ALL segments from the funnel data — even tiny ones (mark confidence=LOW)
+- VERDICT options: SCALE UP, MAINTAIN, PIVOT, PAUSE, DROP
+- For segments with <20 replies: confidence=LOW, don't make strong verdict claims
+- Quote exact phrases from conversations in winning_patterns and objection_patterns
+- recommended_opening must be an actual email opening you'd send
+- new_segments_to_explore: suggest 3-5 adjacent verticals NOT currently targeted
+- thirty_day_plan: 4 weeks of specific actions with volume targets
+- Objections are MORE valuable than positive replies — analyze them deeply"""
 
             user_prompt = f"""Project: {project.name}
-Description: {project.target_industries or 'B2B outreach'}
+Product: Performance marketing platform connecting brands with influencers on CPA basis.
+Geo: Primarily LATAM (Spanish-speaking) + some global
 
 {funnel_text}
 
 {campaigns_text}
 
-{convos_text}
+{positive_convos}
 
-Analyze and generate a comprehensive GTM strategy."""
+{negative_convos}
+
+Generate a comprehensive GTM strategy. Pay special attention to:
+1. The gap between reply volume and meeting conversion (Shopping has 661 replies but only 27 meetings — WHY?)
+2. Objection patterns — what specific reasons do people give for not being interested?
+3. Wrong person replies — are we targeting the right titles/departments?
+4. Which segments have the highest MEETING conversion (not just replies)?
+5. What NEW verticals should we explore based on patterns in successful conversations?
+6. Specific email openings and subject lines based on what's actually working"""
 
             try:
                 message = await client.messages.create(
