@@ -2854,27 +2854,55 @@ async def get_segment_funnel(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Segment rules: keyword → segment name (case-insensitive match on campaign name)
-    # Built-in rules that cover common vertical keywords across projects
-    segment_rules = {
-            "fintech": "Fintech", "qsr": "QSR", "agenc": "Agencies",
-            "foodtech": "Foodtech", "food.*drink": "Foodtech",
-            "shopping": "Shopping", "stream": "Streaming", "media": "Media",
-            "telemed": "Telemedicine", "checkup": "Telemedicine",
-            "insur": "Insurance", "clean": "Cleaning", "farm": "Pharmacies",
-            "mobil": "Mobility", "wellness": "Wellness", "procure": "Procurement",
-            "telecom": "Telecom",
-        }
+    # Auto-derive segments from campaign names for ANY project.
+    # Pattern: "ProjectName - Segment [details]" or "ProjectName_Segment_details"
+    # Extract the segment part after stripping project prefix.
+    from app.models.campaign import Campaign as CampaignModel
+    campaign_names_result = await session.execute(
+        select(CampaignModel.name).where(
+            CampaignModel.project_id == project_id,
+            CampaignModel.name.isnot(None),
+        )
+    )
+    raw_campaign_names = [r[0] for r in campaign_names_result.fetchall() if r[0]]
 
-    # Build SQL CASE WHEN from segment rules
+    # Build segment rules dynamically from campaign names
+    project_name_lower = project.name.lower().strip()
+
+    def _extract_segment(cname: str) -> str:
+        """Extract segment from campaign name by stripping project prefix + noise."""
+        cn = cname.strip()
+        cn_lower = cn.lower()
+        # Strip project name prefix (case-insensitive)
+        if cn_lower.startswith(project_name_lower):
+            cn = cn[len(project_name_lower):].strip()
+        # Strip common separators at start
+        cn = cn.lstrip("-_–— ").strip()
+        # Remove trailing bracket content [details], (details)
+        cn = re.sub(r'\s*[\[\(].*$', '', cn).strip()
+        # Remove trailing numbers/dates
+        cn = re.sub(r'\s+\d+$', '', cn).strip()
+        # Normalize: "Russian DM's 2" → "Russian DMs"
+        cn = re.sub(r"'s?\s*\d*$", '', cn).strip()
+        if not cn or len(cn) < 2:
+            return "Other"
+        # Title-case the result
+        return cn.title()
+
+    # Build segment map: campaign_name → segment
+    segment_map: dict[str, str] = {}
+    for cname in raw_campaign_names:
+        segment_map[cname] = _extract_segment(cname)
+
+    # Build SQL CASE WHEN from discovered segments
     def build_case_when(col_expr: str) -> str:
         whens = []
-        for pattern, segment in segment_rules.items():
-            # Use ~ for regex, ILIKE for simple substring
-            if any(c in pattern for c in ".*+?[](){}|\\^$"):
-                whens.append(f"WHEN {col_expr} ~* '{pattern}' THEN '{segment}'")
-            else:
-                whens.append(f"WHEN {col_expr} ILIKE '%{pattern}%' THEN '{segment}'")
+        for cname, seg in segment_map.items():
+            # Escape single quotes in campaign names for SQL
+            escaped = cname.replace("'", "''")
+            whens.append(f"WHEN {col_expr} = '{escaped}' THEN '{seg.replace(chr(39), chr(39)+chr(39))}'")
+        if not whens:
+            return f"'Other'"
         return "CASE " + " ".join(whens) + " ELSE 'Other' END"
 
     campaign_case = build_case_when("c.name")
@@ -3051,27 +3079,44 @@ async def generate_gtm_plan(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # ── 1. Segment funnel data (reuse the same logic) ──
-    segment_rules = {
-        "fintech": "Fintech", "qsr": "QSR", "agenc": "Agencies",
-        "foodtech": "Foodtech", "food.*drink": "Foodtech",
-        "shopping": "Shopping", "stream": "Streaming", "media": "Media",
-        "telemed": "Telemedicine", "checkup": "Telemedicine",
-        "insur": "Insurance", "clean": "Cleaning", "farm": "Pharmacies",
-        "mobil": "Mobility", "wellness": "Wellness", "procure": "Procurement",
-        "telecom": "Telecom",
-    }
+    # ── 1. Segment funnel data — dynamic extraction from campaign names ──
+    from app.models.campaign import Campaign as CampaignModel2
+    gtm_campaigns_result = await session.execute(
+        select(CampaignModel2.name).where(
+            CampaignModel2.project_id == project_id,
+            CampaignModel2.name.isnot(None),
+        )
+    )
+    gtm_raw_names = [r[0] for r in gtm_campaigns_result.fetchall() if r[0]]
+    gtm_project_lower = project.name.lower().strip()
 
-    def build_case_when(col_expr: str) -> str:
+    def _extract_segment_gtm(cname: str) -> str:
+        cn = cname.strip()
+        cn_lower = cn.lower()
+        if cn_lower.startswith(gtm_project_lower):
+            cn = cn[len(gtm_project_lower):].strip()
+        cn = cn.lstrip("-_–— ").strip()
+        cn = re.sub(r'\s*[\[\(].*$', '', cn).strip()
+        cn = re.sub(r'\s+\d+$', '', cn).strip()
+        cn = re.sub(r"'s?\s*\d*$", '', cn).strip()
+        if not cn or len(cn) < 2:
+            return "Other"
+        return cn.title()
+
+    gtm_segment_map: dict[str, str] = {}
+    for cname in gtm_raw_names:
+        gtm_segment_map[cname] = _extract_segment_gtm(cname)
+
+    def build_case_when_gtm(col_expr: str) -> str:
         whens = []
-        for pattern, segment in segment_rules.items():
-            if any(c in pattern for c in ".*+?[](){}|\\^$"):
-                whens.append(f"WHEN {col_expr} ~* '{pattern}' THEN '{segment}'")
-            else:
-                whens.append(f"WHEN {col_expr} ILIKE '%{pattern}%' THEN '{segment}'")
+        for cname, seg in gtm_segment_map.items():
+            escaped = cname.replace("'", "''")
+            whens.append(f"WHEN {col_expr} = '{escaped}' THEN '{seg.replace(chr(39), chr(39)+chr(39))}'")
+        if not whens:
+            return f"'Other'"
         return "CASE " + " ".join(whens) + " ELSE 'Other' END"
 
-    reply_case = build_case_when("pr.campaign_name")
+    reply_case = build_case_when_gtm("pr.campaign_name")
 
     funnel_sql = f"""
         SELECT {reply_case} as segment,
@@ -3112,14 +3157,7 @@ async def generate_gtm_plan(
     def _classify_segment(campaign_name: str) -> str:
         if not campaign_name:
             return "Other"
-        cn_lower = campaign_name.lower()
-        for pattern, segment in segment_rules.items():
-            if any(c in pattern for c in ".*+?[](){}|\\^$"):
-                if re.search(pattern, cn_lower, re.IGNORECASE):
-                    return segment
-            elif pattern in cn_lower:
-                return segment
-        return "Other"
+        return gtm_segment_map.get(campaign_name, _extract_segment_gtm(campaign_name))
 
     # Fetch recent replies across ALL categories (not just positive)
     all_replies_result = await session.execute(

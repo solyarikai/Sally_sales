@@ -882,24 +882,41 @@ class CRMScheduler:
             if not project:
                 return
 
-            # Segment rules
-            segment_rules = {
-                "fintech": "Fintech", "qsr": "QSR", "agenc": "Agencies",
-                "foodtech": "Foodtech", "food.*drink": "Foodtech",
-                "shopping": "Shopping", "stream": "Streaming", "media": "Media",
-                "telemed": "Telemedicine", "checkup": "Telemedicine",
-                "insur": "Insurance", "clean": "Cleaning", "farm": "Pharmacies",
-                "mobil": "Mobility", "wellness": "Wellness", "procure": "Procurement",
-                "telecom": "Telecom",
-            }
+            # Dynamic segment extraction from campaign names
+            import re as re_extract
+            sched_campaigns_result = await session.execute(
+                select(Campaign.name).where(
+                    Campaign.project_id == project_id,
+                    Campaign.name.isnot(None),
+                )
+            )
+            sched_raw_names = [r[0] for r in sched_campaigns_result.fetchall() if r[0]]
+            sched_project_lower = project.name.lower().strip()
+
+            def _extract_seg(cname: str) -> str:
+                cn = cname.strip()
+                cn_lower = cn.lower()
+                if cn_lower.startswith(sched_project_lower):
+                    cn = cn[len(sched_project_lower):].strip()
+                cn = cn.lstrip("-_–— ").strip()
+                cn = re_extract.sub(r'\s*[\[\(].*$', '', cn).strip()
+                cn = re_extract.sub(r'\s+\d+$', '', cn).strip()
+                cn = re_extract.sub(r"'s?\s*\d*$", '', cn).strip()
+                if not cn or len(cn) < 2:
+                    return "Other"
+                return cn.title()
+
+            sched_segment_map: dict = {}
+            for cname in sched_raw_names:
+                sched_segment_map[cname] = _extract_seg(cname)
 
             def _case_when(col: str) -> str:
                 whens = []
-                for p, s in segment_rules.items():
-                    if any(c in p for c in ".*+?[](){}|\\^$"):
-                        whens.append(f"WHEN {col} ~* '{p}' THEN '{s}'")
-                    else:
-                        whens.append(f"WHEN {col} ILIKE '%{p}%' THEN '{s}'")
+                for cname, seg in sched_segment_map.items():
+                    escaped = cname.replace("'", "''")
+                    whens.append(f"WHEN {col} = '{escaped}' THEN '{seg.replace(chr(39), chr(39)+chr(39))}'")
+                if not whens:
+                    return f"'Other'"
                 return "CASE " + " ".join(whens) + " ELSE 'Other' END"
 
             reply_case = _case_when("pr.campaign_name")
@@ -938,19 +955,10 @@ class CRMScheduler:
                 funnel_text += f"{r.segment:<16} {r.total_replies:>7} {r.unique_replied:>6} {r.positive:>8} {r.meeting_requests:>8} {r.interested:>10} {r.questions:>9} {r.not_interested:>7}\n"
 
             # ALL replies (positive + negative) grouped by category
-            import re as re_mod
-
             def _classify_seg(campaign_name: str) -> str:
                 if not campaign_name:
                     return "Other"
-                cn_lower = campaign_name.lower()
-                for pat, s in segment_rules.items():
-                    if any(c in pat for c in ".*+?[](){}|\\^$"):
-                        if re_mod.search(pat, cn_lower, re_mod.IGNORECASE):
-                            return s
-                    elif pat in cn_lower:
-                        return s
-                return "Other"
+                return sched_segment_map.get(campaign_name, _extract_seg(campaign_name))
 
             all_replies_result = await session.execute(
                 select(ProcessedReply)
