@@ -943,7 +943,6 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
         project_param = f"&project={quote(project['name'].lower().replace(' ', '-'))}"
     replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(reply.lead_email)}{project_param}"
 
-    indicator = _category_indicator(category)
     project_line = f"\n<b>Project:</b> {project['name']}" if project else ""
 
     body_raw = (reply.email_body or reply.reply_text or "No body").strip()
@@ -992,7 +991,7 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     _campaign = _html_escape(campaign_name or 'Unknown')
 
     # Build full (default) message — always sent to admin
-    full_message = f"""{indicator} <b>New Email Reply!</b>
+    full_message = f"""📧 <b>New Email Reply!</b>
 
 <b>From:</b> {reply.lead_email}
 <b>Subject:</b> {_subj}
@@ -1010,6 +1009,7 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     compact = tg_config.get("compact", False)
 
     if compact:
+        indicator = _category_indicator(category)
         label = _category_label(category)
         parts = [f"📧 Email · {indicator} <b>{label}</b>"]
         if "email" not in hide_fields:
@@ -1113,7 +1113,6 @@ async def notify_linkedin_reply(
         replies_ui_url = None
     replies_line = f'\n<a href="{replies_ui_url}">📋 Open in Replies UI</a>' if replies_ui_url else ""
 
-    indicator = _category_indicator(category) if category else "🔗"
     sender_line = f"\n<b>Sender:</b> {sender_name}" if sender_name else ""
     campaign_display = campaign_name or flow_name
     campaign_line = f"\n<b>Campaign:</b> {campaign_display}" if campaign_display else ""
@@ -1137,7 +1136,7 @@ async def notify_linkedin_reply(
         except Exception:
             pass
 
-    full_message = f"""{indicator} <b>New LinkedIn Reply!</b>
+    full_message = f"""🔗 <b>New LinkedIn Reply!</b>
 
 <b>From:</b> {contact_name}{email_line}{campaign_line}{project_line}{sender_line}
 
@@ -1151,6 +1150,7 @@ async def notify_linkedin_reply(
     compact = tg_config.get("compact", False)
 
     if compact:
+        indicator = _category_indicator(category) if category else "🔗"
         label = _category_label(category) if category else "LinkedIn Reply"
         parts = [f"💼 LinkedIn · {indicator} <b>{label}</b>"]
         parts.append(f"<b>{contact_name}</b>")
