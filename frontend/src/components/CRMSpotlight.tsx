@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Command, X, Loader2, Send, CheckCircle2, ExternalLink, TrendingUp } from 'lucide-react';
+import { Command, X, Loader2, Send, CheckCircle2, TrendingUp } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { contactsApi } from '../api/contacts';
