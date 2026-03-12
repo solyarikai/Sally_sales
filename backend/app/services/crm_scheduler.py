@@ -897,8 +897,9 @@ class CRMScheduler:
             if not project:
                 return
 
-            # Dynamic segment extraction from campaign names
-            import re as re_extract
+            # Dynamic segment extraction from campaign names (shared utility)
+            from app.utils.segment_extraction import build_segment_map, build_segment_case_when, extract_segment
+
             sched_campaigns_result = await session.execute(
                 select(Campaign.name).where(
                     Campaign.project_id == project_id,
@@ -906,35 +907,9 @@ class CRMScheduler:
                 )
             )
             sched_raw_names = [r[0] for r in sched_campaigns_result.fetchall() if r[0]]
-            sched_project_lower = project.name.lower().strip()
+            sched_segment_map = build_segment_map(sched_raw_names, project.name)
 
-            def _extract_seg(cname: str) -> str:
-                cn = cname.strip()
-                cn_lower = cn.lower()
-                if cn_lower.startswith(sched_project_lower):
-                    cn = cn[len(sched_project_lower):].strip()
-                cn = cn.lstrip("-_–— ").strip()
-                cn = re_extract.sub(r'\s*[\[\(].*$', '', cn).strip()
-                cn = re_extract.sub(r'\s+\d+$', '', cn).strip()
-                cn = re_extract.sub(r"'s?\s*\d*$", '', cn).strip()
-                if not cn or len(cn) < 2:
-                    return "Other"
-                return cn.title()
-
-            sched_segment_map: dict = {}
-            for cname in sched_raw_names:
-                sched_segment_map[cname] = _extract_seg(cname)
-
-            def _case_when(col: str) -> str:
-                whens = []
-                for cname, seg in sched_segment_map.items():
-                    escaped = cname.replace("'", "''")
-                    whens.append(f"WHEN {col} = '{escaped}' THEN '{seg.replace(chr(39), chr(39)+chr(39))}'")
-                if not whens:
-                    return f"'Other'"
-                return "CASE " + " ".join(whens) + " ELSE 'Other' END"
-
-            reply_case = _case_when("pr.campaign_name")
+            reply_case = build_segment_case_when(sched_segment_map, "pr.campaign_name")
 
             # Funnel data
             funnel_result = await session.execute(sql_text(f"""
@@ -973,7 +948,7 @@ class CRMScheduler:
             def _classify_seg(campaign_name: str) -> str:
                 if not campaign_name:
                     return "Other"
-                return sched_segment_map.get(campaign_name, _extract_seg(campaign_name))
+                return sched_segment_map.get(campaign_name, extract_segment(campaign_name, project.name))
 
             all_replies_result = await session.execute(
                 select(ProcessedReply)
