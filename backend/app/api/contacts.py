@@ -308,7 +308,11 @@ async def _build_filtered_query(
         proj_campaign_filters = proj_row[0] if proj_row else None
         proj_name = (proj_row[1] if proj_row else "") or ""
 
-        if proj_campaign_filters and len(proj_campaign_filters) > 0:
+        # When source_id is explicit (e.g. clay_641), use simple project_id filter —
+        # campaign_clause would exclude contacts that match source_id but lack campaign history
+        if source_id:
+            query = query.where(Contact.project_id == project_id)
+        elif proj_campaign_filters and len(proj_campaign_filters) > 0:
             import os
             common = os.path.commonprefix(proj_campaign_filters).strip()
             if len(common) < 3 and proj_name and all(
