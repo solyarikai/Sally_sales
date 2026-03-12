@@ -3141,6 +3141,35 @@ class CRMSyncService:
                     stats["new_replies"] += 1
                     new_reply_ids.append(message_id)
 
+                # --- Commit + notify after each page to avoid long-running transactions ---
+                # Previously one commit at the end meant 15-20 min of uncommitted work that
+                # was lost on any restart/crash. Now each page's work is durable immediately.
+                if new_reply_ids:
+                    await session.commit()
+
+                    # Send notifications for this page's replies
+                    if _pending_notifications:
+                        from app.services.reply_processor import send_getsales_notification
+                        _notif_cutoff = datetime.utcnow() - timedelta(hours=1)
+                        for _pr, _contact, _fn, _fu, _mt, _rd in _pending_notifications:
+                            if _pr.received_at and _pr.received_at < _notif_cutoff:
+                                stats.setdefault("skipped_old_notif", 0)
+                                stats["skipped_old_notif"] = stats.get("skipped_old_notif", 0) + 1
+                                continue
+                            try:
+                                await send_getsales_notification(
+                                    processed_reply=_pr, contact=_contact,
+                                    flow_name=_fn, flow_uuid=_fu,
+                                    message_text=_mt, raw_data=_rd, session=session,
+                                )
+                            except Exception:
+                                pass  # Non-fatal
+
+                    # Cache IDs immediately so they survive restarts
+                    await bulk_add_replies("getsales", new_reply_ids)
+                    new_reply_ids = []
+                    _pending_notifications = []
+
                 # Pagination — fetch next page for next iteration
                 if not has_more:
                     stop_pagination = True
@@ -3154,40 +3183,13 @@ class CRMSyncService:
                     if not messages:
                         break
 
+            # Final commit for any remaining work (pages with only cached/existing messages)
             await session.commit()
 
-            # Send notifications AFTER commit — prevents ghost notifications on rollback
-            # Only notify for recent replies (last 60 min) to avoid spamming operator
-            # with historical catch-up data on cold start or after extended downtime
-            if _pending_notifications:
-                from app.services.reply_processor import send_getsales_notification
-                _notif_cutoff = datetime.utcnow() - timedelta(hours=1)
-                _notified = 0
-                _skipped_old = 0
-                for _pr, _contact, _fn, _fu, _mt, _rd in _pending_notifications:
-                    if _pr.received_at and _pr.received_at < _notif_cutoff:
-                        _skipped_old += 1
-                        continue
-                    try:
-                        await send_getsales_notification(
-                            processed_reply=_pr, contact=_contact,
-                            flow_name=_fn, flow_uuid=_fu,
-                            message_text=_mt, raw_data=_rd, session=session,
-                        )
-                        _notified += 1
-                    except Exception:
-                        pass  # Non-fatal
-                if _skipped_old:
-                    logger.info(f"[GETSALES] Skipped {_skipped_old} old notifications (>{_notif_cutoff}), sent {_notified}")
-            
             # Update total count in Redis after successful sync
             if redis:
                 await redis.set(GS_TOTAL_KEY, str(total), ex=7200)
-            
-            # Bulk add new reply IDs to cache
-            if new_reply_ids:
-                await bulk_add_replies("getsales", new_reply_ids)
-            
+
             logger.info(f"GetSales reply sync complete: {stats}")
             
         except Exception as e:
