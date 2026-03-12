@@ -1428,7 +1428,7 @@ async def process_reply_webhook(
                 return None
             raise
         logger.info(f"[PROCESSOR] Created ProcessedReply {processed_reply.id} for {lead_email} (hash={message_hash[:8]})")
-        
+
         # Create ContactActivity for conversation history
         try:
             # Find or skip contact creation (contact may exist in CRM)
@@ -2134,8 +2134,10 @@ async def process_getsales_reply(
         except Exception as flush_err:
             if "uq_processed_reply_content" in str(flush_err):
                 logger.info(f"[GETSALES] Duplicate reply (race condition) for {lead_email} — skipping")
-                await session.rollback()
-                return None
+                # Re-raise to let the caller's begin_nested() savepoint handle rollback.
+                # Do NOT call session.rollback() here — it corrupts the outer session
+                # when this function runs inside a savepoint (polling path).
+                raise
             raise
         logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email} (hash={message_hash[:8]})")
 

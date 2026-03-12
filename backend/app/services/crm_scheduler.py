@@ -621,7 +621,10 @@ class CRMScheduler:
                 select(WebhookEventModel).where(
                     WebhookEventModel.processed == False,
                     WebhookEventModel.created_at >= cutoff,
-                    WebhookEventModel.event_type.in_(["EMAIL_REPLY", "lead.replied", "email.replied", "reply"]),
+                    WebhookEventModel.event_type.in_([
+                        "EMAIL_REPLY", "lead.replied", "email.replied", "reply",  # SmartLead
+                        "linkedin_inbox",  # GetSales
+                    ]),
                     or_(
                         WebhookEventModel.retry_count.is_(None),
                         WebhookEventModel.retry_count < 5
@@ -642,12 +645,15 @@ class CRMScheduler:
             for event in events_to_retry:
                 try:
                     payload = json.loads(event.payload)
-                    
-                    # Process with a fresh session
+
+                    # Process with a fresh session — dispatch by event type
                     async with async_session_maker() as proc_session:
-                        result = await process_reply_webhook(payload, proc_session)
+                        if event.event_type == "linkedin_inbox":
+                            await self._reprocess_getsales_event(payload, proc_session)
+                        else:
+                            result = await process_reply_webhook(payload, proc_session)
                         await proc_session.commit()
-                    
+
                     event.processed = True
                     event.processed_at = datetime.utcnow()
                     event.error = None
@@ -663,7 +669,79 @@ class CRMScheduler:
                     logger.warning(f"[RECOVERY] Event {event.id} failed (retry {retry_count}, next in {backoff_minutes}min): {e}")
             
             await session.commit()
-    
+
+    async def _reprocess_getsales_event(self, payload: dict, session):
+        """Reprocess a failed GetSales webhook event from stored payload."""
+        from app.services.reply_processor import process_getsales_reply, send_getsales_notification
+        from app.models.contact import Contact
+        from sqlalchemy import and_
+
+        body = payload.get("body", payload)
+        contact_data = body.get("contact", {})
+        automation_data = body.get("automation", {})
+        linkedin_message = body.get("linkedin_message", {})
+
+        lead_uuid = contact_data.get("uuid")
+        lead_email = contact_data.get("work_email") or contact_data.get("personal_email")
+        message_text = linkedin_message.get("text", "")
+        message_type = linkedin_message.get("type", "").lower()
+
+        if message_type != "inbox":
+            logger.info(f"[RECOVERY] Skipping non-inbox GetSales event (type={message_type})")
+            return
+
+        # Find the contact
+        contact = None
+        if lead_uuid:
+            result = await session.execute(
+                select(Contact).where(and_(Contact.getsales_id == lead_uuid, Contact.deleted_at.is_(None)))
+            )
+            contact = result.scalar_one_or_none()
+        if not contact and lead_email:
+            result = await session.execute(
+                select(Contact).where(and_(Contact.email == lead_email.lower(), Contact.deleted_at.is_(None)))
+            )
+            contact = result.scalar_one_or_none()
+
+        if not contact:
+            logger.warning(f"[RECOVERY] GetSales contact not found: {lead_email or lead_uuid}")
+            return
+
+        sent_at_str = linkedin_message.get("sent_at")
+        if sent_at_str:
+            try:
+                activity_at = datetime.fromisoformat(sent_at_str.replace(" ", "T").replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                activity_at = datetime.utcnow()
+        else:
+            activity_at = datetime.utcnow()
+
+        async with session.begin_nested():
+            pr = await process_getsales_reply(
+                message_text=message_text,
+                contact=contact,
+                flow_name=automation_data.get("name", ""),
+                flow_uuid=automation_data.get("uuid", ""),
+                message_id=linkedin_message.get("uuid", ""),
+                activity_at=activity_at,
+                raw_data=body,
+                session=session,
+            )
+
+        if pr:
+            try:
+                await send_getsales_notification(
+                    processed_reply=pr, contact=contact,
+                    flow_name=automation_data.get("name", ""),
+                    flow_uuid=automation_data.get("uuid", ""),
+                    message_text=message_text, raw_data=body,
+                    session=session,
+                )
+            except Exception as tg_err:
+                logger.warning(f"[RECOVERY] GetSales notification failed (non-fatal): {tg_err}")
+
+        logger.info(f"[RECOVERY] GetSales event reprocessed: {lead_email}, pr_id={pr.id if pr else None}")
+
     # ===== Conversation History Sync (every 3 min) =====
 
     async def _run_conversation_sync_loop(self):

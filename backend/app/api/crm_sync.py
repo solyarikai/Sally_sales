@@ -1201,16 +1201,19 @@ async def getsales_webhook(
         try:
             from app.services.reply_processor import process_getsales_reply
 
-            pr = await process_getsales_reply(
-                message_text=message_text,
-                contact=contact,
-                flow_name=automation_data.get("name", ""),
-                flow_uuid=automation_data.get("uuid", ""),
-                message_id=linkedin_message.get("uuid", ""),
-                activity_at=activity_at,
-                raw_data=body,
-                session=session,
-            )
+            # Wrap in savepoint so failures don't poison the outer session
+            # (allows webhook_event + contact activity to still commit)
+            async with session.begin_nested():
+                pr = await process_getsales_reply(
+                    message_text=message_text,
+                    contact=contact,
+                    flow_name=automation_data.get("name", ""),
+                    flow_uuid=automation_data.get("uuid", ""),
+                    message_id=linkedin_message.get("uuid", ""),
+                    activity_at=activity_at,
+                    raw_data=body,
+                    session=session,
+                )
             if pr and pr.category:
                 category = pr.category
         except Exception as pr_err:
