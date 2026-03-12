@@ -169,7 +169,8 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
           });
           if (data.suggestions?.length) setSuggestions(data.suggestions);
           // Clear loading/streaming when pipeline finishes via live update
-          if (at.includes('done') || at.includes('error') || at.includes('completed')) {
+          const at2 = data.action_type || '';
+          if (at2.includes('done') || at2.includes('error') || at2.includes('completed')) {
             setIsLoading(false);
             setIsStreaming(false);
           }
