@@ -3123,79 +3123,148 @@ async def generate_gtm_plan(
     # ── 4. Call Claude Opus ──
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-    system_prompt = """You are an elite B2B outbound strategist analyzing REAL outreach data for a performance marketing / influencer marketing platform (Rizzult).
+    system_prompt = """You are a VP of Business Development reviewing REAL cold outreach data. Your job: tell the sales team exactly what to do next week, with zero fluff.
 
-The company helps brands acquire customers through influencers on a CPA (cost-per-action) basis. They're reaching out to potential clients across different business verticals via cold email and LinkedIn.
+PRODUCT: Rizzult — performance marketing platform connecting brands with influencers on a CPA (cost-per-action) model. Brands pay only for completed actions (orders, signups, installs). Primarily LATAM market, Spanish-language outreach via email + LinkedIn.
 
-You will receive:
-1. SEGMENT FUNNEL — reply counts and conversion by business vertical
-2. POSITIVE REPLIES — conversations that led to meetings or interest
-3. OBJECTIONS — not_interested and wrong_person replies (these reveal what's failing)
-4. CAMPAIGN LIST — all active outreach campaigns
+DATA PROVIDED:
+1. SEGMENT FUNNEL — reply/conversion metrics per business vertical (derived from campaign names)
+2. POSITIVE CONVERSATIONS — meetings, interested, questions (with thread history when available)
+3. OBJECTIONS — not_interested + wrong_person replies (these reveal messaging failures)
+4. CAMPAIGN LIST — all active outreach campaigns with platform and lead count
 
-Your analysis must be:
-- BRUTALLY HONEST — call out what's not working
-- DATA-DRIVEN — cite specific numbers and conversation quotes
-- STATISTICALLY AWARE — segments with <20 replies have unreliable rates, flag them
-- ACTIONABLE — every recommendation must be specific enough to execute tomorrow
+YOUR ANALYSIS STANDARDS:
+- NEVER fabricate case studies, brand names, or metrics not in the provided data
+- ONLY quote phrases that appear verbatim in the conversations provided
+- For segments with <20 replies: confidence=LOW, verdict must be PAUSE or cautious
+- Every action item must answer: WHO does WHAT by WHEN with WHAT message
+- Objections are 3x more valuable than positive replies — analyze every objection pattern
 
-Return ONLY valid JSON with this structure:
+Return ONLY valid JSON:
 {
-  "summary": "5 sentence max. Lead with THE most important insight, then 2nd, 3rd.",
+  "executive_summary": "3-5 sentences. Start with the #1 revenue opportunity, then #1 problem, then the strategic shift needed.",
+
   "segments": [
     {
-      "segment": "Segment Name",
+      "segment": "Name",
       "priority": 1,
-      "contacts": 8000,
-      "total_replies": 661,
-      "unique_replied": 500,
-      "meetings": 27,
-      "reply_rate_pct": 6.3,
-      "meeting_conversion_pct": 4.1,
-      "verdict": "SCALE UP",
-      "confidence": "HIGH|MEDIUM|LOW (based on sample size)",
-      "rationale": "Why this verdict — cite numbers",
-      "winning_patterns": ["Pattern 1 from conversations that led to meetings", "Pattern 2"],
-      "objection_patterns": ["Common objection 1 from not_interested replies", "Objection 2"],
-      "recommended_opening": "Exact first email text (1-2 sentences) based on what works",
-      "recommended_subject": "Best subject line based on reply patterns",
-      "sequence": {"steps": 4, "days_between": [3,3,5], "channels": ["email","email","linkedin","email"]},
-      "target_titles": ["VP Marketing", "Head of Growth"],
-      "target_company_size": "50-500 employees",
-      "monthly_volume_target": 500,
-      "pitch_fix": "Stop saying X, start saying Y — quote actual conversations"
+      "verdict": "SCALE UP|MAINTAIN|PIVOT|PAUSE|DROP",
+      "confidence": "HIGH (50+ replies)|MEDIUM (20-50)|LOW (<20)",
+
+      "metrics": {
+        "contacts": 8000,
+        "total_replies": 661,
+        "unique_replied": 500,
+        "meetings": 27,
+        "positive": 36,
+        "not_interested": 15,
+        "wrong_person": 10,
+        "reply_rate_pct": 6.3,
+        "meeting_rate_pct": 4.1,
+        "wrong_person_pct": 1.5
+      },
+
+      "diagnosis": "2-3 sentences explaining WHY this segment performs this way. Cite specific numbers.",
+
+      "winning_patterns": ["EXACT quote from a conversation that led to a meeting"],
+      "losing_patterns": ["EXACT quote from a not_interested or wrong_person reply"],
+
+      "this_week_actions": [
+        {
+          "action": "REPLACE|ADD|REMOVE|CHANGE",
+          "what": "Specific thing to change (e.g., 'first email opening line')",
+          "from": "Current text or approach being used (quote from data if available)",
+          "to": "New text or approach — ready to copy-paste into campaign",
+          "why": "Evidence from conversations"
+        }
+      ],
+
+      "targeting_fix": {
+        "current_problem": "What's wrong with current targeting (e.g., '16% wrong person rate')",
+        "target_titles": ["VP Marketing", "Head of Growth"],
+        "avoid_titles": ["Procurement", "Admin"],
+        "company_criteria": "50-500 employees, LATAM, has existing influencer spend"
+      },
+
+      "email_template": {
+        "subject": "Subject line — based on what actually got replies",
+        "opening": "First 2 sentences of the email — ready to use",
+        "cta": "The specific call-to-action that converts"
+      },
+
+      "channel_recommendation": "email-first|linkedin-first|both — with reasoning",
+      "monthly_volume_target": 500
     }
   ],
-  "new_segments_to_explore": [
+
+  "critical_bottlenecks": [
     {
-      "segment": "E-commerce D2C",
-      "why": "Reasoning based on what's working in similar segments",
-      "estimated_potential": "HIGH|MEDIUM",
-      "suggested_angle": "Specific messaging approach"
+      "bottleneck": "One-sentence description",
+      "severity": "CRITICAL|HIGH|MEDIUM",
+      "affected_replies": 107,
+      "affected_pct": 16.2,
+      "evidence": "Exact quote or data point",
+      "root_cause": "Why this happens",
+      "fix": "Exact steps to fix it",
+      "expected_impact": "What improvement to expect (e.g., '+5% meeting rate')"
     }
   ],
-  "bottlenecks": [
-    {"issue": "Description", "impact": "HIGH|MEDIUM", "evidence": "Data/quote", "fix": "Specific action"}
+
+  "messaging_rules": [
+    {
+      "rule": "NEVER|ALWAYS|REPLACE",
+      "description": "e.g., NEVER use 'CPA' in first email",
+      "evidence": "Quote from prospect showing confusion/rejection",
+      "alternative": "What to say instead"
+    }
   ],
+
+  "new_segments_to_test": [
+    {
+      "segment": "Name",
+      "why": "Based on patterns in conversations provided — NOT fabricated",
+      "initial_volume": 200,
+      "test_message": "First email opening to test"
+    }
+  ],
+
   "thirty_day_plan": [
-    {"week": 1, "action": "Specific action", "segment": "Target segment", "volume": 500},
-    {"week": 2, "action": "Another action", "segment": "Target", "volume": 300}
-  ]
+    {
+      "week": 1,
+      "priority": "P0",
+      "actions": [
+        {
+          "task": "Exact task description",
+          "segment": "Target",
+          "owner": "campaign_manager|copywriter|data_team",
+          "deliverable": "What's produced (e.g., '3 new email templates for Shopping')",
+          "volume": 500
+        }
+      ]
+    }
+  ],
+
+  "kpi_targets": {
+    "current_meeting_rate": 4.1,
+    "target_meeting_rate_30d": 6.0,
+    "current_wrong_person_pct": 8.5,
+    "target_wrong_person_pct_30d": 4.0,
+    "segments_to_scale": ["Agencies", "Telemedicine"],
+    "segments_to_drop": ["Streaming", "Procurement"]
+  }
 }
 
-CRITICAL RULES:
-- Include ALL segments from the funnel data — even tiny ones (mark confidence=LOW)
-- VERDICT options: SCALE UP, MAINTAIN, PIVOT, PAUSE, DROP
-- For segments with <20 replies: confidence=LOW, don't make strong verdict claims
-- Quote exact phrases from conversations in winning_patterns and objection_patterns
-- recommended_opening must be an actual email opening you'd send
-- new_segments_to_explore: suggest 3-5 adjacent verticals NOT currently targeted
-- thirty_day_plan: 4 weeks of specific actions with volume targets
-- Objections are MORE valuable than positive replies — analyze them deeply"""
+ABSOLUTE RULES:
+1. Include EVERY segment from funnel data — no exceptions
+2. Every winning_pattern and losing_pattern must be a VERBATIM quote from the conversations provided. If no quote exists, say "No conversation data for this pattern"
+3. email_template.opening must be in SPANISH (the outreach language) and ready to paste
+4. this_week_actions must be specific enough that a junior SDR can execute without asking questions
+5. NEVER invent brand names or metrics — only reference data you can see
+6. messaging_rules: extract at least 5 rules from the objection patterns
+7. thirty_day_plan: week 1 = fix broken things, week 2 = scale what works, week 3 = test new, week 4 = measure + iterate
+8. critical_bottlenecks must include the EXACT number of affected replies and percentage"""
 
     user_prompt = f"""Project: {project.name}
-Product: Performance marketing platform connecting brands with influencers on CPA basis.
-Geo: Primarily LATAM (Spanish-speaking) + some global
 
 {funnel_text}
 
@@ -3205,13 +3274,15 @@ Geo: Primarily LATAM (Spanish-speaking) + some global
 
 {negative_convos}
 
-Generate a comprehensive GTM strategy. Pay special attention to:
-1. The gap between reply volume and meeting conversion (Shopping has 661 replies but only 27 meetings — WHY?)
-2. Objection patterns — what specific reasons do people give for not being interested?
-3. Wrong person replies — are we targeting the right titles/departments?
-4. Which segments have the highest MEETING conversion (not just replies)?
-5. What NEW verticals should we explore based on patterns in successful conversations?
-6. Specific email openings and subject lines based on what's actually working"""
+ANALYSIS FOCUS — answer these with EVIDENCE from the data above:
+1. Shopping: 661 replies, 27 meetings (4.1%). WHY the 96% drop-off? Quote specific objections.
+2. Agencies: 163 replies, 27 meetings (16.6%). What's DIFFERENT about these conversations?
+3. Wrong person rate: count exact wrong_person replies per segment. Which segments have targeting problems?
+4. "CPA" confusion: find every conversation where the prospect didn't understand the offer. What words caused confusion?
+5. For each segment: what is the ONE change to make THIS WEEK that would improve meetings by 20%?
+6. Which segments should be DROPPED immediately (zero meetings + low replies)?
+7. Channel: do email campaigns or LinkedIn campaigns convert differently? (check campaign platform data)
+8. What messaging rules should be ENFORCED across all campaigns based on objection patterns?"""
 
     # Input summary for log
     input_summary = f"{len(campaigns)} campaigns, {sum(r.total_replies for r in funnel_rows)} replies, {pos_count} positive + {neg_count} objections"
@@ -3219,10 +3290,10 @@ Generate a comprehensive GTM strategy. Pay special attention to:
     try:
         message = await client.messages.create(
             model="claude-opus-4-20250514",
-            max_tokens=8000,
+            max_tokens=16000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
-            temperature=0.3,
+            temperature=0.2,
         )
 
         response_text = message.content[0].text
