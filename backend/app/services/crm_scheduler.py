@@ -1049,10 +1049,14 @@ ABSOLUTE RULES:
 2. Every winning_pattern and losing_pattern must be a VERBATIM quote. If none, say "No conversation data"
 3. email_template.opening must be in SPANISH and ready to paste
 4. this_week_actions specific enough for a junior SDR to execute
-5. NEVER invent brand names or metrics
+5. NEVER invent revenue numbers, brand names, or metrics — only reference data you can see in the input
 6. messaging_rules: at least 5 rules from objection patterns
 7. thirty_day_plan: week 1=fix, week 2=scale, week 3=test, week 4=measure
-8. critical_bottlenecks must include EXACT number of affected replies and percentage"""
+8. critical_bottlenecks must include EXACT number of affected replies and percentage
+9. INTERNAL CONSISTENCY: if you create a NEVER rule, your own email_templates MUST NOT violate it
+10. If wrong_person_pct > 25%, verdict MUST be PAUSE or DROP
+11. this_week_actions "from" field: quote ACTUAL current email text from conversations
+12. For DROP segments: include reallocate_to field"""
 
             user_prompt = f"""Project: {project.name}
 
