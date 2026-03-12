@@ -2726,9 +2726,10 @@ async def _handle_clay_gather(
                     f"(searched {len(domains)} validated domains)"
                 )
 
-                # Retry once if coverage is too low (< 50% of target contacts OR companies)
-                min_companies_needed = max(company_count // 2, 3)
-                min_contacts_needed = max(contact_count // 2, 10)
+                # Retry once if raw contacts insufficient for target after filtering.
+                # Office rules + round-robin cut ~50-80%, so need ≥2× target raw contacts.
+                min_companies_needed = max(company_count, 5)
+                min_contacts_needed = contact_count * 2
                 _needs_retry = (
                     (len(_people_domains) < min_companies_needed or len(people) < min_contacts_needed)
                     and len(domains) >= min_companies_needed
@@ -2753,26 +2754,28 @@ async def _handle_clay_gather(
                         logger.info(
                             f"Clay gather retry: {len(people2)} contacts from {len(_people_domains2)} domains"
                         )
-                        # Use whichever run returned more unique domains
-                        if len(_people_domains2) > len(_people_domains):
-                            people = people2
-                            _people_domains = _people_domains2
-                            people_table_url = people_result2.get("table_url", "") or people_table_url
-                            logger.info("Clay gather: retry produced better results, using retry data")
-                        else:
-                            # Merge: add contacts from retry for domains not in first run
-                            existing_domains = set(
-                                (p.get("company_domain") or p.get("domain") or "").strip().lower()
-                                for p in people
-                            )
-                            added = 0
-                            for p in people2:
-                                d = (p.get("company_domain") or p.get("domain") or "").strip().lower()
-                                if d and d not in existing_domains:
-                                    people.append(p)
-                                    added += 1
-                            if added:
-                                logger.info(f"Clay gather: merged {added} contacts from retry (new domains)")
+                        # Always merge both runs — dedup by (name + domain)
+                        seen = set()
+                        for p in people:
+                            name = (p.get("full_name") or p.get("name") or "").strip().lower()
+                            d = (p.get("company_domain") or p.get("domain") or "").strip().lower()
+                            seen.add(f"{name}|{d}")
+                        added = 0
+                        for p in people2:
+                            name = (p.get("full_name") or p.get("name") or "").strip().lower()
+                            d = (p.get("company_domain") or p.get("domain") or "").strip().lower()
+                            key = f"{name}|{d}"
+                            if key not in seen:
+                                seen.add(key)
+                                people.append(p)
+                                added += 1
+                        _people_domains |= _people_domains2
+                        if people_result2.get("table_url"):
+                            people_table_url = people_result2["table_url"]
+                        logger.info(
+                            f"Clay gather: merged {added} new contacts from retry, "
+                            f"total now {len(people)} from {len(_people_domains)} domains"
+                        )
 
                 phase3_sec = int(_t.time() - phase3_start)
                 phase3_str = f"{phase3_sec // 60}m {phase3_sec % 60}s" if phase3_sec >= 60 else f"{phase3_sec}s"
