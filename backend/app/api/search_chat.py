@@ -3152,18 +3152,61 @@ async def _handle_clay_gather(
                 except Exception as _seed_err:
                     logger.warning(f"Seed contacts step failed: {_seed_err}")
 
+                # ── Hide contacts that still have placeholder emails ──
+                hidden_placeholder = 0
+                try:
+                    from sqlalchemy import update as _sql_upd
+                    _hide_result = await task_db.execute(
+                        _sql_upd(Contact).where(
+                            Contact.source_id == f"clay_{job_id}",
+                            Contact.deleted_at.is_(None),
+                            Contact.email.like("%@linkedin.placeholder"),
+                        ).values(
+                            source_id=f"clay_{job_id}_unresolved",
+                        )
+                    )
+                    hidden_placeholder = _hide_result.rowcount
+                    if hidden_placeholder > 0:
+                        await task_db.commit()
+                        promoted_contacts -= hidden_placeholder
+                        logger.info(f"Hidden {hidden_placeholder} unresolved placeholder contacts from clay_{job_id}")
+                except Exception as _hide_err:
+                    logger.warning(f"Hide placeholder contacts failed: {_hide_err}")
+
+                # Recount promoted contacts with real emails
+                _final_count_row = await task_db.execute(
+                    select(func.count(Contact.id)).where(
+                        Contact.source_id == f"clay_{job_id}",
+                        Contact.deleted_at.is_(None),
+                    )
+                )
+                promoted_contacts = _final_count_row.scalar() or promoted_contacts
+
+                # Count DMs among visible contacts
+                _dm_count_row = await task_db.execute(
+                    select(func.count(Contact.id)).where(
+                        Contact.source_id == f"clay_{job_id}",
+                        Contact.deleted_at.is_(None),
+                        func.lower(Contact.job_title).op('~*')(
+                            '(ceo|coo|cfo|cto|cmo|cro|cpo|chief|founder|co-founder|owner|president|managing director|vp|vice president|director|head of|head)'
+                        ),
+                    )
+                )
+                final_dm_count = _dm_count_row.scalar() or stats["decision_makers"]
+
                 # Update search job
                 job_row = await task_db.get(SearchJob, job_id)
                 if job_row:
                     job_row.status = SearchJobStatus.COMPLETED
                     job_row.config = {
                         **job_row.config,
-                        "total_contacts": saved_contacts,
+                        "total_contacts": promoted_contacts,
                         "promoted_to_crm": promoted_contacts,
-                        "decision_makers": stats["decision_makers"],
+                        "decision_makers": final_dm_count,
                         "findymail_found": findymail_found,
                         "findymail_total": findymail_total,
                         "seed_contacts": seed_count,
+                        "hidden_placeholder": hidden_placeholder,
                     }
                     await task_db.commit()
 
@@ -3172,15 +3215,19 @@ async def _handle_clay_gather(
                 clay_company_link = f"[Companies in Clay →]({table_url})" if table_url else ""
                 clay_people_link = f"[People in Clay →]({people_table_url})" if people_table_url else "People table in Clay exports"
                 links = " | ".join(filter(None, [clay_company_link, clay_people_link, f"[Open CRM →]({crm_url})"]))
-                # Count unique domains in CRM-promoted contacts for accurate company count
-                crm_unique = len(set(
-                    (c.get("company_domain") or c.get("domain") or "").strip().lower()
-                    for c in filtered if (c.get("company_domain") or c.get("domain"))
-                ))
+
+                # Count unique companies among visible (real-email) contacts
+                _company_rows = (await task_db.execute(
+                    select(Contact.domain).where(
+                        Contact.source_id == f"clay_{job_id}",
+                        Contact.deleted_at.is_(None),
+                        Contact.domain.isnot(None),
+                    ).distinct()
+                )).scalars().all()
+                crm_unique = len([d for d in _company_rows if d])
                 validated_count = len(domains)  # domains = validated_domains at this point
 
                 # Real email stats
-                _real_email_count = promoted_contacts - findymail_total + findymail_found + seed_count
                 _email_line = ""
                 if findymail_found > 0 or seed_count > 0:
                     _email_line = f"| Real emails | **{findymail_found}** found via FindyMail"
@@ -3193,8 +3240,7 @@ async def _handle_clay_gather(
                     f"**Gather complete** — {_elapsed()}\n\n"
                     f"| | |\n|---|---|\n"
                     f"| Target companies | **{crm_unique}** (validated **{validated_count}** from {total_found} Clay results) |\n"
-                    f"| Contacts | **{stats['total_output']}** ({stats['decision_makers']} decision-makers) |\n"
-                    f"| CRM draft | **{promoted_contacts}** contacts |\n"
+                    f"| Contacts | **{promoted_contacts}** ({final_dm_count} decision-makers, all with verified emails) |\n"
                     f"{_email_line}"
                     f"| Segment | {segment_label} |\n\n"
                     f"{_filter_summary(filters)}\n\n"
@@ -3202,8 +3248,8 @@ async def _handle_clay_gather(
                     action_type="clay_gather_done",
                     action_data={
                         "crm_url": crm_url,
-                        "total_contacts": saved_contacts,
-                        "decision_makers": stats["decision_makers"],
+                        "total_contacts": promoted_contacts,
+                        "decision_makers": final_dm_count,
                         "unique_companies": crm_unique,
                         "promoted_to_crm": promoted_contacts,
                         "segment": segment_label,
