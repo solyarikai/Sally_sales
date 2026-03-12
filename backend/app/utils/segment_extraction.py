@@ -171,8 +171,11 @@ def _group_segments(segment_map: Dict[str, str]) -> Dict[str, str]:
                 break
 
             # Strategy 3: word-stem prefix (food→foodtech, telemed→telemedicine)
+            # Only matches DIFFERENT words where one is a prefix of the other
             for cw in c_words:
                 for sw in seg_words:
+                    if cw == sw:
+                        continue  # identical words don't count
                     shorter_w, longer_w = sorted([cw, sw], key=len)
                     if len(shorter_w) >= 4 and longer_w.startswith(shorter_w):
                         best_match = c_name
