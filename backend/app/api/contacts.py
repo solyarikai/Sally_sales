@@ -397,7 +397,8 @@ async def _build_filtered_query(
             cid_parts = " OR ".join(f"contacts.platform_state::text LIKE :cid_{i}" for i in range(len(ids)))
             cid_params = {f"cid_{i}": f"%{v}%" for i, v in enumerate(ids)}
             query = query.where(sql_text(f"({cid_parts})").bindparams(**cid_params))
-    elif campaign:
+    elif campaign and not source_id:
+        # Skip campaign filter when source_id is explicit — source_id already identifies the contacts
         names = [n.strip() for n in campaign.split(',') if n.strip()]
         if len(names) == 1:
             query = query.where(
