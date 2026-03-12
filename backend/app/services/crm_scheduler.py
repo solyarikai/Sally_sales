@@ -853,6 +853,21 @@ class CRMScheduler:
 
         while self._running:
             try:
+                # Skip if a successful run exists within last 6 hours (prevents spam on restarts)
+                from app.models.gtm_log import GTMStrategyLog
+                async with async_session_maker() as check_session:
+                    from sqlalchemy import select, desc
+                    last_log = (await check_session.execute(
+                        select(GTMStrategyLog.created_at)
+                        .where(GTMStrategyLog.project_id == 22, GTMStrategyLog.status == "completed")
+                        .order_by(desc(GTMStrategyLog.created_at))
+                        .limit(1)
+                    )).scalar_one_or_none()
+                    if last_log and (datetime.utcnow() - last_log).total_seconds() < 21600:
+                        logger.info(f"[GTM] Skipping — last successful run was {last_log} (< 6h ago)")
+                        await asyncio.sleep(interval)
+                        continue
+
                 await self._generate_gtm_for_project(22, "scheduled")
                 self._mark_task_run("gtm_analytics")
                 logger.info("[GTM] Scheduled GTM strategy generated for rizzult (project 22)")
