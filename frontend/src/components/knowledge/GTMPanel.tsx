@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Target, TrendingUp, Sparkles, AlertTriangle, ArrowRight, Calendar, Zap, Languages } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2, Target, TrendingUp, Sparkles, AlertTriangle, ArrowRight, Calendar, Zap } from 'lucide-react';
 import type { ThemeTokens } from '../../lib/themeColors';
 import { contactsApi } from '../../api/contacts';
 import type { GTMData } from '../../api/contacts';
@@ -140,8 +140,12 @@ function parseStrategy(raw?: string | null): any | null {
 }
 
 const VERDICT_COLORS: Record<string, { bg: string; bgDark: string; text: string; textDark: string }> = {
-  'SCALE UP': { bg: '#dcfce7', bgDark: '#0a2e1a', text: '#16a34a', textDark: '#4ade80' },
-  'MAINTAIN': { bg: '#dbeafe', bgDark: '#1e3a5f', text: '#2563eb', textDark: '#93c5fd' },
+  'SCALE UP':    { bg: '#dcfce7', bgDark: '#0a2e1a', text: '#16a34a', textDark: '#4ade80' },
+  'MAINTAIN':    { bg: '#dbeafe', bgDark: '#1e3a5f', text: '#2563eb', textDark: '#93c5fd' },
+  'REFINE':      { bg: '#fef3c7', bgDark: '#422006', text: '#d97706', textDark: '#fbbf24' },
+  'TEST MORE':   { bg: '#e0e7ff', bgDark: '#1e1b4b', text: '#4f46e5', textDark: '#a5b4fc' },
+  'REALLOCATE':  { bg: '#fed7aa', bgDark: '#431407', text: '#ea580c', textDark: '#fb923c' },
+  // Legacy verdicts (old strategies still in DB)
   'PIVOT':    { bg: '#fef3c7', bgDark: '#422006', text: '#d97706', textDark: '#fbbf24' },
   'PAUSE':    { bg: '#fed7aa', bgDark: '#431407', text: '#ea580c', textDark: '#fb923c' },
   'DROP':     { bg: '#fecaca', bgDark: '#450a0a', text: '#dc2626', textDark: '#f87171' },
@@ -161,8 +165,7 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [logStrategy, setLogStrategy] = useState<string | null>(null);
   const [logMeta, setLogMeta] = useState<{ trigger: string; cost: string; tokens: string; model?: string } | null>(null);
-  const [showTranslations, setShowTranslations] = useState(false);
-  const toggleTranslations = useCallback(() => setShowTranslations(p => !p), []);
+  const showTranslations = true; // always-on: auto-translate non-English text
 
   useEffect(() => { loadData(); }, [projectId]);
 
@@ -257,17 +260,6 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
           <p className="text-[12px] mt-0.5" style={{ color: t.text4 }}>{data.total_contacts.toLocaleString()} contacts across campaigns</p>
         </div>
         <div className="flex items-center gap-2">
-          {plan && (
-            <button onClick={toggleTranslations}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer"
-              style={{
-                background: showTranslations ? (isDark ? '#1e3a5f' : '#dbeafe') : (isDark ? '#2d2d2d' : '#f0f0f0'),
-                color: showTranslations ? (isDark ? '#93c5fd' : '#1d4ed8') : t.text3,
-              }}>
-              <Languages className="w-3.5 h-3.5" />
-              {showTranslations ? 'EN On' : 'Translate'}
-            </button>
-          )}
           <button onClick={handleGenerate} disabled={generating}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer"
             style={{ background: isDark ? '#2d2d2d' : '#f0f0f0', color: t.text2 }}>
@@ -313,33 +305,72 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
             </div>
           )}
 
-          {/* KPI Targets */}
+          {/* KPI Targets — handles both weekly grid and rate-based formats */}
           {plan.kpi_targets && (
             <div className="rounded-xl p-4" style={{ background: isDark ? '#111' : '#f9fafb', border: `1px solid ${t.cardBorder}` }}>
               <h4 className="text-[11px] font-bold uppercase tracking-wider mb-3" style={{ color: t.text3 }}>
                 <TrendingUp className="w-3.5 h-3.5 inline mr-1.5" />KPI Targets
               </h4>
-              <div className="grid grid-cols-5 gap-2">
-                {['week_1', 'week_2', 'week_3', 'week_4', 'thirty_day_total'].map((wk) => {
-                  const d = plan.kpi_targets[wk];
-                  if (!d) return null;
-                  const isTotal = wk === 'thirty_day_total';
-                  return (
-                    <div key={wk} className="rounded-lg p-2.5 text-center" style={{ background: isTotal ? (isDark ? '#0a2e1a' : '#dcfce7') : (isDark ? '#1a1a1a' : '#f5f5f5') }}>
-                      <div className="text-[10px] font-bold uppercase" style={{ color: isTotal ? (isDark ? '#4ade80' : '#16a34a') : t.text4 }}>
-                        {isTotal ? '30-Day Total' : wk.replace('_', ' ')}
+              {plan.kpi_targets.week_1 ? (
+                /* New format: week_1...week_4 + thirty_day_total */
+                <div className="grid grid-cols-5 gap-2">
+                  {['week_1', 'week_2', 'week_3', 'week_4', 'thirty_day_total'].map((wk) => {
+                    const d = plan.kpi_targets[wk];
+                    if (!d) return null;
+                    const isTotal = wk === 'thirty_day_total';
+                    return (
+                      <div key={wk} className="rounded-lg p-2.5 text-center" style={{ background: isTotal ? (isDark ? '#0a2e1a' : '#dcfce7') : (isDark ? '#1a1a1a' : '#f5f5f5') }}>
+                        <div className="text-[10px] font-bold uppercase" style={{ color: isTotal ? (isDark ? '#4ade80' : '#16a34a') : t.text4 }}>
+                          {isTotal ? '30-Day Total' : wk.replace('_', ' ')}
+                        </div>
+                        <div className="text-[16px] font-bold mt-0.5" style={{ color: isTotal ? (isDark ? '#4ade80' : '#16a34a') : t.text1 }}>
+                          {d.meetings_booked ?? d.meetings ?? '—'}
+                        </div>
+                        <div className="text-[10px]" style={{ color: t.text4 }}>meetings</div>
+                        {d.focus && <p className="text-[9px] mt-1 leading-tight" style={{ color: t.text3 }}>{d.focus}</p>}
+                        {d.expected_deals && <p className="text-[10px] mt-1" style={{ color: t.text3 }}>{d.expected_deals} deals</p>}
+                        {d.revenue_target && <p className="text-[10px] font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>{d.revenue_target}</p>}
                       </div>
-                      <div className="text-[16px] font-bold mt-0.5" style={{ color: isTotal ? (isDark ? '#4ade80' : '#16a34a') : t.text1 }}>
-                        {d.meetings_booked ?? d.meetings ?? '—'}
-                      </div>
-                      <div className="text-[10px]" style={{ color: t.text4 }}>meetings</div>
-                      {d.focus && <p className="text-[9px] mt-1 leading-tight" style={{ color: t.text3 }}>{d.focus}</p>}
-                      {d.expected_deals && <p className="text-[10px] mt-1" style={{ color: t.text3 }}>{d.expected_deals} deals</p>}
-                      {d.revenue_target && <p className="text-[10px] font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>{d.revenue_target}</p>}
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Old format: current_meeting_rate, segments_to_scale/drop */
+                <div className="flex flex-wrap gap-3">
+                  {plan.kpi_targets.current_meeting_rate != null && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: isDark ? '#0a2e1a' : '#dcfce7', border: `1px solid ${isDark ? '#166534' : '#bbf7d0'}` }}>
+                      <TrendingUp className="w-3.5 h-3.5" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
+                      <span className="text-[12px] font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>
+                        Meeting rate: {plan.kpi_targets.current_meeting_rate}% → {plan.kpi_targets.target_meeting_rate_30d}%
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+                  {plan.kpi_targets.current_wrong_person_pct != null && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: isDark ? '#450a0a' : '#fecaca', border: `1px solid ${isDark ? '#991b1b' : '#fca5a5'}` }}>
+                      <AlertTriangle className="w-3.5 h-3.5" style={{ color: isDark ? '#f87171' : '#dc2626' }} />
+                      <span className="text-[12px] font-medium" style={{ color: isDark ? '#f87171' : '#dc2626' }}>
+                        Wrong person: {plan.kpi_targets.current_wrong_person_pct}% → {plan.kpi_targets.target_wrong_person_pct_30d}%
+                      </span>
+                    </div>
+                  )}
+                  {plan.kpi_targets.segments_to_scale?.length > 0 && (
+                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg" style={{ background: isDark ? '#1a1a1a' : '#f5f5f5' }}>
+                      <span className="text-[11px]" style={{ color: t.text4 }}>Scale:</span>
+                      {plan.kpi_targets.segments_to_scale.map((s: string) => (
+                        <span key={s} className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: isDark ? '#0a2e1a' : '#dcfce7', color: isDark ? '#4ade80' : '#16a34a' }}>{s}</span>
+                      ))}
+                    </div>
+                  )}
+                  {plan.kpi_targets.segments_to_drop?.length > 0 && (
+                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg" style={{ background: isDark ? '#1a1a1a' : '#f5f5f5' }}>
+                      <span className="text-[11px]" style={{ color: t.text4 }}>Drop:</span>
+                      {plan.kpi_targets.segments_to_drop.map((s: string) => (
+                        <span key={s} className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: isDark ? '#450a0a' : '#fecaca', color: isDark ? '#f87171' : '#dc2626' }}>{s}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
