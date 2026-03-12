@@ -546,6 +546,20 @@ export const contactsApi = {
     return response.data;
   },
 
+  // CRM Spotlight GTM — analyze warm contacts + conversations with Gemini 2.5 Pro
+  async crmSpotlightGTM(projectId: number, question: string, filters?: Record<string, any>): Promise<{
+    success: boolean;
+    gtm_plan?: string;
+    contacts_analyzed?: number;
+    project_slug?: string;
+  }> {
+    const response = await api.post(`/contacts/projects/${projectId}/crm-spotlight-gtm`, {
+      question,
+      filters: filters || {},
+    });
+    return response.data;
+  },
+
   // AI SDR - Generate pitch templates
   async generatePitches(projectId: number): Promise<AISDRGenerationResult> {
     const response = await api.post(`/contacts/projects/${projectId}/generate-pitches`);

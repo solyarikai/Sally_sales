@@ -2890,6 +2890,189 @@ Generate a data-driven GTM strategy. Prioritize segments with the most contacts 
         raise HTTPException(status_code=500, detail=f"GTM generation failed: {str(e)}")
 
 
+class CRMSpotlightRequest(BaseModel):
+    question: str
+    filters: Optional[Dict[str, Any]] = None
+
+
+@router.post("/projects/{project_id}/crm-spotlight-gtm")
+async def crm_spotlight_gtm(
+    project_id: int,
+    body: CRMSpotlightRequest = Body(...),
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Analyze warm reply contacts with Gemini 2.5 Pro and generate GTM insights.
+
+    Operator asks a question (e.g. 'how to improve scheduling rate') from the CRM page
+    with warm-reply filters active. We fetch matching contacts + their conversation histories,
+    feed everything to Gemini, and save the analysis as the project's GTM plan.
+    """
+    from collections import Counter
+    from app.models.reply import ProcessedReply, ThreadMessage
+    from app.services.gemini_client import gemini_generate, extract_json_from_gemini
+    import json as json_mod
+
+    # Verify project
+    project_stmt = select(Project).where(
+        Project.id == project_id, Project.deleted_at.is_(None),
+    )
+    if company_id:
+        project_stmt = project_stmt.where(Project.company_id == company_id)
+    project = (await session.execute(project_stmt)).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Build contact query with caller's filters
+    filters = body.filters or {}
+    query = await _build_filtered_query(
+        session, company_id,
+        project_id=project_id,
+        has_replied=filters.get("has_replied", True),
+        reply_category=filters.get("reply_category", "interested,meeting_request,question,other"),
+        segment=filters.get("segment"),
+        geo=filters.get("geo"),
+        status=filters.get("status"),
+        campaign=filters.get("campaign"),
+        campaign_id=filters.get("campaign_id"),
+        search=filters.get("search"),
+        created_after=filters.get("created_after"),
+        created_before=filters.get("created_before"),
+        reply_since=filters.get("reply_since"),
+    )
+    result = await session.execute(query.limit(200))
+    contacts = list(result.scalars().all())
+
+    if not contacts:
+        raise HTTPException(status_code=400, detail="No matching contacts found with current filters.")
+
+    # Fetch latest ProcessedReply + thread_messages for each contact
+    contact_emails = [c.email for c in contacts]
+    replies_result = await session.execute(
+        select(ProcessedReply)
+        .where(ProcessedReply.lead_email.in_(contact_emails))
+        .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at))
+    )
+    all_replies = list(replies_result.scalars().all())
+
+    # Group replies by email (take latest per email)
+    replies_by_email: Dict[str, ProcessedReply] = {}
+    for r in all_replies:
+        if r.lead_email not in replies_by_email:
+            replies_by_email[r.lead_email] = r
+
+    # Fetch thread messages for these replies
+    reply_ids = [r.id for r in replies_by_email.values()]
+    threads: Dict[int, list] = {}
+    if reply_ids:
+        thread_result = await session.execute(
+            select(ThreadMessage)
+            .where(ThreadMessage.reply_id.in_(reply_ids))
+            .order_by(ThreadMessage.reply_id, ThreadMessage.position)
+        )
+        for tm in thread_result.scalars().all():
+            threads.setdefault(tm.reply_id, []).append(tm)
+
+    # Build conversation summaries for Gemini
+    conversation_summaries = []
+    category_counts: Dict[str, int] = Counter()
+    for c in contacts:
+        reply = replies_by_email.get(c.email)
+        cat = reply.category if reply else "unknown"
+        category_counts[cat] += 1
+
+        summary = f"- {c.first_name or ''} {c.last_name or ''} ({c.email})"
+        summary += f" | Company: {c.company_name or 'N/A'} | Title: {c.job_title or 'N/A'}"
+        summary += f" | Category: {cat}"
+        if c.status:
+            summary += f" | Status: {c.status}"
+
+        if reply and reply.id in threads:
+            msgs = threads[reply.id]
+            summary += f"\n  Conversation ({len(msgs)} messages):"
+            for msg in msgs[:10]:  # limit to 10 messages per thread
+                direction = "LEAD" if msg.direction == "inbound" else "US"
+                body_preview = (msg.body or "")[:300].replace("\n", " ").strip()
+                if body_preview:
+                    summary += f"\n    [{direction}]: {body_preview}"
+        elif reply:
+            body_preview = (reply.body or "")[:300].replace("\n", " ").strip()
+            if body_preview:
+                summary += f"\n  Latest reply: {body_preview}"
+
+        conversation_summaries.append(summary)
+
+    category_breakdown = ", ".join(f"{cat}: {cnt}" for cat, cnt in category_counts.most_common())
+
+    system_prompt = """You are a B2B sales strategist analyzing REAL conversation histories from a cold outreach campaign.
+The operator is asking for specific, actionable advice on how to improve their scheduling/conversion rate.
+
+Analyze every conversation carefully. Look for patterns:
+- What objections appear frequently?
+- What messaging resonates vs falls flat?
+- Where do conversations stall (after what message)?
+- What types of leads actually schedule vs just show interest?
+- Common drop-off points in the conversation funnel
+
+Return ONLY valid JSON:
+{
+  "segments": [
+    {
+      "segment": "Pattern/Category Name",
+      "priority": 1,
+      "size": 123,
+      "rationale": "Data-driven insight about this group",
+      "characteristics": ["trait 1", "trait 2"],
+      "outreach_angle": "Specific recommendation for this group"
+    }
+  ],
+  "summary": "Executive summary answering the operator's question with specific, actionable recommendations. Reference actual conversation patterns you observed.",
+  "total_addressable": "Conversion funnel analysis: X warm leads → Y interested → Z scheduled"
+}
+
+Be specific and reference actual patterns from the conversations. Don't be generic."""
+
+    user_prompt = f"""Project: {project.name}
+Operator's question: {body.question}
+
+REPLY CATEGORY BREAKDOWN: {category_breakdown}
+TOTAL WARM CONTACTS ANALYZED: {len(contacts)}
+
+CONVERSATION HISTORIES:
+{chr(10).join(conversation_summaries[:100])}
+
+Based on these REAL conversations, answer the operator's question with specific, data-driven recommendations.
+Focus on what patterns emerge and what concrete changes would improve the scheduling/conversion rate."""
+
+    try:
+        result = await gemini_generate(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.4,
+            max_tokens=6000,
+            model="gemini-2.5-pro-preview-06-05",
+            project_id=project_id,
+        )
+
+        gtm_json = extract_json_from_gemini(result["content"])
+        json_mod.loads(gtm_json)  # validate
+
+        # Save as project GTM plan
+        project.gtm_plan = gtm_json
+        project.updated_at = datetime.utcnow()
+        await session.commit()
+
+        return {
+            "success": True,
+            "gtm_plan": gtm_json,
+            "contacts_analyzed": len(contacts),
+            "project_slug": project.name.lower().replace(" ", "-"),
+        }
+    except Exception as e:
+        logger.error(f"CRM Spotlight GTM failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
 @router.post("/projects/{project_id}/generate-pitches")
 async def generate_pitch_templates(
     project_id: int,

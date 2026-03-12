@@ -20,11 +20,12 @@ import {
   Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Target, Mail, Loader2, Upload, AlertCircle, Check,
   FileSpreadsheet, ExternalLink, Send,
-  Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3
+  Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3, TrendingUp
 } from 'lucide-react';
 import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type EnrichResult } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
+import { CRMSpotlight } from '../components/CRMSpotlight';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
 import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter, SegmentColumnFilter, SourceColumnFilter, RepliedColumnFilter, GeoColumnFilter, ReplyCategoryColumnFilter } from '../components/filters';
@@ -823,6 +824,39 @@ export function ContactsPage() {
     });
   };
 
+  // CRM Spotlight
+  const [showCRMSpotlight, setShowCRMSpotlight] = useState(false);
+
+  // Cmd+K on CRM page opens CRM Spotlight (only when project is selected)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        if (!activeProject) return; // need a project context
+        e.preventDefault();
+        e.stopPropagation();
+        setShowCRMSpotlight(prev => !prev);
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown, true); // capture phase to beat Layout
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [activeProject]);
+
+  const spotlightFilters = useMemo(() => ({
+    has_replied: repliedFilter ?? true,
+    reply_category: replyCategoryFilters.length > 0
+      ? replyCategoryFilters.join(',')
+      : 'interested,meeting_request,question,other',
+    segment: segmentFilters.length > 0 ? segmentFilters.join(',') : undefined,
+    geo: geoFilter || undefined,
+    status: statusFilters.length > 0 ? statusFilters.join(',') : undefined,
+    campaign: campaignFilters.length > 0 ? campaignFilters.join(',') : undefined,
+    campaign_id: campaignIdFilter || undefined,
+    search: debouncedSearch || undefined,
+    created_after: createdAfter || undefined,
+    created_before: createdBefore || undefined,
+    reply_since: replySince || undefined,
+  }), [repliedFilter, replyCategoryFilters, segmentFilters, geoFilter, statusFilters, campaignFilters, campaignIdFilter, debouncedSearch, createdAfter, createdBefore, replySince]);
+
   const [isPushingToSmartlead, setIsPushingToSmartlead] = useState(false);
   const [smartleadCampaignUrl, setSmartleadCampaignUrl] = useState<string | null>(null);
 
@@ -955,6 +989,17 @@ export function ContactsPage() {
             <button onClick={() => setShowEnrichModal(true)} className="p-1.5 rounded-md transition-colors hover:opacity-70" style={{ color: t.text4 }} title="Enrich from CSV">
               <Sparkles className="w-3.5 h-3.5" />
             </button>
+            {activeProject && (
+              <button
+                onClick={() => setShowCRMSpotlight(true)}
+                className="flex items-center gap-1 px-1.5 py-1 rounded-md transition-colors hover:opacity-70 text-[11px]"
+                style={{ color: '#3b82f6' }}
+                title="CRM Spotlight — analyze warm contacts (Cmd+K)"
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>Spotlight</span>
+              </button>
+            )}
             <button
               onClick={handleExportGoogleSheet}
               disabled={isExportingSheet}
@@ -1164,6 +1209,16 @@ export function ContactsPage() {
         message={confirmDialog.message}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* CRM Spotlight */}
+      <CRMSpotlight
+        open={showCRMSpotlight}
+        onClose={() => setShowCRMSpotlight(false)}
+        projectId={activeProject?.id || null}
+        projectName={activeProject?.name || null}
+        filters={spotlightFilters}
+        contactCount={total}
       />
 
       {/* Contact Detail Modal */}

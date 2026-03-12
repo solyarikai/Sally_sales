@@ -113,6 +113,7 @@ export function Layout({ children }: LayoutProps) {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         if (/^\/projects\/\d+/.test(location.pathname)) return; // ProjectPage handles its own Cmd+K
+        if (location.pathname === '/contacts') return; // ContactsPage handles its own Cmd+K (CRM Spotlight)
         e.preventDefault();
         setShowSpotlight(prev => !prev);
       }
