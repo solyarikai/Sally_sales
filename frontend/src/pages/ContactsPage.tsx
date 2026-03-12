@@ -903,9 +903,10 @@ export function ContactsPage() {
     setIsPushingToSmartlead(true);
     setSmartleadCampaignUrl(null);
     try {
-      // If user selected all visible but there are more on server, use filter-based push
-      const allSelected = selectedContacts.length === contacts.length && total > contacts.length;
-      const result = allSelected && sourceIdFilter
+      // If user selected all visible and there's a source_id filter, push ALL matching via server-side filter
+      const allVisibleSelected = selectedContacts.length >= contacts.length;
+      const useFilterPush = allVisibleSelected && sourceIdFilter;
+      const result = useFilterPush
         ? await contactsApi.pushToSmartlead([], undefined, { source_id: sourceIdFilter, project_id: activeProject?.id })
         : await contactsApi.pushToSmartlead(selectedContacts.map(c => c.id));
       setSmartleadCampaignUrl(result.campaign_url);
@@ -1110,7 +1111,7 @@ export function ContactsPage() {
                   {isPushingToSmartlead
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Send className="w-3.5 h-3.5" />}
-                  <span>SmartLead ({selectedContacts.length})</span>
+                  <span>SmartLead ({selectedContacts.length >= contacts.length && sourceIdFilter && total > selectedContacts.length ? total : selectedContacts.length})</span>
                 </button>
                 <button onClick={handleDeleteSelected} className="p-1.5 rounded-md transition-colors text-red-400 hover:text-red-300" title="Delete Selected">
                   <Trash2 className="w-3.5 h-3.5" />
