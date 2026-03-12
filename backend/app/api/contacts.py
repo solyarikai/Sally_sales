@@ -1754,7 +1754,8 @@ async def _generate_outreach_sequence(project_name: str, segment_name: str) -> l
             f"Different angle — mention a relevant case study or the compliance advantage.\n"
             f"- Step 3: Breakup (delay 5 days). Subject starts with 'Re: Re: ' of step 1. "
             f"'Start as a backup' reframe, offer one-pager, gentle close.\n"
-            f"- Use {{{{first_name}}}} variable, HTML <p> tags, sign as Serge Kuznetsov, Co-founder @ INXY.io\n"
+            f"- Use {{{{first_name}}}} and {{{{company_name}}}} variables. Include {{{{company_name}}}} in the Step 1 subject line.\n"
+            f"- HTML <p> tags, sign as Serge Kuznetsov, Co-founder @ INXY.io\n"
             f"- Each email: 3-4 sentences MAX. No fluff.\n\n"
             f"Return ONLY a JSON array of 3 objects: {{\"seq_number\": N, \"subject\": \"...\", \"email_body\": \"<p>...</p>\"}}\n"
         )
@@ -1789,7 +1790,7 @@ async def _generate_outreach_sequence(project_name: str, segment_name: str) -> l
             {
                 "seq_number": 1,
                 "seq_delay_details": {"delay_in_days": 0},
-                "subject": f"crypto payouts for {seg}",
+                "subject": f"crypto payouts for {{{{company_name}}}}",
                 "email_body": (
                     f"<p>Hi {fn},</p>"
                     f"<p>We help {seg} companies pay contractors and partners worldwide using crypto rails "
@@ -1801,7 +1802,7 @@ async def _generate_outreach_sequence(project_name: str, segment_name: str) -> l
             {
                 "seq_number": 2,
                 "seq_delay_details": {"delay_in_days": 4},
-                "subject": f"Re: crypto payouts for {seg}",
+                "subject": f"Re: crypto payouts for {{{{company_name}}}}",
                 "email_body": (
                     f"<p>Hi {fn},</p>"
                     f"<p>Quick follow-up. Solar Staff used our payout infrastructure to automate payments "
@@ -1814,7 +1815,7 @@ async def _generate_outreach_sequence(project_name: str, segment_name: str) -> l
             {
                 "seq_number": 3,
                 "seq_delay_details": {"delay_in_days": 5},
-                "subject": f"Re: Re: crypto payouts for {seg}",
+                "subject": f"Re: Re: crypto payouts for {{{{company_name}}}}",
                 "email_body": (
                     f"<p>Hi {fn},</p>"
                     f"<p>Last note — no worries if now isn't the right time. Many of our clients started INXY "

@@ -2411,7 +2411,7 @@ async def _handle_clay_gather(
                 if _is_payroll_fast:
                     import asyncio as _fast_aio
                     from app.models.contact import Contact
-                    from sqlalchemy import func, update as _sql_upd
+                    from sqlalchemy import update as _sql_upd
 
                     # Check if we have pre-existing verified payroll contacts
                     _existing = (await task_db.execute(
