@@ -268,6 +268,58 @@ Respond ONLY with JSON:
     "reply": "..."
 }}"""
 
+        # ── Hard-coded pre-parser: detect clay_gather pattern ──────────
+        # If message contains a number + contacts/companies/people/leads + segment description
+        # → force clay_gather without relying on LLM classification
+        import re as _re
+        _gather_pattern = _re.compile(
+            r'(\d+)\s*(?:contacts?|companies|people|leads?)\s+'
+            r'(?:from|in|of|for|at|across)\s+'
+            r'(.+)',
+            _re.IGNORECASE,
+        )
+        _gather_match = _gather_pattern.search(message)
+        if _gather_match:
+            _count = int(_gather_match.group(1))
+            _segment_desc = _gather_match.group(2).strip()
+            # Heuristic: if count <= 500 and segment desc is at least 3 chars, it's a gather
+            if _count <= 500 and len(_segment_desc) >= 3:
+                logger.info(f"Pre-parser matched clay_gather: {_count} contacts, segment='{_segment_desc}'")
+                _company_count = max(3, _count // 3)  # ~3 contacts per company
+                return {
+                    "action": "clay_gather",
+                    "clay_segment": _segment_desc,
+                    "clay_company_count": _company_count,
+                    "clay_contact_count": _count,
+                    "reply": f"Starting Clay gather pipeline for **{_segment_desc}** — targeting ~{_company_count} companies, ~{_count} contacts.",
+                    "engine": None, "segments": None, "geos": None,
+                    "max_queries": None, "target_goal": None,
+                    "skip_smartlead_push": True, "stats_scope": None, "domains": None,
+                }
+        # Also match "gather X from Y" pattern
+        _gather_pattern2 = _re.compile(
+            r'(?:gather|find|get|search|collect)\s+(\d+)\s*(?:contacts?|companies|people|leads?)\s*(?:from|in|of|for|at|across)\s+(.+)',
+            _re.IGNORECASE,
+        )
+        _gather_match2 = _gather_pattern2.search(message)
+        if _gather_match2:
+            _count = int(_gather_match2.group(1))
+            _segment_desc = _gather_match2.group(2).strip()
+            if len(_segment_desc) >= 3:
+                logger.info(f"Pre-parser matched clay_gather (v2): {_count} contacts, segment='{_segment_desc}'")
+                _company_count = max(3, _count // 3)
+                return {
+                    "action": "clay_gather",
+                    "clay_segment": _segment_desc,
+                    "clay_company_count": _company_count,
+                    "clay_contact_count": _count,
+                    "reply": f"Starting Clay gather pipeline for **{_segment_desc}** — targeting ~{_company_count} companies, ~{_count} contacts.",
+                    "engine": None, "segments": None, "geos": None,
+                    "max_queries": None, "target_goal": None,
+                    "skip_smartlead_push": True, "stats_scope": None, "domains": None,
+                }
+        # ── End pre-parser ────────────────────────────────────────────
+
         user_parts = []
         if context:
             for msg in context[-6:]:  # Last 6 messages for context

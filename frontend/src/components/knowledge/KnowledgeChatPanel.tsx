@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, MessageSquare } from 'lucide-react';
+import { Send, MessageSquare, Trash2, XCircle } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppStore } from '../../store/appStore';
 import { useTheme } from '../../hooks/useTheme';
@@ -398,8 +398,62 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
 
   const isBusy = isLoading || isStreaming;
 
+  const handleClearChat = async () => {
+    if (!currentCompany?.id) return;
+    try {
+      await api.post(`/search/chat/${projectId}/clear`);
+      setMessages([]);
+      setSuggestions(DEFAULT_SUGGESTIONS);
+    } catch (err) {
+      console.error('Failed to clear chat:', err);
+    }
+  };
+
+  const handleCancelPipeline = async () => {
+    if (!currentCompany?.id) return;
+    try {
+      await api.post(`/search/chat/${projectId}/cancel`);
+      setMessages((prev) => [
+        ...prev,
+        { id: uuid(), role: 'system', content: 'Pipeline cancelled by operator.', action_type: 'error' },
+      ]);
+    } catch (err) {
+      console.error('Failed to cancel pipeline:', err);
+    }
+  };
+
+  const lastMsg = messages[messages.length - 1];
+  const hasRunningPipeline = lastMsg?.role === 'system' &&
+    (lastMsg.action_type?.includes('substep') || lastMsg.action_type?.includes('progress')) &&
+    !lastMsg.action_type?.includes('done') && !lastMsg.action_type?.includes('completed') && !lastMsg.action_type?.includes('error');
+
   return (
     <div className="flex flex-col h-full">
+      {/* Chat actions toolbar */}
+      {messages.length > 0 && (
+        <div className="flex justify-end gap-2 px-5 pt-2">
+          {hasRunningPipeline && (
+            <button
+              onClick={handleCancelPipeline}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg transition-colors",
+                isDark ? "text-red-400 hover:bg-red-900/30 border border-red-800/40" : "text-red-500 hover:bg-red-50 border border-red-200"
+              )}
+            >
+              <XCircle className="w-3.5 h-3.5" /> Cancel pipeline
+            </button>
+          )}
+          <button
+            onClick={handleClearChat}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg transition-colors",
+              isDark ? "text-gray-400 hover:bg-gray-700 border border-gray-600" : "text-gray-500 hover:bg-gray-100 border border-gray-200"
+            )}
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Clear chat
+          </button>
+        </div>
+      )}
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
         {historyLoaded && messages.length === 0 && !isBusy && (

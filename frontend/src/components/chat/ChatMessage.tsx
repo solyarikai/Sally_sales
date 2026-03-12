@@ -208,7 +208,7 @@ function ElapsedTimer({ startTime }: { startTime?: string }) {
   const mins = Math.floor(elapsed / 60);
   const secs = elapsed % 60;
   return (
-    <span className="opacity-50 tabular-nums ml-auto flex-shrink-0">
+    <span className="opacity-80 tabular-nums ml-auto flex-shrink-0 font-medium text-sm">
       {mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}
     </span>
   );

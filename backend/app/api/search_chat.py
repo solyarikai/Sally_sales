@@ -171,6 +171,47 @@ async def set_message_feedback(
     return {"id": message_id, "feedback": body.feedback}
 
 
+@router.post("/chat/{project_id}/clear")
+async def clear_chat(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Clear all chat messages for a project (soft-delete via action_type='cleared')."""
+    from sqlalchemy import update as sql_update
+    result = await db.execute(
+        sql_update(ProjectChatMessage)
+        .where(
+            ProjectChatMessage.project_id == project_id,
+            ProjectChatMessage.action_type.is_distinct_from("cleared"),
+        )
+        .values(action_type="cleared")
+    )
+    await db.commit()
+    return {"cleared": result.rowcount}
+
+
+@router.post("/chat/{project_id}/cancel")
+async def cancel_pipeline(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    company: Company = Depends(get_required_company),
+):
+    """Cancel any running pipeline for this project."""
+    from app.api.pipeline import _running_pipelines
+    cancelled = False
+    if project_id in _running_pipelines and _running_pipelines[project_id].get("running"):
+        _running_pipelines[project_id]["stop_requested"] = True
+        cancelled = True
+    # Also try to kill any node/chromium subprocesses for Clay
+    import subprocess
+    try:
+        subprocess.run(["pkill", "-f", "clay_"], capture_output=True, timeout=5)
+    except Exception:
+        pass
+    return {"cancelled": cancelled, "project_id": project_id}
+
+
 @router.post("/chat/messages/{project_id}")
 async def save_chat_messages(
     project_id: int,
