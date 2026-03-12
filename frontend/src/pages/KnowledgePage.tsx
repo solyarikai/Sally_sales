@@ -168,8 +168,8 @@ export function KnowledgePage() {
         </div>
       </div>
 
-      {/* Setup warnings */}
-      {overview?.setup_warnings && overview.setup_warnings.length > 0 && (
+      {/* Setup warnings — hide on analytics/gtm tabs (irrelevant there) */}
+      {overview?.setup_warnings && overview.setup_warnings.length > 0 && !['analytics', 'gtm'].includes(activeTab) && (
         <div
           className="mx-5 mt-3 px-4 py-3 rounded-lg border text-[13px]"
           style={{
