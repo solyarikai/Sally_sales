@@ -1754,8 +1754,49 @@ async def _generate_outreach_sequence(project_name: str, segment_name: str) -> l
             })
         return sequences
     except Exception as e:
-        logger.warning(f"GPT sequence generation failed: {e}")
-        return []
+        logger.warning(f"GPT sequence generation failed: {e}, using fallback sequence")
+        # Fallback: hardcoded 3-step sequence when GPT is unavailable
+        first_name_var = "{{first_name}}"
+        return [
+            {
+                "seq_number": 1,
+                "seq_delay_details": {"delay_in_days": 0},
+                "subject": f"Quick question about {segment_name or 'your company'}",
+                "email_body": (
+                    f"<p>Hi {first_name_var},</p>"
+                    f"<p>I came across your company and noticed you're in the {segment_name or 'industry'} space. "
+                    f"We've been helping similar companies streamline their operations and I'd love to share how.</p>"
+                    f"<p>Would you be open to a quick 10-minute chat this week?</p>"
+                    f"<p>Best regards</p>"
+                ),
+            },
+            {
+                "seq_number": 2,
+                "seq_delay_details": {"delay_in_days": 3},
+                "subject": f"Re: Quick question about {segment_name or 'your company'}",
+                "email_body": (
+                    f"<p>Hi {first_name_var},</p>"
+                    f"<p>Just following up on my previous note. I know how busy things get — "
+                    f"I wanted to make sure this didn't slip through the cracks.</p>"
+                    f"<p>We've helped companies in {segment_name or 'your space'} save significant time "
+                    f"on manual processes. Happy to share a quick case study if helpful.</p>"
+                    f"<p>Would a brief call work for you?</p>"
+                ),
+            },
+            {
+                "seq_number": 3,
+                "seq_delay_details": {"delay_in_days": 5},
+                "subject": f"Re: Re: Quick question about {segment_name or 'your company'}",
+                "email_body": (
+                    f"<p>Hi {first_name_var},</p>"
+                    f"<p>Last note from me — I don't want to be a nuisance. "
+                    f"If now isn't the right time, totally understand.</p>"
+                    f"<p>If you're curious about what we're doing for {segment_name or 'companies like yours'}, "
+                    f"I'm happy to send over a one-pager with no strings attached.</p>"
+                    f"<p>Either way, wish you all the best!</p>"
+                ),
+            },
+        ]
 
 
 # ============= SmartLead Draft Campaign =============
@@ -1943,38 +1984,29 @@ async def list_projects(
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
-    """List all projects with contact counts"""
-    
+    """List all projects with contact counts (batch query — no N+1)."""
+
     result = await session.execute(
         select(Project)
         .where(and_(Project.company_id == company_id if company_id else True, Project.deleted_at.is_(None)))
         .order_by(Project.name)
     )
     projects = result.scalars().all()
-    
-    # Get contact counts
+
+    # Batch: get contact counts by project_id in a single query
+    project_ids = [p.id for p in projects]
+    counts_by_id: dict[int, int] = {}
+    if project_ids:
+        count_result = await session.execute(
+            select(Contact.project_id, func.count(Contact.id))
+            .where(and_(Contact.project_id.in_(project_ids), Contact.deleted_at.is_(None)))
+            .group_by(Contact.project_id)
+        )
+        counts_by_id = dict(count_result.all())
+
     project_responses = []
     for project in projects:
-        if project.campaign_filters and len(project.campaign_filters) > 0:
-            # Dynamic count based on FK OR campaign_filters
-            cf_parts = " OR ".join(
-                f"contacts.platform_state::text ILIKE :pcf_{i}" for i in range(len(project.campaign_filters))
-            )
-            cf_params = {f"pcf_{i}": f"%{cf}%" for i, cf in enumerate(project.campaign_filters)}
-            count_result = await session.execute(
-                sql_text(f"""
-                    SELECT COUNT(DISTINCT id) FROM contacts
-                    WHERE deleted_at IS NULL
-                    AND (project_id = :pid OR ({cf_parts}))
-                """).bindparams(pid=project.id, **cf_params)
-            )
-        else:
-            count_result = await session.execute(
-                select(func.count()).where(
-                    and_(Contact.project_id == project.id, Contact.deleted_at.is_(None))
-                )
-            )
-        contact_count = count_result.scalar() or 0
+        contact_count = counts_by_id.get(project.id, 0)
 
         response = ProjectResponse(
             id=project.id,

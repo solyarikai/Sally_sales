@@ -2539,12 +2539,13 @@ async def _handle_clay_gather(
                             }
                             await task_db.commit()
 
-                        # Build links — include Clay workspace for browsing tables
+                        # Build links — direct to actual Clay table searches
                         crm_url = f"/contacts?project_id={project_id}&source_id=clay_{job_id}"
-                        _clay_ws = "https://app.clay.com/workspaces/889252"
+                        _clay_companies = "https://app.clay.com/workspaces/889252/workbooks/wb_0tbs1su99Gv8wh446uh/tables/t_0tbs1swBmFKfNYsGs4v"
+                        _clay_people = "https://app.clay.com/workspaces/889252/tables/t_0tbs23327eG62Shp4HX"
                         _links = (
-                            f"[Companies in Clay →]({_clay_ws}) | "
-                            f"[People in Clay →]({_clay_ws}) | "
+                            f"[Companies in Clay →]({_clay_companies}) | "
+                            f"[People in Clay →]({_clay_people}) | "
                             f"[Open CRM →]({crm_url})"
                         )
 
