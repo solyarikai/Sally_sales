@@ -64,9 +64,10 @@ def extract_segment(cname: str, project_name: str) -> str:
     if cn_lower.startswith(project_lower):
         cn = cn[len(project_lower):].strip()
 
-    # Strip separators and normalize underscores
+    # Strip separators and normalize
     cn = cn.lstrip("-_–— ").strip()
     cn = cn.replace('_', ' ')
+    cn = cn.replace('&', ' & ')  # ensure & is word-separated
 
     # Utility campaigns → Other
     if _UTILITY_CAMPAIGNS.search(cn):
@@ -107,7 +108,18 @@ def extract_segment(cname: str, project_name: str) -> str:
 
     if not cn or len(cn) < 2:
         return "Other"
-    return cn.title()
+
+    # Preserve acronyms (short all-caps words like QSR, PSP, AI, SaaS)
+    words = cn.split()
+    result_words = []
+    for w in words:
+        if w.isupper() and len(w) <= 5:
+            result_words.append(w)  # Keep QSR, PSP, AI, VAS, etc.
+        elif w.lower() == 'saas':
+            result_words.append('SaaS')
+        else:
+            result_words.append(w.title())
+    return ' '.join(result_words)
 
 
 def _meaningful_words(text: str) -> frozenset:
@@ -157,6 +169,16 @@ def _group_segments(segment_map: Dict[str, str]) -> Dict[str, str]:
             if c_words.issubset(seg_words) or seg_words.issubset(c_words):
                 best_match = c_name
                 break
+
+            # Strategy 3: word-stem prefix (food→foodtech, telemed→telemedicine)
+            for cw in c_words:
+                for sw in seg_words:
+                    shorter_w, longer_w = sorted([cw, sw], key=len)
+                    if len(shorter_w) >= 4 and longer_w.startswith(shorter_w):
+                        best_match = c_name
+                        break
+                if best_match:
+                    break
 
         if best_match:
             canonical[seg] = best_match
