@@ -935,7 +935,8 @@ export function ContactsPage() {
     // Don't override campaign filters when deep-linked with segment/source filters
     // (pipeline contacts don't belong to campaigns)
     if (project?.campaign_filters && project.campaign_filters.length > 0
-        && segmentFilters.length === 0 && sourceFilter !== 'pipeline') {
+        && segmentFilters.length === 0 && sourceFilter !== 'pipeline'
+        && !sourceIdFilter) {
       setCampaignFilters(project.campaign_filters);
     }
   };
