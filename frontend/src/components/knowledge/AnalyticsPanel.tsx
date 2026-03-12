@@ -73,14 +73,11 @@ export function AnalyticsPanel({ projectId, isDark, t }: Props) {
     setLogsLoading(true);
     try {
       const result = await contactsApi.getGTMStrategyLogs(projectId);
-      // Sort: best completed (most output tokens) first, then by date
+      // Sort: completed first, then newest first (latest has best prompt + data)
       const sorted = [...result.items].sort((a, b) => {
-        const aCompleted = a.status === 'completed' ? 1 : 0;
-        const bCompleted = b.status === 'completed' ? 1 : 0;
-        if (aCompleted !== bCompleted) return bCompleted - aCompleted;
-        if (aCompleted && bCompleted) {
-          return (b.output_tokens || 0) - (a.output_tokens || 0);
-        }
+        const aOk = a.status === 'completed' && a.has_strategy ? 1 : 0;
+        const bOk = b.status === 'completed' && b.has_strategy ? 1 : 0;
+        if (aOk !== bOk) return bOk - aOk;
         return new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime();
       });
       setLogs(sorted);
@@ -91,44 +88,16 @@ export function AnalyticsPanel({ projectId, isDark, t }: Props) {
     }
   }
 
-  if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text4 }} />
-      </div>
-    );
-  }
-
-  if (error && !data) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 px-6">
-        <p className="text-[13px] mb-4" style={{ color: '#ef4444' }}>{error}</p>
-        <button onClick={loadData} className="text-[13px] underline" style={{ color: t.text3 }}>Retry</button>
-      </div>
-    );
-  }
-
-  if (!data || data.segments.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 px-6">
-        <BarChart3 className="w-10 h-10 mb-3 opacity-30" style={{ color: t.text4 }} />
-        <p className="text-[13px]" style={{ color: t.text2 }}>No campaign data available</p>
-        <p className="text-[12px] mt-1" style={{ color: t.text4 }}>
-          Segments are derived from campaign names. Add campaigns to see analytics.
-        </p>
-      </div>
-    );
-  }
-
-  const { totals, segments } = data;
+  const totals = data?.totals;
+  const segments = data?.segments || [];
   const maxContacts = Math.max(...segments.map(s => s.total_contacts), 1);
 
   return (
     <div className="flex gap-5 p-5">
       {/* Left: Analytics */}
       <div className="flex-1 min-w-0 space-y-5 max-w-[960px]">
-        {/* Latest GTM Strategy banner — top link */}
-        {logs.length > 0 && logs[0].has_strategy && (
+        {/* Latest GTM Strategy banner — renders instantly from logs (no SQL wait) */}
+        {!logsLoading && logs.length > 0 && logs[0].has_strategy && (
           <a
             href={`/knowledge/gtm?project=${new URLSearchParams(window.location.search).get('project') || ''}&logId=${logs[0].id}`}
             className="flex items-center gap-3 rounded-xl px-4 py-3 transition-opacity hover:opacity-80"
@@ -159,7 +128,7 @@ export function AnalyticsPanel({ projectId, isDark, t }: Props) {
               Segment Funnel Analytics
             </h3>
             <p className="text-[12px] mt-0.5" style={{ color: t.text4 }}>
-              Segments derived from campaign names · {segments.length} segments
+              {data ? `Segments derived from campaign names · ${segments.length} segments` : 'Loading segment data...'}
             </p>
           </div>
           <div
@@ -186,13 +155,13 @@ export function AnalyticsPanel({ projectId, isDark, t }: Props) {
           </div>
         </div>
 
-        {/* Summary cards */}
+        {/* Summary cards — skeleton while loading */}
         <div className="grid grid-cols-4 gap-3">
           {[
-            { icon: Users, label: 'Contacts', value: totals.total_contacts, color: isDark ? '#60a5fa' : '#2563eb' },
-            { icon: MessageSquare, label: 'Replies', value: totals.total_replies, color: isDark ? '#a78bfa' : '#7c3aed' },
-            { icon: ThumbsUp, label: 'Positive', value: totals.positive, color: isDark ? '#4ade80' : '#16a34a' },
-            { icon: CalendarCheck, label: 'Meetings', value: totals.meeting_requests, color: isDark ? '#f59e0b' : '#d97706' },
+            { icon: Users, label: 'Contacts', value: totals?.total_contacts, color: isDark ? '#60a5fa' : '#2563eb' },
+            { icon: MessageSquare, label: 'Replies', value: totals?.total_replies, color: isDark ? '#a78bfa' : '#7c3aed' },
+            { icon: ThumbsUp, label: 'Positive', value: totals?.positive, color: isDark ? '#4ade80' : '#16a34a' },
+            { icon: CalendarCheck, label: 'Meetings', value: totals?.meeting_requests, color: isDark ? '#f59e0b' : '#d97706' },
           ].map(card => (
             <div
               key={card.label}
@@ -205,21 +174,31 @@ export function AnalyticsPanel({ projectId, isDark, t }: Props) {
                   {card.label}
                 </span>
               </div>
-              <span className="text-[20px] font-bold" style={{ color: t.text1 }}>
-                {fmtNum(card.value)}
-              </span>
+              {card.value != null ? (
+                <span className="text-[20px] font-bold" style={{ color: t.text1 }}>
+                  {fmtNum(card.value)}
+                </span>
+              ) : (
+                <div className="h-7 w-16 rounded animate-pulse" style={{ background: isDark ? '#2a2a2a' : '#e5e7eb' }} />
+              )}
             </div>
           ))}
         </div>
 
         {loading && (
           <div className="flex items-center gap-2 text-[12px]" style={{ color: t.text4 }}>
-            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Updating...
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading segments...
           </div>
         )}
 
-        {/* Segment funnel table */}
-        <section>
+        {error && !data && (
+          <div className="flex items-center gap-2 text-[12px]" style={{ color: '#ef4444' }}>
+            {error} — <button onClick={loadData} className="underline" style={{ color: t.text3 }}>Retry</button>
+          </div>
+        )}
+
+        {/* Segment funnel table — only when data loaded */}
+        {segments.length > 0 && <section>
           <div className="flex items-center gap-2 mb-3">
             <BarChart3 className="w-4 h-4" style={{ color: t.text3 }} />
             <h4 className="text-[13px] font-semibold uppercase tracking-wide" style={{ color: t.text3 }}>
@@ -299,7 +278,7 @@ export function AnalyticsPanel({ projectId, isDark, t }: Props) {
               );
             })}
           </div>
-        </section>
+        </section>}
       </div>
 
       {/* Right: Analytics Thinking Logs */}

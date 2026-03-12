@@ -2951,29 +2951,11 @@ async def get_segment_funnel(
         days = {"7d": 7, "30d": 30, "90d": 90}[period]
         cutoff = datetime.utcnow() - timedelta(days=days)
 
-    # Query 1: contacts per segment from contacts table
-    # Extracts campaign names from platform_state.smartlead.campaigns[].name
-    # and classifies each contact into a segment. Contacts in multiple campaigns
-    # are attributed to their FIRST matching segment (avoids double-counting).
-    contact_case = build_segment_case_when(segment_map, "camp_name")
+    # Query 1: contacts per segment from campaigns table (fast — uses pre-computed leads_count)
     contacts_sql = f"""
-        WITH contact_campaigns AS (
-            SELECT ct.id,
-                COALESCE(
-                    (SELECT elem->>'name'
-                     FROM jsonb_array_elements(ct.platform_state::jsonb->'smartlead'->'campaigns') elem
-                     WHERE elem->>'name' IS NOT NULL AND elem->>'name' != ''
-                     LIMIT 1),
-                    (SELECT elem->>'name'
-                     FROM jsonb_array_elements(ct.platform_state::jsonb->'campaigns') elem
-                     WHERE elem->>'name' IS NOT NULL AND elem->>'name' != ''
-                     LIMIT 1)
-                ) as camp_name
-            FROM contacts ct
-            WHERE ct.project_id = :pid AND ct.deleted_at IS NULL
-        )
-        SELECT {contact_case} as segment, COUNT(*) as total_contacts
-        FROM contact_campaigns
+        SELECT {campaign_case} as segment, SUM(COALESCE(c.leads_count, 0)) as total_contacts
+        FROM campaigns c
+        WHERE c.project_id = :pid AND c.name IS NOT NULL
         GROUP BY 1 ORDER BY total_contacts DESC
     """
     contacts_result = await session.execute(sql_text(contacts_sql), {"pid": project_id})
