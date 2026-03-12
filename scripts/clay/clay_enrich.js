@@ -653,23 +653,31 @@ async function addFindymailEnrichment(page, tableId, linkedinColName) {
 
   await screenshot(page, 'findymail_05_configured');
 
-  // Click "Save" / "Run" / "Continue" to start enrichment
-  for (const label of ['Save', 'Run enrichment', 'Enrich', 'Continue', 'Run', 'Apply']) {
+  // Click the action button to start enrichment
+  // Clay UI shows "Continue to add fields" (red button at bottom-right)
+  let started = false;
+  for (const label of ['Continue to add fields', 'Save and run', 'Save', 'Run enrichment', 'Enrich', 'Continue', 'Run', 'Apply']) {
+    // Try exact button match first
     r = await realClickButton(page, label);
     if (r && !r.startsWith('disabled')) {
       console.log(`  ${r}`);
-      await humanDelay(2000, 3000);
+      started = true;
       break;
     }
-    // Also try via text
-    const pos = await findByText(page, label);
+    // Try TreeWalker text match (partial for longer labels)
+    const pos = await findByText(page, label, false);
     if (pos) {
       console.log(`  Clicking: "${label}"`);
       await page.mouse.click(pos.x, pos.y);
-      await humanDelay(2000, 3000);
+      started = true;
       break;
     }
   }
+  if (!started) {
+    const btns = await listButtons(page);
+    console.log('  WARNING: No start button found. Buttons:', btns.filter(b => !b.disabled).map(b => b.text).join(' | '));
+  }
+  await humanDelay(2000, 3000);
 
   await screenshot(page, 'findymail_06_started');
   console.log('  Findymail enrichment started!');
