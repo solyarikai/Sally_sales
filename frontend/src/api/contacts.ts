@@ -219,6 +219,25 @@ export interface SegmentFunnelData {
   segments: SegmentFunnelSegment[];
 }
 
+export interface GTMStrategyLogEntry {
+  id: number;
+  trigger: string;
+  model: string;
+  status: string;
+  input_summary: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cost_usd: string | null;
+  error_message: string | null;
+  created_at: string | null;
+  has_strategy: boolean;
+}
+
+export interface GTMStrategyLogsResponse {
+  items: GTMStrategyLogEntry[];
+  total: number;
+}
+
 export interface ImportResult {
   success: boolean;
   total_rows: number;
@@ -564,6 +583,14 @@ export const contactsApi = {
   async getSegmentFunnel(projectId: number, period: string = 'all'): Promise<SegmentFunnelData> {
     const response = await api.get(`/contacts/projects/${projectId}/segment-funnel`, {
       params: { period },
+    });
+    return response.data;
+  },
+
+  // GTM strategy logs
+  async getGTMStrategyLogs(projectId: number, page = 1): Promise<GTMStrategyLogsResponse> {
+    const response = await api.get(`/contacts/projects/${projectId}/gtm-strategy-logs`, {
+      params: { page, page_size: 20 },
     });
     return response.data;
   },

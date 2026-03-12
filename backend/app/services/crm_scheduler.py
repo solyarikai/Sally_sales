@@ -87,6 +87,7 @@ class CRMScheduler:
         self._sheet_sync_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
         self._followup_task: Optional[asyncio.Task] = None
+        self._gtm_analytics_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         
         # Per-task tracking: last_run, interval_seconds, next_run
@@ -101,6 +102,7 @@ class CRMScheduler:
             "report": {"last_run": None, "interval": report_interval_hours * 3600, "label": "Reports"},
             "needs_reply_cleanup": {"last_run": None, "interval": 21600, "label": "Needs-reply cleanup"},
             "followup_generation": {"last_run": None, "interval": 180, "label": "Follow-up generation"},
+            "gtm_analytics": {"last_run": None, "interval": 43200, "label": "GTM analytics (2x daily)"},
         }
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
@@ -158,7 +160,7 @@ class CRMScheduler:
             self._task, self._reply_task, self._webhook_task,
             self._report_task, self._prompt_refresh_task,
             self._recovery_task, self._conversation_sync_task,
-            self._followup_task,
+            self._followup_task, self._gtm_analytics_task,
             self._telegram_poll_task, self._sheet_sync_task,
             self._cleanup_task, self._watchdog_task
         ]
@@ -185,6 +187,7 @@ class CRMScheduler:
             ("_sheet_sync_task", self._run_sheet_sync_loop, "Sheet sync"),
             ("_cleanup_task", self._run_needs_reply_cleanup_loop, "Needs-reply cleanup"),
             ("_followup_task", self._run_followup_generation_loop, "Follow-up generation"),
+            ("_gtm_analytics_task", self._run_gtm_analytics_loop, "GTM analytics"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -836,6 +839,266 @@ class CRMScheduler:
             except Exception as e:
                 logger.error(f"Follow-up generation error: {e}")
             await asyncio.sleep(interval)
+
+    # ===== GTM Analytics (2x daily — morning + evening) =====
+
+    async def _run_gtm_analytics_loop(self):
+        """Generate GTM strategy for configured projects every 12 hours.
+
+        Currently hardcoded to project_id=22 (rizzult). Extend later.
+        Calls the same generate-gtm endpoint logic but with trigger='scheduled'.
+        """
+        await asyncio.sleep(120)  # Wait for other services to initialize
+        interval = 43200  # 12 hours
+
+        while self._running:
+            try:
+                await self._generate_gtm_for_project(22, "scheduled")
+                self._mark_task_run("gtm_analytics")
+                logger.info("[GTM] Scheduled GTM strategy generated for rizzult (project 22)")
+            except Exception as e:
+                logger.error(f"[GTM] Scheduled GTM generation failed: {e}")
+            await asyncio.sleep(interval)
+
+    async def _generate_gtm_for_project(self, project_id: int, trigger: str):
+        """Core GTM generation logic — reused by scheduler and manual trigger."""
+        import anthropic
+        import json as json_mod
+        from sqlalchemy import select, func, and_, text as sql_text
+        from app.models.reply import ProcessedReply, ThreadMessage
+        from app.models.campaign import Campaign
+        from app.models.contact import Contact, Project
+        from app.models.gtm_log import GTMStrategyLog
+        from app.core.config import settings
+
+        if not settings.ANTHROPIC_API_KEY:
+            logger.warning("[GTM] ANTHROPIC_API_KEY not configured, skipping")
+            return
+
+        async with async_session_maker() as session:
+            project = (await session.execute(
+                select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
+            )).scalar_one_or_none()
+            if not project:
+                return
+
+            # Segment rules
+            segment_rules = {
+                "fintech": "Fintech", "qsr": "QSR", "agenc": "Agencies",
+                "foodtech": "Foodtech", "food.*drink": "Foodtech",
+                "shopping": "Shopping", "stream": "Streaming", "media": "Media",
+                "telemed": "Telemedicine", "checkup": "Telemedicine",
+                "insur": "Insurance", "clean": "Cleaning", "farm": "Pharmacies",
+                "mobil": "Mobility", "wellness": "Wellness", "procure": "Procurement",
+                "telecom": "Telecom",
+            }
+
+            def _case_when(col: str) -> str:
+                whens = []
+                for p, s in segment_rules.items():
+                    if any(c in p for c in ".*+?[](){}|\\^$"):
+                        whens.append(f"WHEN {col} ~* '{p}' THEN '{s}'")
+                    else:
+                        whens.append(f"WHEN {col} ILIKE '%{p}%' THEN '{s}'")
+                return "CASE " + " ".join(whens) + " ELSE 'Other' END"
+
+            reply_case = _case_when("pr.campaign_name")
+
+            # Funnel data
+            funnel_result = await session.execute(sql_text(f"""
+                SELECT {reply_case} as segment,
+                    COUNT(*) as total_replies,
+                    COUNT(DISTINCT pr.lead_email) as unique_replied,
+                    COUNT(*) FILTER (WHERE pr.category IN ('interested','meeting_request','question')) as positive,
+                    COUNT(*) FILTER (WHERE pr.category = 'meeting_request') as meeting_requests,
+                    COUNT(*) FILTER (WHERE pr.category = 'interested') as interested,
+                    COUNT(*) FILTER (WHERE pr.category = 'question') as questions,
+                    COUNT(*) FILTER (WHERE pr.category = 'not_interested') as not_interested,
+                    COUNT(*) FILTER (WHERE pr.category = 'out_of_office') as ooo,
+                    COUNT(*) FILTER (WHERE pr.category = 'wrong_person') as wrong_person
+                FROM processed_replies pr
+                JOIN contacts c2 ON LOWER(c2.email) = LOWER(pr.lead_email) AND c2.deleted_at IS NULL
+                WHERE c2.project_id = :pid AND pr.parent_reply_id IS NULL
+                GROUP BY 1 ORDER BY total_replies DESC
+            """), {"pid": project_id})
+            funnel_rows = funnel_result.fetchall()
+
+            # Campaign data
+            campaigns_result = await session.execute(
+                select(Campaign.name, Campaign.leads_count, Campaign.platform)
+                .where(Campaign.project_id == project_id)
+            )
+            campaigns = campaigns_result.fetchall()
+            total_contacts = sum(c.leads_count or 0 for c in campaigns)
+
+            funnel_text = f"SEGMENT FUNNEL ANALYTICS:\nTotal contacts: ~{total_contacts} across {len(campaigns)} campaigns\n\n"
+            funnel_text += f"{'Segment':<16} {'Replies':>7} {'Unique':>6} {'Positive':>8} {'Meetings':>8} {'Interested':>10} {'Questions':>9} {'Not Int':>7}\n"
+            funnel_text += "-" * 95 + "\n"
+            for r in funnel_rows:
+                funnel_text += f"{r.segment:<16} {r.total_replies:>7} {r.unique_replied:>6} {r.positive:>8} {r.meeting_requests:>8} {r.interested:>10} {r.questions:>9} {r.not_interested:>7}\n"
+
+            # Warm conversations
+            warm_result = await session.execute(
+                select(ProcessedReply)
+                .join(Contact, and_(
+                    func.lower(Contact.email) == func.lower(ProcessedReply.lead_email),
+                    Contact.deleted_at.is_(None),
+                ))
+                .where(
+                    Contact.project_id == project_id,
+                    ProcessedReply.parent_reply_id.is_(None),
+                    ProcessedReply.category.in_(["interested", "meeting_request", "question"]),
+                )
+                .order_by(ProcessedReply.received_at.desc())
+                .limit(80)
+            )
+            warm_replies = list(warm_result.scalars().all())
+
+            warm_ids = [r.id for r in warm_replies]
+            threads_map: dict = {}
+            if warm_ids:
+                threads_result = await session.execute(
+                    select(ThreadMessage)
+                    .where(ThreadMessage.reply_id.in_(warm_ids))
+                    .order_by(ThreadMessage.reply_id, ThreadMessage.position)
+                )
+                for tm in threads_result.scalars().all():
+                    threads_map.setdefault(tm.reply_id, []).append(tm)
+
+            import re as re_mod
+            convos_text = "WARM CONTACT CONVERSATIONS:\n\n"
+            for reply in warm_replies:
+                seg = "Other"
+                if reply.campaign_name:
+                    cn_lower = reply.campaign_name.lower()
+                    for pat, s in segment_rules.items():
+                        if any(c in pat for c in ".*+?[](){}|\\^$"):
+                            if re_mod.search(pat, cn_lower, re_mod.IGNORECASE):
+                                seg = s; break
+                        elif pat in cn_lower:
+                            seg = s; break
+                convos_text += f"--- [{seg}] {reply.lead_first_name or ''} {reply.lead_last_name or ''} ({reply.lead_email})"
+                if reply.lead_company:
+                    convos_text += f" @ {reply.lead_company}"
+                convos_text += f" | {reply.category} | {reply.campaign_name or 'unknown'}\n"
+                thread = threads_map.get(reply.id, [])
+                if thread:
+                    for msg in thread:
+                        d = ">>>" if msg.direction == "outbound" else "<<<"
+                        body = (msg.body or "")[:400].strip()
+                        if body:
+                            convos_text += f"  {d} {body}\n"
+                else:
+                    body = (reply.reply_text or reply.email_body or "")[:400].strip()
+                    if body:
+                        convos_text += f"  <<< {body}\n"
+                convos_text += "\n"
+
+            campaigns_text = "CAMPAIGNS:\n"
+            for c in sorted(campaigns, key=lambda x: x.leads_count or 0, reverse=True):
+                campaigns_text += f"  {c.name} ({c.platform}, {c.leads_count or '?'} leads)\n"
+
+            input_summary = f"{len(campaigns)} campaigns, {sum(r.total_replies for r in funnel_rows)} replies, {len(warm_replies)} warm conversations"
+
+            # Call Opus 4.6
+            client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+            system_prompt = """You are an elite B2B outbound strategist analyzing REAL outreach data — segment funnel metrics and actual conversations with warm leads.
+
+Your analysis must be brutally honest and data-driven. No generic advice.
+
+Return ONLY valid JSON with this structure:
+{
+  "summary": "3-5 sentence executive strategy summary — the single most important insight first",
+  "segments": [
+    {
+      "segment": "Segment Name",
+      "priority": 1,
+      "size": 123,
+      "total_replies": 50,
+      "meetings": 5,
+      "verdict": "SCALE UP | MAINTAIN | PIVOT | PAUSE | DROP",
+      "rationale": "Data-backed reasoning",
+      "what_works": "Patterns from conversations that lead to meetings",
+      "what_fails": "Patterns that lead to not_interested/wrong_person",
+      "pitch_fix": "Concrete changes to messaging",
+      "sequence_recommendation": "Steps, timing, channel mix",
+      "outreach_angle": "Best messaging angle"
+    }
+  ],
+  "bottlenecks": ["Top issues killing conversion"],
+  "quick_wins": ["Actionable changes for next 2 weeks"],
+  "explore": ["Worth testing based on early signals"]
+}
+
+Rules:
+- VERDICT: SCALE UP, MAINTAIN, PIVOT, PAUSE, or DROP
+- Quote specific conversation snippets
+- Reference actual numbers from funnel data
+- Be specific about pitch changes — "say X instead of Y"
+- Diagnose high reply + low meeting segments from conversations"""
+
+            user_prompt = f"""Project: {project.name}
+Description: {project.target_industries or 'B2B outreach'}
+
+{funnel_text}
+
+{campaigns_text}
+
+{convos_text}
+
+Analyze and generate a comprehensive GTM strategy."""
+
+            try:
+                message = await client.messages.create(
+                    model="claude-opus-4-6-20250918",
+                    max_tokens=8000,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}],
+                    temperature=0.3,
+                )
+
+                response_text = message.content[0].text
+                in_tokens = message.usage.input_tokens
+                out_tokens = message.usage.output_tokens
+                cost = round(in_tokens * 15 / 1_000_000 + out_tokens * 75 / 1_000_000, 4)
+
+                json_match = re_mod.search(r'\{[\s\S]*\}', response_text)
+                if not json_match:
+                    raise ValueError("No JSON in response")
+                gtm_json = json_match.group(0)
+                json_mod.loads(gtm_json)
+
+                project.gtm_plan = gtm_json
+                project.updated_at = datetime.utcnow()
+
+                log = GTMStrategyLog(
+                    project_id=project_id,
+                    trigger=trigger,
+                    model="claude-opus-4-6",
+                    strategy_json=gtm_json,
+                    input_summary=input_summary,
+                    input_tokens=in_tokens,
+                    output_tokens=out_tokens,
+                    cost_usd=str(cost),
+                    status="completed",
+                )
+                session.add(log)
+                await session.commit()
+                logger.info(f"[GTM] Strategy generated for project {project_id}: {in_tokens} in, {out_tokens} out, ${cost}")
+
+            except Exception as e:
+                log = GTMStrategyLog(
+                    project_id=project_id,
+                    trigger=trigger,
+                    model="claude-opus-4-6",
+                    input_summary=input_summary,
+                    status="failed",
+                    error_message=str(e)[:500],
+                )
+                session.add(log)
+                await session.commit()
+                raise
 
     # ===== Telegram Bot Polling (long-poll every 30s) =====
 

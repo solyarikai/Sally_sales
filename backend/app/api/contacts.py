@@ -2812,34 +2812,35 @@ async def get_segment_funnel(
         days = {"7d": 7, "30d": 30, "90d": 90}[period]
         cutoff = datetime.utcnow() - timedelta(days=days)
 
-    # Query 1: contacts per segment
-    # Use campaigns.leads_count where available (SmartLead), fall back to
-    # counting unique replied contacts for campaigns with NULL leads_count (GetSales)
+    # Query 1: contacts per segment from contacts table
+    # Extracts campaign names from platform_state.smartlead.campaigns[].name
+    # and classifies each contact into a segment. Contacts in multiple campaigns
+    # are attributed to their FIRST matching segment (avoids double-counting).
+    contact_case = build_case_when("camp_name")
     contacts_sql = f"""
-        WITH campaign_segments AS (
-            SELECT {campaign_case} as segment, c.name, COALESCE(c.leads_count, 0) as leads_count
-            FROM campaigns c WHERE c.project_id = :pid
-        ),
-        -- For campaigns with 0 leads_count, count unique contacts that replied
-        reply_contacts AS (
-            SELECT {reply_case} as segment, COUNT(DISTINCT pr.lead_email) as replied_contacts
-            FROM processed_replies pr
-            JOIN contacts c2 ON LOWER(c2.email) = LOWER(pr.lead_email) AND c2.deleted_at IS NULL
-            WHERE c2.project_id = :pid AND pr.parent_reply_id IS NULL
-            AND pr.campaign_name IN (SELECT name FROM campaign_segments WHERE leads_count = 0)
-            GROUP BY 1
+        WITH contact_campaigns AS (
+            SELECT ct.id,
+                COALESCE(
+                    (SELECT elem->>'name'
+                     FROM jsonb_array_elements(ct.platform_state::jsonb->'smartlead'->'campaigns') elem
+                     WHERE elem->>'name' IS NOT NULL AND elem->>'name' != ''
+                     LIMIT 1),
+                    (SELECT elem->>'name'
+                     FROM jsonb_array_elements(ct.platform_state::jsonb->'campaigns') elem
+                     WHERE elem->>'name' IS NOT NULL AND elem->>'name' != ''
+                     LIMIT 1)
+                ) as camp_name
+            FROM contacts ct
+            WHERE ct.project_id = :pid AND ct.deleted_at IS NULL
         )
-        SELECT
-            cs.segment,
-            SUM(cs.leads_count) + COALESCE(MAX(rc.replied_contacts), 0) as total_contacts
-        FROM campaign_segments cs
-        LEFT JOIN reply_contacts rc ON rc.segment = cs.segment
-        GROUP BY cs.segment ORDER BY total_contacts DESC
+        SELECT {contact_case} as segment, COUNT(*) as total_contacts
+        FROM contact_campaigns
+        GROUP BY 1 ORDER BY total_contacts DESC
     """
     contacts_result = await session.execute(sql_text(contacts_sql), {"pid": project_id})
     contacts_rows = contacts_result.fetchall()
 
-    # Query 2: reply funnel per segment (from processed_replies)
+    # Query 2: reply funnel per segment with unique replied contacts
     reply_where = "c2.project_id = :pid AND pr.parent_reply_id IS NULL"
     reply_params: dict = {"pid": project_id}
     if cutoff:
@@ -2849,6 +2850,7 @@ async def get_segment_funnel(
     reply_sql = f"""
         SELECT {reply_case} as segment,
             COUNT(*) as total_replies,
+            COUNT(DISTINCT pr.lead_email) as unique_replied,
             COUNT(*) FILTER (WHERE pr.category IN ('interested','meeting_request','question')) as positive,
             COUNT(*) FILTER (WHERE pr.category = 'meeting_request') as meeting_requests,
             COUNT(*) FILTER (WHERE pr.category = 'interested') as interested,
@@ -2868,6 +2870,7 @@ async def get_segment_funnel(
     for row in reply_rows:
         reply_map[row.segment] = {
             "total_replies": row.total_replies,
+            "unique_replied": row.unique_replied,
             "positive": row.positive,
             "meeting_requests": row.meeting_requests,
             "interested": row.interested,
@@ -2885,8 +2888,11 @@ async def get_segment_funnel(
     for row in contacts_rows:
         seg = row.segment
         tc = row.total_contacts or 0
-        grand_contacts += tc
         r = reply_map.pop(seg, {})
+        ur = r.get("unique_replied", 0)
+        # Ensure total_contacts >= unique_replied (some contacts may only exist in replies)
+        tc = max(tc, ur)
+        grand_contacts += tc
         tr = r.get("total_replies", 0)
         pos = r.get("positive", 0)
         mtg = r.get("meeting_requests", 0)
@@ -2897,36 +2903,40 @@ async def get_segment_funnel(
             "segment": seg,
             "total_contacts": tc,
             "total_replies": tr,
+            "unique_replied": ur,
             "positive": pos,
             "meeting_requests": mtg,
             "interested": r.get("interested", 0),
             "questions": r.get("questions", 0),
             "not_interested": r.get("not_interested", 0),
             "ooo": r.get("ooo", 0),
-            "reply_rate": round(tr / tc * 100, 1) if tc else 0,
-            "positive_rate": round(pos / tr * 100, 1) if tr else 0,
+            "reply_rate": round(ur / tc * 100, 1) if tc else 0,
+            "positive_rate": round(pos / ur * 100, 1) if ur else 0,
         })
 
     # Add segments that only appear in replies (no campaign match)
     for seg, r in reply_map.items():
+        ur = r["unique_replied"]
         tr = r["total_replies"]
         pos = r["positive"]
         mtg = r["meeting_requests"]
+        grand_contacts += ur
         grand_replies += tr
         grand_positive += pos
         grand_meetings += mtg
         segments.append({
             "segment": seg,
-            "total_contacts": 0,
+            "total_contacts": ur,
             "total_replies": tr,
+            "unique_replied": ur,
             "positive": pos,
             "meeting_requests": mtg,
             "interested": r["interested"],
             "questions": r["questions"],
             "not_interested": r["not_interested"],
             "ooo": r["ooo"],
-            "reply_rate": 0,
-            "positive_rate": round(pos / tr * 100, 1) if tr else 0,
+            "reply_rate": round(ur / ur * 100, 1) if ur else 0,
+            "positive_rate": round(pos / ur * 100, 1) if ur else 0,
         })
 
     return {
@@ -3155,9 +3165,12 @@ Analyze everything above and generate a comprehensive GTM strategy. Focus on:
 4. Bottlenecks in the funnel — where are we losing people and why
 5. Unexplored opportunities — segments with early positive signals worth expanding"""
 
+    # Input summary for log
+    input_summary = f"{len(campaigns)} campaigns, {sum(r.total_replies for r in funnel_rows)} replies, {len(warm_replies)} warm conversations"
+
     try:
         message = await client.messages.create(
-            model="claude-opus-4-20250514",
+            model="claude-opus-4-6-20250918",
             max_tokens=8000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
@@ -3165,6 +3178,10 @@ Analyze everything above and generate a comprehensive GTM strategy. Focus on:
         )
 
         response_text = message.content[0].text
+        in_tokens = message.usage.input_tokens
+        out_tokens = message.usage.output_tokens
+        # Opus 4.6 pricing: $15/M input, $75/M output
+        cost = round(in_tokens * 15 / 1_000_000 + out_tokens * 75 / 1_000_000, 4)
 
         # Extract JSON from response (may have markdown wrapping)
         json_match = re.search(r'\{[\s\S]*\}', response_text)
@@ -3173,21 +3190,131 @@ Analyze everything above and generate a comprehensive GTM strategy. Focus on:
         gtm_json = json_match.group(0)
         json_mod.loads(gtm_json)  # validate
 
-        # Save to project
+        # Save to project (latest strategy)
         project.gtm_plan = gtm_json
         project.updated_at = datetime.utcnow()
+
+        # Save to log
+        from app.models.gtm_log import GTMStrategyLog
+        log = GTMStrategyLog(
+            project_id=project_id,
+            trigger="manual",
+            model="claude-opus-4-6",
+            strategy_json=gtm_json,
+            input_summary=input_summary,
+            input_tokens=in_tokens,
+            output_tokens=out_tokens,
+            cost_usd=str(cost),
+            status="completed",
+        )
+        session.add(log)
         await session.commit()
+        await session.refresh(log)
 
         return {
             "success": True,
             "gtm_plan": gtm_json,
+            "log_id": log.id,
+            "tokens": {"input": in_tokens, "output": out_tokens, "cost_usd": cost},
         }
-    except anthropic.APIError as e:
-        logger.error(f"Anthropic API error: {e}")
-        raise HTTPException(status_code=502, detail=f"Claude API error: {str(e)}")
     except Exception as e:
+        # Log the failure
+        try:
+            from app.models.gtm_log import GTMStrategyLog
+            fail_log = GTMStrategyLog(
+                project_id=project_id,
+                trigger="manual",
+                model="claude-opus-4-6",
+                input_summary=input_summary,
+                status="failed",
+                error_message=str(e)[:500],
+            )
+            session.add(fail_log)
+            await session.commit()
+        except Exception:
+            pass
         logger.error(f"GTM generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"GTM generation failed: {str(e)}")
+
+
+@router.get("/projects/{project_id}/gtm-strategy-logs")
+async def get_gtm_strategy_logs(
+    project_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """List GTM strategy generation logs for a project."""
+    from app.models.gtm_log import GTMStrategyLog
+
+    count_result = await session.execute(
+        select(func.count(GTMStrategyLog.id)).where(GTMStrategyLog.project_id == project_id)
+    )
+    total = count_result.scalar() or 0
+
+    logs_result = await session.execute(
+        select(GTMStrategyLog)
+        .where(GTMStrategyLog.project_id == project_id)
+        .order_by(GTMStrategyLog.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    logs = logs_result.scalars().all()
+
+    return {
+        "items": [
+            {
+                "id": log.id,
+                "trigger": log.trigger,
+                "model": log.model,
+                "status": log.status,
+                "input_summary": log.input_summary,
+                "input_tokens": log.input_tokens,
+                "output_tokens": log.output_tokens,
+                "cost_usd": log.cost_usd,
+                "error_message": log.error_message,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+                "has_strategy": log.strategy_json is not None,
+            }
+            for log in logs
+        ],
+        "total": total,
+    }
+
+
+@router.get("/projects/{project_id}/gtm-strategy-logs/{log_id}")
+async def get_gtm_strategy_log_detail(
+    project_id: int,
+    log_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Get a specific GTM strategy log with full strategy JSON."""
+    from app.models.gtm_log import GTMStrategyLog
+
+    log = (await session.execute(
+        select(GTMStrategyLog).where(
+            GTMStrategyLog.id == log_id,
+            GTMStrategyLog.project_id == project_id,
+        )
+    )).scalar_one_or_none()
+    if not log:
+        raise HTTPException(status_code=404, detail="GTM log not found")
+
+    return {
+        "id": log.id,
+        "project_id": log.project_id,
+        "trigger": log.trigger,
+        "model": log.model,
+        "status": log.status,
+        "strategy_json": log.strategy_json,
+        "input_summary": log.input_summary,
+        "input_tokens": log.input_tokens,
+        "output_tokens": log.output_tokens,
+        "cost_usd": log.cost_usd,
+        "error_message": log.error_message,
+        "created_at": log.created_at.isoformat() if log.created_at else None,
+    }
 
 
 class CRMSpotlightRequest(BaseModel):
