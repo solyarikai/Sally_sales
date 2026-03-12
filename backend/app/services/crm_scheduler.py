@@ -1077,7 +1077,7 @@ ANALYSIS FOCUS — answer with EVIDENCE:
             try:
                 message = await client.messages.create(
                     model="claude-opus-4-20250514",
-                    max_tokens=16000,
+                    max_tokens=8000,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_prompt}],
                     temperature=0.2,
