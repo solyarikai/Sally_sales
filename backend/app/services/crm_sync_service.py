@@ -3134,41 +3134,34 @@ class CRMSyncService:
                     except Exception as pr_err:
                         logger.warning(f"[GETSALES] Per-message processing failed (non-fatal): {pr_err}")
 
-                    # Collect for post-commit notification
-                    if _pr:
-                        _pending_notifications.append((_pr, contact, flow_name, flow_uuid, message_text, msg))
-
                     stats["new_replies"] += 1
-                    new_reply_ids.append(message_id)
 
-                # --- Commit + notify after each page to avoid long-running transactions ---
-                # Previously one commit at the end meant 15-20 min of uncommitted work that
-                # was lost on any restart/crash. Now each page's work is durable immediately.
-                if new_reply_ids:
-                    await session.commit()
+                    # --- Commit + cache + notify immediately after each new reply ---
+                    # Each reply takes ~30s (AI draft). With 10+ new replies per page,
+                    # a page takes 5+ min. Frequent container restarts (other deploys)
+                    # were killing every cycle before page 1 committed, losing all work.
+                    # Now each reply is durable the instant it's processed.
+                    if _pr:
+                        await session.commit()
+                        await bulk_add_replies("getsales", [message_id])
 
-                    # Send notifications for this page's replies
-                    if _pending_notifications:
-                        from app.services.reply_processor import send_getsales_notification
+                        # Notify only for recent replies (< 1 hour old)
                         _notif_cutoff = datetime.utcnow() - timedelta(hours=1)
-                        for _pr, _contact, _fn, _fu, _mt, _rd in _pending_notifications:
-                            if _pr.received_at and _pr.received_at < _notif_cutoff:
-                                stats.setdefault("skipped_old_notif", 0)
-                                stats["skipped_old_notif"] = stats.get("skipped_old_notif", 0) + 1
-                                continue
+                        if _pr.received_at and _pr.received_at < _notif_cutoff:
+                            stats["skipped_old_notif"] = stats.get("skipped_old_notif", 0) + 1
+                        else:
                             try:
+                                from app.services.reply_processor import send_getsales_notification
                                 await send_getsales_notification(
-                                    processed_reply=_pr, contact=_contact,
-                                    flow_name=_fn, flow_uuid=_fu,
-                                    message_text=_mt, raw_data=_rd, session=session,
+                                    processed_reply=_pr, contact=contact,
+                                    flow_name=flow_name, flow_uuid=flow_uuid,
+                                    message_text=message_text, raw_data=msg, session=session,
                                 )
                             except Exception:
                                 pass  # Non-fatal
-
-                    # Cache IDs immediately so they survive restarts
-                    await bulk_add_replies("getsales", new_reply_ids)
-                    new_reply_ids = []
-                    _pending_notifications = []
+                    else:
+                        # No PR created (failed or no-contact) — batch cache at end
+                        new_reply_ids.append(message_id)
 
                 # Pagination — fetch next page for next iteration
                 if not has_more:
@@ -3183,8 +3176,12 @@ class CRMSyncService:
                     if not messages:
                         break
 
-            # Final commit for any remaining work (pages with only cached/existing messages)
+            # Final commit for any remaining dirty state
             await session.commit()
+
+            # Cache remaining IDs (no-contact/failed messages) so they're skipped next cycle
+            if new_reply_ids:
+                await bulk_add_replies("getsales", new_reply_ids)
 
             # Update total count in Redis after successful sync
             if redis:
