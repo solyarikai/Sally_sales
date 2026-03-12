@@ -2781,14 +2781,8 @@ async def get_segment_funnel(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Segment rules: keyword → segment name (case-insensitive match on campaign name)
-    # Stored as project.config.segment_rules or fallback to built-in map
-    segment_rules = {}
-    if project.config and isinstance(project.config, dict):
-        segment_rules = project.config.get("segment_rules", {})
-
-    if not segment_rules:
-        # Built-in rules (covers rizzult and common patterns)
-        segment_rules = {
+    # Built-in rules that cover common vertical keywords across projects
+    segment_rules = {
             "fintech": "Fintech", "qsr": "QSR", "agenc": "Agencies",
             "foodtech": "Foodtech", "food.*drink": "Foodtech",
             "shopping": "Shopping", "stream": "Streaming", "media": "Media",
