@@ -53,8 +53,19 @@ def parse_campaigns(campaigns) -> list:
 # Keyword patterns for quick classification
 KEYWORD_PATTERNS = {
     "not_interested": [
-        "not interested", "не интересно", "no interest", "не актуально", 
-        "not relevant", "не нужно", "not now", "пока нет", "не подходит"
+        "not interested", "не интересно", "no interest", "не актуально",
+        "not relevant", "не нужно", "not now", "пока нет", "не подходит",
+        # Russian polite declines (sound positive but mean "no")
+        "сложностей нет", "нет сложностей", "не требуется", "нет необходимости",
+        "нет потребности", "не нуждаемся", "всё решено", "все решено",
+        "нас всё устраивает", "нас все устраивает", "у нас всё хорошо",
+        "нет, спасибо", "нет спасибо", "спасибо, не надо", "спасибо не надо",
+        "не надо", "не стоит", "нам не нужно", "нам это не нужно",
+        "мы не заинтересованы", "не заинтересованы", "неинтересно",
+        # English polite declines
+        "no thank you", "no thanks", "not needed", "no need",
+        "we're all set", "we are all set", "all good thanks",
+        "not looking", "not for us", "pass on this", "we'll pass",
     ],
     "meeting_request": [
         "какое время", "назначить", "schedule", "book", "calendar", "calendly",
@@ -103,7 +114,7 @@ async def classify_reply_with_ai(text: str) -> str:
                 json={
                     "model": "gpt-4o-mini",
                     "messages": [
-                        {"role": "system", "content": "Classify B2B reply into: interested, meeting_request, not_interested, out_of_office, wrong_person, question, other. Reply with ONLY the category."},
+                        {"role": "system", "content": "Classify B2B cold outreach reply into: interested, meeting_request, not_interested, out_of_office, wrong_person, question, other. Reply with ONLY the category.\n\nKey rule: short polite replies like 'no difficulties', 'all good thanks', 'not needed', 'нет сложностей', 'спасибо, не надо' are NOT interested — they are polite DECLINES (not_interested). Only classify as 'interested' if the person explicitly wants to learn more, continue the conversation, or schedule something."},
                         {"role": "user", "content": text[:500]}
                     ],
                     "max_tokens": 20,
