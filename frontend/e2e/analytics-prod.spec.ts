@@ -71,7 +71,8 @@ test.describe('Analytics Page - Production', () => {
   });
 
   test('GTM Strategy tab shows latest strategy', async ({ page }) => {
-    await page.goto('/knowledge/gtm?project=rizzult');
+    // Test with logId=12 which has \\n in patterns (old format)
+    await page.goto('/knowledge/gtm?project=rizzult&logId=12');
 
     // Wait for strategy content to appear (executive summary or segment cards)
     await page.locator('text=Executive Summary').or(page.locator('text=Go-To-Market Strategy')).first().waitFor({ timeout: 15000 });
@@ -86,18 +87,26 @@ test.describe('Analytics Page - Production', () => {
     const hasBottlenecks = await page.locator('text=Critical Bottlenecks').isVisible().catch(() => false);
     console.log('Sections visible:', { hasExecSummary, hasKPITargets, hasShopping, hasBottlenecks });
 
-    // Scroll within GTM panel container to see segments
+    // Scroll within GTM panel container to see segment patterns (with \\n fix)
     const scrollContainer = page.locator('.overflow-y-auto >> visible=true').last();
-    await scrollContainer.evaluate(el => el.scrollTop = 800);
+    await scrollContainer.evaluate(el => el.scrollTop = 600);
     await page.waitForTimeout(500);
-    await page.screenshot({ path: 'screenshot_prod_gtm_segments.png' });
+    await page.screenshot({ path: 'screenshot_prod_gtm_patterns.png' });
 
-    // Scroll more to bottlenecks/rules/plan
-    await scrollContainer.evaluate(el => el.scrollTop = 3000);
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: 'screenshot_prod_gtm_bottom.png' });
+    // Click translate button
+    const translateBtn = page.locator('button:has-text("Translate")');
+    if (await translateBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await translateBtn.click();
+      await page.waitForTimeout(3000); // wait for translations
+      await page.screenshot({ path: 'screenshot_prod_gtm_translated.png' });
+    }
 
-    // Scroll to very bottom
+    // Scroll to email template area
+    await scrollContainer.evaluate(el => el.scrollTop = 1200);
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: 'screenshot_prod_gtm_template.png' });
+
+    // Scroll to bottom sections
     await scrollContainer.evaluate(el => el.scrollTop = el.scrollHeight);
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'screenshot_prod_gtm_end.png' });
