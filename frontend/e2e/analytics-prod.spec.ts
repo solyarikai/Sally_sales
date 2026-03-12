@@ -16,74 +16,55 @@ test.describe('Analytics Page - Production', () => {
   });
 
   test('Full flow: Analytics tab loads segment funnel for Rizzult', async ({ page }) => {
-    // Navigate to analytics tab for rizzult
     await page.goto('/knowledge/analytics?project=rizzult');
     await page.waitForTimeout(3000);
-    await page.screenshot({ path: 'screenshot_prod_analytics_initial.png', fullPage: true });
 
     // Verify Rizzult project is selected
-    const projectLabel = page.locator('text=Rizzult');
-    await expect(projectLabel.first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('button:has-text("Rizzult")').first()).toBeVisible({ timeout: 10000 });
 
     // Verify Analytics tab is active
     const analyticsTab = page.locator('button:has-text("Analytics")');
     await expect(analyticsTab).toBeVisible();
 
-    // Verify segment funnel header
-    const funnelHeader = page.locator('text=Segment Funnel Analytics');
+    // Verify segment funnel loaded — use the unique header
+    const funnelHeader = page.locator('h3:has-text("Segment Funnel Analytics")');
     await expect(funnelHeader).toBeVisible({ timeout: 15000 });
 
-    // Verify summary cards are visible
-    const contactsCard = page.locator('text=Contacts');
-    await expect(contactsCard.first()).toBeVisible({ timeout: 10000 });
+    // Verify the subtitle shows segment count
+    await expect(page.locator('text=14 segments')).toBeVisible();
 
-    const repliesCard = page.locator('text=Replies');
-    await expect(repliesCard.first()).toBeVisible();
+    // Verify period filter pills are visible
+    await expect(page.locator('button:has-text("7d")')).toBeVisible();
+    await expect(page.locator('button:has-text("30d")')).toBeVisible();
+    await expect(page.locator('button:has-text("All time")')).toBeVisible();
 
-    const positiveCard = page.locator('text=Positive');
-    await expect(positiveCard.first()).toBeVisible();
+    // Verify segment table header
+    await expect(page.locator('span:has-text("SEGMENT"):visible')).toBeVisible();
 
-    const meetingsCard = page.locator('text=Meetings');
-    await expect(meetingsCard.first()).toBeVisible();
+    // Verify known segment rows are visible (these are in font-medium spans)
+    await expect(page.locator('span.font-medium:has-text("Shopping"):visible').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('span.font-medium:has-text("Fintech"):visible').first()).toBeVisible();
 
-    // Verify period filter pills
-    const period7d = page.locator('button:has-text("7d")');
-    const period30d = page.locator('button:has-text("30d")');
-    const periodAll = page.locator('button:has-text("All time")');
-    await expect(period7d).toBeVisible();
-    await expect(period30d).toBeVisible();
-    await expect(periodAll).toBeVisible();
+    // Verify Analytics Thinking panel on the right
+    await expect(page.locator('h4:has-text("Analytics Thinking")')).toBeVisible({ timeout: 5000 });
 
-    // Verify segment rows exist (should have Shopping, Agencies, Fintech, etc.)
-    const shoppingRow = page.locator('text=Shopping');
-    await expect(shoppingRow.first()).toBeVisible({ timeout: 10000 });
-
-    const agenciesRow = page.locator('text=Agencies');
-    await expect(agenciesRow.first()).toBeVisible();
+    // Verify NO ICP warning on Analytics tab
+    const hasWarning = await page.locator('text=Missing setup').isVisible({ timeout: 2000 }).catch(() => false);
+    expect(hasWarning).toBe(false);
 
     await page.screenshot({ path: 'screenshot_prod_analytics_loaded.png', fullPage: true });
 
-    // Verify NO ICP warning on Analytics tab
-    const icpWarning = page.locator('text=Missing setup');
-    const hasWarning = await icpWarning.isVisible({ timeout: 2000 }).catch(() => false);
-    expect(hasWarning).toBe(false);
-
     // Test period filter — click 30d
-    await period30d.click();
+    await page.locator('button:has-text("30d")').click();
     await page.waitForTimeout(2000);
     await page.screenshot({ path: 'screenshot_prod_analytics_30d.png', fullPage: true });
 
     // Click back to All time
-    await periodAll.click();
+    await page.locator('button:has-text("All time")').click();
     await page.waitForTimeout(2000);
 
-    // Verify Analytics Thinking panel on the right
-    const thinkingHeader = page.locator('text=Analytics Thinking');
-    await expect(thinkingHeader).toBeVisible({ timeout: 5000 });
-
-    // Verify GTM log entries exist (we just generated one)
-    const logEntry = page.locator('text=Manual').or(page.locator('text=Scheduled'));
-    const hasLogs = await logEntry.first().isVisible({ timeout: 5000 }).catch(() => false);
+    // Verify GTM log entries exist (we generated several)
+    const hasLogs = await page.locator('text=Manual').first().isVisible({ timeout: 5000 }).catch(() => false);
     console.log('GTM logs visible:', hasLogs);
 
     await page.screenshot({ path: 'screenshot_prod_analytics_final.png', fullPage: true });
@@ -94,14 +75,12 @@ test.describe('Analytics Page - Production', () => {
     await page.waitForTimeout(3000);
     await page.screenshot({ path: 'screenshot_prod_gtm_tab.png', fullPage: true });
 
-    // Verify GTM Strategy tab loaded
     const gtmTab = page.locator('button:has-text("GTM Strategy")');
     await expect(gtmTab).toBeVisible({ timeout: 5000 });
 
-    // Should show strategy content (from the generate we just ran)
-    // Look for segment names in the strategy
-    const strategyContent = page.locator('text=SCALE UP').or(page.locator('text=PIVOT')).or(page.locator('text=MAINTAIN'));
-    const hasStrategy = await strategyContent.first().isVisible({ timeout: 10000 }).catch(() => false);
+    // Look for strategy verdicts in the visible GTM panel
+    const hasStrategy = await page.locator('text=SCALE UP').or(page.locator('text=PIVOT')).or(page.locator('text=MAINTAIN'))
+      .first().isVisible({ timeout: 10000 }).catch(() => false);
     console.log('GTM strategy rendered:', hasStrategy);
 
     await page.screenshot({ path: 'screenshot_prod_gtm_strategy.png', fullPage: true });

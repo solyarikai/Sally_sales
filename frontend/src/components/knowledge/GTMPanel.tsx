@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, Target, TrendingUp, ExternalLink, BarChart3, Sparkles, Users, Search } from 'lucide-react';
+import { Loader2, Target, TrendingUp, ExternalLink, Sparkles, AlertTriangle, ArrowRight, Calendar, Zap } from 'lucide-react';
 import type { ThemeTokens } from '../../lib/themeColors';
 import { contactsApi } from '../../api/contacts';
 import type { GTMData } from '../../api/contacts';
@@ -11,42 +11,32 @@ interface Props {
   logId?: number;
 }
 
-interface GTMSegment {
-  segment: string;
-  priority: number;
-  size: number;
-  rationale?: string;
-  characteristics?: string[];
-  apollo_query?: string;
-  outreach_angle?: string;
-}
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-interface GTMPlan {
-  segments: GTMSegment[];
-  summary?: string;
-  total_addressable?: string;
-}
-
-function parseGTMPlan(raw?: string | null): GTMPlan | null {
+function parseStrategy(raw?: string | null): any | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    if (parsed.segments && Array.isArray(parsed.segments)) {
-      return parsed as GTMPlan;
-    }
-    if (Array.isArray(parsed)) {
-      return { segments: parsed };
-    }
-  } catch {
-    // Not JSON
-  }
+    if (parsed.segments && Array.isArray(parsed.segments)) return parsed;
+    if (Array.isArray(parsed)) return { segments: parsed };
+  } catch { /* not JSON */ }
   return null;
 }
 
-function crmLink(projectId: number, params: Record<string, string>): string {
-  const p = new URLSearchParams({ project_id: String(projectId), ...params });
-  return `/contacts?${p.toString()}`;
-}
+const VERDICT_COLORS: Record<string, { bg: string; bgDark: string; text: string; textDark: string }> = {
+  'SCALE UP': { bg: '#dcfce7', bgDark: '#0a2e1a', text: '#16a34a', textDark: '#4ade80' },
+  'MAINTAIN': { bg: '#dbeafe', bgDark: '#1e3a5f', text: '#2563eb', textDark: '#93c5fd' },
+  'PIVOT':    { bg: '#fef3c7', bgDark: '#422006', text: '#d97706', textDark: '#fbbf24' },
+  'PAUSE':    { bg: '#fed7aa', bgDark: '#431407', text: '#ea580c', textDark: '#fb923c' },
+  'DROP':     { bg: '#fecaca', bgDark: '#450a0a', text: '#dc2626', textDark: '#f87171' },
+};
+
+const SEVERITY_COLORS: Record<string, { bg: string; bgDark: string; text: string; textDark: string }> = {
+  'CRITICAL': { bg: '#fecaca', bgDark: '#450a0a', text: '#dc2626', textDark: '#f87171' },
+  'HIGH':     { bg: '#fed7aa', bgDark: '#431407', text: '#ea580c', textDark: '#fb923c' },
+  'MEDIUM':   { bg: '#fef3c7', bgDark: '#422006', text: '#d97706', textDark: '#fbbf24' },
+  'LOW':      { bg: '#e0e7ff', bgDark: '#1e1b4b', text: '#4f46e5', textDark: '#a5b4fc' },
+};
 
 export function GTMPanel({ projectId, isDark, t, logId }: Props) {
   const [data, setData] = useState<GTMData | null>(null);
@@ -54,13 +44,10 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logStrategy, setLogStrategy] = useState<string | null>(null);
-  const [logMeta, setLogMeta] = useState<{ trigger: string; cost: string; tokens: string; created: string } | null>(null);
+  const [logMeta, setLogMeta] = useState<{ trigger: string; cost: string; tokens: string; model?: string } | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, [projectId]);
+  useEffect(() => { loadData(); }, [projectId]);
 
-  // Load specific log's strategy when logId changes
   useEffect(() => {
     if (logId) {
       loadLogStrategy(logId);
@@ -77,80 +64,70 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
       setLogMeta({
         trigger: res.trigger,
         cost: res.cost_usd || '?',
-        tokens: `${((res.input_tokens || 0) + (res.output_tokens || 0)) / 1000}k`,
-        created: res.created_at || '',
+        tokens: `${(((res.input_tokens || 0) + (res.output_tokens || 0)) / 1000).toFixed(1)}k`,
       });
-    } catch {
-      // fallback to project's current plan
-    }
+    } catch { /* fallback */ }
   }
 
   async function loadData() {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await contactsApi.getGTMData(projectId);
-      setData(result);
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Failed to load GTM data');
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setError(null);
+    try { setData(await contactsApi.getGTMData(projectId)); }
+    catch (e: any) { setError(e?.response?.data?.detail || 'Failed to load'); }
+    finally { setLoading(false); }
   }
 
   async function handleGenerate() {
     setGenerating(true);
     try {
       const result = await contactsApi.generateGTM(projectId);
-      // Refresh data to get updated gtm_plan
-      if (result.gtm_plan) {
-        setData(prev => prev ? { ...prev, gtm_plan: result.gtm_plan! } : null);
-      } else {
-        await loadData();
-      }
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'GTM generation failed');
-    } finally {
-      setGenerating(false);
-    }
+      if (result.gtm_plan) setData(prev => prev ? { ...prev, gtm_plan: result.gtm_plan! } : null);
+      else await loadData();
+    } catch (e: any) { setError(e?.response?.data?.detail || 'Generation failed'); }
+    finally { setGenerating(false); }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text4 }} />
-      </div>
-    );
-  }
-
-  if (error && !data) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 px-6">
-        <p className="text-[13px] mb-4" style={{ color: '#ef4444' }}>{error}</p>
-        <button onClick={loadData} className="text-[13px] underline" style={{ color: t.text3 }}>Retry</button>
-      </div>
-    );
-  }
-
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text4 }} /></div>;
+  if (error && !data) return <div className="flex flex-col items-center justify-center py-20 px-6"><p className="text-[13px] mb-4" style={{ color: '#ef4444' }}>{error}</p><button onClick={loadData} className="text-[13px] underline" style={{ color: t.text3 }}>Retry</button></div>;
   if (!data) return null;
 
-  const plan = parseGTMPlan(logStrategy || data.gtm_plan);
-  const hasClassified = data.classified > 0;
-  const maxSegmentCount = data.segments.length > 0 ? data.segments[0].count : 1;
+  const plan = parseStrategy(logStrategy || data.gtm_plan);
+
+  function verdictBadge(verdict: string) {
+    const v = VERDICT_COLORS[verdict] || VERDICT_COLORS['MAINTAIN'];
+    return (
+      <span className="px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wide"
+        style={{ background: isDark ? v.bgDark : v.bg, color: isDark ? v.textDark : v.text }}>
+        {verdict}
+      </span>
+    );
+  }
+
+  function severityBadge(severity: string) {
+    const s = SEVERITY_COLORS[severity] || SEVERITY_COLORS['MEDIUM'];
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase"
+        style={{ background: isDark ? s.bgDark : s.bg, color: isDark ? s.textDark : s.text }}>
+        {severity}
+      </span>
+    );
+  }
+
+  function metricPill(label: string, value: string | number, highlight?: boolean) {
+    return (
+      <div className="text-center px-2 py-1 rounded" style={{ background: isDark ? '#1a1a1a' : '#f5f5f5' }}>
+        <div className="text-[11px] font-mono font-bold" style={{ color: highlight ? (isDark ? '#4ade80' : '#16a34a') : t.text1 }}>{value}</div>
+        <div className="text-[9px] uppercase tracking-wider" style={{ color: t.text4 }}>{label}</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-5 space-y-6 max-w-[900px]">
-      {/* Log strategy banner */}
+    <div className="p-5 space-y-6 max-w-[1000px]">
+      {/* Log banner */}
       {logMeta && logStrategy && (
-        <div
-          className="rounded-lg px-4 py-2.5 flex items-center justify-between"
-          style={{
-            background: isDark ? '#1a2332' : '#eff6ff',
-            border: `1px solid ${isDark ? '#1e3a5f' : '#bfdbfe'}`,
-          }}
-        >
+        <div className="rounded-lg px-4 py-2.5" style={{ background: isDark ? '#1a2332' : '#eff6ff', border: `1px solid ${isDark ? '#1e3a5f' : '#bfdbfe'}` }}>
           <span className="text-[12px] font-medium" style={{ color: isDark ? '#93c5fd' : '#1d4ed8' }}>
-            Viewing {logMeta.trigger} analysis · ${logMeta.cost} · {logMeta.tokens} tokens
+            Viewing {logMeta.trigger} analysis · Opus 4.6 · ${logMeta.cost} · {logMeta.tokens} tokens
           </span>
         </div>
       )}
@@ -158,270 +135,293 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-[15px] font-semibold" style={{ color: t.text1 }}>
-            Go-To-Market Strategy
-          </h3>
-          <p className="text-[12px] mt-0.5" style={{ color: t.text4 }}>
-            {data.classified} classified / {data.total_contacts} total contacts
-            {data.avg_confidence != null && ` · avg confidence ${(data.avg_confidence * 100).toFixed(0)}%`}
-          </p>
+          <h3 className="text-[15px] font-semibold" style={{ color: t.text1 }}>Go-To-Market Strategy</h3>
+          <p className="text-[12px] mt-0.5" style={{ color: t.text4 }}>{data.total_contacts.toLocaleString()} contacts across campaigns</p>
         </div>
-        <button
-          onClick={handleGenerate}
-          disabled={generating}
+        <button onClick={handleGenerate} disabled={generating}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-          style={{ background: isDark ? '#2d2d2d' : '#f0f0f0', color: t.text2 }}
-        >
-          {generating ? (
-            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating (Gemini 2.5)...</>
-          ) : (
-            <><Sparkles className="w-3.5 h-3.5" /> {plan ? 'Regenerate' : 'Generate'} Strategy</>
-          )}
+          style={{ background: isDark ? '#2d2d2d' : '#f0f0f0', color: t.text2 }}>
+          {generating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating (Opus 4.6)...</> : <><Sparkles className="w-3.5 h-3.5" /> {plan ? 'Regenerate' : 'Generate'} Strategy</>}
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-lg px-3 py-2 text-[12px]" style={{ background: isDark ? '#3b1c1c' : '#fef2f2', color: '#ef4444' }}>
-          {error}
-        </div>
-      )}
+      {error && <div className="rounded-lg px-3 py-2 text-[12px]" style={{ background: isDark ? '#3b1c1c' : '#fef2f2', color: '#ef4444' }}>{error}</div>}
 
-      {/* Section 1: Segment Intelligence (real DB data) */}
-      {hasClassified && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart3 className="w-4 h-4" style={{ color: t.text3 }} />
-            <h4 className="text-[13px] font-semibold uppercase tracking-wide" style={{ color: t.text3 }}>
-              Segment Distribution
-            </h4>
-          </div>
-          <div className="space-y-1.5">
-            {data.segments.map(seg => {
-              const pct = Math.round((seg.count / data.total_contacts) * 100);
-              const barWidth = Math.round((seg.count / maxSegmentCount) * 100);
-              return (
-                <a
-                  key={seg.segment}
-                  href={crmLink(projectId, { segment: seg.segment })}
-                  className="flex items-center gap-3 group rounded-lg px-3 py-2 transition-colors"
-                  style={{ background: isDark ? '#1a1a1a' : '#fafafa' }}
-                >
-                  <span className="text-[12px] font-medium w-[140px] shrink-0 truncate" style={{ color: t.text1 }}>
-                    {seg.segment}
-                  </span>
-                  <div className="flex-1 h-5 rounded-full overflow-hidden" style={{ background: isDark ? '#2a2a2a' : '#e5e7eb' }}>
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${barWidth}%`,
-                        background: isDark ? '#3b82f6' : '#3b82f6',
-                        opacity: isDark ? 0.7 : 0.8,
-                      }}
-                    />
-                  </div>
-                  <span className="text-[12px] font-mono w-[60px] text-right shrink-0" style={{ color: t.text2 }}>
-                    {seg.count}
-                  </span>
-                  <span className="text-[11px] w-[40px] text-right shrink-0" style={{ color: t.text4 }}>
-                    {pct}%
-                  </span>
-                  <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-50 shrink-0" style={{ color: t.text4 }} />
-                </a>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Section 2: Cross-project matches */}
-      {data.cross_project_matches.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="w-4 h-4" style={{ color: t.text3 }} />
-            <h4 className="text-[13px] font-semibold uppercase tracking-wide" style={{ color: t.text3 }}>
-              Cross-Project Matches
-            </h4>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {data.cross_project_matches.map(m => (
-              <a
-                key={m.target}
-                href={crmLink(projectId, { suitable_for: m.target })}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-                style={{
-                  background: isDark ? '#0a2e1a' : '#dcfce7',
-                  color: isDark ? '#86efac' : '#16a34a',
-                  border: `1px solid ${isDark ? '#166534' : '#bbf7d0'}`,
-                }}
-              >
-                <Target className="w-3 h-3" />
-                {m.count} suitable for {m.target}
-                <ExternalLink className="w-3 h-3 opacity-50" />
-              </a>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Section 3: Top Industries */}
-      {data.industries.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Search className="w-4 h-4" style={{ color: t.text3 }} />
-            <h4 className="text-[13px] font-semibold uppercase tracking-wide" style={{ color: t.text3 }}>
-              Top Industries
-            </h4>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {data.industries.slice(0, 15).map(ind => (
-              <span
-                key={ind.industry}
-                className="px-2 py-1 rounded text-[11px] font-medium"
-                style={{
-                  background: isDark ? '#1e293b' : '#f1f5f9',
-                  color: t.text2,
-                }}
-              >
-                {ind.industry} ({ind.count})
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Section 4: AI GTM Strategy (Gemini 2.5) */}
       {plan ? (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="w-4 h-4" style={{ color: t.text3 }} />
-            <h4 className="text-[13px] font-semibold uppercase tracking-wide" style={{ color: t.text3 }}>
-              AI Strategy (Gemini 2.5)
-            </h4>
-          </div>
-
-          {plan.summary && (
-            <p className="text-[13px] mb-4 leading-relaxed" style={{ color: t.text2 }}>
-              {plan.summary}
-            </p>
+        <>
+          {/* Executive Summary */}
+          {plan.executive_summary && (
+            <div className="rounded-xl p-4" style={{ background: isDark ? '#1a2332' : '#f0f4ff', border: `1px solid ${isDark ? '#1e3a5f' : '#c7d2fe'}` }}>
+              <h4 className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: isDark ? '#93c5fd' : '#4f46e5' }}>Executive Summary</h4>
+              <p className="text-[13px] leading-relaxed" style={{ color: t.text1 }}>{plan.executive_summary}</p>
+            </div>
           )}
 
-          <div className="grid gap-3">
-            {plan.segments.sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99)).map((seg, i) => (
-              <div
-                key={i}
-                className="rounded-xl p-4"
-                style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}` }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold"
-                      style={{
-                        background: i < 3 ? (isDark ? '#1e3a5f' : '#dbeafe') : (isDark ? '#2d2d2d' : '#f0f0f0'),
-                        color: i < 3 ? (isDark ? '#93c5fd' : '#1d4ed8') : t.text3,
-                      }}
-                    >
+          {/* KPI Targets */}
+          {plan.kpi_targets && (
+            <div className="flex flex-wrap gap-3">
+              {plan.kpi_targets.current_meeting_rate != null && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: isDark ? '#0a2e1a' : '#dcfce7', border: `1px solid ${isDark ? '#166534' : '#bbf7d0'}` }}>
+                  <TrendingUp className="w-3.5 h-3.5" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
+                  <span className="text-[12px] font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>
+                    Meeting rate: {plan.kpi_targets.current_meeting_rate}% → {plan.kpi_targets.target_meeting_rate_30d}%
+                  </span>
+                </div>
+              )}
+              {plan.kpi_targets.current_wrong_person_pct != null && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: isDark ? '#450a0a' : '#fecaca', border: `1px solid ${isDark ? '#991b1b' : '#fca5a5'}` }}>
+                  <AlertTriangle className="w-3.5 h-3.5" style={{ color: isDark ? '#f87171' : '#dc2626' }} />
+                  <span className="text-[12px] font-medium" style={{ color: isDark ? '#f87171' : '#dc2626' }}>
+                    Wrong person: {plan.kpi_targets.current_wrong_person_pct}% → {plan.kpi_targets.target_wrong_person_pct_30d}%
+                  </span>
+                </div>
+              )}
+              {plan.kpi_targets.segments_to_scale && (
+                <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg" style={{ background: isDark ? '#1a1a1a' : '#f5f5f5' }}>
+                  <span className="text-[11px]" style={{ color: t.text4 }}>Scale:</span>
+                  {plan.kpi_targets.segments_to_scale.map((s: string) => (
+                    <span key={s} className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: isDark ? '#0a2e1a' : '#dcfce7', color: isDark ? '#4ade80' : '#16a34a' }}>{s}</span>
+                  ))}
+                </div>
+              )}
+              {plan.kpi_targets.segments_to_drop && (
+                <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg" style={{ background: isDark ? '#1a1a1a' : '#f5f5f5' }}>
+                  <span className="text-[11px]" style={{ color: t.text4 }}>Drop:</span>
+                  {plan.kpi_targets.segments_to_drop.map((s: string) => (
+                    <span key={s} className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: isDark ? '#450a0a' : '#fecaca', color: isDark ? '#f87171' : '#dc2626' }}>{s}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Segment Cards */}
+          <div className="space-y-4">
+            {plan.segments?.sort((a: any, b: any) => (a.priority ?? 99) - (b.priority ?? 99)).map((seg: any, i: number) => (
+              <div key={i} className="rounded-xl overflow-hidden" style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
+                {/* Segment header */}
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${t.cardBorder}` }}>
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
+                      style={{ background: isDark ? '#1e3a5f' : '#dbeafe', color: isDark ? '#93c5fd' : '#1d4ed8' }}>
                       {seg.priority ?? i + 1}
                     </span>
-                    <h5 className="text-[13px] font-semibold" style={{ color: t.text1 }}>
-                      {seg.segment}
-                    </h5>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="px-2 py-0.5 rounded text-[11px] font-medium"
-                      style={{
-                        background: isDark ? '#1a2e1a' : '#dcfce7',
-                        color: isDark ? '#86efac' : '#16a34a',
-                      }}
-                    >
-                      {seg.size} leads
-                    </span>
-                    <a
-                      href={crmLink(projectId, { segment: seg.segment })}
-                      className="text-[11px] underline opacity-60 hover:opacity-100"
-                      style={{ color: t.text3 }}
-                    >
-                      View in CRM
-                    </a>
+                    <h5 className="text-[14px] font-semibold" style={{ color: t.text1 }}>{seg.segment}</h5>
+                    {seg.verdict && verdictBadge(seg.verdict)}
+                    {seg.confidence && <span className="text-[10px]" style={{ color: t.text4 }}>{seg.confidence}</span>}
                   </div>
                 </div>
 
-                {seg.rationale && (
-                  <p className="text-[12px] mb-2 leading-relaxed" style={{ color: t.text2 }}>
-                    {seg.rationale}
-                  </p>
-                )}
+                <div className="px-4 py-3 space-y-3">
+                  {/* Metrics row */}
+                  {seg.metrics && (
+                    <div className="flex flex-wrap gap-2">
+                      {metricPill('Contacts', seg.metrics.contacts?.toLocaleString())}
+                      {metricPill('Replies', seg.metrics.total_replies)}
+                      {metricPill('Meetings', seg.metrics.meetings, true)}
+                      {metricPill('Positive', seg.metrics.positive, true)}
+                      {metricPill('Reply %', `${seg.metrics.reply_rate_pct}%`)}
+                      {metricPill('Meeting %', `${seg.metrics.meeting_rate_pct}%`, seg.metrics.meeting_rate_pct > 10)}
+                      {seg.metrics.wrong_person_pct > 0 && metricPill('Wrong %', `${seg.metrics.wrong_person_pct}%`)}
+                    </div>
+                  )}
 
-                {seg.characteristics && seg.characteristics.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {seg.characteristics.map((ch, j) => (
-                      <span
-                        key={j}
-                        className="px-2 py-0.5 rounded text-[11px]"
-                        style={{ background: isDark ? '#2d2d2d' : '#f0f0f0', color: t.text2 }}
-                      >
-                        {ch}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                  {/* Diagnosis */}
+                  {seg.diagnosis && (
+                    <p className="text-[12px] leading-relaxed" style={{ color: t.text2 }}>{seg.diagnosis}</p>
+                  )}
 
-                {seg.outreach_angle && (
-                  <p className="text-[12px] mb-2" style={{ color: t.text3 }}>
-                    <span className="font-medium" style={{ color: t.text2 }}>Outreach:</span> {seg.outreach_angle}
-                  </p>
-                )}
+                  {/* Winning/Losing patterns */}
+                  {(seg.winning_patterns?.length > 0 || seg.losing_patterns?.length > 0) && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {seg.winning_patterns?.length > 0 && (
+                        <div className="rounded-lg p-2.5" style={{ background: isDark ? '#0a2e1a' : '#f0fdf4' }}>
+                          <div className="text-[10px] font-bold uppercase mb-1" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>Winning Pattern</div>
+                          <p className="text-[11px] italic leading-relaxed" style={{ color: t.text3 }}>"{seg.winning_patterns[0]?.slice(0, 200)}"</p>
+                        </div>
+                      )}
+                      {seg.losing_patterns?.length > 0 && (
+                        <div className="rounded-lg p-2.5" style={{ background: isDark ? '#450a0a' : '#fef2f2' }}>
+                          <div className="text-[10px] font-bold uppercase mb-1" style={{ color: isDark ? '#f87171' : '#dc2626' }}>Losing Pattern</div>
+                          <p className="text-[11px] italic leading-relaxed" style={{ color: t.text3 }}>"{seg.losing_patterns[0]?.slice(0, 200)}"</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                {seg.apollo_query && (
-                  <div className="mt-2">
-                    <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: t.text4 }}>
-                      Apollo Query
-                    </span>
-                    <p
-                      className="text-[12px] mt-1 p-2 rounded-lg font-mono leading-relaxed"
-                      style={{ background: isDark ? '#1a1a1a' : '#f5f5f5', color: t.text3 }}
-                    >
-                      {seg.apollo_query}
-                    </p>
-                  </div>
-                )}
+                  {/* This Week Actions */}
+                  {seg.this_week_actions?.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: t.text4 }}>This Week Actions</div>
+                      <div className="space-y-2">
+                        {seg.this_week_actions.map((a: any, j: number) => (
+                          <div key={j} className="rounded-lg p-2.5" style={{ background: isDark ? '#1a1a1a' : '#fafafa' }}>
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+                                style={{ background: isDark ? '#422006' : '#fef3c7', color: isDark ? '#fbbf24' : '#d97706' }}>
+                                {a.action}
+                              </span>
+                              <span className="text-[11px] font-medium" style={{ color: t.text1 }}>{a.what}</span>
+                            </div>
+                            {a.from && a.to && (
+                              <div className="flex items-start gap-1.5 text-[11px]" style={{ color: t.text3 }}>
+                                <span className="line-through opacity-60">{a.from?.slice(0, 120)}</span>
+                                <ArrowRight className="w-3 h-3 shrink-0 mt-0.5" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
+                                <span className="font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>{a.to?.slice(0, 150)}</span>
+                              </div>
+                            )}
+                            {a.why && <p className="text-[10px] mt-1 italic" style={{ color: t.text4 }}>{a.why}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Targeting Fix */}
+                  {seg.targeting_fix && (
+                    <div className="rounded-lg p-2.5" style={{ background: isDark ? '#1e1b4b' : '#eef2ff', border: `1px solid ${isDark ? '#312e81' : '#c7d2fe'}` }}>
+                      <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: isDark ? '#a5b4fc' : '#4f46e5' }}>Targeting Fix</div>
+                      <p className="text-[11px] mb-1" style={{ color: t.text2 }}>{seg.targeting_fix.current_problem}</p>
+                      {seg.targeting_fix.target_titles && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          <span className="text-[10px]" style={{ color: t.text4 }}>Target:</span>
+                          {seg.targeting_fix.target_titles.map((tt: string) => (
+                            <span key={tt} className="px-1.5 py-0.5 rounded text-[10px]" style={{ background: isDark ? '#0a2e1a' : '#dcfce7', color: isDark ? '#4ade80' : '#16a34a' }}>{tt}</span>
+                          ))}
+                        </div>
+                      )}
+                      {seg.targeting_fix.avoid_titles && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          <span className="text-[10px]" style={{ color: t.text4 }}>Avoid:</span>
+                          {seg.targeting_fix.avoid_titles.map((at: string) => (
+                            <span key={at} className="px-1.5 py-0.5 rounded text-[10px]" style={{ background: isDark ? '#450a0a' : '#fecaca', color: isDark ? '#f87171' : '#dc2626' }}>{at}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Email Template */}
+                  {seg.email_template && (
+                    <div className="rounded-lg p-2.5" style={{ background: isDark ? '#1a1a1a' : '#f9fafb', border: `1px solid ${t.cardBorder}` }}>
+                      <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: t.text4 }}>Email Template</div>
+                      {seg.email_template.subject && <p className="text-[11px] font-medium mb-1" style={{ color: t.text1 }}>Subject: {seg.email_template.subject}</p>}
+                      {seg.email_template.opening && <p className="text-[11px] mb-1 whitespace-pre-line" style={{ color: t.text2 }}>{seg.email_template.opening}</p>}
+                      {seg.email_template.cta && <p className="text-[11px] font-medium italic" style={{ color: isDark ? '#93c5fd' : '#2563eb' }}>{seg.email_template.cta}</p>}
+                    </div>
+                  )}
+
+                  {/* Channel + Volume */}
+                  {(seg.channel_recommendation || seg.monthly_volume_target) && (
+                    <div className="flex items-center gap-3 text-[11px]" style={{ color: t.text3 }}>
+                      {seg.channel_recommendation && <span>Channel: <strong>{seg.channel_recommendation}</strong></span>}
+                      {seg.monthly_volume_target && <span>Volume: <strong>{seg.monthly_volume_target}/mo</strong></span>}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
 
-          {plan.total_addressable && (
-            <p className="text-[12px] mt-3" style={{ color: t.text4 }}>
-              Estimated total addressable: {plan.total_addressable}
-            </p>
+          {/* Critical Bottlenecks */}
+          {plan.critical_bottlenecks?.length > 0 && (
+            <section>
+              <h4 className="text-[12px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2" style={{ color: t.text3 }}>
+                <AlertTriangle className="w-4 h-4" /> Critical Bottlenecks
+              </h4>
+              <div className="space-y-2">
+                {plan.critical_bottlenecks.map((b: any, i: number) => (
+                  <div key={i} className="rounded-lg p-3 flex items-start gap-3" style={{ background: isDark ? '#1a1a1a' : '#fafafa', border: `1px solid ${t.cardBorder}` }}>
+                    {severityBadge(b.severity)}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-medium" style={{ color: t.text1 }}>{b.bottleneck}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: t.text3 }}>{b.affected_replies} replies ({b.affected_pct}%)</p>
+                      {b.evidence && <p className="text-[10px] italic mt-1 truncate" style={{ color: t.text4 }}>"{b.evidence?.slice(0, 150)}"</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
-        </section>
-      ) : !hasClassified ? (
-        <div className="flex flex-col items-center justify-center py-12 px-6">
-          <Target className="w-10 h-10 mb-3 opacity-30" style={{ color: t.text4 }} />
-          <p className="text-[13px] mb-1" style={{ color: t.text2 }}>No classified contacts yet</p>
-          <p className="text-[12px] mb-4" style={{ color: t.text4 }}>
-            Run segment classification first, then generate a GTM strategy
-          </p>
-        </div>
+
+          {/* Messaging Rules */}
+          {plan.messaging_rules?.length > 0 && (
+            <section>
+              <h4 className="text-[12px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2" style={{ color: t.text3 }}>
+                <Zap className="w-4 h-4" /> Messaging Rules
+              </h4>
+              <div className="space-y-1.5">
+                {plan.messaging_rules.map((r: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg" style={{ background: isDark ? '#1a1a1a' : '#fafafa' }}>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 mt-0.5"
+                      style={{
+                        background: r.rule === 'NEVER' ? (isDark ? '#450a0a' : '#fecaca') : r.rule === 'ALWAYS' ? (isDark ? '#0a2e1a' : '#dcfce7') : (isDark ? '#422006' : '#fef3c7'),
+                        color: r.rule === 'NEVER' ? (isDark ? '#f87171' : '#dc2626') : r.rule === 'ALWAYS' ? (isDark ? '#4ade80' : '#16a34a') : (isDark ? '#fbbf24' : '#d97706'),
+                      }}>
+                      {r.rule}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px]" style={{ color: t.text2 }}>{r.description}</p>
+                      {r.evidence && <p className="text-[10px] italic mt-0.5 truncate" style={{ color: t.text4 }}>"{r.evidence?.slice(0, 120)}"</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 30-Day Plan */}
+          {plan.thirty_day_plan?.length > 0 && (
+            <section>
+              <h4 className="text-[12px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2" style={{ color: t.text3 }}>
+                <Calendar className="w-4 h-4" /> 30-Day Plan
+              </h4>
+              <div className="grid grid-cols-4 gap-2">
+                {plan.thirty_day_plan.map((w: any, i: number) => (
+                  <div key={i} className="rounded-lg p-3" style={{ background: isDark ? '#1a1a1a' : '#fafafa', border: `1px solid ${t.cardBorder}` }}>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-[11px] font-bold" style={{ color: t.text1 }}>Week {w.week}</span>
+                      <span className="px-1 py-0.5 rounded text-[9px] font-bold" style={{ background: isDark ? '#1e3a5f' : '#dbeafe', color: isDark ? '#93c5fd' : '#2563eb' }}>{w.priority}</span>
+                    </div>
+                    {w.actions?.map((a: any, j: number) => (
+                      <div key={j} className="mb-1.5">
+                        <p className="text-[10px] font-medium" style={{ color: t.text2 }}>{a.task?.slice(0, 100)}</p>
+                        {a.owner && <p className="text-[9px]" style={{ color: t.text4 }}>{a.owner} · {a.deliverable?.slice(0, 60)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* New Segments to Test */}
+          {plan.new_segments_to_test?.length > 0 && (
+            <section>
+              <h4 className="text-[12px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2" style={{ color: t.text3 }}>
+                <Target className="w-4 h-4" /> New Segments to Test
+              </h4>
+              <div className="grid grid-cols-3 gap-2">
+                {plan.new_segments_to_test.map((s: any, i: number) => (
+                  <div key={i} className="rounded-lg p-3" style={{ background: isDark ? '#1a1a1a' : '#fafafa', border: `1px solid ${t.cardBorder}` }}>
+                    <p className="text-[12px] font-semibold mb-1" style={{ color: t.text1 }}>{s.segment}</p>
+                    <p className="text-[10px] mb-1" style={{ color: t.text3 }}>{s.why?.slice(0, 120)}</p>
+                    {s.initial_volume && <span className="text-[10px] font-mono" style={{ color: t.text4 }}>{s.initial_volume} leads</span>}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       ) : (
         <div className="flex flex-col items-center justify-center py-12 px-6">
           <Sparkles className="w-10 h-10 mb-3 opacity-30" style={{ color: t.text4 }} />
           <p className="text-[13px] mb-1" style={{ color: t.text2 }}>No AI strategy generated yet</p>
-          <p className="text-[12px] mb-4" style={{ color: t.text4 }}>
-            {data.classified} contacts classified across {data.segments.length} segments. Click Generate to create a strategy.
-          </p>
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
+          <p className="text-[12px] mb-4" style={{ color: t.text4 }}>Click Generate to create a strategy with Opus 4.6</p>
+          <button onClick={handleGenerate} disabled={generating}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium text-white transition-colors"
-            style={{ background: t.btnPrimaryBg }}
-          >
-            {generating ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
-            ) : (
-              <><Sparkles className="w-4 h-4" /> Generate GTM Strategy</>
-            )}
+            style={{ background: t.btnPrimaryBg }}>
+            {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Sparkles className="w-4 h-4" /> Generate GTM Strategy</>}
           </button>
         </div>
       )}
