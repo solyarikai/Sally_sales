@@ -8,6 +8,7 @@ interface Props {
   projectId: number;
   isDark: boolean;
   t: ThemeTokens;
+  logId?: number;
 }
 
 interface GTMSegment {
@@ -47,15 +48,42 @@ function crmLink(projectId: number, params: Record<string, string>): string {
   return `/contacts?${p.toString()}`;
 }
 
-export function GTMPanel({ projectId, isDark, t }: Props) {
+export function GTMPanel({ projectId, isDark, t, logId }: Props) {
   const [data, setData] = useState<GTMData | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logStrategy, setLogStrategy] = useState<string | null>(null);
+  const [logMeta, setLogMeta] = useState<{ trigger: string; cost: string; tokens: string; created: string } | null>(null);
 
   useEffect(() => {
     loadData();
   }, [projectId]);
+
+  // Load specific log's strategy when logId changes
+  useEffect(() => {
+    if (logId) {
+      loadLogStrategy(logId);
+    } else {
+      setLogStrategy(null);
+      setLogMeta(null);
+    }
+  }, [logId, projectId]);
+
+  async function loadLogStrategy(id: number) {
+    try {
+      const res = await contactsApi.getGTMStrategyLogDetail(projectId, id);
+      setLogStrategy(res.strategy_json);
+      setLogMeta({
+        trigger: res.trigger,
+        cost: res.cost_usd || '?',
+        tokens: `${((res.input_tokens || 0) + (res.output_tokens || 0)) / 1000}k`,
+        created: res.created_at || '',
+      });
+    } catch {
+      // fallback to project's current plan
+    }
+  }
 
   async function loadData() {
     setLoading(true);
@@ -106,12 +134,27 @@ export function GTMPanel({ projectId, isDark, t }: Props) {
 
   if (!data) return null;
 
-  const plan = parseGTMPlan(data.gtm_plan);
+  const plan = parseGTMPlan(logStrategy || data.gtm_plan);
   const hasClassified = data.classified > 0;
   const maxSegmentCount = data.segments.length > 0 ? data.segments[0].count : 1;
 
   return (
     <div className="p-5 space-y-6 max-w-[900px]">
+      {/* Log strategy banner */}
+      {logMeta && logStrategy && (
+        <div
+          className="rounded-lg px-4 py-2.5 flex items-center justify-between"
+          style={{
+            background: isDark ? '#1a2332' : '#eff6ff',
+            border: `1px solid ${isDark ? '#1e3a5f' : '#bfdbfe'}`,
+          }}
+        >
+          <span className="text-[12px] font-medium" style={{ color: isDark ? '#93c5fd' : '#1d4ed8' }}>
+            Viewing {logMeta.trigger} analysis · ${logMeta.cost} · {logMeta.tokens} tokens
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

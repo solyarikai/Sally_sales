@@ -73,7 +73,17 @@ export function AnalyticsPanel({ projectId, isDark, t }: Props) {
     setLogsLoading(true);
     try {
       const result = await contactsApi.getGTMStrategyLogs(projectId);
-      setLogs(result.items);
+      // Sort: best completed (most output tokens) first, then by date
+      const sorted = [...result.items].sort((a, b) => {
+        const aCompleted = a.status === 'completed' ? 1 : 0;
+        const bCompleted = b.status === 'completed' ? 1 : 0;
+        if (aCompleted !== bCompleted) return bCompleted - aCompleted;
+        if (aCompleted && bCompleted) {
+          return (b.output_tokens || 0) - (a.output_tokens || 0);
+        }
+        return new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime();
+      });
+      setLogs(sorted);
     } catch {
       // silent
     } finally {
@@ -299,47 +309,65 @@ export function AnalyticsPanel({ projectId, isDark, t }: Props) {
               </div>
             ) : (
               <div className="divide-y" style={{ borderColor: isDark ? '#2a2a2a' : '#f0f0f0' }}>
-                {logs.map(log => (
-                  <a
-                    key={log.id}
-                    href={`/knowledge/gtm?project=${new URLSearchParams(window.location.search).get('project') || ''}&logId=${log.id}`}
-                    className="block px-4 py-3 transition-colors hover:opacity-80"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5">
-                        {log.status === 'completed' ? (
-                          <CheckCircle2 className="w-3 h-3" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
-                        ) : (
-                          <AlertCircle className="w-3 h-3" style={{ color: '#ef4444' }} />
-                        )}
-                        <span className="text-[11px] font-medium" style={{ color: t.text2 }}>
-                          {log.trigger === 'manual' ? 'Manual' : 'Scheduled'}
+                {logs.map((log, idx) => {
+                  const isBest = idx === 0 && log.status === 'completed' && log.has_strategy;
+                  return (
+                    <a
+                      key={log.id}
+                      href={`/knowledge/gtm?project=${new URLSearchParams(window.location.search).get('project') || ''}&logId=${log.id}`}
+                      className="block px-4 py-3 transition-colors hover:opacity-80"
+                      style={isBest ? {
+                        background: isDark ? '#1a2332' : '#eff6ff',
+                        borderLeft: `3px solid ${isDark ? '#3b82f6' : '#2563eb'}`,
+                      } : undefined}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          {log.status === 'completed' ? (
+                            <CheckCircle2 className="w-3 h-3" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
+                          ) : (
+                            <AlertCircle className="w-3 h-3" style={{ color: '#ef4444' }} />
+                          )}
+                          <span className="text-[11px] font-medium" style={{ color: t.text2 }}>
+                            {log.trigger === 'manual' ? 'Manual' : 'Scheduled'}
+                          </span>
+                          {isBest && (
+                            <span
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+                              style={{
+                                background: isDark ? '#1e3a5f' : '#dbeafe',
+                                color: isDark ? '#93c5fd' : '#1d4ed8',
+                              }}
+                            >
+                              Best
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px]" style={{ color: t.text4 }}>
+                          {timeAgo(log.created_at)}
                         </span>
                       </div>
-                      <span className="text-[10px]" style={{ color: t.text4 }}>
-                        {timeAgo(log.created_at)}
-                      </span>
-                    </div>
-                    <p className="text-[11px] truncate" style={{ color: t.text3 }}>
-                      {log.input_summary || 'No summary'}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      {log.cost_usd && (
-                        <span className="text-[10px] font-mono" style={{ color: t.text4 }}>
-                          ${log.cost_usd}
-                        </span>
-                      )}
-                      {log.input_tokens && (
-                        <span className="text-[10px] font-mono" style={{ color: t.text4 }}>
-                          {fmtNum(log.input_tokens + (log.output_tokens || 0))}t
-                        </span>
-                      )}
-                      {log.has_strategy && (
-                        <ExternalLink className="w-2.5 h-2.5 ml-auto" style={{ color: t.text4 }} />
-                      )}
-                    </div>
-                  </a>
-                ))}
+                      <p className="text-[11px] truncate" style={{ color: t.text3 }}>
+                        {log.input_summary || 'No summary'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {log.cost_usd && (
+                          <span className="text-[10px] font-mono" style={{ color: t.text4 }}>
+                            ${log.cost_usd}
+                          </span>
+                        )}
+                        {log.input_tokens && (
+                          <span className="text-[10px] font-mono" style={{ color: t.text4 }}>
+                            {fmtNum(log.input_tokens + (log.output_tokens || 0))}t
+                          </span>
+                        )}
+                        {log.has_strategy && (
+                          <ExternalLink className="w-2.5 h-2.5 ml-auto" style={{ color: isBest ? (isDark ? '#93c5fd' : '#2563eb') : t.text4 }} />
+                        )}
+                      </div>
+                    </a>
+                  );
+                })}
               </div>
             )}
           </div>

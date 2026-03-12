@@ -270,6 +270,7 @@ export function KnowledgePage() {
                 projectId={currentProject.id}
                 isDark={isDark}
                 t={t}
+                logId={activeTab === 'gtm' ? highlightLogId : undefined}
               />
             </div>
           </>

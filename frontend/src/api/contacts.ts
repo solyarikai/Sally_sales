@@ -595,6 +595,20 @@ export const contactsApi = {
     return response.data;
   },
 
+  // GTM strategy log detail (specific log with full strategy JSON)
+  async getGTMStrategyLogDetail(projectId: number, logId: number): Promise<{
+    id: number;
+    trigger: string;
+    strategy_json: string | null;
+    cost_usd: string | null;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    created_at: string | null;
+  }> {
+    const response = await api.get(`/contacts/projects/${projectId}/gtm-strategy-logs/${logId}`);
+    return response.data;
+  },
+
   // AI SDR - Generate TAM analysis
   async generateTAM(projectId: number): Promise<AISDRGenerationResult> {
     const response = await api.post(`/contacts/projects/${projectId}/generate-tam`);
