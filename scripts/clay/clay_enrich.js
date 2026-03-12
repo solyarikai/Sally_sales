@@ -48,11 +48,15 @@ function loadSession() {
 }
 
 function saveSession(cookieValue) {
-  fs.writeFileSync(SESSION_FILE, JSON.stringify({
-    value: cookieValue,
-    savedAt: new Date().toISOString(),
-  }, null, 2));
-  console.log('  Session saved');
+  try {
+    fs.writeFileSync(SESSION_FILE, JSON.stringify({
+      value: cookieValue,
+      savedAt: new Date().toISOString(),
+    }, null, 2));
+    console.log('  Session saved');
+  } catch (e) {
+    console.log(`  WARNING: Cannot save session (${e.code || e.message}). Continuing with current session.`);
+  }
 }
 
 async function setSessionCookie(page, cookieValue) {
@@ -169,104 +173,61 @@ async function uploadCSV(page, filePath) {
   console.log('\n[UPLOAD] Uploading CSV to Clay...');
   console.log(`  File: ${filePath}`);
 
-  // Navigate to workspace home
+  // Step 1: Navigate to workspace home
   await page.goto(`https://app.clay.com/workspaces/${WORKSPACE_ID}/home`, { waitUntil: 'networkidle2', timeout: 30000 });
   await humanDelay(2000, 3000);
 
-  // Look for "Import from CSV" or "New table" or "+" button
-  // Try clicking the "+" or "Import" button on workspace home
-  const importBtn = await findClickableByText(page, 'Import');
-  const newTableBtn = await findClickableByText(page, 'New table');
-  const createBtn = await findClickableByText(page, 'Create');
-
-  if (importBtn) {
-    console.log(`  Clicking: "${importBtn.text}"`);
-    await page.mouse.click(importBtn.x, importBtn.y);
-  } else if (newTableBtn) {
-    console.log(`  Clicking: "${newTableBtn.text}"`);
-    await page.mouse.click(newTableBtn.x, newTableBtn.y);
-  } else if (createBtn) {
-    console.log(`  Clicking: "${createBtn.text}"`);
-    await page.mouse.click(createBtn.x, createBtn.y);
-  } else {
-    // Try "+" icon button
-    const plusBtn = await page.evaluate(() => {
-      const btns = [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null);
-      const btn = btns.find(b => b.textContent?.trim() === '+' || b.getAttribute('aria-label')?.includes('Create') || b.getAttribute('aria-label')?.includes('New'));
-      if (!btn) return null;
-      const rect = btn.getBoundingClientRect();
-      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-    });
-    if (plusBtn) {
-      await page.mouse.click(plusBtn.x, plusBtn.y);
-    } else {
-      console.log('  WARNING: No import/create button found. Listing visible buttons...');
-      const btns = await listVisibleButtons(page);
-      console.log('  Buttons:', btns.join(' | '));
-      await screenshot(page, 'upload_01_no_button');
-      throw new Error('Cannot find import/create button on workspace home');
-    }
+  // Step 2: Create new workbook via "New" button
+  console.log('  Creating new workbook...');
+  const newBtn = await page.$('[data-testid="create-new"]');
+  if (!newBtn) {
+    await screenshot(page, 'upload_err_no_new_btn');
+    throw new Error('"New" button (data-testid="create-new") not found on workspace home');
   }
+  await newBtn.click();
+  await humanDelay(1000, 2000);
 
-  await humanDelay(1500, 2500);
-  await screenshot(page, 'upload_01_after_click');
-
-  // Look for "Import from CSV" option in any menu/modal that appeared
-  const csvOption = await findClickableByText(page, 'Import from CSV');
-  if (csvOption) {
-    console.log(`  Clicking: "${csvOption.text}"`);
-    await page.mouse.click(csvOption.x, csvOption.y);
-    await humanDelay(1500, 2500);
-  } else {
-    // Maybe we're already on an import/upload page
-    console.log('  No "Import from CSV" menu option — checking for file input...');
+  const wbBtn = await page.$('[data-testid="new-workbook"]');
+  if (!wbBtn) {
+    await screenshot(page, 'upload_err_no_workbook_btn');
+    throw new Error('"Workbook" option (data-testid="new-workbook") not found in New menu');
   }
+  await wbBtn.click();
+  await humanDelay(3000, 5000);
+  console.log(`  Workbook created: ${page.url()}`);
+  await screenshot(page, 'upload_01_workbook_created');
 
-  await screenshot(page, 'upload_02_import_page');
-
-  // Find file input and upload
-  const fileInput = await page.$('input[type="file"]');
-  if (fileInput) {
-    console.log('  Found file input — uploading...');
-    await fileInput.uploadFile(filePath);
-    await humanDelay(3000, 5000);
-    await screenshot(page, 'upload_03_file_uploaded');
-  } else {
-    // Try looking for drag-drop zone or other upload mechanism
-    console.log('  No file input found. Looking for upload area...');
-    const inputs = await listVisibleInputs(page);
-    console.log('  Inputs:', JSON.stringify(inputs));
-    await screenshot(page, 'upload_03_no_file_input');
-
-    // Try finding hidden file input
-    const hiddenInput = await page.$('input[type="file"][style*="display: none"], input[type="file"][hidden]');
-    if (hiddenInput) {
-      console.log('  Found hidden file input — uploading...');
-      await hiddenInput.uploadFile(filePath);
-      await humanDelay(3000, 5000);
-    } else {
-      // Last resort: look for any input type file in the entire DOM
-      const anyFileInput = await page.evaluate(() => {
-        const inputs = document.querySelectorAll('input[type="file"]');
-        return inputs.length;
-      });
-      if (anyFileInput > 0) {
-        const els = await page.$$('input[type="file"]');
-        await els[0].uploadFile(filePath);
-        await humanDelay(3000, 5000);
-        console.log('  Uploaded via hidden input');
-      } else {
-        throw new Error('No file input found on page');
-      }
-    }
+  // Step 3: Click "Import from CSV" inside the workbook
+  const csvBtn = await findClickableByText(page, 'Import from CSV');
+  if (!csvBtn) {
+    const btns = await listVisibleButtons(page);
+    console.log('  Available buttons:', btns.join(' | '));
+    await screenshot(page, 'upload_err_no_csv_btn');
+    throw new Error('"Import from CSV" button not found in workbook');
   }
+  console.log(`  Clicking: "${csvBtn.text}"`);
+  await page.mouse.click(csvBtn.x, csvBtn.y);
+  await humanDelay(2000, 3000);
+  await screenshot(page, 'upload_02_csv_clicked');
 
-  // Wait for column mapping / preview
-  await humanDelay(2000, 4000);
-  await screenshot(page, 'upload_04_mapping');
+  // Step 4: Find file input (may be hidden with display:none) and upload
+  let fileInput = await page.$('input[type="file"]');
+  if (!fileInput) {
+    // Wait a bit more and retry
+    await humanDelay(2000, 3000);
+    fileInput = await page.$('input[type="file"]');
+  }
+  if (!fileInput) {
+    await screenshot(page, 'upload_err_no_file_input');
+    throw new Error('No file input found after clicking Import from CSV');
+  }
+  console.log('  Uploading file...');
+  await fileInput.uploadFile(filePath);
+  await humanDelay(3000, 5000);
+  await screenshot(page, 'upload_03_file_uploaded');
 
-  // Look for confirmation button ("Import", "Continue", "Create table", "Confirm")
-  for (const label of ['Import', 'Continue', 'Create table', 'Confirm', 'Done']) {
+  // Step 5: Click "Complete import" button
+  for (const label of ['Complete import', 'Import', 'Continue', 'Create table', 'Confirm', 'Done']) {
     const btn = await findClickableByText(page, label);
     if (btn) {
       console.log(`  Clicking: "${btn.text}"`);
@@ -276,7 +237,7 @@ async function uploadCSV(page, filePath) {
     }
   }
 
-  await screenshot(page, 'upload_05_imported');
+  await screenshot(page, 'upload_04_imported');
 
   // Extract table ID from URL
   let tableId = null;
