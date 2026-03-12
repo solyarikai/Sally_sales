@@ -2145,30 +2145,29 @@ async def process_getsales_reply(
         logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email} (hash={message_hash[:8]})")
 
     # --- Fetch LinkedIn conversation thread and store as ThreadMessage rows ---
-    # Use no_autoflush + nested savepoint: _fetch_getsales_thread adds ThreadMessage
-    # objects, and the auto-dismiss SELECT triggers autoflush which can fail.
-    # no_autoflush prevents the SELECT from flushing prematurely; the savepoint
-    # isolates thread fetch failures from the ProcessedReply.
+    # SKIP during polling path (_source == "polling"): thread fetch adds ThreadMessage
+    # objects whose flush can corrupt the shared session, killing the entire batch.
+    # The conversation_sync loop (every 3 min) handles thread fetching independently.
+    # Only run inline for webhook path (own session, safe to fail).
+    is_polling = raw_data.get("_source") == "polling" or raw_data.get("automation") == "synced"
     conv_uuid = raw_data.get("linkedin_conversation_uuid")
-    if conv_uuid and sender_profile_uuid:
+    if conv_uuid and sender_profile_uuid and not is_polling:
         try:
-            async with session.no_autoflush:
-                async with session.begin_nested():
-                    thread_ok = await _fetch_getsales_thread(session, processed_reply, conv_uuid, sender_profile_uuid)
-                    if thread_ok:
-                        await session.flush()  # Flush ThreadMessage objects explicitly
-                        # Auto-dismiss if the last message in the thread is outbound
-                        from app.models.reply import ThreadMessage as TM
-                        last_msg = (await session.execute(
-                            select(TM.direction).where(TM.reply_id == processed_reply.id)
-                            .order_by(TM.position.desc()).limit(1)
-                        )).scalar()
-                        if last_msg == "outbound" and processed_reply.approval_status in (None, "pending"):
-                            processed_reply.approval_status = "dismissed"
-                            processed_reply.approved_at = datetime.utcnow()
-                            logger.info(f"[AUTO-DISMISS] Reply {processed_reply.id} auto-dismissed at processing time — operator already replied via LinkedIn")
+            thread_ok = await _fetch_getsales_thread(session, processed_reply, conv_uuid, sender_profile_uuid)
+            # Auto-dismiss if the last message in the thread is outbound
+            # (operator/automation already replied before we processed this inbound)
+            if thread_ok:
+                from app.models.reply import ThreadMessage as TM
+                last_msg = (await session.execute(
+                    select(TM.direction).where(TM.reply_id == processed_reply.id)
+                    .order_by(TM.position.desc()).limit(1)
+                )).scalar()
+                if last_msg == "outbound" and processed_reply.approval_status in (None, "pending"):
+                    processed_reply.approval_status = "dismissed"
+                    processed_reply.approved_at = datetime.utcnow()
+                    logger.info(f"[AUTO-DISMISS] Reply {processed_reply.id} auto-dismissed at processing time — operator already replied via LinkedIn")
         except Exception as thread_err:
-            logger.warning(f"[GETSALES] Thread fetch failed (non-fatal, savepoint rolled back): {thread_err}")
+            logger.warning(f"[GETSALES] Thread fetch failed (non-fatal): {thread_err}")
 
     # NOTE: Telegram notification is NOT sent here — callers must send it
     # AFTER session.commit() succeeds, to avoid ghost notifications on rollback.
