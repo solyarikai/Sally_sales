@@ -2830,7 +2830,10 @@ async def _handle_clay_gather(
 
                 # Limit to requested company_count unique companies and contact_count contacts.
                 # Group by DOMAIN (not company name) — Clay returns name variants that inflate count.
-                max_per_company = max(3, contact_count // company_count) if company_count else 5
+                # max_per_company = hard cap; base_per_company = initial allocation.
+                # Gap between them creates the overflow pool for filling shortfalls.
+                base_target = max(3, contact_count // company_count) if company_count else 3
+                max_per_company = min(base_target + 2, 5)  # Allow 2 extra per company for overflow
                 from collections import defaultdict
                 domain_contacts: dict[str, list] = defaultdict(list)
                 for c in filtered:
@@ -2855,7 +2858,7 @@ async def _handle_clay_gather(
                 n_companies = len(top_companies)
 
                 if n_companies > 0:
-                    base_per_company = min(max_per_company, max(1, contact_count // n_companies))
+                    base_per_company = min(base_target, max(1, contact_count // n_companies))
                     selected: list = []
                     remainder: list = []
                     for _d, _dm, _bp, contacts_list in top_companies:
