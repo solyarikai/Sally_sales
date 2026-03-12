@@ -991,7 +991,9 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     _campaign = _html_escape(campaign_name or 'Unknown')
 
     # Build full (default) message — always sent to admin
-    full_message = f"""📧 <b>New Email Reply!</b>
+    indicator = _category_indicator(category)
+    label = _category_label(category)
+    full_message = f"""{indicator} 📧 <b>{label}</b>
 
 <b>From:</b> {reply.lead_email}
 <b>Subject:</b> {_subj}
@@ -1136,7 +1138,9 @@ async def notify_linkedin_reply(
         except Exception:
             pass
 
-    full_message = f"""🔗 <b>New LinkedIn Reply!</b>
+    li_indicator = _category_indicator(category) if category else "🔗"
+    li_label = _category_label(category) if category else "LinkedIn Reply"
+    full_message = f"""{li_indicator} 🔗 <b>{li_label}</b>
 
 <b>From:</b> {contact_name}{email_line}{campaign_line}{project_line}{sender_line}
 
