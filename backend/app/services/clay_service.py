@@ -179,11 +179,11 @@ class ClayService:
                     pass
 
         # Step 1: Map ICP to filters
-        await _emit("AI mapping ICP description to Clay filters...")
+        await _emit("AI mapping ICP description to search filters...")
         logger.info(f"Clay TAM: mapping ICP to filters...")
         filters = await map_icp_to_clay_filters(icp_text)
         logger.info(f"Clay TAM: filters = {json.dumps(filters)}")
-        await _emit("Filters mapped. Launching headless browser...")
+        await _emit("Filters mapped. Starting search engine...")
 
         # Step 2: Run Node.js Puppeteer script
         if not CLAY_TAM_SCRIPT.exists():
@@ -233,16 +233,16 @@ class ClayService:
         # Stream stdout line-by-line for live progress
         log_lines: list[str] = []
         _STEP_MAP = {
-            "[3] Validating": "Validating Clay session...",
-            "Session valid": "Session valid. Checking credits...",
-            "[4] Opening Find": "Opening Find Companies page...",
+            "[3] Validating": "Connecting to search engine...",
+            "Session valid": "Connected. Checking quota...",
+            "[4] Opening Find": "Opening company search...",
             "[5] Applying filters": "Applying search filters...",
             "Location:": None,  # skip, too noisy
-            "[6] Opening Continue": "Clicking Continue → Save to new table...",
+            "[6] Opening Continue": "Saving results...",
             "Found:": None,  # dropdown option found
-            "[7] Handling enrichment": "Skipping enrichments → Creating table...",
-            "Table ID:": "Table created. Waiting for data...",
-            "Reading table": "Reading company data from Clay API...",
+            "[7] Handling enrichment": "Extracting company data...",
+            "Table ID:": "Results ready. Fetching data...",
+            "Reading table": "Reading company records...",
             "Record IDs:": None,  # sub-detail
             "Batch ": None,  # sub-detail
             "CREDITS SPENT": None,  # handled separately
@@ -423,7 +423,7 @@ class ClayService:
         domains_file = CLAY_EXPORTS_DIR / f"domains_input_{project_id or 'tmp'}.csv"
         domains_file.write_text("\n".join(domains))
         logger.info(f"Clay People: wrote {len(domains)} domains to {domains_file}")
-        await _emit(f"Launching headless browser for People search ({len(domains)} domains)...")
+        await _emit(f"Starting contact search engine ({len(domains)} companies)...")
 
         # Run Puppeteer script — NO title filter in Clay UI.
         # Get ALL contacts, then apply role-priority filtering in Python
@@ -469,18 +469,18 @@ class ClayService:
         # Stream stdout line-by-line for live progress
         log_lines: list[str] = []
         _STEP_MAP = {
-            "Session valid": "Session valid.",
-            "Selected People tab": "Opened People search tab...",
+            "Session valid": "Connected.",
+            "Selected People tab": "Searching contacts...",
             "Applying filters": "Applying filters...",
             "Typing": None,  # domain typing progress
-            "Job titles:": "Setting job title filters...",
+            "Job titles:": "Setting role filters...",
             "company domains": None,  # will handle typed X/Y below
-            "Continue dropdown": "Clicking Continue → Save to new table...",
-            "Create table": "Creating table (skipping enrichments)...",
-            "Table ID:": "Table created.",
-            "Waiting for table": "Waiting for table data to load...",
+            "Continue dropdown": "Saving results...",
+            "Create table": "Extracting contact data...",
+            "Table ID:": "Results ready.",
+            "Waiting for table": "Waiting for data to load...",
             "CSV export": None,  # sub-detail
-            "reading via browser": "Reading contact data from Clay API...",
+            "reading via browser": "Reading contact records...",
             "Record IDs:": None,
             "Saved": None,  # handled by result count
         }

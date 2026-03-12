@@ -2406,7 +2406,7 @@ async def _handle_clay_gather(
 
         try:
             async with async_session_maker() as task_db:
-                # ── Phase 1: Find companies ──
+                # ── Phase 1: Find companies in Clay ──
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Step 1/5 — Finding companies** (3-8 min)\n\n{_filter_summary(filters)}",
@@ -3215,7 +3215,7 @@ async def _handle_clay_gather(
                 # ── Done ──
                 crm_url = f"/contacts?project_id={project_id}&source_id=clay_{job_id}"
                 clay_company_link = f"[Companies in Clay →]({table_url})" if table_url else ""
-                clay_people_link = f"[People in Clay →]({people_table_url})" if people_table_url else "People table in Clay exports"
+                clay_people_link = f"[People in Clay →]({people_table_url})" if people_table_url else ""
                 links = " | ".join(filter(None, [clay_company_link, clay_people_link, f"[Open CRM →]({crm_url})"]))
 
                 # Count unique companies among visible (real-email) contacts
