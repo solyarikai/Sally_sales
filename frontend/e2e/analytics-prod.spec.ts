@@ -93,13 +93,11 @@ test.describe('Analytics Page - Production', () => {
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'screenshot_prod_gtm_patterns.png' });
 
-    // Click translate button
-    const translateBtn = page.locator('button:has-text("Translate")');
-    if (await translateBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await translateBtn.click();
-      await page.waitForTimeout(3000); // wait for translations
-      await page.screenshot({ path: 'screenshot_prod_gtm_translated.png' });
-    }
+    // Translations are always-on — verify EN: labels appear automatically
+    await page.waitForTimeout(3000); // wait for translations to load
+    const hasTranslation = await page.locator('text=EN:').first().isVisible({ timeout: 5000 }).catch(() => false);
+    console.log('Auto-translations visible:', hasTranslation);
+    await page.screenshot({ path: 'screenshot_prod_gtm_translated.png' });
 
     // Scroll to email template area
     await scrollContainer.evaluate(el => el.scrollTop = 1200);

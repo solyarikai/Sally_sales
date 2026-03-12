@@ -127,6 +127,31 @@ export function AnalyticsPanel({ projectId, isDark, t }: Props) {
     <div className="flex gap-5 p-5">
       {/* Left: Analytics */}
       <div className="flex-1 min-w-0 space-y-5 max-w-[960px]">
+        {/* Latest GTM Strategy banner — top link */}
+        {logs.length > 0 && logs[0].has_strategy && (
+          <a
+            href={`/knowledge/gtm?project=${new URLSearchParams(window.location.search).get('project') || ''}&logId=${logs[0].id}`}
+            className="flex items-center gap-3 rounded-xl px-4 py-3 transition-opacity hover:opacity-80"
+            style={{
+              background: isDark ? '#1a2332' : '#eff6ff',
+              border: `1px solid ${isDark ? '#1e3a5f' : '#bfdbfe'}`,
+            }}
+          >
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: isDark ? '#1e3a5f' : '#dbeafe' }}>
+              <BarChart3 className="w-4 h-4" style={{ color: isDark ? '#93c5fd' : '#2563eb' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold" style={{ color: isDark ? '#93c5fd' : '#1d4ed8' }}>
+                Latest GTM Strategy — Opus 4.6
+              </div>
+              <div className="text-[11px]" style={{ color: t.text3 }}>
+                {logs[0].input_summary || 'Full segment analysis'} · {logs[0].cost_usd ? `$${logs[0].cost_usd}` : ''} · {timeAgo(logs[0].created_at)}
+              </div>
+            </div>
+            <ExternalLink className="w-4 h-4 shrink-0" style={{ color: isDark ? '#93c5fd' : '#2563eb' }} />
+          </a>
+        )}
+
         {/* Header + period filter */}
         <div className="flex items-center justify-between">
           <div>
