@@ -1075,17 +1075,21 @@ ANALYSIS FOCUS — answer with EVIDENCE:
 8. Messaging rules from objection patterns."""
 
             try:
-                message = await client.messages.create(
+                response_text = ""
+                in_tokens = 0
+                out_tokens = 0
+                async with client.messages.stream(
                     model="claude-opus-4-20250514",
-                    max_tokens=8000,
+                    max_tokens=16000,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_prompt}],
                     temperature=0.2,
-                )
-
-                response_text = message.content[0].text
-                in_tokens = message.usage.input_tokens
-                out_tokens = message.usage.output_tokens
+                ) as stream:
+                    async for text in stream.text_stream:
+                        response_text += text
+                    final_message = await stream.get_final_message()
+                    in_tokens = final_message.usage.input_tokens
+                    out_tokens = final_message.usage.output_tokens
                 cost = round(in_tokens * 15 / 1_000_000 + out_tokens * 75 / 1_000_000, 4)
 
                 json_match = re_mod.search(r'\{[\s\S]*\}', response_text)

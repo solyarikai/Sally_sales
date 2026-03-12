@@ -3288,17 +3288,22 @@ ANALYSIS FOCUS — answer these with EVIDENCE from the data above:
     input_summary = f"{len(campaigns)} campaigns, {sum(r.total_replies for r in funnel_rows)} replies, {pos_count} positive + {neg_count} objections"
 
     try:
-        message = await client.messages.create(
+        # Use streaming to avoid timeout on large outputs
+        response_text = ""
+        in_tokens = 0
+        out_tokens = 0
+        async with client.messages.stream(
             model="claude-opus-4-20250514",
-            max_tokens=8000,
+            max_tokens=16000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
             temperature=0.2,
-        )
-
-        response_text = message.content[0].text
-        in_tokens = message.usage.input_tokens
-        out_tokens = message.usage.output_tokens
+        ) as stream:
+            async for text in stream.text_stream:
+                response_text += text
+            final_message = await stream.get_final_message()
+            in_tokens = final_message.usage.input_tokens
+            out_tokens = final_message.usage.output_tokens
         # Opus 4.6 pricing: $15/M input, $75/M output
         cost = round(in_tokens * 15 / 1_000_000 + out_tokens * 75 / 1_000_000, 4)
 
