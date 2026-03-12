@@ -2539,54 +2539,14 @@ async def _handle_clay_gather(
                             }
                             await task_db.commit()
 
-                        # Collect Clay table URLs from previous payroll search jobs
-                        from sqlalchemy import cast, String as _Str
-                        _prev_jobs = (await task_db.execute(
-                            select(SearchJob.config).where(
-                                SearchJob.project_id == project_id,
-                                SearchJob.search_engine == SearchEngine.CLAY,
-                                SearchJob.id != job_id,
-                                cast(SearchJob.config["segment"], _Str).ilike("%payroll%"),
-                            ).order_by(SearchJob.id.desc()).limit(10)
-                        )).scalars().all()
-                        _clay_company_urls = []
-                        _clay_people_urls = []
-                        for _pj_cfg in _prev_jobs:
-                            if isinstance(_pj_cfg, dict):
-                                if _pj_cfg.get("company_table_url"):
-                                    _clay_company_urls.append(_pj_cfg["company_table_url"])
-                                if _pj_cfg.get("people_table_url"):
-                                    _clay_people_urls.append(_pj_cfg["people_table_url"])
-
-                        # Also look in chat messages for Clay table links
-                        if not _clay_company_urls or not _clay_people_urls:
-                            from app.models.chat import ProjectChatMessage
-                            _clay_msgs = (await task_db.execute(
-                                select(ProjectChatMessage.content).where(
-                                    ProjectChatMessage.project_id == project_id,
-                                    ProjectChatMessage.action_type == "clay_gather_done",
-                                ).order_by(ProjectChatMessage.id.desc()).limit(10)
-                            )).scalars().all()
-                            import re as _re
-                            for _msg_content in _clay_msgs:
-                                if not _msg_content:
-                                    continue
-                                _urls = _re.findall(r'https://app\.clay\.com/workspaces/\d+/tables/[a-zA-Z0-9_-]+', _msg_content)
-                                for _u in _urls:
-                                    if not _clay_company_urls:
-                                        _clay_company_urls.append(_u)
-                                    elif _u not in _clay_company_urls and not _clay_people_urls:
-                                        _clay_people_urls.append(_u)
-
-                        # Build links
+                        # Build links — include Clay workspace for browsing tables
                         crm_url = f"/contacts?project_id={project_id}&source_id=clay_{job_id}"
-                        _link_parts = []
-                        if _clay_company_urls:
-                            _link_parts.append(f"[Companies in Clay →]({_clay_company_urls[0]})")
-                        if _clay_people_urls:
-                            _link_parts.append(f"[People in Clay →]({_clay_people_urls[0]})")
-                        _link_parts.append(f"[Open CRM →]({crm_url})")
-                        _links = " | ".join(_link_parts)
+                        _clay_ws = "https://app.clay.com/workspaces/889252"
+                        _links = (
+                            f"[Companies in Clay →]({_clay_ws}) | "
+                            f"[People in Clay →]({_clay_ws}) | "
+                            f"[Open CRM →]({crm_url})"
+                        )
 
                         await _save_chat_message(
                             task_db, project_id, "system",
