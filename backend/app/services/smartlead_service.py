@@ -779,6 +779,36 @@ class SmartleadService:
             logger.error(f"Error creating SmartLead campaign: {e}")
             raise
 
+    async def set_campaign_sequences(self, campaign_id: str, sequences: list) -> bool:
+        """Set email sequence steps for a campaign.
+
+        Args:
+            campaign_id: SmartLead campaign ID
+            sequences: List of sequence steps [{seq_number, seq_delay_details, subject, email_body}]
+
+        Returns:
+            True if successful
+        """
+        if not self._api_key:
+            raise ValueError("API key not set")
+
+        try:
+            response = await smartlead_request(
+                "POST", f"{self.base_url}/campaigns/{campaign_id}/sequences",
+                params={"api_key": self._api_key},
+                json={"sequences": sequences},
+                timeout=30.0,
+            )
+            if response.status_code in [200, 201]:
+                logger.info(f"Set {len(sequences)} sequence steps for campaign {campaign_id}")
+                return True
+            else:
+                logger.error(f"Failed to set sequences for {campaign_id}: {response.status_code} {response.text[:200]}")
+                return False
+        except Exception as e:
+            logger.error(f"Error setting sequences for campaign {campaign_id}: {e}")
+            return False
+
     # configure_campaign_webhook was removed — it was one of three independent
     # webhook registration paths that caused 360+ duplicates across 102 campaigns.
     # Webhook registration now lives EXCLUSIVELY in crm_scheduler.py →

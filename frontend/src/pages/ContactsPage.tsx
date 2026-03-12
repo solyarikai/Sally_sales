@@ -660,6 +660,24 @@ export function ContactsPage() {
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
     {
+      field: 'domain',
+      headerName: 'Website',
+      filter: 'agTextColumnFilter',
+      sortable: true,
+      width: 140,
+      cellRenderer: (params: { value: string }) => {
+        if (!params.value) return '-';
+        const url = params.value.startsWith('http') ? params.value : `https://${params.value}`;
+        return (
+          <a href={url} target="_blank" rel="noopener noreferrer"
+            className="text-blue-500 hover:text-blue-700 underline text-xs truncate block"
+            title={params.value}>
+            {params.value}
+          </a>
+        );
+      },
+    },
+    {
       field: 'linkedin_url',
       headerName: 'LinkedIn',
       filter: 'agTextColumnFilter',

@@ -1703,6 +1703,61 @@ async def export_contacts_google_sheet(
     return {"url": url, "rows": len(data) - 1}
 
 
+# ============= SmartLead Sequence Generation =============
+
+async def _generate_outreach_sequence(project_name: str, segment_name: str) -> list:
+    """Generate a 3-step email outreach sequence using GPT, tailored to project and segment."""
+    import openai
+    import json
+
+    client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    prompt = (
+        f"Generate a 3-step cold email outreach sequence for a B2B SaaS company.\n"
+        f"Company/Product: {project_name}\n"
+        f"Target segment: {segment_name}\n\n"
+        f"Requirements:\n"
+        f"- Step 1: Initial outreach (sent immediately)\n"
+        f"- Step 2: Follow-up (sent 3 days later), subject starts with 'Re: ' of step 1\n"
+        f"- Step 3: Final follow-up (sent 5 days after step 2), subject starts with 'Re: Re: ' of step 1\n"
+        f"- Use {{{{first_name}}}} variable for personalization\n"
+        f"- Keep emails short (3-4 sentences each)\n"
+        f"- Professional but friendly tone\n"
+        f"- HTML format with <p> tags\n"
+        f"- Focus on value proposition and pain points\n"
+        f"- End with a soft CTA (quick call, short chat)\n\n"
+        f"Return JSON array of 3 objects with fields: seq_number, subject, email_body\n"
+    )
+
+    try:
+        resp = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You write concise B2B cold email sequences. Return only valid JSON array."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"},
+            max_tokens=2000,
+            timeout=20,
+        )
+        raw = json.loads(resp.choices[0].message.content)
+        steps = raw if isinstance(raw, list) else raw.get("sequences", raw.get("steps", []))
+
+        # Normalize to SmartLead format
+        sequences = []
+        for i, step in enumerate(steps[:3], 1):
+            sequences.append({
+                "seq_number": i,
+                "seq_delay_details": {"delay_in_days": [0, 3, 5][i - 1]},
+                "subject": step.get("subject", f"Follow-up #{i}"),
+                "email_body": step.get("email_body", step.get("body", "")),
+            })
+        return sequences
+    except Exception as e:
+        logger.warning(f"GPT sequence generation failed: {e}")
+        return []
+
+
 # ============= SmartLead Draft Campaign =============
 
 class PushToSmartleadRequest(BaseModel):
@@ -1768,6 +1823,25 @@ async def push_contacts_to_smartlead(
         raise HTTPException(status_code=500, detail=f"Failed to create SmartLead campaign: {e}")
 
     campaign_id = campaign_result["id"]
+
+    # Generate and set email sequence for the campaign
+    try:
+        project_name = ""
+        segment_name = ""
+        if valid_contacts[0].project_id:
+            proj_row = await session.execute(
+                select(Project).where(Project.id == valid_contacts[0].project_id)
+            )
+            proj_obj = proj_row.scalar_one_or_none()
+            if proj_obj:
+                project_name = proj_obj.name or ""
+        segment_name = (valid_contacts[0].segment or "").split("#")[0].strip()
+
+        sequences = await _generate_outreach_sequence(project_name, segment_name)
+        if sequences:
+            await smartlead_service.set_campaign_sequences(campaign_id, sequences)
+    except Exception as e:
+        logger.warning(f"Failed to generate sequence for campaign {campaign_id}: {e}")
 
     # Format leads for SmartLead
     leads = []
