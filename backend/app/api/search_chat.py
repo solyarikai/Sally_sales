@@ -2726,9 +2726,14 @@ async def _handle_clay_gather(
                     f"(searched {len(domains)} validated domains)"
                 )
 
-                # Retry once if coverage is too low (< 50% of target company count)
+                # Retry once if coverage is too low (< 50% of target contacts OR companies)
                 min_companies_needed = max(company_count // 2, 3)
-                if len(_people_domains) < min_companies_needed and len(domains) >= min_companies_needed:
+                min_contacts_needed = max(contact_count // 2, 10)
+                _needs_retry = (
+                    (len(_people_domains) < min_companies_needed or len(people) < min_contacts_needed)
+                    and len(domains) >= min_companies_needed
+                )
+                if _needs_retry:
                     logger.info(
                         f"Clay gather: low coverage ({len(_people_domains)}/{min_companies_needed} min), retrying People search..."
                     )
