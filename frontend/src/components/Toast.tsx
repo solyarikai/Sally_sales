@@ -51,7 +51,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = Math.random().toString(36).substring(7);
-    setToasts((prev) => [...prev, { ...toast, id }]);
+    setToasts((prev) => {
+      // Dedup: skip if same title+type already visible
+      if (prev.some((t) => t.title === toast.title && t.type === toast.type)) return prev;
+      return [...prev, { ...toast, id }];
+    });
   }, []);
 
   const dismiss = useCallback((id: string) => {

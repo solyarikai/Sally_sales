@@ -660,6 +660,22 @@ export function ContactsPage() {
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
     {
+      field: 'linkedin_url',
+      headerName: 'LinkedIn',
+      filter: 'agTextColumnFilter',
+      sortable: false,
+      width: 90,
+      cellRenderer: (params: { value: string }) => {
+        if (!params.value) return '-';
+        return (
+          <a href={params.value} target="_blank" rel="noopener noreferrer"
+            className="text-blue-500 hover:text-blue-700 underline text-xs">
+            Profile
+          </a>
+        );
+      },
+    },
+    {
       field: 'created_at',
       headerName: 'Added',
       sortable: true,
