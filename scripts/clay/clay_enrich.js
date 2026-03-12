@@ -108,6 +108,9 @@ async function validateSession(page) {
   });
 }
 
+// --- Proven helpers from run_inxy_clay.js / clay_people_search.js ---
+// TreeWalker-based text finding — precise, React-compatible
+
 async function findByText(page, text, exact = true) {
   return page.evaluate((text, exact) => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -116,53 +119,98 @@ async function findByText(page, text, exact = true) {
       const match = exact ? node.textContent.trim() === text : node.textContent.trim().includes(text);
       if (match && node.parentElement?.offsetParent !== null) {
         const rect = node.parentElement.getBoundingClientRect();
-        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, right: rect.x + rect.width - 8 };
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, right: rect.x + rect.width - 8, text: node.parentElement.textContent.trim().substring(0, 60) };
       }
     }
     return null;
   }, text, exact);
 }
 
-async function findClickableByText(page, text, exact = false) {
+async function findAllByText(page, text, exact = false) {
   return page.evaluate((text, exact) => {
-    const els = [...document.querySelectorAll('button, div[role="button"], div[role="menuitem"], div[role="option"], a, li')];
-    for (const el of els) {
-      const t = el.textContent?.trim() || '';
-      const match = exact ? t === text : t.toLowerCase().includes(text.toLowerCase());
-      if (match && el.offsetParent !== null) {
-        const rect = el.getBoundingClientRect();
-        if (rect.width > 10) return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: t.substring(0, 80) };
+    const results = [];
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (walk.nextNode()) {
+      const node = walk.currentNode;
+      const match = exact ? node.textContent.trim() === text : node.textContent.trim().toLowerCase().includes(text.toLowerCase());
+      if (match && node.parentElement?.offsetParent !== null) {
+        const rect = node.parentElement.getBoundingClientRect();
+        if (rect.width > 10) {
+          results.push({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: node.textContent.trim().substring(0, 80) });
+        }
       }
     }
-    return null;
+    return results;
   }, text, exact);
+}
+
+async function realClickText(page, text, exact = true) {
+  const pos = await findByText(page, text, exact);
+  if (pos) {
+    await page.mouse.click(pos.x, pos.y);
+    return pos.text;
+  }
+  return null;
+}
+
+async function findButton(page, text) {
+  return page.evaluate((text) => {
+    const buttons = [...document.querySelectorAll('button')];
+    const btn = buttons.find(b => {
+      const t = b.textContent?.trim();
+      return t === text || t?.toLowerCase() === text.toLowerCase();
+    });
+    if (btn && btn.offsetParent !== null) {
+      const rect = btn.getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, disabled: btn.disabled, text: btn.textContent.trim().substring(0, 60) };
+    }
+    return null;
+  }, text);
+}
+
+async function realClickButton(page, text) {
+  const btn = await findButton(page, text);
+  if (btn && !btn.disabled) {
+    await page.mouse.click(btn.x, btn.y);
+    return `clicked: ${btn.text}`;
+  }
+  return btn ? `disabled: ${btn.text}` : null;
+}
+
+async function waitForText(page, text, timeout = 20000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const found = await page.evaluate(t => document.body?.textContent?.includes(t), text);
+    if (found) return true;
+    await sleep(400);
+  }
+  return false;
+}
+
+async function waitForButtonEnabled(page, text, timeout = 10000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const btn = await findButton(page, text);
+    if (btn && !btn.disabled) return true;
+    await sleep(300);
+  }
+  return false;
+}
+
+async function listButtons(page) {
+  return page.evaluate(() =>
+    [...document.querySelectorAll('button')]
+      .filter(b => b.offsetParent !== null)
+      .map(b => ({ text: b.textContent?.trim().substring(0, 60), disabled: b.disabled }))
+  );
 }
 
 function extractIdsFromUrl(url) {
   const tableMatch = url.match(/tableId=([^&]+)/);
-  const wbMatch = url.match(/workbookId=([^&]+)/);
   const pathMatch = url.match(/tables\/([^/?]+)/);
   return {
     tableId: tableMatch?.[1] || pathMatch?.[1] || null,
-    workbookId: wbMatch?.[1] || null,
   };
-}
-
-async function listVisibleButtons(page) {
-  return page.evaluate(() =>
-    [...document.querySelectorAll('button, div[role="button"]')]
-      .filter(b => b.offsetParent !== null)
-      .map(b => b.textContent?.trim().substring(0, 80))
-      .filter(t => t && t.length > 1)
-  );
-}
-
-async function listVisibleInputs(page) {
-  return page.evaluate(() =>
-    [...document.querySelectorAll('input, textarea')]
-      .filter(i => i.offsetParent !== null)
-      .map(i => ({ placeholder: i.placeholder, type: i.type, name: i.name, id: i.id }))
-  );
 }
 
 // ============================================================
@@ -175,69 +223,121 @@ async function uploadCSV(page, filePath) {
 
   // Step 1: Navigate to workspace home
   await page.goto(`https://app.clay.com/workspaces/${WORKSPACE_ID}/home`, { waitUntil: 'networkidle2', timeout: 30000 });
-  await humanDelay(2000, 3000);
+  await humanDelay(2000, 3500);
 
-  // Step 2: Create new workbook via "New" button
-  console.log('  Creating new workbook...');
-  const newBtn = await page.$('[data-testid="create-new"]');
-  if (!newBtn) {
-    await screenshot(page, 'upload_err_no_new_btn');
-    throw new Error('"New" button (data-testid="create-new") not found on workspace home');
+  // Step 2: Import data → Import CSV (pattern from run_inxy_clay.js)
+  let r = await realClickText(page, 'Import data', false);
+  console.log(`  Import data: ${r || 'not found, trying New → Workbook...'}`);
+  await humanDelay(1000, 1800);
+
+  if (r) {
+    // Try clicking "Import CSV" in the menu that appeared
+    const r2 = await realClickText(page, 'Import CSV');
+    console.log(`  Import CSV: ${r2 || 'FAIL'}`);
+    await humanDelay(1500, 2500);
   }
-  await newBtn.click();
-  await humanDelay(1000, 2000);
 
-  const wbBtn = await page.$('[data-testid="new-workbook"]');
-  if (!wbBtn) {
-    await screenshot(page, 'upload_err_no_workbook_btn');
-    throw new Error('"Workbook" option (data-testid="new-workbook") not found in New menu');
-  }
-  await wbBtn.click();
-  await humanDelay(3000, 5000);
-  console.log(`  Workbook created: ${page.url()}`);
-  await screenshot(page, 'upload_01_workbook_created');
-
-  // Step 3: Click "Import from CSV" inside the workbook
-  const csvBtn = await findClickableByText(page, 'Import from CSV');
-  if (!csvBtn) {
-    const btns = await listVisibleButtons(page);
-    console.log('  Available buttons:', btns.join(' | '));
-    await screenshot(page, 'upload_err_no_csv_btn');
-    throw new Error('"Import from CSV" button not found in workbook');
-  }
-  console.log(`  Clicking: "${csvBtn.text}"`);
-  await page.mouse.click(csvBtn.x, csvBtn.y);
-  await humanDelay(2000, 3000);
-  await screenshot(page, 'upload_02_csv_clicked');
-
-  // Step 4: Find file input (may be hidden with display:none) and upload
+  // Check if we have a file input — if not, the "Import data" path failed (e.g. billing redirect)
   let fileInput = await page.$('input[type="file"]');
   if (!fileInput) {
-    // Wait a bit more and retry
+    // Fallback: New → Workbook → Import from CSV
+    console.log('  Fallback: New → Workbook → Import from CSV');
+    await page.goto(`https://app.clay.com/workspaces/${WORKSPACE_ID}/home`, { waitUntil: 'networkidle2', timeout: 30000 });
     await humanDelay(2000, 3000);
+
+    const newBtn = await page.$('[data-testid="create-new"]');
+    if (newBtn) {
+      await newBtn.click();
+      await humanDelay(1000, 2000);
+      const wbBtn = await page.$('[data-testid="new-workbook"]');
+      if (wbBtn) {
+        await wbBtn.click();
+        await humanDelay(3000, 5000);
+        console.log(`  Workbook created: ${page.url()}`);
+      }
+    }
+
+    r = await realClickText(page, 'Import from CSV');
+    console.log(`  Import from CSV: ${r || 'FAIL'}`);
+    await humanDelay(2000, 3000);
+
     fileInput = await page.$('input[type="file"]');
   }
+
+  await screenshot(page, 'upload_01_ready');
+
+  // Step 3: Upload CSV file
   if (!fileInput) {
     await screenshot(page, 'upload_err_no_file_input');
-    throw new Error('No file input found after clicking Import from CSV');
+    throw new Error('No file input found on page');
   }
-  console.log('  Uploading file...');
+  await humanDelay(400, 800);
   await fileInput.uploadFile(filePath);
-  await humanDelay(3000, 5000);
-  await screenshot(page, 'upload_03_file_uploaded');
+  console.log('  File uploaded');
 
-  // Step 5: Click "Complete import" button
-  for (const label of ['Complete import', 'Import', 'Continue', 'Create table', 'Confirm', 'Done']) {
-    const btn = await findClickableByText(page, label);
-    if (btn) {
-      console.log(`  Clicking: "${btn.text}"`);
-      await page.mouse.click(btn.x, btn.y);
-      await humanDelay(3000, 5000);
-      break;
-    }
+  // Wait for "100% completed" or similar
+  const uploaded = await waitForText(page, '100%', 30000);
+  if (uploaded) console.log('  Upload finalized');
+  await humanDelay(1000, 2000);
+  await screenshot(page, 'upload_02_uploaded');
+
+  // Step 4: Continue through import wizard (pattern from run_inxy_clay.js)
+  r = await realClickButton(page, 'Continue');
+  console.log(`  Continue: ${r || 'not found'}`);
+  await humanDelay(2000, 3500);
+
+  // Delimiter screen
+  if (await page.evaluate(() => document.body?.textContent?.includes('Delimiter'))) {
+    console.log('  Delimiter screen detected');
+    r = await realClickButton(page, 'Continue');
+    console.log(`  Continue: ${r || 'FAIL'}`);
+    await humanDelay(2000, 3500);
   }
 
-  await screenshot(page, 'upload_04_imported');
+  // New blank table selection (pattern from run_inxy_clay.js)
+  if (await page.evaluate(() => document.body?.textContent?.includes('New blank table'))) {
+    console.log('  Selecting "New blank table"...');
+    const cardPos = await page.evaluate(() => {
+      const allDivs = [...document.querySelectorAll('div')];
+      for (const div of allDivs) {
+        if (div.textContent?.trim() === 'New blank table' && div.children.length >= 1) {
+          let card = div.parentElement;
+          while (card && card.getBoundingClientRect().width < 100) card = card.parentElement;
+          if (card) {
+            const rect = card.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+          }
+        }
+      }
+      return null;
+    });
+    if (cardPos) await page.mouse.click(cardPos.x, cardPos.y);
+    else await realClickText(page, 'New blank table');
+    await humanDelay(500, 1000);
+
+    // Wait for Continue/Complete import to become enabled
+    for (const label of ['Complete import', 'Continue']) {
+      const enabled = await waitForButtonEnabled(page, label, 5000);
+      if (enabled) {
+        r = await realClickButton(page, label);
+        console.log(`  ${r || 'FAIL'}`);
+        break;
+      }
+    }
+    await humanDelay(5000, 8000);
+  } else {
+    // Direct "Complete import" flow
+    for (const label of ['Complete import', 'Import', 'Continue', 'Create table', 'Done']) {
+      r = await realClickButton(page, label);
+      if (r && !r.startsWith('disabled')) {
+        console.log(`  ${r}`);
+        break;
+      }
+    }
+    await humanDelay(3000, 5000);
+  }
+
+  await screenshot(page, 'upload_03_imported');
 
   // Extract table ID from URL
   let tableId = null;
@@ -458,51 +558,25 @@ async function addFindymailEnrichment(page, tableId, linkedinColName) {
 
   await screenshot(page, 'findymail_01_table');
 
-  // Click "+ Add column"
-  const addColBtn = await findClickableByText(page, 'Add column');
-  if (!addColBtn) {
-    // Try finding "+" button near table header
-    const plusCol = await page.evaluate(() => {
-      const els = [...document.querySelectorAll('button, div[role="button"]')];
-      const el = els.find(e => {
-        const t = e.textContent?.trim();
-        return (t === '+' || t === '+ Add column') && e.offsetParent !== null;
-      });
-      if (!el) return null;
-      const rect = el.getBoundingClientRect();
-      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-    });
-    if (plusCol) {
-      await page.mouse.click(plusCol.x, plusCol.y);
-    } else {
-      const btns = await listVisibleButtons(page);
-      console.log('  Buttons:', btns.join(' | '));
-      throw new Error('"+ Add column" not found');
-    }
-  } else {
-    console.log(`  Clicking: "${addColBtn.text}"`);
-    await page.mouse.click(addColBtn.x, addColBtn.y);
+  // Click "Add column" button (exact text match via findButton)
+  let r = await realClickButton(page, 'Add column');
+  if (!r) {
+    // Fallback: try via TreeWalker
+    r = await realClickText(page, 'Add column');
   }
-
+  console.log(`  Add column: ${r || 'FAIL'}`);
   await humanDelay(1500, 2500);
-  await screenshot(page, 'findymail_02_add_column_panel');
+  await screenshot(page, 'findymail_02_panel');
 
-  // Right panel should now show enrichment search
-  // Type "findymail" in the search input
+  // Type "findymail" in the search input in the right panel (Tools)
   const searchInput = await page.evaluate(() => {
-    // Look for the search input in the right panel
-    const inputs = [...document.querySelectorAll('input[placeholder*="Search"], input[placeholder*="search"], input[type="search"]')];
-    const visible = inputs.filter(i => i.offsetParent !== null);
-    if (visible.length > 0) {
-      const rect = visible[0].getBoundingClientRect();
-      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-    }
-    // Fallback: any focused or prominent input in right side of screen
-    const rightInputs = [...document.querySelectorAll('input')]
-      .filter(i => i.offsetParent !== null && i.getBoundingClientRect().x > 800);
-    if (rightInputs.length > 0) {
-      const rect = rightInputs[0].getBoundingClientRect();
-      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null);
+    // Prefer input in right panel (x > 400)
+    for (const inp of inputs) {
+      const r = inp.getBoundingClientRect();
+      if (r.x > 400) {
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }
     }
     return null;
   });
@@ -510,139 +584,88 @@ async function addFindymailEnrichment(page, tableId, linkedinColName) {
   if (searchInput) {
     await page.mouse.click(searchInput.x, searchInput.y);
     await humanDelay(300, 500);
-    await page.keyboard.type('findymail', { delay: 50 + Math.random() * 30 });
-    await humanDelay(1500, 2500);
-  } else {
-    // Try just typing — sometimes the search is auto-focused
-    console.log('  No search input found, trying to type directly...');
-    await page.keyboard.type('findymail', { delay: 50 + Math.random() * 30 });
-    await humanDelay(1500, 2500);
   }
+  await page.keyboard.type('findymail', { delay: 50 + Math.random() * 30 });
+  await humanDelay(2000, 3000);
+  await screenshot(page, 'findymail_03_search');
 
-  await screenshot(page, 'findymail_03_search_results');
-
-  // Click "Find Work Email from Profile URL" (Enrichment • Findymail)
-  const findymailOption = await page.evaluate(() => {
-    const allEls = [...document.querySelectorAll('div, button, li, a, span')];
-    for (const el of allEls) {
-      const t = el.textContent?.trim().toLowerCase() || '';
-      if (t.includes('find work email from profile url') && el.offsetParent !== null) {
-        const rect = el.getBoundingClientRect();
-        if (rect.width > 100 && rect.height > 20) {
-          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: el.textContent.trim().substring(0, 80) };
-        }
-      }
-    }
-    // Fallback: any element mentioning "profile url" + "findymail"
-    for (const el of allEls) {
-      const t = el.textContent?.trim().toLowerCase() || '';
-      if (t.includes('profile url') && t.includes('findymail') && el.offsetParent !== null) {
-        const rect = el.getBoundingClientRect();
-        if (rect.width > 100) return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: el.textContent.trim().substring(0, 80) };
-      }
-    }
-    return null;
-  });
-
-  if (findymailOption) {
-    console.log(`  Clicking: "${findymailOption.text}"`);
-    await page.mouse.click(findymailOption.x, findymailOption.y);
+  // Click "Find Work Email from Profile URL" using TreeWalker (proven pattern)
+  // This finds the exact text node, not a parent container
+  const fmOption = await findByText(page, 'Find Work Email from Profile URL');
+  if (fmOption) {
+    console.log('  Clicking: "Find Work Email from Profile URL"');
+    await page.mouse.click(fmOption.x, fmOption.y);
   } else {
-    // List what we see in the search results
-    const results = await page.evaluate(() => {
-      return [...document.querySelectorAll('div, li')]
-        .filter(el => el.offsetParent !== null && el.textContent?.toLowerCase().includes('findymail'))
-        .map(el => el.textContent.trim().substring(0, 100));
-    });
-    console.log('  Findymail results found:', results);
-    await screenshot(page, 'findymail_04_not_found');
-    throw new Error('"Find Work Email from Profile URL" not found in enrichment list');
+    // Fallback: try partial match
+    const fmPartial = await findByText(page, 'Find Work Email from Profile', false);
+    if (fmPartial) {
+      console.log('  Clicking (partial): "Find Work Email from Profile..."');
+      await page.mouse.click(fmPartial.x, fmPartial.y);
+    } else {
+      // List all findymail-related results for debugging
+      const results = await findAllByText(page, 'findymail');
+      console.log('  Findymail results:', results.map(r => r.text));
+      await screenshot(page, 'findymail_err_not_found');
+      throw new Error('"Find Work Email from Profile URL" not found in enrichment list');
+    }
   }
 
   await humanDelay(2000, 3500);
   await screenshot(page, 'findymail_04_config');
 
-  // Now we need to map the LinkedIn column as input
-  // Clay shows a configuration panel for the enrichment
-  // Look for dropdown/select that maps the LinkedIn column
+  // Configure input mapping — find the LinkedIn column selector
   console.log('  Configuring input mapping...');
 
-  // Look for a dropdown or select that mentions "LinkedIn" or "Profile URL" or column selection
-  // Usually Clay shows a dropdown with available columns
-  const configureInput = await page.evaluate((linkedinCol) => {
-    // Find any dropdown, select, or clickable element that could be the column selector
-    const selects = [...document.querySelectorAll('select, [role="listbox"], [role="combobox"]')];
-    for (const s of selects) {
-      if (s.offsetParent !== null) {
-        const rect = s.getBoundingClientRect();
-        return { type: 'select', x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-      }
-    }
-
-    // Look for buttons/divs that look like column selectors (often show "Select column" or a column name)
-    const els = [...document.querySelectorAll('button, div[role="button"], div[class*="select"], div[class*="dropdown"]')];
-    for (const el of els) {
-      const t = el.textContent?.trim().toLowerCase() || '';
-      if ((t.includes('select') || t.includes('column') || t.includes('choose') || t.includes('linkedin') || t.includes('profile'))
-          && el.offsetParent !== null) {
-        const rect = el.getBoundingClientRect();
-        if (rect.width > 50 && rect.height > 15 && rect.x > 200) {
-          return { type: 'dropdown', x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: t.substring(0, 50) };
-        }
-      }
-    }
-
-    return null;
-  }, linkedinColName);
-
-  if (configureInput) {
-    console.log(`  Found config element (${configureInput.type}): ${configureInput.text || ''}`);
-    await page.mouse.click(configureInput.x, configureInput.y);
-    await humanDelay(800, 1500);
-
-    // Now look for the LinkedIn column option in the dropdown
-    const linkedinOption = await page.evaluate((colName) => {
-      const options = [...document.querySelectorAll('div[role="option"], li, div[role="menuitem"], option')];
-      for (const opt of options) {
-        const t = opt.textContent?.trim() || '';
-        if (t.toLowerCase().includes(colName.toLowerCase()) && opt.offsetParent !== null) {
-          const rect = opt.getBoundingClientRect();
-          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: t.substring(0, 50) };
-        }
-      }
-      // Broader search: any visible element matching the column name
-      const els = [...document.querySelectorAll('div, span, li')];
-      for (const el of els) {
-        const t = el.textContent?.trim() || '';
-        if (t === colName && el.offsetParent !== null) {
-          const rect = el.getBoundingClientRect();
-          if (rect.width > 20) return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: t };
-        }
-      }
-      return null;
-    }, linkedinColName);
-
-    if (linkedinOption) {
-      console.log(`  Selecting column: "${linkedinOption.text}"`);
-      await page.mouse.click(linkedinOption.x, linkedinOption.y);
-      await humanDelay(800, 1200);
-    } else {
-      console.log(`  WARNING: Column "${linkedinColName}" not found in dropdown`);
-      await screenshot(page, 'findymail_05_no_column');
-    }
+  // Look for column selector dropdown — usually a button/div showing "Select column" or a column name
+  // Try finding by text patterns
+  let mapped = false;
+  const configEl = await findByText(page, 'LinkedIn', false);
+  if (configEl) {
+    console.log('  LinkedIn column already mapped');
+    mapped = true;
   } else {
-    // Clay might auto-detect the LinkedIn column — check if it's already mapped
-    console.log('  No column selector found — Clay may have auto-mapped the column');
+    // Look for "Select" or "Choose" button in the config panel (right side)
+    for (const selectText of ['Select a column', 'Select column', 'Choose', '/']) {
+      const selectBtn = await findByText(page, selectText, false);
+      if (selectBtn) {
+        console.log(`  Clicking selector: "${selectText}"`);
+        await page.mouse.click(selectBtn.x, selectBtn.y);
+        await humanDelay(800, 1500);
+
+        // Now find LinkedIn in the dropdown
+        const linkedinOpt = await findByText(page, linkedinColName);
+        if (linkedinOpt) {
+          console.log(`  Selecting: "${linkedinColName}"`);
+          await page.mouse.click(linkedinOpt.x, linkedinOpt.y);
+          await humanDelay(500, 1000);
+          mapped = true;
+        }
+        break;
+      }
+    }
+  }
+
+  if (!mapped) {
+    console.log('  WARNING: Could not map LinkedIn column — Clay may auto-detect it');
+    const btns = await listButtons(page);
+    console.log('  Buttons:', btns.filter(b => !b.disabled).map(b => b.text).join(' | '));
   }
 
   await screenshot(page, 'findymail_05_configured');
 
-  // Click "Save" / "Run" / "Continue" / "Enrich" to start the enrichment
+  // Click "Save" / "Run" / "Continue" to start enrichment
   for (const label of ['Save', 'Run enrichment', 'Enrich', 'Continue', 'Run', 'Apply']) {
-    const btn = await findClickableByText(page, label);
-    if (btn) {
-      console.log(`  Clicking: "${btn.text}"`);
-      await page.mouse.click(btn.x, btn.y);
+    r = await realClickButton(page, label);
+    if (r && !r.startsWith('disabled')) {
+      console.log(`  ${r}`);
+      await humanDelay(2000, 3000);
+      break;
+    }
+    // Also try via text
+    const pos = await findByText(page, label);
+    if (pos) {
+      console.log(`  Clicking: "${label}"`);
+      await page.mouse.click(pos.x, pos.y);
       await humanDelay(2000, 3000);
       break;
     }
