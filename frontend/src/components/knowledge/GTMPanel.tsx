@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, Target, TrendingUp, ExternalLink, Sparkles, AlertTriangle, ArrowRight, Calendar, Zap } from 'lucide-react';
+import { Loader2, Target, TrendingUp, Sparkles, AlertTriangle, ArrowRight, Calendar, Zap } from 'lucide-react';
 import type { ThemeTokens } from '../../lib/themeColors';
 import { contactsApi } from '../../api/contacts';
 import type { GTMData } from '../../api/contacts';
