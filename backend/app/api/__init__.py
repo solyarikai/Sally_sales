@@ -33,6 +33,7 @@ from .query_dashboard import router as query_dashboard_router
 from .operator_tasks import router as operator_tasks_router
 from .god_panel import router as god_panel_router
 from .chat_intel import router as chat_intel_router
+from .diaspora import router as diaspora_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -103,5 +104,8 @@ api_router.include_router(god_panel_router)
 
 # Chat Intelligence (Telegram chat analysis)
 api_router.include_router(chat_intel_router)
+
+# Diaspora Contact Gathering
+api_router.include_router(diaspora_router)
 
 __all__ = ["api_router"]
