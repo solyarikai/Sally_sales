@@ -2828,12 +2828,8 @@ async def _handle_clay_gather(
                 # Sort: decision-makers first, then by role priority
                 filtered.sort(key=lambda c: (0 if c.get("_is_decision_maker") else 1, c.get("_role_priority", 99)))
 
-                # Limit to requested company_count unique companies and contact_count contacts.
-                # Group by DOMAIN (not company name) — Clay returns name variants that inflate count.
-                # max_per_company = hard cap; base_per_company = initial allocation.
-                # Gap between them creates the overflow pool for filling shortfalls.
-                base_target = max(3, contact_count // company_count) if company_count else 3
-                max_per_company = min(base_target + 2, 5)  # Allow 2 extra per company for overflow
+                # Group by DOMAIN — select contact_count DECISION-MAKERS from top companies.
+                # Non-DMs only added if DM pool exhausted.
                 from collections import defaultdict
                 domain_contacts: dict[str, list] = defaultdict(list)
                 for c in filtered:
@@ -2843,35 +2839,45 @@ async def _handle_clay_gather(
                 # Rank companies: most DMs first, then by best role priority
                 company_scores = []
                 for d, contacts_list in domain_contacts.items():
-                    dm_count = sum(1 for x in contacts_list if x.get("_is_decision_maker"))
-                    best_priority = min(x.get("_role_priority", 99) for x in contacts_list)
-                    company_scores.append((d, dm_count, best_priority, contacts_list))
+                    dms = [x for x in contacts_list if x.get("_is_decision_maker")]
+                    non_dms = [x for x in contacts_list if not x.get("_is_decision_maker")]
+                    dms.sort(key=lambda c: c.get("_role_priority", 99))
+                    non_dms.sort(key=lambda c: c.get("_role_priority", 99))
+                    best_priority = dms[0].get("_role_priority", 99) if dms else 99
+                    company_scores.append((d, len(dms), best_priority, dms, non_dms))
                 company_scores.sort(key=lambda x: (-x[1], x[2]))
 
                 logger.info(
                     f"Clay gather round-robin: {len(domain_contacts)} domain groups, "
-                    f"top domains: {[(d, len(cl)) for d, _, _, cl in company_scores[:15]]}"
+                    f"top domains: {[(d, dm_n, len(ndm)) for d, dm_n, _, _, ndm in company_scores[:15]]}"
                 )
 
-                # Take top company_count companies, cap contacts per company
+                # Take top company_count companies, fill with DMs first
                 top_companies = company_scores[:company_count]
-                n_companies = len(top_companies)
+                max_dm_per_company = max(3, contact_count // max(len(top_companies), 1))
+                selected: list = []
+                overflow_dms: list = []
+                all_non_dms: list = []
 
-                if n_companies > 0:
-                    base_per_company = min(base_target, max(1, contact_count // n_companies))
-                    selected: list = []
-                    remainder: list = []
-                    for _d, _dm, _bp, contacts_list in top_companies:
-                        selected.extend(contacts_list[:base_per_company])
-                        remainder.extend(contacts_list[base_per_company:max_per_company])
+                for _d, _dm_n, _bp, dms, non_dms in top_companies:
+                    take = min(max_dm_per_company, len(dms))
+                    selected.extend(dms[:take])
+                    overflow_dms.extend(dms[take:])
+                    all_non_dms.extend(non_dms)
 
-                    # Fill remaining slots from leftover contacts (best roles first)
-                    remainder.sort(key=lambda c: (0 if c.get("_is_decision_maker") else 1, c.get("_role_priority", 99)))
-                    remaining_slots = contact_count - len(selected)
-                    if remaining_slots > 0:
-                        selected.extend(remainder[:remaining_slots])
+                # Fill remaining DM slots from overflow (other companies' extra DMs)
+                overflow_dms.sort(key=lambda c: c.get("_role_priority", 99))
+                remaining = contact_count - len(selected)
+                if remaining > 0:
+                    selected.extend(overflow_dms[:remaining])
+                    remaining = contact_count - len(selected)
 
-                    filtered = selected[:contact_count]
+                # Last resort: fill with non-DMs if not enough DMs exist
+                if remaining > 0:
+                    all_non_dms.sort(key=lambda c: c.get("_role_priority", 99))
+                    selected.extend(all_non_dms[:remaining])
+
+                filtered = selected[:contact_count]
 
                 stats["total_output"] = len(filtered)
                 stats["decision_makers"] = sum(1 for c in filtered if c.get("_is_decision_maker"))
