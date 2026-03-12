@@ -494,11 +494,11 @@ async function runPeopleSearch(page, filters, label = 'default') {
     return null;
   }
 
-  // Wait for table to fully populate
+  // Wait for table to fully populate (Clay async population takes 15-60s)
   console.log('  Waiting for table data to load...');
-  await humanDelay(5000, 8000);
+  await humanDelay(12000, 15000);
   await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
-  await humanDelay(3000, 5000);
+  await humanDelay(5000, 8000);
   await screenshot(page, `${label}_05_table_loaded`);
 
   // Try to export CSV via UI: Actions → Export
@@ -607,16 +607,41 @@ async function readTableFromBrowser(page, tableId) {
     } catch (e) { return { error: e.message }; }
   }, tableId);
 
+  if (tableMeta?.error) {
+    console.log(`  WARNING: Table metadata fetch failed: ${tableMeta.error}`);
+  }
+
   const fieldMap = {};
   for (const field of (tableMeta?.table?.fields || [])) {
     fieldMap[field.id] = field.name;
   }
   console.log(`  Fields: ${Object.values(fieldMap).join(', ')}`);
 
-  // Get record IDs
-  const viewId = page.url().match(/views\/([^/?&]+)/)?.[1] || tableMeta?.table?.firstViewId;
+  // Get viewId with retry — URL may not have updated yet
+  let viewId = null;
+  for (let viewAttempt = 0; viewAttempt < 3; viewAttempt++) {
+    viewId = page.url().match(/views\/([^/?&]+)/)?.[1] || tableMeta?.table?.firstViewId || null;
+    if (viewId) {
+      console.log(`  ViewId found: ${viewId} (attempt ${viewAttempt + 1})`);
+      break;
+    }
+    console.log(`  WARNING: ViewId not found in URL or table metadata (attempt ${viewAttempt + 1}/3), waiting 5s...`);
+    console.log(`  Current URL: ${page.url()}`);
+    console.log(`  Table firstViewId: ${tableMeta?.table?.firstViewId || 'undefined'}`);
+    await sleep(5000);
+    // Reload and re-check URL
+    await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
+    await humanDelay(2000, 3000);
+  }
+
+  if (!viewId) {
+    console.log('  ERROR: ViewId not found after 3 attempts. Cannot read records.');
+    return [];
+  }
+
+  // Get record IDs with retry if empty (table may still be populating)
   let recordIds = [];
-  if (viewId) {
+  for (let idsAttempt = 0; idsAttempt < 2; idsAttempt++) {
     const idsData = await page.evaluate(async (tid, vid) => {
       try {
         const res = await fetch(`https://api.clay.com/v3/tables/${tid}/views/${vid}/records/ids`, {
@@ -625,7 +650,25 @@ async function readTableFromBrowser(page, tableId) {
         return await res.json();
       } catch (e) { return { error: e.message }; }
     }, tableId, viewId);
+
+    if (idsData?.error) {
+      console.log(`  WARNING: Record IDs fetch failed: ${idsData.error}`);
+    }
     recordIds = idsData?.results || [];
+
+    if (recordIds.length > 0) {
+      console.log(`  Record IDs: ${recordIds.length} (attempt ${idsAttempt + 1})`);
+      break;
+    }
+
+    if (idsAttempt === 0) {
+      console.log(`  WARNING: 0 record IDs returned (attempt 1/2). Table may still be populating. Waiting 10s and retrying...`);
+      await sleep(10000);
+      await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
+      await humanDelay(3000, 5000);
+    } else {
+      console.log(`  WARNING: 0 record IDs returned after retry. Table may be empty.`);
+    }
   }
   console.log(`  Record IDs: ${recordIds.length}`);
 

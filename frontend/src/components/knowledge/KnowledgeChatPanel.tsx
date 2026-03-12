@@ -108,6 +108,13 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
         });
         setMessages(fixed);
         setHistoryLoaded(true);
+        // If the pipeline already finished, ensure no loading/streaming state lingers
+        const lastSystem = [...fixed].reverse().find((m) => m.role === 'system' && m.action_type);
+        const lastAt = lastSystem?.action_type || '';
+        if (lastAt.includes('done') || lastAt.includes('error') || lastAt.includes('completed')) {
+          setIsLoading(false);
+          setIsStreaming(false);
+        }
         const lastWithSuggestions = [...fixed]
           .reverse()
           .find((m) => m.role === 'assistant' && m.suggestions?.length);
@@ -161,6 +168,11 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
             ];
           });
           if (data.suggestions?.length) setSuggestions(data.suggestions);
+          // Clear loading/streaming when pipeline finishes via live update
+          if (at.includes('done') || at.includes('error') || at.includes('completed')) {
+            setIsLoading(false);
+            setIsStreaming(false);
+          }
         }
       } catch {
         /* ignore */
@@ -423,9 +435,16 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
   };
 
   const lastMsg = messages[messages.length - 1];
-  const hasRunningPipeline = lastMsg?.role === 'system' &&
+  // Check if the last message is a substep/progress that is NOT from a completed pipeline
+  const lastIsProgressType = lastMsg?.role === 'system' &&
     (lastMsg.action_type?.includes('substep') || lastMsg.action_type?.includes('progress')) &&
     !lastMsg.action_type?.includes('done') && !lastMsg.action_type?.includes('completed') && !lastMsg.action_type?.includes('error');
+  // Also verify no done/error/completed message exists anywhere for the same pipeline prefix
+  const pipelineDone = lastIsProgressType && messages.some((m) => {
+    const at = m.action_type || '';
+    return at.includes('done') || at.includes('error') || at.includes('completed');
+  });
+  const hasRunningPipeline = lastIsProgressType && !pipelineDone;
 
   return (
     <div className="flex flex-col h-full">
@@ -463,7 +482,7 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
             message={message}
             projectId={projectId}
             onFeedback={handleFeedback}
-            isLast={i === messages.length - 1}
+            isLast={i === messages.length - 1 && !pipelineDone}
           />
         ))}
 
