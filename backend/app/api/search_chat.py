@@ -3126,31 +3126,33 @@ async def _handle_clay_gather(
                 except Exception as _fm_err:
                     logger.warning(f"FindyMail enrichment step failed: {_fm_err}")
 
-                # ── Seed contacts: merge previously verified contacts for same segment ──
+                # ── Seed contacts: merge previously verified DMs for PAYROLL queries only ──
                 seed_count = 0
-                try:
-                    # Find contacts from earlier clay jobs in same project+segment that have real emails
-                    _seed_rows = (await task_db.execute(
-                        select(Contact).where(
-                            Contact.project_id == project_id,
-                            Contact.segment == segment_label,
-                            Contact.source_id != f"clay_{job_id}",
-                            Contact.deleted_at.is_(None),
-                            ~Contact.email.like("%@linkedin.placeholder"),
-                            ~Contact.email.like("%@%.placeholder"),
-                            Contact.email.isnot(None),
-                        )
-                    )).scalars().all()
-                    for _seed in _seed_rows:
-                        # Re-tag with current job source_id so they appear in CRM filter
-                        _seed.source_id = f"clay_{job_id}"
-                        seed_count += 1
-                    if seed_count > 0:
-                        await task_db.commit()
-                        promoted_contacts += seed_count
-                        logger.info(f"Seeded {seed_count} verified contacts from earlier jobs into clay_{job_id}")
-                except Exception as _seed_err:
-                    logger.warning(f"Seed contacts step failed: {_seed_err}")
+                _is_payroll_query = "payroll" in (segment_desc or "").lower()
+                if _is_payroll_query:
+                    try:
+                        # Find DM contacts from earlier clay jobs with real emails for payroll segment
+                        _seed_rows = (await task_db.execute(
+                            select(Contact).where(
+                                Contact.project_id == project_id,
+                                Contact.segment.ilike("%payroll%"),
+                                Contact.source_id != f"clay_{job_id}",
+                                ~Contact.source_id.like("%_unresolved"),
+                                Contact.deleted_at.is_(None),
+                                ~Contact.email.like("%@linkedin.placeholder"),
+                                ~Contact.email.like("%@%.placeholder"),
+                                Contact.email.isnot(None),
+                            )
+                        )).scalars().all()
+                        for _seed in _seed_rows:
+                            # Re-tag with current job source_id so they appear in CRM filter
+                            _seed.source_id = f"clay_{job_id}"
+                            seed_count += 1
+                        if seed_count > 0:
+                            await task_db.commit()
+                            logger.info(f"Seeded {seed_count} verified payroll contacts from earlier jobs into clay_{job_id}")
+                    except Exception as _seed_err:
+                        logger.warning(f"Seed contacts step failed: {_seed_err}")
 
                 # ── Hide contacts that still have placeholder emails ──
                 hidden_placeholder = 0
