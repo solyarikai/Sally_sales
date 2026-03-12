@@ -411,6 +411,14 @@ class ClayService:
 
         CLAY_EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
+        # Clean stale output files to prevent data contamination between runs
+        for stale in CLAY_EXPORTS_DIR.glob("people_*.json"):
+            try:
+                stale.unlink()
+                logger.info(f"Clay People: cleaned stale file {stale.name}")
+            except Exception:
+                pass
+
         # Write domains to temp CSV for the script
         domains_file = CLAY_EXPORTS_DIR / f"domains_input_{project_id or 'tmp'}.csv"
         domains_file.write_text("\n".join(domains))
@@ -571,7 +579,25 @@ class ClayService:
             if person["name"]:  # Skip empty records
                 normalized.append(person)
 
-        logger.info(f"Clay People: {len(people)} raw → {len(normalized)} normalized contacts")
+        # Diagnostic: log domain coverage
+        _domains_found = set()
+        _domains_empty = 0
+        for p in normalized:
+            d = p.get("company_domain", "")
+            if d:
+                _domains_found.add(d)
+            else:
+                _domains_empty += 1
+        _searched = set(d.strip().lower().replace("www.", "") for d in domains if d.strip())
+        _matched = _domains_found & _searched
+        _unmatched = _domains_found - _searched
+        logger.info(
+            f"Clay People: {len(people)} raw → {len(normalized)} normalized, "
+            f"{len(_domains_found)} unique domains found (of {len(_searched)} searched), "
+            f"{len(_matched)} matched, {len(_unmatched)} unmatched, {_domains_empty} empty-domain"
+        )
+        if _unmatched:
+            logger.info(f"Clay People: unmatched domains sample: {list(_unmatched)[:10]}")
 
         # Extract table URL from results metadata if available
         table_url = None

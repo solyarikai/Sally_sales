@@ -2714,6 +2714,61 @@ async def _handle_clay_gather(
                 )
                 people = people_result["people"]
                 people_table_url = people_result.get("table_url", "")
+
+                # Diagnostic: count unique domains with contacts found
+                _people_domains = set()
+                for p in people:
+                    d = (p.get("company_domain") or p.get("domain") or "").strip().lower()
+                    if d:
+                        _people_domains.add(d)
+                logger.info(
+                    f"Clay gather People: {len(people)} contacts from {len(_people_domains)} unique domains "
+                    f"(searched {len(domains)} validated domains)"
+                )
+
+                # Retry once if coverage is too low (< 50% of target company count)
+                min_companies_needed = max(company_count // 2, 3)
+                if len(_people_domains) < min_companies_needed and len(domains) >= min_companies_needed:
+                    logger.info(
+                        f"Clay gather: low coverage ({len(_people_domains)}/{min_companies_needed} min), retrying People search..."
+                    )
+                    await _substep("Low contact coverage — retrying People search...")
+                    people_result2 = await clay_service.run_people_search(
+                        domains=domains,
+                        project_id=project_id,
+                        on_progress=_substep,
+                    )
+                    people2 = people_result2["people"]
+                    if people2:
+                        _people_domains2 = set()
+                        for p in people2:
+                            d = (p.get("company_domain") or p.get("domain") or "").strip().lower()
+                            if d:
+                                _people_domains2.add(d)
+                        logger.info(
+                            f"Clay gather retry: {len(people2)} contacts from {len(_people_domains2)} domains"
+                        )
+                        # Use whichever run returned more unique domains
+                        if len(_people_domains2) > len(_people_domains):
+                            people = people2
+                            _people_domains = _people_domains2
+                            people_table_url = people_result2.get("table_url", "") or people_table_url
+                            logger.info("Clay gather: retry produced better results, using retry data")
+                        else:
+                            # Merge: add contacts from retry for domains not in first run
+                            existing_domains = set(
+                                (p.get("company_domain") or p.get("domain") or "").strip().lower()
+                                for p in people
+                            )
+                            added = 0
+                            for p in people2:
+                                d = (p.get("company_domain") or p.get("domain") or "").strip().lower()
+                                if d and d not in existing_domains:
+                                    people.append(p)
+                                    added += 1
+                            if added:
+                                logger.info(f"Clay gather: merged {added} contacts from retry (new domains)")
+
                 phase3_sec = int(_t.time() - phase3_start)
                 phase3_str = f"{phase3_sec // 60}m {phase3_sec % 60}s" if phase3_sec >= 60 else f"{phase3_sec}s"
 
@@ -2751,6 +2806,17 @@ async def _handle_clay_gather(
                     title_field="title",
                 )
 
+                # Diagnostic: domains after office rules
+                _post_office_domains = set()
+                for c in filtered:
+                    d = (c.get("company_domain") or c.get("domain") or "").strip().lower()
+                    if d:
+                        _post_office_domains.add(d)
+                logger.info(
+                    f"Clay gather office rules: {stats['total_input']} in → {stats['total_output']} out, "
+                    f"{len(_post_office_domains)} unique domains, {stats['skipped_office_limit']} skipped"
+                )
+
                 # Sort: decision-makers first, then by role priority
                 filtered.sort(key=lambda c: (0 if c.get("_is_decision_maker") else 1, c.get("_role_priority", 99)))
 
@@ -2770,6 +2836,11 @@ async def _handle_clay_gather(
                     best_priority = min(x.get("_role_priority", 99) for x in contacts_list)
                     company_scores.append((d, dm_count, best_priority, contacts_list))
                 company_scores.sort(key=lambda x: (-x[1], x[2]))
+
+                logger.info(
+                    f"Clay gather round-robin: {len(domain_contacts)} domain groups, "
+                    f"top domains: {[(d, len(cl)) for d, _, _, cl in company_scores[:15]]}"
+                )
 
                 # Take top company_count companies, cap contacts per company
                 top_companies = company_scores[:company_count]
