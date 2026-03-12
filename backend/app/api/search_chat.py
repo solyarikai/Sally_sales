@@ -2606,14 +2606,14 @@ async def _handle_clay_gather(
                 if not companies:
                     await _save_chat_message(
                         task_db, project_id, "system",
-                        f"No companies found in Clay for this segment (took {phase1_sec}s). Try broader filters.\n\n"
+                        f"No companies found in Clay for this segment (took {phase1_sec}s). Try broader filters or retry.\n\n"
                         f"Filters used:\n{_filter_summary(filters)}",
-                        action_type="clay_gather_done",
+                        action_type="clay_gather_error",
                     )
                     await task_db.commit()
                     job_row = await task_db.get(SearchJob, job_id)
                     if job_row:
-                        job_row.status = SearchJobStatus.COMPLETED
+                        job_row.status = SearchJobStatus.FAILED
                         job_row.domains_found = 0
                         await task_db.commit()
                     return

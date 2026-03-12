@@ -194,6 +194,12 @@ class ClayService:
         filters_file = CLAY_EXPORTS_DIR / "filters_input.json"
         filters_file.write_text(json.dumps(filters, indent=2))
 
+        # Remove stale output files so we don't accidentally read old data
+        for stale in ("tam_companies.json", "tam_results.json", "tam_table_meta.json"):
+            stale_path = CLAY_EXPORTS_DIR / stale
+            if stale_path.exists():
+                stale_path.unlink()
+
         args = ["node", str(CLAY_TAM_SCRIPT), "--headless", "--auto"]
         if test_mode:
             args.append("--test")
@@ -270,7 +276,8 @@ class ClayService:
         logger.info(f"Clay TAM script output:\n{log_output[-2000:]}")
 
         if proc.returncode != 0:
-            logger.error(f"Clay TAM script failed: {stderr_data.decode('utf-8', errors='replace')[-500:]}")
+            stderr_text = stderr_data.decode('utf-8', errors='replace')[-500:]
+            logger.error(f"Clay TAM script failed (rc={proc.returncode}): {stderr_text}")
 
         # Step 3: Read results
         companies_file = CLAY_EXPORTS_DIR / "tam_companies.json"
@@ -279,6 +286,8 @@ class ClayService:
         companies = []
         if companies_file.exists():
             companies = json.loads(companies_file.read_text())
+        else:
+            logger.error("Clay TAM: tam_companies.json not found — Puppeteer failed to read table records")
 
         result_meta = {}
         if results_file.exists():
