@@ -2726,54 +2726,59 @@ async def _handle_clay_gather(
                     f"(searched {len(domains)} validated domains)"
                 )
 
-                # Retry once if raw contacts insufficient for target after filtering.
-                # Office rules + round-robin cut ~50-80%, so need ≥2× target raw contacts.
+                # Retry up to 3 times if raw contacts insufficient.
+                # Clay People search is inconsistent — same domains return vastly
+                # different results across runs. Multiple attempts + merge maximizes yield.
                 min_companies_needed = max(company_count, 5)
                 min_contacts_needed = contact_count * 2
-                _needs_retry = (
-                    (len(_people_domains) < min_companies_needed or len(people) < min_contacts_needed)
-                    and len(domains) >= min_companies_needed
-                )
-                if _needs_retry:
-                    logger.info(
-                        f"Clay gather: low coverage ({len(_people_domains)}/{min_companies_needed} min), retrying People search..."
+                MAX_RETRIES = 3
+
+                # Build dedup set from first run
+                _seen = set()
+                for p in people:
+                    name = (p.get("full_name") or p.get("name") or "").strip().lower()
+                    d = (p.get("company_domain") or p.get("domain") or "").strip().lower()
+                    _seen.add(f"{name}|{d}")
+
+                for _retry_i in range(1, MAX_RETRIES + 1):
+                    _needs_retry = (
+                        (len(_people_domains) < min_companies_needed or len(people) < min_contacts_needed)
+                        and len(domains) >= min_companies_needed
                     )
-                    await _substep("Low contact coverage — retrying People search...")
-                    people_result2 = await clay_service.run_people_search(
+                    if not _needs_retry:
+                        break
+                    logger.info(
+                        f"Clay gather: retry {_retry_i}/{MAX_RETRIES} — "
+                        f"{len(people)} contacts, {len(_people_domains)} domains (need {min_contacts_needed}/{min_companies_needed})"
+                    )
+                    await _substep(f"Low coverage — retry {_retry_i}/{MAX_RETRIES}...")
+                    _retry_result = await clay_service.run_people_search(
                         domains=domains,
                         project_id=project_id,
                         on_progress=_substep,
                     )
-                    people2 = people_result2["people"]
-                    if people2:
-                        _people_domains2 = set()
-                        for p in people2:
+                    _retry_people = _retry_result["people"]
+                    if _retry_people:
+                        _retry_domains = set()
+                        for p in _retry_people:
                             d = (p.get("company_domain") or p.get("domain") or "").strip().lower()
                             if d:
-                                _people_domains2.add(d)
-                        logger.info(
-                            f"Clay gather retry: {len(people2)} contacts from {len(_people_domains2)} domains"
-                        )
-                        # Always merge both runs — dedup by (name + domain)
-                        seen = set()
-                        for p in people:
-                            name = (p.get("full_name") or p.get("name") or "").strip().lower()
-                            d = (p.get("company_domain") or p.get("domain") or "").strip().lower()
-                            seen.add(f"{name}|{d}")
+                                _retry_domains.add(d)
+                        # Merge — dedup by name+domain
                         added = 0
-                        for p in people2:
+                        for p in _retry_people:
                             name = (p.get("full_name") or p.get("name") or "").strip().lower()
                             d = (p.get("company_domain") or p.get("domain") or "").strip().lower()
                             key = f"{name}|{d}"
-                            if key not in seen:
-                                seen.add(key)
+                            if key not in _seen:
+                                _seen.add(key)
                                 people.append(p)
                                 added += 1
-                        _people_domains |= _people_domains2
-                        if people_result2.get("table_url"):
-                            people_table_url = people_result2["table_url"]
+                        _people_domains |= _retry_domains
+                        if _retry_result.get("table_url"):
+                            people_table_url = _retry_result["table_url"]
                         logger.info(
-                            f"Clay gather: merged {added} new contacts from retry, "
+                            f"Clay gather retry {_retry_i}: +{added} new contacts, "
                             f"total now {len(people)} from {len(_people_domains)} domains"
                         )
 
