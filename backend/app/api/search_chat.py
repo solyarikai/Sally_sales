@@ -2540,12 +2540,13 @@ async def _handle_clay_gather(
                             await task_db.commit()
 
                         # Collect Clay table URLs from previous payroll search jobs
+                        from sqlalchemy import cast, String as _Str
                         _prev_jobs = (await task_db.execute(
                             select(SearchJob.config).where(
                                 SearchJob.project_id == project_id,
                                 SearchJob.search_engine == SearchEngine.CLAY,
                                 SearchJob.id != job_id,
-                                SearchJob.config["segment"].astext.ilike("%payroll%"),
+                                cast(SearchJob.config["segment"], _Str).ilike("%payroll%"),
                             ).order_by(SearchJob.id.desc()).limit(10)
                         )).scalars().all()
                         _clay_company_urls = []
