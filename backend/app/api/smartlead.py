@@ -408,6 +408,20 @@ async def _process_reply_safe(event_id: int, payload: dict):
             else:
                 logger.warning(f"[WEBHOOK] process_reply_webhook returned None for event {event_id}")
     except Exception as e:
+        # Duplicate replies (uq_processed_reply_content) are not errors — mark as processed
+        if "uq_processed_reply_content" in str(e):
+            logger.info(f"[WEBHOOK] Duplicate reply for event {event_id} — marking as processed")
+            try:
+                async with async_session_maker() as dup_session:
+                    event = await dup_session.get(WebhookEventModel, event_id)
+                    if event:
+                        event.processed = True
+                        event.processed_at = datetime.utcnow()
+                    await dup_session.commit()
+            except Exception as mark_err:
+                logger.error(f"[WEBHOOK] Failed to mark duplicate event {event_id}: {mark_err}")
+            return
+
         logger.error(f"[WEBHOOK] Reply processing failed for event {event_id}: {e}")
         # Mark event with error for recovery loop to pick up
         try:

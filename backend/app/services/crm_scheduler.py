@@ -658,8 +658,16 @@ class CRMScheduler:
                     event.processed_at = datetime.utcnow()
                     event.error = None
                     logger.info(f"[RECOVERY] Successfully reprocessed event {event.id}")
-                    
+
                 except Exception as e:
+                    # Duplicate replies are not failures — mark as processed
+                    if "uq_processed_reply_content" in str(e):
+                        event.processed = True
+                        event.processed_at = datetime.utcnow()
+                        event.error = None
+                        logger.info(f"[RECOVERY] Event {event.id} is a duplicate — marking as processed")
+                        continue
+
                     retry_count = (event.retry_count or 0) + 1
                     event.error = str(e)[:500]
                     event.retry_count = retry_count

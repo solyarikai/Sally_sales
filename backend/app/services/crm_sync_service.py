@@ -2648,22 +2648,19 @@ class CRMSyncService:
                             cid_str
                         )
 
-                        # Update DB counter after successful pagination
-                        if sl_count >= 0:
-                            if db_campaign:
-                                db_campaign.sl_reply_count = sl_count
-                            else:
-                                # Auto-register campaign if missing
-                                db_campaign = CampaignModel(
-                                    company_id=1,
-                                    platform="smartlead",
-                                    channel="email",
-                                    external_id=cid_str,
-                                    name=campaign_name,
-                                    status=status.lower(),
-                                    sl_reply_count=sl_count,
-                                )
-                                session.add(db_campaign)
+                        # Auto-register campaign if missing (but DON'T update
+                        # sl_reply_count yet — wait until processing succeeds)
+                        if sl_count >= 0 and not db_campaign:
+                            db_campaign = CampaignModel(
+                                company_id=1,
+                                platform="smartlead",
+                                channel="email",
+                                external_id=cid_str,
+                                name=campaign_name,
+                                status=status.lower(),
+                                sl_reply_count=0,
+                            )
+                            session.add(db_campaign)
                             await session.flush()
 
                         if not replied_leads:
@@ -2672,6 +2669,7 @@ class CRMSyncService:
 
                         logger.info(f"Reply sync: campaign '{campaign_name}' — {len(replied_leads)} replied leads")
 
+                        _campaign_errors = 0
                         for reply_data in replied_leads:
                             email = self.normalize_email(reply_data.get("lead_email"))
                             if not email:
@@ -2837,20 +2835,35 @@ class CRMSyncService:
                                 "_source": "api_polling",
                             }
 
-                            # Run the full reply processing pipeline
+                            # Run the full reply processing pipeline inside a savepoint.
+                            # Without this, a duplicate (uq_processed_reply_content) would
+                            # rollback the ENTIRE session, losing all previously-processed
+                            # replies in this polling cycle.
                             try:
                                 from app.services.reply_processor import process_reply_webhook
-                                processed = await process_reply_webhook(webhook_payload, session)
+                                async with session.begin_nested():
+                                    processed = await process_reply_webhook(webhook_payload, session)
                                 if processed:
                                     stats["new_replies"] += 1
                                     logger.info(f"Reply sync: processed reply from {email} in '{campaign_name}'")
                                 else:
                                     logger.warning(f"Reply sync: process_reply_webhook returned None for {email}")
                             except Exception as proc_err:
-                                stats["errors"] += 1
-                                logger.warning(f"Reply sync: failed to process {email}: {proc_err}")
+                                if "uq_processed_reply_content" in str(proc_err):
+                                    # Duplicates are not errors — don't block analytics guard
+                                    stats["existing"] += 1
+                                    logger.info(f"Reply sync: duplicate reply for {email} in '{campaign_name}'")
+                                else:
+                                    _campaign_errors += 1
+                                    stats["errors"] += 1
+                                    logger.warning(f"Reply sync: failed to process {email}: {proc_err}")
 
                             await asyncio.sleep(0.3)  # Rate limit per lead
+
+                        # Update analytics guard counter AFTER processing all leads.
+                        # If any lead failed, keep the old count so next cycle re-checks.
+                        if sl_count >= 0 and db_campaign and _campaign_errors == 0:
+                            db_campaign.sl_reply_count = sl_count
 
                         await asyncio.sleep(0.2)  # Rate limit per campaign
 
@@ -2874,8 +2887,8 @@ class CRMSyncService:
         company_id: int,
         max_pages: int = 10,
         page_size: int = 100,
-        max_age_hours: int = 48,
-        early_stop_threshold: int = 20
+        max_age_hours: int = 168,
+        early_stop_threshold: int = 50
     ) -> Dict[str, int]:
         """
         Sync LinkedIn reply activities from GetSales inbox.
@@ -2990,95 +3003,100 @@ class CRMSyncService:
                         new_reply_ids.append(message_id)
                         continue
                     
-                    # Create activity
-                    activity = ContactActivity(
-                        contact_id=contact.id,
-                        company_id=company_id,
-                        activity_type="linkedin_replied",
-                        channel="linkedin",
-                        direction="inbound",
-                        source="getsales",
-                        source_id=str(message_id),
-                        body=message_text,
-                        snippet=message_text[:200] if message_text else None,
-                        extra_data={
-                            "sender_profile_uuid": msg.get("sender_profile_uuid"),
-                            "linkedin_conversation_uuid": msg.get("linkedin_conversation_uuid"),
-                            "linkedin_type": msg.get("linkedin_type"),
-                            "automation": msg.get("automation")
-                        },
-                        activity_at=msg_time if created_at_str else datetime.utcnow()
-                    )
-                    session.add(activity)
-
-                    # Update contact — use status machine for forward-only transition
-                    contact.mark_replied("linkedin", at=activity.activity_at)
-                    from app.services.status_machine import transition_status, derive_external_status
-                    new_st, ok, _msg = transition_status(contact.status, "interested")
-                    if ok:
-                        contact.status = new_st
-
-                    # Create ProcessedReply with classification + draft (non-fatal)
-                    # Use savepoint so autoflush errors in thread-fetch don't kill the batch
+                    # Wrap ALL per-message work in a single savepoint.
+                    # Previously, activity creation + contact updates were OUTSIDE the
+                    # savepoint, so if process_getsales_reply() failed, these dirty objects
+                    # triggered autoflush errors on the next iteration's SELECT queries,
+                    # poisoning the entire session and killing the batch.
                     _pr = None
                     try:
-                        from app.services.reply_processor import process_getsales_reply
-                        automation_info = msg.get("automation") or {}
-                        flow_uuid = ""
-                        flow_name = ""
-
-                        if isinstance(automation_info, dict) and automation_info.get("uuid"):
-                            flow_uuid = automation_info["uuid"]
-                            mapped = GETSALES_FLOW_NAMES.get(flow_uuid)
-                            raw_name = automation_info.get("name", "")
-                            flow_name = mapped or (raw_name if _is_valid_campaign_name(raw_name) else "")
-                        else:
-                            # automation: "synced" — resolve campaign name in priority order:
-                            # 1. Contact's cached campaigns (if UUID in GETSALES_FLOW_NAMES)
-                            # 2. Contact's cached campaigns (if name passes validation)
-                            # 3. Sender's most recent webhook automation (from webhook_events)
-                            # 4. Leave empty — webhook path will enrich it later via upsert
-                            gs_campaigns = (contact.get_platform("getsales") or {}).get("campaigns", [])
-                            if gs_campaigns and isinstance(gs_campaigns, list):
-                                for gc in gs_campaigns:
-                                    gc_name = gc.get("name", "")
-                                    gc_id = gc.get("id", "")
-                                    if gc_id and gc_id in GETSALES_FLOW_NAMES:
-                                        flow_name = GETSALES_FLOW_NAMES[gc_id]
-                                        flow_uuid = gc_id
-                                        break
-                                    if gc_name and _is_valid_campaign_name(gc_name):
-                                        flow_name = gc_name
-                                        flow_uuid = gc_id
-                                        break
-                            # Fallback: resolve from sender's webhook history
-                            if not flow_name:
-                                _sender_uuid = msg.get("sender_profile_uuid", "")
-                                if _sender_uuid:
-                                    try:
-                                        from app.models.reply import WebhookEventModel
-                                        _wh_result = await session.execute(
-                                            select(WebhookEventModel.payload).where(
-                                                WebhookEventModel.event_type == "linkedin_inbox",
-                                                sa_text(
-                                                    "payload::jsonb->'sender_profile'->>'uuid' = :spuuid"
-                                                ),
-                                            ).params(spuuid=_sender_uuid)
-                                            .order_by(WebhookEventModel.created_at.desc())
-                                            .limit(1)
-                                        )
-                                        _wh_row = _wh_result.scalar()
-                                        if _wh_row:
-                                            import json as _json
-                                            _wh_payload = _json.loads(_wh_row) if isinstance(_wh_row, str) else _wh_row
-                                            _wh_auto = _wh_payload.get("automation", {})
-                                            if isinstance(_wh_auto, dict) and _wh_auto.get("name"):
-                                                flow_name = _wh_auto["name"]
-                                                flow_uuid = _wh_auto.get("uuid", "")
-                                                logger.info(f"[GETSALES] Resolved campaign from webhook history: {flow_name}")
-                                    except Exception as _wh_err:
-                                        logger.debug(f"[GETSALES] Webhook history lookup failed: {_wh_err}")
                         async with session.begin_nested():
+                            # Create activity
+                            activity = ContactActivity(
+                                contact_id=contact.id,
+                                company_id=company_id,
+                                activity_type="linkedin_replied",
+                                channel="linkedin",
+                                direction="inbound",
+                                source="getsales",
+                                source_id=str(message_id),
+                                body=message_text,
+                                snippet=message_text[:200] if message_text else None,
+                                extra_data={
+                                    "sender_profile_uuid": msg.get("sender_profile_uuid"),
+                                    "linkedin_conversation_uuid": msg.get("linkedin_conversation_uuid"),
+                                    "linkedin_type": msg.get("linkedin_type"),
+                                    "automation": msg.get("automation")
+                                },
+                                activity_at=msg_time if created_at_str else datetime.utcnow()
+                            )
+                            session.add(activity)
+
+                            # Update contact — use status machine for forward-only transition
+                            contact.mark_replied("linkedin", at=activity.activity_at)
+                            from app.services.status_machine import transition_status, derive_external_status
+                            new_st, ok, _msg = transition_status(contact.status, "interested")
+                            if ok:
+                                contact.status = new_st
+
+                            # Resolve campaign name for ProcessedReply
+                            from app.services.reply_processor import process_getsales_reply
+                            automation_info = msg.get("automation") or {}
+                            flow_uuid = ""
+                            flow_name = ""
+
+                            if isinstance(automation_info, dict) and automation_info.get("uuid"):
+                                flow_uuid = automation_info["uuid"]
+                                mapped = GETSALES_FLOW_NAMES.get(flow_uuid)
+                                raw_name = automation_info.get("name", "")
+                                flow_name = mapped or (raw_name if _is_valid_campaign_name(raw_name) else "")
+                            else:
+                                # automation: "synced" — resolve campaign name in priority order:
+                                # 1. Contact's cached campaigns (if UUID in GETSALES_FLOW_NAMES)
+                                # 2. Contact's cached campaigns (if name passes validation)
+                                # 3. Sender's most recent webhook automation (from webhook_events)
+                                # 4. Leave empty — webhook path will enrich it later via upsert
+                                gs_campaigns = (contact.get_platform("getsales") or {}).get("campaigns", [])
+                                if gs_campaigns and isinstance(gs_campaigns, list):
+                                    for gc in gs_campaigns:
+                                        gc_name = gc.get("name", "")
+                                        gc_id = gc.get("id", "")
+                                        if gc_id and gc_id in GETSALES_FLOW_NAMES:
+                                            flow_name = GETSALES_FLOW_NAMES[gc_id]
+                                            flow_uuid = gc_id
+                                            break
+                                        if gc_name and _is_valid_campaign_name(gc_name):
+                                            flow_name = gc_name
+                                            flow_uuid = gc_id
+                                            break
+                                # Fallback: resolve from sender's webhook history
+                                if not flow_name:
+                                    _sender_uuid = msg.get("sender_profile_uuid", "")
+                                    if _sender_uuid:
+                                        try:
+                                            from app.models.reply import WebhookEventModel
+                                            _wh_result = await session.execute(
+                                                select(WebhookEventModel.payload).where(
+                                                    WebhookEventModel.event_type == "linkedin_inbox",
+                                                    sa_text(
+                                                        "payload::jsonb->'sender_profile'->>'uuid' = :spuuid"
+                                                    ),
+                                                ).params(spuuid=_sender_uuid)
+                                                .order_by(WebhookEventModel.created_at.desc())
+                                                .limit(1)
+                                            )
+                                            _wh_row = _wh_result.scalar()
+                                            if _wh_row:
+                                                import json as _json
+                                                _wh_payload = _json.loads(_wh_row) if isinstance(_wh_row, str) else _wh_row
+                                                _wh_auto = _wh_payload.get("automation", {})
+                                                if isinstance(_wh_auto, dict) and _wh_auto.get("name"):
+                                                    flow_name = _wh_auto["name"]
+                                                    flow_uuid = _wh_auto.get("uuid", "")
+                                                    logger.info(f"[GETSALES] Resolved campaign from webhook history: {flow_name}")
+                                        except Exception as _wh_err:
+                                            logger.debug(f"[GETSALES] Webhook history lookup failed: {_wh_err}")
+
                             _pr = await process_getsales_reply(
                                 message_text=message_text,
                                 contact=contact,
@@ -3089,28 +3107,28 @@ class CRMSyncService:
                                 raw_data=msg,
                                 session=session,
                             )
-                    except Exception as pr_err:
-                        logger.warning(f"[GETSALES] ProcessedReply creation failed (non-fatal): {pr_err}")
 
-                    # Derive client-facing external status using actual classification
-                    if _pr and contact.project_id:
-                        try:
-                            from app.models.contact import Project
-                            _proj_result = await session.execute(
-                                select(Project).where(Project.id == contact.project_id)
-                            )
-                            _proj = _proj_result.scalar()
-                            if _proj and _proj.external_status_config:
-                                from app.services.status_machine import derive_external_status
-                                ext = derive_external_status(
-                                    _proj.external_status_config,
-                                    reply_category=_pr.category,
-                                    internal_status=contact.status,
-                                )
-                                if ext:
-                                    contact.status_external = ext
-                        except Exception:
-                            pass  # Non-fatal
+                            # Derive client-facing external status using actual classification
+                            if _pr and contact.project_id:
+                                try:
+                                    from app.models.contact import Project
+                                    _proj_result = await session.execute(
+                                        select(Project).where(Project.id == contact.project_id)
+                                    )
+                                    _proj = _proj_result.scalar()
+                                    if _proj and _proj.external_status_config:
+                                        ext = derive_external_status(
+                                            _proj.external_status_config,
+                                            reply_category=_pr.category,
+                                            internal_status=contact.status,
+                                        )
+                                        if ext:
+                                            contact.status_external = ext
+                                except Exception:
+                                    pass  # Non-fatal
+
+                    except Exception as pr_err:
+                        logger.warning(f"[GETSALES] Per-message processing failed (non-fatal): {pr_err}")
 
                     # Collect for post-commit notification
                     if _pr:

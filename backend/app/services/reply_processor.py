@@ -1424,8 +1424,11 @@ async def process_reply_webhook(
         except Exception as flush_err:
             if "uq_processed_reply_content" in str(flush_err):
                 logger.info(f"[PROCESSOR] Duplicate reply (same content hash) for {lead_email}, campaign {campaign_id} — skipping")
-                await session.rollback()
-                return None
+                # Re-raise to let the caller's begin_nested() savepoint handle rollback.
+                # Do NOT call session.rollback() here — it corrupts the session when
+                # this function runs inside a savepoint (polling path), losing ALL
+                # previously-processed replies in the same batch.
+                raise
             raise
         logger.info(f"[PROCESSOR] Created ProcessedReply {processed_reply.id} for {lead_email} (hash={message_hash[:8]})")
 
