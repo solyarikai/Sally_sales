@@ -3533,6 +3533,21 @@ async def get_gtm_strategy_log_detail(
     }
 
 
+class TranslateRequest(BaseModel):
+    text: str
+    target_lang: str = "en"
+
+
+@router.post("/translate")
+async def translate_text(body: TranslateRequest = Body(...)):
+    """Translate text to target language using GPT-4o-mini."""
+    from app.services.reply_processor import detect_and_translate
+    if not body.text or len(body.text.strip()) < 5:
+        return {"translated": None}
+    result = await detect_and_translate(body.text[:3000])
+    return {"translated": result.get("translation"), "language": result.get("language")}
+
+
 class CRMSpotlightRequest(BaseModel):
     question: str
     filters: Optional[Dict[str, Any]] = None

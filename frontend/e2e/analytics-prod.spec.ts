@@ -72,17 +72,34 @@ test.describe('Analytics Page - Production', () => {
 
   test('GTM Strategy tab shows latest strategy', async ({ page }) => {
     await page.goto('/knowledge/gtm?project=rizzult');
-    await page.waitForTimeout(3000);
+
+    // Wait for strategy content to appear (executive summary or segment cards)
+    await page.locator('text=Executive Summary').or(page.locator('text=Go-To-Market Strategy')).first().waitFor({ timeout: 15000 });
+    await page.waitForTimeout(2000); // let content render
+
     await page.screenshot({ path: 'screenshot_prod_gtm_tab.png', fullPage: true });
 
-    const gtmTab = page.locator('button:has-text("GTM Strategy")');
-    await expect(gtmTab).toBeVisible({ timeout: 5000 });
+    // Check for key sections
+    const hasExecSummary = await page.locator('text=Executive Summary').isVisible().catch(() => false);
+    const hasKPITargets = await page.locator('text=KPI Targets').isVisible().catch(() => false);
+    const hasShopping = await page.locator('text=Shopping').isVisible().catch(() => false);
+    const hasBottlenecks = await page.locator('text=Critical Bottlenecks').isVisible().catch(() => false);
+    console.log('Sections visible:', { hasExecSummary, hasKPITargets, hasShopping, hasBottlenecks });
 
-    // Look for strategy verdicts in the visible GTM panel
-    const hasStrategy = await page.locator('text=SCALE UP').or(page.locator('text=PIVOT')).or(page.locator('text=MAINTAIN'))
-      .first().isVisible({ timeout: 10000 }).catch(() => false);
-    console.log('GTM strategy rendered:', hasStrategy);
+    // Scroll within GTM panel container to see segments
+    const scrollContainer = page.locator('.overflow-y-auto >> visible=true').last();
+    await scrollContainer.evaluate(el => el.scrollTop = 800);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: 'screenshot_prod_gtm_segments.png' });
 
-    await page.screenshot({ path: 'screenshot_prod_gtm_strategy.png', fullPage: true });
+    // Scroll more to bottlenecks/rules/plan
+    await scrollContainer.evaluate(el => el.scrollTop = 3000);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: 'screenshot_prod_gtm_bottom.png' });
+
+    // Scroll to very bottom
+    await scrollContainer.evaluate(el => el.scrollTop = el.scrollHeight);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: 'screenshot_prod_gtm_end.png' });
   });
 });

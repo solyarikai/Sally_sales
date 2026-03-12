@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Loader2, Target, TrendingUp, Sparkles, AlertTriangle, ArrowRight, Calendar, Zap } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Loader2, Target, TrendingUp, Sparkles, AlertTriangle, ArrowRight, Calendar, Zap, Languages } from 'lucide-react';
 import type { ThemeTokens } from '../../lib/themeColors';
 import { contactsApi } from '../../api/contacts';
 import type { GTMData } from '../../api/contacts';
@@ -12,6 +12,122 @@ interface Props {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+/** Replace literal \\n sequences with real newlines */
+function cleanText(s: string): string {
+  return s.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+}
+
+/** Detect if text is likely Spanish */
+function isSpanish(s: string): boolean {
+  if (!s || s.length < 10) return false;
+  const markers = /[¿¡ñáéíóú]|(\b(hola|gracias|interés|reunión|semana|podemos|cómo|también|estamos|tenemos|quería|favor|buenos días|clientes|empresa|propuesta|interesados|resultado)\b)/i;
+  return markers.test(s);
+}
+
+/** Lightweight translation cache — avoids re-translating same text */
+const translationCache = new Map<string, string>();
+
+/** Inline translated text component — shows Spanish original + English translation */
+function TranslatableText({ text, isDark, t, showTranslation, className, style }: {
+  text: string;
+  isDark: boolean;
+  t: ThemeTokens;
+  showTranslation: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const [translation, setTranslation] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const cleaned = cleanText(text);
+  const needsTranslation = showTranslation && isSpanish(cleaned);
+
+  useEffect(() => {
+    if (!needsTranslation) { setTranslation(null); return; }
+    const cached = translationCache.get(cleaned);
+    if (cached) { setTranslation(cached); return; }
+
+    let cancelled = false;
+    setLoading(true);
+    translateText(cleaned).then(result => {
+      if (!cancelled && result) {
+        translationCache.set(cleaned, result);
+        setTranslation(result);
+      }
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [cleaned, needsTranslation]);
+
+  return (
+    <span>
+      <span className={className} style={{ ...style, whiteSpace: 'pre-line' }}>{cleaned}</span>
+      {needsTranslation && translation && (
+        <span className="block mt-0.5 text-[10px] italic" style={{ color: isDark ? '#93c5fd' : '#6366f1', whiteSpace: 'pre-line' }}>
+          EN: {translation}
+        </span>
+      )}
+      {needsTranslation && loading && (
+        <span className="inline-flex items-center gap-1 ml-1 text-[9px]" style={{ color: t.text4 }}>
+          <Loader2 className="w-2.5 h-2.5 animate-spin" />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Translate via backend — uses the project's knowledge chat as a lightweight translator */
+async function translateText(text: string): Promise<string | null> {
+  try {
+    const resp = await fetch('/api/contacts/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Company-ID': '1' },
+      body: JSON.stringify({ text, target_lang: 'en' }),
+    });
+    if (!resp.ok) return fallbackTranslate(text);
+    const data = await resp.json();
+    return data.translated || null;
+  } catch {
+    return fallbackTranslate(text);
+  }
+}
+
+/** Fallback: basic word-level translation for common Spanish sales phrases */
+function fallbackTranslate(text: string): string | null {
+  const dict: Record<string, string> = {
+    'hola': 'hello', 'gracias': 'thank you', 'por tu interés': 'for your interest',
+    'reunión': 'meeting', 'agendar': 'schedule', 'semana': 'week',
+    'no estamos interesados': "we're not interested", 'no nos interesa': "we're not interested",
+    'me interesa': "I'm interested", 'cuéntame': 'tell me', 'cómo funciona': 'how it works',
+    'podemos': 'we can', 'clientes': 'clients', 'nuevos': 'new',
+    'por favor': 'please', 'propuesta': 'proposal', 'empresa': 'company',
+    'resultado': 'result', 'influencers': 'influencers', 'precio fijo': 'fixed price',
+    'costo por acción': 'cost per action', 'pago por resultado': 'pay per result',
+    'ya no trabajo': "I no longer work", 'disculpa': 'sorry', 'buenos días': 'good morning',
+    'quería': 'I wanted', 'también': 'also', '¿cuánto': 'how much',
+    'esta dirección de correo electrónico': 'this email address',
+    'ya no está habilitada': 'is no longer active',
+    'envíame la propuesta': 'send me the proposal',
+    'agendé la reunión': 'I scheduled the meeting',
+    'te parece': 'what do you think', 'nos juntamos': "let's meet",
+    'un gusto saludarte': 'nice to greet you', 'me puedes agendar': 'can you schedule me',
+    'estoy disponible': "I'm available", 'no puedo': "I can't",
+    'no usamos ni nos interesan los influencer': "we don't use and aren't interested in influencers",
+    'honestamente me perdiste con el primer mensaje': 'honestly you lost me with the first message',
+    'tirarle siglas': 'throw acronyms', '¿qué es un modelo cpa': 'what is a CPA model',
+    'de dónde nace esta conversación': 'where does this conversation come from',
+    'de dnd nace esta conversacion': 'where does this conversation come from',
+    'le informamos que': 'we inform you that',
+  };
+  let result = text;
+  let changed = false;
+  for (const [es, en] of Object.entries(dict)) {
+    const regex = new RegExp(es.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    if (regex.test(result)) { changed = true; }
+    result = result.replace(regex, en);
+  }
+  return changed ? result : null;
+}
 
 function parseStrategy(raw?: string | null): any | null {
   if (!raw) return null;
@@ -45,6 +161,8 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [logStrategy, setLogStrategy] = useState<string | null>(null);
   const [logMeta, setLogMeta] = useState<{ trigger: string; cost: string; tokens: string; model?: string } | null>(null);
+  const [showTranslations, setShowTranslations] = useState(false);
+  const toggleTranslations = useCallback(() => setShowTranslations(p => !p), []);
 
   useEffect(() => { loadData(); }, [projectId]);
 
@@ -138,11 +256,24 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
           <h3 className="text-[15px] font-semibold" style={{ color: t.text1 }}>Go-To-Market Strategy</h3>
           <p className="text-[12px] mt-0.5" style={{ color: t.text4 }}>{data.total_contacts.toLocaleString()} contacts across campaigns</p>
         </div>
-        <button onClick={handleGenerate} disabled={generating}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-          style={{ background: isDark ? '#2d2d2d' : '#f0f0f0', color: t.text2 }}>
-          {generating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating (Opus 4.6)...</> : <><Sparkles className="w-3.5 h-3.5" /> {plan ? 'Regenerate' : 'Generate'} Strategy</>}
-        </button>
+        <div className="flex items-center gap-2">
+          {plan && (
+            <button onClick={toggleTranslations}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer"
+              style={{
+                background: showTranslations ? (isDark ? '#1e3a5f' : '#dbeafe') : (isDark ? '#2d2d2d' : '#f0f0f0'),
+                color: showTranslations ? (isDark ? '#93c5fd' : '#1d4ed8') : t.text3,
+              }}>
+              <Languages className="w-3.5 h-3.5" />
+              {showTranslations ? 'EN On' : 'Translate'}
+            </button>
+          )}
+          <button onClick={handleGenerate} disabled={generating}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer"
+            style={{ background: isDark ? '#2d2d2d' : '#f0f0f0', color: t.text2 }}>
+            {generating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating (Opus 4.6)...</> : <><Sparkles className="w-3.5 h-3.5" /> {plan ? 'Regenerate' : 'Generate'} Strategy</>}
+          </button>
+        </div>
       </div>
 
       {error && <div className="rounded-lg px-3 py-2 text-[12px]" style={{ background: isDark ? '#3b1c1c' : '#fef2f2', color: '#ef4444' }}>{error}</div>}
@@ -259,7 +390,10 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
                         <div className="rounded-lg p-2.5" style={{ background: isDark ? '#0a2e1a' : '#f0fdf4' }}>
                           <div className="text-[10px] font-bold uppercase mb-1" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>Winning Patterns</div>
                           {seg.winning_patterns.slice(0, 3).map((p: string, pi: number) => (
-                            <p key={pi} className="text-[11px] italic leading-relaxed mb-1" style={{ color: t.text3 }}>"{String(p).slice(0, 200)}"</p>
+                            <div key={pi} className="mb-1">
+                              <TranslatableText text={`"${String(p).slice(0, 200)}"`} isDark={isDark} t={t} showTranslation={showTranslations}
+                                className="text-[11px] italic leading-relaxed" style={{ color: t.text3 }} />
+                            </div>
                           ))}
                         </div>
                       )}
@@ -267,7 +401,10 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
                         <div className="rounded-lg p-2.5" style={{ background: isDark ? '#450a0a' : '#fef2f2' }}>
                           <div className="text-[10px] font-bold uppercase mb-1" style={{ color: isDark ? '#f87171' : '#dc2626' }}>Losing Patterns</div>
                           {seg.losing_patterns.slice(0, 3).map((p: string, pi: number) => (
-                            <p key={pi} className="text-[11px] italic leading-relaxed mb-1" style={{ color: t.text3 }}>"{String(p).slice(0, 200)}"</p>
+                            <div key={pi} className="mb-1">
+                              <TranslatableText text={`"${String(p).slice(0, 200)}"`} isDark={isDark} t={t} showTranslation={showTranslations}
+                                className="text-[11px] italic leading-relaxed" style={{ color: t.text3 }} />
+                            </div>
                           ))}
                         </div>
                       )}
@@ -297,9 +434,10 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
                                 </div>
                                 {a.from && a.to && (
                                   <div className="flex items-start gap-1.5 text-[11px]" style={{ color: t.text3 }}>
-                                    <span className="line-through opacity-60">{a.from?.slice(0, 120)}</span>
+                                    <span className="line-through opacity-60" style={{ whiteSpace: 'pre-line' }}>{cleanText(a.from?.slice(0, 120))}</span>
                                     <ArrowRight className="w-3 h-3 shrink-0 mt-0.5" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
-                                    <span className="font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>{a.to?.slice(0, 150)}</span>
+                                    <TranslatableText text={a.to?.slice(0, 150)} isDark={isDark} t={t} showTranslation={showTranslations}
+                                      className="font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
                                   </div>
                                 )}
                                 {a.why && <p className="text-[10px] mt-1 italic" style={{ color: t.text4 }}>{a.why}</p>}
@@ -347,9 +485,24 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
                   {seg.email_template && (
                     <div className="rounded-lg p-2.5" style={{ background: isDark ? '#1a1a1a' : '#f9fafb', border: `1px solid ${t.cardBorder}` }}>
                       <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: t.text4 }}>Email Template</div>
-                      {seg.email_template.subject && <p className="text-[11px] font-medium mb-1" style={{ color: t.text1 }}>Subject: {seg.email_template.subject}</p>}
-                      {seg.email_template.opening && <p className="text-[11px] mb-1 whitespace-pre-line" style={{ color: t.text2 }}>{seg.email_template.opening}</p>}
-                      {seg.email_template.cta && <p className="text-[11px] font-medium italic" style={{ color: isDark ? '#93c5fd' : '#2563eb' }}>{seg.email_template.cta}</p>}
+                      {seg.email_template.subject && (
+                        <div className="mb-1">
+                          <TranslatableText text={`Subject: ${seg.email_template.subject}`} isDark={isDark} t={t} showTranslation={showTranslations}
+                            className="text-[11px] font-medium" style={{ color: t.text1 }} />
+                        </div>
+                      )}
+                      {seg.email_template.opening && (
+                        <div className="mb-1">
+                          <TranslatableText text={seg.email_template.opening} isDark={isDark} t={t} showTranslation={showTranslations}
+                            className="text-[11px]" style={{ color: t.text2 }} />
+                        </div>
+                      )}
+                      {seg.email_template.cta && (
+                        <div>
+                          <TranslatableText text={seg.email_template.cta} isDark={isDark} t={t} showTranslation={showTranslations}
+                            className="text-[11px] font-medium italic" style={{ color: isDark ? '#93c5fd' : '#2563eb' }} />
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -377,14 +530,24 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
                   <div key={i} className="rounded-lg p-3" style={{ background: isDark ? '#1a1a1a' : '#fafafa', border: `1px solid ${t.cardBorder}` }}>
                     {b.severity && <div className="mb-1">{severityBadge(b.severity)}</div>}
                     <p className="text-[12px] font-medium" style={{ color: t.text1 }}>{b.issue || b.bottleneck}</p>
-                    {b.impact && <p className="text-[11px] mt-0.5" style={{ color: t.text3 }}>{b.impact}</p>}
+                    {b.impact && (
+                      <div className="mt-0.5">
+                        <TranslatableText text={b.impact} isDark={isDark} t={t} showTranslation={showTranslations}
+                          className="text-[11px]" style={{ color: t.text3 }} />
+                      </div>
+                    )}
                     {b.fix && (
                       <div className="flex items-start gap-1.5 mt-1">
                         <ArrowRight className="w-3 h-3 shrink-0 mt-0.5" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
-                        <p className="text-[11px] font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>{b.fix}</p>
+                        <p className="text-[11px] font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>{cleanText(b.fix)}</p>
                       </div>
                     )}
-                    {b.evidence && <p className="text-[10px] italic mt-1 truncate" style={{ color: t.text4 }}>"{b.evidence?.slice(0, 150)}"</p>}
+                    {b.evidence && (
+                      <div className="mt-1">
+                        <TranslatableText text={`"${b.evidence?.slice(0, 150)}"`} isDark={isDark} t={t} showTranslation={showTranslations}
+                          className="text-[10px] italic truncate" style={{ color: t.text4 }} />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -400,12 +563,18 @@ export function GTMPanel({ projectId, isDark, t, logId }: Props) {
               <div className="space-y-2">
                 {plan.messaging_rules.map((r: any, i: number) => (
                   <div key={i} className="rounded-lg px-3 py-2.5" style={{ background: isDark ? '#1a1a1a' : '#fafafa', border: `1px solid ${t.cardBorder}` }}>
-                    <p className="text-[12px] font-medium" style={{ color: t.text1 }}>{r.rule}</p>
-                    {r.why && <p className="text-[11px] mt-1 italic" style={{ color: t.text3 }}>{r.why}</p>}
+                    <p className="text-[12px] font-medium" style={{ color: t.text1 }}>{cleanText(r.rule)}</p>
+                    {r.why && (
+                      <div className="mt-1">
+                        <TranslatableText text={r.why} isDark={isDark} t={t} showTranslation={showTranslations}
+                          className="text-[11px] italic" style={{ color: t.text3 }} />
+                      </div>
+                    )}
                     {r.instead && (
                       <div className="flex items-start gap-1.5 mt-1">
                         <ArrowRight className="w-3 h-3 shrink-0 mt-0.5" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
-                        <p className="text-[11px] font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }}>{r.instead}</p>
+                        <TranslatableText text={r.instead} isDark={isDark} t={t} showTranslation={showTranslations}
+                          className="text-[11px] font-medium" style={{ color: isDark ? '#4ade80' : '#16a34a' }} />
                       </div>
                     )}
                     {r.description && <p className="text-[11px] mt-0.5" style={{ color: t.text2 }}>{r.description}</p>}
