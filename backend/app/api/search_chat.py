@@ -2450,19 +2450,45 @@ async def _handle_clay_gather(
                         await task_db.commit()
                     return
 
-                # Use a large search pool for People search, not just company_count.
+                # Use a large search pool — strict ICP validation will filter heavily.
                 # company_count limits the FINAL output, not the search pool.
                 total_found = len(companies)
-                search_pool_size = min(total_found, max(company_count * 10, 100))
-                search_pool = companies[:search_pool_size]
+
+                # Pre-filter by country if geo filter specified.
+                # Clay returns companies globally — country pre-filter avoids wasting
+                # scraping/validation on obviously wrong-geo companies.
+                target_countries = set(
+                    c.lower().strip() for c in (filters.get("country_names") or [])
+                )
+                if target_countries:
+                    geo_filtered = []
+                    geo_skipped = 0
+                    for comp in companies:
+                        comp_country = (
+                            comp.get("Country") or comp.get("country") or ""
+                        ).strip().lower()
+                        if not comp_country or comp_country in target_countries:
+                            geo_filtered.append(comp)
+                        else:
+                            geo_skipped += 1
+                    companies_for_pool = geo_filtered
+                else:
+                    companies_for_pool = companies
+                    geo_skipped = 0
+
+                # Validate ALL geo-matching companies (GPT validation is fast, ~30s per 200).
+                # The bottleneck is Clay People coverage (~20% of validated domains have contacts).
+                search_pool_size = min(len(companies_for_pool), max(company_count * 50, 500))
+                search_pool = companies_for_pool[:search_pool_size]
 
                 # ── Phase 2: Save companies to pipeline ──
                 clay_link = f" — [View in Clay →]({table_url})" if table_url else ""
                 phase1_str = f"{phase1_sec // 60}m {phase1_sec % 60}s" if phase1_sec >= 60 else f"{phase1_sec}s"
+                geo_note = f" ({geo_skipped} outside target geo)" if geo_skipped else ""
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Step 2/5 — Saving companies** ({phase1_str})\n\n"
-                    f"Found **{total_found}** companies, searching **{len(search_pool)}** for contacts{clay_link}\n\n"
+                    f"Found **{total_found}** companies{geo_note}, validating **{len(search_pool)}** in target regions{clay_link}\n\n"
                     f"Saving to pipeline as **\"{segment_label}\"**...",
                     action_type="clay_gather_progress",
                 )
@@ -2522,23 +2548,21 @@ async def _handle_clay_gather(
                     await task_db.commit()
                     return
 
-                # ── Phase 2b: Validate companies against ICP via website scraping + GPT ──
+                # ── Phase 2b: Validate companies against ICP using Clay metadata + GPT ──
                 from sqlalchemy import text as sql_text
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Step 2b/5 — Validating companies** [{_elapsed()}]\n\n"
-                    f"Scraping **{len(domains)}** websites and checking ICP fit...",
+                    f"Checking **{len(domains)}** companies against ICP...",
                     action_type="clay_gather_progress",
                 )
                 await task_db.commit()
 
-                from app.services.scraper_service import ScraperService
                 import json as _json
-                _scraper = ScraperService()
                 import openai as _oai
                 _oai_client = _oai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
-                # Build domain→company map for descriptions
+                # Build domain→company map from Clay data (no scraping needed)
                 domain_company_map = {}
                 for comp in search_pool:
                     d = (comp.get("Domain") or comp.get("domain") or "").strip().lower().replace("www.", "")
@@ -2547,61 +2571,56 @@ async def _handle_clay_gather(
                             "name": comp.get("Name") or comp.get("name") or "",
                             "description": comp.get("Description") or comp.get("description") or "",
                             "industry": comp.get("Primary Industry") or comp.get("industry") or "",
+                            "location": comp.get("Location") or comp.get("location") or "",
+                            "country": comp.get("Country") or comp.get("country") or "",
                         }
 
-                # Scrape websites concurrently (max 15 at a time)
-                import asyncio as _asyncio
-                _scrape_sem = _asyncio.Semaphore(15)
-                async def _scrape_one(domain: str):
-                    async with _scrape_sem:
-                        try:
-                            r = await _scraper.scrape_website(f"https://{domain}", timeout=12)
-                            return domain, r.get("text", "")[:3000] if r.get("success") else ""
-                        except Exception:
-                            return domain, ""
-                scrape_tasks = [_scrape_one(d) for d in domains]
-                scrape_results = await _asyncio.gather(*scrape_tasks)
-                domain_texts = {d: txt for d, txt in scrape_results}
-
-                scraped_count = sum(1 for txt in domain_texts.values() if txt)
-                await _substep(f"Scraped {scraped_count}/{len(domains)} websites, validating with GPT...")
-
-                # Validate with GPT-4o-mini in batches of 10
+                # Validate with GPT-4o-mini in batches of 20 (no scraping = can batch more)
                 validated_domains = []
                 rejected_domains = []
-                _validate_batch_size = 10
+                _validate_batch_size = 20
 
                 for batch_start in range(0, len(domains), _validate_batch_size):
                     batch_domains = domains[batch_start:batch_start + _validate_batch_size]
                     batch_items = []
                     for d in batch_domains:
-                        site_text = domain_texts.get(d, "")
                         comp_info = domain_company_map.get(d, {})
-                        preview = site_text[:1500] if site_text else comp_info.get("description", "")[:500]
                         batch_items.append({
                             "domain": d,
                             "name": comp_info.get("name", d),
-                            "clay_description": comp_info.get("description", ""),
-                            "clay_industry": comp_info.get("industry", ""),
-                            "website_text": preview,
+                            "description": comp_info.get("description", ""),
+                            "industry": comp_info.get("industry", ""),
+                            "location": comp_info.get("location", ""),
+                            "country": comp_info.get("country", ""),
                         })
 
+                    geo_hint = ""
+                    if filters.get("country_names"):
+                        geo_hint = f"- match=false if the company is clearly NOT based in the requested regions: {', '.join(filters['country_names'][:10])}\n"
                     _validate_prompt = (
                         f"User is looking for: \"{segment_desc}\"\n\n"
-                        f"For each company below, decide if it matches the user's request.\n"
-                        f"Return JSON array of objects: {{\"domain\": \"...\", \"match\": true/false, \"reason\": \"...\"}}\n"
-                        f"Be strict — only mark match=true if the company clearly fits what the user described.\n\n"
+                        f"For each company below, decide if its PRIMARY BUSINESS matches the user's request.\n"
+                        f"Return JSON array of objects: {{\"domain\": \"...\", \"match\": true/false, \"reason\": \"...\"}}\n\n"
+                        f"STRICT RULES:\n"
+                        f"- match=true ONLY if the company's core/primary business matches what the user described\n"
+                        f"- match=false if the company merely MENTIONS the keyword but does something else primarily\n"
+                        f"- match=false for staffing agencies, recruitment firms, temp agencies, HR outsourcing\n"
+                        f"- match=false for generic consulting, law firms, accounting firms unless specifically requested\n"
+                        f"{geo_hint}"
+                        f"- When in doubt, mark match=false\n\n"
                     )
                     for item in batch_items:
                         _validate_prompt += (
                             f"---\nDomain: {item['domain']}\n"
                             f"Name: {item['name']}\n"
-                            f"Clay description: {item['clay_description']}\n"
-                            f"Clay industry: {item['clay_industry']}\n"
-                            f"Website text: {item['website_text'][:800]}\n"
+                            f"Location: {item.get('location', 'Unknown')}\n"
+                            f"Country: {item.get('country', 'Unknown')}\n"
+                            f"Description: {item['description'][:500]}\n"
+                            f"Industry: {item['industry']}\n"
                         )
 
                     try:
+                        logger.info(f"ICP validation batch {batch_start // _validate_batch_size + 1}: {len(batch_domains)} domains")
                         resp = await _oai_client.chat.completions.create(
                             model="gpt-4o-mini",
                             messages=[
@@ -2610,8 +2629,10 @@ async def _handle_clay_gather(
                             ],
                             temperature=0.1,
                             response_format={"type": "json_object"},
-                            max_tokens=2000,
+                            max_tokens=4000,
+                            timeout=30,
                         )
+                        logger.info(f"ICP validation batch done: got response")
                         raw_resp = resp.choices[0].message.content
                         parsed_resp = _json.loads(raw_resp)
                         # Handle both {"results": [...]} and direct [...]
@@ -2620,7 +2641,7 @@ async def _handle_clay_gather(
                         verdict_map = {v.get("domain", "").lower(): v for v in verdicts if isinstance(v, dict)}
                         for d in batch_domains:
                             v = verdict_map.get(d, {})
-                            if v.get("match", True):  # default to True if missing
+                            if v.get("match", False):  # default to False if missing — strict filtering
                                 validated_domains.append(d)
                             else:
                                 rejected_domains.append(d)
@@ -2734,33 +2755,33 @@ async def _handle_clay_gather(
                 filtered.sort(key=lambda c: (0 if c.get("_is_decision_maker") else 1, c.get("_role_priority", 99)))
 
                 # Limit to requested company_count unique companies and contact_count contacts.
-                # Use round-robin to ensure diversity across companies.
-                if len(filtered) > contact_count or stats.get("unique_companies", 0) > company_count:
-                    from collections import defaultdict
-                    company_contacts: dict[str, list] = defaultdict(list)
-                    for c in filtered:
-                        co = (c.get("company") or "").strip().lower()
-                        company_contacts[co].append(c)
+                # Group by DOMAIN (not company name) — Clay returns name variants that inflate count.
+                max_per_company = max(3, contact_count // company_count) if company_count else 5
+                from collections import defaultdict
+                domain_contacts: dict[str, list] = defaultdict(list)
+                for c in filtered:
+                    d = (c.get("company_domain") or c.get("domain") or c.get("company") or "").strip().lower()
+                    domain_contacts[d].append(c)
 
-                    # Rank companies: most DMs first, then by best role priority
-                    company_scores = []
-                    for co, contacts_list in company_contacts.items():
-                        dm_count = sum(1 for x in contacts_list if x.get("_is_decision_maker"))
-                        best_priority = min(x.get("_role_priority", 99) for x in contacts_list)
-                        company_scores.append((co, dm_count, best_priority, contacts_list))
-                    company_scores.sort(key=lambda x: (-x[1], x[2]))
+                # Rank companies: most DMs first, then by best role priority
+                company_scores = []
+                for d, contacts_list in domain_contacts.items():
+                    dm_count = sum(1 for x in contacts_list if x.get("_is_decision_maker"))
+                    best_priority = min(x.get("_role_priority", 99) for x in contacts_list)
+                    company_scores.append((d, dm_count, best_priority, contacts_list))
+                company_scores.sort(key=lambda x: (-x[1], x[2]))
 
-                    # Take top company_count companies
-                    top_companies = company_scores[:company_count]
-                    n_companies = len(top_companies)
+                # Take top company_count companies, cap contacts per company
+                top_companies = company_scores[:company_count]
+                n_companies = len(top_companies)
 
-                    # Round-robin: allocate contacts_per_company, then fill remaining slots
-                    base_per_company = max(1, contact_count // n_companies)
+                if n_companies > 0:
+                    base_per_company = min(max_per_company, max(1, contact_count // n_companies))
                     selected: list = []
                     remainder: list = []
-                    for _co, _dm, _bp, contacts_list in top_companies:
+                    for _d, _dm, _bp, contacts_list in top_companies:
                         selected.extend(contacts_list[:base_per_company])
-                        remainder.extend(contacts_list[base_per_company:])
+                        remainder.extend(contacts_list[base_per_company:max_per_company])
 
                     # Fill remaining slots from leftover contacts (best roles first)
                     remainder.sort(key=lambda c: (0 if c.get("_is_decision_maker") else 1, c.get("_role_priority", 99)))
@@ -2772,17 +2793,24 @@ async def _handle_clay_gather(
 
                 stats["total_output"] = len(filtered)
                 stats["decision_makers"] = sum(1 for c in filtered if c.get("_is_decision_maker"))
+                # Count unique companies by domain (not name) — name variants inflate count
                 stats["unique_companies"] = len(set(
-                    (c.get("company") or "").strip().lower() for c in filtered
+                    (c.get("company_domain") or c.get("domain") or c.get("company") or "").strip().lower()
+                    for c in filtered
                 ))
 
                 # ── Phase 5: Save contacts + promote to CRM ──
                 dm_label = f"**{stats['decision_makers']}** decision-makers" if stats["decision_makers"] else "0 decision-makers"
+                # Count unique domains for accurate company count
+                unique_domains = len(set(
+                    (c.get("company_domain") or c.get("domain") or "").strip().lower()
+                    for c in filtered if (c.get("company_domain") or c.get("domain"))
+                ))
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Step 5/5 — Saving to CRM** [{_elapsed()}]\n\n"
                     f"**{stats['total_output']}** contacts ({dm_label}), "
-                    f"**{stats['unique_companies']}** companies "
+                    f"**{unique_domains}** companies "
                     f"({stats['skipped_office_limit']} skipped by office limit)\n\n"
                     f"Promoting as draft → segment **\"{segment_label}\"**...",
                     action_type="clay_gather_progress",
@@ -2964,14 +2992,18 @@ async def _handle_clay_gather(
                 clay_company_link = f"[Companies in Clay →]({table_url})" if table_url else ""
                 clay_people_link = f"[People in Clay →]({people_table_url})" if people_table_url else "People table in Clay exports"
                 links = " | ".join(filter(None, [clay_company_link, clay_people_link, f"[Open CRM →]({crm_url})"]))
+                # Count unique domains in CRM-promoted contacts for accurate company count
+                crm_unique = len(set(
+                    (c.get("company_domain") or c.get("domain") or "").strip().lower()
+                    for c in filtered if (c.get("company_domain") or c.get("domain"))
+                ))
+                validated_count = len(domains)  # domains = validated_domains at this point
                 await _save_chat_message(
                     task_db, project_id, "system",
                     f"**Gather complete** — {_elapsed()}\n\n"
                     f"| | |\n|---|---|\n"
-                    f"| Companies found | **{total_found}** (searched **{len(domains)}** domains) |\n"
-                    f"| Contacts found | **{len(people)}** → **{stats['total_output']}** selected |\n"
-                    f"| Decision-makers | **{stats['decision_makers']}** of {stats['total_output']} |\n"
-                    f"| Unique companies | **{stats.get('unique_companies', '?')}** |\n"
+                    f"| Target companies | **{crm_unique}** (validated **{validated_count}** from {total_found} Clay results) |\n"
+                    f"| Contacts | **{stats['total_output']}** ({stats['decision_makers']} decision-makers) |\n"
                     f"| CRM draft | **{promoted_contacts}** contacts |\n"
                     f"| Segment | {segment_label} |\n\n"
                     f"{_filter_summary(filters)}\n\n"
@@ -2981,11 +3013,12 @@ async def _handle_clay_gather(
                         "crm_url": crm_url,
                         "total_contacts": saved_contacts,
                         "decision_makers": stats["decision_makers"],
-                        "unique_companies": stats["unique_companies"],
+                        "unique_companies": crm_unique,
                         "promoted_to_crm": promoted_contacts,
                         "segment": segment_label,
                         "filters": filters,
                         "search_job_id": job_id,
+                        "validated_companies": validated_count,
                     },
                     suggestions=["show contacts", "show targets", "push to smartlead"],
                 )

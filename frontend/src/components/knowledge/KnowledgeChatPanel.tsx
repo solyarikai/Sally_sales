@@ -429,31 +429,6 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Chat actions toolbar */}
-      {messages.length > 0 && (
-        <div className="flex justify-end gap-2 px-5 pt-2">
-          {hasRunningPipeline && (
-            <button
-              onClick={handleCancelPipeline}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg transition-colors",
-                isDark ? "text-red-400 hover:bg-red-900/30 border border-red-800/40" : "text-red-500 hover:bg-red-50 border border-red-200"
-              )}
-            >
-              <XCircle className="w-3.5 h-3.5" /> Cancel pipeline
-            </button>
-          )}
-          <button
-            onClick={handleClearChat}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg transition-colors",
-              isDark ? "text-gray-400 hover:bg-gray-700 border border-gray-600" : "text-gray-500 hover:bg-gray-100 border border-gray-200"
-            )}
-          >
-            <Trash2 className="w-3.5 h-3.5" /> Clear chat
-          </button>
-        </div>
-      )}
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
         {historyLoaded && messages.length === 0 && !isBusy && (
@@ -529,36 +504,69 @@ export function KnowledgeChatPanel({ projectId }: { projectId: number }) {
           background: isDark ? '#252526' : '#fff',
         }}
       >
-        <div className="relative">
-          <SlashCommandMenu
-            isOpen={slashMenuOpen}
-            filter={slashFilter}
-            onSelect={handleSlashSelect}
-            onClose={() => setSlashMenuOpen(false)}
-            selectedIndex={slashSelectedIndex}
-          />
-          <textarea
-            ref={textareaRef}
-            value={query}
-            onChange={handleQueryChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message or / for commands..."
-            rows={1}
-            className={cn(
-              'w-full px-4 py-3 pr-14 rounded-xl transition-all duration-200 resize-none overflow-hidden text-[13px]',
-              isDark
-                ? 'bg-[#1e1e1e] border border-[#3c3c3c] text-[#d4d4d4] placeholder-[#666] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20'
-                : 'border border-gray-200 focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10'
-            )}
-            style={{ minHeight: '44px', maxHeight: '150px' }}
-          />
-          <button
-            onClick={() => handleSendSSE()}
-            disabled={!query.trim() || isBusy}
-            className="absolute right-2 bottom-2 p-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:shadow-lg hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-          >
-            <Send className="w-3.5 h-3.5" />
-          </button>
+        <div className="flex items-end gap-2">
+          {/* Clear chat button */}
+          {messages.length > 0 && (
+            <button
+              onClick={handleClearChat}
+              title="Clear chat history"
+              className={cn(
+                "flex-shrink-0 p-2.5 rounded-xl transition-all duration-200",
+                isDark
+                  ? "text-gray-400 hover:text-gray-200 hover:bg-[#333] border border-[#3c3c3c]"
+                  : "text-gray-400 hover:text-gray-600 hover:bg-gray-100 border border-gray-200"
+              )}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+          {/* Cancel pipeline button */}
+          {hasRunningPipeline && (
+            <button
+              onClick={handleCancelPipeline}
+              title="Cancel running pipeline"
+              className={cn(
+                "flex-shrink-0 p-2.5 rounded-xl transition-all duration-200",
+                isDark
+                  ? "text-red-400 hover:text-red-300 hover:bg-red-900/30 border border-red-800/40"
+                  : "text-red-400 hover:text-red-600 hover:bg-red-50 border border-red-200"
+              )}
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          )}
+          {/* Text input */}
+          <div className="relative flex-1">
+            <SlashCommandMenu
+              isOpen={slashMenuOpen}
+              filter={slashFilter}
+              onSelect={handleSlashSelect}
+              onClose={() => setSlashMenuOpen(false)}
+              selectedIndex={slashSelectedIndex}
+            />
+            <textarea
+              ref={textareaRef}
+              value={query}
+              onChange={handleQueryChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message or / for commands..."
+              rows={1}
+              className={cn(
+                'w-full px-4 py-3 pr-14 rounded-xl transition-all duration-200 resize-none overflow-hidden text-[13px]',
+                isDark
+                  ? 'bg-[#1e1e1e] border border-[#3c3c3c] text-[#d4d4d4] placeholder-[#666] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20'
+                  : 'border border-gray-200 focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10'
+              )}
+              style={{ minHeight: '44px', maxHeight: '150px' }}
+            />
+            <button
+              onClick={() => handleSendSSE()}
+              disabled={!query.trim() || isBusy}
+              className="absolute right-2 bottom-2 p-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:shadow-lg hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
