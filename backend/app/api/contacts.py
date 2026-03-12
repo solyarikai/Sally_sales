@@ -2812,15 +2812,29 @@ async def get_segment_funnel(
         days = {"7d": 7, "30d": 30, "90d": 90}[period]
         cutoff = datetime.utcnow() - timedelta(days=days)
 
-    # Query 1: contacts per segment (from campaigns table)
+    # Query 1: contacts per segment
+    # Use campaigns.leads_count where available (SmartLead), fall back to
+    # counting unique replied contacts for campaigns with NULL leads_count (GetSales)
     contacts_sql = f"""
-        SELECT segment, SUM(leads_count) as total_contacts
-        FROM (
-            SELECT {campaign_case} as segment, leads_count
-            FROM campaigns c
-            WHERE c.project_id = :pid
-        ) sub
-        GROUP BY segment ORDER BY total_contacts DESC
+        WITH campaign_segments AS (
+            SELECT {campaign_case} as segment, c.name, COALESCE(c.leads_count, 0) as leads_count
+            FROM campaigns c WHERE c.project_id = :pid
+        ),
+        -- For campaigns with 0 leads_count, count unique contacts that replied
+        reply_contacts AS (
+            SELECT {reply_case} as segment, COUNT(DISTINCT pr.lead_email) as replied_contacts
+            FROM processed_replies pr
+            JOIN contacts c2 ON LOWER(c2.email) = LOWER(pr.lead_email) AND c2.deleted_at IS NULL
+            WHERE c2.project_id = :pid AND pr.parent_reply_id IS NULL
+            AND pr.campaign_name IN (SELECT name FROM campaign_segments WHERE leads_count = 0)
+            GROUP BY 1
+        )
+        SELECT
+            cs.segment,
+            SUM(cs.leads_count) + COALESCE(MAX(rc.replied_contacts), 0) as total_contacts
+        FROM campaign_segments cs
+        LEFT JOIN reply_contacts rc ON rc.segment = cs.segment
+        GROUP BY cs.segment ORDER BY total_contacts DESC
     """
     contacts_result = await session.execute(sql_text(contacts_sql), {"pid": project_id})
     contacts_rows = contacts_result.fetchall()
@@ -2934,8 +2948,14 @@ async def generate_gtm_plan(
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
-    """Generate GTM plan using Gemini 2.5 with real classification data."""
-    from collections import Counter
+    """Generate GTM plan using Claude Opus 4.6 with segment funnel + warm conversations."""
+    from app.models.reply import ProcessedReply, ThreadMessage
+    from app.models.campaign import Campaign
+    import json as json_mod
+    import anthropic
+
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
 
     # Verify project
     project_stmt = select(Project).where(
@@ -2947,104 +2967,211 @@ async def generate_gtm_plan(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Fetch classified contacts
-    contacts_result = await session.execute(
-        select(Contact).where(
-            and_(Contact.project_id == project_id, Contact.deleted_at.is_(None))
+    # ── 1. Segment funnel data (reuse the same logic) ──
+    segment_rules = {
+        "fintech": "Fintech", "qsr": "QSR", "agenc": "Agencies",
+        "foodtech": "Foodtech", "food.*drink": "Foodtech",
+        "shopping": "Shopping", "stream": "Streaming", "media": "Media",
+        "telemed": "Telemedicine", "checkup": "Telemedicine",
+        "insur": "Insurance", "clean": "Cleaning", "farm": "Pharmacies",
+        "mobil": "Mobility", "wellness": "Wellness", "procure": "Procurement",
+        "telecom": "Telecom",
+    }
+
+    def build_case_when(col_expr: str) -> str:
+        whens = []
+        for pattern, segment in segment_rules.items():
+            if any(c in pattern for c in ".*+?[](){}|\\^$"):
+                whens.append(f"WHEN {col_expr} ~* '{pattern}' THEN '{segment}'")
+            else:
+                whens.append(f"WHEN {col_expr} ILIKE '%{pattern}%' THEN '{segment}'")
+        return "CASE " + " ".join(whens) + " ELSE 'Other' END"
+
+    reply_case = build_case_when("pr.campaign_name")
+
+    funnel_sql = f"""
+        SELECT {reply_case} as segment,
+            COUNT(*) as total_replies,
+            COUNT(*) FILTER (WHERE pr.category IN ('interested','meeting_request','question')) as positive,
+            COUNT(*) FILTER (WHERE pr.category = 'meeting_request') as meeting_requests,
+            COUNT(*) FILTER (WHERE pr.category = 'interested') as interested,
+            COUNT(*) FILTER (WHERE pr.category = 'question') as questions,
+            COUNT(*) FILTER (WHERE pr.category = 'not_interested') as not_interested,
+            COUNT(*) FILTER (WHERE pr.category = 'out_of_office') as ooo,
+            COUNT(*) FILTER (WHERE pr.category = 'wrong_person') as wrong_person,
+            COUNT(*) FILTER (WHERE pr.category = 'unsubscribe') as unsubscribe
+        FROM processed_replies pr
+        JOIN contacts c2 ON LOWER(c2.email) = LOWER(pr.lead_email) AND c2.deleted_at IS NULL
+        WHERE c2.project_id = :pid AND pr.parent_reply_id IS NULL
+        GROUP BY 1 ORDER BY total_replies DESC
+    """
+    funnel_result = await session.execute(sql_text(funnel_sql), {"pid": project_id})
+    funnel_rows = funnel_result.fetchall()
+
+    # Campaign contact counts
+    campaigns_result = await session.execute(
+        select(Campaign.name, Campaign.leads_count, Campaign.platform)
+        .where(Campaign.project_id == project_id)
+    )
+    campaigns = campaigns_result.fetchall()
+    total_contacts = sum(c.leads_count or 0 for c in campaigns)
+
+    funnel_text = "SEGMENT FUNNEL ANALYTICS:\n"
+    funnel_text += f"Total contacts: ~{total_contacts} across {len(campaigns)} campaigns\n\n"
+    funnel_text += f"{'Segment':<16} {'Replies':>7} {'Positive':>8} {'Meetings':>8} {'Interested':>10} {'Questions':>9} {'Not Int':>7} {'OOO':>5} {'Wrong':>5}\n"
+    funnel_text += "-" * 95 + "\n"
+    for r in funnel_rows:
+        funnel_text += f"{r.segment:<16} {r.total_replies:>7} {r.positive:>8} {r.meeting_requests:>8} {r.interested:>10} {r.questions:>9} {r.not_interested:>7} {r.ooo:>5} {r.wrong_person:>5}\n"
+
+    # ── 2. Warm contact conversations ──
+    # Fetch all positive replies (meeting_request, interested, question) with threads
+    warm_replies_result = await session.execute(
+        select(ProcessedReply)
+        .join(Contact, and_(
+            func.lower(Contact.email) == func.lower(ProcessedReply.lead_email),
+            Contact.deleted_at.is_(None),
+        ))
+        .where(
+            Contact.project_id == project_id,
+            ProcessedReply.parent_reply_id.is_(None),
+            ProcessedReply.category.in_(["interested", "meeting_request", "question"]),
         )
+        .order_by(ProcessedReply.received_at.desc())
+        .limit(80)  # cap for context window
     )
-    contacts = list(contacts_result.scalars().all())
-    if not contacts:
-        raise HTTPException(status_code=400, detail="Project has no contacts.")
+    warm_replies = list(warm_replies_result.scalars().all())
 
-    # Build real segment data for Gemini
-    segment_counts: Dict[str, int] = Counter()
-    industry_counts: Dict[str, int] = Counter()
-    keyword_counts: Dict[str, int] = Counter()
-    status_by_seg: Dict[str, Counter] = {}
-    suitable_for_counts: Dict[str, int] = Counter()
+    # Fetch thread messages for warm replies
+    warm_reply_ids = [r.id for r in warm_replies]
+    threads_map: Dict[int, list] = {}
+    if warm_reply_ids:
+        threads_result = await session.execute(
+            select(ThreadMessage)
+            .where(ThreadMessage.reply_id.in_(warm_reply_ids))
+            .order_by(ThreadMessage.reply_id, ThreadMessage.position)
+        )
+        for tm in threads_result.scalars().all():
+            threads_map.setdefault(tm.reply_id, []).append(tm)
 
-    for c in contacts:
-        seg = c.segment
-        if seg:
-            segment_counts[seg] += 1
-            status_by_seg.setdefault(seg, Counter())
-            status_by_seg[seg][c.status or "lead"] += 1
-        ps = c.platform_state or {}
-        cls_data = ps.get("classification", {})
-        if cls_data:
-            ind = cls_data.get("industry")
-            if ind:
-                industry_counts[ind] += 1
-            for kw in cls_data.get("keywords", []):
-                keyword_counts[kw] += 1
-        for target in (c.suitable_for or []):
-            suitable_for_counts[target] += 1
+    # Build conversation text
+    conversations_text = "WARM CONTACT CONVERSATIONS (most recent first):\n\n"
+    for reply in warm_replies:
+        # Determine segment from campaign name
+        seg = "Other"
+        if reply.campaign_name:
+            cn_lower = reply.campaign_name.lower()
+            for pattern, segment in segment_rules.items():
+                if any(c in pattern for c in ".*+?[](){}|\\^$"):
+                    if re.search(pattern, cn_lower, re.IGNORECASE):
+                        seg = segment
+                        break
+                elif pattern in cn_lower:
+                    seg = segment
+                    break
 
-    segment_summary = "\n".join(
-        f"  {seg}: {cnt} contacts (statuses: {dict(status_by_seg.get(seg, {}))})"
-        for seg, cnt in segment_counts.most_common()
-    )
-    industry_summary = "\n".join(
-        f"  {ind}: {cnt}" for ind, cnt in industry_counts.most_common(15)
-    )
-    keyword_summary = ", ".join(kw for kw, _ in keyword_counts.most_common(20))
+        conversations_text += f"--- [{seg}] {reply.lead_first_name or ''} {reply.lead_last_name or ''} ({reply.lead_email})"
+        if reply.lead_company:
+            conversations_text += f" @ {reply.lead_company}"
+        conversations_text += f" | {reply.category} | {reply.campaign_name or 'unknown'}\n"
 
-    try:
-        from app.services.gemini_client import gemini_generate, extract_json_from_gemini
+        thread = threads_map.get(reply.id, [])
+        if thread:
+            for msg in thread:
+                direction = ">>>" if msg.direction == "outbound" else "<<<"
+                body = (msg.body or "")[:400].strip()
+                if body:
+                    conversations_text += f"  {direction} {body}\n"
+        else:
+            # Fallback to reply_text
+            body = (reply.reply_text or reply.email_body or "")[:400].strip()
+            if body:
+                conversations_text += f"  <<< {body}\n"
+        conversations_text += "\n"
 
-        system_prompt = """You are a B2B GTM strategist. Analyze the REAL classified contact data below and produce a structured go-to-market strategy as JSON.
+    # ── 3. Campaign list with metadata ──
+    campaigns_text = "CAMPAIGNS:\n"
+    for c in sorted(campaigns, key=lambda x: x.leads_count or 0, reverse=True):
+        campaigns_text += f"  {c.name} ({c.platform}, {c.leads_count or '?'} leads)\n"
 
-Return ONLY valid JSON with this exact structure:
+    # ── 4. Call Claude Opus 4.6 ──
+    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+    system_prompt = """You are an elite B2B outbound strategist analyzing REAL outreach data — segment funnel metrics and actual conversations with warm leads.
+
+Your analysis must be brutally honest and data-driven. No generic advice.
+
+Return ONLY valid JSON with this structure:
 {
+  "summary": "3-5 sentence executive strategy summary — the single most important insight first",
   "segments": [
     {
       "segment": "Segment Name",
       "priority": 1,
       "size": 123,
-      "rationale": "Why this segment is high priority - based on data",
-      "characteristics": ["key trait 1", "key trait 2"],
-      "apollo_query": "Concrete Apollo.io search query to find more companies like these",
-      "outreach_angle": "Recommended messaging angle for this segment"
+      "total_replies": 50,
+      "meetings": 5,
+      "verdict": "SCALE UP | MAINTAIN | PIVOT | PAUSE | DROP",
+      "rationale": "Data-backed reasoning (cite specific numbers, reply rates, conversation patterns)",
+      "what_works": "Specific patterns from conversations that lead to meetings",
+      "what_fails": "Specific patterns that lead to not_interested/wrong_person",
+      "pitch_fix": "Concrete changes to messaging — quote actual phrases that work/don't work from the conversations",
+      "sequence_recommendation": "How many steps, timing, channel mix",
+      "outreach_angle": "Best messaging angle for this segment based on successful conversations"
     }
   ],
-  "summary": "2-3 sentence executive summary of the GTM strategy",
-  "total_addressable": "Estimate of total addressable companies per segment"
+  "bottlenecks": [
+    "Top 3-5 systemic issues killing conversion — be specific, cite data"
+  ],
+  "quick_wins": [
+    "Top 3-5 actionable changes that would improve results within 2 weeks"
+  ],
+  "explore": [
+    "Segments or approaches worth testing based on early signals in the data"
+  ]
 }
 
-Order segments by priority (highest first). Include ALL segments with >5 contacts.
-Apollo queries should be specific and actionable — use real industry terms, job titles, company sizes."""
+Rules:
+- Order segments by priority (highest ROI first)
+- VERDICT must be one of: SCALE UP, MAINTAIN, PIVOT, PAUSE, DROP
+- Quote specific conversation snippets when explaining what works/fails
+- Reference actual numbers from the funnel data
+- Be specific about pitch changes — "say X instead of Y"
+- If a segment has high reply rate but low meeting rate, diagnose WHY from the conversations
+- If a segment has few replies but high conversion, flag it as underexplored"""
 
-        user_prompt = f"""Project: {project.name}
-Target Industries: {project.target_industries or 'Not specified'}
-Target Segments: {project.target_segments or 'Not specified'}
-Total contacts: {len(contacts)} ({sum(segment_counts.values())} classified)
+    user_prompt = f"""Project: {project.name}
+Description: {project.target_industries or 'B2B outreach'}
 
-SEGMENT DISTRIBUTION:
-{segment_summary or '  No segments classified yet'}
+{funnel_text}
 
-INDUSTRY BREAKDOWN:
-{industry_summary or '  No industries classified yet'}
+{campaigns_text}
 
-TOP KEYWORDS: {keyword_summary or 'None'}
+{conversations_text}
 
-CROSS-PROJECT MATCHES: {dict(suitable_for_counts) if suitable_for_counts else 'None'}
+Analyze everything above and generate a comprehensive GTM strategy. Focus on:
+1. Which segments to double down on vs pause/drop — based on meeting conversion, not just replies
+2. What's working in conversations that lead to meetings — quote actual language
+3. What pitch changes would improve conversion — be specific, cite failing conversations
+4. Bottlenecks in the funnel — where are we losing people and why
+5. Unexplored opportunities — segments with early positive signals worth expanding"""
 
-Generate a data-driven GTM strategy. Prioritize segments with the most contacts and highest conversion potential. For each segment, suggest a specific Apollo.io search query that would find more companies in that segment."""
-
-        result = await gemini_generate(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            temperature=0.4,
-            max_tokens=4000,
-            model="gemini-2.5-pro-preview-06-05",
-            project_id=project_id,
+    try:
+        message = await client.messages.create(
+            model="claude-opus-4-20250514",
+            max_tokens=8000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+            temperature=0.3,
         )
 
-        gtm_json = extract_json_from_gemini(result["content"])
-        # Validate it's valid JSON
-        import json as json_mod
-        json_mod.loads(gtm_json)
+        response_text = message.content[0].text
+
+        # Extract JSON from response (may have markdown wrapping)
+        json_match = re.search(r'\{[\s\S]*\}', response_text)
+        if not json_match:
+            raise ValueError("No JSON found in Opus response")
+        gtm_json = json_match.group(0)
+        json_mod.loads(gtm_json)  # validate
 
         # Save to project
         project.gtm_plan = gtm_json
@@ -3055,6 +3182,9 @@ Generate a data-driven GTM strategy. Prioritize segments with the most contacts 
             "success": True,
             "gtm_plan": gtm_json,
         }
+    except anthropic.APIError as e:
+        logger.error(f"Anthropic API error: {e}")
+        raise HTTPException(status_code=502, detail=f"Claude API error: {str(e)}")
     except Exception as e:
         logger.error(f"GTM generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"GTM generation failed: {str(e)}")

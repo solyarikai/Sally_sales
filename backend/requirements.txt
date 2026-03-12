@@ -19,6 +19,9 @@ aiocsv>=1.3.2
 # OpenAI
 openai>=1.12.0
 
+# Anthropic (Claude Opus 4.6 for GTM strategy)
+anthropic>=0.40.0
+
 # Data processing
 pandas>=2.2.0
 numpy>=1.26.3

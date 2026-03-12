@@ -98,6 +98,9 @@ class Settings(BaseSettings):
     # Findymail API (email verification + finding)
     FINDYMAIL_API_KEY: Optional[str] = None
 
+    # Anthropic (Claude Opus 4.6 for GTM strategy)
+    ANTHROPIC_API_KEY: Optional[str] = None
+
     # Clay API (company enrichment via webhooks)
     CLAY_API_KEY: Optional[str] = None
 
@@ -159,6 +162,7 @@ _OPTIONAL_KEYS = {
     "CRONA_EMAIL":           "Crona (JS scraping)",
     "APIFY_PROXY_PASSWORD":  "Apify Proxy (Google SERP)",
     "GETSALES_API_KEY":      "GetSales",
+    "ANTHROPIC_API_KEY":     "Anthropic (Claude Opus 4.6)",
     "GEMINI_API_KEY":        "Google Gemini",
     "INSTANTLY_API_KEY":     "Instantly",
     "CLAY_API_KEY":          "Clay",
