@@ -3170,7 +3170,7 @@ Analyze everything above and generate a comprehensive GTM strategy. Focus on:
 
     try:
         message = await client.messages.create(
-            model="claude-opus-4-6-20250918",
+            model="claude-opus-4-20250514",
             max_tokens=8000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
