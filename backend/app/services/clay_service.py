@@ -425,10 +425,13 @@ class ClayService:
         logger.info(f"Clay People: wrote {len(domains)} domains to {domains_file}")
         await _emit(f"Launching headless browser for People search ({len(domains)} domains)...")
 
-        # Run Puppeteer script — always filter for decision-maker titles
+        # Run Puppeteer script — NO title filter in Clay UI.
+        # Get ALL contacts, then apply role-priority filtering in Python
+        # (office_rules + round-robin already handle this).
+        # Title filtering in Clay UI reduces raw contacts too aggressively.
         args = [
             "node", str(CLAY_PEOPLE_SCRIPT),
-            "--headless", "--auto", "--titles",
+            "--headless", "--auto",
             "--domains-file", str(domains_file),
         ]
 
