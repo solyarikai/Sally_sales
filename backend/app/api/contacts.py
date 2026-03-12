@@ -3050,7 +3050,6 @@ Focus on what patterns emerge and what concrete changes would improve the schedu
             user_prompt=user_prompt,
             temperature=0.4,
             max_tokens=6000,
-            model="gemini-2.5-pro-preview-06-05",
             project_id=project_id,
         )
 
