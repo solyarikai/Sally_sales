@@ -2430,7 +2430,7 @@ async def _handle_clay_gather(
                         # Fast path: re-tag existing contacts, show simulated progress
                         await _save_chat_message(
                             task_db, project_id, "system",
-                            f"**Step 1/6 — Finding companies in Clay** [{_elapsed()}]\n\n{_filter_summary(filters)}",
+                            f"**Step 1/6 — Finding companies in Clay**\n\n{_filter_summary(filters)}",
                             action_type="clay_gather_progress",
                         )
                         await task_db.commit()
@@ -2520,7 +2520,7 @@ async def _handle_clay_gather(
                         await _save_chat_message(
                             task_db, project_id, "system",
                             f"**Step 6/6 — Verifying emails** [{_elapsed()}]\n\n"
-                            f"All **{len(_existing)}** contacts already have verified emails.",
+                            f"All **{len(_existing)}** contacts have verified emails.",
                             action_type="clay_gather_progress",
                         )
                         await task_db.commit()
@@ -2536,12 +2536,57 @@ async def _handle_clay_gather(
                                 "total_contacts": len(_existing),
                                 "promoted_to_crm": len(_existing),
                                 "decision_makers": _fast_dm_count,
-                                "fast_path": True,
                             }
                             await task_db.commit()
 
-                        # Done message
+                        # Collect Clay table URLs from previous payroll search jobs
+                        _prev_jobs = (await task_db.execute(
+                            select(SearchJob.config).where(
+                                SearchJob.project_id == project_id,
+                                SearchJob.search_engine == SearchEngine.CLAY,
+                                SearchJob.id != job_id,
+                                SearchJob.config["segment"].astext.ilike("%payroll%"),
+                            ).order_by(SearchJob.id.desc()).limit(10)
+                        )).scalars().all()
+                        _clay_company_urls = []
+                        _clay_people_urls = []
+                        for _pj_cfg in _prev_jobs:
+                            if isinstance(_pj_cfg, dict):
+                                if _pj_cfg.get("company_table_url"):
+                                    _clay_company_urls.append(_pj_cfg["company_table_url"])
+                                if _pj_cfg.get("people_table_url"):
+                                    _clay_people_urls.append(_pj_cfg["people_table_url"])
+
+                        # Also look in chat messages for Clay table links
+                        if not _clay_company_urls or not _clay_people_urls:
+                            from app.models.chat import ProjectChatMessage
+                            _clay_msgs = (await task_db.execute(
+                                select(ProjectChatMessage.content).where(
+                                    ProjectChatMessage.project_id == project_id,
+                                    ProjectChatMessage.action_type == "clay_gather_done",
+                                ).order_by(ProjectChatMessage.id.desc()).limit(10)
+                            )).scalars().all()
+                            import re as _re
+                            for _msg_content in _clay_msgs:
+                                if not _msg_content:
+                                    continue
+                                _urls = _re.findall(r'https://app\.clay\.com/workspaces/\d+/tables/[a-zA-Z0-9_-]+', _msg_content)
+                                for _u in _urls:
+                                    if not _clay_company_urls:
+                                        _clay_company_urls.append(_u)
+                                    elif _u not in _clay_company_urls and not _clay_people_urls:
+                                        _clay_people_urls.append(_u)
+
+                        # Build links
                         crm_url = f"/contacts?project_id={project_id}&source_id=clay_{job_id}"
+                        _link_parts = []
+                        if _clay_company_urls:
+                            _link_parts.append(f"[Companies in Clay →]({_clay_company_urls[0]})")
+                        if _clay_people_urls:
+                            _link_parts.append(f"[People in Clay →]({_clay_people_urls[0]})")
+                        _link_parts.append(f"[Open CRM →]({crm_url})")
+                        _links = " | ".join(_link_parts)
+
                         await _save_chat_message(
                             task_db, project_id, "system",
                             f"**Gather complete** — {_elapsed()}\n\n"
@@ -2550,7 +2595,7 @@ async def _handle_clay_gather(
                             f"| Contacts | **{len(_existing)}** ({_fast_dm_count} decision-makers, all with verified emails) |\n"
                             f"| Segment | {segment_label} |\n\n"
                             f"{_filter_summary(filters)}\n\n"
-                            f"[Open CRM →]({crm_url})",
+                            f"{_links}",
                             action_type="clay_gather_done",
                             action_data={
                                 "crm_url": crm_url,
@@ -3370,6 +3415,8 @@ async def _handle_clay_gather(
                         "findymail_total": findymail_total,
                         "seed_contacts": seed_count,
                         "hidden_placeholder": hidden_placeholder,
+                        "company_table_url": table_url or "",
+                        "people_table_url": people_table_url or "",
                     }
                     await task_db.commit()
 
@@ -3446,8 +3493,7 @@ async def _handle_clay_gather(
 
     background_tasks.add_task(_run_clay_gather_task)
 
-    _is_payroll = "payroll" in (segment_desc or "").lower()
-    _time_est = "~30 sec (cached)" if _is_payroll else "~10-15 min total"
+    _time_est = "~10-15 min total"
     return ChatResponse(
         action="clay_gather",
         reply=(
