@@ -257,10 +257,10 @@ async def refresh_project_prefixes():
 def match_campaign_to_project(campaign_name: str, campaign_tags: list[str] | None = None) -> int | None:
     """Match a campaign name (and optional tags) to a project using ownership rules.
 
-    Evaluation order: tags > longest prefix > contains (with contains override).
-    If a contains rule matches a different project than the prefix match,
-    the contains rule wins — it represents a more specific keyword intent
-    (e.g. "russian" in the name overrides a generic "easystaff" prefix).
+    Evaluation order: tags > longest prefix > contains.
+    Prefix match wins over contains — the brand/product at the start of the
+    campaign name is the strongest signal (e.g. "inxy - russian dm" belongs to
+    inxy, not easystaff ru, even though "russian" appears in the name).
     Returns project_id or None.
     """
     if not campaign_name:
@@ -275,25 +275,15 @@ def match_campaign_to_project(campaign_name: str, campaign_tags: list[str] | Non
 
     name_lower = campaign_name.lower()
 
-    # 2. Find best prefix match (longest wins — list is pre-sorted)
-    prefix_pid = None
+    # 2. Prefix match — longest wins (list is pre-sorted by length DESC)
     for prefix, pid in _project_prefixes:
         if name_lower.startswith(prefix):
-            prefix_pid = pid
-            break
+            return pid
 
-    # 3. Find best contains match
-    contains_pid = None
+    # 3. Contains match — fallback only when no prefix matched
     for substr, pid in _project_contains:
         if substr in name_lower:
-            contains_pid = pid
-            break
-
-    # 4. Resolve: contains overrides prefix when they disagree
-    if contains_pid is not None:
-        return contains_pid
-    if prefix_pid is not None:
-        return prefix_pid
+            return pid
 
     return None
 
