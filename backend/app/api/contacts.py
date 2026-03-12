@@ -2758,6 +2758,182 @@ async def get_gtm_data(
     }
 
 
+@router.get("/projects/{project_id}/segment-funnel")
+async def get_segment_funnel(
+    project_id: int,
+    period: str = Query("all", pattern="^(7d|30d|90d|all)$"),
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Segment funnel analytics derived from campaign names at query time."""
+    from app.models.campaign import Campaign
+    from app.models.reply import ProcessedReply
+    from datetime import timedelta
+
+    # Verify project
+    project_stmt = select(Project).where(
+        Project.id == project_id, Project.deleted_at.is_(None),
+    )
+    if company_id:
+        project_stmt = project_stmt.where(Project.company_id == company_id)
+    project = (await session.execute(project_stmt)).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Segment rules: keyword → segment name (case-insensitive match on campaign name)
+    # Stored as project.config.segment_rules or fallback to built-in map
+    segment_rules = {}
+    if project.config and isinstance(project.config, dict):
+        segment_rules = project.config.get("segment_rules", {})
+
+    if not segment_rules:
+        # Built-in rules (covers rizzult and common patterns)
+        segment_rules = {
+            "fintech": "Fintech", "qsr": "QSR", "agenc": "Agencies",
+            "foodtech": "Foodtech", "food.*drink": "Foodtech",
+            "shopping": "Shopping", "stream": "Streaming", "media": "Media",
+            "telemed": "Telemedicine", "checkup": "Telemedicine",
+            "insur": "Insurance", "clean": "Cleaning", "farm": "Pharmacies",
+            "mobil": "Mobility", "wellness": "Wellness", "procure": "Procurement",
+            "telecom": "Telecom",
+        }
+
+    # Build SQL CASE WHEN from segment rules
+    def build_case_when(col_expr: str) -> str:
+        whens = []
+        for pattern, segment in segment_rules.items():
+            # Use ~ for regex, ILIKE for simple substring
+            if any(c in pattern for c in ".*+?[](){}|\\^$"):
+                whens.append(f"WHEN {col_expr} ~* '{pattern}' THEN '{segment}'")
+            else:
+                whens.append(f"WHEN {col_expr} ILIKE '%{pattern}%' THEN '{segment}'")
+        return "CASE " + " ".join(whens) + " ELSE 'Other' END"
+
+    campaign_case = build_case_when("c.name")
+    reply_case = build_case_when("pr.campaign_name")
+
+    # Period cutoff
+    cutoff = None
+    if period != "all":
+        days = {"7d": 7, "30d": 30, "90d": 90}[period]
+        cutoff = datetime.utcnow() - timedelta(days=days)
+
+    # Query 1: contacts per segment (from campaigns table)
+    contacts_sql = f"""
+        SELECT segment, SUM(leads_count) as total_contacts
+        FROM (
+            SELECT {campaign_case} as segment, leads_count
+            FROM campaigns c
+            WHERE c.project_id = :pid
+        ) sub
+        GROUP BY segment ORDER BY total_contacts DESC
+    """
+    contacts_result = await session.execute(sql_text(contacts_sql), {"pid": project_id})
+    contacts_rows = contacts_result.fetchall()
+
+    # Query 2: reply funnel per segment (from processed_replies)
+    reply_where = "c2.project_id = :pid AND pr.parent_reply_id IS NULL"
+    reply_params: dict = {"pid": project_id}
+    if cutoff:
+        reply_where += " AND pr.received_at >= :cutoff"
+        reply_params["cutoff"] = cutoff
+
+    reply_sql = f"""
+        SELECT {reply_case} as segment,
+            COUNT(*) as total_replies,
+            COUNT(*) FILTER (WHERE pr.category IN ('interested','meeting_request','question')) as positive,
+            COUNT(*) FILTER (WHERE pr.category = 'meeting_request') as meeting_requests,
+            COUNT(*) FILTER (WHERE pr.category = 'interested') as interested,
+            COUNT(*) FILTER (WHERE pr.category = 'question') as questions,
+            COUNT(*) FILTER (WHERE pr.category = 'not_interested') as not_interested,
+            COUNT(*) FILTER (WHERE pr.category = 'out_of_office') as ooo
+        FROM processed_replies pr
+        JOIN contacts c2 ON LOWER(c2.email) = LOWER(pr.lead_email) AND c2.deleted_at IS NULL
+        WHERE {reply_where}
+        GROUP BY 1
+    """
+    reply_result = await session.execute(sql_text(reply_sql), reply_params)
+    reply_rows = reply_result.fetchall()
+
+    # Merge results
+    reply_map = {}
+    for row in reply_rows:
+        reply_map[row.segment] = {
+            "total_replies": row.total_replies,
+            "positive": row.positive,
+            "meeting_requests": row.meeting_requests,
+            "interested": row.interested,
+            "questions": row.questions,
+            "not_interested": row.not_interested,
+            "ooo": row.ooo,
+        }
+
+    segments = []
+    grand_contacts = 0
+    grand_replies = 0
+    grand_positive = 0
+    grand_meetings = 0
+
+    for row in contacts_rows:
+        seg = row.segment
+        tc = row.total_contacts or 0
+        grand_contacts += tc
+        r = reply_map.pop(seg, {})
+        tr = r.get("total_replies", 0)
+        pos = r.get("positive", 0)
+        mtg = r.get("meeting_requests", 0)
+        grand_replies += tr
+        grand_positive += pos
+        grand_meetings += mtg
+        segments.append({
+            "segment": seg,
+            "total_contacts": tc,
+            "total_replies": tr,
+            "positive": pos,
+            "meeting_requests": mtg,
+            "interested": r.get("interested", 0),
+            "questions": r.get("questions", 0),
+            "not_interested": r.get("not_interested", 0),
+            "ooo": r.get("ooo", 0),
+            "reply_rate": round(tr / tc * 100, 1) if tc else 0,
+            "positive_rate": round(pos / tr * 100, 1) if tr else 0,
+        })
+
+    # Add segments that only appear in replies (no campaign match)
+    for seg, r in reply_map.items():
+        tr = r["total_replies"]
+        pos = r["positive"]
+        mtg = r["meeting_requests"]
+        grand_replies += tr
+        grand_positive += pos
+        grand_meetings += mtg
+        segments.append({
+            "segment": seg,
+            "total_contacts": 0,
+            "total_replies": tr,
+            "positive": pos,
+            "meeting_requests": mtg,
+            "interested": r["interested"],
+            "questions": r["questions"],
+            "not_interested": r["not_interested"],
+            "ooo": r["ooo"],
+            "reply_rate": 0,
+            "positive_rate": round(pos / tr * 100, 1) if tr else 0,
+        })
+
+    return {
+        "project_id": project_id,
+        "period": period,
+        "totals": {
+            "total_contacts": grand_contacts,
+            "total_replies": grand_replies,
+            "positive": grand_positive,
+            "meeting_requests": grand_meetings,
+        },
+        "segments": segments,
+    }
+
+
 @router.post("/projects/{project_id}/generate-gtm")
 async def generate_gtm_plan(
     project_id: int,

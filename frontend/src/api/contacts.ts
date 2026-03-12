@@ -193,6 +193,32 @@ export interface GTMData {
   gtm_plan: string | null;
 }
 
+export interface SegmentFunnelSegment {
+  segment: string;
+  total_contacts: number;
+  total_replies: number;
+  positive: number;
+  meeting_requests: number;
+  interested: number;
+  questions: number;
+  not_interested: number;
+  ooo: number;
+  reply_rate: number;
+  positive_rate: number;
+}
+
+export interface SegmentFunnelData {
+  project_id: number;
+  period: string;
+  totals: {
+    total_contacts: number;
+    total_replies: number;
+    positive: number;
+    meeting_requests: number;
+  };
+  segments: SegmentFunnelSegment[];
+}
+
 export interface ImportResult {
   success: boolean;
   total_rows: number;
@@ -531,6 +557,14 @@ export const contactsApi = {
   // GTM data — real segment stats from DB
   async getGTMData(projectId: number): Promise<GTMData> {
     const response = await api.get(`/contacts/projects/${projectId}/gtm-data`);
+    return response.data;
+  },
+
+  // Segment funnel analytics — campaign-name-derived segments
+  async getSegmentFunnel(projectId: number, period: string = 'all'): Promise<SegmentFunnelData> {
+    const response = await api.get(`/contacts/projects/${projectId}/segment-funnel`, {
+      params: { period },
+    });
     return response.data;
   },
 
