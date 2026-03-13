@@ -539,6 +539,40 @@ async def run_diaspora_pipeline(
     failed_batches = 0
     skip_batches = 0
 
+    # Create or reuse Google Sheet for incremental updates
+    _sheet_id = existing_sheet_id
+    if not _sheet_id:
+        try:
+            sheets_service, drive_service = _get_sheets_service()
+            shared_drive_id = os.environ.get("SHARED_DRIVE_ID", "0AEvTjlJFlWnZUk9PVA")
+            title = f"Diaspora Contacts — {corridor['label']} — {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            file_metadata = {
+                "name": title,
+                "mimeType": "application/vnd.google-apps.spreadsheet",
+                "parents": [shared_drive_id],
+            }
+            sheet_file = drive_service.files().create(
+                body=file_metadata, fields="id", supportsAllDrives=True,
+            ).execute()
+            _sheet_id = sheet_file["id"]
+            drive_service.permissions().create(
+                fileId=_sheet_id,
+                body={"type": "anyone", "role": "reader"},
+                supportsAllDrives=True,
+            ).execute()
+            # Rename Sheet1
+            sheets_service.spreadsheets().batchUpdate(
+                spreadsheetId=_sheet_id,
+                body={"requests": [{"updateSheetProperties": {
+                    "properties": {"sheetId": 0, "title": corridor["sheet_name"]}, "fields": "title",
+                }}]},
+            ).execute()
+            sheet_url_early = f"https://docs.google.com/spreadsheets/d/{_sheet_id}"
+            await _emit(f"Google Sheet created: {sheet_url_early}")
+        except Exception as e:
+            logger.warning(f"Failed to create sheet early: {e}")
+            _sheet_id = None
+
     # Try to resume from interim results
     interim_path = Path("/tmp") / f"diaspora_{corridor_key}_interim.json"
     if interim_path.exists():
@@ -688,10 +722,15 @@ async def run_diaspora_pipeline(
             existing_keys.add(key.lower())
 
         new_matches = []
+        industries_str = ", ".join(batch_config.get("industries", []))
         for c in matched:
             key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
             if key.lower() not in existing_keys:
-                c["_industry_batch"] = batch_label
+                c["_search_method"] = f"industry_search: {batch_label}"
+                c["_search_details"] = (
+                    f"Company-first: {industries_str} in {', '.join(employer_countries)} → "
+                    f"get contacts → filter C-level → classify {contractor_country} names via GPT"
+                )
                 c["_corridor"] = corridor_key
                 new_matches.append(c)
                 existing_keys.add(key.lower())
@@ -701,6 +740,26 @@ async def run_diaspora_pipeline(
             f"New unique matches: {len(new_matches)}. "
             f"Total: {len(all_matched_contacts)}/{target_count}"
         )
+
+        # Incremental export to Google Sheet
+        if new_matches and _sheet_id:
+            try:
+                await incremental_sheet_export(
+                    all_matched_contacts, corridor, _sheet_id,
+                    approach_log={
+                        "timestamp": datetime.now().isoformat(),
+                        "approach": f"Industry Search: {batch_label}",
+                        "details": f"Companies in {industries_str} in {', '.join(employer_countries)} → contacts → C-level filter → name classification",
+                        "contacts_found": len(all_people),
+                        "decision_makers": len(decision_makers),
+                        "matched": len(new_matches),
+                        "hit_rate": f"{len(matched)/max(len(classified),1)*100:.1f}%",
+                        "total_so_far": len(all_matched_contacts),
+                    },
+                )
+                await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
+            except Exception as e:
+                logger.warning(f"Incremental export failed: {e}")
 
         # Save intermediate results to disk after each iteration
         try:
@@ -808,10 +867,16 @@ async def run_diaspora_pipeline(
                 existing_keys.add(key.lower())
 
             new_matches = []
+            schools_str = ", ".join(schools)
             for c in matched:
                 key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
                 if key.lower() not in existing_keys:
-                    c["_industry_batch"] = f"uni_{uni_label}"
+                    c["_search_method"] = f"university_search: {uni_label}"
+                    c["_search_details"] = (
+                        f"University-first: Schools={schools_str}, "
+                        f"Location={', '.join(employer_countries)}, "
+                        f"Titles=C-level/VP/Director → classify {contractor_country} names via GPT"
+                    )
                     c["_corridor"] = corridor_key
                     new_matches.append(c)
                     existing_keys.add(key.lower())
@@ -821,6 +886,26 @@ async def run_diaspora_pipeline(
                 f"New unique matches: {len(new_matches)}. "
                 f"Total: {len(all_matched_contacts)}/{target_count}"
             )
+
+            # Incremental export to Google Sheet
+            if new_matches and _sheet_id:
+                try:
+                    await incremental_sheet_export(
+                        all_matched_contacts, corridor, _sheet_id,
+                        approach_log={
+                            "timestamp": datetime.now().isoformat(),
+                            "approach": f"University Search: {uni_label}",
+                            "details": f"Schools: {schools_str} | Location: {', '.join(employer_countries)} | Titles: C-level/VP/Director/Head",
+                            "contacts_found": len(all_people),
+                            "decision_makers": len(decision_makers),
+                            "matched": len(new_matches),
+                            "hit_rate": f"{len(matched)/max(len(classified),1)*100:.1f}%",
+                            "total_so_far": len(all_matched_contacts),
+                        },
+                    )
+                    await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
+                except Exception as e:
+                    logger.warning(f"Incremental export failed: {e}")
 
             # Save interim
             try:
@@ -838,7 +923,7 @@ async def run_diaspora_pipeline(
             except Exception as e:
                 logger.warning(f"Failed to save interim: {e}")
 
-    # Phase 4: Export to Google Sheet
+    # Phase 4: Final export to Google Sheet
     await _emit(f"\nExporting {len(all_matched_contacts)} matched contacts to Google Sheet...")
 
     sheet_url = None
@@ -854,7 +939,7 @@ async def run_diaspora_pipeline(
                 "iterations": iteration,
                 "failed_batches": failed_batches,
             },
-            existing_sheet_id=existing_sheet_id,
+            existing_sheet_id=_sheet_id,  # Use the sheet we created/used throughout
         )
         await _emit(f"Google Sheet: {sheet_url}")
     except Exception as e:
@@ -887,13 +972,8 @@ async def run_diaspora_pipeline(
     return summary
 
 
-async def export_diaspora_to_sheet(
-    contacts: List[Dict[str, Any]],
-    corridor: Dict[str, Any],
-    stats: Dict[str, Any],
-    existing_sheet_id: Optional[str] = None,
-) -> str:
-    """Export diaspora contacts to Google Sheet. Returns sheet URL."""
+def _get_sheets_service():
+    """Get authenticated Google Sheets + Drive services."""
     from google.oauth2.service_account import Credentials
     from googleapiclient.discovery import build
 
@@ -903,8 +983,6 @@ async def export_diaspora_to_sheet(
         if not os.path.exists(creds_file):
             raise FileNotFoundError("Google credentials not found")
 
-    shared_drive_id = os.environ.get("SHARED_DRIVE_ID", "0AEvTjlJFlWnZUk9PVA")
-
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
@@ -912,6 +990,45 @@ async def export_diaspora_to_sheet(
     creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
     drive_service = build("drive", "v3", credentials=creds)
     sheets_service = build("sheets", "v4", credentials=creds)
+    return sheets_service, drive_service
+
+
+# Column definitions for contact data
+CONTACT_COLUMNS = [
+    "Name", "First Name", "Last Name", "Email", "Title", "Company",
+    "Domain", "Location", "LinkedIn URL", "Phone",
+    "Origin Score", "Search Method", "Search Details", "Corridor",
+]
+CONTACT_FIELD_MAP = {
+    "Name": "name", "First Name": "first_name", "Last Name": "last_name",
+    "Email": "email", "Title": "title", "Company": "company",
+    "Domain": "company_domain", "Location": "location",
+    "LinkedIn URL": "linkedin_url", "Phone": "phone",
+    "Origin Score": "_origin_score", "Search Method": "_search_method",
+    "Search Details": "_search_details", "Corridor": "_corridor",
+}
+
+
+def _contact_to_row(contact: Dict[str, Any]) -> List[str]:
+    """Convert a contact dict to a row for Google Sheets."""
+    row = []
+    for col in CONTACT_COLUMNS:
+        val = contact.get(CONTACT_FIELD_MAP[col], "")
+        if val is None:
+            val = ""
+        row.append(str(val)[:500])
+    return row
+
+
+async def export_diaspora_to_sheet(
+    contacts: List[Dict[str, Any]],
+    corridor: Dict[str, Any],
+    stats: Dict[str, Any],
+    existing_sheet_id: Optional[str] = None,
+) -> str:
+    """Export ALL diaspora contacts to Google Sheet (full rewrite). Returns sheet URL."""
+    sheets_service, drive_service = _get_sheets_service()
+    shared_drive_id = os.environ.get("SHARED_DRIVE_ID", "0AEvTjlJFlWnZUk9PVA")
 
     # Create or reuse sheet
     if existing_sheet_id:
@@ -937,62 +1054,57 @@ async def export_diaspora_to_sheet(
 
     sheet_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
 
-    # Rename Sheet1 to corridor name
-    sheets_service.spreadsheets().batchUpdate(
-        spreadsheetId=spreadsheet_id,
-        body={"requests": [{"updateSheetProperties": {
-            "properties": {"sheetId": 0, "title": corridor["sheet_name"]}, "fields": "title",
-        }}]},
-    ).execute()
+    # Ensure main sheet exists with correct name
+    try:
+        sheets_service.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": [{"updateSheetProperties": {
+                "properties": {"sheetId": 0, "title": corridor["sheet_name"]}, "fields": "title",
+            }}]},
+        ).execute()
+    except Exception:
+        pass  # Already named
 
-    # Write contact data
-    columns = [
-        "Name", "First Name", "Last Name", "Email", "Title", "Company",
-        "Domain", "Location", "LinkedIn URL", "Phone",
-        "Origin Score", "Industry Batch", "Corridor",
-    ]
-    field_map = {
-        "Name": "name", "First Name": "first_name", "Last Name": "last_name",
-        "Email": "email", "Title": "title", "Company": "company",
-        "Domain": "company_domain", "Location": "location",
-        "LinkedIn URL": "linkedin_url", "Phone": "phone",
-        "Origin Score": "_origin_score", "Industry Batch": "_industry_batch",
-        "Corridor": "_corridor",
-    }
-
-    rows = [columns]
+    # Build all rows (header + all contacts)
+    rows = [CONTACT_COLUMNS]
     for contact in contacts:
-        row = []
-        for col in columns:
-            val = contact.get(field_map[col], "")
-            if val is None:
-                val = ""
-            row.append(str(val)[:500])
-        rows.append(row)
+        rows.append(_contact_to_row(contact))
 
-    # Write data
+    # Clear and rewrite entire sheet
+    sheet_name = corridor["sheet_name"]
+    try:
+        sheets_service.spreadsheets().values().clear(
+            spreadsheetId=spreadsheet_id,
+            range=f"{sheet_name}!A:Z",
+        ).execute()
+    except Exception:
+        pass
+
     for i in range(0, len(rows), 5000):
         batch = rows[i:i + 5000]
-        start_row = i + 1 if i > 0 else 1
+        start_row = i + 1
         sheets_service.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id,
-            range=f"{corridor['sheet_name']}!A{start_row}",
+            range=f"{sheet_name}!A{start_row}",
             valueInputOption="RAW",
             body={"values": batch},
         ).execute()
 
-    # Add stats tab
+    # Update stats tab (overwrite)
     try:
         sheets_service.spreadsheets().batchUpdate(
             spreadsheetId=spreadsheet_id,
             body={"requests": [{"addSheet": {"properties": {"title": "Pipeline Stats"}}}]},
         ).execute()
+    except Exception:
+        pass  # Already exists
 
-        stats_rows = [["Metric", "Value"]]
-        for k, v in stats.items():
-            stats_rows.append([str(k), str(v)])
-        stats_rows.append(["generated_at", datetime.now().isoformat()])
+    stats_rows = [["Metric", "Value"]]
+    for k, v in stats.items():
+        stats_rows.append([str(k), str(v)])
+    stats_rows.append(["generated_at", datetime.now().isoformat()])
 
+    try:
         sheets_service.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id,
             range="Pipeline Stats!A1",
@@ -1000,10 +1112,84 @@ async def export_diaspora_to_sheet(
             body={"values": stats_rows},
         ).execute()
     except Exception as e:
-        logger.warning(f"Failed to create stats tab: {e}")
+        logger.warning(f"Failed to update stats tab: {e}")
 
     logger.info(f"Diaspora export: {len(contacts)} contacts to {sheet_url}")
     return sheet_url
+
+
+async def incremental_sheet_export(
+    contacts: List[Dict[str, Any]],
+    corridor: Dict[str, Any],
+    sheet_id: str,
+    approach_log: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Incrementally update Google Sheet — rewrite all contacts + append approach log."""
+    try:
+        sheets_service, _ = _get_sheets_service()
+        sheet_name = corridor["sheet_name"]
+
+        # Rewrite all contacts (header + data)
+        rows = [CONTACT_COLUMNS]
+        for contact in contacts:
+            rows.append(_contact_to_row(contact))
+
+        sheets_service.spreadsheets().values().clear(
+            spreadsheetId=sheet_id,
+            range=f"{sheet_name}!A:Z",
+        ).execute()
+
+        for i in range(0, len(rows), 5000):
+            batch = rows[i:i + 5000]
+            start_row = i + 1
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=sheet_id,
+                range=f"{sheet_name}!A{start_row}",
+                valueInputOption="RAW",
+                body={"values": batch},
+            ).execute()
+
+        # Append to Approaches Log
+        if approach_log:
+            try:
+                sheets_service.spreadsheets().batchUpdate(
+                    spreadsheetId=sheet_id,
+                    body={"requests": [{"addSheet": {"properties": {"title": "Approaches Log"}}}]},
+                ).execute()
+                # Write header
+                sheets_service.spreadsheets().values().update(
+                    spreadsheetId=sheet_id,
+                    range="Approaches Log!A1",
+                    valueInputOption="RAW",
+                    body={"values": [[
+                        "Timestamp", "Approach", "Details", "Contacts Found",
+                        "Decision Makers", "Matched", "Hit Rate", "Total So Far",
+                    ]]},
+                ).execute()
+            except Exception:
+                pass  # Sheet already exists
+
+            # Append approach row
+            sheets_service.spreadsheets().values().append(
+                spreadsheetId=sheet_id,
+                range="Approaches Log!A:H",
+                valueInputOption="RAW",
+                insertDataOption="INSERT_ROWS",
+                body={"values": [[
+                    approach_log.get("timestamp", datetime.now().isoformat()),
+                    approach_log.get("approach", ""),
+                    approach_log.get("details", ""),
+                    approach_log.get("contacts_found", 0),
+                    approach_log.get("decision_makers", 0),
+                    approach_log.get("matched", 0),
+                    approach_log.get("hit_rate", ""),
+                    approach_log.get("total_so_far", 0),
+                ]]},
+            ).execute()
+
+        logger.info(f"Incremental export: {len(contacts)} contacts to sheet {sheet_id}")
+    except Exception as e:
+        logger.error(f"Incremental sheet export failed: {e}")
 
 
 async def run_all_corridors(
