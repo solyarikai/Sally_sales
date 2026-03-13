@@ -210,40 +210,40 @@ class SheetSyncService:
                     await _advance_cursor()
                     return stats
 
-            # Dedup: skip replies whose lead_email already exists in the sheet
-            # Also read last index value for sequential numbering
+            # Read last index value from sheet for sequential numbering (rizzult format)
+            row_format = config.get("row_format", "default")
             try:
                 existing_rows = google_sheets_service.read_sheet_raw(sheet_id, replies_tab)
-                existing_emails = set()
                 last_sheet_index = 0
                 for row in existing_rows[1:]:  # skip header
-                    # Column J (index 9) = target_lead_email for rizzult, col 4 for default
-                    email_col = 9 if config.get("row_format") == "rizzult_28col" else 4
-                    if len(row) > email_col and row[email_col]:
-                        email = row[email_col].strip().lower()
-                        existing_emails.add(email)
-                    # Track last index (column A)
                     if row and row[0]:
                         try:
                             last_sheet_index = max(last_sheet_index, int(row[0]))
                         except (ValueError, TypeError):
                             pass
                 config["_last_sheet_index"] = last_sheet_index + 1
-                before = len(replies)
 
-                replies = [r for r in replies if (r.lead_email or "").lower() not in existing_emails]
-                skipped = before - len(replies)
-                if skipped:
-                    logger.info(f"Sheet dedup: skipped {skipped} replies already in sheet")
-                if not replies:
-                    # All deduped — still advance cursor so we don't re-query forever
-                    await _advance_cursor()
-                    return stats
+                # Dedup by exact email — but ONLY for default format.
+                # Rizzult format relies on last_replies_sync_at cursor (one row per reply).
+                # Default format has one row per lead (skip if email already in sheet).
+                if row_format != "rizzult_28col":
+                    email_col = 4  # default format email column
+                    existing_emails = set()
+                    for row in existing_rows[1:]:
+                        if len(row) > email_col and row[email_col]:
+                            existing_emails.add(row[email_col].strip().lower())
+                    before = len(replies)
+                    replies = [r for r in replies if (r.lead_email or "").lower() not in existing_emails]
+                    skipped = before - len(replies)
+                    if skipped:
+                        logger.info(f"Sheet dedup: skipped {skipped} replies already in sheet")
+                    if not replies:
+                        await _advance_cursor()
+                        return stats
             except Exception as e:
-                logger.warning(f"Sheet dedup check failed (proceeding without): {e}")
+                logger.warning(f"Sheet index read failed (proceeding without): {e}")
 
             # Dispatch row builder based on format
-            row_format = config.get("row_format", "default")
             if row_format == "rizzult_28col":
                 rows, latest_received = self._build_rizzult_rows(replies, contact_map, config)
             else:
