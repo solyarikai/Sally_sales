@@ -392,25 +392,40 @@ async function runPeopleSearch(page, filters, label = 'default') {
     });
     await humanDelay(800, 1200);
 
+    // Try to find and click Schools section header to expand it
     const schoolSection = await findByText(page, 'Schools', true)
       || await findByText(page, 'School', true)
-      || await findByText(page, 'Education', true);
+      || await findByText(page, 'Education', true)
+      || await findByText(page, 'Schools', false);
     if (schoolSection) {
       await page.mouse.click(schoolSection.x, schoolSection.y);
       await humanDelay(800, 1200);
+      console.log('    Clicked Schools section');
+    } else {
+      console.log('    Schools section header not found — trying direct input');
     }
-    const schoolInput = await page.$('input[placeholder*="Harvard"]')
-      || await page.$('input[placeholder*="school"]')
-      || await page.$('input[placeholder*="university"]')
-      || await page.$('input[placeholder*="Stanford"]');
-    if (schoolInput) {
+    // Find school input via evaluate (more reliable than CSS selector)
+    const schoolInputPos = await page.evaluate(() => {
+      const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null);
+      for (const input of inputs) {
+        const ph = (input.placeholder || '').toLowerCase();
+        if (ph.includes('mcgill') || ph.includes('mcmaster') || ph.includes('university') || ph.includes('school')) {
+          const rect = input.getBoundingClientRect();
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder };
+        }
+      }
+      return null;
+    });
+    if (schoolInputPos) {
+      console.log(`    Found school input: "${schoolInputPos.placeholder}"`);
       for (const school of filters.schools) {
-        await schoolInput.click();
+        await page.mouse.click(schoolInputPos.x, schoolInputPos.y);
         await humanDelay(100, 200);
-        await schoolInput.type(school, { delay: 25 + Math.random() * 30 });
-        await humanDelay(500, 900);
+        await page.keyboard.type(school, { delay: 25 + Math.random() * 30 });
+        await humanDelay(800, 1200);
+        // Wait for dropdown, then press Enter to select first option
         await page.keyboard.press('Enter');
-        await humanDelay(300, 500);
+        await humanDelay(400, 700);
       }
       console.log(`    Schools: ${filters.schools.join(', ')}`);
     } else {

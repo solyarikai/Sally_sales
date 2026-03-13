@@ -617,7 +617,7 @@ class ClayService:
                 _domains_found.add(d)
             else:
                 _domains_empty += 1
-        _searched = set(d.strip().lower().replace("www.", "") for d in domains if d.strip())
+        _searched = set(d.strip().lower().replace("www.", "") for d in (domains or []) if d.strip())
         _matched = _domains_found & _searched
         _unmatched = _domains_found - _searched
         logger.info(
