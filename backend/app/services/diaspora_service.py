@@ -494,29 +494,30 @@ async def run_diaspora_pipeline(
         await _emit(f"Found {len(all_domains)} companies with domains")
         all_companies_found += len(all_domains)
 
-        # Phase 2: Search contacts in sub-batches of 500 domains
-        # Clay people search handles 200 domains per UI batch internally
-        DOMAIN_SUB_BATCH = 500
-        all_people = []
-        for sub_start in range(0, len(all_domains), DOMAIN_SUB_BATCH):
-            sub_domains = all_domains[sub_start:sub_start + DOMAIN_SUB_BATCH]
-            sub_label = f"{sub_start//DOMAIN_SUB_BATCH + 1}/{(len(all_domains) + DOMAIN_SUB_BATCH - 1)//DOMAIN_SUB_BATCH}"
-            await _emit(f"Phase 2: People search sub-batch {sub_label} ({len(sub_domains)} companies)...")
+        # Cap at 500 domains (single Clay people search batch ~ 15min)
+        import random
+        if len(all_domains) > 500:
+            random.shuffle(all_domains)
+            domains = all_domains[:500]
+            await _emit(f"Sampling 500 of {len(all_domains)} companies for people search...")
+        else:
+            domains = all_domains
 
-            try:
-                people_result = await clay_service.run_people_search(
-                    domains=sub_domains,
-                    project_id=project_id,
-                    on_progress=on_progress,
-                )
-                people = people_result.get("people", [])
-                all_people.extend(people)
-                await _emit(f"Sub-batch {sub_label}: {len(people)} contacts (total: {len(all_people)})")
-            except Exception as e:
-                logger.error(f"People search sub-batch {sub_label} failed: {e}")
-                await _emit(f"Sub-batch {sub_label} failed: {e}")
-                failed_batches += 1
+        # Phase 2: Find contacts
+        await _emit(f"Phase 2: Finding contacts at {len(domains)} companies...")
+        try:
+            people_result = await clay_service.run_people_search(
+                domains=domains,
+                project_id=project_id,
+                on_progress=on_progress,
+            )
+        except Exception as e:
+            logger.error(f"People search failed: {e}")
+            await _emit(f"People search failed: {e}. Skipping.")
+            failed_batches += 1
+            continue
 
+        all_people = people_result.get("people", [])
         if not all_people:
             await _emit(f"No contacts found. Skipping.")
             continue
