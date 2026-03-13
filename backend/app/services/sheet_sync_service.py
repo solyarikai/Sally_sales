@@ -176,6 +176,17 @@ class SheetSyncService:
             if not replies:
                 return stats
 
+            # Track latest received_at BEFORE any filtering — used to advance
+            # the sync cursor even when all replies are deduped/filtered out.
+            all_latest = max(r.received_at for r in replies)
+
+            # Helper: advance sync cursor without appending rows
+            async def _advance_cursor():
+                new_cfg = dict(config)
+                new_cfg["last_replies_sync_at"] = all_latest.isoformat()
+                project.sheet_sync_config = new_cfg
+                await session.commit()
+
             # Build email→Contact lookup for enrichment
             emails = list({r.lead_email.lower() for r in replies if r.lead_email})
             contact_map = {}
@@ -196,6 +207,7 @@ class SheetSyncService:
             if config.get("exclude_ooo"):
                 replies = [r for r in replies if r.category != "out_of_office"]
                 if not replies:
+                    await _advance_cursor()
                     return stats
 
             # Dedup: skip replies whose lead_email already exists in the sheet
@@ -203,7 +215,6 @@ class SheetSyncService:
             try:
                 existing_rows = google_sheets_service.read_sheet_raw(sheet_id, replies_tab)
                 existing_emails = set()
-                existing_usernames = set()  # email local part for fuzzy domain matching
                 last_sheet_index = 0
                 for row in existing_rows[1:]:  # skip header
                     # Column J (index 9) = target_lead_email for rizzult, col 4 for default
@@ -211,9 +222,6 @@ class SheetSyncService:
                     if len(row) > email_col and row[email_col]:
                         email = row[email_col].strip().lower()
                         existing_emails.add(email)
-                        # Track username for fuzzy dedup (pp@santabrisa.co vs pp@santabrisa.com)
-                        if "@" in email:
-                            existing_usernames.add(email.split("@")[0])
                     # Track last index (column A)
                     if row and row[0]:
                         try:
@@ -223,22 +231,13 @@ class SheetSyncService:
                 config["_last_sheet_index"] = last_sheet_index + 1
                 before = len(replies)
 
-                def _is_duplicate(reply_email: str) -> bool:
-                    email = (reply_email or "").lower()
-                    if email in existing_emails:
-                        return True
-                    # Fuzzy: same username + similar domain (e.g. .co vs .com)
-                    if "@" in email:
-                        username = email.split("@")[0]
-                        if username in existing_usernames:
-                            return True
-                    return False
-
-                replies = [r for r in replies if not _is_duplicate(r.lead_email)]
+                replies = [r for r in replies if (r.lead_email or "").lower() not in existing_emails]
                 skipped = before - len(replies)
                 if skipped:
                     logger.info(f"Sheet dedup: skipped {skipped} replies already in sheet")
                 if not replies:
+                    # All deduped — still advance cursor so we don't re-query forever
+                    await _advance_cursor()
                     return stats
             except Exception as e:
                 logger.warning(f"Sheet dedup check failed (proceeding without): {e}")
@@ -254,6 +253,7 @@ class SheetSyncService:
             first_row = google_sheets_service.append_rows(sheet_id, replies_tab, rows)
             if first_row > 0:
                 stats["rows_appended"] = len(rows)
+                logger.info(f"Sheet sync project {project_id}: appended {len(rows)} rows")
 
                 # Update config
                 new_config = dict(config)
@@ -267,6 +267,9 @@ class SheetSyncService:
                 await session.commit()
             else:
                 stats["errors"].append("append_rows returned 0")
+                logger.warning(f"Sheet sync project {project_id}: append_rows returned 0 for {len(rows)} rows")
+                # Still advance cursor so we don't retry the same batch forever
+                await _advance_cursor()
 
         return stats
 
