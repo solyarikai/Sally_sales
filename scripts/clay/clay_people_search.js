@@ -842,6 +842,9 @@ async function main() {
   const nameIdx = args.indexOf('--name');
   const nameArg = nameIdx >= 0 ? args[nameIdx + 1] : null;
   const customName = nameArg ? nameArg.trim() : null;
+  const jobTitleIdx = args.indexOf('--job-title');
+  const jobTitleArg = jobTitleIdx >= 0 ? args[jobTitleIdx + 1] : null;
+  const customJobTitle = jobTitleArg ? jobTitleArg.trim() : null;
 
   if (useTitles) {
     GAMING_ICP_FILTERS.job_titles = ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
@@ -941,6 +944,10 @@ async function main() {
   if (customName) {
     GAMING_ICP_FILTERS.person_name = customName;
     console.log(`  Name filter: ${customName}`);
+  }
+  if (customJobTitle) {
+    GAMING_ICP_FILTERS.job_titles = [customJobTitle];
+    console.log(`  Single job title filter: ${customJobTitle}`);
   }
 
   if (allDomains.length === 0) {

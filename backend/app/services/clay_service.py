@@ -403,6 +403,7 @@ class ClayService:
         countries: Optional[List[str]] = None,
         schools: Optional[List[str]] = None,
         name: Optional[str] = None,
+        job_title: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Run Clay People search via Puppeteer.
 
@@ -465,6 +466,10 @@ class ClayService:
         if name:
             args.extend(["--name", name])
             logger.info(f"Clay People: name filter = {name}")
+
+        if job_title:
+            args.extend(["--job-title", job_title])
+            logger.info(f"Clay People: job title filter = {job_title}")
 
         env = {
             **os.environ,

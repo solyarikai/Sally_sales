@@ -1352,6 +1352,167 @@ async def run_diaspora_pipeline(
                     except Exception as e:
                         logger.warning(f"Incremental export failed: {e}")
 
+    # Phase 3d: Title-split search — search each C-level title individually
+    # Each title search returns up to 5K people, then classify ALL names
+    # This catches people without university listed or non-distinctive surnames
+    TITLE_SPLITS = [
+        {"label": "ceo", "titles": ["CEO"]},
+        {"label": "founder", "titles": ["Founder"]},
+        {"label": "cto", "titles": ["CTO"]},
+        {"label": "cfo", "titles": ["CFO"]},
+        {"label": "coo", "titles": ["COO"]},
+        {"label": "managing_director", "titles": ["Managing Director"]},
+        {"label": "vp", "titles": ["VP"]},
+        {"label": "director", "titles": ["Director"]},
+        {"label": "head_of", "titles": ["Head of"]},
+        {"label": "partner", "titles": ["Partner"]},
+        {"label": "general_manager", "titles": ["General Manager"]},
+        {"label": "country_manager", "titles": ["Country Manager"]},
+    ]
+
+    if len(all_matched_contacts) < target_count and mode in ("full", "full_tam"):
+        await _emit(f"\n=== TITLE-SPLIT SEARCH ({len(all_matched_contacts)}/{target_count}) ===")
+        await _emit(f"Searching each C-level title individually in {', '.join(employer_countries)} → classify all names")
+
+        for title_batch in TITLE_SPLITS:
+            if len(all_matched_contacts) >= target_count:
+                break
+
+            t_label = title_batch["label"]
+            titles = title_batch["titles"]
+            iteration += 1
+
+            await _emit(f"\n--- Title search: {titles[0]} in {', '.join(employer_countries)} ---")
+            await _emit(f"Progress: {len(all_matched_contacts)}/{target_count}")
+
+            try:
+                # Use Clay People search with ONLY this specific title + location
+                result = await clay_service.run_people_search(
+                    domains=None,
+                    project_id=project_id,
+                    on_progress=on_progress,
+                    use_titles=False,
+                    countries=employer_countries,
+                    job_title=titles[0],  # Single title filter via --job-title
+                )
+            except Exception as e:
+                logger.error(f"Title-split search failed for {t_label}: {e}")
+                await _emit(f"Search failed: {e}. Skipping.")
+                failed_batches += 1
+                if _sheet_id:
+                    try:
+                        await incremental_sheet_export(
+                            all_matched_contacts, corridor, _sheet_id,
+                            approach_log={
+                                "timestamp": datetime.now().isoformat(),
+                                "search_type": "title_split",
+                                "batch_name": t_label, "schools_filter": "",
+                                "location_filter": ", ".join(employer_countries),
+                                "title_filter": titles[0],
+                                "contacts_found": 0, "decision_makers": 0,
+                                "prefilter_candidates": 0, "matched": 0,
+                                "hit_rate": "0%", "new_unique": 0,
+                                "total_so_far": len(all_matched_contacts),
+                                "assessment": f"FAILED: {str(e)[:100]}",
+                                "next_action": "Continue",
+                            },
+                        )
+                    except Exception:
+                        pass
+                continue
+
+            all_people = result.get("people", [])
+            if not all_people:
+                await _emit(f"No contacts for title '{titles[0]}'. Skipping.")
+                if _sheet_id:
+                    try:
+                        await incremental_sheet_export(
+                            all_matched_contacts, corridor, _sheet_id,
+                            approach_log={
+                                "timestamp": datetime.now().isoformat(),
+                                "search_type": "title_split",
+                                "batch_name": t_label, "schools_filter": "",
+                                "location_filter": ", ".join(employer_countries),
+                                "title_filter": titles[0],
+                                "contacts_found": 0, "decision_makers": 0,
+                                "prefilter_candidates": 0, "matched": 0,
+                                "hit_rate": "0%", "new_unique": 0,
+                                "total_so_far": len(all_matched_contacts),
+                                "assessment": f"No results for title '{titles[0]}'",
+                                "next_action": "Continue",
+                            },
+                        )
+                    except Exception:
+                        pass
+                continue
+
+            # Filter to only the specific title we searched for
+            title_lower = titles[0].lower()
+            title_filtered = [
+                p for p in all_people
+                if title_lower in (p.get("title") or "").lower()
+            ]
+            if not title_filtered:
+                title_filtered = all_people  # Trust Clay's filter
+
+            await _emit(f"Found {len(all_people)} contacts → {len(title_filtered)} with '{titles[0]}' title")
+            all_scanned += len(title_filtered)
+
+            # Classify ALL names — no pre-filter by surname, catch everyone
+            await _emit(f"Classifying ALL {len(title_filtered)} names (no surname pre-filter)...")
+            try:
+                classified = await classify_names_by_origin(title_filtered, contractor_country)
+            except Exception as e:
+                logger.error(f"Classification failed: {e}")
+                continue
+
+            matched = [c for c in classified if c.get("_origin_match")]
+            existing_keys = {(c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}").lower() for c in all_matched_contacts}
+            new_matches = []
+            for c in matched:
+                key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
+                if key.lower() not in existing_keys:
+                    c["_search_type"] = "title_split"
+                    c["_search_batch"] = t_label
+                    c["_schools_filter"] = ""
+                    c["_location_filter"] = ", ".join(employer_countries)
+                    c["_title_filter"] = titles[0]
+                    c["_corridor"] = corridor_key
+                    c["_found_at"] = datetime.now().isoformat()
+                    score = c.get("_origin_score", 0)
+                    last = c.get("last_name", "") or (c.get("name", "").split()[-1] if c.get("name") else "")
+                    c["_match_reason"] = f"GPT score={score}/10. Found via title-split '{titles[0]}' search in {', '.join(employer_countries)}. Surname '{last}'."
+                    new_matches.append(c)
+                    existing_keys.add(key.lower())
+
+            all_matched_contacts.extend(new_matches)
+            await _emit(f"New unique: {len(new_matches)}. Total: {len(all_matched_contacts)}/{target_count}")
+
+            if _sheet_id:
+                try:
+                    await incremental_sheet_export(
+                        all_matched_contacts, corridor, _sheet_id,
+                        approach_log={
+                            "timestamp": datetime.now().isoformat(),
+                            "search_type": "title_split",
+                            "batch_name": t_label, "schools_filter": "",
+                            "location_filter": ", ".join(employer_countries),
+                            "title_filter": titles[0],
+                            "contacts_found": len(all_people),
+                            "decision_makers": len(title_filtered),
+                            "prefilter_candidates": len([c for c in classified if c.get("_origin_score", 0) > 0]),
+                            "matched": len(new_matches),
+                            "hit_rate": f"{len(matched)/max(len(classified),1)*100:.1f}%",
+                            "new_unique": len(new_matches),
+                            "total_so_far": len(all_matched_contacts),
+                            "assessment": f"Title '{titles[0]}' — {len(new_matches)} new unique from {len(all_people)} total" if new_matches else f"Title '{titles[0]}' — no new unique",
+                            "next_action": "Continue" if len(all_matched_contacts) < target_count else "Target reached",
+                        },
+                    )
+                    await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
+                except Exception as e:
+                    logger.warning(f"Incremental export failed: {e}")
+
     # Phase 4: Industry search (lowest yield, runs last)
     if run_industry and len(all_matched_contacts) < target_count:
         await _emit(f"\n=== INDUSTRY SEARCH (lowest yield, {len(all_matched_contacts)}/{target_count} so far) ===")
