@@ -441,6 +441,27 @@ UNIVERSITY_BATCHES = {
                 "Silliman University", "Xavier University",
             ],
         },
+        {
+            "label": "ph_more",
+            "schools": [
+                "Polytechnic University of the Philippines",
+                "University of the East",
+                "National University Philippines",
+                "Lyceum of the Philippines University",
+                "Centro Escolar University",
+                "San Beda University",
+            ],
+        },
+        {
+            "label": "ph_tech",
+            "schools": [
+                "Technological University of the Philippines",
+                "Mindanao State University",
+                "University of San Agustin",
+                "Pamantasan ng Lungsod ng Maynila",
+                "Central Philippine University",
+            ],
+        },
     ],
     "South Africa": [
         {
@@ -461,6 +482,16 @@ UNIVERSITY_BATCHES = {
                 "University of the Free State",
                 "North-West University",
                 "Nelson Mandela University",
+            ],
+        },
+        {
+            "label": "za_more",
+            "schools": [
+                "University of South Africa",
+                "Durban University of Technology",
+                "Cape Peninsula University of Technology",
+                "Tshwane University of Technology",
+                "Walter Sisulu University",
             ],
         },
     ],
