@@ -107,47 +107,47 @@ async def _auto_embed_reference(reply_id: int, project_id: int, was_edited: bool
 def _build_project_campaign_filter(project):
     """Build SQLAlchemy filter for matching replies to a project.
 
-    Returns a single condition combining:
-      - Campaign name match (exact on campaign_filters + prefix on project name)
-      - GetSales sender validation (when getsales_senders is set on the project,
-        LinkedIn replies must come from an allowed sender profile)
-
-    The sender filter prevents cross-project misrouting: a campaign named "Mifort X"
-    might be run by SquareFi sender accounts — the sender check catches this.
+    Two-tier matching:
+      1. EXPLICIT match — campaign name is in project's campaign_filters list.
+         This is definitive. No sender check needed (new senders get added to
+         flows all the time — we don't want to silently drop their replies).
+      2. PREFIX match — campaign name starts with project name (fuzzy).
+         Here we apply sender validation for LinkedIn replies to prevent
+         cross-project misrouting (e.g. "Mifort X" run by SquareFi senders).
     """
-    campaign_parts = []
     project_campaigns = [c.lower() for c in (project.campaign_filters or []) if isinstance(c, str)]
-    if project_campaigns:
-        campaign_parts.append(func.lower(ProcessedReply.campaign_name).in_(project_campaigns))
     project_name_lower = (project.name or "").lower()
+
+    # Tier 1: explicit campaign_filters — always trusted, no sender check
+    explicit_match = func.lower(ProcessedReply.campaign_name).in_(project_campaigns) if project_campaigns else None
+
+    # Tier 2: prefix match — needs sender validation for LinkedIn
+    prefix_match = None
     if project_name_lower and len(project_name_lower) > 2:
-        campaign_parts.append(func.lower(ProcessedReply.campaign_name).like(f"{project_name_lower}%"))
+        prefix_condition = func.lower(ProcessedReply.campaign_name).like(f"{project_name_lower}%")
+        # Exclude anything already covered by explicit match to avoid double-counting
+        if project_campaigns:
+            prefix_condition = and_(prefix_condition, ~func.lower(ProcessedReply.campaign_name).in_(project_campaigns))
 
-    if not campaign_parts:
-        return None
+        sender_uuids = [s for s in (project.getsales_senders or []) if isinstance(s, str)]
+        if sender_uuids:
+            # Sender UUID lives in two locations:
+            #   - Webhook: raw_webhook_data->>'sender_profile_uuid'
+            #   - Inbox sync: raw_webhook_data->'sender_profile'->>'uuid'
+            top_level = ProcessedReply.raw_webhook_data.op("->>")("sender_profile_uuid")
+            nested = ProcessedReply.raw_webhook_data.op("->")("sender_profile").op("->>")("uuid")
+            sender_text = func.coalesce(top_level, nested)
+            sender_check = or_(
+                ProcessedReply.channel != "linkedin",
+                sender_text.in_(sender_uuids),
+                sender_text.is_(None),
+            )
+            prefix_match = and_(prefix_condition, sender_check)
+        else:
+            prefix_match = prefix_condition
 
-    campaign_condition = or_(*campaign_parts)
-
-    # LinkedIn sender validation — cross-check against project's allowed senders
-    sender_uuids = [s for s in (project.getsales_senders or []) if isinstance(s, str)]
-    if sender_uuids:
-        # For LinkedIn/GetSales replies, sender must be in project's allowed list.
-        # Non-LinkedIn replies (email from SmartLead) pass through unchecked.
-        # Sender UUID lives in two locations depending on source:
-        #   - Webhook replies: raw_webhook_data->>'sender_profile_uuid' (top-level)
-        #   - Inbox sync replies: raw_webhook_data->'sender_profile'->>'uuid' (nested)
-        # When both are NULL, allow through — campaign filter already verified ownership.
-        top_level = ProcessedReply.raw_webhook_data.op("->>")("sender_profile_uuid")
-        nested = ProcessedReply.raw_webhook_data.op("->")("sender_profile").op("->>")("uuid")
-        sender_text = func.coalesce(top_level, nested)
-        sender_check = or_(
-            ProcessedReply.channel != "linkedin",
-            sender_text.in_(sender_uuids),
-            sender_text.is_(None),  # no sender info → trust campaign filter
-        )
-        return and_(campaign_condition, sender_check)
-
-    return campaign_condition
+    parts = [p for p in (explicit_match, prefix_match) if p is not None]
+    return or_(*parts) if parts else None
 
 
 router = APIRouter(prefix="/replies", tags=["replies"])
