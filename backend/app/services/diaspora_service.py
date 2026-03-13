@@ -726,12 +726,21 @@ async def run_diaspora_pipeline(
         for c in matched:
             key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
             if key.lower() not in existing_keys:
-                c["_search_method"] = f"industry_search: {batch_label}"
-                c["_search_details"] = (
-                    f"Company-first: {industries_str} in {', '.join(employer_countries)} → "
-                    f"get contacts → filter C-level → classify {contractor_country} names via GPT"
-                )
+                c["_search_type"] = "industry_company_first"
+                c["_search_batch"] = batch_label
+                c["_schools_filter"] = ""
+                c["_location_filter"] = ", ".join(employer_countries)
+                c["_title_filter"] = "C-level/VP/Director/Head (Python filter)"
                 c["_corridor"] = corridor_key
+                c["_found_at"] = datetime.now().isoformat()
+                # Build match reason from score + surname
+                score = c.get("_origin_score", 0)
+                last = c.get("last_name", "") or c.get("name", "").split()[-1] if c.get("name") else ""
+                c["_match_reason"] = (
+                    f"GPT score={score}/10. "
+                    f"Surname '{last}' pre-filtered as potential {contractor_country}. "
+                    f"Found via {industries_str} companies in {', '.join(employer_countries)}"
+                )
                 new_matches.append(c)
                 existing_keys.add(key.lower())
 
@@ -741,20 +750,27 @@ async def run_diaspora_pipeline(
             f"Total: {len(all_matched_contacts)}/{target_count}"
         )
 
-        # Incremental export to Google Sheet
-        if new_matches and _sheet_id:
+        # Incremental export to Google Sheet (ALWAYS log approach, even zero matches)
+        if _sheet_id:
             try:
                 await incremental_sheet_export(
                     all_matched_contacts, corridor, _sheet_id,
                     approach_log={
                         "timestamp": datetime.now().isoformat(),
-                        "approach": f"Industry Search: {batch_label}",
-                        "details": f"Companies in {industries_str} in {', '.join(employer_countries)} → contacts → C-level filter → name classification",
+                        "search_type": "industry_company_first",
+                        "batch_name": batch_label,
+                        "schools_filter": "",
+                        "location_filter": ", ".join(employer_countries),
+                        "title_filter": "C-level/VP/Director/Head (Python)",
                         "contacts_found": len(all_people),
                         "decision_makers": len(decision_makers),
+                        "prefilter_candidates": len([c for c in classified if c.get("_origin_score", 0) > 0]),
                         "matched": len(new_matches),
                         "hit_rate": f"{len(matched)/max(len(classified),1)*100:.1f}%",
+                        "new_unique": len(new_matches),
                         "total_so_far": len(all_matched_contacts),
+                        "assessment": f"Low yield — {contractor_country} names rare in {', '.join(employer_countries)} companies" if len(matched) < 5 else "Good yield",
+                        "next_action": "Try university-based search" if len(matched) < 5 else "Continue",
                     },
                 )
                 await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
@@ -871,13 +887,25 @@ async def run_diaspora_pipeline(
             for c in matched:
                 key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
                 if key.lower() not in existing_keys:
-                    c["_search_method"] = f"university_search: {uni_label}"
-                    c["_search_details"] = (
-                        f"University-first: Schools={schools_str}, "
-                        f"Location={', '.join(employer_countries)}, "
-                        f"Titles=C-level/VP/Director → classify {contractor_country} names via GPT"
-                    )
+                    c["_search_type"] = "university_people_first"
+                    c["_search_batch"] = uni_label
+                    c["_schools_filter"] = schools_str
+                    c["_location_filter"] = ", ".join(employer_countries)
+                    c["_title_filter"] = "C-level/VP/Director/Head (Clay --titles filter)"
                     c["_corridor"] = corridor_key
+                    c["_found_at"] = datetime.now().isoformat()
+                    # Build rich match reason
+                    score = c.get("_origin_score", 0)
+                    clay_schools = c.get("schools", "")
+                    last = c.get("last_name", "") or (c.get("name", "").split()[-1] if c.get("name") else "")
+                    reason_parts = [f"GPT score={score}/10"]
+                    if clay_schools:
+                        reason_parts.append(f"Education: {clay_schools}")
+                    else:
+                        reason_parts.append(f"Found via school filter: {schools_str}")
+                    reason_parts.append(f"Surname '{last}' matches {contractor_country} profile")
+                    reason_parts.append(f"Located in {', '.join(employer_countries)}")
+                    c["_match_reason"] = ". ".join(reason_parts)
                     new_matches.append(c)
                     existing_keys.add(key.lower())
 
@@ -887,20 +915,27 @@ async def run_diaspora_pipeline(
                 f"Total: {len(all_matched_contacts)}/{target_count}"
             )
 
-            # Incremental export to Google Sheet
-            if new_matches and _sheet_id:
+            # Incremental export to Google Sheet (ALWAYS log approach, even zero matches)
+            if _sheet_id:
                 try:
                     await incremental_sheet_export(
                         all_matched_contacts, corridor, _sheet_id,
                         approach_log={
                             "timestamp": datetime.now().isoformat(),
-                            "approach": f"University Search: {uni_label}",
-                            "details": f"Schools: {schools_str} | Location: {', '.join(employer_countries)} | Titles: C-level/VP/Director/Head",
+                            "search_type": "university_people_search",
+                            "batch_name": uni_label,
+                            "schools_filter": schools_str,
+                            "location_filter": ", ".join(employer_countries),
+                            "title_filter": "C-level/VP/Director/Head (Clay filter)",
                             "contacts_found": len(all_people),
                             "decision_makers": len(decision_makers),
+                            "prefilter_candidates": len([c for c in classified if c.get("_origin_score", 0) > 0]),
                             "matched": len(new_matches),
                             "hit_rate": f"{len(matched)/max(len(classified),1)*100:.1f}%",
+                            "new_unique": len(new_matches),
                             "total_so_far": len(all_matched_contacts),
+                            "assessment": f"University approach — {len(new_matches)} unique from {schools_str}" if new_matches else f"No new unique matches from {schools_str}",
+                            "next_action": "Continue university batches" if len(all_matched_contacts) < target_count else "Target reached",
                         },
                     )
                     await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
@@ -993,19 +1028,36 @@ def _get_sheets_service():
     return sheets_service, drive_service
 
 
-# Column definitions for contact data
+# Column definitions for contact data — full provenance for TAM scalability
 CONTACT_COLUMNS = [
+    # Identity
     "Name", "First Name", "Last Name", "Email", "Title", "Company",
     "Domain", "Location", "LinkedIn URL", "Phone",
-    "Origin Score", "Search Method", "Search Details", "Corridor",
+    # Company context
+    "Industry", "Company Size", "Company Location",
+    # Education (key for university-based search)
+    "Schools (from Clay)",
+    # Classification
+    "Origin Score", "Name Match Reason",
+    # Search provenance — HOW this contact was found
+    "Search Type", "Search Batch", "Schools Filter Used",
+    "Location Filter", "Title Filter", "Corridor",
+    # Timestamps
+    "Found At",
 ]
 CONTACT_FIELD_MAP = {
     "Name": "name", "First Name": "first_name", "Last Name": "last_name",
     "Email": "email", "Title": "title", "Company": "company",
     "Domain": "company_domain", "Location": "location",
     "LinkedIn URL": "linkedin_url", "Phone": "phone",
-    "Origin Score": "_origin_score", "Search Method": "_search_method",
-    "Search Details": "_search_details", "Corridor": "_corridor",
+    "Industry": "industry", "Company Size": "company_size",
+    "Company Location": "company_location",
+    "Schools (from Clay)": "schools",
+    "Origin Score": "_origin_score", "Name Match Reason": "_match_reason",
+    "Search Type": "_search_type", "Search Batch": "_search_batch",
+    "Schools Filter Used": "_schools_filter", "Location Filter": "_location_filter",
+    "Title Filter": "_title_filter", "Corridor": "_corridor",
+    "Found At": "_found_at",
 }
 
 
@@ -1162,28 +1214,41 @@ async def incremental_sheet_export(
                     range="Approaches Log!A1",
                     valueInputOption="RAW",
                     body={"values": [[
-                        "Timestamp", "Approach", "Details", "Contacts Found",
-                        "Decision Makers", "Matched", "Hit Rate", "Total So Far",
+                        "Timestamp", "Corridor", "Search Type", "Batch Name",
+                        "Schools Filter", "Location Filter", "Title Filter",
+                        "Raw Contacts", "Decision Makers", "Name Pre-Filter Candidates",
+                        "GPT Matched", "Hit Rate (%)", "New Unique", "Dedup Skipped",
+                        "Total Cumulative", "Assessment", "Next Action",
                     ]]},
                 ).execute()
             except Exception:
                 pass  # Sheet already exists
 
             # Append approach row
+            corridor_label = corridor.get("label", "") if isinstance(corridor, dict) else str(corridor)
             sheets_service.spreadsheets().values().append(
                 spreadsheetId=sheet_id,
-                range="Approaches Log!A:H",
+                range="Approaches Log!A:Q",
                 valueInputOption="RAW",
                 insertDataOption="INSERT_ROWS",
                 body={"values": [[
                     approach_log.get("timestamp", datetime.now().isoformat()),
-                    approach_log.get("approach", ""),
-                    approach_log.get("details", ""),
+                    corridor_label,
+                    approach_log.get("search_type", ""),
+                    approach_log.get("batch_name", ""),
+                    approach_log.get("schools_filter", ""),
+                    approach_log.get("location_filter", ""),
+                    approach_log.get("title_filter", ""),
                     approach_log.get("contacts_found", 0),
                     approach_log.get("decision_makers", 0),
+                    approach_log.get("prefilter_candidates", 0),
                     approach_log.get("matched", 0),
                     approach_log.get("hit_rate", ""),
+                    approach_log.get("new_unique", 0),
+                    approach_log.get("matched", 0) - approach_log.get("new_unique", 0),  # dedup skipped
                     approach_log.get("total_so_far", 0),
+                    approach_log.get("assessment", ""),
+                    approach_log.get("next_action", ""),
                 ]]},
             ).execute()
 
