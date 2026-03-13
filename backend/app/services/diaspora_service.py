@@ -101,15 +101,15 @@ COUNTRY_NAME_PROFILES = {
     },
     "Philippines": {
         "description": "Filipino",
-        "first_names": "Jose, Juan, Maria, Ana, Mark, John, Michael, Christian, Angelica, Jasmine, Jerome, Jericho, Rhea, Cherry, Jonel, Ariel, Rommel, Rodel, Reynaldo, Rodolfo, Edgardo, Ernesto, Rolando, Florante, Lorna, Marites, Maricel, Mylene, Rosemarie, Jocelyn",
-        "last_names": "Santos, Reyes, Cruz, Bautista, Ocampo, Garcia, Mendoza, Torres, Villanueva, Ramos, Aquino, Castillo, Rivera, Flores, Lopez, Gonzales, Hernandez, Perez, Fernandez, Soriano, Pascual, Manalo, Tolentino, Salvador, Mercado, Aguilar, Navarro, Enriquez, Pangilinan, Dimaculangan, dela Cruz, de los Santos, San Juan, del Rosario, de la Peña, Magno, Dela Rosa, Macapagal, Magsaysay, Lacson, Mangubat, Dizon, Cunanan, Concepcion, Magbanua",
-        "disambiguation": "Filipino names are Spanish-influenced but distinct from Latin American. Key Filipino indicators: double-barrel prefixes (dela, de los, del), very common clusters (Santos, Reyes, Cruz, Bautista, Ocampo), unique names like Pangilinan, Dimaculangan, Mangubat, Dizon, Cunanan. Latin American names like Rodriguez, Martinez, Gonzalez are also common in PH. Chinese-Filipino names (Tan, Chua, Go, Ong, Sy, Lim, Co) also count as Filipino.",
+        "first_names": "Jose, Juan, Maria, Ana, Mark, John, Michael, Christian, Angelica, Jasmine, Jerome, Jericho, Rhea, Cherry, Jonel, Ariel, Rommel, Rodel, Reynaldo, Rodolfo, Edgardo, Ernesto, Rolando, Florante, Lorna, Marites, Maricel, Mylene, Rosemarie, Jocelyn, Rogelio, Catalino, Diosdado, Renato, Virgilio, Danilo, Wilfredo, Crisanto, Teresita, Corazon, Imelda, Lourdes, Erlinda",
+        "last_names": "Santos, Reyes, Cruz, Bautista, Ocampo, Garcia, Mendoza, Torres, Villanueva, Ramos, Aquino, Castillo, Rivera, Flores, Lopez, Gonzales, Hernandez, Perez, Fernandez, Soriano, Pascual, Manalo, Tolentino, Salvador, Mercado, Aguilar, Navarro, Enriquez, Pangilinan, Dimaculangan, dela Cruz, de los Santos, San Juan, del Rosario, de la Peña, Magno, Dela Rosa, Macapagal, Magsaysay, Lacson, Mangubat, Dizon, Cunanan, Concepcion, Magbanua, Tan, Chua, Go, Ong, Sy, Lim, Co, Ang, Uy, Tiu, Yap, Teo, Abad, Araneta, Ayala, Cojuangco, Roxas, Laurel, Zobel, Razon, Gokongwei, Lucio, Zobel, Alcantara, Villar, Uytengsu, Montinola, Ortigas, Tuason, Madrigal",
+        "disambiguation": "Filipino names are Spanish-influenced but distinct from Latin American. Key Filipino indicators: double-barrel prefixes (dela, de los, del), very common clusters (Santos, Reyes, Cruz, Bautista, Ocampo), unique names like Pangilinan, Dimaculangan, Mangubat, Dizon, Cunanan. Latin American names like Rodriguez, Martinez, Gonzalez are also common in PH. Chinese-Filipino names (Tan, Chua, Go, Ong, Sy, Lim, Co) also count as Filipino. Key difference from other Spanish-name countries: Filipino culture uses BOTH Spanish AND Chinese surnames. Do NOT confuse with Latin American names — score based on the combination of first+last.",
     },
     "South Africa": {
         "description": "South African",
-        "first_names": "Pieter, Hendrik, Johannes, Gerrit, Willem, Jacobus, Francois, Christo, Petrus, Gert, Thabo, Sipho, Bongani, Nkosinathi, Themba, Sibusiso, Mandla, Lucky, Blessing, Precious, Nandi, Thandiwe, Palesa, Lerato, Kagiso, Mpho, Tshepo, Tumi, Buhle, Ayanda",
-        "last_names": "Botha, du Plessis, van der Merwe, Pretorius, Joubert, Steyn, van der Walt, Venter, Swanepoel, Coetzee, Kruger, Erasmus, du Toit, Vermeulen, Cilliers, de Villiers, Engelbrecht, Fourie, le Roux, Malan, Visser, Viljoen, Louw, Marais, van Zyl, Nkosi, Dlamini, Ndlovu, Mkhize, Khumalo, Naidoo, Govender, Pillay, Chetty, Moodley, Cele, Ngcobo, Sithole, Mthembu, Radebe, Molefe, Moyo, Sibanda, Buthelezi, Mahlangu",
-        "disambiguation": "South African names are highly distinctive across three groups: Afrikaans (Botha, du Plessis, Coetzee, van Zyl, Pretorius), Zulu/Xhosa (Nkosi, Dlamini, Ndlovu, Mkhize, Khumalo), and SA Indian (Naidoo, Govender, Pillay, Chetty, Moodley — these overlap with Indian-Indian but combined with SA education/company history = SA). English SA names (Henderson, Mitchell) overlap with UK/AU — score lower unless combined with other signals.",
+        "first_names": "Pieter, Hendrik, Johannes, Gerrit, Willem, Jacobus, Francois, Christo, Petrus, Gert, Thabo, Sipho, Bongani, Nkosinathi, Themba, Sibusiso, Mandla, Lucky, Blessing, Precious, Nandi, Thandiwe, Palesa, Lerato, Kagiso, Mpho, Tshepo, Tumi, Buhle, Ayanda, Siyabonga, Lungelo, Nhlanhla, Sizwe, Vusi, Zandile, Nomvula, Nomsa, Zanele, Lindiwe, Nomzamo, Nonhlanhla, Sbongile, Thulani, Muzi, Frik, Danie, Kobus, Jannie, Bettie, Elna",
+        "last_names": "Botha, du Plessis, van der Merwe, Pretorius, Joubert, Steyn, van der Walt, Venter, Swanepoel, Coetzee, Kruger, Erasmus, du Toit, Vermeulen, Cilliers, de Villiers, Engelbrecht, Fourie, le Roux, Malan, Visser, Viljoen, Louw, Marais, van Zyl, Nkosi, Dlamini, Ndlovu, Mkhize, Khumalo, Naidoo, Govender, Pillay, Chetty, Moodley, Cele, Ngcobo, Sithole, Mthembu, Radebe, Molefe, Moyo, Sibanda, Buthelezi, Mahlangu, Naicker, Reddy, Maharaj, Singh, Moosa, Ebrahim, Cassim, Joosub, Sobukwe, Motlanthe, Ramaphosa, Zuma, Mbeki, Sisulu, Slovo, Tambo, Hani, Oppenheimer, Rupert, Wiese, Memory, Motsepe, Sobrato, Sobukwe, Barnard, Roux, Bekker, Rossouw, Jansen, Bezuidenhout, Nel, Groenewald, Prinsloo, Lombard, Potgieter, Jacobs, Henning, Mostert, Brink, Naude, Basson, Dippenaar, Gouws, Theron, van Niekerk, van Rensburg, van Wyk",
+        "disambiguation": "South African names are highly distinctive across three groups: Afrikaans (Botha, du Plessis, Coetzee, van Zyl, Pretorius, Bezuidenhout, Groenewald), Zulu/Xhosa (Nkosi, Dlamini, Ndlovu, Mkhize, Khumalo, Ngcobo, Cele), and SA Indian (Naidoo, Govender, Pillay, Chetty, Moodley, Naicker, Maharaj). Key SA business names: Motsepe, Oppenheimer, Rupert, Wiese, Bekker, Joosub. 'van' prefix + Afrikaans surname = very strong SA signal. English SA names (Henderson, Mitchell) overlap with UK/AU — score lower unless combined with other signals. In Arabic countries context: SA names are VERY distinctive and should score high.",
     },
 }
 
@@ -494,12 +494,12 @@ async def run_diaspora_pipeline(
         await _emit(f"Found {len(all_domains)} companies with domains")
         all_companies_found += len(all_domains)
 
-        # Cap at 500 domains (single Clay people search batch ~ 15min)
+        # Cap at 1000 domains (Clay splits into 200-domain batches internally)
         import random
-        if len(all_domains) > 500:
+        if len(all_domains) > 1000:
             random.shuffle(all_domains)
-            domains = all_domains[:500]
-            await _emit(f"Sampling 500 of {len(all_domains)} companies for people search...")
+            domains = all_domains[:1000]
+            await _emit(f"Sampling 1000 of {len(all_domains)} companies for people search...")
         else:
             domains = all_domains
 
