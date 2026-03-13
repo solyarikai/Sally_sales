@@ -112,12 +112,142 @@ COUNTRY_NAME_PROFILES = {
 }
 
 
+def _build_surname_set(profile: Dict[str, str]) -> set:
+    """Build a lowercased set of known surnames for fast pre-filtering."""
+    names = set()
+    for field in ("first_names", "last_names"):
+        for name in profile.get(field, "").split(","):
+            name = name.strip().lower()
+            if len(name) >= 3:  # Skip very short names that cause false positives
+                names.add(name)
+    return names
+
+
+def pre_filter_by_surname(
+    contacts: List[Dict[str, Any]],
+    target_country: str,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Fast pre-filter: check if any name part matches known country surnames.
+
+    Returns: (candidates, non_matches)
+    Candidates go to GPT for scoring, non_matches are marked score=0.
+    """
+    profile = COUNTRY_NAME_PROFILES.get(target_country)
+    if not profile:
+        return contacts, []
+
+    known_names = _build_surname_set(profile)
+    candidates = []
+    non_matches = []
+
+    for contact in contacts:
+        full_name = (
+            contact.get("name", "")
+            or f"{contact.get('first_name', '')} {contact.get('last_name', '')}"
+        ).strip().lower()
+
+        # Check if ANY name part matches known names
+        name_parts = full_name.replace("-", " ").split()
+        matched = any(part in known_names for part in name_parts)
+
+        # Also check 2-word combinations (e.g., "du Plessis", "van der")
+        if not matched and len(name_parts) >= 2:
+            for i in range(len(name_parts) - 1):
+                combo = f"{name_parts[i]} {name_parts[i+1]}"
+                if combo in known_names:
+                    matched = True
+                    break
+
+        if matched:
+            candidates.append(contact)
+        else:
+            contact["_origin_score"] = 0
+            contact["_origin_match"] = False
+            non_matches.append(contact)
+
+    return candidates, non_matches
+
+
+async def _classify_single_batch(
+    batch_idx: int,
+    batch: List[Dict[str, Any]],
+    system_prompt: str,
+    api_key: str,
+    total_batches: int,
+) -> List[Dict[str, Any]]:
+    """Classify a single batch of names using GPT-4o-mini with retry."""
+    names_text = "\n".join(
+        f"{i}. {c.get('name', '') or (c.get('first_name', '') + ' ' + c.get('last_name', '')).strip()}"
+        for i, c in enumerate(batch)
+    )
+
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=90) as client:
+                resp = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": f"Classify these {len(batch)} people:\n\n{names_text}"},
+                        ],
+                        "temperature": 0.1,
+                        "response_format": {"type": "json_object"},
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"]
+
+                parsed = json.loads(content)
+                scores = parsed if isinstance(parsed, list) else parsed.get("results", parsed.get("data", []))
+
+                score_map = {}
+                for item in scores:
+                    idx = item.get("i", item.get("idx", item.get("index")))
+                    score = item.get("s", item.get("score", 0))
+                    if idx is not None:
+                        score_map[idx] = score
+
+                results = []
+                for i, contact in enumerate(batch):
+                    score = score_map.get(i, 0)
+                    contact["_origin_score"] = score
+                    contact["_origin_match"] = score >= 6
+                    results.append(contact)
+
+                if (batch_idx + 1) % 20 == 0:
+                    matched = sum(1 for c in results if c.get("_origin_match"))
+                    logger.info(f"Classification batch {batch_idx+1}/{total_batches}: {matched}/{len(batch)} matched")
+
+                return results
+
+        except Exception as e:
+            err_msg = str(e) or repr(e)
+            logger.warning(f"Classification batch {batch_idx}/{total_batches} attempt {attempt+1}: {err_msg}")
+            if attempt < 2:
+                await asyncio.sleep(2 ** attempt)
+
+    # All retries failed — mark as unclassified
+    logger.error(f"Classification batch {batch_idx}/{total_batches} FAILED after 3 attempts")
+    for contact in batch:
+        contact["_origin_score"] = -1
+        contact["_origin_match"] = False
+    return batch
+
+
 async def classify_names_by_origin(
     contacts: List[Dict[str, Any]],
     target_country: str,
-    batch_size: int = 80,
+    batch_size: int = 40,
 ) -> List[Dict[str, Any]]:
     """Classify contacts by likely country of origin using GPT-4o-mini.
+
+    Two-phase approach:
+    1. Fast pre-filter by known surnames (reduces 30K+ to ~5K candidates)
+    2. GPT-4o-mini scoring on candidates only
 
     Returns contacts with added fields: _origin_score (0-10), _origin_match (bool).
     Only contacts with score >= 6 are marked as matches.
@@ -129,6 +259,16 @@ async def classify_names_by_origin(
     api_key = settings.OPENAI_API_KEY
     if not api_key:
         raise ValueError("OPENAI_API_KEY not set")
+
+    # Phase 1: Pre-filter by surname
+    candidates, non_matches = pre_filter_by_surname(contacts, target_country)
+    logger.info(
+        f"Name pre-filter: {len(candidates)}/{len(contacts)} candidates "
+        f"({len(candidates)/max(len(contacts),1)*100:.1f}%) for {target_country}"
+    )
+
+    if not candidates:
+        return non_matches
 
     system_prompt = f"""You are a name origin classifier. For each person, rate 0-10 how likely they are originally from {target_country} based ONLY on their name.
 
@@ -148,63 +288,46 @@ Scoring guide:
 Output ONLY a JSON array. Each element: {{"i": <index>, "s": <score>}}
 Include ALL contacts. No explanation."""
 
-    results = []
-    for batch_start in range(0, len(contacts), batch_size):
-        batch = contacts[batch_start:batch_start + batch_size]
+    # Phase 2: GPT classification on candidates only (concurrent)
+    results: List[Dict[str, Any]] = []
+    total_batches = (len(candidates) + batch_size - 1) // batch_size
 
-        # Format names for classification
-        names_text = "\n".join(
-            f"{i}. {c.get('name', '')} | {c.get('first_name', '')} {c.get('last_name', '')} | {c.get('title', '')} | {c.get('company', '')}"
-            for i, c in enumerate(batch)
-        )
+    # Use semaphore for concurrent GPT calls (5 parallel)
+    sem = asyncio.Semaphore(5)
 
-        try:
-            async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    json={
-                        "model": "gpt-4o-mini",
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": f"Classify these {len(batch)} people:\n\n{names_text}"},
-                        ],
-                        "temperature": 0.1,
-                        "response_format": {"type": "json_object"},
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                content = data["choices"][0]["message"]["content"]
+    async def _classify_batch(batch_idx: int, batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        async with sem:
+            return await _classify_single_batch(batch_idx, batch, system_prompt, api_key, total_batches)
 
-                # Parse response — handle both array and {results: [...]} formats
-                parsed = json.loads(content)
-                scores = parsed if isinstance(parsed, list) else parsed.get("results", parsed.get("data", []))
+    # Build batches
+    batches = []
+    for batch_start in range(0, len(candidates), batch_size):
+        batches.append(candidates[batch_start:batch_start + batch_size])
 
-                score_map = {}
-                for item in scores:
-                    idx = item.get("i", item.get("idx", item.get("index")))
-                    score = item.get("s", item.get("score", 0))
-                    if idx is not None:
-                        score_map[idx] = score
+    # Run all batches concurrently (limited by semaphore)
+    batch_results = await asyncio.gather(
+        *[_classify_batch(i, b) for i, b in enumerate(batches)],
+        return_exceptions=True,
+    )
 
-                for i, contact in enumerate(batch):
-                    score = score_map.get(i, 0)
-                    contact["_origin_score"] = score
-                    contact["_origin_match"] = score >= 6
-                    results.append(contact)
-
-        except Exception as e:
-            logger.error(f"Name classification batch failed: {e}")
-            # Mark batch as unclassified
-            for contact in batch:
+    for i, result in enumerate(batch_results):
+        if isinstance(result, Exception):
+            logger.error(f"Name classification batch {i} exception: {result}")
+            for contact in batches[i]:
                 contact["_origin_score"] = -1
                 contact["_origin_match"] = False
                 results.append(contact)
+        else:
+            results.extend(result)
+
+    # (concurrent classification handled above via asyncio.gather)
 
     matched = sum(1 for c in results if c.get("_origin_match"))
-    logger.info(f"Name classification: {matched}/{len(results)} matched {target_country}")
-    return results
+    logger.info(
+        f"Name classification: {matched}/{len(results)} GPT-classified matched {target_country}, "
+        f"total: {matched}/{len(results) + len(non_matches)}"
+    )
+    return results + non_matches
 
 
 def build_icp_text(
@@ -332,8 +455,20 @@ async def run_diaspora_pipeline(
                 domains.append(d)
 
         domains = list(set(domains))  # Deduplicate
+
+        # Cap at 300 companies per batch to keep people search fast (~15 min)
+        # With 12 industry batches × 300 = 3,600 companies total — enough for 1000+ matches
+        MAX_COMPANIES_PER_BATCH = 300
+        if len(domains) > MAX_COMPANIES_PER_BATCH:
+            import random
+            random.shuffle(domains)
+            domains = domains[:MAX_COMPANIES_PER_BATCH]
+            await _emit(f"Found {len(companies)} companies, sampling {MAX_COMPANIES_PER_BATCH} for contact search...")
+        else:
+            await _emit(f"Found {len(domains)} companies...")
+
         all_companies_found += len(domains)
-        await _emit(f"Found {len(domains)} companies. Phase 2: Finding contacts...")
+        await _emit(f"Phase 2: Finding contacts at {len(domains)} companies...")
 
         # Phase 2: Find contacts at these companies
         try:
