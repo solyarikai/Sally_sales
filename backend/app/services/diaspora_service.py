@@ -93,9 +93,9 @@ INDUSTRY_BATCHES = [
 COUNTRY_NAME_PROFILES = {
     "Pakistan": {
         "description": "Pakistani",
-        "first_names": "Muhammad, Ahmed, Ali, Hassan, Hussain, Usman, Bilal, Faisal, Imran, Kashif, Asad, Tariq, Rashid, Shahid, Wasim, Naveed, Arshad, Shoaib, Iqbal, Raza, Kamran, Nadeem, Zahid, Waqas, Sajid, Khalid, Hamza, Abdullah, Zubair, Salman, Adnan, Rizwan, Farhan, Babar, Junaid, Sana, Hira, Maryam, Ayesha, Nadia, Rabia, Saima, Bushra, Amna, Sidra, Fatima, Aisha, Zara",
-        "last_names": "Khan, Malik, Butt, Chaudhry, Sheikh, Syed, Qureshi, Hussain, Rana, Rajput, Akhtar, Mirza, Gill, Bhatti, Aslam, Javed, Shah, Abbasi, Hashmi, Zaidi, Rizvi, Naqvi, Durrani, Khattak, Afridi, Yousafzai, Lodhi, Mughal, Niazi, Baloch, Mengal, Jamali, Bangash",
-        "disambiguation": "Distinguish from Indian names. Pakistani indicators: Khan, Malik, Butt, Chaudhry, Rana, Rajput, Akhtar, Gill, Bhatti, Abbasi, Hashmi, Khattak, Afridi. Could be either: Ahmed, Ali, Hassan, Shah, Hussain, Syed, Qureshi. Indian-leaning: Sharma, Patel, Gupta, Reddy, Nair, Iyer, Rao.",
+        "first_names": "Muhammad, Ahmed, Ali, Hassan, Hussain, Usman, Bilal, Faisal, Imran, Kashif, Asad, Tariq, Rashid, Shahid, Wasim, Naveed, Arshad, Shoaib, Iqbal, Raza, Kamran, Nadeem, Zahid, Waqas, Sajid, Khalid, Hamza, Abdullah, Zubair, Salman, Adnan, Rizwan, Farhan, Babar, Junaid, Sana, Hira, Maryam, Ayesha, Nadia, Rabia, Saima, Bushra, Amna, Sidra, Fatima, Aisha, Zara, Aamir, Amir, Asif, Atif, Fahad, Irfan, Javed, Mazhar, Mohsin, Naeem, Nasir, Omar, Pervez, Qasim, Rafiq, Saad, Sohail, Tahir, Tanveer, Umar, Waheed, Yasir, Zafar, Zeeshan, Zia, Hammad, Jawad, Noman, Owais, Saeed, Sarfraz, Shakeel, Sharjeel, Taimur, Uzair, Ahsan, Danish, Ghulam, Haroon, Mehmood, Mudassar, Murtaza, Muzammil, Nauman, Rehan, Safdar, Shabbir, Umair, Waleed, Azhar, Faraz, Furqan, Habib, Hafeez, Ijaz, Jamil, Liaqat, Mubashir, Mushtaq, Qadir, Rauf, Shafiq, Shaukat, Suleman, Tauqeer, Zaman, Zohaib",
+        "last_names": "Khan, Malik, Butt, Chaudhry, Sheikh, Syed, Qureshi, Hussain, Rana, Rajput, Akhtar, Mirza, Gill, Bhatti, Aslam, Javed, Shah, Abbasi, Hashmi, Zaidi, Rizvi, Naqvi, Durrani, Khattak, Afridi, Yousafzai, Lodhi, Mughal, Niazi, Baloch, Mengal, Jamali, Bangash, Ahmed, Baig, Bukhari, Gondal, Gul, Hameed, Iqbal, Jaffri, Kazmi, Khawaja, Minhas, Memon, Paracha, Rathore, Sahi, Sethi, Tahir, Virk, Warraich, Zafar, Alvi, Ansari, Arain, Aziz, Cheema, Dar, Farooqui, Farooq, Ghaffar, Gondal, Gujjar, Haider, Iftikhar, Ilyas, Jadoon, Kiani, Latif, Manzoor, Marwat, Masood, Mukhtar, Nawaz, Rasheed, Rehman, Riaz, Saeed, Siddiqui, Soomro, Tanveer, Usmani, Wattoo, Younis, Yusuf, Abbasi, Asghar, Bajwa, Bilal, Chohan, Gardezi, Gilani, Hayat, Hussaini, Kakar, Khokar, Laghari, Leghari, Maneka, Mazari, Pasha, Pirzada, Sarwar, Sufi, Tareen, Tiwana, Turk, Awan, Chandio, Junejo, Kalhoro, Magsi, Mahesar, Palijo, Panhwar, Qazi, Rind, Samo, Shaikh, Talpur, Waseem",
+        "disambiguation": "Distinguish from Indian names. Pakistani indicators: Khan, Malik, Butt, Chaudhry, Rana, Rajput, Akhtar, Gill, Bhatti, Abbasi, Hashmi, Khattak, Afridi, Cheema, Awan, Virk, Warraich, Gondal, Bajwa. Could be either: Ahmed, Ali, Hassan, Shah, Hussain, Syed, Qureshi. Indian-leaning: Sharma, Patel, Gupta, Reddy, Nair, Iyer, Rao. Arab names (not Pakistani): Al-, bin, ibn prefixes. Indonesian (not Pakistani): names ending in -to, -no, -wan (Javanese).",
     },
     "Philippines": {
         "description": "Filipino",
@@ -514,13 +514,35 @@ async def run_diaspora_pipeline(
             await _emit(f"No contacts found for {batch_label}. Skipping.")
             continue
 
-        all_scanned += len(people)
-        await _emit(f"Found {len(people)} contacts. Phase 3: Classifying names...")
+        # Filter to decision-makers only (C-level, VP, Director, Head, Founder, Partner, Owner)
+        clevel_keywords = {
+            "ceo", "cto", "cfo", "coo", "cmo", "cpo", "cio", "cro",
+            "chief", "founder", "co-founder", "cofounder", "owner",
+            "managing director", "general manager", "president",
+            "vp", "vice president", "director", "head of", "head",
+            "partner", "principal", "country manager", "regional manager",
+            "gm", "md",
+        }
+        decision_makers = []
+        for p in people:
+            title = (p.get("title") or "").lower()
+            if not title:
+                continue
+            if any(kw in title for kw in clevel_keywords):
+                decision_makers.append(p)
+
+        if not decision_makers:
+            await _emit(f"Found {len(people)} contacts but 0 decision-makers. Skipping.")
+            continue
+
+        await _emit(f"Found {len(people)} contacts, {len(decision_makers)} decision-makers.")
+        all_scanned += len(decision_makers)
+        await _emit(f"Phase 3: Classifying {len(decision_makers)} decision-maker names...")
 
         # Phase 3: Classify names by origin
         try:
             classified = await classify_names_by_origin(
-                people, contractor_country,
+                decision_makers, contractor_country,
             )
         except Exception as e:
             logger.error(f"Classification failed for {batch_label}: {e}")
