@@ -30,6 +30,8 @@ class DiasporaGatherRequest(BaseModel):
     corridor: Optional[str] = None  # e.g., "uae-pakistan". None = all corridors
     project_id: int = 9  # easystaff global
     target_count: int = 1000
+    mode: str = "full"  # "full" = industry + university, "university" = university-only
+    existing_sheet_id: Optional[str] = None  # Append results to existing sheet
 
 
 class DiasporaStatusResponse(BaseModel):
@@ -75,6 +77,8 @@ async def start_diaspora_gather(
             corridor_key,
             request.project_id,
             request.target_count,
+            request.mode,
+            request.existing_sheet_id,
         )
     else:
         # Multiple corridors — run SEQUENTIALLY in one task (they share Puppeteer)
@@ -90,6 +94,8 @@ async def start_diaspora_gather(
             corridors_to_run,
             request.project_id,
             request.target_count,
+            request.mode,
+            request.existing_sheet_id,
         )
 
     return {
@@ -100,7 +106,10 @@ async def start_diaspora_gather(
     }
 
 
-async def _run_pipeline_task(corridor_key: str, project_id: int, target_count: int):
+async def _run_pipeline_task(
+    corridor_key: str, project_id: int, target_count: int,
+    mode: str = "full", existing_sheet_id: Optional[str] = None,
+):
     """Background task for running a single corridor pipeline."""
     import datetime
 
@@ -119,6 +128,8 @@ async def _run_pipeline_task(corridor_key: str, project_id: int, target_count: i
             project_id=project_id,
             target_count=target_count,
             on_progress=on_progress,
+            mode=mode,
+            existing_sheet_id=existing_sheet_id,
         )
         # Remove contacts from result (too large for status endpoint)
         result_summary = {k: v for k, v in result.items() if k != "contacts"}
@@ -132,10 +143,11 @@ async def _run_pipeline_task(corridor_key: str, project_id: int, target_count: i
 
 async def _run_all_corridors_sequential(
     corridor_keys: list[str], project_id: int, target_count: int,
+    mode: str = "full", existing_sheet_id: Optional[str] = None,
 ):
     """Run multiple corridors one after another (they share Puppeteer)."""
     for corridor_key in corridor_keys:
-        await _run_pipeline_task(corridor_key, project_id, target_count)
+        await _run_pipeline_task(corridor_key, project_id, target_count, mode, existing_sheet_id)
 
 
 @router.get("/status")

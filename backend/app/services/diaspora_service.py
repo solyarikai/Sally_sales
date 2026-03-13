@@ -472,12 +472,14 @@ async def run_diaspora_pipeline(
     project_id: int,
     target_count: int = 1000,
     on_progress: Optional[Callable] = None,
+    mode: str = "full",  # "full" = industry + university, "university" = university-only
+    existing_sheet_id: Optional[str] = None,  # Append to existing sheet
 ) -> Dict[str, Any]:
     """Run the full diaspora gathering pipeline for a corridor.
 
-    1. Iterate through industry batches
+    1. Iterate through industry batches (skipped in university mode)
     2. For each batch: find companies → find contacts → classify names
-    3. Accumulate matches until target_count reached
+    3. University-based search (always runs if target not reached)
     4. Export all to Google Sheet
 
     Returns: {matched: int, total_scanned: int, sheet_url: str, contacts: [...]}
@@ -521,7 +523,7 @@ async def run_diaspora_pipeline(
         except Exception as e:
             logger.warning(f"Failed to load interim results: {e}")
 
-    await _emit(f"Starting diaspora pipeline: {label}")
+    await _emit(f"Starting diaspora pipeline: {label} (mode={mode})")
     await _emit(f"Target: {target_count} {contractor_country}-origin decision-makers in {', '.join(employer_countries)}")
     if all_matched_contacts:
         await _emit(f"Resuming with {len(all_matched_contacts)} previously matched contacts")
@@ -529,8 +531,14 @@ async def run_diaspora_pipeline(
     if skip_batches > 0:
         await _emit(f"Resuming from iteration {skip_batches+1} with {len(all_matched_contacts)} contacts already matched")
 
+    # Skip industry batches in university mode
+    if mode == "university":
+        await _emit("University-only mode — skipping industry searches")
+    else:
+        pass  # Run industry batches below
+
     # COMPANY→PEOPLE→NAME approach with larger batches for scale
-    for batch_config in INDUSTRY_BATCHES:
+    for batch_config in (INDUSTRY_BATCHES if mode != "university" else []):
         if len(all_matched_contacts) >= target_count:
             break
 
@@ -815,6 +823,7 @@ async def run_diaspora_pipeline(
                 "iterations": iteration,
                 "failed_batches": failed_batches,
             },
+            existing_sheet_id=existing_sheet_id,
         )
         await _emit(f"Google Sheet: {sheet_url}")
     except Exception as e:
