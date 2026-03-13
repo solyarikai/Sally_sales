@@ -164,6 +164,11 @@ _getsales_flow_cache: Dict[str, str] = {}
 GETSALES_FLOW_NAMES = _getsales_flow_cache
 
 
+def _get_known_flow_names() -> set:
+    """Return set of known GetSales flow names (from cache). Used to validate campaign names."""
+    return set(_getsales_flow_cache.values())
+
+
 async def refresh_getsales_flow_cache():
     """Reload GetSales automation UUID→name mapping from Campaign table."""
     from app.db import async_session_maker
@@ -1552,20 +1557,31 @@ class CRMSyncService:
             # Merge campaign data into platform_state
             existing_campaigns = existing.get_platform("getsales").get("campaigns", [])
             new_campaigns = []
-            # Derive campaign ID from flows (flow_uuid) when available, fallback to item/lead uuid
-            _flow_uuid = None
+            # Build campaigns from actual flow enrollments (verified UUIDs only).
+            # list_name is used as a name fallback (for campaign-sync/reply paths where
+            # list_name IS the verified flow name), but NEVER as the campaign ID.
+            _added_at = lead.get("created_at") or datetime.utcnow().isoformat()
             for flow in item.get("flows", []):
-                if flow.get("flow_uuid"):
-                    _flow_uuid = flow["flow_uuid"]
-                    break
-            _campaign_id = _flow_uuid or item.get("uuid") or lead.get("uuid")
-            if list_name:
+                _fid = flow.get("flow_uuid")
+                if not _fid:
+                    continue
+                _fname = _getsales_flow_cache.get(_fid, "") or list_name or ""
+                if _fname:
+                    new_campaigns.append({
+                        "name": _fname,
+                        "id": _fid,
+                        "source": "getsales",
+                        "status": getsales_status,
+                        "added_at": _added_at,
+                    })
+            # If contact has no flow enrollments, only accept list_name if it's a known flow
+            if not new_campaigns and list_name and list_name in _get_known_flow_names():
                 new_campaigns.append({
                     "name": list_name,
-                    "id": _campaign_id,
+                    "id": "",
                     "source": "getsales",
                     "status": getsales_status,
-                    "added_at": lead.get("created_at") or datetime.utcnow().isoformat(),
+                    "added_at": _added_at,
                 })
             campaign_ids = {c.get("id") if isinstance(c, dict) else c for c in existing_campaigns}
             for nc in new_campaigns:
@@ -1592,21 +1608,31 @@ class CRMSyncService:
             phone = lead.get("work_phone_number") or lead.get("personal_phone_number")
             location = lead.get("raw_address")
 
-            # Build campaign data from list_name
-            campaign_data = None
-            _flow_uuid_new = None
+            # Build campaign data from actual flow enrollments (same logic as update path)
+            campaign_data = []
+            _added_at_new = lead.get("created_at") or datetime.utcnow().isoformat()
             for flow in item.get("flows", []):
-                if flow.get("flow_uuid"):
-                    _flow_uuid_new = flow["flow_uuid"]
-                    break
-            if list_name:
-                campaign_data = [{
+                _fid = flow.get("flow_uuid")
+                if not _fid:
+                    continue
+                _fname = _getsales_flow_cache.get(_fid, "") or list_name or ""
+                if _fname:
+                    campaign_data.append({
+                        "name": _fname,
+                        "id": _fid,
+                        "source": "getsales",
+                        "status": getsales_status,
+                        "added_at": _added_at_new,
+                    })
+            if not campaign_data and list_name and list_name in _get_known_flow_names():
+                campaign_data.append({
                     "name": list_name,
-                    "id": _flow_uuid_new or item.get("uuid") or lead.get("uuid"),
+                    "id": "",
                     "source": "getsales",
                     "status": getsales_status,
-                    "added_at": lead.get("created_at") or datetime.utcnow().isoformat(),
-                }]
+                    "added_at": _added_at_new,
+                })
+            campaign_data = campaign_data or None
 
             # Use a more descriptive placeholder email with getsales_id for traceability
             # This makes it clear this is a LinkedIn-only contact and aids debugging
@@ -3072,22 +3098,28 @@ class CRMSyncService:
                             else:
                                 # automation: "synced" — resolve campaign name in priority order:
                                 # 1. Contact's cached campaigns (if UUID in GETSALES_FLOW_NAMES)
-                                # 2. Contact's cached campaigns (if name passes validation)
+                                # 2. Contact's cached campaigns (if name matches a KNOWN flow name)
                                 # 3. Sender's most recent webhook automation (from webhook_events)
                                 # 4. Leave empty — webhook path will enrich it later via upsert
+                                # NOTE: We do NOT blindly trust platform_state names (they may come
+                                # from GetSales lists, not automations). Only verified flow names.
                                 gs_campaigns = (contact.get_platform("getsales") or {}).get("campaigns", [])
                                 if gs_campaigns and isinstance(gs_campaigns, list):
                                     for gc in gs_campaigns:
-                                        gc_name = gc.get("name", "")
                                         gc_id = gc.get("id", "")
                                         if gc_id and gc_id in GETSALES_FLOW_NAMES:
                                             flow_name = GETSALES_FLOW_NAMES[gc_id]
                                             flow_uuid = gc_id
                                             break
-                                        if gc_name and _is_valid_campaign_name(gc_name):
-                                            flow_name = gc_name
-                                            flow_uuid = gc_id
-                                            break
+                                    # Secondary: cross-reference name against known flow names
+                                    if not flow_name:
+                                        _known_names = _get_known_flow_names()
+                                        for gc in gs_campaigns:
+                                            gc_name = gc.get("name", "")
+                                            if gc_name and gc_name in _known_names:
+                                                flow_name = gc_name
+                                                flow_uuid = gc.get("id", "")
+                                                break
                                 # Fallback: resolve from sender's webhook history
                                 if not flow_name:
                                     _sender_uuid = msg.get("sender_profile_uuid", "")
