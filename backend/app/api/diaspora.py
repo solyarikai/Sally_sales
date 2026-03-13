@@ -30,7 +30,7 @@ class DiasporaGatherRequest(BaseModel):
     corridor: Optional[str] = None  # e.g., "uae-pakistan". None = all corridors
     project_id: int = 9  # easystaff global
     target_count: int = 1000
-    mode: str = "full"  # "full" = industry + university, "university" = university-only
+    mode: str = "full"  # "university" | "full" | "full_tam" (all approaches for max TAM)
     existing_sheet_id: Optional[str] = None  # Append results to existing sheet
 
 

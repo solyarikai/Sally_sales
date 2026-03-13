@@ -279,6 +279,52 @@ async function runPeopleSearch(page, filters, label = 'default') {
     await screenshot(page, `${label}_02a_titles`);
   }
 
+  // Step A2: Name filter (last name / surname search)
+  if (filters.person_name) {
+    console.log(`  Setting name filter: "${filters.person_name}"...`);
+    // Look for the Name input — Clay People Search has a "Name" section near the top
+    const nameSection = await findByText(page, 'Name', true);
+    if (nameSection) {
+      await page.mouse.click(nameSection.x, nameSection.y);
+      await humanDelay(800, 1200);
+    }
+    // Find the name input via placeholder patterns
+    const nameInputPos = await page.evaluate(() => {
+      const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null);
+      for (const input of inputs) {
+        const ph = (input.placeholder || '').toLowerCase();
+        if (ph.includes('john') || ph.includes('name') || ph.includes('person')) {
+          const rect = input.getBoundingClientRect();
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder };
+        }
+      }
+      return null;
+    });
+    if (nameInputPos) {
+      console.log(`    Found name input: "${nameInputPos.placeholder}"`);
+      await page.mouse.click(nameInputPos.x, nameInputPos.y);
+      await humanDelay(100, 200);
+      await page.keyboard.type(filters.person_name, { delay: 25 + Math.random() * 30 });
+      await humanDelay(500, 800);
+      await page.keyboard.press('Enter');
+      await humanDelay(300, 500);
+      console.log(`    Name filter set: ${filters.person_name}`);
+    } else {
+      // Try broader search — find any remaining input near top of sidebar
+      console.log('    Name input not found by placeholder — trying first unfilled input');
+      const allInputs = await page.evaluate(() =>
+        [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
+          .map(i => ({ placeholder: i.placeholder, rect: i.getBoundingClientRect() }))
+      );
+      console.log('    Available inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
+    }
+    await page.keyboard.press('Escape');
+    await humanDelay(300, 500);
+    await page.mouse.click(650, 400);
+    await humanDelay(500, 800);
+    await screenshot(page, `${label}_02a2_name`);
+  }
+
   // Step B: Type company domains into the "Companies" field (placeholder: "amazon.com, microsoft.com")
   // This is the most important filter — targets specific gaming companies
   if (filters.company_domains?.length) {
@@ -793,6 +839,9 @@ async function main() {
   const schoolsIdx = args.indexOf('--schools');
   const schoolsArg = schoolsIdx >= 0 ? args[schoolsIdx + 1] : null;
   const customSchools = schoolsArg ? schoolsArg.split('|').map(s => s.trim()) : null;
+  const nameIdx = args.indexOf('--name');
+  const nameArg = nameIdx >= 0 ? args[nameIdx + 1] : null;
+  const customName = nameArg ? nameArg.trim() : null;
 
   if (useTitles) {
     GAMING_ICP_FILTERS.job_titles = ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
@@ -888,6 +937,10 @@ async function main() {
   if (customSchools) {
     GAMING_ICP_FILTERS.schools = customSchools;
     console.log(`  School filter: ${customSchools.join(', ')}`);
+  }
+  if (customName) {
+    GAMING_ICP_FILTERS.person_name = customName;
+    console.log(`  Name filter: ${customName}`);
   }
 
   if (allDomains.length === 0) {

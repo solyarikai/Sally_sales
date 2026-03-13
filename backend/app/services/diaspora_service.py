@@ -497,21 +497,89 @@ UNIVERSITY_BATCHES = {
     ],
 }
 
+# ============================================================
+# Surname batches — distinctive last names for each target country
+# Each surname becomes a separate Clay search: name + location + titles
+# Only pick DISTINCTIVE surnames (avoid Khan/Ahmed which are pan-Muslim)
+# ============================================================
+SURNAME_BATCHES = {
+    "Pakistan": [
+        # Tier 1: Very distinctive Pakistani surnames (low false positive in UAE)
+        {"label": "pk_surname_1", "names": ["Malik", "Butt", "Chaudhry", "Rana", "Rajput"]},
+        {"label": "pk_surname_2", "names": ["Akhtar", "Bhatti", "Gill", "Cheema", "Awan"]},
+        {"label": "pk_surname_3", "names": ["Virk", "Warraich", "Gondal", "Bajwa", "Afridi"]},
+        {"label": "pk_surname_4", "names": ["Khattak", "Siddiqui", "Qureshi", "Sethi", "Khawaja"]},
+        {"label": "pk_surname_5", "names": ["Memon", "Paracha", "Arain", "Minhas", "Lodhi"]},
+        {"label": "pk_surname_6", "names": ["Mughal", "Niazi", "Baloch", "Durrani", "Leghari"]},
+        # Tier 2: Common but still useful — pair with title filter to reduce noise
+        {"label": "pk_surname_7", "names": ["Khan"]},  # Massive volume — solo batch
+        {"label": "pk_surname_8", "names": ["Rizvi", "Naqvi", "Bukhari", "Gilani", "Pirzada"]},
+    ],
+    "Philippines": [
+        # Tier 1: Very distinctive Filipino surnames
+        {"label": "ph_surname_1", "names": ["Santos", "Reyes", "Cruz", "Bautista", "Ocampo"]},
+        {"label": "ph_surname_2", "names": ["Mendoza", "Villanueva", "Ramos", "Aquino", "Castillo"]},
+        {"label": "ph_surname_3", "names": ["Tolentino", "Pangilinan", "Dizon", "Cunanan", "Manalo"]},
+        {"label": "ph_surname_4", "names": ["Soriano", "Mercado", "Aguilar", "Enriquez", "Magno"]},
+        # Chinese-Filipino surnames (also count as Filipino)
+        {"label": "ph_surname_5", "names": ["Tan", "Chua", "Go", "Ong", "Sy"]},
+        {"label": "ph_surname_6", "names": ["dela Cruz", "de los Santos", "del Rosario"]},
+    ],
+    "South Africa": [
+        # Afrikaans surnames (very distinctive)
+        {"label": "za_surname_afr_1", "names": ["Botha", "du Plessis", "van der Merwe", "Pretorius", "Joubert"]},
+        {"label": "za_surname_afr_2", "names": ["Steyn", "Coetzee", "Venter", "Swanepoel", "Kruger"]},
+        {"label": "za_surname_afr_3", "names": ["Erasmus", "du Toit", "Vermeulen", "Fourie", "le Roux"]},
+        {"label": "za_surname_afr_4", "names": ["van Zyl", "Visser", "Viljoen", "Louw", "Marais"]},
+        # Zulu/Xhosa/Sotho surnames
+        {"label": "za_surname_blk_1", "names": ["Nkosi", "Dlamini", "Ndlovu", "Mkhize", "Khumalo"]},
+        {"label": "za_surname_blk_2", "names": ["Ngcobo", "Sithole", "Mthembu", "Radebe", "Molefe"]},
+        # SA Indian surnames
+        {"label": "za_surname_ind_1", "names": ["Naidoo", "Govender", "Pillay", "Chetty", "Moodley"]},
+        # SA business surnames
+        {"label": "za_surname_biz", "names": ["Motsepe", "Wiese", "Bekker", "Sobrato", "Dippenaar"]},
+    ],
+}
+
+# ============================================================
+# Extended university batches — deeper coverage for more TAM
+# ============================================================
+EXTENDED_UNIVERSITY_BATCHES = {
+    "Pakistan": [
+        {"label": "pk_uni_ext_1", "schools": ["SZABIST", "UMT", "Forman Christian College", "University of Faisalabad", "Government College University"]},
+        {"label": "pk_uni_ext_2", "schools": ["Beaconhouse National University", "University of Central Punjab", "Riphah International University", "International Islamic University", "FAST Lahore"]},
+    ],
+    "Philippines": [
+        {"label": "ph_uni_ext_1", "schools": ["University of the Philippines Diliman", "Philippine Normal University", "Manila Central University", "University of Perpetual Help", "Philippine Women's University"]},
+        {"label": "ph_uni_ext_2", "schools": ["Cebu Technological University", "Mindanao State University", "Western Mindanao State University", "Batangas State University", "Bulacan State University"]},
+    ],
+    "South Africa": [
+        {"label": "za_uni_ext_1", "schools": ["Monash South Africa", "University of Limpopo", "University of Venda", "Mangosuthu University of Technology", "Central University of Technology"]},
+        {"label": "za_uni_ext_2", "schools": ["University of Zululand", "Sol Plaatje University", "Sefako Makgatho Health Sciences University", "University of Fort Hare", "University of Western Cape"]},
+    ],
+}
+
 
 async def run_diaspora_pipeline(
     corridor_key: str,
     project_id: int,
     target_count: int = 1000,
     on_progress: Optional[Callable] = None,
-    mode: str = "full",  # "full" = industry + university, "university" = university-only
+    mode: str = "full",  # "full" = industry + uni + surname, "university" = uni-only, "full_tam" = ALL approaches
     existing_sheet_id: Optional[str] = None,  # Append to existing sheet
 ) -> Dict[str, Any]:
     """Run the full diaspora gathering pipeline for a corridor.
 
-    1. Iterate through industry batches (skipped in university mode)
-    2. For each batch: find companies → find contacts → classify names
-    3. University-based search (always runs if target not reached)
-    4. Export all to Google Sheet
+    Modes:
+    - "university": universities only (fastest, 15-30% hit rate)
+    - "full": university + industry (default)
+    - "full_tam": ALL approaches — university + extended uni + surname + industry (max TAM)
+
+    Approach order (fastest/highest-yield first):
+    1. University-based search (school filter + location + titles)
+    2. Extended university batches (more schools)
+    3. Surname-based search (distinctive last names + location + titles)
+    4. Industry company search (company domain → people → classify)
 
     Returns: {matched: int, total_scanned: int, sheet_url: str, contacts: [...]}
     """
@@ -598,12 +666,16 @@ async def run_diaspora_pipeline(
 
     # Skip industry batches in university mode
     if mode == "university":
-        await _emit("University-only mode — skipping industry searches")
+        await _emit("University-only mode — skipping industry & surname searches")
+    elif mode == "full_tam":
+        await _emit("FULL TAM mode — running ALL approaches: university → extended uni → surname → industry")
     else:
-        pass  # Run industry batches below
+        await _emit("Full mode — running university + industry")
 
+    # Industry search is LAST (lowest yield). Run only in "full" or "full_tam" mode.
+    run_industry = mode in ("full", "full_tam")
     # COMPANY→PEOPLE→NAME approach with larger batches for scale
-    for batch_config in (INDUSTRY_BATCHES if mode != "university" else []):
+    for batch_config in (INDUSTRY_BATCHES if run_industry else []):
         if len(all_matched_contacts) >= target_count:
             break
 
@@ -957,6 +1029,326 @@ async def run_diaspora_pipeline(
                 interim_path.write_text(json.dumps(interim_data, default=str))
             except Exception as e:
                 logger.warning(f"Failed to save interim: {e}")
+
+    # Phase 3b: Extended university batches (full_tam mode, or if target not reached)
+    ext_uni_batches = EXTENDED_UNIVERSITY_BATCHES.get(contractor_country, [])
+    if ext_uni_batches and len(all_matched_contacts) < target_count and mode in ("full", "full_tam"):
+        await _emit(f"\n=== EXTENDED UNIVERSITY SEARCH ({contractor_country}) ===")
+        for uni_batch in ext_uni_batches:
+            if len(all_matched_contacts) >= target_count:
+                break
+
+            uni_label = uni_batch["label"]
+            schools = uni_batch["schools"]
+            schools_str = ", ".join(schools)
+            iteration += 1
+
+            await _emit(f"\n--- Extended university batch {uni_label} ---")
+            await _emit(f"Schools: {schools_str}")
+            await _emit(f"Progress: {len(all_matched_contacts)}/{target_count}")
+
+            try:
+                result = await clay_service.run_people_search(
+                    domains=None,
+                    project_id=project_id,
+                    on_progress=on_progress,
+                    use_titles=True,
+                    countries=employer_countries,
+                    schools=schools,
+                )
+            except Exception as e:
+                logger.error(f"Extended university search failed for {uni_label}: {e}")
+                await _emit(f"Search failed: {e}. Skipping.")
+                failed_batches += 1
+                # Log failed approach
+                if _sheet_id:
+                    try:
+                        await incremental_sheet_export(
+                            all_matched_contacts, corridor, _sheet_id,
+                            approach_log={
+                                "timestamp": datetime.now().isoformat(),
+                                "search_type": "extended_university",
+                                "batch_name": uni_label,
+                                "schools_filter": schools_str,
+                                "location_filter": ", ".join(employer_countries),
+                                "title_filter": "C-level/VP/Director/Head",
+                                "contacts_found": 0, "decision_makers": 0,
+                                "prefilter_candidates": 0, "matched": 0,
+                                "hit_rate": "0%", "new_unique": 0,
+                                "total_so_far": len(all_matched_contacts),
+                                "assessment": f"FAILED: {str(e)[:100]}",
+                                "next_action": "Retry or skip",
+                            },
+                        )
+                    except Exception:
+                        pass
+                continue
+
+            all_people = result.get("people", [])
+            if not all_people:
+                await _emit(f"No contacts found for {uni_label}. Skipping.")
+                if _sheet_id:
+                    try:
+                        await incremental_sheet_export(
+                            all_matched_contacts, corridor, _sheet_id,
+                            approach_log={
+                                "timestamp": datetime.now().isoformat(),
+                                "search_type": "extended_university",
+                                "batch_name": uni_label, "schools_filter": schools_str,
+                                "location_filter": ", ".join(employer_countries),
+                                "title_filter": "C-level/VP/Director/Head",
+                                "contacts_found": 0, "decision_makers": 0,
+                                "prefilter_candidates": 0, "matched": 0,
+                                "hit_rate": "0%", "new_unique": 0,
+                                "total_so_far": len(all_matched_contacts),
+                                "assessment": "No contacts found",
+                                "next_action": "Continue to next batch",
+                            },
+                        )
+                    except Exception:
+                        pass
+                continue
+
+            clevel_keywords = [
+                "ceo", "cto", "cfo", "coo", "cmo", "cpo", "cio", "cro",
+                "chief", "founder", "co-founder", "cofounder", "owner",
+                "managing director", "general manager", "president",
+                "vp", "vice president", "director", "head of", "head",
+                "partner", "principal", "country manager", "regional manager",
+            ]
+            decision_makers = [
+                p for p in all_people
+                if (p.get("title") or "") and any(
+                    kw in (p.get("title") or "").lower() for kw in clevel_keywords
+                )
+            ]
+
+            if not decision_makers:
+                await _emit(f"Found {len(all_people)} contacts, 0 decision-makers.")
+                continue
+
+            await _emit(f"Found {len(all_people)} contacts → {len(decision_makers)} decision-makers")
+            all_scanned += len(decision_makers)
+
+            await _emit(f"Classifying {len(decision_makers)} names...")
+            try:
+                classified = await classify_names_by_origin(decision_makers, contractor_country)
+            except Exception as e:
+                logger.error(f"Classification failed: {e}")
+                for p in decision_makers:
+                    p["_origin_score"] = 8
+                    p["_origin_match"] = True
+                classified = decision_makers
+
+            matched = [c for c in classified if c.get("_origin_match")]
+            existing_keys = {(c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}").lower() for c in all_matched_contacts}
+            new_matches = []
+            for c in matched:
+                key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
+                if key.lower() not in existing_keys:
+                    c["_search_type"] = "extended_university"
+                    c["_search_batch"] = uni_label
+                    c["_schools_filter"] = schools_str
+                    c["_location_filter"] = ", ".join(employer_countries)
+                    c["_title_filter"] = "C-level/VP/Director/Head"
+                    c["_corridor"] = corridor_key
+                    c["_found_at"] = datetime.now().isoformat()
+                    score = c.get("_origin_score", 0)
+                    clay_schools = c.get("schools", "")
+                    c["_match_reason"] = f"GPT score={score}/10. Education: {clay_schools or schools_str}. Extended university batch."
+                    new_matches.append(c)
+                    existing_keys.add(key.lower())
+
+            all_matched_contacts.extend(new_matches)
+            await _emit(f"New unique: {len(new_matches)}. Total: {len(all_matched_contacts)}/{target_count}")
+
+            if _sheet_id:
+                try:
+                    await incremental_sheet_export(
+                        all_matched_contacts, corridor, _sheet_id,
+                        approach_log={
+                            "timestamp": datetime.now().isoformat(),
+                            "search_type": "extended_university",
+                            "batch_name": uni_label, "schools_filter": schools_str,
+                            "location_filter": ", ".join(employer_countries),
+                            "title_filter": "C-level/VP/Director/Head",
+                            "contacts_found": len(all_people),
+                            "decision_makers": len(decision_makers),
+                            "prefilter_candidates": len([c for c in classified if c.get("_origin_score", 0) > 0]),
+                            "matched": len(new_matches),
+                            "hit_rate": f"{len(matched)/max(len(classified),1)*100:.1f}%",
+                            "new_unique": len(new_matches),
+                            "total_so_far": len(all_matched_contacts),
+                            "assessment": f"Extended uni — {len(new_matches)} unique from {schools_str}" if new_matches else "No new unique",
+                            "next_action": "Continue" if len(all_matched_contacts) < target_count else "Target reached",
+                        },
+                    )
+                    await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
+                except Exception as e:
+                    logger.warning(f"Incremental export failed: {e}")
+
+    # Phase 3c: Surname-based search (full_tam mode, or full mode if target not reached)
+    surname_batches = SURNAME_BATCHES.get(contractor_country, [])
+    if surname_batches and len(all_matched_contacts) < target_count and mode in ("full", "full_tam"):
+        await _emit(f"\n=== SURNAME SEARCH ({contractor_country}) ===")
+        await _emit(f"Searching {len(surname_batches)} distinctive surname batches in {', '.join(employer_countries)}")
+
+        for surname_batch in surname_batches:
+            if len(all_matched_contacts) >= target_count:
+                break
+
+            batch_label = surname_batch["label"]
+            surnames = surname_batch["names"]
+            iteration += 1
+
+            # For each surname, search Clay with name + location + titles
+            for surname in surnames:
+                if len(all_matched_contacts) >= target_count:
+                    break
+
+                search_label = f"{batch_label}_{surname.replace(' ', '_')}"
+                await _emit(f"\n--- Surname search: {surname} in {', '.join(employer_countries)} ---")
+                await _emit(f"Progress: {len(all_matched_contacts)}/{target_count}")
+
+                try:
+                    result = await clay_service.run_people_search(
+                        domains=None,
+                        project_id=project_id,
+                        on_progress=on_progress,
+                        use_titles=True,
+                        countries=employer_countries,
+                        name=surname,
+                    )
+                except Exception as e:
+                    logger.error(f"Surname search failed for {surname}: {e}")
+                    await _emit(f"Search failed: {e}. Skipping.")
+                    failed_batches += 1
+                    if _sheet_id:
+                        try:
+                            await incremental_sheet_export(
+                                all_matched_contacts, corridor, _sheet_id,
+                                approach_log={
+                                    "timestamp": datetime.now().isoformat(),
+                                    "search_type": "surname_search",
+                                    "batch_name": search_label, "schools_filter": "",
+                                    "location_filter": ", ".join(employer_countries),
+                                    "title_filter": "C-level/VP/Director/Head",
+                                    "contacts_found": 0, "decision_makers": 0,
+                                    "prefilter_candidates": 0, "matched": 0,
+                                    "hit_rate": "0%", "new_unique": 0,
+                                    "total_so_far": len(all_matched_contacts),
+                                    "assessment": f"FAILED: {str(e)[:100]}",
+                                    "next_action": "Retry or skip",
+                                },
+                            )
+                        except Exception:
+                            pass
+                    continue
+
+                all_people = result.get("people", [])
+                if not all_people:
+                    await _emit(f"No contacts for surname '{surname}'. Skipping.")
+                    if _sheet_id:
+                        try:
+                            await incremental_sheet_export(
+                                all_matched_contacts, corridor, _sheet_id,
+                                approach_log={
+                                    "timestamp": datetime.now().isoformat(),
+                                    "search_type": "surname_search",
+                                    "batch_name": search_label, "schools_filter": "",
+                                    "location_filter": ", ".join(employer_countries),
+                                    "title_filter": f"C-level + name='{surname}'",
+                                    "contacts_found": 0, "decision_makers": 0,
+                                    "prefilter_candidates": 0, "matched": 0,
+                                    "hit_rate": "0%", "new_unique": 0,
+                                    "total_so_far": len(all_matched_contacts),
+                                    "assessment": f"No results for surname '{surname}'",
+                                    "next_action": "Continue to next surname",
+                                },
+                            )
+                        except Exception:
+                            pass
+                    continue
+
+                # Surname search already targets the right names, but still classify
+                # to filter out false positives (e.g., "Santos" could be Brazilian in AU)
+                clevel_keywords = [
+                    "ceo", "cto", "cfo", "coo", "cmo", "cpo", "cio", "cro",
+                    "chief", "founder", "co-founder", "cofounder", "owner",
+                    "managing director", "general manager", "president",
+                    "vp", "vice president", "director", "head of", "head",
+                    "partner", "principal", "country manager", "regional manager",
+                ]
+                decision_makers = [
+                    p for p in all_people
+                    if (p.get("title") or "") and any(
+                        kw in (p.get("title") or "").lower() for kw in clevel_keywords
+                    )
+                ]
+
+                if not decision_makers:
+                    decision_makers = all_people  # Title filter was in Clay, trust it
+
+                await _emit(f"Found {len(all_people)} contacts → {len(decision_makers)} to classify")
+                all_scanned += len(decision_makers)
+
+                await _emit(f"Classifying {len(decision_makers)} '{surname}' contacts...")
+                try:
+                    classified = await classify_names_by_origin(decision_makers, contractor_country)
+                except Exception as e:
+                    logger.error(f"Classification failed: {e}")
+                    # Surname match is a strong signal — accept on failure
+                    for p in decision_makers:
+                        p["_origin_score"] = 7
+                        p["_origin_match"] = True
+                    classified = decision_makers
+
+                matched = [c for c in classified if c.get("_origin_match")]
+                existing_keys = {(c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}").lower() for c in all_matched_contacts}
+                new_matches = []
+                for c in matched:
+                    key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
+                    if key.lower() not in existing_keys:
+                        c["_search_type"] = "surname_search"
+                        c["_search_batch"] = search_label
+                        c["_schools_filter"] = ""
+                        c["_location_filter"] = ", ".join(employer_countries)
+                        c["_title_filter"] = f"C-level + name='{surname}'"
+                        c["_corridor"] = corridor_key
+                        c["_found_at"] = datetime.now().isoformat()
+                        score = c.get("_origin_score", 0)
+                        last = c.get("last_name", "") or surname
+                        c["_match_reason"] = f"GPT score={score}/10. Surname '{last}' is distinctive {contractor_country}. Found via surname search in {', '.join(employer_countries)}."
+                        new_matches.append(c)
+                        existing_keys.add(key.lower())
+
+                all_matched_contacts.extend(new_matches)
+                await _emit(f"New unique: {len(new_matches)}. Total: {len(all_matched_contacts)}/{target_count}")
+
+                if _sheet_id:
+                    try:
+                        await incremental_sheet_export(
+                            all_matched_contacts, corridor, _sheet_id,
+                            approach_log={
+                                "timestamp": datetime.now().isoformat(),
+                                "search_type": "surname_search",
+                                "batch_name": search_label, "schools_filter": "",
+                                "location_filter": ", ".join(employer_countries),
+                                "title_filter": f"C-level + name='{surname}'",
+                                "contacts_found": len(all_people),
+                                "decision_makers": len(decision_makers),
+                                "prefilter_candidates": len([c for c in classified if c.get("_origin_score", 0) > 0]),
+                                "matched": len(new_matches),
+                                "hit_rate": f"{len(matched)/max(len(classified),1)*100:.1f}%",
+                                "new_unique": len(new_matches),
+                                "total_so_far": len(all_matched_contacts),
+                                "assessment": f"Surname '{surname}' — {len(new_matches)} unique" if new_matches else f"Surname '{surname}' — no new unique",
+                                "next_action": "Continue" if len(all_matched_contacts) < target_count else "Target reached",
+                            },
+                        )
+                        await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
+                    except Exception as e:
+                        logger.warning(f"Incremental export failed: {e}")
 
     # Phase 4: Final export to Google Sheet
     await _emit(f"\nExporting {len(all_matched_contacts)} matched contacts to Google Sheet...")

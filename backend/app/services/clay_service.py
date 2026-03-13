@@ -402,6 +402,7 @@ class ClayService:
         use_titles: bool = False,
         countries: Optional[List[str]] = None,
         schools: Optional[List[str]] = None,
+        name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Run Clay People search via Puppeteer.
 
@@ -460,6 +461,10 @@ class ClayService:
         if schools:
             args.extend(["--schools", "|".join(schools)])
             logger.info(f"Clay People: school filter = {schools}")
+
+        if name:
+            args.extend(["--name", name])
+            logger.info(f"Clay People: name filter = {name}")
 
         env = {
             **os.environ,
@@ -602,6 +607,12 @@ class ClayService:
                 "location": p.get("Location") or p.get("location") or p.get("City") or "",
                 "linkedin_url": p.get("LinkedIn Profile") or p.get("LinkedIn URL") or p.get("linkedin_url") or p.get("LinkedIn") or None,
                 "phone": p.get("Phone") or p.get("phone") or None,
+                # Education / provenance fields
+                "schools": p.get("Schools") or p.get("Education") or p.get("schools") or p.get("School") or "",
+                "seniority": p.get("Seniority") or p.get("seniority") or p.get("Management Level") or "",
+                "industry": p.get("Industry") or p.get("industry") or p.get("Company Industry") or "",
+                "company_size": p.get("Company Size") or p.get("Employees") or p.get("company_size") or "",
+                "company_location": p.get("Company Location") or p.get("Company HQ") or p.get("company_location") or "",
             }
             # Also copy domain to "domain" key for the handler
             person["domain"] = person["company_domain"]
