@@ -1976,6 +1976,74 @@ async def export_diaspora_to_sheet(
     return sheet_url
 
 
+def create_master_sheet() -> str:
+    """Create ONE master Google Sheet with tabs for all corridors + Approaches Log.
+
+    Returns: sheet_id
+    """
+    sheets_service, drive_service = _get_sheets_service()
+    shared_drive_id = os.environ.get("SHARED_DRIVE_ID", "0AEvTjlJFlWnZUk9PVA")
+    title = f"Diaspora TAM — All Corridors — {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    file_metadata = {
+        "name": title,
+        "mimeType": "application/vnd.google-apps.spreadsheet",
+        "parents": [shared_drive_id],
+    }
+    sheet_file = drive_service.files().create(
+        body=file_metadata, fields="id", supportsAllDrives=True,
+    ).execute()
+    sheet_id = sheet_file["id"]
+    drive_service.permissions().create(
+        fileId=sheet_id,
+        body={"type": "anyone", "role": "reader"},
+        supportsAllDrives=True,
+    ).execute()
+
+    # Create tabs: one per corridor + Approaches Log
+    corridor_tabs = [c["sheet_name"] for c in CORRIDORS.values()]
+    requests = [
+        # Rename Sheet1 to first corridor
+        {"updateSheetProperties": {
+            "properties": {"sheetId": 0, "title": corridor_tabs[0]}, "fields": "title",
+        }},
+    ]
+    # Add remaining corridor tabs + Approaches Log
+    for tab_name in corridor_tabs[1:] + ["Approaches Log"]:
+        requests.append({"addSheet": {"properties": {"title": tab_name}}})
+
+    sheets_service.spreadsheets().batchUpdate(
+        spreadsheetId=sheet_id, body={"requests": requests},
+    ).execute()
+
+    # Write Approaches Log header
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=sheet_id,
+        range="Approaches Log!A1",
+        valueInputOption="RAW",
+        body={"values": [[
+            "Timestamp", "Corridor", "Search Type", "Batch Name",
+            "Schools Filter", "Location Filter", "Title Filter",
+            "Raw Contacts", "Decision Makers", "Name Pre-Filter Candidates",
+            "GPT Matched", "Hit Rate (%)", "New Unique", "Dedup Skipped",
+            "Total Cumulative", "Assessment", "Next Action",
+        ]]},
+    ).execute()
+
+    logger.info(f"Master sheet created: {sheet_id} with tabs: {corridor_tabs + ['Approaches Log']}")
+    return sheet_id
+
+
+def _ensure_tab_exists(sheets_service, sheet_id: str, tab_name: str) -> None:
+    """Create tab if it doesn't exist."""
+    try:
+        sheets_service.spreadsheets().batchUpdate(
+            spreadsheetId=sheet_id,
+            body={"requests": [{"addSheet": {"properties": {"title": tab_name}}}]},
+        ).execute()
+    except Exception:
+        pass  # Tab already exists
+
+
 async def incremental_sheet_export(
     contacts: List[Dict[str, Any]],
     corridor: Dict[str, Any],
@@ -1986,6 +2054,9 @@ async def incremental_sheet_export(
     try:
         sheets_service, _ = _get_sheets_service()
         sheet_name = corridor["sheet_name"]
+
+        # Ensure corridor tab exists (for master sheet with all corridors)
+        _ensure_tab_exists(sheets_service, sheet_id, sheet_name)
 
         # Rewrite all contacts (header + data)
         rows = [CONTACT_COLUMNS]

@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from app.services.diaspora_service import (
     CORRIDORS,
     classify_names_by_origin,
+    create_master_sheet,
     run_all_corridors,
     run_diaspora_pipeline,
 )
@@ -156,6 +157,63 @@ async def get_diaspora_status():
     return {
         "pipelines": _running_pipelines,
         "available_corridors": {k: v["label"] for k, v in CORRIDORS.items()},
+    }
+
+
+@router.post("/gather-all")
+async def start_diaspora_gather_all(
+    background_tasks: BackgroundTasks,
+    project_id: int = 9,
+    target_count: int = 5000,
+    mode: str = "full_tam",
+    existing_sheet_id: Optional[str] = None,
+):
+    """Start ALL corridors in parallel writing to ONE master Google Sheet.
+
+    Creates a single sheet with tabs: UAE-Pakistan, AU-Philippines, Arabic-SouthAfrica, Approaches Log.
+    All corridors run concurrently, each writing to its own tab.
+    """
+    # Check if any are already running
+    already_running = [k for k in CORRIDORS
+                       if k in _running_pipelines and _running_pipelines[k].get("status") == "running"]
+    if already_running:
+        return {"error": f"Already running: {already_running}", "check_progress": "GET /api/diaspora/status"}
+
+    # Create or reuse ONE master sheet
+    sheet_id = existing_sheet_id
+    if not sheet_id:
+        try:
+            sheet_id = create_master_sheet()
+        except Exception as e:
+            return {"error": f"Failed to create master sheet: {e}"}
+
+    sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}"
+
+    # Launch ALL corridors in parallel as separate background tasks
+    for corridor_key in CORRIDORS:
+        _running_pipelines[corridor_key] = {
+            "status": "running",
+            "started_at": None,
+            "progress": [],
+            "result": None,
+        }
+        background_tasks.add_task(
+            _run_pipeline_task,
+            corridor_key,
+            project_id,
+            target_count,
+            mode,
+            sheet_id,
+        )
+
+    return {
+        "status": "started",
+        "corridors": list(CORRIDORS.keys()),
+        "target_count": target_count,
+        "mode": mode,
+        "sheet_url": sheet_url,
+        "sheet_id": sheet_id,
+        "check_progress": "GET /api/diaspora/status",
     }
 
 
