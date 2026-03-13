@@ -562,6 +562,8 @@ EXTENDED_UNIVERSITY_BATCHES = {
 # ============================================================
 # Language batches — cheapest approach, $0 GPT cost
 # Language = definitive signal. Urdu in UAE = Pakistani. No GPT needed.
+# Phase 0: broad language search (country-level location)
+# Phase 0.5: city-split language search (bypass Clay's 5K cap per search)
 # ============================================================
 LANGUAGE_BATCHES = {
     "Pakistan": [
@@ -581,6 +583,30 @@ LANGUAGE_BATCHES = {
         {"label": "za_lang_xhosa", "languages": ["Xhosa"], "auto_accept": True},
     ],
 }
+
+# City splits per corridor — bypass Clay's 5K cap by searching each city separately
+# Each language × city combo = separate 5K-cap search = much more coverage
+CITY_SPLITS = {
+    "uae-pakistan": {
+        "languages": ["Urdu", "Punjabi"],
+        "cities": ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah", "Fujairah"],
+    },
+    "australia-philippines": {
+        "languages": ["Tagalog", "Filipino"],
+        "cities": ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Gold Coast", "Canberra"],
+    },
+    "arabic-south-africa": {
+        "languages": ["Afrikaans", "Zulu"],
+        "cities": ["Dubai", "Abu Dhabi", "Riyadh", "Jeddah", "Doha", "Kuwait City", "Manama", "Muscat"],
+    },
+}
+
+# Industry splits for language search — another dimension to bypass 5K cap
+INDUSTRY_SPLITS_FOR_LANG = [
+    "Technology", "Financial Services", "Construction", "Real Estate",
+    "Consulting", "Healthcare", "Education", "Retail", "Manufacturing",
+    "Oil & Gas", "Hospitality", "Transportation",
+]
 
 
 async def run_diaspora_pipeline(
@@ -1033,6 +1059,123 @@ async def run_diaspora_pipeline(
                     await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
                 except Exception as e:
                     logger.warning(f"Incremental export failed: {e}")
+
+    # Phase 0.5: City-split language search — bypass Clay's 5K cap per search
+    # Each language × city = separate search with its own 5K cap = much more coverage
+    city_config = CITY_SPLITS.get(corridor_key, {})
+    city_languages = city_config.get("languages", [])
+    city_list = city_config.get("cities", [])
+    if city_languages and city_list and len(all_matched_contacts) < target_count:
+        total_combos = len(city_languages) * len(city_list)
+        await _emit(f"\n=== CITY-SPLIT LANGUAGE SEARCH — {total_combos} combos, $0 GPT ===")
+        await _emit(f"Languages: {', '.join(city_languages)} × Cities: {', '.join(city_list)}")
+
+        for lang in city_languages:
+            if len(all_matched_contacts) >= target_count:
+                break
+            for city in city_list:
+                if len(all_matched_contacts) >= target_count:
+                    break
+
+                combo_label = f"lang_{lang.lower()}_{city.lower().replace(' ', '_')}"
+                iteration += 1
+
+                await _emit(f"\n--- {lang} speakers in {city} ---")
+                await _emit(f"Progress: {len(all_matched_contacts)}/{target_count}")
+
+                try:
+                    result = await clay_service.run_people_search(
+                        domains=None,
+                        project_id=project_id,
+                        on_progress=on_progress,
+                        use_titles=True,
+                        countries=[city],  # City name works in Clay's location filter
+                        languages=[lang],
+                    )
+                except Exception as e:
+                    logger.error(f"City-split search failed for {lang}+{city}: {e}")
+                    await _emit(f"Search failed: {e}. Skipping.")
+                    failed_batches += 1
+                    continue
+
+                all_people = result.get("people", [])
+                if not all_people:
+                    await _emit(f"No contacts for {lang} in {city}. Skipping.")
+                    # Log zero-result approach
+                    if _sheet_id:
+                        try:
+                            await incremental_sheet_export(
+                                all_matched_contacts, corridor, _sheet_id,
+                                approach_log={
+                                    "timestamp": datetime.now().isoformat(),
+                                    "search_type": "language_city_split",
+                                    "batch_name": combo_label,
+                                    "schools_filter": "",
+                                    "location_filter": city,
+                                    "title_filter": f"C-level + language={lang}",
+                                    "contacts_found": 0, "decision_makers": 0,
+                                    "prefilter_candidates": 0, "matched": 0,
+                                    "hit_rate": "0%", "new_unique": 0,
+                                    "total_so_far": len(all_matched_contacts),
+                                    "assessment": f"No results for {lang} in {city}",
+                                    "next_action": "Continue",
+                                },
+                            )
+                        except Exception:
+                            pass
+                    continue
+
+                # Auto-accept ALL — language is definitive signal
+                await _emit(f"Found {len(all_people)} contacts. Auto-accepting ALL ($0 GPT).")
+                all_scanned += len(all_people)
+
+                # DEDUP against existing
+                existing_keys = {(c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}").lower() for c in all_matched_contacts}
+                new_matches = []
+                for c in all_people:
+                    key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
+                    if key.lower() not in existing_keys:
+                        c["_origin_score"] = 10
+                        c["_origin_match"] = True
+                        c["_search_type"] = "language_city_split"
+                        c["_search_batch"] = combo_label
+                        c["_schools_filter"] = ""
+                        c["_location_filter"] = city
+                        c["_title_filter"] = "C-level/VP/Director/Head"
+                        c["_corridor"] = corridor_key
+                        c["_found_at"] = datetime.now().isoformat()
+                        c["_match_reason"] = f"auto-accepted (language={lang}, city={city}). $0 GPT cost."
+                        new_matches.append(c)
+                        existing_keys.add(key.lower())
+
+                all_matched_contacts.extend(new_matches)
+                await _emit(f"New unique: {len(new_matches)} (skipped {len(all_people) - len(new_matches)} dupes). Total: {len(all_matched_contacts)}/{target_count}")
+
+                if _sheet_id:
+                    try:
+                        await incremental_sheet_export(
+                            all_matched_contacts, corridor, _sheet_id,
+                            approach_log={
+                                "timestamp": datetime.now().isoformat(),
+                                "search_type": "language_city_split",
+                                "batch_name": combo_label,
+                                "schools_filter": "",
+                                "location_filter": city,
+                                "title_filter": f"C-level + language={lang}",
+                                "contacts_found": len(all_people),
+                                "decision_makers": len(all_people),
+                                "prefilter_candidates": len(all_people),
+                                "matched": len(new_matches),
+                                "hit_rate": "100% (language signal)",
+                                "new_unique": len(new_matches),
+                                "total_so_far": len(all_matched_contacts),
+                                "assessment": f"{lang} in {city} — {len(new_matches)} unique at $0 GPT",
+                                "next_action": "Continue" if len(all_matched_contacts) < target_count else "Target reached",
+                            },
+                        )
+                        await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
+                    except Exception as e:
+                        logger.warning(f"Incremental export failed: {e}")
 
     # Phase 1: University-based people search (people-first, no company step)
     uni_batches = UNIVERSITY_BATCHES.get(contractor_country, [])
