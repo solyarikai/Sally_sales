@@ -168,15 +168,17 @@ def pre_filter_by_surname(
     return candidates, non_matches
 
 
-async def _classify_single_batch(
-    batch_idx: int,
+def _classify_single_batch_sync(
     batch: List[Dict[str, Any]],
     system_prompt: str,
     api_key: str,
-    total_batches: int,
-    shared_client: Optional[httpx.AsyncClient] = None,
 ) -> List[Dict[str, Any]]:
-    """Classify a single batch of names using GPT-4o-mini with retry."""
+    """Classify a single batch of names using GPT-4o-mini (SYNC version for thread pool).
+
+    Runs in a thread to avoid event loop conflicts with Puppeteer subprocess.
+    """
+    import requests
+
     names_text = "\n".join(
         f"{i}. {c.get('name', '') or (c.get('first_name', '') + ' ' + c.get('last_name', '')).strip()}"
         for i, c in enumerate(batch)
@@ -184,59 +186,51 @@ async def _classify_single_batch(
 
     for attempt in range(3):
         try:
-            client = shared_client or httpx.AsyncClient(timeout=180)
-            try:
-                resp = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    json={
-                        "model": "gpt-4o-mini",
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": f"Classify these {len(batch)} people:\n\n{names_text}"},
-                        ],
-                        "temperature": 0.1,
-                        "response_format": {"type": "json_object"},
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                content = data["choices"][0]["message"]["content"]
+            resp = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"Classify these {len(batch)} people:\n\n{names_text}"},
+                    ],
+                    "temperature": 0.1,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=60,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
 
-                parsed = json.loads(content)
-                scores = parsed if isinstance(parsed, list) else parsed.get("results", parsed.get("data", []))
+            parsed = json.loads(content)
+            scores = parsed if isinstance(parsed, list) else parsed.get("results", parsed.get("data", []))
 
-                score_map = {}
-                for item in scores:
-                    idx = item.get("i", item.get("idx", item.get("index")))
-                    score = item.get("s", item.get("score", 0))
-                    if idx is not None:
-                        score_map[idx] = score
+            score_map = {}
+            for item in scores:
+                idx = item.get("i", item.get("idx", item.get("index")))
+                score = item.get("s", item.get("score", 0))
+                if idx is not None:
+                    score_map[idx] = score
 
-                results = []
-                for i, contact in enumerate(batch):
-                    score = score_map.get(i, 0)
-                    contact["_origin_score"] = score
-                    contact["_origin_match"] = score >= 6
-                    results.append(contact)
+            results = []
+            for i, contact in enumerate(batch):
+                score = score_map.get(i, 0)
+                contact["_origin_score"] = score
+                contact["_origin_match"] = score >= 6
+                results.append(contact)
 
-                if (batch_idx + 1) % 20 == 0:
-                    matched = sum(1 for c in results if c.get("_origin_match"))
-                    logger.info(f"Classification batch {batch_idx+1}/{total_batches}: {matched}/{len(batch)} matched")
-
-                return results
-            finally:
-                if not shared_client:
-                    await client.aclose()
+            return results
 
         except Exception as e:
             err_msg = str(e) or repr(e)
-            logger.warning(f"Classification batch {batch_idx}/{total_batches} attempt {attempt+1}: {err_msg}")
+            logger.warning(f"Classification batch attempt {attempt+1}: {err_msg}")
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                import time
+                time.sleep(2 ** attempt)
 
     # All retries failed — mark as unclassified
-    logger.error(f"Classification batch {batch_idx}/{total_batches} FAILED after 3 attempts")
     for contact in batch:
         contact["_origin_score"] = -1
         contact["_origin_match"] = False
@@ -293,51 +287,47 @@ Scoring guide:
 Output ONLY a JSON array. Each element: {{"i": <index>, "s": <score>}}
 Include ALL contacts. No explanation."""
 
-    # Phase 2: Surname-based matching (fast, reliable, no API calls)
-    # The pre-filter already uses extensive name lists. GPT classification adds marginal value
-    # but frequently times out from production. Use surname match as primary classifier.
+    # Phase 2: GPT classification using sync requests in thread pool
+    # This avoids event loop conflicts with Puppeteer subprocess
+    from concurrent.futures import ThreadPoolExecutor
+    import functools
+
     results: List[Dict[str, Any]] = []
-    for contact in candidates:
-        contact["_origin_score"] = 7  # surname pre-filter match
-        contact["_origin_match"] = True
-        results.append(contact)
+    batches = [candidates[i:i + batch_size] for i in range(0, len(candidates), batch_size)]
 
-    # Try GPT refinement ONLY if few candidates (< 50) to reduce false positives
-    if len(candidates) <= 50:
+    if batches:
         try:
-            total_batches = (len(candidates) + batch_size - 1) // batch_size
-            async with httpx.AsyncClient(timeout=60) as shared_client:
-                sem = asyncio.Semaphore(3)
+            loop = asyncio.get_event_loop()
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [
+                    loop.run_in_executor(
+                        executor,
+                        functools.partial(
+                            _classify_single_batch_sync, batch, system_prompt, api_key
+                        ),
+                    )
+                    for batch in batches
+                ]
+                batch_results = await asyncio.gather(*futures, return_exceptions=True)
 
-                async def _classify_batch(batch_idx: int, batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-                    async with sem:
-                        return await _classify_single_batch(
-                            batch_idx, batch, system_prompt, api_key, total_batches,
-                            shared_client=shared_client,
-                        )
+            for i, result in enumerate(batch_results):
+                if isinstance(result, Exception):
+                    logger.error(f"Classification batch {i} failed: {result}")
+                    for contact in batches[i]:
+                        contact["_origin_score"] = -1
+                        contact["_origin_match"] = False
+                        results.append(contact)
+                else:
+                    results.extend(result)
 
-                batches = []
-                for batch_start in range(0, len(candidates), batch_size):
-                    batches.append(candidates[batch_start:batch_start + batch_size])
-
-                batch_results = await asyncio.gather(
-                    *[_classify_batch(i, b) for i, b in enumerate(batches)],
-                    return_exceptions=True,
-                )
-
-                # Override surname-only scores with GPT scores
-                gpt_results = []
-                for i, result in enumerate(batch_results):
-                    if isinstance(result, Exception):
-                        logger.warning(f"GPT refinement batch {i} failed: {result}")
-                    else:
-                        gpt_results.extend(result)
-
-                if gpt_results:
-                    results = gpt_results + [c for c in candidates if c not in gpt_results]
-                    logger.info(f"GPT refinement: {sum(1 for c in gpt_results if c.get('_origin_match'))}/{len(gpt_results)} confirmed")
         except Exception as e:
-            logger.warning(f"GPT refinement failed, using surname-only: {e}")
+            logger.error(f"GPT classification failed: {e}. Using surname-only matching.")
+            for contact in candidates:
+                contact["_origin_score"] = 7  # surname match fallback
+                contact["_origin_match"] = True
+                results.append(contact)
+    else:
+        results = []
 
     matched = sum(1 for c in results if c.get("_origin_match"))
     logger.info(
