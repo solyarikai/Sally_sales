@@ -183,7 +183,7 @@ async def _classify_single_batch(
 
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(timeout=90) as client:
+            async with httpx.AsyncClient(timeout=180) as client:
                 resp = await client.post(
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}"},
@@ -413,9 +413,30 @@ async def run_diaspora_pipeline(
     all_companies_found = 0
     iteration = 0
     failed_batches = 0
+    skip_batches = 0
+
+    # Try to resume from interim results
+    interim_path = Path("/tmp") / f"diaspora_{corridor_key}_interim.json"
+    if interim_path.exists():
+        try:
+            interim_data = json.loads(interim_path.read_text())
+            all_matched_contacts = interim_data.get("contacts", [])
+            all_scanned = interim_data.get("scanned", 0)
+            all_companies_found = interim_data.get("companies", 0)
+            skip_batches = interim_data.get("iteration", 0)
+            logger.info(
+                f"Resuming {corridor_key}: {len(all_matched_contacts)} contacts from {skip_batches} iterations"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to load interim results: {e}")
 
     await _emit(f"Starting diaspora pipeline: {label}")
     await _emit(f"Target: {target_count} {contractor_country}-origin decision-makers in {', '.join(employer_countries)}")
+    if all_matched_contacts:
+        await _emit(f"Resuming with {len(all_matched_contacts)} previously matched contacts")
+
+    if skip_batches > 0:
+        await _emit(f"Resuming from iteration {skip_batches+1} with {len(all_matched_contacts)} contacts already matched")
 
     for batch_config in INDUSTRY_BATCHES:
         if len(all_matched_contacts) >= target_count:
@@ -423,6 +444,11 @@ async def run_diaspora_pipeline(
 
         iteration += 1
         batch_label = batch_config["label"]
+
+        if iteration <= skip_batches:
+            await _emit(f"Skipping iteration {iteration}/{len(INDUSTRY_BATCHES)}: {batch_label} (already done)")
+            continue
+
         await _emit(f"\n--- Iteration {iteration}/{len(INDUSTRY_BATCHES)}: {batch_label} ---")
         await _emit(f"Progress: {len(all_matched_contacts)}/{target_count} matched contacts")
 
@@ -456,9 +482,9 @@ async def run_diaspora_pipeline(
 
         domains = list(set(domains))  # Deduplicate
 
-        # Cap at 300 companies per batch to keep people search fast (~15 min)
-        # With 12 industry batches × 300 = 3,600 companies total — enough for 1000+ matches
-        MAX_COMPANIES_PER_BATCH = 300
+        # Cap at 500 companies per batch for better yield
+        # With 12 industry batches × 500 = 6,000 companies total — enough for 1000+ matches
+        MAX_COMPANIES_PER_BATCH = 500
         if len(domains) > MAX_COMPANIES_PER_BATCH:
             import random
             random.shuffle(domains)
@@ -492,9 +518,15 @@ async def run_diaspora_pipeline(
         await _emit(f"Found {len(people)} contacts. Phase 3: Classifying names...")
 
         # Phase 3: Classify names by origin
-        classified = await classify_names_by_origin(
-            people, contractor_country,
-        )
+        try:
+            classified = await classify_names_by_origin(
+                people, contractor_country,
+            )
+        except Exception as e:
+            logger.error(f"Classification failed for {batch_label}: {e}")
+            await _emit(f"Classification failed: {e}. Skipping batch.")
+            failed_batches += 1
+            continue
 
         matched = [c for c in classified if c.get("_origin_match")]
         await _emit(
@@ -522,6 +554,23 @@ async def run_diaspora_pipeline(
             f"New unique matches: {len(new_matches)}. "
             f"Total: {len(all_matched_contacts)}/{target_count}"
         )
+
+        # Save intermediate results to disk after each iteration
+        try:
+            interim_path = Path("/tmp") / f"diaspora_{corridor_key}_interim.json"
+            interim_data = {
+                "corridor": corridor_key,
+                "matched_count": len(all_matched_contacts),
+                "scanned": all_scanned,
+                "companies": all_companies_found,
+                "iteration": iteration,
+                "contacts": all_matched_contacts,
+                "updated_at": datetime.now().isoformat(),
+            }
+            interim_path.write_text(json.dumps(interim_data, default=str))
+            logger.info(f"Saved {len(all_matched_contacts)} interim results to {interim_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save interim results: {e}")
 
     # Phase 4: Export to Google Sheet
     await _emit(f"\nExporting {len(all_matched_contacts)} matched contacts to Google Sheet...")
