@@ -848,6 +848,10 @@ class CRMScheduler:
         Currently hardcoded to project_id=22 (rizzult). Extend later.
         Calls the same generate-gtm endpoint logic but with trigger='scheduled'.
         """
+        # GTM generation temporarily disabled to save API costs
+        logger.info("[GTM] Scheduled GTM generation is disabled")
+        return
+
         await asyncio.sleep(120)  # Wait for other services to initialize
         interval = 43200  # 12 hours
 

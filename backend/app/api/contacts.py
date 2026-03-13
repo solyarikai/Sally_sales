@@ -3080,7 +3080,10 @@ async def generate_gtm_plan(
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
-    """Generate GTM plan using Claude Opus 4.6 with segment funnel + warm conversations."""
+    """Generate GTM plan using Claude with segment funnel + warm conversations."""
+    # GTM generation temporarily disabled to save API costs
+    raise HTTPException(status_code=503, detail="GTM generation is temporarily disabled")
+
     from app.models.reply import ProcessedReply, ThreadMessage
     from app.models.campaign import Campaign
     import json as json_mod
