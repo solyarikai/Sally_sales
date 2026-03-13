@@ -455,10 +455,8 @@ async def run_diaspora_pipeline(
     if skip_batches > 0:
         await _emit(f"Resuming from iteration {skip_batches+1} with {len(all_matched_contacts)} contacts already matched")
 
-    # PEOPLE-FIRST approach: search for C-level people in employer countries directly,
-    # then classify by name. Much faster than company→people→classify.
-    # Each iteration uses a different set of company domains from industry batches
-    # OR does a direct people search without domains (just country + title filter).
+    # HYBRID approach: company search → people search → name filter
+    # Industry batches provide diverse company pools, maximizing unique contacts
     for batch_config in INDUSTRY_BATCHES:
         if len(all_matched_contacts) >= target_count:
             break
@@ -473,9 +471,9 @@ async def run_diaspora_pipeline(
         await _emit(f"\n--- Iteration {iteration}/{len(INDUSTRY_BATCHES)}: {batch_label} ---")
         await _emit(f"Progress: {len(all_matched_contacts)}/{target_count} matched contacts")
 
-        # Phase 1: Find companies for this industry batch
+        # Phase 1: Find companies for this industry
         icp_text = build_icp_text(employer_countries, batch_config)
-        await _emit(f"Phase 1: Finding {batch_label} companies in {', '.join(employer_countries)}...")
+        await _emit(f"Phase 1: Finding {batch_label} companies...")
 
         try:
             tam_result = await clay_service.run_tam_export(
@@ -485,37 +483,36 @@ async def run_diaspora_pipeline(
             )
         except Exception as e:
             logger.error(f"TAM export failed for {batch_label}: {e}")
-            await _emit(f"Company search failed: {e}. Skipping batch.")
+            await _emit(f"Company search failed: {e}. Skipping.")
             failed_batches += 1
             continue
 
         companies = tam_result.get("companies", [])
         if not companies:
-            await _emit(f"No companies found for {batch_label}. Skipping.")
+            await _emit(f"No companies found. Skipping.")
             continue
 
-        # Extract domains
-        domains = []
-        for c in companies:
-            d = (c.get("Domain") or c.get("domain") or "").strip().lower().replace("www.", "")
-            if d and "." in d:
-                domains.append(d)
+        # Extract and deduplicate domains
+        domains = list({
+            (c.get("Domain") or c.get("domain") or "").strip().lower().replace("www.", "")
+            for c in companies
+            if (c.get("Domain") or c.get("domain") or "").strip()
+            and "." in (c.get("Domain") or c.get("domain") or "").strip()
+        })
 
-        domains = list(set(domains))  # Deduplicate
-
-        MAX_COMPANIES_PER_BATCH = 500
-        if len(domains) > MAX_COMPANIES_PER_BATCH:
+        # Use up to 1000 companies per batch
+        MAX_COMPANIES = 1000
+        if len(domains) > MAX_COMPANIES:
             import random
             random.shuffle(domains)
-            domains = domains[:MAX_COMPANIES_PER_BATCH]
-            await _emit(f"Found {len(companies)} companies, sampling {MAX_COMPANIES_PER_BATCH}...")
+            domains = domains[:MAX_COMPANIES]
+            await _emit(f"Found {len(companies)} companies, sampling {MAX_COMPANIES}...")
         else:
             await _emit(f"Found {len(domains)} companies...")
 
         all_companies_found += len(domains)
 
-        # Phase 2: Find contacts at these companies (no title filter in Clay — too restrictive)
-        # We filter by title in Python after getting all contacts
+        # Phase 2: Find ALL contacts at these companies
         await _emit(f"Phase 2: Finding contacts at {len(domains)} companies...")
         try:
             people_result = await clay_service.run_people_search(
@@ -524,17 +521,16 @@ async def run_diaspora_pipeline(
                 on_progress=on_progress,
             )
         except Exception as e:
-            logger.error(f"People search failed for {batch_label}: {e}")
-            await _emit(f"Contact search failed: {e}. Skipping batch.")
+            logger.error(f"People search failed: {e}. Skipping.")
             failed_batches += 1
             continue
 
         people = people_result.get("people", [])
         if not people:
-            await _emit(f"No contacts found for {batch_label}. Skipping.")
+            await _emit(f"No contacts found. Skipping.")
             continue
 
-        # Filter to decision-makers in Python (Clay title filter is too restrictive)
+        # Phase 2.5: Filter to decision-makers in Python
         clevel_keywords = [
             "ceo", "cto", "cfo", "coo", "cmo", "cpo", "cio", "cro",
             "chief", "founder", "co-founder", "cofounder", "owner",
@@ -542,17 +538,16 @@ async def run_diaspora_pipeline(
             "vp", "vice president", "director", "head of", "head",
             "partner", "principal", "country manager", "regional manager",
         ]
-        decision_makers = []
-        for p in people:
-            title = (p.get("title") or "").lower()
-            if title and any(kw in title for kw in clevel_keywords):
-                decision_makers.append(p)
+        decision_makers = [
+            p for p in people
+            if (p.get("title") or "") and any(kw in (p.get("title") or "").lower() for kw in clevel_keywords)
+        ]
 
         if not decision_makers:
-            await _emit(f"Found {len(people)} contacts but 0 decision-makers. Skipping.")
+            await _emit(f"Found {len(people)} contacts, 0 decision-makers. Skipping.")
             continue
 
-        await _emit(f"Found {len(people)} contacts, {len(decision_makers)} decision-makers.")
+        await _emit(f"Found {len(people)} contacts → {len(decision_makers)} decision-makers")
         all_scanned += len(decision_makers)
         await _emit(f"Phase 3: Classifying {len(decision_makers)} names...")
 
