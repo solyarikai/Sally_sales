@@ -489,6 +489,70 @@ async function runPeopleSearch(page, filters, label = 'default') {
     await screenshot(page, `${label}_02c_schools`);
   }
 
+  // Language section (for diaspora search — e.g., Urdu speakers in UAE = Pakistani)
+  if (filters.languages?.length) {
+    console.log(`  Setting language filter: ${filters.languages.join(', ')}...`);
+    // Scroll sidebar down to find Language section
+    await page.evaluate(() => {
+      const sections = [...document.querySelectorAll('div, section')].filter(el => {
+        const style = window.getComputedStyle(el);
+        return style.overflowY === 'auto' || style.overflowY === 'scroll';
+      });
+      for (const s of sections) {
+        if (s.scrollHeight > s.clientHeight && s.clientHeight > 200) {
+          s.scrollTop = s.scrollHeight;
+          break;
+        }
+      }
+    });
+    await humanDelay(800, 1200);
+
+    const langSection = await findByText(page, 'Language', true)
+      || await findByText(page, 'Languages', true)
+      || await findByText(page, 'Language', false);
+    if (langSection) {
+      await page.mouse.click(langSection.x, langSection.y);
+      await humanDelay(800, 1200);
+      console.log('    Clicked Language section');
+    }
+    // Find language input
+    const langInputPos = await page.evaluate(() => {
+      const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null);
+      for (const input of inputs) {
+        const ph = (input.placeholder || '').toLowerCase();
+        if (ph.includes('english') || ph.includes('language') || ph.includes('spanish')) {
+          const rect = input.getBoundingClientRect();
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder };
+        }
+      }
+      return null;
+    });
+    if (langInputPos) {
+      console.log(`    Found language input: "${langInputPos.placeholder}"`);
+      for (const lang of filters.languages) {
+        await page.mouse.click(langInputPos.x, langInputPos.y);
+        await humanDelay(100, 200);
+        await page.keyboard.type(lang, { delay: 25 + Math.random() * 30 });
+        await humanDelay(800, 1200);
+        await page.keyboard.press('Enter');
+        await humanDelay(400, 700);
+      }
+      console.log(`    Languages: ${filters.languages.join(', ')}`);
+    } else {
+      console.log('    WARNING: Language input not found');
+      const allInputs = await page.evaluate(() =>
+        [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
+          .map(i => ({ placeholder: i.placeholder }))
+      );
+      console.log('    Available inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
+    }
+    await page.keyboard.press('Escape');
+    await humanDelay(300, 500);
+    await page.mouse.click(650, 400);
+    await humanDelay(500, 800);
+    await screenshot(page, `${label}_02d_language`);
+  }
+
   // Location section (for geo splits)
   if (filters.countries?.length) {
     const locSection = await findByText(page, 'Location', true);
@@ -845,6 +909,9 @@ async function main() {
   const jobTitleIdx = args.indexOf('--job-title');
   const jobTitleArg = jobTitleIdx >= 0 ? args[jobTitleIdx + 1] : null;
   const customJobTitle = jobTitleArg ? jobTitleArg.trim() : null;
+  const languageIdx = args.indexOf('--language');
+  const languageArg = languageIdx >= 0 ? args[languageIdx + 1] : null;
+  const customLanguages = languageArg ? languageArg.split(',').map(l => l.trim()) : null;
 
   if (useTitles) {
     GAMING_ICP_FILTERS.job_titles = ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
@@ -948,6 +1015,10 @@ async function main() {
   if (customJobTitle) {
     GAMING_ICP_FILTERS.job_titles = [customJobTitle];
     console.log(`  Single job title filter: ${customJobTitle}`);
+  }
+  if (customLanguages) {
+    GAMING_ICP_FILTERS.languages = customLanguages;
+    console.log(`  Language filter: ${customLanguages.join(', ')}`);
   }
 
   if (allDomains.length === 0) {

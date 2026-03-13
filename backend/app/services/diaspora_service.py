@@ -559,6 +559,29 @@ EXTENDED_UNIVERSITY_BATCHES = {
     ],
 }
 
+# ============================================================
+# Language batches — cheapest approach, $0 GPT cost
+# Language = definitive signal. Urdu in UAE = Pakistani. No GPT needed.
+# ============================================================
+LANGUAGE_BATCHES = {
+    "Pakistan": [
+        {"label": "pk_lang_urdu", "languages": ["Urdu"], "auto_accept": True},
+        {"label": "pk_lang_punjabi", "languages": ["Punjabi"], "auto_accept": True},
+        {"label": "pk_lang_sindhi", "languages": ["Sindhi"], "auto_accept": True},
+        {"label": "pk_lang_pashto", "languages": ["Pashto"], "auto_accept": True},
+    ],
+    "Philippines": [
+        {"label": "ph_lang_tagalog", "languages": ["Tagalog"], "auto_accept": True},
+        {"label": "ph_lang_filipino", "languages": ["Filipino"], "auto_accept": True},
+        {"label": "ph_lang_cebuano", "languages": ["Cebuano"], "auto_accept": True},
+    ],
+    "South Africa": [
+        {"label": "za_lang_afrikaans", "languages": ["Afrikaans"], "auto_accept": True},
+        {"label": "za_lang_zulu", "languages": ["Zulu"], "auto_accept": True},
+        {"label": "za_lang_xhosa", "languages": ["Xhosa"], "auto_accept": True},
+    ],
+}
+
 
 async def run_diaspora_pipeline(
     corridor_key: str,
@@ -868,7 +891,139 @@ async def run_diaspora_pipeline(
         except Exception as e:
             logger.warning(f"Failed to save interim results: {e}")
 
-    # Phase 3b: University-based people search (people-first, no company step)
+    # Phase 0: Language search — CHEAPEST approach, $0 GPT, auto-accept all
+    # Speaking Urdu in UAE = Pakistani, Tagalog in AU = Filipino, Afrikaans in Gulf = South African
+    lang_batches = LANGUAGE_BATCHES.get(contractor_country, [])
+    if lang_batches and len(all_matched_contacts) < target_count:
+        await _emit(f"\n=== LANGUAGE SEARCH ({contractor_country}) — $0 GPT cost ===")
+        await _emit(f"Searching {len(lang_batches)} language batches in {', '.join(employer_countries)}")
+
+        for lang_batch in lang_batches:
+            if len(all_matched_contacts) >= target_count:
+                break
+
+            lang_label = lang_batch["label"]
+            languages = lang_batch["languages"]
+            iteration += 1
+
+            await _emit(f"\n--- Language search: {', '.join(languages)} in {', '.join(employer_countries)} ---")
+            await _emit(f"Progress: {len(all_matched_contacts)}/{target_count}")
+
+            try:
+                result = await clay_service.run_people_search(
+                    domains=None,
+                    project_id=project_id,
+                    on_progress=on_progress,
+                    use_titles=True,
+                    countries=employer_countries,
+                    languages=languages,
+                )
+            except Exception as e:
+                logger.error(f"Language search failed for {lang_label}: {e}")
+                await _emit(f"Search failed: {e}. Skipping.")
+                failed_batches += 1
+                if _sheet_id:
+                    try:
+                        await incremental_sheet_export(
+                            all_matched_contacts, corridor, _sheet_id,
+                            approach_log={
+                                "timestamp": datetime.now().isoformat(),
+                                "search_type": "language",
+                                "batch_name": lang_label,
+                                "schools_filter": "",
+                                "location_filter": ", ".join(employer_countries),
+                                "title_filter": "C-level/VP/Director/Head",
+                                "contacts_found": 0, "decision_makers": 0,
+                                "prefilter_candidates": 0, "matched": 0,
+                                "hit_rate": "0%", "new_unique": 0,
+                                "total_so_far": len(all_matched_contacts),
+                                "assessment": f"FAILED: {str(e)[:100]}",
+                                "next_action": "Continue",
+                            },
+                        )
+                    except Exception:
+                        pass
+                continue
+
+            all_people = result.get("people", [])
+            if not all_people:
+                await _emit(f"No contacts for {', '.join(languages)}. Skipping.")
+                if _sheet_id:
+                    try:
+                        await incremental_sheet_export(
+                            all_matched_contacts, corridor, _sheet_id,
+                            approach_log={
+                                "timestamp": datetime.now().isoformat(),
+                                "search_type": "language",
+                                "batch_name": lang_label,
+                                "schools_filter": "",
+                                "location_filter": ", ".join(employer_countries),
+                                "title_filter": "C-level/VP/Director/Head",
+                                "contacts_found": 0, "decision_makers": 0,
+                                "prefilter_candidates": 0, "matched": 0,
+                                "hit_rate": "0%", "new_unique": 0,
+                                "total_so_far": len(all_matched_contacts),
+                                "assessment": f"No results for language {', '.join(languages)}",
+                                "next_action": "Continue",
+                            },
+                        )
+                    except Exception:
+                        pass
+                continue
+
+            # Language = definitive signal. Auto-accept ALL. No GPT needed.
+            await _emit(f"Found {len(all_people)} contacts. Auto-accepting ALL ($0 GPT).")
+            all_scanned += len(all_people)
+
+            # DEDUP against existing contacts
+            existing_keys = {(c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}").lower() for c in all_matched_contacts}
+            new_matches = []
+            for c in all_people:
+                key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
+                if key.lower() not in existing_keys:
+                    c["_origin_score"] = 10
+                    c["_origin_match"] = True
+                    c["_search_type"] = "language"
+                    c["_search_batch"] = lang_label
+                    c["_schools_filter"] = ""
+                    c["_location_filter"] = ", ".join(employer_countries)
+                    c["_title_filter"] = "C-level/VP/Director/Head"
+                    c["_corridor"] = corridor_key
+                    c["_found_at"] = datetime.now().isoformat()
+                    c["_match_reason"] = f"auto-accepted (language={', '.join(languages)}). Speaks {', '.join(languages)} in {', '.join(employer_countries)}. $0 GPT cost."
+                    new_matches.append(c)
+                    existing_keys.add(key.lower())
+
+            all_matched_contacts.extend(new_matches)
+            await _emit(f"New unique: {len(new_matches)} (skipped {len(all_people) - len(new_matches)} dupes). Total: {len(all_matched_contacts)}/{target_count}")
+
+            if _sheet_id:
+                try:
+                    await incremental_sheet_export(
+                        all_matched_contacts, corridor, _sheet_id,
+                        approach_log={
+                            "timestamp": datetime.now().isoformat(),
+                            "search_type": "language",
+                            "batch_name": lang_label,
+                            "schools_filter": "",
+                            "location_filter": ", ".join(employer_countries),
+                            "title_filter": "C-level/VP/Director/Head",
+                            "contacts_found": len(all_people),
+                            "decision_makers": len(all_people),
+                            "prefilter_candidates": len(all_people),
+                            "matched": len(new_matches),
+                            "hit_rate": "100% (language signal)",
+                            "new_unique": len(new_matches),
+                            "total_so_far": len(all_matched_contacts),
+                            "assessment": f"Language '{', '.join(languages)}' — {len(new_matches)} unique at $0 GPT",
+                            "next_action": "Continue" if len(all_matched_contacts) < target_count else "Target reached",
+                        },
+                    )
+                    await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
+                except Exception as e:
+                    logger.warning(f"Incremental export failed: {e}")
+
+    # Phase 1: University-based people search (people-first, no company step)
     uni_batches = UNIVERSITY_BATCHES.get(contractor_country, [])
     if uni_batches and len(all_matched_contacts) < target_count:
         await _emit(f"\n=== University-based search: {len(uni_batches)} batches ===")
