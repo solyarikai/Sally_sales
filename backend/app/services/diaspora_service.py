@@ -672,10 +672,12 @@ async def run_diaspora_pipeline(
     else:
         await _emit("Full mode — running university + industry")
 
-    # Industry search is LAST (lowest yield). Run only in "full" or "full_tam" mode.
+    # Industry search is LAST (lowest yield, ~0.5% hit rate).
+    # Skip it now — runs after university + surname phases below.
     run_industry = mode in ("full", "full_tam")
-    # COMPANY→PEOPLE→NAME approach with larger batches for scale
-    for batch_config in (INDUSTRY_BATCHES if run_industry else []):
+
+    # COMPANY→PEOPLE→NAME approach — DEFERRED to after higher-yield approaches
+    for batch_config in ([]):
         if len(all_matched_contacts) >= target_count:
             break
 
@@ -1350,7 +1352,155 @@ async def run_diaspora_pipeline(
                     except Exception as e:
                         logger.warning(f"Incremental export failed: {e}")
 
-    # Phase 4: Final export to Google Sheet
+    # Phase 4: Industry search (lowest yield, runs last)
+    if run_industry and len(all_matched_contacts) < target_count:
+        await _emit(f"\n=== INDUSTRY SEARCH (lowest yield, {len(all_matched_contacts)}/{target_count} so far) ===")
+        for batch_config in INDUSTRY_BATCHES:
+            if len(all_matched_contacts) >= target_count:
+                break
+
+            iteration += 1
+            batch_label = batch_config["label"]
+
+            await _emit(f"\n--- Industry: {batch_label} ---")
+            await _emit(f"Progress: {len(all_matched_contacts)}/{target_count}")
+
+            icp_text = build_icp_text(employer_countries, batch_config)
+            try:
+                tam_result = await clay_service.run_tam_export(
+                    icp_text=icp_text, project_id=project_id, on_progress=on_progress,
+                )
+            except Exception as e:
+                logger.error(f"TAM export failed for {batch_label}: {e}")
+                await _emit(f"Company search failed: {e}. Skipping.")
+                failed_batches += 1
+                if _sheet_id:
+                    try:
+                        await incremental_sheet_export(
+                            all_matched_contacts, corridor, _sheet_id,
+                            approach_log={
+                                "timestamp": datetime.now().isoformat(),
+                                "search_type": "industry_company_first",
+                                "batch_name": batch_label, "schools_filter": "",
+                                "location_filter": ", ".join(employer_countries),
+                                "title_filter": "C-level (Python filter)",
+                                "contacts_found": 0, "decision_makers": 0,
+                                "prefilter_candidates": 0, "matched": 0,
+                                "hit_rate": "0%", "new_unique": 0,
+                                "total_so_far": len(all_matched_contacts),
+                                "assessment": f"FAILED: {str(e)[:100]}",
+                                "next_action": "Continue",
+                            },
+                        )
+                    except Exception:
+                        pass
+                continue
+
+            companies = tam_result.get("companies", [])
+            if not companies:
+                await _emit(f"No companies found. Skipping.")
+                continue
+
+            import random
+            all_domains = list({
+                (c.get("Domain") or c.get("domain") or "").strip().lower().replace("www.", "")
+                for c in companies
+                if (c.get("Domain") or c.get("domain") or "").strip()
+                and "." in (c.get("Domain") or c.get("domain") or "").strip()
+            })
+            all_companies_found += len(all_domains)
+            if len(all_domains) > 1000:
+                random.shuffle(all_domains)
+                all_domains = all_domains[:1000]
+
+            await _emit(f"Found {len(all_domains)} companies → searching people...")
+            try:
+                result = await clay_service.run_people_search(
+                    domains=all_domains, project_id=project_id,
+                    on_progress=on_progress, use_titles=True,
+                    countries=employer_countries,
+                )
+            except Exception as e:
+                logger.error(f"People search failed: {e}")
+                failed_batches += 1
+                continue
+
+            all_people = result.get("people", [])
+            if not all_people:
+                continue
+
+            clevel_keywords = [
+                "ceo", "cto", "cfo", "coo", "cmo", "cpo", "cio", "cro",
+                "chief", "founder", "co-founder", "cofounder", "owner",
+                "managing director", "general manager", "president",
+                "vp", "vice president", "director", "head of", "head",
+                "partner", "principal", "country manager", "regional manager",
+            ]
+            decision_makers = [
+                p for p in all_people
+                if (p.get("title") or "") and any(
+                    kw in (p.get("title") or "").lower() for kw in clevel_keywords
+                )
+            ]
+            if not decision_makers:
+                continue
+
+            all_scanned += len(decision_makers)
+            await _emit(f"Classifying {len(decision_makers)} names...")
+            try:
+                classified = await classify_names_by_origin(decision_makers, contractor_country)
+            except Exception as e:
+                logger.error(f"Classification failed: {e}")
+                continue
+
+            matched = [c for c in classified if c.get("_origin_match")]
+            existing_keys = {(c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}").lower() for c in all_matched_contacts}
+            new_matches = []
+            for c in matched:
+                key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
+                if key.lower() not in existing_keys:
+                    c["_search_type"] = "industry_company_first"
+                    c["_search_batch"] = batch_label
+                    c["_schools_filter"] = ""
+                    c["_location_filter"] = ", ".join(employer_countries)
+                    c["_title_filter"] = "C-level (Python filter)"
+                    c["_corridor"] = corridor_key
+                    c["_found_at"] = datetime.now().isoformat()
+                    score = c.get("_origin_score", 0)
+                    last = c.get("last_name", "") or (c.get("name", "").split()[-1] if c.get("name") else "")
+                    c["_match_reason"] = f"GPT score={score}/10. Surname '{last}' pre-filtered. Found via {batch_label} companies in {', '.join(employer_countries)}"
+                    new_matches.append(c)
+                    existing_keys.add(key.lower())
+
+            all_matched_contacts.extend(new_matches)
+            await _emit(f"New unique: {len(new_matches)}. Total: {len(all_matched_contacts)}/{target_count}")
+
+            if _sheet_id:
+                try:
+                    await incremental_sheet_export(
+                        all_matched_contacts, corridor, _sheet_id,
+                        approach_log={
+                            "timestamp": datetime.now().isoformat(),
+                            "search_type": "industry_company_first",
+                            "batch_name": batch_label, "schools_filter": "",
+                            "location_filter": ", ".join(employer_countries),
+                            "title_filter": "C-level (Python filter)",
+                            "contacts_found": len(all_people),
+                            "decision_makers": len(decision_makers),
+                            "prefilter_candidates": len([c for c in classified if c.get("_origin_score", 0) > 0]),
+                            "matched": len(new_matches),
+                            "hit_rate": f"{len(matched)/max(len(classified),1)*100:.1f}%",
+                            "new_unique": len(new_matches),
+                            "total_so_far": len(all_matched_contacts),
+                            "assessment": f"Industry {batch_label} — {len(new_matches)} unique" if new_matches else f"Industry {batch_label} — no unique",
+                            "next_action": "Continue" if len(all_matched_contacts) < target_count else "Target reached",
+                        },
+                    )
+                    await _emit(f"Sheet updated: {len(all_matched_contacts)} contacts")
+                except Exception as e:
+                    logger.warning(f"Incremental export failed: {e}")
+
+    # Phase 5: Final export to Google Sheet
     await _emit(f"\nExporting {len(all_matched_contacts)} matched contacts to Google Sheet...")
 
     sheet_url = None
