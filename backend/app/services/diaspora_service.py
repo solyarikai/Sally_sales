@@ -679,6 +679,17 @@ async def run_diaspora_pipeline(
         except Exception as e:
             logger.warning(f"Failed to load interim results: {e}")
 
+    # Load existing contacts from Google Sheet for dedup (survives container restarts)
+    if _sheet_id and not all_matched_contacts:
+        try:
+            sheet_tab = corridor["sheet_name"]
+            existing = _load_existing_contacts_from_sheet(_sheet_id, sheet_tab)
+            if existing:
+                all_matched_contacts = existing
+                logger.info(f"Loaded {len(existing)} contacts from sheet for dedup")
+        except Exception as e:
+            logger.warning(f"Could not load sheet contacts for dedup: {e}")
+
     await _emit(f"Starting diaspora pipeline: {label} (mode={mode})")
     await _emit(f"Target: {target_count} {contractor_country}-origin decision-makers in {', '.join(employer_countries)}")
     if all_matched_contacts:
@@ -2031,6 +2042,45 @@ def _contact_to_row(contact: Dict[str, Any]) -> List[str]:
             val = ""
         row.append(str(val)[:500])
     return row
+
+
+def _load_existing_contacts_from_sheet(sheet_id: str, tab_name: str) -> List[Dict[str, Any]]:
+    """Load existing contacts from a Google Sheet tab to populate dedup set on restart.
+
+    Returns list of contact dicts with at least linkedin_url, name, company fields.
+    """
+    try:
+        sheets_service, _ = _get_sheets_service()
+        result = sheets_service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"{tab_name}!A1:Z",
+        ).execute()
+        rows = result.get("values", [])
+        if len(rows) < 2:
+            return []
+
+        headers = rows[0]
+        # Build reverse map: column header → contact field key
+        reverse_map = {v2: v1 for v2, v1 in CONTACT_FIELD_MAP.items()}
+        header_to_field = {}
+        for i, h in enumerate(headers):
+            if h in CONTACT_FIELD_MAP:
+                header_to_field[i] = CONTACT_FIELD_MAP[h]
+
+        contacts = []
+        for row in rows[1:]:
+            contact = {}
+            for i, field_key in header_to_field.items():
+                if i < len(row) and row[i]:
+                    contact[field_key] = row[i]
+            if contact.get("name") or contact.get("linkedin_url"):
+                contacts.append(contact)
+
+        logger.info(f"Loaded {len(contacts)} existing contacts from sheet {sheet_id}/{tab_name}")
+        return contacts
+    except Exception as e:
+        logger.warning(f"Failed to load existing contacts from sheet: {e}")
+        return []
 
 
 async def export_diaspora_to_sheet(
