@@ -136,6 +136,7 @@ class ProcessedReply(Base, TimestampMixin):
     
     # Google Sheets tracking
     google_sheet_row = Column(Integer, nullable=True)  # Row number in the sheet for updates
+    sheet_synced_at = Column(DateTime, nullable=True, index=True)  # When reply was pushed to Google Sheet
     
     # Translation — for messages not in English or Russian
     detected_language = Column(String(10), nullable=True)  # ISO 639-1: en, ru, de, fr, etc.

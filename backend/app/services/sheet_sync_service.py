@@ -16,7 +16,7 @@ import logging
 from datetime import datetime, date
 from typing import Optional
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import async_session_maker
@@ -129,6 +129,10 @@ class SheetSyncService:
     async def sync_replies_to_sheet(self, project_id: int) -> dict:
         """Push new replies to the Replies tab (append-only).
 
+        Dedup guarantee: only replies with sheet_synced_at IS NULL are considered.
+        After successful append, each reply is marked with sheet_synced_at = now().
+        This prevents duplicates regardless of cursor resets or crash recovery.
+
         Returns:
             Stats dict with rows_appended, total_synced, errors
         """
@@ -143,7 +147,6 @@ class SheetSyncService:
             config = project.sheet_sync_config
             sheet_id = config.get("sheet_id")
             replies_tab = config.get("replies_tab", "Replies")
-            last_sync = config.get("last_replies_sync_at")
 
             if not sheet_id:
                 stats["errors"].append("No sheet_id configured")
@@ -157,17 +160,13 @@ class SheetSyncService:
 
             query = select(ProcessedReply).where(
                 ProcessedReply.campaign_name.in_(campaign_filters),
+                # Only un-synced replies (bulletproof dedup)
+                ProcessedReply.sheet_synced_at.is_(None),
                 # Exclude outbound "Email N sent to..." SmartLead notifications
                 ~ProcessedReply.reply_text.like("Email%sent to%for campaign%"),
                 # Exclude follow-up drafts (child records)
                 ProcessedReply.parent_reply_id.is_(None),
             )
-            if last_sync:
-                try:
-                    cutoff = datetime.fromisoformat(last_sync)
-                    query = query.where(ProcessedReply.received_at > cutoff)
-                except (ValueError, TypeError):
-                    pass
 
             query = query.order_by(ProcessedReply.received_at.asc())
             result = await session.execute(query)
@@ -176,16 +175,8 @@ class SheetSyncService:
             if not replies:
                 return stats
 
-            # Track latest received_at BEFORE any filtering — used to advance
-            # the sync cursor even when all replies are deduped/filtered out.
-            all_latest = max(r.received_at for r in replies)
-
-            # Helper: advance sync cursor without appending rows
-            async def _advance_cursor():
-                new_cfg = dict(config)
-                new_cfg["last_replies_sync_at"] = all_latest.isoformat()
-                project.sheet_sync_config = new_cfg
-                await session.commit()
+            # Collect reply IDs for marking as synced after append
+            reply_ids = [r.id for r in replies]
 
             # Build email→Contact lookup for enrichment
             emails = list({r.lead_email.lower() for r in replies if r.lead_email})
@@ -205,9 +196,17 @@ class SheetSyncService:
 
             # OOO filtering (configurable per project)
             if config.get("exclude_ooo"):
+                ooo_ids = [r.id for r in replies if r.category == "out_of_office"]
                 replies = [r for r in replies if r.category != "out_of_office"]
+                # Mark OOO replies as synced so we don't re-check them
+                if ooo_ids:
+                    await session.execute(
+                        update(ProcessedReply)
+                        .where(ProcessedReply.id.in_(ooo_ids))
+                        .values(sheet_synced_at=datetime.utcnow())
+                    )
+                    await session.commit()
                 if not replies:
-                    await _advance_cursor()
                     return stats
 
             # Read last index value from sheet for sequential numbering (rizzult format)
@@ -223,22 +222,28 @@ class SheetSyncService:
                             pass
                 config["_last_sheet_index"] = last_sheet_index + 1
 
-                # Dedup by exact email — but ONLY for default format.
-                # Rizzult format relies on last_replies_sync_at cursor (one row per reply).
-                # Default format has one row per lead (skip if email already in sheet).
+                # Dedup by exact email — ONLY for default format (one row per lead).
+                # Rizzult format uses sheet_synced_at for dedup (one row per reply).
                 if row_format != "rizzult_28col":
                     email_col = 4  # default format email column
                     existing_emails = set()
                     for row in existing_rows[1:]:
                         if len(row) > email_col and row[email_col]:
                             existing_emails.add(row[email_col].strip().lower())
-                    before = len(replies)
+                    before_dedup = replies[:]
                     replies = [r for r in replies if (r.lead_email or "").lower() not in existing_emails]
-                    skipped = before - len(replies)
-                    if skipped:
-                        logger.info(f"Sheet dedup: skipped {skipped} replies already in sheet")
+                    deduped = [r for r in before_dedup if r not in replies]
+                    if deduped:
+                        # Mark deduped replies as synced so we don't re-check them
+                        deduped_ids = [r.id for r in deduped]
+                        await session.execute(
+                            update(ProcessedReply)
+                            .where(ProcessedReply.id.in_(deduped_ids))
+                            .values(sheet_synced_at=datetime.utcnow())
+                        )
+                        await session.commit()
+                        logger.info(f"Sheet dedup: skipped {len(deduped)} replies already in sheet")
                     if not replies:
-                        await _advance_cursor()
                         return stats
             except Exception as e:
                 logger.warning(f"Sheet index read failed (proceeding without): {e}")
@@ -249,17 +254,26 @@ class SheetSyncService:
             else:
                 rows, latest_received = self._build_default_rows(replies, contact_map)
 
+            # Collect final reply IDs (after filtering) for marking
+            synced_ids = [r.id for r in replies]
+
             # Batch append
             first_row = google_sheets_service.append_rows(sheet_id, replies_tab, rows)
             if first_row > 0:
                 stats["rows_appended"] = len(rows)
                 logger.info(f"Sheet sync project {project_id}: appended {len(rows)} rows")
 
-                # Update config
+                # Mark replies as synced (bulletproof — prevents re-push on any retry)
+                await session.execute(
+                    update(ProcessedReply)
+                    .where(ProcessedReply.id.in_(synced_ids))
+                    .values(sheet_synced_at=datetime.utcnow())
+                )
+
+                # Update config (informational tracking)
                 new_config = dict(config)
                 new_config["last_replies_sync_at"] = (latest_received or datetime.utcnow()).isoformat()
                 new_config["replies_synced_count"] = (config.get("replies_synced_count") or 0) + len(rows)
-                # Track next_row_index for rizzult format
                 if row_format == "rizzult_28col" and rows:
                     last_index = rows[-1][0] if isinstance(rows[-1][0], int) else len(rows)
                     new_config["next_row_index"] = last_index + 1
@@ -268,8 +282,7 @@ class SheetSyncService:
             else:
                 stats["errors"].append("append_rows returned 0")
                 logger.warning(f"Sheet sync project {project_id}: append_rows returned 0 for {len(rows)} rows")
-                # Still advance cursor so we don't retry the same batch forever
-                await _advance_cursor()
+                # Do NOT mark as synced — append failed, will retry next cycle
 
         return stats
 
