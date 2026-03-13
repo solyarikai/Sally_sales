@@ -189,18 +189,18 @@ async def start_diaspora_gather_all(
 
     sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}"
 
-    # Launch ALL corridors truly in parallel using asyncio.create_task
-    # (BackgroundTasks runs sequentially — not what we want)
+    # Run corridors SEQUENTIALLY — parallel Puppeteer instances cause
+    # health check timeouts and container restarts from CPU/memory pressure
     for corridor_key in CORRIDORS:
         _running_pipelines[corridor_key] = {
-            "status": "running",
+            "status": "queued",
             "started_at": None,
             "progress": [],
             "result": None,
         }
-        asyncio.create_task(
-            _run_pipeline_task(corridor_key, project_id, target_count, mode, sheet_id)
-        )
+    asyncio.create_task(
+        _run_all_corridors_sequential(list(CORRIDORS.keys()), project_id, target_count, mode, sheet_id)
+    )
 
     return {
         "status": "started",
