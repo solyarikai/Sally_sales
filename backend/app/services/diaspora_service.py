@@ -1930,6 +1930,8 @@ async def export_diaspora_to_sheet(
 
     # Clear and rewrite entire sheet
     sheet_name = corridor["sheet_name"]
+    _ensure_tab_exists(sheets_service, spreadsheet_id, sheet_name)
+    _expand_sheet_grid(sheets_service, spreadsheet_id, sheet_name, len(rows))
     try:
         sheets_service.spreadsheets().values().clear(
             spreadsheetId=spreadsheet_id,
@@ -2044,6 +2046,31 @@ def _ensure_tab_exists(sheets_service, sheet_id: str, tab_name: str) -> None:
         pass  # Tab already exists
 
 
+def _expand_sheet_grid(sheets_service, sheet_id: str, tab_name: str, needed_rows: int) -> None:
+    """Expand sheet grid if needed_rows exceeds current grid size."""
+    try:
+        meta = sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        for sheet in meta.get("sheets", []):
+            if sheet["properties"]["title"] == tab_name:
+                current_rows = sheet["properties"]["gridProperties"]["rowCount"]
+                if needed_rows > current_rows:
+                    sheets_service.spreadsheets().batchUpdate(
+                        spreadsheetId=sheet_id,
+                        body={"requests": [{
+                            "updateSheetProperties": {
+                                "properties": {
+                                    "sheetId": sheet["properties"]["sheetId"],
+                                    "gridProperties": {"rowCount": needed_rows + 500},
+                                },
+                                "fields": "gridProperties.rowCount",
+                            }
+                        }]},
+                    ).execute()
+                break
+    except Exception as e:
+        logger.warning(f"Grid expansion failed for {tab_name}: {e}")
+
+
 async def incremental_sheet_export(
     contacts: List[Dict[str, Any]],
     corridor: Dict[str, Any],
@@ -2062,6 +2089,9 @@ async def incremental_sheet_export(
         rows = [CONTACT_COLUMNS]
         for contact in contacts:
             rows.append(_contact_to_row(contact))
+
+        # Expand grid if needed (default is 1000 or 5000 rows)
+        _expand_sheet_grid(sheets_service, sheet_id, sheet_name, len(rows))
 
         sheets_service.spreadsheets().values().clear(
             spreadsheetId=sheet_id,
