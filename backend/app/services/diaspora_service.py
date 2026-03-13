@@ -928,60 +928,85 @@ async def run_diaspora_pipeline(
             await _emit(f"Found {len(all_people)} contacts → {len(decision_makers)} decision-makers")
             all_scanned += len(decision_makers)
 
-            # For university-based search, people who studied at target country's
-            # universities are very likely from that country — score them higher
-            # but still run classification for quality
-            await _emit(f"Classifying {len(decision_makers)} names (university signal = strong)...")
-
-            try:
-                classified = await classify_names_by_origin(
-                    decision_makers, contractor_country,
-                )
-            except Exception as e:
-                logger.error(f"Classification failed for {uni_label}: {e}")
-                # University signal is strong enough — accept all as matches on failure
-                for p in decision_makers:
-                    p["_origin_score"] = 8
-                    p["_origin_match"] = True
-                classified = decision_makers
-
-            matched = [c for c in classified if c.get("_origin_match")]
-            await _emit(
-                f"Classification: {len(matched)}/{len(classified)} matched {contractor_country}"
-            )
-
-            # Deduplicate
+            # DEDUP FIRST — before any classification
             existing_keys = set()
             for c in all_matched_contacts:
                 key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
                 existing_keys.add(key.lower())
 
+            new_candidates = []
+            for c in decision_makers:
+                key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
+                if key.lower() not in existing_keys:
+                    new_candidates.append(c)
+                    existing_keys.add(key.lower())
+
+            await _emit(f"After dedup: {len(new_candidates)} new (skipped {len(decision_makers) - len(new_candidates)} dupes)")
+
+            if not new_candidates:
+                await _emit("All contacts already found. Skipping classification.")
+                # Still log the approach
+                matched = []
+                classified = decision_makers
+                new_matches = []
+            else:
+                # University signal is STRONG — auto-accept with surname pre-filter only
+                # Skip expensive GPT for high-confidence matches (school from target country = 95%+ match)
+                # Only GPT-classify contacts that DON'T pass surname pre-filter
+                known_names = _build_surname_set(COUNTRY_NAME_PROFILES.get(contractor_country, {}))
+                auto_accepted = []
+                needs_gpt = []
+
+                for c in new_candidates:
+                    full_name = (c.get("name", "") or f"{c.get('first_name', '')} {c.get('last_name', '')}").strip().lower()
+                    name_parts = full_name.replace("-", " ").split()
+                    has_known_name = any(part in known_names for part in name_parts)
+
+                    if has_known_name:
+                        # Known surname + target country university = auto-accept
+                        c["_origin_score"] = 9
+                        c["_origin_match"] = True
+                        auto_accepted.append(c)
+                    else:
+                        needs_gpt.append(c)
+
+                await _emit(f"Auto-accepted: {len(auto_accepted)} (surname match). GPT needed: {len(needs_gpt)}")
+
+                # Only classify the uncertain ones via GPT
+                gpt_matched = []
+                if needs_gpt:
+                    try:
+                        classified_gpt = await classify_names_by_origin(needs_gpt, contractor_country)
+                        gpt_matched = [c for c in classified_gpt if c.get("_origin_match")]
+                        await _emit(f"GPT classified: {len(gpt_matched)}/{len(needs_gpt)} matched")
+                    except Exception as e:
+                        logger.error(f"Classification failed: {e}")
+                        # University signal strong enough — accept all on failure
+                        for p in needs_gpt:
+                            p["_origin_score"] = 8
+                            p["_origin_match"] = True
+                        gpt_matched = needs_gpt
+
+                matched = auto_accepted + gpt_matched
+                classified = new_candidates
+
+            # Tag all matched contacts (already deduped above)
             new_matches = []
             schools_str = ", ".join(schools)
             for c in matched:
-                key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
-                if key.lower() not in existing_keys:
-                    c["_search_type"] = "university_people_first"
-                    c["_search_batch"] = uni_label
-                    c["_schools_filter"] = schools_str
-                    c["_location_filter"] = ", ".join(employer_countries)
-                    c["_title_filter"] = "C-level/VP/Director/Head (Clay --titles filter)"
-                    c["_corridor"] = corridor_key
-                    c["_found_at"] = datetime.now().isoformat()
-                    # Build rich match reason
-                    score = c.get("_origin_score", 0)
-                    clay_schools = c.get("schools", "")
-                    last = c.get("last_name", "") or (c.get("name", "").split()[-1] if c.get("name") else "")
-                    reason_parts = [f"GPT score={score}/10"]
-                    if clay_schools:
-                        reason_parts.append(f"Education: {clay_schools}")
-                    else:
-                        reason_parts.append(f"Found via school filter: {schools_str}")
-                    reason_parts.append(f"Surname '{last}' matches {contractor_country} profile")
-                    reason_parts.append(f"Located in {', '.join(employer_countries)}")
-                    c["_match_reason"] = ". ".join(reason_parts)
-                    new_matches.append(c)
-                    existing_keys.add(key.lower())
+                c["_search_type"] = "university_people_first"
+                c["_search_batch"] = uni_label
+                c["_schools_filter"] = schools_str
+                c["_location_filter"] = ", ".join(employer_countries)
+                c["_title_filter"] = "C-level/VP/Director/Head"
+                c["_corridor"] = corridor_key
+                c["_found_at"] = datetime.now().isoformat()
+                score = c.get("_origin_score", 0)
+                clay_schools = c.get("schools", "")
+                last = c.get("last_name", "") or (c.get("name", "").split()[-1] if c.get("name") else "")
+                method = "auto-accepted (surname+university)" if score == 9 else f"GPT score={score}/10"
+                c["_match_reason"] = f"{method}. Education: {clay_schools or schools_str}. In {', '.join(employer_countries)}."
+                new_matches.append(c)
 
             all_matched_contacts.extend(new_matches)
             await _emit(
@@ -1132,34 +1157,68 @@ async def run_diaspora_pipeline(
             await _emit(f"Found {len(all_people)} contacts → {len(decision_makers)} decision-makers")
             all_scanned += len(decision_makers)
 
-            await _emit(f"Classifying {len(decision_makers)} names...")
-            try:
-                classified = await classify_names_by_origin(decision_makers, contractor_country)
-            except Exception as e:
-                logger.error(f"Classification failed: {e}")
-                for p in decision_makers:
-                    p["_origin_score"] = 8
-                    p["_origin_match"] = True
-                classified = decision_makers
-
-            matched = [c for c in classified if c.get("_origin_match")]
+            # DEDUP FIRST — before any classification
             existing_keys = {(c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}").lower() for c in all_matched_contacts}
-            new_matches = []
-            for c in matched:
+            new_candidates = []
+            for c in decision_makers:
                 key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
                 if key.lower() not in existing_keys:
-                    c["_search_type"] = "extended_university"
-                    c["_search_batch"] = uni_label
-                    c["_schools_filter"] = schools_str
-                    c["_location_filter"] = ", ".join(employer_countries)
-                    c["_title_filter"] = "C-level/VP/Director/Head"
-                    c["_corridor"] = corridor_key
-                    c["_found_at"] = datetime.now().isoformat()
-                    score = c.get("_origin_score", 0)
-                    clay_schools = c.get("schools", "")
-                    c["_match_reason"] = f"GPT score={score}/10. Education: {clay_schools or schools_str}. Extended university batch."
-                    new_matches.append(c)
+                    new_candidates.append(c)
                     existing_keys.add(key.lower())
+
+            await _emit(f"After dedup: {len(new_candidates)} new (skipped {len(decision_makers) - len(new_candidates)} dupes)")
+
+            if not new_candidates:
+                await _emit("All contacts already found. Skipping classification.")
+                matched = []
+                classified = decision_makers
+                new_matches = []
+            else:
+                # Auto-accept with surname pre-filter, GPT only for unknowns
+                known_names = _build_surname_set(COUNTRY_NAME_PROFILES.get(contractor_country, {}))
+                auto_accepted = []
+                needs_gpt = []
+                for c in new_candidates:
+                    full_name = (c.get("name", "") or f"{c.get('first_name', '')} {c.get('last_name', '')}").strip().lower()
+                    name_parts = full_name.replace("-", " ").split()
+                    if any(part in known_names for part in name_parts):
+                        c["_origin_score"] = 9
+                        c["_origin_match"] = True
+                        auto_accepted.append(c)
+                    else:
+                        needs_gpt.append(c)
+
+                await _emit(f"Auto-accepted: {len(auto_accepted)} (surname). GPT needed: {len(needs_gpt)}")
+                gpt_matched = []
+                if needs_gpt:
+                    try:
+                        classified_gpt = await classify_names_by_origin(needs_gpt, contractor_country)
+                        gpt_matched = [c for c in classified_gpt if c.get("_origin_match")]
+                        await _emit(f"GPT classified: {len(gpt_matched)}/{len(needs_gpt)} matched")
+                    except Exception as e:
+                        logger.error(f"Classification failed: {e}")
+                        for p in needs_gpt:
+                            p["_origin_score"] = 8
+                            p["_origin_match"] = True
+                        gpt_matched = needs_gpt
+
+                matched = auto_accepted + gpt_matched
+                classified = new_candidates
+
+            new_matches = []
+            for c in matched:
+                c["_search_type"] = "extended_university"
+                c["_search_batch"] = uni_label
+                c["_schools_filter"] = schools_str
+                c["_location_filter"] = ", ".join(employer_countries)
+                c["_title_filter"] = "C-level/VP/Director/Head"
+                c["_corridor"] = corridor_key
+                c["_found_at"] = datetime.now().isoformat()
+                score = c.get("_origin_score", 0)
+                clay_schools = c.get("schools", "")
+                method = "auto-accepted (surname+university)" if score == 9 else f"GPT score={score}/10"
+                c["_match_reason"] = f"{method}. Education: {clay_schools or schools_str}. Extended university batch."
+                new_matches.append(c)
 
             all_matched_contacts.extend(new_matches)
             await _emit(f"New unique: {len(new_matches)}. Total: {len(all_matched_contacts)}/{target_count}")
@@ -1272,45 +1331,56 @@ async def run_diaspora_pipeline(
                             pass
                     continue
 
-                # Surname search already targets the right names, but still classify
-                # to filter out false positives (e.g., "Santos" could be Brazilian in AU)
-                clevel_keywords = [
-                    "ceo", "cto", "cfo", "coo", "cmo", "cpo", "cio", "cro",
-                    "chief", "founder", "co-founder", "cofounder", "owner",
-                    "managing director", "general manager", "president",
-                    "vp", "vice president", "director", "head of", "head",
-                    "partner", "principal", "country manager", "regional manager",
-                ]
-                decision_makers = [
-                    p for p in all_people
-                    if (p.get("title") or "") and any(
-                        kw in (p.get("title") or "").lower() for kw in clevel_keywords
-                    )
-                ]
-
-                if not decision_makers:
-                    decision_makers = all_people  # Title filter was in Clay, trust it
-
-                await _emit(f"Found {len(all_people)} contacts → {len(decision_makers)} to classify")
-                all_scanned += len(decision_makers)
-
-                await _emit(f"Classifying {len(decision_makers)} '{surname}' contacts...")
-                try:
-                    classified = await classify_names_by_origin(decision_makers, contractor_country)
-                except Exception as e:
-                    logger.error(f"Classification failed: {e}")
-                    # Surname match is a strong signal — accept on failure
-                    for p in decision_makers:
-                        p["_origin_score"] = 7
-                        p["_origin_match"] = True
-                    classified = decision_makers
-
-                matched = [c for c in classified if c.get("_origin_match")]
+                # DEDUP FIRST — don't waste GPT on contacts we already have
                 existing_keys = {(c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}").lower() for c in all_matched_contacts}
-                new_matches = []
-                for c in matched:
+                new_candidates = []
+                for c in all_people:
                     key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
                     if key.lower() not in existing_keys:
+                        new_candidates.append(c)
+                        existing_keys.add(key.lower())
+
+                await _emit(f"Found {len(all_people)} contacts → {len(new_candidates)} new (skipped {len(all_people) - len(new_candidates)} dupes)")
+                all_scanned += len(all_people)
+
+                if not new_candidates:
+                    await _emit(f"All '{surname}' contacts already found. Skipping GPT.")
+                    new_matches = []
+                    matched = []
+                    classified = all_people
+                else:
+                    # For DISTINCTIVE surnames (not shared across countries), auto-accept
+                    # For ambiguous surnames (shared with other countries), GPT classify
+                    known_names = _build_surname_set(COUNTRY_NAME_PROFILES.get(contractor_country, {}))
+                    surname_lower = surname.lower().replace(" ", "")
+
+                    # Check if this surname is in our distinctive list
+                    surname_parts = surname.lower().split()
+                    is_distinctive = any(p in known_names for p in surname_parts)
+
+                    if is_distinctive:
+                        # Auto-accept — surname IS from target country list
+                        for c in new_candidates:
+                            c["_origin_score"] = 8
+                            c["_origin_match"] = True
+                        matched = new_candidates
+                        await _emit(f"Auto-accepted {len(matched)} (distinctive surname '{surname}'). $0 GPT cost.")
+                    else:
+                        # Ambiguous — GPT classify only the NEW contacts
+                        await _emit(f"Classifying {len(new_candidates)} new '{surname}' contacts via GPT...")
+                        try:
+                            classified_gpt = await classify_names_by_origin(new_candidates, contractor_country)
+                            matched = [c for c in classified_gpt if c.get("_origin_match")]
+                        except Exception as e:
+                            logger.error(f"Classification failed: {e}")
+                            for p in new_candidates:
+                                p["_origin_score"] = 7
+                                p["_origin_match"] = True
+                            matched = new_candidates
+
+                    classified = new_candidates
+                    new_matches = []
+                    for c in matched:
                         c["_search_type"] = "surname_search"
                         c["_search_batch"] = search_label
                         c["_schools_filter"] = ""
@@ -1320,9 +1390,9 @@ async def run_diaspora_pipeline(
                         c["_found_at"] = datetime.now().isoformat()
                         score = c.get("_origin_score", 0)
                         last = c.get("last_name", "") or surname
-                        c["_match_reason"] = f"GPT score={score}/10. Surname '{last}' is distinctive {contractor_country}. Found via surname search in {', '.join(employer_countries)}."
+                        method = f"auto-accepted (distinctive surname)" if score >= 8 else f"GPT score={score}/10"
+                        c["_match_reason"] = f"{method}. Surname '{last}' in {', '.join(employer_countries)}."
                         new_matches.append(c)
-                        existing_keys.add(key.lower())
 
                 all_matched_contacts.extend(new_matches)
                 await _emit(f"New unique: {len(new_matches)}. Total: {len(all_matched_contacts)}/{target_count}")
@@ -1458,32 +1528,65 @@ async def run_diaspora_pipeline(
             await _emit(f"Found {len(all_people)} contacts → {len(title_filtered)} with '{titles[0]}' title")
             all_scanned += len(title_filtered)
 
-            # Classify ALL names — no pre-filter by surname, catch everyone
-            await _emit(f"Classifying ALL {len(title_filtered)} names (no surname pre-filter)...")
-            try:
-                classified = await classify_names_by_origin(title_filtered, contractor_country)
-            except Exception as e:
-                logger.error(f"Classification failed: {e}")
-                continue
-
-            matched = [c for c in classified if c.get("_origin_match")]
+            # DEDUP FIRST — before any classification
             existing_keys = {(c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}").lower() for c in all_matched_contacts}
-            new_matches = []
-            for c in matched:
+            new_candidates = []
+            for c in title_filtered:
                 key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
                 if key.lower() not in existing_keys:
-                    c["_search_type"] = "title_split"
-                    c["_search_batch"] = t_label
-                    c["_schools_filter"] = ""
-                    c["_location_filter"] = ", ".join(employer_countries)
-                    c["_title_filter"] = titles[0]
-                    c["_corridor"] = corridor_key
-                    c["_found_at"] = datetime.now().isoformat()
-                    score = c.get("_origin_score", 0)
-                    last = c.get("last_name", "") or (c.get("name", "").split()[-1] if c.get("name") else "")
-                    c["_match_reason"] = f"GPT score={score}/10. Found via title-split '{titles[0]}' search in {', '.join(employer_countries)}. Surname '{last}'."
-                    new_matches.append(c)
+                    new_candidates.append(c)
                     existing_keys.add(key.lower())
+
+            await _emit(f"After dedup: {len(new_candidates)} new (skipped {len(title_filtered) - len(new_candidates)} dupes)")
+
+            if not new_candidates:
+                await _emit(f"All '{titles[0]}' contacts already found. Skipping GPT.")
+                matched = []
+                classified = title_filtered
+                new_matches = []
+            else:
+                # Auto-accept surname matches, GPT only for unknowns
+                known_names = _build_surname_set(COUNTRY_NAME_PROFILES.get(contractor_country, {}))
+                auto_accepted = []
+                needs_gpt = []
+                for c in new_candidates:
+                    full_name = (c.get("name", "") or f"{c.get('first_name', '')} {c.get('last_name', '')}").strip().lower()
+                    name_parts = full_name.replace("-", " ").split()
+                    if any(part in known_names for part in name_parts):
+                        c["_origin_score"] = 9
+                        c["_origin_match"] = True
+                        auto_accepted.append(c)
+                    else:
+                        needs_gpt.append(c)
+
+                await _emit(f"Auto-accepted: {len(auto_accepted)} (surname). GPT needed: {len(needs_gpt)}")
+                gpt_matched = []
+                if needs_gpt:
+                    try:
+                        classified_gpt = await classify_names_by_origin(needs_gpt, contractor_country)
+                        gpt_matched = [c for c in classified_gpt if c.get("_origin_match")]
+                        await _emit(f"GPT classified: {len(gpt_matched)}/{len(needs_gpt)} matched")
+                    except Exception as e:
+                        logger.error(f"Classification failed: {e}")
+                        continue
+
+                matched = auto_accepted + gpt_matched
+                classified = new_candidates
+
+            new_matches = []
+            for c in matched:
+                c["_search_type"] = "title_split"
+                c["_search_batch"] = t_label
+                c["_schools_filter"] = ""
+                c["_location_filter"] = ", ".join(employer_countries)
+                c["_title_filter"] = titles[0]
+                c["_corridor"] = corridor_key
+                c["_found_at"] = datetime.now().isoformat()
+                score = c.get("_origin_score", 0)
+                last = c.get("last_name", "") or (c.get("name", "").split()[-1] if c.get("name") else "")
+                method = "auto-accepted (surname)" if score == 9 else f"GPT score={score}/10"
+                c["_match_reason"] = f"{method}. Title-split '{titles[0]}' in {', '.join(employer_countries)}. Surname '{last}'."
+                new_matches.append(c)
 
             all_matched_contacts.extend(new_matches)
             await _emit(f"New unique: {len(new_matches)}. Total: {len(all_matched_contacts)}/{target_count}")
