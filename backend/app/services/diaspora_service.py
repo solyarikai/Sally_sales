@@ -455,8 +455,7 @@ async def run_diaspora_pipeline(
     if skip_batches > 0:
         await _emit(f"Resuming from iteration {skip_batches+1} with {len(all_matched_contacts)} contacts already matched")
 
-    # HYBRID approach: company search → people search → name filter
-    # Industry batches provide diverse company pools, maximizing unique contacts
+    # COMPANY→PEOPLE→NAME approach with larger batches for scale
     for batch_config in INDUSTRY_BATCHES:
         if len(all_matched_contacts) >= target_count:
             break
@@ -492,45 +491,45 @@ async def run_diaspora_pipeline(
             await _emit(f"No companies found. Skipping.")
             continue
 
-        # Extract and deduplicate domains
-        domains = list({
+        # Extract and deduplicate domains — use ALL of them
+        all_domains = list({
             (c.get("Domain") or c.get("domain") or "").strip().lower().replace("www.", "")
             for c in companies
             if (c.get("Domain") or c.get("domain") or "").strip()
             and "." in (c.get("Domain") or c.get("domain") or "").strip()
         })
 
-        # Use up to 1000 companies per batch
-        MAX_COMPANIES = 1000
-        if len(domains) > MAX_COMPANIES:
-            import random
-            random.shuffle(domains)
-            domains = domains[:MAX_COMPANIES]
-            await _emit(f"Found {len(companies)} companies, sampling {MAX_COMPANIES}...")
-        else:
-            await _emit(f"Found {len(domains)} companies...")
+        await _emit(f"Found {len(all_domains)} companies with domains")
+        all_companies_found += len(all_domains)
 
-        all_companies_found += len(domains)
+        # Phase 2: Search contacts in sub-batches of 500 domains
+        # Clay people search handles 200 domains per UI batch internally
+        DOMAIN_SUB_BATCH = 500
+        all_people = []
+        for sub_start in range(0, len(all_domains), DOMAIN_SUB_BATCH):
+            sub_domains = all_domains[sub_start:sub_start + DOMAIN_SUB_BATCH]
+            sub_label = f"{sub_start//DOMAIN_SUB_BATCH + 1}/{(len(all_domains) + DOMAIN_SUB_BATCH - 1)//DOMAIN_SUB_BATCH}"
+            await _emit(f"Phase 2: People search sub-batch {sub_label} ({len(sub_domains)} companies)...")
 
-        # Phase 2: Find ALL contacts at these companies
-        await _emit(f"Phase 2: Finding contacts at {len(domains)} companies...")
-        try:
-            people_result = await clay_service.run_people_search(
-                domains=domains,
-                project_id=project_id,
-                on_progress=on_progress,
-            )
-        except Exception as e:
-            logger.error(f"People search failed: {e}. Skipping.")
-            failed_batches += 1
-            continue
+            try:
+                people_result = await clay_service.run_people_search(
+                    domains=sub_domains,
+                    project_id=project_id,
+                    on_progress=on_progress,
+                )
+                people = people_result.get("people", [])
+                all_people.extend(people)
+                await _emit(f"Sub-batch {sub_label}: {len(people)} contacts (total: {len(all_people)})")
+            except Exception as e:
+                logger.error(f"People search sub-batch {sub_label} failed: {e}")
+                await _emit(f"Sub-batch {sub_label} failed: {e}")
+                failed_batches += 1
 
-        people = people_result.get("people", [])
-        if not people:
+        if not all_people:
             await _emit(f"No contacts found. Skipping.")
             continue
 
-        # Phase 2.5: Filter to decision-makers in Python
+        # Filter to decision-makers
         clevel_keywords = [
             "ceo", "cto", "cfo", "coo", "cmo", "cpo", "cio", "cro",
             "chief", "founder", "co-founder", "cofounder", "owner",
@@ -539,15 +538,15 @@ async def run_diaspora_pipeline(
             "partner", "principal", "country manager", "regional manager",
         ]
         decision_makers = [
-            p for p in people
+            p for p in all_people
             if (p.get("title") or "") and any(kw in (p.get("title") or "").lower() for kw in clevel_keywords)
         ]
 
         if not decision_makers:
-            await _emit(f"Found {len(people)} contacts, 0 decision-makers. Skipping.")
+            await _emit(f"Found {len(all_people)} contacts, 0 decision-makers. Skipping.")
             continue
 
-        await _emit(f"Found {len(people)} contacts → {len(decision_makers)} decision-makers")
+        await _emit(f"Found {len(all_people)} contacts → {len(decision_makers)} decision-makers")
         all_scanned += len(decision_makers)
         await _emit(f"Phase 3: Classifying {len(decision_makers)} names...")
 
