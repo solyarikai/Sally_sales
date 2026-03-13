@@ -396,11 +396,12 @@ class ClayService:
 
     async def run_people_search(
         self,
-        domains: List[str],
+        domains: Optional[List[str]] = None,
         project_id: Optional[int] = None,
         on_progress: Optional[Any] = None,
         use_titles: bool = False,
         countries: Optional[List[str]] = None,
+        schools: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Run Clay People search via Puppeteer.
 
@@ -410,7 +411,8 @@ class ClayService:
           - "table_url": Clay table URL if available, else None
         on_progress: optional async callback(message: str) for live status updates.
         use_titles: if True, pass --titles flag to filter for decision-makers only.
-        countries: if provided, write to filters_input.json for location filtering.
+        countries: if provided, filter by location.
+        schools: if provided, filter by university/school names (pipe-separated in CLI).
         """
         async def _emit(msg: str):
             if on_progress:
@@ -432,24 +434,32 @@ class ClayService:
             except Exception:
                 pass
 
-        # Write domains to temp CSV for the script
-        domains_file = CLAY_EXPORTS_DIR / f"domains_input_{project_id or 'tmp'}.csv"
-        domains_file.write_text("\n".join(domains))
-        logger.info(f"Clay People: wrote {len(domains)} domains to {domains_file}")
-        await _emit(f"Starting contact search engine ({len(domains)} companies)...")
-
-        # Run Puppeteer script
+        # Build Puppeteer script args
         args = [
             "node", str(CLAY_PEOPLE_SCRIPT),
             "--headless", "--auto",
-            "--domains-file", str(domains_file),
         ]
+
+        # Write domains to temp CSV if provided
+        if domains:
+            domains_file = CLAY_EXPORTS_DIR / f"domains_input_{project_id or 'tmp'}.csv"
+            domains_file.write_text("\n".join(domains))
+            logger.info(f"Clay People: wrote {len(domains)} domains to {domains_file}")
+            await _emit(f"Starting contact search engine ({len(domains)} companies)...")
+            args.extend(["--domains-file", str(domains_file)])
+        else:
+            await _emit(f"Starting contact search engine (filter-based, no domains)...")
+
         if use_titles:
             args.append("--titles")
 
         if countries:
             args.extend(["--countries", ",".join(countries)])
             logger.info(f"Clay People: country filter = {countries}")
+
+        if schools:
+            args.extend(["--schools", "|".join(schools)])
+            logger.info(f"Clay People: school filter = {schools}")
 
         env = {
             **os.environ,

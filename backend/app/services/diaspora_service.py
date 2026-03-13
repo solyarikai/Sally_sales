@@ -384,6 +384,88 @@ CORRIDORS = {
     },
 }
 
+# University batches per target country — used for people-first search
+# Each batch is a list of schools searched together
+UNIVERSITY_BATCHES = {
+    "Pakistan": [
+        {
+            "label": "pk_top_business",
+            "schools": [
+                "LUMS", "IBA Karachi", "NUST",
+                "Lahore University of Management Sciences",
+                "Institute of Business Administration",
+            ],
+        },
+        {
+            "label": "pk_engineering",
+            "schools": [
+                "NED University", "GIK Institute", "FAST-NUCES",
+                "COMSATS University", "UET Lahore",
+                "University of Engineering and Technology",
+            ],
+        },
+        {
+            "label": "pk_general",
+            "schools": [
+                "University of Punjab", "Quaid-i-Azam University",
+                "Aga Khan University", "University of Karachi",
+                "PIEAS", "Bahria University",
+            ],
+        },
+        {
+            "label": "pk_other",
+            "schools": [
+                "University of Peshawar", "Habib University",
+                "Ghulam Ishaq Khan Institute", "Air University",
+                "National Defence University Pakistan",
+                "Sukkur IBA University",
+            ],
+        },
+    ],
+    "Philippines": [
+        {
+            "label": "ph_top",
+            "schools": [
+                "University of the Philippines",
+                "Ateneo de Manila University",
+                "De La Salle University",
+                "University of Santo Tomas",
+                "Asian Institute of Management",
+            ],
+        },
+        {
+            "label": "ph_other",
+            "schools": [
+                "Mapua University", "Adamson University",
+                "Far Eastern University", "University of San Carlos",
+                "Silliman University", "Xavier University",
+            ],
+        },
+    ],
+    "South Africa": [
+        {
+            "label": "za_top",
+            "schools": [
+                "University of Cape Town",
+                "University of the Witwatersrand",
+                "Stellenbosch University",
+                "University of Pretoria",
+                "University of Johannesburg",
+            ],
+        },
+        {
+            "label": "za_other",
+            "schools": [
+                "University of KwaZulu-Natal",
+                "Rhodes University",
+                "University of the Free State",
+                "North-West University",
+                "Nelson Mandela University",
+            ],
+        },
+    ],
+}
+
 
 async def run_diaspora_pipeline(
     corridor_key: str,
@@ -597,6 +679,125 @@ async def run_diaspora_pipeline(
             logger.info(f"Saved {len(all_matched_contacts)} interim results to {interim_path}")
         except Exception as e:
             logger.warning(f"Failed to save interim results: {e}")
+
+    # Phase 3b: University-based people search (people-first, no company step)
+    uni_batches = UNIVERSITY_BATCHES.get(contractor_country, [])
+    if uni_batches and len(all_matched_contacts) < target_count:
+        await _emit(f"\n=== University-based search: {len(uni_batches)} batches ===")
+
+        for uni_batch in uni_batches:
+            if len(all_matched_contacts) >= target_count:
+                break
+
+            uni_label = uni_batch["label"]
+            schools = uni_batch["schools"]
+            iteration += 1
+
+            await _emit(f"\n--- University batch {uni_label} ---")
+            await _emit(f"Schools: {', '.join(schools)}")
+            await _emit(f"Progress: {len(all_matched_contacts)}/{target_count}")
+
+            try:
+                people_result = await clay_service.run_people_search(
+                    domains=None,  # No company domains — filter-based search
+                    project_id=project_id,
+                    on_progress=on_progress,
+                    use_titles=True,  # Decision-makers only
+                    countries=employer_countries,
+                    schools=schools,
+                )
+            except Exception as e:
+                logger.error(f"University search failed for {uni_label}: {e}")
+                await _emit(f"University search failed: {e}. Skipping.")
+                failed_batches += 1
+                continue
+
+            all_people = people_result.get("people", [])
+            if not all_people:
+                await _emit(f"No contacts found for {uni_label}. Skipping.")
+                continue
+
+            # University search already filters titles via --titles flag,
+            # but let's also apply our own filter for consistency
+            clevel_keywords = [
+                "ceo", "cto", "cfo", "coo", "cmo", "cpo", "cio", "cro",
+                "chief", "founder", "co-founder", "cofounder", "owner",
+                "managing director", "general manager", "president",
+                "vp", "vice president", "director", "head of", "head",
+                "partner", "principal", "country manager", "regional manager",
+            ]
+            decision_makers = [
+                p for p in all_people
+                if (p.get("title") or "") and any(
+                    kw in (p.get("title") or "").lower() for kw in clevel_keywords
+                )
+            ]
+
+            if not decision_makers:
+                await _emit(f"Found {len(all_people)} contacts, 0 decision-makers. Skipping.")
+                continue
+
+            await _emit(f"Found {len(all_people)} contacts → {len(decision_makers)} decision-makers")
+            all_scanned += len(decision_makers)
+
+            # For university-based search, people who studied at target country's
+            # universities are very likely from that country — score them higher
+            # but still run classification for quality
+            await _emit(f"Classifying {len(decision_makers)} names (university signal = strong)...")
+
+            try:
+                classified = await classify_names_by_origin(
+                    decision_makers, contractor_country,
+                )
+            except Exception as e:
+                logger.error(f"Classification failed for {uni_label}: {e}")
+                # University signal is strong enough — accept all as matches on failure
+                for p in decision_makers:
+                    p["_origin_score"] = 8
+                    p["_origin_match"] = True
+                classified = decision_makers
+
+            matched = [c for c in classified if c.get("_origin_match")]
+            await _emit(
+                f"Classification: {len(matched)}/{len(classified)} matched {contractor_country}"
+            )
+
+            # Deduplicate
+            existing_keys = set()
+            for c in all_matched_contacts:
+                key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
+                existing_keys.add(key.lower())
+
+            new_matches = []
+            for c in matched:
+                key = c.get("linkedin_url") or f"{c.get('name', '')}|{c.get('company', '')}"
+                if key.lower() not in existing_keys:
+                    c["_industry_batch"] = f"uni_{uni_label}"
+                    c["_corridor"] = corridor_key
+                    new_matches.append(c)
+                    existing_keys.add(key.lower())
+
+            all_matched_contacts.extend(new_matches)
+            await _emit(
+                f"New unique matches: {len(new_matches)}. "
+                f"Total: {len(all_matched_contacts)}/{target_count}"
+            )
+
+            # Save interim
+            try:
+                interim_path = Path("/tmp") / f"diaspora_{corridor_key}_interim.json"
+                interim_data = {
+                    "corridor": corridor_key,
+                    "matched_count": len(all_matched_contacts),
+                    "scanned": all_scanned,
+                    "companies": all_companies_found,
+                    "iteration": iteration,
+                    "contacts": all_matched_contacts,
+                    "updated_at": datetime.now().isoformat(),
+                }
+                interim_path.write_text(json.dumps(interim_data, default=str))
+            except Exception as e:
+                logger.warning(f"Failed to save interim: {e}")
 
     # Phase 4: Export to Google Sheet
     await _emit(f"\nExporting {len(all_matched_contacts)} matched contacts to Google Sheet...")

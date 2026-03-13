@@ -375,6 +375,59 @@ async function runPeopleSearch(page, filters, label = 'default') {
     await screenshot(page, `${label}_02b_companies`);
   }
 
+  // Schools section (for university-based search)
+  if (filters.schools?.length) {
+    // Scroll sidebar down to find Schools section
+    await page.evaluate(() => {
+      const sections = [...document.querySelectorAll('div, section')].filter(el => {
+        const style = window.getComputedStyle(el);
+        return style.overflowY === 'auto' || style.overflowY === 'scroll';
+      });
+      for (const s of sections) {
+        if (s.scrollHeight > s.clientHeight && s.clientHeight > 200) {
+          s.scrollTop = s.scrollHeight;
+          break;
+        }
+      }
+    });
+    await humanDelay(800, 1200);
+
+    const schoolSection = await findByText(page, 'Schools', true)
+      || await findByText(page, 'School', true)
+      || await findByText(page, 'Education', true);
+    if (schoolSection) {
+      await page.mouse.click(schoolSection.x, schoolSection.y);
+      await humanDelay(800, 1200);
+    }
+    const schoolInput = await page.$('input[placeholder*="Harvard"]')
+      || await page.$('input[placeholder*="school"]')
+      || await page.$('input[placeholder*="university"]')
+      || await page.$('input[placeholder*="Stanford"]');
+    if (schoolInput) {
+      for (const school of filters.schools) {
+        await schoolInput.click();
+        await humanDelay(100, 200);
+        await schoolInput.type(school, { delay: 25 + Math.random() * 30 });
+        await humanDelay(500, 900);
+        await page.keyboard.press('Enter');
+        await humanDelay(300, 500);
+      }
+      console.log(`    Schools: ${filters.schools.join(', ')}`);
+    } else {
+      console.log('    WARNING: School input not found');
+      const allInputs = await page.evaluate(() =>
+        [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
+          .map(i => ({ placeholder: i.placeholder }))
+      );
+      console.log('    Available inputs:', allInputs.map(i => `"${i.placeholder}"`).join(', '));
+    }
+    await page.keyboard.press('Escape');
+    await humanDelay(300, 500);
+    await page.mouse.click(650, 400);
+    await humanDelay(500, 800);
+    await screenshot(page, `${label}_02c_schools`);
+  }
+
   // Location section (for geo splits)
   if (filters.countries?.length) {
     const locSection = await findByText(page, 'Location', true);
@@ -722,6 +775,9 @@ async function main() {
   const countriesIdx = args.indexOf('--countries');
   const countriesArg = countriesIdx >= 0 ? args[countriesIdx + 1] : null;
   const customCountries = countriesArg ? countriesArg.split(',').map(c => c.trim()) : null;
+  const schoolsIdx = args.indexOf('--schools');
+  const schoolsArg = schoolsIdx >= 0 ? args[schoolsIdx + 1] : null;
+  const customSchools = schoolsArg ? schoolsArg.split('|').map(s => s.trim()) : null;
 
   if (useTitles) {
     GAMING_ICP_FILTERS.job_titles = ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
@@ -793,6 +849,10 @@ async function main() {
     const lines = fs.readFileSync(externalDomainsFile, 'utf-8').split('\n');
     allDomains = lines.map(l => l.trim().toLowerCase().replace(/^www\./, '')).filter(d => d && d.includes('.'));
     console.log(`  External domains file: ${externalDomainsFile} (${allDomains.length} domains)`);
+  } else if (customSchools || customCountries) {
+    // Filter-based search: no domains needed
+    allDomains = [];
+    console.log(`  Filter-based search (no domains). Schools: ${customSchools?.length || 0}, Countries: ${customCountries?.length || 0}`);
   } else {
     allDomains = loadKnownDomains();
     console.log(`  Known gaming ICP domains: ${allDomains.length}`);
@@ -810,8 +870,16 @@ async function main() {
     GAMING_ICP_FILTERS.countries = customCountries;
     console.log(`  Country filter: ${customCountries.join(', ')}`);
   }
+  if (customSchools) {
+    GAMING_ICP_FILTERS.schools = customSchools;
+    console.log(`  School filter: ${customSchools.join(', ')}`);
+  }
 
-  if (allDomains.length > DOMAIN_BATCH_SIZE) {
+  if (allDomains.length === 0) {
+    // No domains — filter-based search (schools + countries + titles)
+    searches = [{ label: 'filter_based', filters: GAMING_ICP_FILTERS }];
+    console.log('\n[2] Running filter-based search (no domains)...');
+  } else if (allDomains.length > DOMAIN_BATCH_SIZE) {
     // Split domains into batches
     searches = [];
     for (let i = 0; i < allDomains.length; i += DOMAIN_BATCH_SIZE) {
