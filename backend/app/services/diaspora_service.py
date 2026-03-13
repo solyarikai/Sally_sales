@@ -174,6 +174,7 @@ async def _classify_single_batch(
     system_prompt: str,
     api_key: str,
     total_batches: int,
+    shared_client: Optional[httpx.AsyncClient] = None,
 ) -> List[Dict[str, Any]]:
     """Classify a single batch of names using GPT-4o-mini with retry."""
     names_text = "\n".join(
@@ -183,7 +184,8 @@ async def _classify_single_batch(
 
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(timeout=180) as client:
+            client = shared_client or httpx.AsyncClient(timeout=180)
+            try:
                 resp = await client.post(
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}"},
@@ -223,6 +225,9 @@ async def _classify_single_batch(
                     logger.info(f"Classification batch {batch_idx+1}/{total_batches}: {matched}/{len(batch)} matched")
 
                 return results
+            finally:
+                if not shared_client:
+                    await client.aclose()
 
         except Exception as e:
             err_msg = str(e) or repr(e)
@@ -292,35 +297,48 @@ Include ALL contacts. No explanation."""
     results: List[Dict[str, Any]] = []
     total_batches = (len(candidates) + batch_size - 1) // batch_size
 
-    # Use semaphore for concurrent GPT calls (5 parallel)
-    sem = asyncio.Semaphore(5)
+    # Use a SHARED httpx client to avoid connection pool issues
+    async with httpx.AsyncClient(timeout=120) as shared_client:
+        # Use semaphore for concurrent GPT calls (5 parallel)
+        sem = asyncio.Semaphore(5)
 
-    async def _classify_batch(batch_idx: int, batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        async with sem:
-            return await _classify_single_batch(batch_idx, batch, system_prompt, api_key, total_batches)
+        async def _classify_batch(batch_idx: int, batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            async with sem:
+                return await _classify_single_batch(
+                    batch_idx, batch, system_prompt, api_key, total_batches,
+                    shared_client=shared_client,
+                )
 
-    # Build batches
-    batches = []
-    for batch_start in range(0, len(candidates), batch_size):
-        batches.append(candidates[batch_start:batch_start + batch_size])
+        # Build batches
+        batches = []
+        for batch_start in range(0, len(candidates), batch_size):
+            batches.append(candidates[batch_start:batch_start + batch_size])
 
-    # Run all batches concurrently (limited by semaphore)
-    batch_results = await asyncio.gather(
-        *[_classify_batch(i, b) for i, b in enumerate(batches)],
-        return_exceptions=True,
-    )
+        # Run all batches concurrently (limited by semaphore)
+        batch_results = await asyncio.gather(
+            *[_classify_batch(i, b) for i, b in enumerate(batches)],
+            return_exceptions=True,
+        )
 
-    for i, result in enumerate(batch_results):
-        if isinstance(result, Exception):
-            logger.error(f"Name classification batch {i} exception: {result}")
-            for contact in batches[i]:
-                contact["_origin_score"] = -1
-                contact["_origin_match"] = False
-                results.append(contact)
-        else:
-            results.extend(result)
+        gpt_failed = 0
+        for i, result in enumerate(batch_results):
+            if isinstance(result, Exception):
+                logger.error(f"Name classification batch {i} exception: {result}")
+                gpt_failed += 1
+                for contact in batches[i]:
+                    contact["_origin_score"] = -1
+                    contact["_origin_match"] = False
+                    results.append(contact)
+            else:
+                results.extend(result)
 
-    # (concurrent classification handled above via asyncio.gather)
+    # If ALL GPT batches failed, fall back to surname-only matching
+    if gpt_failed == total_batches and total_batches > 0:
+        logger.warning(f"All GPT classification failed — using surname-only matching for {len(candidates)} candidates")
+        for contact in results:
+            if contact.get("_origin_score") == -1:
+                contact["_origin_score"] = 7  # surname match = 7
+                contact["_origin_match"] = True
 
     matched = sum(1 for c in results if c.get("_origin_match"))
     logger.info(
