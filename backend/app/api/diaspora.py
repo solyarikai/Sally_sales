@@ -50,23 +50,44 @@ async def start_diaspora_gather(
         [request.corridor] if request.corridor else list(CORRIDORS.keys())
     )
 
+    # Validate corridors
     for corridor_key in corridors_to_run:
         if corridor_key not in CORRIDORS:
             return {"error": f"Unknown corridor: {corridor_key}. Options: {list(CORRIDORS.keys())}"}
 
-        if corridor_key in _running_pipelines and _running_pipelines[corridor_key].get("status") == "running":
-            continue  # Already running
+    # Check if any are already running
+    already_running = [k for k in corridors_to_run
+                       if k in _running_pipelines and _running_pipelines[k].get("status") == "running"]
+    if already_running:
+        return {"error": f"Already running: {already_running}", "check_progress": "GET /api/diaspora/status"}
 
+    if len(corridors_to_run) == 1:
+        # Single corridor — run directly
+        corridor_key = corridors_to_run[0]
         _running_pipelines[corridor_key] = {
             "status": "running",
             "started_at": None,
             "progress": [],
             "result": None,
         }
-
         background_tasks.add_task(
             _run_pipeline_task,
             corridor_key,
+            request.project_id,
+            request.target_count,
+        )
+    else:
+        # Multiple corridors — run SEQUENTIALLY in one task (they share Puppeteer)
+        for k in corridors_to_run:
+            _running_pipelines[k] = {
+                "status": "queued",
+                "started_at": None,
+                "progress": [],
+                "result": None,
+            }
+        background_tasks.add_task(
+            _run_all_corridors_sequential,
+            corridors_to_run,
             request.project_id,
             request.target_count,
         )
@@ -83,6 +104,7 @@ async def _run_pipeline_task(corridor_key: str, project_id: int, target_count: i
     """Background task for running a single corridor pipeline."""
     import datetime
 
+    _running_pipelines[corridor_key]["status"] = "running"
     _running_pipelines[corridor_key]["started_at"] = datetime.datetime.now().isoformat()
 
     async def on_progress(msg: str):
@@ -106,6 +128,14 @@ async def _run_pipeline_task(corridor_key: str, project_id: int, target_count: i
         logger.error(f"Diaspora pipeline failed for {corridor_key}: {e}", exc_info=True)
         _running_pipelines[corridor_key]["status"] = "failed"
         _running_pipelines[corridor_key]["result"] = {"error": str(e)}
+
+
+async def _run_all_corridors_sequential(
+    corridor_keys: list[str], project_id: int, target_count: int,
+):
+    """Run multiple corridors one after another (they share Puppeteer)."""
+    for corridor_key in corridor_keys:
+        await _run_pipeline_task(corridor_key, project_id, target_count)
 
 
 @router.get("/status")
