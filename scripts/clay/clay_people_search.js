@@ -719,6 +719,9 @@ async function main() {
   const useTitles = args.includes('--titles');
   const domainsFileIdx = args.indexOf('--domains-file');
   const externalDomainsFile = domainsFileIdx >= 0 ? args[domainsFileIdx + 1] : null;
+  const countriesIdx = args.indexOf('--countries');
+  const countriesArg = countriesIdx >= 0 ? args[countriesIdx + 1] : null;
+  const customCountries = countriesArg ? countriesArg.split(',').map(c => c.trim()) : null;
 
   if (useTitles) {
     GAMING_ICP_FILTERS.job_titles = ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
@@ -801,6 +804,12 @@ async function main() {
   // If we have >500 domains, split into batches.
   let searches;
   const DOMAIN_BATCH_SIZE = 200; // Conservative batch size for UI input
+
+  // Inject custom countries into all searches if provided
+  if (customCountries) {
+    GAMING_ICP_FILTERS.countries = customCountries;
+    console.log(`  Country filter: ${customCountries.join(', ')}`);
+  }
 
   if (allDomains.length > DOMAIN_BATCH_SIZE) {
     // Split domains into batches

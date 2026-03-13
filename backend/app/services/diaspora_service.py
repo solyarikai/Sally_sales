@@ -456,6 +456,10 @@ async def run_diaspora_pipeline(
     if skip_batches > 0:
         await _emit(f"Resuming from iteration {skip_batches+1} with {len(all_matched_contacts)} contacts already matched")
 
+    # PEOPLE-FIRST approach: search for C-level people in employer countries directly,
+    # then classify by name. Much faster than company→people→classify.
+    # Each iteration uses a different set of company domains from industry batches
+    # OR does a direct people search without domains (just country + title filter).
     for batch_config in INDUSTRY_BATCHES:
         if len(all_matched_contacts) >= target_count:
             break
@@ -470,7 +474,7 @@ async def run_diaspora_pipeline(
         await _emit(f"\n--- Iteration {iteration}/{len(INDUSTRY_BATCHES)}: {batch_label} ---")
         await _emit(f"Progress: {len(all_matched_contacts)}/{target_count} matched contacts")
 
-        # Phase 1: Find companies
+        # Phase 1: Find companies for this industry batch
         icp_text = build_icp_text(employer_countries, batch_config)
         await _emit(f"Phase 1: Finding {batch_label} companies in {', '.join(employer_countries)}...")
 
@@ -500,26 +504,26 @@ async def run_diaspora_pipeline(
 
         domains = list(set(domains))  # Deduplicate
 
-        # Cap at 500 companies per batch for better yield
-        # With 12 industry batches × 500 = 6,000 companies total — enough for 1000+ matches
         MAX_COMPANIES_PER_BATCH = 500
         if len(domains) > MAX_COMPANIES_PER_BATCH:
             import random
             random.shuffle(domains)
             domains = domains[:MAX_COMPANIES_PER_BATCH]
-            await _emit(f"Found {len(companies)} companies, sampling {MAX_COMPANIES_PER_BATCH} for contact search...")
+            await _emit(f"Found {len(companies)} companies, sampling {MAX_COMPANIES_PER_BATCH}...")
         else:
             await _emit(f"Found {len(domains)} companies...")
 
         all_companies_found += len(domains)
-        await _emit(f"Phase 2: Finding contacts at {len(domains)} companies...")
 
-        # Phase 2: Find contacts at these companies
+        # Phase 2: Find C-level contacts at these companies (with title filter)
+        await _emit(f"Phase 2: Finding decision-makers at {len(domains)} companies...")
         try:
             people_result = await clay_service.run_people_search(
                 domains=domains,
                 project_id=project_id,
                 on_progress=on_progress,
+                use_titles=True,
+                countries=employer_countries,
             )
         except Exception as e:
             logger.error(f"People search failed for {batch_label}: {e}")
@@ -532,35 +536,13 @@ async def run_diaspora_pipeline(
             await _emit(f"No contacts found for {batch_label}. Skipping.")
             continue
 
-        # Filter to decision-makers only (C-level, VP, Director, Head, Founder, Partner, Owner)
-        clevel_keywords = {
-            "ceo", "cto", "cfo", "coo", "cmo", "cpo", "cio", "cro",
-            "chief", "founder", "co-founder", "cofounder", "owner",
-            "managing director", "general manager", "president",
-            "vp", "vice president", "director", "head of", "head",
-            "partner", "principal", "country manager", "regional manager",
-            "gm", "md",
-        }
-        decision_makers = []
-        for p in people:
-            title = (p.get("title") or "").lower()
-            if not title:
-                continue
-            if any(kw in title for kw in clevel_keywords):
-                decision_makers.append(p)
-
-        if not decision_makers:
-            await _emit(f"Found {len(people)} contacts but 0 decision-makers. Skipping.")
-            continue
-
-        await _emit(f"Found {len(people)} contacts, {len(decision_makers)} decision-makers.")
-        all_scanned += len(decision_makers)
-        await _emit(f"Phase 3: Classifying {len(decision_makers)} decision-maker names...")
+        all_scanned += len(people)
+        await _emit(f"Found {len(people)} decision-makers. Phase 3: Classifying names...")
 
         # Phase 3: Classify names by origin
         try:
             classified = await classify_names_by_origin(
-                decision_makers, contractor_country,
+                people, contractor_country,
             )
         except Exception as e:
             logger.error(f"Classification failed for {batch_label}: {e}")

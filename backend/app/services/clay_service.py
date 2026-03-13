@@ -399,6 +399,8 @@ class ClayService:
         domains: List[str],
         project_id: Optional[int] = None,
         on_progress: Optional[Any] = None,
+        use_titles: bool = False,
+        countries: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Run Clay People search via Puppeteer.
 
@@ -407,6 +409,8 @@ class ClayService:
           - "people": list of normalized person dicts
           - "table_url": Clay table URL if available, else None
         on_progress: optional async callback(message: str) for live status updates.
+        use_titles: if True, pass --titles flag to filter for decision-makers only.
+        countries: if provided, write to filters_input.json for location filtering.
         """
         async def _emit(msg: str):
             if on_progress:
@@ -434,15 +438,18 @@ class ClayService:
         logger.info(f"Clay People: wrote {len(domains)} domains to {domains_file}")
         await _emit(f"Starting contact search engine ({len(domains)} companies)...")
 
-        # Run Puppeteer script — NO title filter in Clay UI.
-        # Get ALL contacts, then apply role-priority filtering in Python
-        # (office_rules + round-robin already handle this).
-        # Title filtering in Clay UI reduces raw contacts too aggressively.
+        # Run Puppeteer script
         args = [
             "node", str(CLAY_PEOPLE_SCRIPT),
             "--headless", "--auto",
             "--domains-file", str(domains_file),
         ]
+        if use_titles:
+            args.append("--titles")
+
+        if countries:
+            args.extend(["--countries", ",".join(countries)])
+            logger.info(f"Clay People: country filter = {countries}")
 
         env = {
             **os.environ,
