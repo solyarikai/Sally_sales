@@ -133,11 +133,17 @@ def _build_project_campaign_filter(project):
     if sender_uuids:
         # For LinkedIn/GetSales replies, sender must be in project's allowed list.
         # Non-LinkedIn replies (email from SmartLead) pass through unchecked.
-        # Use PostgreSQL ->> operator to extract text from JSON column.
-        sender_text = ProcessedReply.raw_webhook_data.op("->>")("sender_profile_uuid")
+        # Sender UUID lives in two locations depending on source:
+        #   - Webhook replies: raw_webhook_data->>'sender_profile_uuid' (top-level)
+        #   - Inbox sync replies: raw_webhook_data->'sender_profile'->>'uuid' (nested)
+        # When both are NULL, allow through — campaign filter already verified ownership.
+        top_level = ProcessedReply.raw_webhook_data.op("->>")("sender_profile_uuid")
+        nested = ProcessedReply.raw_webhook_data.op("->")("sender_profile").op("->>")("uuid")
+        sender_text = func.coalesce(top_level, nested)
         sender_check = or_(
             ProcessedReply.channel != "linkedin",
             sender_text.in_(sender_uuids),
+            sender_text.is_(None),  # no sender info → trust campaign filter
         )
         return and_(campaign_condition, sender_check)
 
