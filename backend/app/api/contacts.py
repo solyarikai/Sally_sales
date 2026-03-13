@@ -3413,7 +3413,7 @@ ANALYSIS FOCUS — answer these with EVIDENCE from the data above:
         in_tokens = 0
         out_tokens = 0
         async with client.messages.stream(
-            model="claude-opus-4-20250514",
+            model="claude-sonnet-4-20250514",
             max_tokens=16000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
@@ -3424,13 +3424,13 @@ ANALYSIS FOCUS — answer these with EVIDENCE from the data above:
             final_message = await stream.get_final_message()
             in_tokens = final_message.usage.input_tokens
             out_tokens = final_message.usage.output_tokens
-        # Opus 4.6 pricing: $15/M input, $75/M output
-        cost = round(in_tokens * 15 / 1_000_000 + out_tokens * 75 / 1_000_000, 4)
+        # Sonnet 4 pricing: $3/M input, $15/M output
+        cost = round(in_tokens * 3 / 1_000_000 + out_tokens * 15 / 1_000_000, 4)
 
         # Extract JSON from response (may have markdown wrapping)
         json_match = re.search(r'\{[\s\S]*\}', response_text)
         if not json_match:
-            raise ValueError("No JSON found in Opus response")
+            raise ValueError("No JSON found in Sonnet response")
         gtm_json = json_match.group(0)
         json_mod.loads(gtm_json)  # validate
 
@@ -3443,7 +3443,7 @@ ANALYSIS FOCUS — answer these with EVIDENCE from the data above:
         log = GTMStrategyLog(
             project_id=project_id,
             trigger="manual",
-            model="claude-opus-4-6",
+            model="claude-sonnet-4-20250514",
             strategy_json=gtm_json,
             input_summary=input_summary,
             input_tokens=in_tokens,
@@ -3468,7 +3468,7 @@ ANALYSIS FOCUS — answer these with EVIDENCE from the data above:
             fail_log = GTMStrategyLog(
                 project_id=project_id,
                 trigger="manual",
-                model="claude-opus-4-6",
+                model="claude-sonnet-4-20250514",
                 input_summary=input_summary,
                 status="failed",
                 error_message=str(e)[:500],

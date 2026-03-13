@@ -1081,7 +1081,7 @@ ANALYSIS FOCUS — answer with EVIDENCE:
                 in_tokens = 0
                 out_tokens = 0
                 async with client.messages.stream(
-                    model="claude-opus-4-20250514",
+                    model="claude-sonnet-4-20250514",
                     max_tokens=16000,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_prompt}],
@@ -1092,7 +1092,7 @@ ANALYSIS FOCUS — answer with EVIDENCE:
                     final_message = await stream.get_final_message()
                     in_tokens = final_message.usage.input_tokens
                     out_tokens = final_message.usage.output_tokens
-                cost = round(in_tokens * 15 / 1_000_000 + out_tokens * 75 / 1_000_000, 4)
+                cost = round(in_tokens * 3 / 1_000_000 + out_tokens * 15 / 1_000_000, 4)
 
                 json_match = re_mod.search(r'\{[\s\S]*\}', response_text)
                 if not json_match:
@@ -1106,7 +1106,7 @@ ANALYSIS FOCUS — answer with EVIDENCE:
                 log = GTMStrategyLog(
                     project_id=project_id,
                     trigger=trigger,
-                    model="claude-opus-4-6",
+                    model="claude-sonnet-4-20250514",
                     strategy_json=gtm_json,
                     input_summary=input_summary,
                     input_tokens=in_tokens,
@@ -1122,7 +1122,7 @@ ANALYSIS FOCUS — answer with EVIDENCE:
                 log = GTMStrategyLog(
                     project_id=project_id,
                     trigger=trigger,
-                    model="claude-opus-4-6",
+                    model="claude-sonnet-4-20250514",
                     input_summary=input_summary,
                     status="failed",
                     error_message=str(e)[:500],

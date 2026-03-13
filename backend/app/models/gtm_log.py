@@ -11,7 +11,7 @@ class GTMStrategyLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     trigger = Column(String(50), nullable=False)  # manual, scheduled_morning, scheduled_evening
-    model = Column(String(100), nullable=False)   # claude-opus-4-6
+    model = Column(String(100), nullable=False)   # claude-sonnet-4-20250514
     strategy_json = Column(Text, nullable=True)    # the full JSON strategy
     input_summary = Column(Text, nullable=True)    # summary of what was fed to the model
     input_tokens = Column(Integer, nullable=True)
