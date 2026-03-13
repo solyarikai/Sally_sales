@@ -1458,7 +1458,7 @@ class CRMSyncService:
         self,
         session: AsyncSession,
         company_id: int,
-        limit: int = 50000
+        limit: int = 50000  # DEPRECATED: list-based sync replaced by flow-based in sync_getsales_contacts()
     ) -> Dict[str, int]:
         """
         Full sync of ALL contacts from GetSales (used for daily reconciliation).
@@ -1666,7 +1666,7 @@ class CRMSyncService:
         self,
         session: AsyncSession,
         company_id: int,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any]:  # DEPRECATED: list-based sync replaced by flow-based in sync_getsales_contacts()
         """
         Incremental sync: only fetch NEW contacts since last check.
 
@@ -1755,33 +1755,28 @@ class CRMSyncService:
         force_full: bool = False,
     ) -> Dict[str, Any]:
         """
-        Smart sync dispatcher: incremental by default, full on reconciliation.
+        Flow-based GetSales contact sync (replaces legacy list-based sync).
 
-        Full scan triggers when:
-        - force_full=True (manual trigger)
-        - First run (no stored totals in Redis)
-        - >24h since last full reconciliation
+        Iterates registered campaigns (flows) from the campaigns table,
+        using search_leads({"flow_uuid": ...}) per campaign.
+
+        Full: re-sync all campaigns from offset 0 (daily reconciliation).
+        Incremental: only campaigns with new leads or never-synced.
         """
         from app.services.cache_service import cache_service
+        from app.models.campaign import Campaign
 
         RECONCILIATION_KEY = "leadgen:getsales:last_full_reconciliation"
-        TOTALS_KEY = "leadgen:getsales:list_totals"
 
-        # Check if we need a full scan
+        # Decide full vs incremental
         needs_full = force_full
         reason = "forced" if force_full else ""
-
-        if not needs_full:
-            stored_totals = await cache_service.get(TOTALS_KEY)
-            if not stored_totals:
-                needs_full = True
-                reason = "cold_start"
 
         if not needs_full:
             last_reconciliation = await cache_service.get(RECONCILIATION_KEY)
             if not last_reconciliation:
                 needs_full = True
-                reason = "no_reconciliation_record"
+                reason = "cold_start"
             else:
                 last_ts = datetime.fromisoformat(last_reconciliation)
                 hours_since = (datetime.utcnow() - last_ts).total_seconds() / 3600
@@ -1789,31 +1784,90 @@ class CRMSyncService:
                     needs_full = True
                     reason = f"reconciliation_due ({hours_since:.0f}h since last)"
 
-        if needs_full:
-            logger.info(f"[GETSALES-SYNC] Running FULL reconciliation (reason: {reason})")
-            stats = await self.sync_getsales_contacts_full(session, company_id)
+        # Build campaign query
+        base_filter = and_(
+            Campaign.platform == "getsales",
+            Campaign.external_id.isnot(None),
+        )
 
-            # Reset Redis totals to match reality
-            lists = await self.getsales.get_lists()
-            fresh_totals = {}
-            for lst in lists:
-                list_uuid = lst.get("uuid")
-                if list_uuid:
-                    _, total = await self.getsales.search_leads(
-                        {"list_uuid": list_uuid}, limit=1, offset=0
+        if needs_full:
+            # Full: all GetSales campaigns
+            query = select(Campaign).where(base_filter)
+        else:
+            # Incremental: only campaigns that need sync
+            resync_cutoff = datetime.utcnow() - timedelta(days=7)
+            active_statuses = ("active", "ACTIVE", "INPROGRESS")
+            query = select(Campaign).where(
+                and_(
+                    base_filter,
+                    or_(
+                        Campaign.last_contact_sync_at.is_(None),
+                        Campaign.leads_count > func.coalesce(Campaign.synced_leads_count, 0),
+                        and_(
+                            Campaign.status.in_(active_statuses),
+                            Campaign.last_contact_sync_at < resync_cutoff,
+                        ),
+                    ),
+                )
+            )
+
+        result = await session.execute(query)
+        campaigns = result.scalars().all()
+
+        # Extract data into plain dicts BEFORE the loop — after session.commit()
+        # inside _sync_getsales_campaign_contacts(), ORM objects get expired.
+        campaign_data = [
+            {"id": c.id, "name": c.name, "synced_leads_count": c.synced_leads_count or 0}
+            for c in campaigns
+        ]
+
+        stats = {"created": 0, "updated": 0, "skipped": 0, "campaigns_synced": 0}
+        mode = "FULL" if needs_full else "INCREMENTAL"
+        logger.info(
+            f"[GETSALES-SYNC] {mode} flow-based sync: {len(campaign_data)} campaigns"
+            f"{f' (reason: {reason})' if reason else ''}"
+        )
+
+        from app.db import async_session_maker
+
+        for cdata in campaign_data:
+            try:
+                async with async_session_maker() as camp_session:
+                    camp_result = await camp_session.execute(
+                        select(Campaign).where(Campaign.id == cdata["id"])
                     )
-                    fresh_totals[list_uuid] = total
-            await cache_service.set(TOTALS_KEY, fresh_totals)
+                    campaign = camp_result.scalar()
+                    if not campaign:
+                        continue
+
+                    start_offset = 0 if needs_full else cdata["synced_leads_count"]
+                    synced = await self._sync_getsales_campaign_contacts(
+                        camp_session, company_id, campaign, max_leads=50000,
+                        start_offset=start_offset,
+                    )
+                    campaign.last_contact_sync_at = datetime.utcnow()
+                    await camp_session.commit()
+
+                stats["created"] += synced.get("created", 0)
+                stats["updated"] += synced.get("updated", 0)
+                stats["skipped"] += synced.get("skipped", 0)
+                stats["campaigns_synced"] += 1
+
+                if synced.get("created", 0) > 0:
+                    logger.info(
+                        f"[GETSALES-SYNC] '{cdata['name']}': "
+                        f"+{synced['created']} created, {synced.get('updated', 0)} updated"
+                    )
+            except Exception as e:
+                logger.error(f"[GETSALES-SYNC] Failed '{cdata['name']}': {e}")
+
+        if needs_full:
             await cache_service.set(RECONCILIATION_KEY, datetime.utcnow().isoformat())
 
-            stats["sync_type"] = "full_reconciliation"
+        stats["sync_type"] = "full_reconciliation" if needs_full else "incremental"
+        if reason:
             stats["reason"] = reason
-            return stats
-        else:
-            logger.info("[GETSALES-SYNC] Running incremental delta sync")
-            stats = await self.sync_getsales_contacts_incremental(session, company_id)
-            stats["sync_type"] = "incremental"
-            return stats
+        return stats
 
     async def _find_contact(
         self,

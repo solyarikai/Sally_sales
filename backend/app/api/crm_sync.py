@@ -1743,51 +1743,48 @@ async def fast_backfill(
                 logger.info(f"[FAST-BACKFILL] SmartLead done: {stats['sl_leads']} leads, "
                              f"created={stats['sl_created']}, updated={stats['sl_updated']}")
 
-            # --- GetSales ---
+            # --- GetSales (flow-based, iterates registered campaigns) ---
             if platform in ("all", "getsales"):
                 try:
-                    gs_client = sync_service.getsales
-                    lists = await gs_client.get_lists()
-                    logger.info(f"[FAST-BACKFILL] GetSales: {len(lists)} lists, concurrency={concurrency}")
+                    from app.models.campaign import Campaign as CampaignModel
+                    async with async_session_maker() as gs_session:
+                        gs_result = await gs_session.execute(
+                            select(CampaignModel).where(
+                                and_(
+                                    CampaignModel.platform == "getsales",
+                                    CampaignModel.external_id.isnot(None),
+                                )
+                            )
+                        )
+                        gs_campaigns = gs_result.scalars().all()
 
-                    async def _sync_gs_list(lst):
+                    logger.info(f"[FAST-BACKFILL] GetSales: {len(gs_campaigns)} campaigns (flow-based), concurrency={concurrency}")
+
+                    async def _sync_gs_campaign(camp_data):
                         async with sem:
-                            list_uuid = lst.get("uuid", "")
-                            list_name = lst.get("name", "")
                             local_stats = {"created": 0, "updated": 0, "skipped": 0, "contacts": 0}
                             try:
-                                offset = 0
-                                page_size = 100
-                                while True:
-                                    leads, total = await gs_client.get_leads_by_list(list_uuid, limit=page_size, offset=offset)
-                                    if not leads:
-                                        break
-                                    async with async_session_maker() as local_session:
-                                        for item in leads:
-                                            try:
-                                                result = await sync_service._process_getsales_lead(
-                                                    local_session, company_id, item, list_name=list_name,
-                                                )
-                                                local_stats[result] += 1
-                                                local_stats["contacts"] += 1
-                                            except Exception:
-                                                local_stats["skipped"] += 1
-                                                try:
-                                                    await local_session.rollback()
-                                                except Exception:
-                                                    pass
-                                        try:
-                                            await local_session.commit()
-                                        except Exception:
-                                            try:
-                                                await local_session.rollback()
-                                            except Exception:
-                                                pass
-                                    offset += page_size
-                                    if len(leads) < page_size:
-                                        break
+                                async with async_session_maker() as local_session:
+                                    camp_result = await local_session.execute(
+                                        select(CampaignModel).where(CampaignModel.id == camp_data["id"])
+                                    )
+                                    campaign = camp_result.scalar()
+                                    if not campaign:
+                                        return local_stats
+
+                                    synced = await sync_service._sync_getsales_campaign_contacts(
+                                        local_session, company_id, campaign, max_leads=50000,
+                                        start_offset=0,
+                                    )
+                                    campaign.last_contact_sync_at = datetime.utcnow()
+                                    await local_session.commit()
+
+                                    local_stats["created"] = synced.get("created", 0)
+                                    local_stats["updated"] = synced.get("updated", 0)
+                                    local_stats["skipped"] = synced.get("skipped", 0)
+                                    local_stats["contacts"] = sum(synced.get(k, 0) for k in ("created", "updated", "skipped"))
                             except Exception as e:
-                                logger.warning(f"[FAST-BACKFILL] GetSales list {list_name} failed: {e}")
+                                logger.warning(f"[FAST-BACKFILL] GetSales campaign {camp_data['name']} failed: {e}")
                             stats["gs_contacts"] += local_stats["contacts"]
                             stats["gs_created"] += local_stats["created"]
                             stats["gs_updated"] += local_stats["updated"]
@@ -1795,8 +1792,9 @@ async def fast_backfill(
                             stats["elapsed_seconds"] = (datetime.utcnow() - start_time).total_seconds()
                             return local_stats
 
+                    gs_camp_data = [{"id": c.id, "name": c.name} for c in gs_campaigns]
                     await asyncio.gather(
-                        *[_sync_gs_list(lst) for lst in lists],
+                        *[_sync_gs_campaign(c) for c in gs_camp_data],
                         return_exceptions=True,
                     )
                     logger.info(f"[FAST-BACKFILL] GetSales done: {stats['gs_contacts']} contacts, "
