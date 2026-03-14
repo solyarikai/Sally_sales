@@ -5,7 +5,7 @@ const path = require('path');
 
 puppeteer.use(StealthPlugin());
 
-const CLAY_COOKIE = 'claysession=s%3AoeHYspFaX_rWio-gNpEzJqU0orl2bpKO.7p7qhi2GBcQGunHh2w3OC8NwycWCkGMjDz0LEkLJxRQ';
+const CLAY_COOKIE = 'claysession=s%3AsydgrI74YLdGMrU8LWzQSmCv-IrJgDYg.FYCecoCtfmRICI19MVyPsTXRxlfUAfoeKSLns5ofeGw';
 const WORKSPACE_ID = '889252';
 const OUT_DIR = path.join(__dirname, 'discovery');
 
@@ -59,7 +59,7 @@ async function main() {
   // Set cookies
   await page.setCookie({
     name: 'claysession',
-    value: 's%3AoeHYspFaX_rWio-gNpEzJqU0orl2bpKO.7p7qhi2GBcQGunHh2w3OC8NwycWCkGMjDz0LEkLJxRQ',
+    value: 's%3AsydgrI74YLdGMrU8LWzQSmCv-IrJgDYg.FYCecoCtfmRICI19MVyPsTXRxlfUAfoeKSLns5ofeGw',
     domain: 'api.clay.com',
     path: '/',
     httpOnly: true,

@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from datetime import datetime
 
-SESSION_COOKIE = "s%3AoeHYspFaX_rWio-gNpEzJqU0orl2bpKO.7p7qhi2GBcQGunHh2w3OC8NwycWCkGMjDz0LEkLJxRQ"
+SESSION_COOKIE = "s%3AsydgrI74YLdGMrU8LWzQSmCv-IrJgDYg.FYCecoCtfmRICI19MVyPsTXRxlfUAfoeKSLns5ofeGw"
 WORKSPACE_ID = "889252"
 SEARCH_LIMIT = 50  # Clay preview API max (for full results use Puppeteer UI flow)
 
