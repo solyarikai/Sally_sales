@@ -112,44 +112,93 @@ After excluding red flags, rank remaining contacts by:
 - Clay: 0 credits (people without emails are free) — $0
 - GPT-4o-mini: binary flag detection on ~3,000-5,000 websites — ~$0.50-1.00
 
-### GPT-4o-mini — Binary Flag Detection (not scoring!)
+### Scoring Approach — Layered Via Negativa
 
-**What went wrong before**: Asked "rate fit 0-100" → GPT hallucinated (87% scored >=70). NEVER ask for numerical scores.
+The scoring pipeline uses 3 complementary layers to exclude bad fits. Each layer catches what the others miss. All data is cached in `/scripts/data/` (persistent across container restarts).
 
-**What works**: Ask BINARY YES/NO questions. GPT-4o-mini is excellent at classification when constrained.
+#### Layer 1: GPT-4o-mini Binary Flags (~$0.30 per 5,000 companies)
 
-**1 prompt (not 2)** — all questions about same website text, no need to split:
+Asks YES/NO questions about the company. NEVER numerical scores (87% hallucination rate when asked to "rate 0-100").
+
+**v8 prompt asks:**
+- `is_hq_in_{buyer_country}` — is this a UAE company?
+- `is_hq_in_{talent_country}` — is this a PK company?
+- `is_competitor` — does this company provide payroll/EOR/HR services?
+- `is_outsourcing_provider` — does this company sell outsourcing labor?
+- `is_construction_realestate_hospitality` — irrelevant industry?
+- `is_enterprise_300plus` — too big for EasyStaff?
+- `would_need_easystaff` — overall fit assessment
+
+**Where GPT works well:** industry classification, competitor detection, enterprise size.
+**Where GPT fails:** HQ location. GPT says "HQ=UAE" for PK companies that list a Dubai shelf office. This is GPT's #1 failure mode — it treats any UAE address as proof of UAE HQ.
+
+**Mitigation:** Layers 2 and 3 catch what GPT misses.
+
+#### Layer 2: Deterministic Regexp Detection (website text)
+
+Hard signal detection from cached website text (homepage + about/contact/team pages from deep scrape). These OVERRIDE GPT when GPT is wrong.
+
+**PK-HQ detection (catches GPT misses):**
+- PK street addresses: Gulberg, Johar Town, DHA Phase, Model Town, Shahrah-e-Faisal, etc.
+- PK phone numbers: `+92` or `03xx` patterns
+- PK company suffixes: "Pvt. Ltd", "Private Limited", "(Pvt)"
+- PK-specific phrases: "our team in Lahore", "development center in Karachi"
+- Rule: PK neighborhood/phone + tech/outsourcing industry = PK-HQ override
+
+**Competitor detection:**
+- Keywords: "employer of record", "EOR service", "payroll provider", "global payroll", "PEO service"
+
+**Non-UAE HQ detection:**
+- GPT `hq_country` field cross-checked with buyer country list
+- If GPT says HQ is US/UK/Poland/India/etc → hard exclude
+
+**False positive handling:**
+- City names in context matter: "california" as CEO's university ≠ company HQ
+- Country names in office lists: "locations: Hong Kong, Miami, Pakistan" = global company, not HK-HQ
+- Solution: regexp signals create HARD flags (addresses/phones), but bare city/country names are contextual
+
+#### Layer 3: Verified Exclusion List (manual review)
+
+Companies that pass Layers 1-2 but are known-bad from manual verification. These are PK companies whose homepage has zero PK signals AND GPT misclassifies as UAE-HQ.
+
+**Current list (15 domains):** SoftMind, WPExperts, Abhi, Inter-Prompt, Allomate, MNA Digital, Ovexbee, Daairah, Tech Digital, Greencore Beauty, Designersity, 3techno, Dynasoft, PXGEO, IKRA Global.
+
+**Why this list exists:** Some PK companies deliberately hide their PK origin on the homepage to appear as UAE companies. Their about/contact pages reveal PK addresses, but if the deep scrape hasn't covered them or the 3000-char limit truncated the PK signals, they leak through. This list is the safety net.
+
+**Growing the list:** After each scoring run, verify top 50 companies using cached data. Add any bad fits to the list.
+
+#### Scoring Formula (after all exclusions)
 
 ```
-Classify this company. Answer in JSON:
-{
-  "red_flags": {
-    "hq_in_{talent_country}": true/false,
-    "has_{talent_country}_office": true/false,
-    "is_construction_realestate": true/false,
-    "is_hospitality_tourism": true/false,
-    "is_enterprise_500plus": true/false
-  },
-  "green_flags": {
-    "mentions_outsourcing_bpo": true/false,
-    "mentions_contractors_freelancers": true/false,
-    "mentions_remote_teams": true/false,
-    "has_{talent_country}_workforce": true/false
-  },
-  "company_vertical": "tech|fintech|saas|staffing|outsourcing|...|other",
-  "what_they_do": "1 sentence",
-  "employee_estimate": number or null,
-  "reasoning": "1 sentence why they would/wouldn't need EasyStaff"
-}
+Score = origin(40%) + role(20%) + survived_filters(20%) + outsourcing_signal(10%) + clay(10%)
 ```
 
-**Why 1 prompt**: all questions reference the same website text. Splitting doubles cost for zero quality gain.
+- **Origin** (40%): Pakistani-origin decision-maker in UAE = primary hypothesis. Urdu speaker=100, PK university=90, PK surname=80.
+- **Role** (20%): CFO/Payroll=100, COO=90, HR=85, CEO/Founder=70, CTO=50.
+- **Survived filters** (20%): Binary — passed ALL 8 red flags = 100, ANY red flag = 0. `would_need_easystaff=false` applies -60 penalty (not hard exclude, because GPT can't validate cultural hypothesis).
+- **Outsourcing signal** (10%): Website mentions outsourcing/contractors/remote teams.
+- **Clay confirmation** (10%): 5-30 PK employees on LinkedIn = sweet spot (100), 0 = neutral (50), 100+ = enterprise (10).
 
-**Why binary works**: "Is this construction?" = YES for ALEC (keyword matching said "fintech" because "payment" appeared). No room for hallucination.
+#### Quality Results
 
-**Cost**: ~$0.0002/company. 5,000 companies = **$1.00**. 25 concurrent, ~2 min.
+| Iteration | Top 20 hit rate | Key fix |
+|-----------|----------------|---------|
+| v7 (keywords only) | 15% (3/20) | No HQ detection, no competitor filter |
+| v8 + GPT flags | 27% (4/15) | GPT added but misclassifies PK-HQ as UAE |
+| v8 + regexp override | 60% (12/20) | PK neighborhoods/phones catch GPT misses |
+| v8 + verified list | 90% (18/20) | Manual verification adds safety net |
+| v8 + final fixes | 100% (50/50) | Investment/enterprise exclusions, domain fixes |
 
-**Results cached** in `/tmp/{corridor}_v7_gpt_flags.json` — survives re-runs.
+#### Performance
+
+| Step | Time | Cost |
+|------|------|------|
+| GPT analysis (4,650 domains) | 14 min | $0.30 |
+| Deep scrape (1,000 domains × 3 pages) | ~80 min | $0 (Apify proxy) |
+| Scoring (all contacts) | 17 seconds | $0 |
+| Google Sheet write | 5 seconds | $0 |
+
+All results cached in `/scripts/data/`. Re-scoring with new weights/rules = 17 seconds, no API calls.
 
 ---
 
