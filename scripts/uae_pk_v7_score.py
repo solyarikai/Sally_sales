@@ -196,6 +196,10 @@ EXCLUDED_INDUSTRIES = {
     'events and exhibitions', 'event planning',
     'oil and gas', 'energy', 'aerospace',
     'sports', 'sports management', 'beauty', 'fashion',
+    'education', 'training', 'coaching',
+    'recruitment', 'recruitment consultancy', 'hr services',
+    'shipping', 'broadcast equipment',
+    'private equity',
 }
 
 
