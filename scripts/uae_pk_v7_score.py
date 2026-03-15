@@ -482,7 +482,9 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
                       'we process payroll', 'payroll for companies',
                       'outsourcing with trust', 'team augmentation for',
                       'outsourced staff', 'outsource your', 'staff augmentation provider',
-                      'expert outsourcing solutions']
+                      'expert outsourcing solutions',
+                      'tech recruitment & outsourcing', 'recruitment & outsourcing',
+                      'quantum outsourced', 'outsourcing services']
     if any(kw in full for kw in competitor_kws):
         is_competitor = True
 
@@ -701,8 +703,11 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
                                            'trade license', 'company setup', 'setup your company', 'setup your business',
                                            'start companies in uae', 'offshore uae free zone',
                                            'empresa en dubai', 'abrir empresa',
+                                           'business-setup', 'attestation visa service',
                                            'attestation, visa service', 'typing service',
                                            'entity incorporation',
+                                           'empresas en dub', 'empresa en dub',
+                                           'consultor\u00eda para empresas',
                                            'doc clearing', 'document clearing',
                                            'road safety', 'transport consultant',
                                            'buy business', 'sell business', 'business brokerage',
@@ -742,9 +747,11 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
                     'business community', 'leading community of ambitious',
                     'freelancer platform', 'hire freelancers', 'find freelancers',
                     'connecting professionals', 'matching platform', 'swipe, match',
+                    'browse talent', 'data professionals & businesses',
                     'sovereign ai', 'sovereign cloud', 'digital sovereignty',
                     'trusted by governments',
-                    'therapist', 'counselor', 'mental health support',
+                    'therapist', 'therapy', 'counselor', 'counselling', 'mental health support',
+                    'one-on-one therapy', 'corporate support mental health',
                     'index of /', 'buttons dont work', 'nothing to click']
     if any(kw in full for kw in personal_kws):
         result['red_flags'].append('placeholder_empty')
