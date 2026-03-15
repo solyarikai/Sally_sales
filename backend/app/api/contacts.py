@@ -702,43 +702,24 @@ async def get_filter_options(
 @router.get("/campaigns")
 async def get_campaigns_list(
     session: AsyncSession = Depends(get_session),
-    source: Optional[str] = Query(None, description="Filter by source: smartlead or getsales"),
+    source: Optional[str] = Query(None, description="Filter by source/platform: smartlead or getsales"),
 ):
-    """
-    Get list of unique campaign names for autocomplete.
-    """
-    # Query all contacts with platform_state containing campaigns
-    result = await session.execute(
-        select(Contact.platform_state).where(
-            and_(
-                Contact.platform_state.isnot(None),
-                Contact.deleted_at.is_(None)
-            )
-        )
+    """Get list of unique campaign names from campaigns table (fast, indexed)."""
+    from app.models.campaign import Campaign
+
+    query = select(Campaign.name, Campaign.platform).where(
+        Campaign.name.isnot(None),
+        Campaign.name != "",
     )
-    
-    # Extract unique campaign names from platform_state
-    campaigns_set = set()
-    for ps in result.scalars():
-        if not isinstance(ps, dict):
-            continue
-        for plat_name, plat_data in ps.items():
-            if not isinstance(plat_data, dict):
-                continue
-            for camp in plat_data.get("campaigns", []):
-                if not isinstance(camp, dict):
-                    continue
-                name = camp.get("name")
-                if name:
-                    if source is None or plat_name == source:
-                        campaigns_set.add((name, plat_name))
-    
-    # Sort and return
+    if source:
+        query = query.where(Campaign.platform == source)
+    query = query.distinct().order_by(Campaign.name)
+
+    result = await session.execute(query)
     campaigns = [
-        {"name": name, "source": src}
-        for name, src in sorted(campaigns_set, key=lambda x: x[0])
+        {"name": name, "source": platform}
+        for name, platform in result.all()
     ]
-    
     return {"campaigns": campaigns, "total": len(campaigns)}
 
 
