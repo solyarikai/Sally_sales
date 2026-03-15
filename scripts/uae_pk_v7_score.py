@@ -663,24 +663,17 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
         result['gpt_what_they_do'] = ''
         result['gpt_reasoning'] = ''
 
-    # ─── BUSINESS SETUP / VISA / RECRUITMENT DETECTION ─────────────
-    # GPT often labels these as "business services" or "consulting" which passes filters
-    visa_biz_kws = ['company formation', 'business setup', 'free zone', 'freezone setup',
-                    'pro services', 'visa services', 'work permit', 'residence visa',
-                    'trade license', 'mainland company', 'offshore company setup',
-                    'golden visa', 'investor visa', 'employment visa',
-                    'citizenship by investment', 'second passport', 'residency program']
-    if any(kw in full for kw in visa_biz_kws):
+    # ─── CITIZENSHIP / SECOND PASSPORT DETECTION ─────────────────────
+    # These are DEFINITELY not EasyStaff customers — they sell passports
+    citizenship_kws = ['citizenship by investment', 'second passport', 'residency program',
+                       'citizenship program', 'golden passport']
+    if any(kw in full for kw in citizenship_kws):
         result['red_flags'].append('irrelevant_industry')
-        result['negative_signals'].append('business setup/visa/citizenship (keyword)')
+        result['negative_signals'].append('citizenship/passport program (keyword)')
 
-    # Recruitment firms disguised as tech/consulting
-    recruit_kws = ['executive search', 'headhunting', 'talent acquisition firm',
-                   'recruitment agency', 'staffing firm', 'cv writing', 'resume writing',
-                   'we place candidates', 'hire right the first time']
-    if any(kw in full for kw in recruit_kws):
-        result['red_flags'].append('irrelevant_industry')
-        result['negative_signals'].append('recruitment firm (keyword)')
+    # NOTE: Business setup / visa services companies are NOT excluded.
+    # LEARNING: arassociates.ae (business setup) converted in 5 hours.
+    # These companies have their own remote teams. They're valid customers.
 
     # ─── FREELANCER / THIN WEBSITE DETECTION ─────────────────────────
     # Gmail/yahoo contact + minimal website = not a real company
