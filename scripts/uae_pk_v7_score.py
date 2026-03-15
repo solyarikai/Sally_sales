@@ -149,6 +149,26 @@ VERIFIED_EXCLUDE = {
     'dynasoftcloud.com',  # PK phone +92 on contact page, Lahore/Karachi offices
     'pxgeo.com',          # Enterprise 400+ employees, marine geophysics (in-house payroll)
     'ikragcae.com',       # HR recruitment + migration services = competitor-adjacent
+    # v8 round 2: verified from 100-company review
+    'sasventure.co',      # PK phone +92 3432991910 on homepage — PK-HQ
+    'crystalchemicals.ae',# Pharma API importer/distributor — wrong industry
+    'burkshipping.com',   # Logistics with "offices in Dubai/Sharjah and Pakistan" — PK-HQ
+    'greatlinklogistics.com', # Shipping with Dubai/Karachi/Lahore offices — PK-HQ
+    'alphaedits.com',     # Gmail contact, wedding photo editing freelancer — not a company
+    'alifinvestments.com',# Shariah investment group with restaurants — food/retail
+    'nexus-uae.com',      # Business setup/company formation/visa services
+    'v-linksolutions.com',# Visa/immigration services (student visa, work permits)
+    'gatetrips.com',      # Travel booking agency
+    'yafaint.com',        # Garment/textile supplier — manufacturing
+    'sarie.ae',           # Business setup/PRO/visa services
+    'bizdaddy.ae',        # Business setup/freezone/corporate banking
+    'jlx-international.com', # Oil & gas services (drilling, ESP) with PK office
+    'westasiawatch.com',  # News publication — media outlet, not a company
+    'eandenterprise.com', # e& enterprise = Etisalat subsidiary, massive enterprise
+    'saatchi.com',        # Saatchi & Saatchi = Publicis Groupe, global enterprise
+    'fintaxonline.com',   # Business setup/accounting/tax services
+    'ogilvy.com',         # Ogilvy = WPP Group, global enterprise
+    'ghalibconsulting.com', # Saudi-focused (+966 phone), financial advisory not tech
 }
 
 BLACKLIST_DOMAINS = {
@@ -200,6 +220,10 @@ EXCLUDED_INDUSTRIES = {
     'recruitment', 'recruitment consultancy', 'hr services',
     'shipping', 'broadcast equipment',
     'private equity',
+    # v8 round 2
+    'business setup', 'company formation', 'visa services', 'immigration',
+    'news', 'news media', 'journalism',
+    'garments', 'textiles', 'workwear',
 }
 
 
