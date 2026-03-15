@@ -130,7 +130,7 @@ async def call_openai(client, prompt, api_key):
         raise Exception(f"OpenAI {resp.status_code}: {resp.text[:200]}")
 
 
-async def call_gemini(client, prompt, api_key, model='gemini-2.0-flash-001'):
+async def call_gemini(client, prompt, api_key, model='gemini-2.5-flash'):
     resp = await client.post(
         f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}',
         headers={'Content-Type': 'application/json'},
@@ -138,15 +138,18 @@ async def call_gemini(client, prompt, api_key, model='gemini-2.0-flash-001'):
             'contents': [{'parts': [{'text': prompt}]}],
             'generationConfig': {
                 'temperature': 0.1,
-                'maxOutputTokens': 400,
+                'maxOutputTokens': 600,
                 'responseMimeType': 'application/json',
             },
         },
-        timeout=30.0,
+        timeout=60.0,
     )
     if resp.status_code == 200:
         data = resp.json()
-        return data['candidates'][0]['content']['parts'][0]['text'].strip()
+        text = data['candidates'][0]['content']['parts'][0]['text'].strip()
+        if os.environ.get('DEBUG'):
+            print(f"    Gemini raw: {text[:150]}")
+        return text
     elif resp.status_code == 429:
         return None
     else:
