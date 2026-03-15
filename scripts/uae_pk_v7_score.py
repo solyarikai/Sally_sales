@@ -1233,9 +1233,27 @@ def run_corridor(corridor_name, sheets):
         if comp_flags & hard_exclude_flags:
             excluded_companies += 1
             continue
-        # would_need_easystaff=False is a PENALTY in scoring, not a selection gate.
-        # GPT can't validate the cultural hypothesis (PK-origin = likely PK contractors)
-        # and says "no need" for 89% of companies — too aggressive as a gate.
+        # would_need_easystaff=False: use as hard gate ONLY for non-tech industries.
+        # For tech/digital/consulting companies, the cultural hypothesis (PK-origin =
+        # likely PK contractors) is valid even when GPT says "no need" from website alone.
+        # For non-tech industries (events, training, food, shipping), "no need" is reliable.
+        TECH_WHITELIST = {
+            'tech', 'technology', 'saas', 'software', 'software development',
+            'it services', 'digital marketing', 'digital_agency', 'digital agency',
+            'outsourcing', 'consulting', 'consultancy', 'fintech',
+            'data and digital marketing analytics', 'cybersecurity',
+            'software quality assurance', 'ai', 'ai_ml',
+            'marketing', 'marketing and communications', 'creative agency',
+            'business services', 'professional services',
+            'language services', 'editing services', 'media', 'design',
+            'insurtech', 'pharmaceuticals', 'healthcare',
+            'logistics', 'data services', 'market research',
+        }
+        gpt_vert = (comp['analysis'].get('industry') or '').lower()
+        gpt_no_need = comp['analysis'].get('would_need_easystaff') is False
+        if gpt_no_need and gpt_vert not in TECH_WHITELIST:
+            excluded_companies += 1
+            continue
         # Skip companies without domain — can't verify anything about them
         if not comp['domain']:
             excluded_companies += 1
