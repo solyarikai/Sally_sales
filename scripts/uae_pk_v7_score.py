@@ -331,7 +331,9 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
                         'bahria town', 'askari', 'cantt', 'saddar',
                         'university road', 'mall road', 'liberty',
                         'daftarkhwan', 'arfa tower', 'nust', 'lums',
-                        'national incubation center', 'plan9']
+                        'national incubation center', 'plan9',
+                        'garden town', 'new garden town', 'faisal town',
+                        'township', 'wapda town', 'iqbal town', 'sabzazar']
     ph_neighborhoods = ['makati', 'bgc', 'bonifacio', 'quezon city', 'ortigas',
                         'alabang', 'eastwood', 'ayala', 'pasig city', 'taguig city']
     sa_neighborhoods = ['sandton', 'rosebank', 'bryanston', 'woodmead', 'midrand',
