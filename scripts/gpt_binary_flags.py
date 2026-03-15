@@ -73,23 +73,23 @@ DOMAIN: {domain}
 WEBSITE TEXT:
 {text[:2000]}
 
-Answer ONLY in valid JSON:
+Answer ONLY in valid JSON with these exact keys. Use true, false, null, strings, or numbers as values:
 {{
-  "hq_country": "the country where this company is headquartered (not branch offices)",
-  "is_hq_in_{buyer_key}": true/false,
-  "is_hq_in_{talent_key}": true/false,
-  "is_competitor": true/false,
-  "competitor_reason": "null or: payroll_provider / eor_provider / hr_outsourcing / staffing_agency",
-  "is_outsourcing_provider": true/false,
-  "is_construction_realestate_hospitality": true/false,
-  "is_enterprise_300plus": true/false,
-  "has_{talent_key}_workforce": true/false,
-  "mentions_outsourcing_contractors": true/false,
-  "company_vertical": "tech|fintech|saas|staffing|outsourcing|consulting|digital_agency|ecommerce|healthcare|logistics|trading|manufacturing|food|investment|other",
+  "hq_country": "country name",
+  "is_hq_in_{buyer_key}": false,
+  "is_hq_in_{talent_key}": false,
+  "is_competitor": false,
+  "competitor_reason": null,
+  "is_outsourcing_provider": false,
+  "is_construction_realestate_hospitality": false,
+  "is_enterprise_300plus": false,
+  "has_{talent_key}_workforce": false,
+  "mentions_outsourcing_contractors": false,
+  "company_vertical": "other",
   "what_they_do": "1 sentence",
   "employee_estimate": null,
-  "would_need_easystaff": true/false,
-  "reasoning": "1 sentence why they would or would NOT need EasyStaff"
+  "would_need_easystaff": false,
+  "reasoning": "1 sentence"
 }}"""
 
 
