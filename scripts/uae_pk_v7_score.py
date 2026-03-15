@@ -733,7 +733,8 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     # If the website title or first 200 chars is about VAT/tax/accounting
     if any(kw in setup_surface for kw in ['vat in uae', 'tax in uae', 'accounting in dubai',
                                            'tax consultancy', 'corporate tax']):
-        if gpt_vert_lower not in ('technology', 'fintech', 'saas'):
+        gv = (gpt_flags.get('company_vertical') or '').lower() if gpt_flags else ''
+        if gv not in ('technology', 'fintech', 'saas'):
             result['red_flags'].append('irrelevant_industry')
             result['negative_signals'].append('primary business: VAT/tax/accounting')
 
