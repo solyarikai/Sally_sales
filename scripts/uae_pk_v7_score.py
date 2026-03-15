@@ -189,7 +189,8 @@ EXCLUDED_INDUSTRIES = {
     'construction', 'real_estate', 'hospitality', 'interior_design',
     'food', 'trading', 'manufacturing', 'retail',
     # Regulated/institutional — have in-house everything
-    'insurance', 'banking', 'legal services', 'law',
+    'insurance', 'banking', 'legal services', 'legal', 'law',
+    'government', 'public sector',
     # Non-tech services
     'car rental', 'transportation', 'automotive',
     'events and exhibitions', 'event planning',
