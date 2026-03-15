@@ -2140,25 +2140,12 @@ async def get_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Contact count
-    if project.campaign_filters and len(project.campaign_filters) > 0:
-        cf_parts = " OR ".join(
-            f"contacts.platform_state::text ILIKE :pcf_{i}" for i in range(len(project.campaign_filters))
+    # Contact count — use project_id index (fast)
+    count_result = await session.execute(
+        select(func.count()).where(
+            and_(Contact.project_id == project.id, Contact.deleted_at.is_(None))
         )
-        cf_params = {f"pcf_{i}": f"%{cf}%" for i, cf in enumerate(project.campaign_filters)}
-        count_result = await session.execute(
-            sql_text(f"""
-                SELECT COUNT(DISTINCT id) FROM contacts
-                WHERE deleted_at IS NULL
-                AND (project_id = :pid OR ({cf_parts}))
-            """).bindparams(pid=project.id, **cf_params)
-        )
-    else:
-        count_result = await session.execute(
-            select(func.count()).where(
-                and_(Contact.project_id == project.id, Contact.deleted_at.is_(None))
-            )
-        )
+    )
     contact_count = count_result.scalar() or 0
 
     return ProjectResponse(
