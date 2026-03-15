@@ -144,7 +144,7 @@ VERIFIED_EXCLUDE = {
     'daairah.com',        # PK-HQ creative agency (PK phone on homepage)
     'techdigital.biz',    # PK-HQ (Model Town Lahore address + PK phone)
     'greencorebeauty.com', # PK-HQ (DHA Phase address, subsidiaries in Karachi/Lahore/Islamabad)
-    'designersity.com',   # India-based (Mumbai)
+    'designersity.com', 'designersity.ae',  # India-based (Mumbai in about page)
     '3techno.com',        # 3000 PK employees = enterprise, likely PK operations center
 }
 
