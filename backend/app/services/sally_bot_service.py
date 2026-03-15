@@ -184,8 +184,10 @@ class SallyBotService:
                 break
 
         async with async_session_maker() as session:
-            await self._ensure_chat(chat_id, chat.get("title"), chat_type, session)
+            # Ensure chat exists (separate commit to avoid autoflush conflicts)
+            await self._ensure_chat(chat_id, chat.get("title"), chat_type)
 
+            # Store message + update counter in one transaction
             chat_msg = TelegramChatMessage(
                 chat_id=chat_id,
                 message_id=msg.get("message_id"),
@@ -199,6 +201,7 @@ class SallyBotService:
                 raw_data=msg,
             )
             session.add(chat_msg)
+            await session.flush()
 
             result = await session.execute(
                 select(TelegramChat).where(TelegramChat.chat_id == chat_id)
