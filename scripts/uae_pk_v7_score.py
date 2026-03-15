@@ -1461,20 +1461,20 @@ def run_corridor(corridor_name, sheets):
     print(f"  Selected: {len(selected)} contacts")
 
     # ─── PHASE 4: WRITE TO GOOGLE SHEET ────────────────────────────────
-    print(f"\n[Phase 4] Writing to Google Sheet...")
+    # NEVER overwrite existing tabs. Always create NEW tab with timestamp.
+    import datetime
+    ts = datetime.datetime.now().strftime('%m%d_%H%M')
+    actual_tab = f"{output_tab} {ts}"
+    print(f"\n[Phase 4] Writing to NEW tab: '{actual_tab}'...")
     try:
-        sheets.spreadsheets().values().clear(
+        sheets.spreadsheets().batchUpdate(
             spreadsheetId=SHEET_ID,
-            range=f"'{output_tab}'!A1:Z3000"
+            body={'requests': [{'addSheet': {'properties': {'title': actual_tab,
+                  'gridProperties': {'rowCount': max(2500, len(selected) + 100)}}}}]}
         ).execute()
-    except Exception:
-        try:
-            sheets.spreadsheets().batchUpdate(
-                spreadsheetId=SHEET_ID,
-                body={'requests': [{'addSheet': {'properties': {'title': output_tab}}}]}
-            ).execute()
-        except Exception:
-            pass
+    except Exception as e:
+        print(f"  Warning: could not create tab '{actual_tab}': {e}")
+        actual_tab = output_tab  # fallback but should not happen
 
     header = [
         'Rank', 'First Name', 'Last Name', 'Email', 'Title', 'Role Tier',
@@ -1500,13 +1500,18 @@ def run_corridor(corridor_name, sheets):
         end = start + len(batch) - 1
         sheets.spreadsheets().values().update(
             spreadsheetId=SHEET_ID,
-            range=f"'{output_tab}'!A{start}:T{end}",
+            range=f"'{actual_tab}'!A{start}:T{end}",
             valueInputOption='RAW',
             body={'values': batch}
         ).execute()
         print(f"    Wrote rows {start}-{end}")
 
-    # Save JSON
+    # Save JSON — backup previous version first
+    if os.path.exists(scored_json):
+        backup = scored_json.replace('.json', f'_backup_{ts}.json')
+        import shutil
+        shutil.copy2(scored_json, backup)
+        print(f"  Backed up previous scored to: {backup}")
     with open(scored_json, 'w') as f:
         json.dump(selected, f, indent=2, ensure_ascii=False)
 
@@ -1563,7 +1568,7 @@ def run_corridor(corridor_name, sheets):
         print(f"  {k:<20}: {v}")
 
     print(f"\nFiles:")
-    print(f"  Sheet: '{output_tab}'")
+    print(f"  Sheet: '{actual_tab}'")
     print(f"  Analysis CSV: {analysis_csv}")
     print(f"  Scored JSON: {scored_json}")
     print(f"  Sheet URL: https://docs.google.com/spreadsheets/d/{SHEET_ID}")
