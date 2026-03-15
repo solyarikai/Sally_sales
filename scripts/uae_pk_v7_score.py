@@ -57,7 +57,11 @@ from googleapiclient.discovery import build
 SHEET_ID = '1pivHqk1NI-MHdDFSQugfg5olBMKTkBGr_yyjjXlWqKU'
 SCRAPE_CACHE = '/tmp/uae_pk_v6_scrape.json'
 DEEP_SCRAPE_CACHE = '/tmp/deep_scrape_v7.json'
-CLAY_EXPORTS_DIR = os.path.expanduser('~/magnum-opus-project/repo/scripts/clay/exports')
+# Works in Docker (/scripts/) and on host (~/magnum-opus-project/repo/scripts/)
+CLAY_EXPORTS_DIR = (
+    '/scripts/clay/exports' if os.path.isdir('/scripts/clay/exports')
+    else os.path.expanduser('~/magnum-opus-project/repo/scripts/clay/exports')
+)
 
 
 def corridor_files(corridor_name):
