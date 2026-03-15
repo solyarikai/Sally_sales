@@ -25,8 +25,10 @@ import time
 if os.path.isdir('/app') and '/app' not in sys.path:
     sys.path.insert(0, '/app')
 
-CACHE_FILE = '/tmp/deep_scrape_v7.json'
-SCRAPE_CACHE = '/tmp/uae_pk_v6_scrape.json'
+# Persistent storage: /scripts/data/ survives container restarts
+_DATA_DIR = '/scripts/data' if os.path.isdir('/scripts/data') else '/tmp'
+CACHE_FILE = f'{_DATA_DIR}/deep_scrape_v7.json'
+SCRAPE_CACHE = f'{_DATA_DIR}/uae_pk_v6_scrape.json' if os.path.exists(f'/scripts/data/uae_pk_v6_scrape.json') else '/tmp/uae_pk_v6_scrape.json'
 
 PAGE_PATHS = {
     'homepage': [''],

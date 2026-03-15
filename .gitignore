@@ -39,3 +39,4 @@ scripts/*.json
 # Stale artifacts
 bugs/
 screenshots/
+scripts/data/

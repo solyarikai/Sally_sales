@@ -25,8 +25,10 @@ import time
 if os.path.isdir('/app') and '/app' not in sys.path:
     sys.path.insert(0, '/app')
 
-SCRAPE_CACHE = '/tmp/uae_pk_v6_scrape.json'
-DEEP_SCRAPE_CACHE = '/tmp/deep_scrape_v7.json'
+# Persistent storage: /scripts/data/ survives container restarts (mounted from repo)
+DATA_DIR = '/scripts/data' if os.path.isdir('/scripts/data') else '/tmp'
+SCRAPE_CACHE = f'{DATA_DIR}/uae_pk_v6_scrape.json' if os.path.exists(f'/scripts/data/uae_pk_v6_scrape.json') else '/tmp/uae_pk_v6_scrape.json'
+DEEP_SCRAPE_CACHE = f'{DATA_DIR}/deep_scrape_v7.json' if os.path.exists(f'/scripts/data/deep_scrape_v7.json') else '/tmp/deep_scrape_v7.json'
 
 CORRIDOR_PARAMS = {
     'uae-pakistan': {
@@ -201,7 +203,7 @@ async def main():
         else:
             i += 1
 
-    cache_file = f'/tmp/{slug}_v8_gpt_flags.json'
+    cache_file = f'{DATA_DIR}/{slug}_v8_gpt_flags.json'
     print(f"Model: {model_name} | Corridor: {corridor} | Cache: {cache_file}")
 
     # Load cache

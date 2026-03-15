@@ -55,8 +55,10 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 SHEET_ID = '1pivHqk1NI-MHdDFSQugfg5olBMKTkBGr_yyjjXlWqKU'
-SCRAPE_CACHE = '/tmp/uae_pk_v6_scrape.json'
-DEEP_SCRAPE_CACHE = '/tmp/deep_scrape_v7.json'
+# Persistent storage: /scripts/data/ survives container restarts
+DATA_DIR = '/scripts/data' if os.path.isdir('/scripts/data') else '/tmp'
+SCRAPE_CACHE = f'{DATA_DIR}/uae_pk_v6_scrape.json' if os.path.exists(f'/scripts/data/uae_pk_v6_scrape.json') else '/tmp/uae_pk_v6_scrape.json'
+DEEP_SCRAPE_CACHE = f'{DATA_DIR}/deep_scrape_v7.json' if os.path.exists(f'/scripts/data/deep_scrape_v7.json') else '/tmp/deep_scrape_v7.json'
 # Works in Docker (/scripts/) and on host (~/magnum-opus-project/repo/scripts/)
 CLAY_EXPORTS_DIR = (
     '/scripts/clay/exports' if os.path.isdir('/scripts/clay/exports')
@@ -66,10 +68,11 @@ CLAY_EXPORTS_DIR = (
 
 def corridor_files(corridor_name):
     slug = corridor_name.replace('-', '_')
+    data_dir = '/scripts/data' if os.path.isdir('/scripts/data') else '/tmp'
     return {
-        'analysis_csv': f'/tmp/{slug}_v8_company_analysis.csv',
-        'scored_json': f'/tmp/{slug}_v8_scored.json',
-        'gpt_flags': f'/tmp/{slug}_v8_gpt_flags.json',
+        'analysis_csv': f'{data_dir}/{slug}_v8_company_analysis.csv',
+        'scored_json': f'{data_dir}/{slug}_v8_scored.json',
+        'gpt_flags': f'{data_dir}/{slug}_v8_gpt_flags.json',
     }
 
 
