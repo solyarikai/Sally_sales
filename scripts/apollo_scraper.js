@@ -64,32 +64,45 @@ async function login(page) {
 async function scrapeCurrentPage(page) {
   return page.evaluate(() => {
     const rows = [];
-    // Apollo renders a table of contacts
-    const tableRows = document.querySelectorAll('tr[class*="zp_"]');
-    for (const row of tableRows) {
-      const cells = row.querySelectorAll('td');
-      if (cells.length < 3) continue;
+    // Apollo uses role="gridcell" with aria-rowindex for each contact row
+    // Each contact has: name link, title, company link, location
+    const nameLinks = document.querySelectorAll('a[data-to*="/people/"]');
 
-      // Extract text from each cell
-      const nameEl = cells[0]?.querySelector('a[href*="/people/"]') || cells[0];
-      const name = nameEl?.textContent?.trim() || '';
+    for (const nameLink of nameLinks) {
+      const name = nameLink.textContent?.trim() || '';
+      if (!name || name.length < 2) continue;
 
-      const titleEl = cells[1] || cells[2];
-      const title = titleEl?.textContent?.trim() || '';
+      // Walk up to find the row container
+      const rowCell = nameLink.closest('[role="gridcell"]');
+      const rowIndex = rowCell?.getAttribute('aria-rowindex');
 
-      const companyEl = cells[2]?.querySelector('a') || cells[3]?.querySelector('a');
-      const company = companyEl?.textContent?.trim() || '';
+      // Find other cells in the same row by aria-rowindex
+      let title = '', company = '', location = '', linkedin = '';
 
-      // Try to find more details
-      const locationEl = cells[4] || cells[5];
-      const location = locationEl?.textContent?.trim() || '';
+      if (rowIndex !== null) {
+        const allCells = document.querySelectorAll(`[role="gridcell"][aria-rowindex="${rowIndex}"]`);
+        for (const cell of allCells) {
+          const colIdx = parseInt(cell.getAttribute('aria-colindex'));
+          const text = cell.textContent?.trim() || '';
 
-      const linkedinEl = row.querySelector('a[href*="linkedin.com"]');
-      const linkedin = linkedinEl?.href || '';
-
-      if (name && name.length > 1) {
-        rows.push({ name, title, company, location, linkedin });
+          if (colIdx === 2) title = text; // Title column
+          if (colIdx === 3) {
+            // Company column — get link text
+            const companyLink = cell.querySelector('a');
+            company = companyLink?.textContent?.trim() || text;
+          }
+          if (colIdx === 5) location = text; // Location column
+        }
       }
+
+      // Fallback: extract from surrounding text
+      if (!title) {
+        const parent = nameLink.closest('[data-testid="contact-name-cell"]')?.parentElement;
+        const nextSibling = parent?.nextElementSibling;
+        title = nextSibling?.textContent?.trim() || '';
+      }
+
+      rows.push({ name, title, company, location, linkedin });
     }
     return rows;
   });
@@ -119,25 +132,27 @@ async function getPageInfo(page) {
 
 async function clickNextPage(page) {
   const clicked = await page.evaluate(() => {
-    // Find "next" button in pagination
-    const buttons = document.querySelectorAll('button, a');
+    // Apollo pagination: find button with aria-label containing "next" or "right"
+    const buttons = document.querySelectorAll('button');
     for (const btn of buttons) {
-      const text = btn.textContent.trim().toLowerCase();
       const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-      if (text === '›' || text === 'next' || ariaLabel.includes('next')) {
+      if (ariaLabel.includes('next') || ariaLabel.includes('right-page')) {
         if (!btn.disabled) {
           btn.click();
           return true;
         }
       }
     }
-    // Try clicking the chevron/arrow icon for next page
-    const nextIcons = document.querySelectorAll('[class*="right"], [class*="next"], [class*="chevron"]');
-    for (const icon of nextIcons) {
-      const parent = icon.closest('button') || icon.closest('a');
-      if (parent && !parent.disabled) {
-        parent.click();
+    // Fallback: find pagination buttons, click the one after "active"
+    const pageButtons = document.querySelectorAll('[class*="pagination"] button, [class*="Pagination"] button');
+    let foundActive = false;
+    for (const btn of pageButtons) {
+      if (foundActive && !btn.disabled) {
+        btn.click();
         return true;
+      }
+      if (btn.getAttribute('aria-current') === 'page' || btn.classList.contains('active')) {
+        foundActive = true;
       }
     }
     return false;
