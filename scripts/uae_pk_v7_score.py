@@ -195,29 +195,17 @@ ANTI_TITLES = ['intern', 'student', 'freelanc', 'looking for', 'seeking',
                'virtual assistant', 'receptionist', 'driver', 'security guard',
                'cleaner', 'waiter', 'cashier']
 
-# Industries that DEFINITELY don't use remote tech contractors — hard exclusion
-# Be precise: "finance" would kill Ghalib Consulting (verified GOOD), so exclude
-# only the specific sub-industries that are clearly wrong.
+# Hard-excluded industries — ONLY physically-impossible-remote.
+# LEARNING: Real estate, retail, pet companies ACTUALLY CONVERTED.
+# Any company can have remote contractors for marketing/admin/dev.
+# Only exclude where remote work is physically impossible.
 EXCLUDED_INDUSTRIES = {
-    # Physical/manual industries
-    'construction', 'real_estate', 'hospitality', 'interior_design',
-    'food', 'trading', 'manufacturing', 'retail',
-    # Regulated/institutional — have in-house everything
-    'insurance', 'banking', 'legal services', 'legal', 'law',
+    # Physical on-site work only
+    'construction', 'hospitality',
+    # Heavy industry (rigs, plants, mines)
+    'oil and gas', 'mining',
+    # Government (regulated procurement, won't use EasyStaff)
     'government', 'public sector',
-    # Non-tech services
-    'car rental', 'transportation', 'automotive',
-    'events and exhibitions', 'event planning',
-    'oil and gas', 'energy', 'aerospace',
-    'sports', 'sports management', 'beauty', 'fashion',
-    'education', 'training', 'coaching',
-    'recruitment', 'recruitment consultancy', 'hr services',
-    'shipping', 'broadcast equipment',
-    'private equity',
-    # v8 round 2
-    'business setup', 'company formation', 'visa services', 'immigration',
-    'news', 'news media', 'journalism',
-    'garments', 'textiles', 'workwear',
 }
 
 

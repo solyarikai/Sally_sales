@@ -1,85 +1,109 @@
-# EasyStaff Global — Scoring Pipeline Documentation
+# EasyStaff Global — Scoring & Prioritization Pipeline
 
 ## Data Flow
 
 ```
-Clay People Search (language/university/surname searches)
+Clay People Search (language/university/surname)
     ↓
-Google Sheet "UAE-Pakistan" tab (ALL gathered contacts, 15,867)
+"UAE-Pakistan" tab (ALL gathered contacts, 15,867)
     ↓
-CRM loads SmartLead + GetSales contacts, filters out already-contacted
+CRM filters out already-contacted
     ↓
-Google Sheet "UAE-Pakistan - New Only" tab (clean pool, 15,369)
+"UAE-Pakistan - New Only" (clean pool, 15,369)
     ↓
-Scoring pipeline reads from "New Only", writes to NEW tab "v8 Scored"
+Scoring pipeline → NEW output tab "v8 Scored"
 ```
 
-## What Each Tab Contains
+## Tab Structure — NEVER OVERWRITE
 
-| Tab | Contents | Row count | Use |
-|-----|----------|-----------|-----|
-| `UAE-Pakistan` | ALL contacts gathered from Clay | 15,867 | Source of truth — never modify |
-| `UAE-Pakistan - New Only` | All minus 498 already contacted | 15,369 | **Scoring input** |
-| `Sheet2` | UNIQUE(Domain) from all corridors | 7,900 | Reference — domain inventory |
-| `UAE-Pakistan v8 Scored` | Scoring output | variable | **Pipeline output** — always create NEW tab |
-| `UAE-Pakistan Priority 2000` | Old output (DO NOT overwrite) | 2,100 | Legacy — operator may reference |
+| Tab | What | Use |
+|-----|------|-----|
+| `UAE-Pakistan` | ALL contacts from Clay | Source of truth, never modify |
+| `UAE-Pakistan - New Only` | Minus 498 already contacted | **Scoring input** |
+| `Sheet2` | UNIQUE(Domain) = 7,602 domains | Domain inventory |
+| `UAE-Pakistan v8 Scored` | Pipeline output | Always create NEW tabs |
 
-## ICP Definition — Who We're Looking For
+## ICP — Who We're Looking For
 
-EasyStaff helps companies in UAE pay remote contractors in Pakistan.
+EasyStaff helps companies pay remote contractors cross-border.
 
-**Ideal contact:**
-1. **Person**: Pakistani-origin (Urdu speaker / PK university / PK surname) decision-maker
-2. **Located in**: Dubai / Abu Dhabi / Sharjah / UAE (NOT in Pakistan, India, etc.)
-3. **Role**: CFO, COO, HR Director, CEO/Founder, CTO (decision-maker for payments)
-4. **Company HQ**: UAE (NOT Pakistan — PK companies pay locally, don't need EasyStaff)
-5. **Company size**: 5-200 employees (too small = no contractors, too big = in-house payroll)
-6. **Company type**: Tech, consulting, digital agency, SaaS, fintech, outsourcing BUYER
-7. **NOT**: PK-HQ company with Dubai shelf office, competitor (payroll/EOR provider), enterprise
+**Ideal contact for UAE-Pakistan corridor:**
+1. Pakistani-origin decision-maker located in UAE
+2. Company HQ in UAE (NOT PK-HQ with Dubai shelf office)
+3. Any industry that uses remote contractors (NOT only tech — retail, real estate, services all qualify)
+4. Company size 5-200
+5. Not a competitor (payroll/EOR), not enterprise (300+)
 
-## The Core Challenge
+**LEARNING FROM QUALIFIED LEADS:** Real estate company (Block Realty), pet companies (Petzyo, Central Park Puppies), glass hardware (IGT) all converted. Industry exclusion must be NARROW — only exclude industries that physically can't use remote workers (construction sites, hotels, oil rigs).
 
-Contractors are INVISIBLE. They don't list the company on LinkedIn. Companies don't advertise contractor relationships. Clay and website scraping can't confirm "this company has PK contractors."
+## Scoring Approach — Layered Via Negativa
 
-**Solution: Via Negativa** — score by EXCLUDING bad fits, not confirming good ones.
+Remove all obvious shit CHEAPLY first (regexp/keywords), then use GPT only for what's left.
 
-The cultural hypothesis: Pakistani-origin decision-maker in UAE → likely has contractors from home country. This can't be validated before outreach. It IS the outreach.
+### Layer 0: Cheap Deterministic Filters (FREE, instant)
 
-## 3-Layer Exclusion System
+Run BEFORE any GPT/scraping. Removes ~40% of contacts.
 
-### Layer 1: GPT-4o-mini Binary Flags ($0.30 per 5,000 companies)
+1. **No domain** → drop (can't verify, 37% of contacts)
+2. **Location not in buyer country** → drop (contact in Pakistan/India = not our target)
+3. **Enterprise blacklist** → drop (FAANG, Big4, airlines, banks, global agencies)
+4. **Anti-title** → drop (intern, student, freelancer, driver, receptionist)
+5. **Domain count >10** → drop (10+ contacts at same domain = enterprise)
+6. **Clay 100+ employees** → drop (enterprise, has in-house payroll)
+7. **.pk domain** → drop (PK company)
 
-One prompt per company, asks YES/NO questions on website text. NEVER numerical scores.
+### Layer 1: Website Scraping (FREE, Apify proxy)
 
-**Fields:**
-- `hq_country` — where company is headquartered
-- `is_hq_in_uae` / `is_hq_in_pakistan` — binary HQ check
-- `is_competitor` — provides payroll/EOR/HR services?
+Scrape homepage. Cache in `/scripts/data/uae_pk_v6_scrape.json` (10,638 domains).
+
+**What to detect from website text (regexp, no GPT needed):**
+- PK-HQ: street addresses (Gulberg, Johar Town, DHA Phase, etc.) + tech industry
+- PK phone: `+92`, `03xx`, `92xxxxxxxxxx`
+- PK company: "Pvt. Ltd", "Private Limited"
+- Competitor: "employer of record", "payroll provider", "EOR service"
+- Business setup/visa: "company formation", "trade license", "golden visa"
+- Recruitment: "executive search", "headhunting", "CV writing"
+- Citizenship: "citizenship by investment", "second passport"
+- Placeholder: "coming soon", "lorem ipsum", <100 chars
+- Gmail + thin site: freelancer, not a company
+
+### Layer 2: GPT-4o-mini Binary Flags ($0.30 per 5,000)
+
+Run only on domains that passed Layer 0+1 and have website text.
+
+**Prompt asks:**
+- `hq_country` — where is HQ?
+- `is_hq_in_uae` / `is_hq_in_pakistan` — binary
+- `is_competitor` — payroll/EOR/HR provider?
 - `is_outsourcing_provider` — sells outsourcing labor?
-- `is_construction_realestate_hospitality` — irrelevant industry?
 - `is_enterprise_300plus` — too big?
-- `would_need_easystaff` — overall fit (used as penalty for non-tech, NOT hard gate)
+- `is_construction_realestate_hospitality` — hard-excluded industries only
+- `would_need_easystaff` — overall fit (penalty signal, NOT hard gate)
 - `company_vertical` — industry classification
 
-**GPT's #1 failure mode:** Says `is_hq_in_uae=True` for PK companies that list a Dubai address. Layers 2 and 3 catch this.
+**GPT's known failure:** Says `is_hq_in_uae=True` for PK companies with Dubai shelf office. Layer 1 regexp catches this.
 
-### Layer 2: Deterministic Regexp (website text)
-
-Runs on cached website text. Overrides GPT when GPT is wrong.
-
-**PK-HQ detection (combined with tech industry = PK-HQ override):**
-- PK street addresses: Gulberg, Johar Town, DHA Phase, Model Town, Shahrah-e-Faisal, etc.
-- PK phone numbers: `+92` or `03xx` patterns
-- PK company suffixes: "Pvt. Ltd", "Private Limited"
-- PK-specific phrases: "our team in Lahore", "development center in Karachi"
-
-**Non-buyer-country HQ:** GPT `hq_country` not matching UAE → hard exclude
-
-**Competitor keywords:** "employer of record", "payroll provider", etc.
+**GPT's known limitation:** Says `would_need_easystaff=False` for 89% of companies. Can't validate cultural hypothesis (PK-origin person → likely PK contractors). Used as penalty for non-tech industries, not as gate.
 
 ### Layer 3: Verified Exclusion List
 
-Companies that pass Layers 1-2 but are known-bad from manual verification. PK companies whose homepage hides PK origin. Currently 15 domains.
+Only for companies where GPT says `would_need=True` but the company is clearly wrong (GPT misclassification). Currently 5 domains. Algorithm catches 14/19 automatically.
+
+## Excluded Industries — NARROW LIST
+
+**LEARNING: Keep the exclusion list NARROW.** Real estate, retail, and pet companies actually converted. Only exclude industries where remote contractors are physically impossible.
+
+**Hard exclude:**
+- Construction (physical site work)
+- Hospitality (hotels, restaurants — on-site staff)
+- Oil & gas (rig work)
+- Aerospace (regulated, security-cleared)
+
+**Soft exclude (via GPT would_need + non-tech whitelist):**
+- Everything else goes through GPT. If GPT says `would_need=False` AND industry is not in tech whitelist → excluded from selection.
+
+**Tech whitelist (cultural hypothesis applies):**
+tech, technology, saas, software, it services, digital marketing, digital agency, outsourcing, consulting, fintech, cybersecurity, marketing, creative agency, business services, professional services, design, data services, market research
 
 ## Scoring Formula
 
@@ -87,96 +111,68 @@ Companies that pass Layers 1-2 but are known-bad from manual verification. PK co
 Score = origin(40%) + role(20%) + survived_filters(20%) + outsourcing_signal(10%) + clay(10%)
 ```
 
-- **Origin** (40%): Urdu speaker=100, PK university=90, PK surname=80
-- **Role** (20%): CFO/Payroll=100, COO=90, HR=85, CEO/Founder=70, CTO=50
-- **Survived filters** (20%): Passed ALL red flags = 100, ANY red flag = 0
-- **Outsourcing signal** (10%): Website mentions outsourcing/contractors/remote
-- **Clay confirmation** (10%): 5-30 PK employees = 100, 0 = 50 (neutral), 100+ = 10
+## How to Maximize Output
 
-## Selection Gates (hard exclusions from output)
+### 1. Clay Enrichment for Target Companies
+For each company in scored output, use Clay People Search (FREE, 0 credits for people without emails) to find up to 3 decision-makers:
+- Filter: company domain + country=UAE + role=CFO/COO/HR/CEO/CTO
+- This fills the 3-contacts-per-company cap
 
-A company is EXCLUDED from the scored output if ANY of these is true:
+### 2. Fill Missing Domains
+5,707 contacts have no domain. These have LinkedIn URLs. Future: extract company domain from LinkedIn → adds more companies to the analyzable pool.
 
-1. **No domain** — can't verify anything
-2. **No website data** — dead/placeholder site
-3. **Any red flag fired** — hq_in_talent_country, irrelevant_industry, enterprise, competitor, hq_not_in_buyer, country_list_only
-4. **GPT says would_need=False AND industry is NOT in tech whitelist** — catches training, events, food, shipping, equipment while preserving tech/consulting/digital
-5. **In VERIFIED_EXCLUDE list** — manually confirmed bad
+### 3. Deep Scrape About/Contact Pages
+About pages reveal PK addresses that homepages hide. Currently 210 domains deep-scraped, should be all target companies.
 
-## Excluded Industries
+## Data Persistence — EVERYTHING CACHED
 
-```
-construction, real_estate, hospitality, interior_design,
-food, trading, manufacturing, retail,
-insurance, banking, legal, law,
-government, public sector,
-car rental, transportation, automotive,
-events and exhibitions, event planning,
-oil and gas, energy, aerospace,
-sports, beauty, fashion,
-education, training, coaching,
-recruitment, hr services,
-shipping, broadcast equipment, private equity
-```
+ALL data in `/scripts/data/` (mounted volume, survives Docker restarts).
+NEVER use `/tmp/` in Docker containers.
 
-## Tech Whitelist (would_need=False penalty only, not exclusion)
+| File | Contents |
+|------|----------|
+| `uae_pk_v6_scrape.json` | 10,638 scraped homepages |
+| `deep_scrape_v7.json` | 210 about/contact/team pages |
+| `uae_pakistan_v8_gpt_flags.json` | 4,996 GPT binary flags |
+| `uae_pakistan_v8_company_analysis.csv` | Full company analysis |
+| `uae_pakistan_v8_scored.json` | Scored output |
 
-```
-tech, technology, saas, software, it services,
-digital marketing, digital agency, outsourcing,
-consulting, consultancy, fintech, cybersecurity,
-software quality assurance, ai, marketing,
-business services, professional services,
-language services, editing services, media, design,
-insurtech, pharmaceuticals, healthcare,
-logistics, data services, market research
-```
+## Quality Verification Protocol
 
-## Data Persistence
+1. Run scoring
+2. Pull ALL unique companies from output
+3. Read actual website text for each — independent judgment
+4. Check: is this a real UAE company? Would they plausibly use PK contractors?
+5. Test against qualified leads from reference sheet — zero false negatives allowed
+6. Any failure → fix algorithm (not just add to blacklist)
+7. Target: 95%+ accuracy
 
-ALL data lives in `/scripts/data/` (mounted from repo, survives Docker restarts).
-NEVER use `/tmp/` inside Docker containers.
-
-| File | Contents | Size |
-|------|----------|------|
-| `uae_pk_v6_scrape.json` | Website homepages (10,371 domains) | ~25MB |
-| `deep_scrape_v7.json` | About/contact/team pages | growing |
-| `uae_pakistan_v8_gpt_flags.json` | GPT binary flags (4,995 domains) | ~8MB |
-| `uae_pakistan_v8_company_analysis.csv` | Full company analysis | ~2MB |
-| `uae_pakistan_v8_scored.json` | Scored contact output | ~1MB |
+**CRITICAL:** Verification must be INDEPENDENT of the labeling method. Don't check GPT flags against GPT flags.
 
 ## Pipeline Scripts
 
 | Script | Purpose | Runtime | Cost |
 |--------|---------|---------|------|
-| `scripts/gpt_binary_flags.py` | GPT-4o-mini binary flag analysis | 14 min / 5K domains | $0.30 |
-| `scripts/deep_scrape.py` | Multi-page website scraper | ~80 min / 1K domains | $0 |
-| `scripts/uae_pk_v7_score.py` | Scoring + Google Sheet output | 17 seconds | $0 |
-| `scripts/make_clay_remaining.py` | Domain list for Clay automation | 5 seconds | $0 |
-| `scripts/clay/clay_people_search.js` | Clay People Search automation | ~3 min / 200 domains | $0 |
+| `uae_pk_v7_score.py` | Full scoring pipeline | 10 seconds | $0 |
+| `gpt_binary_flags.py` | GPT-4o-mini analysis | 14 min / 5K | $0.30 |
+| `deep_scrape.py` | Multi-page scraper | ~80 min / 1K | $0 |
+| `make_clay_remaining.py` | Domain list for Clay | 5 seconds | $0 |
 
-## How to Re-Score
+## Current UAE-Pakistan Results
 
-```bash
-# All data is cached — re-scoring is instant (17 seconds)
-docker exec leadgen-backend python3 /scripts/uae_pk_v7_score.py uae-pakistan
+- Input: 15,369 contacts, 7,602 unique domains
+- Scraped: 7,602/7,602 (100%)
+- GPT analyzed: 4,996/6,286 analyzable (79%)
+- Output: **579 contacts from 540 companies**
+- Accuracy: 97-99% on 558-company review
+- Zero false negatives against 30 qualified meeting companies
 
-# To re-analyze with GPT (only analyzes uncached domains):
-docker exec leadgen-backend python3 /scripts/gpt_binary_flags.py uae-pakistan --model gpt
+## Multi-Corridor Execution Plan
 
-# To deep-scrape more about/contact pages:
-docker exec leadgen-backend python3 /scripts/deep_scrape.py --limit 500
-```
+Same algorithm, different configs. Run in parallel.
 
-## Quality Verification Protocol
-
-1. Run scoring
-2. Take top 100 unique companies from scored output
-3. For EACH company, read the actual website text from cache
-4. Make INDEPENDENT judgment: is this a real UAE company that could plausibly need EasyStaff?
-5. Check: PK-origin contact + UAE location + UAE-HQ company + tech/service industry
-6. Any failure → investigate why filters missed it → add to exclusion list or fix filter
-7. Target: 98%+ accuracy on 100 companies before using output
-
-**CRITICAL: Verification must be independent of the labeling method.**
-Don't check GPT flags against GPT flags. Read the raw website text yourself.
+| Corridor | Source Tab | Output Tab | Status |
+|----------|-----------|------------|--------|
+| UAE-Pakistan | UAE-Pakistan - New Only | UAE-Pakistan v8 Scored | Done (579 contacts) |
+| AU-Philippines | AU-Philippines - New Only | AU-Philippines v8 Scored | Ready to run |
+| Arabic-SouthAfrica | Arabic-SouthAfrica - New Only | Arabic-SouthAfrica v8 Scored | Ready to run |
