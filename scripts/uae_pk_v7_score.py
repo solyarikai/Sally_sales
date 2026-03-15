@@ -350,7 +350,8 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     # GPT sees "Dubai" on the website and says is_hq_in_uae=True even for PK companies
     # with a Dubai shelf office. Use hard signals from website text to detect PK-based companies.
     pk_neighborhoods = ['gulberg', 'johar town', 'dha phase', 'model town',
-                        'shahrah-e-faisal', 'blue area', 'clifton', 'defence',
+                        'shahrah-e-faisal', 'blue area', 'clifton',
+                        'defence housing authority', 'dha karachi', 'dha lahore', 'dha islamabad',
                         'i-8', 'i-9', 'i-10', 'g-11', 'f-6', 'f-7', 'f-8',
                         'bahria town', 'askari', 'cantt', 'saddar',
                         'university road', 'mall road', 'liberty',
