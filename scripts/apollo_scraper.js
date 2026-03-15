@@ -64,45 +64,42 @@ async function login(page) {
 async function scrapeCurrentPage(page) {
   return page.evaluate(() => {
     const rows = [];
-    // Apollo uses role="gridcell" with aria-rowindex for each contact row
-    // Each contact has: name link, title, company link, location
-    const nameLinks = document.querySelectorAll('a[data-to*="/people/"]');
+    // Apollo grid: col_1=name, col_2=title, col_3=company, col_9=linkedin
+    // Find all unique row indices
+    const allCells = document.querySelectorAll('[role="gridcell"][aria-rowindex]');
+    const rowIndices = new Set();
+    for (const cell of allCells) {
+      rowIndices.add(cell.getAttribute('aria-rowindex'));
+    }
 
-    for (const nameLink of nameLinks) {
-      const name = nameLink.textContent?.trim() || '';
+    for (const rowIndex of rowIndices) {
+      const getCell = (col) => document.querySelector(`[role="gridcell"][aria-rowindex="${rowIndex}"][aria-colindex="${col}"]`);
+
+      // Column 1: Name
+      const nameCell = getCell(1);
+      const nameLink = nameCell?.querySelector('a[data-to*="/people/"]');
+      const name = nameLink?.textContent?.trim() || nameCell?.textContent?.trim() || '';
       if (!name || name.length < 2) continue;
 
-      // Walk up to find the row container
-      const rowCell = nameLink.closest('[role="gridcell"]');
-      const rowIndex = rowCell?.getAttribute('aria-rowindex');
+      // Column 2: Title
+      const titleCell = getCell(2);
+      const title = titleCell?.textContent?.trim() || '';
 
-      // Find other cells in the same row by aria-rowindex
-      let title = '', company = '', location = '', linkedin = '';
+      // Column 3: Company + org link
+      const companyCell = getCell(3);
+      const companyLink = companyCell?.querySelector('a[data-to*="/organizations/"]');
+      const company = companyLink?.textContent?.trim() || companyCell?.textContent?.trim() || '';
+      const orgId = companyLink?.getAttribute('data-to')?.match(/organizations\/([a-f0-9]+)/)?.[1] || '';
 
-      if (rowIndex !== null) {
-        const allCells = document.querySelectorAll(`[role="gridcell"][aria-rowindex="${rowIndex}"]`);
-        for (const cell of allCells) {
-          const colIdx = parseInt(cell.getAttribute('aria-colindex'));
-          const text = cell.textContent?.trim() || '';
+      // Column 9: LinkedIn URL
+      const linkedinCell = getCell(9);
+      const linkedinLink = linkedinCell?.querySelector('a[href*="linkedin.com"]');
+      const linkedin = linkedinLink?.href || '';
 
-          if (colIdx === 2) title = text; // Title column
-          if (colIdx === 3) {
-            // Company column — get link text
-            const companyLink = cell.querySelector('a');
-            company = companyLink?.textContent?.trim() || text;
-          }
-          if (colIdx === 5) location = text; // Location column
-        }
-      }
+      // Skip "Access email" / "Access Mobile" noise
+      if (title === 'Access email' || title === 'Access Mobile') continue;
 
-      // Fallback: extract from surrounding text
-      if (!title) {
-        const parent = nameLink.closest('[data-testid="contact-name-cell"]')?.parentElement;
-        const nextSibling = parent?.nextElementSibling;
-        title = nextSibling?.textContent?.trim() || '';
-      }
-
-      rows.push({ name, title, company, location, linkedin });
+      rows.push({ name, title, company, orgId, linkedin });
     }
     return rows;
   });
