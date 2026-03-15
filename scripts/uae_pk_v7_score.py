@@ -142,6 +142,10 @@ VERIFIED_EXCLUDE = {
     'mnadigital.io',      # PK-HQ Lahore (New Garden Town address)
     'ovexbee.com',        # PK-based digital agency (PK phone on homepage)
     'daairah.com',        # PK-HQ creative agency (PK phone on homepage)
+    'techdigital.biz',    # PK-HQ (Model Town Lahore address + PK phone)
+    'greencorebeauty.com', # PK-HQ (DHA Phase address, subsidiaries in Karachi/Lahore/Islamabad)
+    'designersity.com',   # India-based (Mumbai)
+    '3techno.com',        # 3000 PK employees = enterprise, likely PK operations center
 }
 
 BLACKLIST_DOMAINS = {
