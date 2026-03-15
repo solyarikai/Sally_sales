@@ -688,14 +688,33 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
         result['red_flags'].append('irrelevant_industry')
         result['negative_signals'].append('primary business is company formation (title)')
 
-    # ─── PERSONAL BRAND / NETWORKING CLUB DETECTION ───────────────────
-    # Not real companies — personal blogs, speaker pages, networking clubs
+    # ─── VISA / IMMIGRATION PRIMARY BUSINESS (from text) ────────────
+    # v-linksolutions.com: GPT says "IT Services" but website says "student visas, work permit"
+    visa_text_kws = ['student visa', 'apply for a student visa', 'work permit the main rul',
+                     'immigration services', 'visa processing', 'visa application']
+    if sum(1 for kw in visa_text_kws if kw in full) >= 2:
+        result['red_flags'].append('irrelevant_industry')
+        result['negative_signals'].append('visa/immigration primary business (text)')
+
+    # ─── HUMAN CAPITAL / TALENT ACQUISITION (from text) ───────────────
+    # Catches recruitment firms GPT labels as "consulting"
+    recruit_text_kws = ['human capital management', 'talent acquisition',
+                        'executive search firm', 'we place candidates',
+                        'recruitment partner', 'staffing solution']
+    if any(kw in full for kw in recruit_text_kws):
+        result['red_flags'].append('irrelevant_industry')
+        result['negative_signals'].append('recruitment/HR firm (text)')
+
+    # ─── TRADE BODY / NETWORKING CLUB DETECTION ───────────────────────
     personal_kws = ['my blog', 'my portfolio', 'personal website', 'about me',
                     'presenter and speaker', 'motivational speaker',
-                    'networking club', 'business club', 'members club']
+                    'networking club', 'business club', 'members club',
+                    'membership apply', 'join our membership', 'member offerings',
+                    'trade center', 'trade & marketing center',
+                    'halal compliance', 'halal certification body']
     if any(kw in full for kw in personal_kws):
         result['red_flags'].append('placeholder_empty')
-        result['negative_signals'].append('personal brand / networking club')
+        result['negative_signals'].append('personal brand / trade body / networking club')
 
     # ─── BROKEN WEBSITE DETECTION ─────────────────────────────────────
     # Binary garbage / encoding errors
