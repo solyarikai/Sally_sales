@@ -349,8 +349,10 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     # If PK neighborhood found + tech/outsourcing/digital industry → override to PK-HQ
     tech_industries = {'outsourcing', 'software_dev', 'it_services', 'tech', 'technology',
                        'digital_agency', 'digital marketing', 'saas', 'ai_ml',
-                       'digital_agency', 'staffing', 'consulting'}
-    detected_ind = result.get('industry', '')
+                       'staffing', 'consulting', 'digital agency', 'it services',
+                       'marketing and advertising', 'media', 'data and digital marketing analytics'}
+    # Get industry from GPT flags (industry hasn't been set in result yet at this point)
+    detected_ind = (gpt_flags.get('company_vertical') or '').lower() if gpt_flags else ''
     if has_talent_neighborhood and not hq_in_talent_country:
         if detected_ind in tech_industries or (gpt_flags and gpt_flags.get('is_outsourcing_provider')):
             hq_in_talent_country = True  # Override — this is a PK shop with UAE address
