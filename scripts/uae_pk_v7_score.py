@@ -181,6 +181,10 @@ BLACKLIST_DOMAINS = {
     'grey.com', 'jwt.com', 'mccann.com', 'ddb.com', 'fcb.com',
     # Global consulting firms
     'adlittle.com', 'rolandberger.com', 'oliverwyman.com', 'lek.com',
+    # Government / free zone authorities
+    'dmcc.ae', 'difc.ae', 'dafza.ae', 'jafza.ae', 'adgm.com',
+    # More global ad agencies (Omnicom, Interpublic, etc.)
+    'tbwaraad.com', 'tbwa.com', 'ddbworldwide.com', 'fticonsulting.com',
 }
 
 SHARED_HOSTING = {
@@ -195,17 +199,20 @@ ANTI_TITLES = ['intern', 'student', 'freelanc', 'looking for', 'seeking',
                'virtual assistant', 'receptionist', 'driver', 'security guard',
                'cleaner', 'waiter', 'cashier']
 
-# Hard-excluded industries — ONLY physically-impossible-remote.
-# LEARNING: Real estate, retail, pet companies ACTUALLY CONVERTED.
-# Any company can have remote contractors for marketing/admin/dev.
-# Only exclude where remote work is physically impossible.
+# Excluded industries — validated against 30 qualified meeting companies (0 false negatives).
+# Real estate, retail, pet companies DID convert → keep them.
+# But manufacturers, schools, recruiters did NOT → exclude.
 EXCLUDED_INDUSTRIES = {
     # Physical on-site work only
     'construction', 'hospitality',
-    # Heavy industry (rigs, plants, mines)
-    'oil and gas', 'mining',
-    # Government (regulated procurement, won't use EasyStaff)
+    # Heavy industry
+    'oil and gas', 'mining', 'manufacturing',
+    # Government / institutional
     'government', 'public sector',
+    # Education (K-12 schools, not edtech SaaS)
+    'education',
+    # Recruitment firms (they find people, they don't need to pay PK contractors)
+    'recruitment', 'executive search', 'staffing',
 }
 
 
@@ -664,16 +671,37 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
         result['gpt_reasoning'] = ''
 
     # ─── CITIZENSHIP / SECOND PASSPORT DETECTION ─────────────────────
-    # These are DEFINITELY not EasyStaff customers — they sell passports
     citizenship_kws = ['citizenship by investment', 'second passport', 'residency program',
                        'citizenship program', 'golden passport']
     if any(kw in full for kw in citizenship_kws):
         result['red_flags'].append('irrelevant_industry')
         result['negative_signals'].append('citizenship/passport program (keyword)')
 
-    # NOTE: Business setup / visa services companies are NOT excluded.
-    # LEARNING: arassociates.ae (business setup) converted in 5 hours.
-    # These companies have their own remote teams. They're valid customers.
+    # ─── BUSINESS SETUP PRIMARY BUSINESS DETECTION ────────────────────
+    # Only flag if business setup / company formation is the PRIMARY business
+    # (mentioned in website title). NOT if it's a side service.
+    # LEARNING: arassociates.ae (also does business setup) converted — so don't
+    # blanket-exclude. Only exclude when TITLE says business setup.
+    setup_title = (scraped_data.get('title') or '').lower()
+    if any(kw in setup_title for kw in ['business setup', 'company formation', 'visa services',
+                                         'work permit', 'trade license']):
+        result['red_flags'].append('irrelevant_industry')
+        result['negative_signals'].append('primary business is company formation (title)')
+
+    # ─── PERSONAL BRAND / NETWORKING CLUB DETECTION ───────────────────
+    # Not real companies — personal blogs, speaker pages, networking clubs
+    personal_kws = ['my blog', 'my portfolio', 'personal website', 'about me',
+                    'presenter and speaker', 'motivational speaker',
+                    'networking club', 'business club', 'members club']
+    if any(kw in full for kw in personal_kws):
+        result['red_flags'].append('placeholder_empty')
+        result['negative_signals'].append('personal brand / networking club')
+
+    # ─── BROKEN WEBSITE DETECTION ─────────────────────────────────────
+    # Binary garbage / encoding errors
+    if text and sum(1 for c in text[:200] if ord(c) > 127) > len(text[:200]) * 0.3:
+        result['red_flags'].append('placeholder_empty')
+        result['negative_signals'].append('broken encoding / binary garbage')
 
     # ─── FREELANCER / THIN WEBSITE DETECTION ─────────────────────────
     # Gmail/yahoo contact + minimal website = not a real company
