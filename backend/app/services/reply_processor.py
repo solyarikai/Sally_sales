@@ -1131,8 +1131,22 @@ async def process_reply_webhook(
                 logger.warning(f"[PROCESSOR] Contact lookup failed: {e}")
         logger.info(f"[PROCESSOR] Parsed name: first={first_name}, last={last_name}")
         
-        # Campaign name
+        # Campaign name — fall back to campaigns table lookup by campaign_id
         campaign_name = payload.get("campaign_name", "")
+        if not campaign_name and campaign_id:
+            try:
+                from app.models.campaign import Campaign
+                camp_row = (await session.execute(
+                    select(Campaign.name).where(
+                        Campaign.external_id == campaign_id,
+                        Campaign.name.isnot(None),
+                    ).limit(1)
+                )).first()
+                if camp_row and camp_row[0]:
+                    campaign_name = camp_row[0]
+                    logger.info(f"[PROCESSOR] Resolved campaign_name '{campaign_name}' from campaign_id={campaign_id} via DB")
+            except Exception as e:
+                logger.debug(f"[PROCESSOR] Campaign name lookup by ID failed: {e}")
         
         # Inbox link — only use trusted sources:
         # 1. ui_master_inbox_link from webhook (SmartLead provides the correct URL)
@@ -1236,8 +1250,8 @@ async def process_reply_webhook(
                 )
                 project = project_result.scalar()
 
-                # Fallback: prefix/tag/contains matching (mirrors GetSales path)
-                matched_via_prefix = False
+                # Fallback: ownership rules matching (prefix/contains/tags)
+                matched_via_rules = False
                 if not project:
                     from app.services.crm_sync_service import match_campaign_to_project
                     matched_pid = match_campaign_to_project(campaign_name)
@@ -1249,10 +1263,10 @@ async def process_reply_webhook(
                         )
                         project = proj_result.scalar()
                         if project:
-                            matched_via_prefix = True
+                            matched_via_rules = True
 
                 # Auto-register: add campaign to project's campaign_filters for future exact matches
-                if project and matched_via_prefix and project.campaign_filters is not None:
+                if project and matched_via_rules and project.campaign_filters is not None:
                     existing_lower = {c.lower() for c in project.campaign_filters if isinstance(c, str)}
                     if campaign_name.lower() not in existing_lower:
                         project.campaign_filters = project.campaign_filters + [campaign_name]
@@ -1263,7 +1277,7 @@ async def process_reply_webhook(
                             session.add(CampaignAuditLog(
                                 project_id=project.id, action="add", campaign_name=campaign_name,
                                 source="auto_discovery",
-                                details=f"Auto-registered from SmartLead reply webhook (prefix match)",
+                                details=f"Auto-registered from SmartLead reply webhook (ownership rules match)",
                             ))
                         except Exception:
                             pass

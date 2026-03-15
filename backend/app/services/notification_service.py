@@ -793,6 +793,21 @@ async def _get_project_for_campaign(campaign_name: str):
         ))
         return best_match
 
+    # 2.5. Ownership rules match (prefix/contains/tags from campaign_ownership_rules)
+    try:
+        from app.services.crm_sync_service import match_campaign_to_project
+        matched_pid = match_campaign_to_project(campaign_name)
+        if matched_pid and matched_pid in _project_cache["data"]:
+            project_data = _project_cache["data"][matched_pid]
+            _asyncio.ensure_future(_track_campaign_resolution(
+                campaign_name, "ownership_rules",
+                f"Matched via campaign_ownership_rules → project '{project_data.get('name')}'",
+                matched_pid,
+            ))
+            return project_data
+    except Exception as e:
+        logger.debug(f"Ownership rules match failed (non-fatal): {e}")
+
     # 3. DB fallback: look up campaigns table for project_id
     try:
         from app.db import async_session_maker
