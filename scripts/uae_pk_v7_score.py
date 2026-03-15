@@ -596,7 +596,7 @@ def _build_from_gpt_only(domain, gpt_flags, talent_country):
         'has_contractors': gf.get('mentions_contractors_freelancers', False),
         'has_remote': gf.get('mentions_remote_teams', False),
         'is_competitor': gpt_flags.get('is_competitor', False),
-        'is_hq_in_buyer': gpt_flags.get(f'is_hq_in_{{"pakistan": "uae", "philippines": "australia", "south africa": "gulf"}}.get(talent_country, "")}', True),
+        'is_hq_in_buyer': gpt_flags.get('is_hq_in_' + {'pakistan': 'uae', 'philippines': 'australia', 'south africa': 'gulf'}.get(talent_country, ''), True),
         'is_outsourcing_provider': gpt_flags.get('is_outsourcing_provider', False),
         'would_need_easystaff': gpt_flags.get('would_need_easystaff', None),
         'industry': gpt_flags.get('company_vertical', 'other'),
