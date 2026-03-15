@@ -30,7 +30,11 @@ CORRIDOR_CONTEXT = {
     'arabic-southafrica': 'Gulf companies pay remote contractors in South Africa',
 }
 
-PROMPT = """Is this company a good prospect for EasyStaff (cross-border contractor payments)?
+PROMPT = """Is this company a good prospect for EasyStaff?
+EasyStaff helps {context}.
+
+Good prospect = {buyer}-based company (5-200 employees) that likely has remote workers.
+NOT a prospect if ANY of these: business setup/visa/company formation, government/sovereign entity, enterprise 300+ employees, competitor (payroll/EOR/HR outsourcing provider), freelancer marketplace/platform, nonprofit/charity, placeholder/broken website, recruitment/staffing agency.
 
 COMPANY: {company}
 DOMAIN: {domain}
