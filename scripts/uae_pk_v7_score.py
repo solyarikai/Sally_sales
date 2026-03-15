@@ -186,8 +186,9 @@ BLACKLIST_DOMAINS = {
     # More global ad agencies (Omnicom, Interpublic, etc.)
     'tbwaraad.com', 'tbwa.com', 'ddbworldwide.com', 'fticonsulting.com',
     'mrm.com', 'mcsaatchi.ae', 'mcsaatchi.com',
-    # Major IT distributors / telecom subsidiaries
-    'redingtongroup.com', 'zaintech.com', 'g42.ai',
+    # Major IT distributors / telecom subsidiaries / sovereign AI
+    'redingtongroup.com', 'zaintech.com', 'g42.ai', 'core42.ai',
+    'arjunglobal.com',  # LSE listed enterprise
 }
 
 SHARED_HOSTING = {
@@ -727,7 +728,10 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
                     'trade center', 'trade & marketing center',
                     'halal compliance', 'halal certification body',
                     'not for profit', 'not-for-profit', 'nonprofit fundraising',
-                    'business community', 'leading community of ambitious']
+                    'business community', 'leading community of ambitious',
+                    'freelancer platform', 'hire freelancers', 'find freelancers',
+                    'sovereign ai', 'sovereign cloud', 'digital sovereignty',
+                    'trusted by governments']
     if any(kw in full for kw in personal_kws):
         result['red_flags'].append('placeholder_empty')
         result['negative_signals'].append('personal brand / trade body / networking club')
