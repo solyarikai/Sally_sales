@@ -687,10 +687,14 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     above_fold = full[:300]  # First 300 chars = what the company leads with
     setup_surface = setup_title + ' ' + above_fold
     if any(kw in setup_surface for kw in ['business setup', 'company formation', 'visa services',
-                                           'trade license', 'company setup',
+                                           'trade license', 'company setup', 'setup your company',
                                            'doc clearing', 'document clearing',
                                            'road safety', 'transport consultant',
-                                           'buy business', 'sell business', 'business brokerage']):
+                                           'buy business', 'sell business', 'business brokerage',
+                                           'short term rental', 'holiday apartment', 'vacation rental',
+                                           'sports talent', 'sports management', 'athlete represent',
+                                           'création de société', 'company creation',
+                                           'vat services tax']):
         result['red_flags'].append('irrelevant_industry')
         result['negative_signals'].append('primary business: company formation/visa/clearing (surface)')
 
