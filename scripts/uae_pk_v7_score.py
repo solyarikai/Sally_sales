@@ -181,9 +181,21 @@ ANTI_TITLES = ['intern', 'student', 'freelanc', 'looking for', 'seeking',
                'virtual assistant', 'receptionist', 'driver', 'security guard',
                'cleaner', 'waiter', 'cashier']
 
-# Industries that don't use remote tech contractors — hard exclusion
-EXCLUDED_INDUSTRIES = {'construction', 'real_estate', 'hospitality', 'interior_design',
-                       'food', 'investment', 'trading', 'manufacturing', 'retail'}
+# Industries that DEFINITELY don't use remote tech contractors — hard exclusion
+# Be precise: "finance" would kill Ghalib Consulting (verified GOOD), so exclude
+# only the specific sub-industries that are clearly wrong.
+EXCLUDED_INDUSTRIES = {
+    # Physical/manual industries
+    'construction', 'real_estate', 'hospitality', 'interior_design',
+    'food', 'trading', 'manufacturing', 'retail',
+    # Regulated/institutional — have in-house everything
+    'insurance', 'banking', 'legal services', 'law',
+    # Non-tech services
+    'car rental', 'transportation', 'automotive',
+    'events and exhibitions', 'event planning',
+    'oil and gas', 'energy', 'aerospace',
+    'sports', 'sports management', 'beauty', 'fashion',
+}
 
 
 # ─── DATA LOADERS ────────────────────────────────────────────────────────
@@ -1225,6 +1237,10 @@ def run_corridor(corridor_name, sheets):
         # and says "no need" for 89% of companies — too aggressive as a gate.
         # Skip companies without domain — can't verify anything about them
         if not comp['domain']:
+            excluded_companies += 1
+            continue
+        # Skip companies with no website data (dead/empty site)
+        if comp['analysis'].get('status') == 'no_data' or comp['analysis'].get('is_placeholder'):
             excluded_companies += 1
             continue
         pool = comp['contacts']
