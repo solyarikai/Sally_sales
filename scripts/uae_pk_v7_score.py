@@ -91,8 +91,8 @@ CORRIDOR_CONFIG = {
         'select_count': 2000,
     },
     'au-philippines': {
-        'source_tab': 'AU-Philippines - New Only',
-        'output_tab': 'AU-Philippines v8 Scored',
+        'source_tab': 'AU-Philippines Clay Filipino',
+        'output_tab': 'AU-Philippines v9 Filipino Scored',
         'talent_country': 'philippines',
         'talent_country_key': 'philippines',
         'talent_cities': ['manila', 'cebu', 'davao', 'makati', 'quezon', 'taguig', 'pasig', 'bgc'],
