@@ -21,6 +21,10 @@ import os
 import sys
 import time
 
+# Allow running from /scripts/ inside Docker (app is at /app)
+if os.path.isdir('/app') and '/app' not in sys.path:
+    sys.path.insert(0, '/app')
+
 SCRAPE_CACHE = '/tmp/uae_pk_v6_scrape.json'
 DEEP_SCRAPE_CACHE = '/tmp/deep_scrape_v7.json'
 

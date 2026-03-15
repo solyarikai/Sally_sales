@@ -40,9 +40,14 @@ import glob
 import json
 import os
 import re
+import sys
 import time
 import warnings
 from collections import Counter, defaultdict
+
+# Allow running from /scripts/ inside Docker (app is at /app)
+if os.path.isdir('/app') and '/app' not in sys.path:
+    sys.path.insert(0, '/app')
 
 warnings.filterwarnings('ignore')
 
