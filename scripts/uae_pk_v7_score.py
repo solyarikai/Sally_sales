@@ -706,7 +706,8 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     # Catches recruitment firms GPT labels as "consulting"
     recruit_text_kws = ['human capital management', 'talent acquisition',
                         'executive search firm', 'we place candidates',
-                        'recruitment partner', 'staffing solution']
+                        'recruitment partner', 'staffing solution',
+                        'recruitment training']
     if any(kw in full for kw in recruit_text_kws):
         result['red_flags'].append('irrelevant_industry')
         result['negative_signals'].append('recruitment/HR firm (text)')
