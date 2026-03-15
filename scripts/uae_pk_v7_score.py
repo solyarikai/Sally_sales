@@ -1220,10 +1220,9 @@ def run_corridor(corridor_name, sheets):
         if comp_flags & hard_exclude_flags:
             excluded_companies += 1
             continue
-        # Skip companies where GPT says would_need_easystaff=False
-        if comp['analysis'].get('would_need_easystaff') is False:
-            excluded_companies += 1
-            continue
+        # would_need_easystaff=False is a PENALTY in scoring, not a selection gate.
+        # GPT can't validate the cultural hypothesis (PK-origin = likely PK contractors)
+        # and says "no need" for 89% of companies — too aggressive as a gate.
         # Skip companies without domain — can't verify anything about them
         if not comp['domain']:
             excluded_companies += 1
