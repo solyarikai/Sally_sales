@@ -1204,9 +1204,26 @@ def run_corridor(corridor_name, sheets):
     seen_li = set()
     seen_names = set()
 
+    # Hard-exclude companies with ANY red flag from selection entirely
+    hard_exclude_flags = {
+        'hq_in_talent_country', 'irrelevant_industry', 'enterprise_gpt',
+        'placeholder_empty', 'placeholder_parked', 'competitor',
+        'outsourcing_provider_in_talent_country', 'hq_not_in_buyer_country',
+        'country_list_only',
+    }
+    excluded_companies = 0
     for comp in company_analyses:
         if len(selected) >= select_count:
             break
+        # Skip companies with ANY hard red flag
+        comp_flags = set(comp['analysis'].get('red_flags', []))
+        if comp_flags & hard_exclude_flags:
+            excluded_companies += 1
+            continue
+        # Skip companies where GPT says would_need_easystaff=False
+        if comp['analysis'].get('would_need_easystaff') is False:
+            excluded_companies += 1
+            continue
         pool = comp['contacts']
         pool.sort(key=lambda c: (c['role_tier'], -int(c.get('origin_score') or '0')))
 
