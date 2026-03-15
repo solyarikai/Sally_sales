@@ -722,7 +722,9 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
                     'networking club', 'business club', 'members club',
                     'membership apply', 'join our membership', 'member offerings',
                     'trade center', 'trade & marketing center',
-                    'halal compliance', 'halal certification body']
+                    'halal compliance', 'halal certification body',
+                    'not for profit', 'not-for-profit', 'nonprofit fundraising',
+                    'business community', 'leading community of ambitious']
     if any(kw in full for kw in personal_kws):
         result['red_flags'].append('placeholder_empty')
         result['negative_signals'].append('personal brand / trade body / networking club')
