@@ -748,6 +748,9 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
                     'freelancer platform', 'hire freelancers', 'find freelancers',
                     'connecting professionals', 'matching platform', 'swipe, match',
                     'browse talent', 'data professionals & businesses',
+                    'sign up sign up', 'for brands for creators',
+                    'hire freelancers', 'find freelancers',
+                    'start hiring hire', 'outsourcing solutions for business growth',
                     'sovereign ai', 'sovereign cloud', 'digital sovereignty',
                     'trusted by governments',
                     'therapist', 'therapy', 'counselor', 'counselling', 'mental health support',
@@ -1418,6 +1421,16 @@ def run_corridor(corridor_name, sheets):
             continue
         # Skip companies with no website data (dead/empty site)
         if comp['analysis'].get('status') == 'no_data' or comp['analysis'].get('is_placeholder'):
+            excluded_companies += 1
+            continue
+        # GPT YES/NO final gate — if classifier ran and says NO, exclude
+        slug = corridor_name.replace('-', '_')
+        yesno_file = f'{DATA_DIR}/{slug}_gpt_yesno.json'
+        if not hasattr(run_corridor, '_yesno_cache'):
+            run_corridor._yesno_cache = {}
+            if os.path.exists(yesno_file):
+                run_corridor._yesno_cache = json.load(open(yesno_file))
+        if run_corridor._yesno_cache.get(comp['domain']) == 'NO':
             excluded_companies += 1
             continue
         pool = comp['contacts']
