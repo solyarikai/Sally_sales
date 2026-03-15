@@ -1298,9 +1298,10 @@ def run_corridor(corridor_name, sheets):
             'software quality assurance', 'ai', 'ai_ml',
             'marketing', 'marketing and communications', 'creative agency',
             'business services', 'professional services',
-            'language services', 'editing services', 'media', 'design',
-            'insurtech', 'pharmaceuticals', 'healthcare',
-            'logistics', 'data services', 'market research',
+            'language services', 'design',
+            'insurtech', 'data services', 'market research',
+            # NOT in whitelist: media (news outlets), logistics (shipping),
+            # editing services (freelancers), pharmaceuticals, healthcare
         }
         gpt_vert = (comp['analysis'].get('industry') or '').lower()
         gpt_no_need = comp['analysis'].get('would_need_easystaff') is False
