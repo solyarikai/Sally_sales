@@ -289,10 +289,14 @@ async def main():
                     else:
                         errors += 1
                         return
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
+                    if os.environ.get('DEBUG'):
+                        print(f"    JSON error for {domain}: {e}")
                     errors += 1
                     return
-                except Exception:
+                except Exception as e:
+                    if os.environ.get('DEBUG'):
+                        print(f"    Error for {domain}: {e}")
                     if attempt < 2:
                         retries += 1
                         await asyncio.sleep(2)
