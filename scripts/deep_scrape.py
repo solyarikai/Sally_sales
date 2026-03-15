@@ -43,7 +43,7 @@ def strip_html(html):
     text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL)
     text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
     text = re.sub(r'<[^>]+>', ' ', text)
-    return re.sub(r'\s+', ' ', text).strip()[:3000]
+    return re.sub(r'\s+', ' ', text).strip()[:10000]
 
 
 async def main():

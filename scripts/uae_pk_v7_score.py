@@ -843,31 +843,31 @@ def compute_company_score(analysis, best_origin, best_role_score, clay_count):
     # 2. Role authority (20%) — already 0-100 from get_role_tier
     role_s = best_role_score
 
-    # 3. Survived filters (20%) — binary: 0 or 100
+    # 3. Survived filters (20%) — ALL red flags are HARD exclusions.
+    # Via negativa: if ANY exclusion criterion fires, the company is OUT.
+    # No soft penalties — the plan says these are universal exclusion criteria.
     red_flags = analysis.get('red_flags', [])
-    # Hard exclusion flags → 0 points
-    hard_flags = {'hq_in_talent_country', 'irrelevant_industry', 'enterprise_gpt',
-                  'placeholder_empty', 'placeholder_parked',
-                  'competitor', 'outsourcing_provider_in_talent_country'}
+    hard_flags = {
+        'hq_in_talent_country',                    # Red Flag #1
+        'irrelevant_industry',                     # Red Flag #3
+        'enterprise_gpt',                          # Red Flag #2
+        'placeholder_empty', 'placeholder_parked', # Red Flag #8
+        'competitor',                              # Competitor
+        'outsourcing_provider_in_talent_country',  # PK-based outsourcing shop
+        'hq_not_in_buyer_country',                 # Not a UAE company
+        'country_list_only',                       # Red Flag #6
+    }
     has_hard_flag = bool(set(red_flags) & hard_flags)
-    # Soft flags → partial penalty
-    soft_flags = {'country_list_only', 'hq_not_in_buyer_country'}
-    has_soft_flag = bool(set(red_flags) & soft_flags)
 
-    if has_hard_flag:
-        survived_s = 0
-    elif has_soft_flag:
-        survived_s = 30  # heavy penalty for non-buyer-country HQ
-    else:
-        survived_s = 100
+    # GPT says "would NOT need EasyStaff" — this is a classification, treat as hard exclude
+    if analysis.get('would_need_easystaff') is False:
+        has_hard_flag = True
 
-    # Formal office — not a hard exclude but a penalty
+    survived_s = 0 if has_hard_flag else 100
+
+    # Formal office — not a hard exclude but reduces confidence
     if analysis.get('has_formal_office') and not analysis.get('hq_in_talent_country'):
         survived_s = max(0, survived_s - 30)
-
-    # GPT says "would NOT need EasyStaff" — strong signal
-    if analysis.get('would_need_easystaff') is False:
-        survived_s = max(0, survived_s - 40)
 
     # 4. Website outsourcing signal (10%)
     outsourcing_s = 0
