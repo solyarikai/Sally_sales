@@ -84,8 +84,12 @@ def main():
     }.get(corridor, 'United Arab Emirates')
 
     print(f"\nTo run Clay enrichment (decision-makers at target companies):")
+    print(f"  # IMPORTANT: backup existing Clay exports first!")
+    print(f"  mkdir -p ~/magnum-opus-project/repo/scripts/data/clay_backup_$(date +%Y%m%d)")
+    print(f"  cp ~/magnum-opus-project/repo/scripts/clay/exports/people_*.json ~/magnum-opus-project/repo/scripts/data/clay_backup_$(date +%Y%m%d)/")
+    print(f"")
     print(f"  node scripts/clay/clay_people_search.js \\")
-    print(f"    --domains-file {out_file} \\")
+    print(f"    --domains-file {out_file.replace('/scripts/data/', '~/magnum-opus-project/repo/scripts/data/')} \\")
     print(f"    --countries \"{buyer_country}\" \\")
     print(f"    --titles \\")
     print(f"    --headless --auto")
