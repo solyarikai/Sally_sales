@@ -146,6 +146,9 @@ VERIFIED_EXCLUDE = {
     'greencorebeauty.com', # PK-HQ (DHA Phase address, subsidiaries in Karachi/Lahore/Islamabad)
     'designersity.com', 'designersity.ae',  # India-based (Mumbai in about page)
     '3techno.com',        # 3000 PK employees = enterprise, likely PK operations center
+    'dynasoftcloud.com',  # PK phone +92 on contact page, Lahore/Karachi offices
+    'pxgeo.com',          # Enterprise 400+ employees, marine geophysics (in-house payroll)
+    'ikragcae.com',       # HR recruitment + migration services = competitor-adjacent
 }
 
 BLACKLIST_DOMAINS = {
