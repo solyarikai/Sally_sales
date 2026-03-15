@@ -189,6 +189,10 @@ BLACKLIST_DOMAINS = {
     # Major IT distributors / telecom subsidiaries / sovereign AI
     'redingtongroup.com', 'zaintech.com', 'g42.ai', 'core42.ai',
     'arjunglobal.com',  # LSE listed enterprise
+    'grantthornton.ae', 'grantthornton.com',  # Global accounting network
+    'andersen.com',     # Andersen Global — hundreds of offices
+    'mullenlowe.com',   # MullenLowe — Omnicom Group
+    'digitas.com',      # Digitas — Publicis Groupe
 }
 
 SHARED_HOSTING = {
@@ -475,7 +479,10 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     # Keyword fallback
     competitor_kws = ['employer of record', 'eor service', 'payroll provider',
                       'payroll solution', 'global payroll platform', 'peo service',
-                      'we process payroll', 'payroll for companies']
+                      'we process payroll', 'payroll for companies',
+                      'outsourcing with trust', 'team augmentation for',
+                      'outsourced staff', 'outsource your', 'staff augmentation provider',
+                      'expert outsourcing solutions']
     if any(kw in full for kw in competitor_kws):
         is_competitor = True
 
@@ -692,6 +699,10 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     setup_surface = setup_title + ' ' + above_fold
     if any(kw in setup_surface for kw in ['business setup', 'company formation', 'visa services',
                                            'trade license', 'company setup', 'setup your company', 'setup your business',
+                                           'start companies in uae', 'offshore uae free zone',
+                                           'empresa en dubai', 'abrir empresa',
+                                           'attestation, visa service', 'typing service',
+                                           'entity incorporation',
                                            'doc clearing', 'document clearing',
                                            'road safety', 'transport consultant',
                                            'buy business', 'sell business', 'business brokerage',
@@ -730,8 +741,11 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
                     'not for profit', 'not-for-profit', 'nonprofit fundraising',
                     'business community', 'leading community of ambitious',
                     'freelancer platform', 'hire freelancers', 'find freelancers',
+                    'connecting professionals', 'matching platform', 'swipe, match',
                     'sovereign ai', 'sovereign cloud', 'digital sovereignty',
-                    'trusted by governments']
+                    'trusted by governments',
+                    'therapist', 'counselor', 'mental health support',
+                    'index of /', 'buttons dont work', 'nothing to click']
     if any(kw in full for kw in personal_kws):
         result['red_flags'].append('placeholder_empty')
         result['negative_signals'].append('personal brand / trade body / networking club')
