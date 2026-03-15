@@ -78,7 +78,7 @@ def corridor_files(corridor_name):
 
 CORRIDOR_CONFIG = {
     'uae-pakistan': {
-        'source_tab': 'UAE-Pakistan',
+        'source_tab': 'UAE-Pakistan - New Only',
         'output_tab': 'UAE-Pakistan v8 Scored',
         'talent_country': 'pakistan',
         'talent_country_key': 'pakistan',
@@ -91,7 +91,7 @@ CORRIDOR_CONFIG = {
         'select_count': 2000,
     },
     'au-philippines': {
-        'source_tab': 'AU-Philippines',
+        'source_tab': 'AU-Philippines - New Only',
         'output_tab': 'AU-Philippines v8 Scored',
         'talent_country': 'philippines',
         'talent_country_key': 'philippines',
@@ -104,7 +104,7 @@ CORRIDOR_CONFIG = {
         'select_count': 1000,
     },
     'arabic-southafrica': {
-        'source_tab': 'Arabic-SouthAfrica',
+        'source_tab': 'Arabic-SouthAfrica - New Only',
         'output_tab': 'Arabic-SouthAfrica v8 Scored',
         'talent_country': 'south africa',
         'talent_country_key': 'south_africa',
