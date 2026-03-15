@@ -272,9 +272,9 @@ async def main():
                     if model_name == 'gpt':
                         content = await call_openai(client, prompt, openai_key)
                     elif model_name == 'gemini-pro':
-                        content = await call_gemini(client, prompt, gemini_key, 'gemini-2.5-pro-preview-05-06')
+                        content = await call_gemini(client, prompt, gemini_key, 'gemini-2.5-pro')
                     else:
-                        content = await call_gemini(client, prompt, gemini_key, 'gemini-2.0-flash-001')
+                        content = await call_gemini(client, prompt, gemini_key, 'gemini-2.5-flash')
 
                     if content is None:  # rate limited
                         retries += 1
