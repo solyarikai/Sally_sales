@@ -682,11 +682,17 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     # (mentioned in website title). NOT if it's a side service.
     # LEARNING: arassociates.ae (also does business setup) converted — so don't
     # blanket-exclude. Only exclude when TITLE says business setup.
+    # Check both title AND first 200 chars of text (above the fold = primary business)
     setup_title = (scraped_data.get('title') or '').lower()
-    if any(kw in setup_title for kw in ['business setup', 'company formation', 'visa services',
-                                         'work permit', 'trade license']):
+    above_fold = full[:300]  # First 300 chars = what the company leads with
+    setup_surface = setup_title + ' ' + above_fold
+    if any(kw in setup_surface for kw in ['business setup', 'company formation', 'visa services',
+                                           'trade license', 'company setup',
+                                           'doc clearing', 'document clearing',
+                                           'road safety', 'transport consultant',
+                                           'buy business', 'sell business', 'business brokerage']):
         result['red_flags'].append('irrelevant_industry')
-        result['negative_signals'].append('primary business is company formation (title)')
+        result['negative_signals'].append('primary business: company formation/visa/clearing (surface)')
 
     # ─── VISA / IMMIGRATION PRIMARY BUSINESS (from text) ────────────
     # v-linksolutions.com: GPT says "IT Services" but website says "student visas, work permit"
@@ -716,8 +722,22 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
         result['red_flags'].append('placeholder_empty')
         result['negative_signals'].append('personal brand / trade body / networking club')
 
+    # ─── INDIA-BASED COMPANY DETECTION ──────────────────────────────
+    # Indian phone (+91) suggests India-HQ, not UAE
+    import re as _re2
+    if _re2.search(r'\+91[\s\-]?\d{5}', full):
+        result['red_flags'].append('hq_not_in_buyer_country')
+        result['negative_signals'].append('Indian phone (+91) detected')
+
+    # ─── VAT/TAX/ACCOUNTING PRIMARY BUSINESS ──────────────────────────
+    # If the website title or first 200 chars is about VAT/tax/accounting
+    if any(kw in setup_surface for kw in ['vat in uae', 'tax in uae', 'accounting in dubai',
+                                           'tax consultancy', 'corporate tax']):
+        if gpt_vert_lower not in ('technology', 'fintech', 'saas'):
+            result['red_flags'].append('irrelevant_industry')
+            result['negative_signals'].append('primary business: VAT/tax/accounting')
+
     # ─── BROKEN WEBSITE DETECTION ─────────────────────────────────────
-    # Binary garbage / encoding errors
     if text and sum(1 for c in text[:200] if ord(c) > 127) > len(text[:200]) * 0.3:
         result['red_flags'].append('placeholder_empty')
         result['negative_signals'].append('broken encoding / binary garbage')
