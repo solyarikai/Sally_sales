@@ -859,11 +859,12 @@ def compute_company_score(analysis, best_origin, best_role_score, clay_count):
     }
     has_hard_flag = bool(set(red_flags) & hard_flags)
 
-    # GPT says "would NOT need EasyStaff" — this is a classification, treat as hard exclude
-    if analysis.get('would_need_easystaff') is False:
-        has_hard_flag = True
-
     survived_s = 0 if has_hard_flag else 100
+
+    # GPT says "would NOT need EasyStaff" — strong penalty but NOT hard exclude
+    # because GPT can't validate the cultural hypothesis (PK-origin = likely PK contractors)
+    if analysis.get('would_need_easystaff') is False:
+        survived_s = max(0, survived_s - 60)
 
     # Formal office — not a hard exclude but reduces confidence
     if analysis.get('has_formal_office') and not analysis.get('hq_in_talent_country'):
