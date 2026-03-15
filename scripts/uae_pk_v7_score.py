@@ -322,6 +322,40 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
         if rf.get(f'hq_in_{talent_key}', False):
             hq_in_talent_country = True
 
+    # ─── PK-NEIGHBORHOOD OVERRIDE ──────────────────────────────────
+    # GPT often says is_hq_in_uae=True for PK companies with a Dubai shelf office.
+    # PK street-level addresses (neighborhoods/districts) prove real PK presence.
+    # Combined with tech/outsourcing industry → almost certainly PK-founded company.
+    pk_neighborhoods = ['gulberg', 'johar town', 'dha phase', 'model town',
+                        'shahrah-e-faisal', 'blue area', 'clifton', 'defence',
+                        'i-8', 'i-9', 'i-10', 'g-11', 'f-6', 'f-7', 'f-8',
+                        'bahria town', 'askari', 'cantt', 'saddar',
+                        'university road', 'mall road', 'liberty',
+                        'daftarkhwan', 'arfa tower', 'nust', 'lums',
+                        'national incubation center', 'plan9']
+    ph_neighborhoods = ['makati', 'bgc', 'bonifacio', 'quezon city', 'ortigas',
+                        'alabang', 'eastwood', 'ayala', 'pasig city', 'taguig city']
+    sa_neighborhoods = ['sandton', 'rosebank', 'bryanston', 'woodmead', 'midrand',
+                        'century city', 'claremont', 'stellenbosch']
+
+    neighborhood_map = {
+        'pakistan': pk_neighborhoods,
+        'philippines': ph_neighborhoods,
+        'south africa': sa_neighborhoods,
+    }
+    neighborhoods = neighborhood_map.get(talent_country, [])
+    has_talent_neighborhood = any(n in full for n in neighborhoods)
+
+    # If PK neighborhood found + tech/outsourcing/digital industry → override to PK-HQ
+    tech_industries = {'outsourcing', 'software_dev', 'it_services', 'tech', 'technology',
+                       'digital_agency', 'digital marketing', 'saas', 'ai_ml',
+                       'digital_agency', 'staffing', 'consulting'}
+    detected_ind = result.get('industry', '')
+    if has_talent_neighborhood and not hq_in_talent_country:
+        if detected_ind in tech_industries or (gpt_flags and gpt_flags.get('is_outsourcing_provider')):
+            hq_in_talent_country = True  # Override — this is a PK shop with UAE address
+            result['negative_signals'].append(f'PK neighborhood + tech = likely PK-HQ')
+
     result['hq_in_talent_country'] = hq_in_talent_country
     if hq_in_talent_country:
         result['red_flags'].append('hq_in_talent_country')
@@ -401,6 +435,10 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
         # PK-based outsourcing provider = they ARE the labor, not the buyer
         result['red_flags'].append('outsourcing_provider_in_talent_country')
         result['negative_signals'].append(f'outsourcing provider based in {talent_country}')
+    elif is_outsourcing_provider and has_talent_neighborhood:
+        # Has PK neighborhood address + is outsourcing provider → likely PK-HQ
+        result['red_flags'].append('outsourcing_provider_in_talent_country')
+        result['negative_signals'].append(f'outsourcing provider with {talent_country} address')
 
     # ─── GPT "WOULD NEED EASYSTAFF" SIGNAL ────────────────────────────
     if gpt_flags:
