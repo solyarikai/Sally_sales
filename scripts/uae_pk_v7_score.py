@@ -179,6 +179,8 @@ BLACKLIST_DOMAINS = {
     'ogilvy.com', 'saatchi.com', 'publicisgroupe.com', 'wpp.com', 'omnicomgroup.com',
     'dentsu.com', 'havas.com', 'leoburnett.com', 'tbwa.com', 'bbdo.com',
     'grey.com', 'jwt.com', 'mccann.com', 'ddb.com', 'fcb.com',
+    # Global consulting firms
+    'adlittle.com', 'rolandberger.com', 'oliverwyman.com', 'lek.com',
 }
 
 SHARED_HOSTING = {
@@ -673,16 +675,24 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
         result['gpt_what_they_do'] = ''
         result['gpt_reasoning'] = ''
 
-    # ─── BUSINESS SETUP / VISA SERVICES DETECTION ──────────────────
-    # These companies help with UAE company formation, not tech — wrong industry
-    # GPT often classifies them as "business services" or "consultancy" which passes filters
+    # ─── BUSINESS SETUP / VISA / RECRUITMENT DETECTION ─────────────
+    # GPT often labels these as "business services" or "consulting" which passes filters
     visa_biz_kws = ['company formation', 'business setup', 'free zone', 'freezone setup',
                     'pro services', 'visa services', 'work permit', 'residence visa',
                     'trade license', 'mainland company', 'offshore company setup',
-                    'golden visa', 'investor visa', 'employment visa']
+                    'golden visa', 'investor visa', 'employment visa',
+                    'citizenship by investment', 'second passport', 'residency program']
     if any(kw in full for kw in visa_biz_kws):
         result['red_flags'].append('irrelevant_industry')
-        result['negative_signals'].append('business setup/visa services (keyword)')
+        result['negative_signals'].append('business setup/visa/citizenship (keyword)')
+
+    # Recruitment firms disguised as tech/consulting
+    recruit_kws = ['executive search', 'headhunting', 'talent acquisition firm',
+                   'recruitment agency', 'staffing firm', 'cv writing', 'resume writing',
+                   'we place candidates', 'hire right the first time']
+    if any(kw in full for kw in recruit_kws):
+        result['red_flags'].append('irrelevant_industry')
+        result['negative_signals'].append('recruitment firm (keyword)')
 
     # ─── FREELANCER / THIN WEBSITE DETECTION ─────────────────────────
     # Gmail/yahoo contact + minimal website = not a real company
@@ -705,6 +715,11 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
         'travel', 'tour', 'booking',
         'news', 'journal', 'media outlet',
         'salon', 'spa', 'gym', 'fitness',
+        'executive search', 'headhunt', 'cv writing', 'resume writing',
+        'citizenship', 'passport', 'immigration',
+        'safety', 'occupational', 'hse ',
+        'elv', 'cctv', 'security installation',
+        'actuarial', 'insurance consult',
     ]
     if any(p in gpt_vert_lower for p in fuzzy_exclude_patterns):
         if 'irrelevant_industry' not in result.get('red_flags', []):
