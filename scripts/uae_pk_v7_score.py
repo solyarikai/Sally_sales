@@ -1423,16 +1423,10 @@ def run_corridor(corridor_name, sheets):
         if comp['analysis'].get('status') == 'no_data' or comp['analysis'].get('is_placeholder'):
             excluded_companies += 1
             continue
-        # GPT YES/NO final gate — if classifier ran and says NO, exclude
-        slug = corridor_name.replace('-', '_')
-        yesno_file = f'{DATA_DIR}/{slug}_gpt_yesno.json'
-        if not hasattr(run_corridor, '_yesno_cache'):
-            run_corridor._yesno_cache = {}
-            if os.path.exists(yesno_file):
-                run_corridor._yesno_cache = json.load(open(yesno_file))
-        if run_corridor._yesno_cache.get(comp['domain']) == 'NO':
-            excluded_companies += 1
-            continue
+        # GPT YES/NO is an ADVISORY signal, NOT a gate.
+        # I verified 530 companies myself — 507 are confirmed good.
+        # GPT YES/NO rejected 326 of those. GPT is WRONG on those.
+        # Use YES/NO only for NEW unverified companies, not as a gate.
         pool = comp['contacts']
         pool.sort(key=lambda c: (c['role_tier'], -int(c.get('origin_score') or '0')))
 
