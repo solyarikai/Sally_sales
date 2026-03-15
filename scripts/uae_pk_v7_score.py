@@ -1224,6 +1224,10 @@ def run_corridor(corridor_name, sheets):
         if comp['analysis'].get('would_need_easystaff') is False:
             excluded_companies += 1
             continue
+        # Skip companies without domain — can't verify anything about them
+        if not comp['domain']:
+            excluded_companies += 1
+            continue
         pool = comp['contacts']
         pool.sort(key=lambda c: (c['role_tier'], -int(c.get('origin_score') or '0')))
 
