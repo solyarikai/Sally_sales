@@ -138,7 +138,7 @@ async def call_gemini(client, prompt, api_key, model='gemini-2.5-flash'):
             'contents': [{'parts': [{'text': prompt}]}],
             'generationConfig': {
                 'temperature': 0.1,
-                'maxOutputTokens': 600,
+                'maxOutputTokens': 2000,  # Gemini 2.5 uses thinking tokens that count against this
                 'responseMimeType': 'application/json',
             },
         },
