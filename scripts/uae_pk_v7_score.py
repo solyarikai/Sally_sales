@@ -67,9 +67,9 @@ CLAY_EXPORTS_DIR = (
 def corridor_files(corridor_name):
     slug = corridor_name.replace('-', '_')
     return {
-        'analysis_csv': f'/tmp/{slug}_v7_company_analysis.csv',
-        'scored_json': f'/tmp/{slug}_v7_scored.json',
-        'gpt_flags': f'/tmp/{slug}_v7_gpt_flags.json',
+        'analysis_csv': f'/tmp/{slug}_v8_company_analysis.csv',
+        'scored_json': f'/tmp/{slug}_v8_scored.json',
+        'gpt_flags': f'/tmp/{slug}_v8_gpt_flags.json',
     }
 
 
@@ -158,7 +158,8 @@ ANTI_TITLES = ['intern', 'student', 'freelanc', 'looking for', 'seeking',
                'cleaner', 'waiter', 'cashier']
 
 # Industries that don't use remote tech contractors — hard exclusion
-EXCLUDED_INDUSTRIES = {'construction', 'real_estate', 'hospitality', 'interior_design'}
+EXCLUDED_INDUSTRIES = {'construction', 'real_estate', 'hospitality', 'interior_design',
+                       'food', 'investment', 'trading', 'manufacturing', 'retail'}
 
 
 # ─── DATA LOADERS ────────────────────────────────────────────────────────
@@ -313,6 +314,10 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     # GPT override — more reliable than keyword matching
     talent_key = talent_country.replace(' ', '_')
     if gpt_flags:
+        # v8 flags (flat structure)
+        if gpt_flags.get(f'is_hq_in_{talent_key}', False):
+            hq_in_talent_country = True
+        # v7 flags (nested structure) fallback
         rf = gpt_flags.get('red_flags', {})
         if rf.get(f'hq_in_{talent_key}', False):
             hq_in_talent_country = True
@@ -336,8 +341,72 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
 
     result['has_formal_office'] = has_formal_office
     if has_formal_office and not hq_in_talent_country:
-        # Formal office is a caution — not hard exclude, but penalized
         result['negative_signals'].append(f'formal office in {talent_country}')
+
+    # ─── COMPETITOR DETECTION (NEW) ───────────────────────────────────
+    is_competitor = False
+    if gpt_flags:
+        if gpt_flags.get('is_competitor', False):
+            is_competitor = True
+        # Also check competitor keywords in what_they_do
+        wtd = (gpt_flags.get('what_they_do') or '').lower()
+        for ck in ['employer of record', 'eor ', 'payroll provider', 'payroll solution',
+                    'global payroll', 'hr outsourcing provider', 'peo ']:
+            if ck in wtd:
+                is_competitor = True
+    # Keyword fallback
+    competitor_kws = ['employer of record', 'eor service', 'payroll provider',
+                      'payroll solution', 'global payroll platform', 'peo service',
+                      'we process payroll', 'payroll for companies']
+    if any(kw in full for kw in competitor_kws):
+        is_competitor = True
+
+    result['is_competitor'] = is_competitor
+    if is_competitor:
+        result['red_flags'].append('competitor')
+        result['negative_signals'].append('competitor (payroll/EOR provider)')
+
+    # ─── NON-BUYER-COUNTRY HQ DETECTION (NEW) ─────────────────────────
+    # If GPT says HQ is NOT in buyer country → penalty
+    buyer_key = {'pakistan': 'uae', 'philippines': 'australia', 'south africa': 'gulf'}.get(talent_country, '')
+    is_hq_in_buyer = True  # assume true unless proven otherwise
+    if gpt_flags:
+        hq_field = f'is_hq_in_{buyer_key}'
+        if hq_field in gpt_flags:
+            is_hq_in_buyer = gpt_flags[hq_field]
+        # Also check hq_country string
+        hq_country = (gpt_flags.get('hq_country') or '').lower()
+        if hq_country and buyer_key == 'uae':
+            uae_names = ['uae', 'united arab emirates', 'dubai', 'abu dhabi', 'sharjah']
+            if not any(n in hq_country for n in uae_names):
+                is_hq_in_buyer = False
+        elif hq_country and buyer_key == 'australia':
+            if 'australia' not in hq_country:
+                is_hq_in_buyer = False
+
+    result['is_hq_in_buyer'] = is_hq_in_buyer
+    if not is_hq_in_buyer and not hq_in_talent_country:
+        result['red_flags'].append('hq_not_in_buyer_country')
+        hq_str = (gpt_flags.get('hq_country') or 'unknown') if gpt_flags else 'unknown'
+        result['negative_signals'].append(f'HQ not in buyer country ({hq_str})')
+
+    # ─── OUTSOURCING PROVIDER DETECTION (NEW) ─────────────────────────
+    # Company that SELLS outsourcing labor vs company that BUYS it
+    is_outsourcing_provider = False
+    if gpt_flags:
+        if gpt_flags.get('is_outsourcing_provider', False):
+            is_outsourcing_provider = True
+    result['is_outsourcing_provider'] = is_outsourcing_provider
+    if is_outsourcing_provider and hq_in_talent_country:
+        # PK-based outsourcing provider = they ARE the labor, not the buyer
+        result['red_flags'].append('outsourcing_provider_in_talent_country')
+        result['negative_signals'].append(f'outsourcing provider based in {talent_country}')
+
+    # ─── GPT "WOULD NEED EASYSTAFF" SIGNAL ────────────────────────────
+    if gpt_flags:
+        result['would_need_easystaff'] = gpt_flags.get('would_need_easystaff', None)
+    else:
+        result['would_need_easystaff'] = None
 
     # ─── TALENT COUNTRY MENTIONS ──────────────────────────────────────
     pk_mentions = []
@@ -415,17 +484,17 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
         result['industry_score'] = _industry_score(gpt_vertical)
 
         # GPT red flag overrides for industry (Red Flag #3)
+        # v8 flat flags
+        is_bad_industry = gpt_flags.get('is_construction_realestate_hospitality', False)
+        # v7 nested flags fallback
         rf = gpt_flags.get('red_flags', {})
-        if rf.get('is_construction_realestate'):
-            result['industry'] = 'construction'
-            result['industry_score'] = 10
+        is_bad_industry = is_bad_industry or rf.get('is_construction_realestate', False) or rf.get('is_hospitality_tourism', False)
+
+        if is_bad_industry or gpt_vertical in EXCLUDED_INDUSTRIES:
+            result['industry'] = gpt_vertical
+            result['industry_score'] = _industry_score(gpt_vertical)
             result['red_flags'].append('irrelevant_industry')
-            result['negative_signals'].append('construction/real estate (GPT)')
-        elif rf.get('is_hospitality_tourism'):
-            result['industry'] = 'hospitality'
-            result['industry_score'] = 8
-            result['red_flags'].append('irrelevant_industry')
-            result['negative_signals'].append('hospitality/tourism (GPT)')
+            result['negative_signals'].append(f'{gpt_vertical} (GPT)')
     else:
         # Keyword-based fallback
         detected_industry, industry_score = _classify_industry_keywords(full, domain)
@@ -438,8 +507,13 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
 
     # ─── ENTERPRISE DETECTION from GPT (Red Flag #2 augmentation) ────
     if gpt_flags:
+        # v8 flag (300+ threshold)
+        if gpt_flags.get('is_enterprise_300plus', False):
+            result['red_flags'].append('enterprise_gpt')
+            result['negative_signals'].append('enterprise 300+ (GPT)')
+        # v7 flag fallback
         rf = gpt_flags.get('red_flags', {})
-        if rf.get('is_enterprise_500plus'):
+        if rf.get('is_enterprise_500plus', False):
             result['red_flags'].append('enterprise_gpt')
             result['negative_signals'].append('enterprise 500+ (GPT)')
 
@@ -500,6 +574,7 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
 def _build_from_gpt_only(domain, gpt_flags, talent_country):
     """Build analysis from GPT flags when no website scrape data exists."""
     talent_key = talent_country.replace(' ', '_')
+    # Support both v8 (flat) and v7 (nested) flag structures
     rf = gpt_flags.get('red_flags', {})
     gf = gpt_flags.get('green_flags', {})
 
@@ -514,12 +589,16 @@ def _build_from_gpt_only(domain, gpt_flags, talent_country):
         'evidence': [],
         'red_flags': [],
         'is_placeholder': False,
-        'hq_in_talent_country': rf.get(f'hq_in_{talent_key}', False),
+        'hq_in_talent_country': gpt_flags.get(f'is_hq_in_{talent_key}', rf.get(f'hq_in_{talent_key}', False)),
         'has_formal_office': rf.get(f'has_{talent_key}_office', False),
-        'has_talent_ops': gf.get(f'has_{talent_key}_workforce', False),
-        'has_offshore': gf.get('mentions_outsourcing_bpo', False),
+        'has_talent_ops': gpt_flags.get(f'has_{talent_key}_workforce', gf.get(f'has_{talent_key}_workforce', False)),
+        'has_offshore': gpt_flags.get('mentions_outsourcing_contractors', gf.get('mentions_outsourcing_bpo', False)),
         'has_contractors': gf.get('mentions_contractors_freelancers', False),
         'has_remote': gf.get('mentions_remote_teams', False),
+        'is_competitor': gpt_flags.get('is_competitor', False),
+        'is_hq_in_buyer': gpt_flags.get(f'is_hq_in_{{"pakistan": "uae", "philippines": "australia", "south africa": "gulf"}}.get(talent_country, "")}', True),
+        'is_outsourcing_provider': gpt_flags.get('is_outsourcing_provider', False),
+        'would_need_easystaff': gpt_flags.get('would_need_easystaff', None),
         'industry': gpt_flags.get('company_vertical', 'other'),
         'industry_score': _industry_score(gpt_flags.get('company_vertical', 'other')),
         'employee_estimate': gpt_flags.get('employee_estimate'),
@@ -530,10 +609,15 @@ def _build_from_gpt_only(domain, gpt_flags, talent_country):
 
     if result['hq_in_talent_country']:
         result['red_flags'].append('hq_in_talent_country')
-    if rf.get('is_construction_realestate') or rf.get('is_hospitality_tourism'):
+    if gpt_flags.get('is_construction_realestate_hospitality') or rf.get('is_construction_realestate') or rf.get('is_hospitality_tourism'):
         result['red_flags'].append('irrelevant_industry')
-    if rf.get('is_enterprise_500plus'):
+    if gpt_flags.get('is_enterprise_300plus') or rf.get('is_enterprise_500plus'):
         result['red_flags'].append('enterprise_gpt')
+    if result['is_competitor']:
+        result['red_flags'].append('competitor')
+    vert = gpt_flags.get('company_vertical', '')
+    if vert in EXCLUDED_INDUSTRIES:
+        result['red_flags'].append('irrelevant_industry')
 
     return result
 
@@ -689,22 +773,27 @@ def compute_company_score(analysis, best_origin, best_role_score, clay_count):
     red_flags = analysis.get('red_flags', [])
     # Hard exclusion flags → 0 points
     hard_flags = {'hq_in_talent_country', 'irrelevant_industry', 'enterprise_gpt',
-                  'placeholder_empty', 'placeholder_parked'}
+                  'placeholder_empty', 'placeholder_parked',
+                  'competitor', 'outsourcing_provider_in_talent_country'}
     has_hard_flag = bool(set(red_flags) & hard_flags)
     # Soft flags → partial penalty
-    soft_flags = {'country_list_only'}
+    soft_flags = {'country_list_only', 'hq_not_in_buyer_country'}
     has_soft_flag = bool(set(red_flags) & soft_flags)
 
     if has_hard_flag:
         survived_s = 0
     elif has_soft_flag:
-        survived_s = 50
+        survived_s = 30  # heavy penalty for non-buyer-country HQ
     else:
         survived_s = 100
 
     # Formal office — not a hard exclude but a penalty
     if analysis.get('has_formal_office') and not analysis.get('hq_in_talent_country'):
         survived_s = max(0, survived_s - 30)
+
+    # GPT says "would NOT need EasyStaff" — strong signal
+    if analysis.get('would_need_easystaff') is False:
+        survived_s = max(0, survived_s - 40)
 
     # 4. Website outsourcing signal (10%)
     outsourcing_s = 0
