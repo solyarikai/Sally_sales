@@ -127,6 +127,20 @@ def get_sheets_service():
 
 # ─── ENTERPRISE BLACKLIST ─────────────────────────────────────────────────
 
+# Manually verified: PK-HQ companies with UAE shelf offices, competitors, non-UAE HQ
+# Detected during quality review iteration — these pass all automated filters
+# because their homepages hide PK addresses and GPT misclassifies HQ
+VERIFIED_EXCLUDE = {
+    'softmindsol.com',    # PK-HQ Lahore dev shop (Johar Town address on contact page)
+    'wpexperts.io',       # PK-HQ Karachi WordPress agency (200+ PK staff)
+    'abhi.co',            # PK-HQ fintech (Karachi) + payroll competitor
+    'ipglobal247.com',    # Poland-HQ IT (founded in Poland per about page)
+    'allomate.com',       # PK-HQ Lahore (Gulberg address)
+    'mnadigital.io',      # PK-HQ Lahore (New Garden Town address)
+    'ovexbee.com',        # PK-based digital agency (PK phone on homepage)
+    'daairah.com',        # PK-HQ creative agency (PK phone on homepage)
+}
+
 BLACKLIST_DOMAINS = {
     'sc.com', 'bankfab.com', 'huawei.com', 'emiratesnbd.com', 'deloitte.com',
     'mashreq.com', 'alfuttaim.com', 'dib.ae', 'adcb.com', 'pwc.com', 'ey.com',
@@ -988,7 +1002,7 @@ def run_corridor(corridor_name, sheets):
     bl_d = bl_e = bl_t = bl_clay_ent = 0
     for c in filtered:
         d = c['domain'].lower().strip() if c['domain'] else ''
-        if d in BLACKLIST_DOMAINS:
+        if d in BLACKLIST_DOMAINS or d in VERIFIED_EXCLUDE:
             bl_d += 1; continue
         if d and domain_counts[d] >= 10:
             bl_e += 1; continue
