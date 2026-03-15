@@ -149,26 +149,9 @@ VERIFIED_EXCLUDE = {
     'dynasoftcloud.com',  # PK phone +92 on contact page, Lahore/Karachi offices
     'pxgeo.com',          # Enterprise 400+ employees, marine geophysics (in-house payroll)
     'ikragcae.com',       # HR recruitment + migration services = competitor-adjacent
-    # v8 round 2: verified from 100-company review
-    'sasventure.co',      # PK phone +92 3432991910 on homepage — PK-HQ
-    'crystalchemicals.ae',# Pharma API importer/distributor — wrong industry
-    'burkshipping.com',   # Logistics with "offices in Dubai/Sharjah and Pakistan" — PK-HQ
-    'greatlinklogistics.com', # Shipping with Dubai/Karachi/Lahore offices — PK-HQ
-    'alphaedits.com',     # Gmail contact, wedding photo editing freelancer — not a company
-    'alifinvestments.com',# Shariah investment group with restaurants — food/retail
-    'nexus-uae.com',      # Business setup/company formation/visa services
-    'v-linksolutions.com',# Visa/immigration services (student visa, work permits)
-    'gatetrips.com',      # Travel booking agency
-    'yafaint.com',        # Garment/textile supplier — manufacturing
-    'sarie.ae',           # Business setup/PRO/visa services
-    'bizdaddy.ae',        # Business setup/freezone/corporate banking
-    'jlx-international.com', # Oil & gas services (drilling, ESP) with PK office
-    'westasiawatch.com',  # News publication — media outlet, not a company
-    'eandenterprise.com', # e& enterprise = Etisalat subsidiary, massive enterprise
-    'saatchi.com',        # Saatchi & Saatchi = Publicis Groupe, global enterprise
-    'fintaxonline.com',   # Business setup/accounting/tax services
-    'ogilvy.com',         # Ogilvy = WPP Group, global enterprise
-    'ghalibconsulting.com', # Saudi-focused (+966 phone), financial advisory not tech
+    # Companies that pass ALL algorithmic filters but are known-bad
+    # (PK companies hiding their PK origin — no signals on homepage, GPT wrong about HQ)
+    # ONLY add here if the algorithm genuinely can't catch it
 }
 
 BLACKLIST_DOMAINS = {
@@ -187,6 +170,10 @@ BLACKLIST_DOMAINS = {
     'morganstanley.com', 'ubs.com', 'novartis.com', 'pfizer.com',
     'bakerhughes.com', 'honeywell.com', 'schneider-electric.com',
     'totalenergies.com', 'chevron.com', 'positivity.org',
+    # Global ad/media agencies (enterprise, thousands of employees)
+    'ogilvy.com', 'saatchi.com', 'publicisgroupe.com', 'wpp.com', 'omnicomgroup.com',
+    'dentsu.com', 'havas.com', 'leoburnett.com', 'tbwa.com', 'bbdo.com',
+    'grey.com', 'jwt.com', 'mccann.com', 'ddb.com', 'fcb.com',
 }
 
 SHARED_HOSTING = {
@@ -411,7 +398,7 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
 
     # PK phone numbers: +92 or 03xx pattern
     import re as _re
-    pk_phone_patterns = [r'\+92[\s\-]?\d', r'\b03[0-9]{2}[\s\-]?[0-9]{3}']
+    pk_phone_patterns = [r'\+92[\s\-]?\d', r'\b03[0-9]{2}[\s\-]?[0-9]{3}', r'\b92[0-9]{10}\b']
     has_pk_phone = any(_re.search(p, full) for p in pk_phone_patterns)
 
     # Tech/outsourcing industry from GPT (not yet set in result at this point)
@@ -680,6 +667,44 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     else:
         result['gpt_what_they_do'] = ''
         result['gpt_reasoning'] = ''
+
+    # ─── BUSINESS SETUP / VISA SERVICES DETECTION ──────────────────
+    # These companies help with UAE company formation, not tech — wrong industry
+    # GPT often classifies them as "business services" or "consultancy" which passes filters
+    visa_biz_kws = ['company formation', 'business setup', 'free zone', 'freezone setup',
+                    'pro services', 'visa services', 'work permit', 'residence visa',
+                    'trade license', 'mainland company', 'offshore company setup',
+                    'golden visa', 'investor visa', 'employment visa']
+    if any(kw in full for kw in visa_biz_kws):
+        result['red_flags'].append('irrelevant_industry')
+        result['negative_signals'].append('business setup/visa services (keyword)')
+
+    # ─── FREELANCER / THIN WEBSITE DETECTION ─────────────────────────
+    # Gmail/yahoo contact + minimal website = not a real company
+    has_gmail = any(e in full for e in ['@gmail.com', '@yahoo.com', '@hotmail.com', '@outlook.com'])
+    if has_gmail and len(text) < 500:
+        result['red_flags'].append('placeholder_empty')
+        result['negative_signals'].append('gmail + thin website = freelancer')
+
+    # ─── FUZZY INDUSTRY MATCHING ─────────────────────────────────────
+    # GPT verticals are free-form strings. Match against excluded industries using substring.
+    # Example: GPT says "pharmaceuticals" → matches "pharmac" → excluded
+    # Example: GPT says "oil & gas services" → matches "oil" → excluded
+    gpt_vert_lower = (gpt_flags.get('company_vertical') or '').lower() if gpt_flags else ''
+    fuzzy_exclude_patterns = [
+        'pharma', 'oil', 'gas ', 'petrol', 'mining',
+        'hotel', 'resort', 'restaurant', 'catering',
+        'property', 'real estate', 'villa',
+        'school', 'university', 'academy',
+        'garment', 'textile', 'apparel',
+        'travel', 'tour', 'booking',
+        'news', 'journal', 'media outlet',
+        'salon', 'spa', 'gym', 'fitness',
+    ]
+    if any(p in gpt_vert_lower for p in fuzzy_exclude_patterns):
+        if 'irrelevant_industry' not in result.get('red_flags', []):
+            result['red_flags'].append('irrelevant_industry')
+            result['negative_signals'].append(f'fuzzy industry match: {gpt_vert_lower}')
 
     # ─── ADDITIONAL NEGATIVE SIGNALS ──────────────────────────────────
     neg_patterns = [
