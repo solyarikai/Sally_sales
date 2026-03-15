@@ -1,98 +1,150 @@
-# EasyStaff Global — Action Plan
+# EasyStaff Global — Contact Prioritization Action Plan
 
-## KPI: 2,000 ICP-matched contacts per corridor, max 3 per company, 95%+ accuracy
+**This document is the SINGLE SOURCE OF TRUTH for any agent working on this task.**
 
----
-
-## Core Hypothesis
-
-**People originally from the talent country, now holding C-level positions in the buyer country, likely have contractors from their home country.** This is the cultural network hypothesis — the basis for all contact gathering.
+Read `docs/suck.md` BEFORE doing anything. It contains critical rules from past failures.
 
 ---
 
-## Approach 1: Origin-Based Contact Search (PRIMARY — exhaust first)
+## KPI
 
-Find decision-makers who are ORIGINALLY FROM the talent country but NOW LOCATED in the buyer country.
+2,000 target priority contacts per corridor, max 3 per company, 95%+ self-verified accuracy.
 
-### Search Dimensions
+## Corridors
 
-| Dimension | UAE→Pakistan | AU→Philippines | Arabic→SouthAfrica |
-|-----------|-------------|----------------|-------------------|
-| **Language** | Urdu ✅ (specific) | Tagalog ✅ (specific) | Afrikaans ✅ (specific, not English) |
-| **Universities** | LUMS, IBA Karachi, NUST, FAST, GIK, NED, Quaid-i-Azam, COMSATS, UET Lahore, Lahore Uni of Mgmt Sciences | Ateneo de Manila, De La Salle, UP Diliman, UST, Mapua, AIM, Adamson, FEU, DLSU | UCT, Wits, Stellenbosch, UP, UJ, UKZN, Rhodes, UWC, UNISA, Durban UT |
-| **Surnames** | Khan, Ahmed, Ali, Hussain, Sheikh, Malik, Butt, Iqbal, Chaudhry, Qureshi, Rehman, Syed, Zafar, Ashraf, Mirza | Santos, Reyes, Cruz, Garcia, Ramos, Aquino, Torres, Flores, Villanueva, Bautista, Del Rosario, Gonzales, Mendoza | Van der Merwe, Botha, Naidoo, Pillay, Govender, Singh, Patel, Moodley, Ndlovu, Zulu, Dlamini, Joubert |
-| **Buyer location** | UAE, Dubai, Abu Dhabi, Sharjah | Australia, Sydney, Melbourne, Brisbane, Perth | Qatar, Saudi Arabia, UAE, Bahrain, Kuwait, Oman |
-| **Titles** | CEO, CFO, COO, CTO, Founder, VP, Director, Head, Managing Director, Owner, Partner | Same | Same |
+| Corridor | Buyer country | Talent country | Origin signal |
+|----------|--------------|----------------|---------------|
+| UAE→Pakistan | UAE (Dubai, Abu Dhabi, Sharjah) | Pakistan | Urdu language, PK universities, PK surnames |
+| AU→Philippines | Australia (Sydney, Melbourne, Brisbane, Perth) | Philippines | Tagalog language, PH universities, Filipino surnames |
+| Arabic→SouthAfrica | Gulf (Qatar, Saudi, UAE, Bahrain, Kuwait, Oman) | South Africa | Afrikaans language, SA universities, SA surnames |
 
-### Why This Works
-- Language filter: Urdu/Tagalog/Afrikaans speakers are RARE in buyer countries → high signal
-- University filter: alumnus of PK/PH/SA university + in UAE/AU/Gulf → strong origin signal
-- Surname filter: backup signal when language/university not available
-- C-level filter: only decision-makers who can approve EasyStaff
+## Current State (Mar 16, 2026)
 
-### Where It Doesn't Work
-- English as language → useless (everyone speaks English)
-- Very common surnames that overlap with other origins → noise
-- People who went to buyer-country universities (no origin signal)
+| Corridor | Source tab | Scored | Verified accuracy | Output tab |
+|----------|-----------|--------|-------------------|------------|
+| UAE→PK | `UAE-Pakistan - New Only` | 569 | 98.5% (530 companies checked) | `UAE-Pakistan v8 Scored 0315_2311` |
+| AU→PH | `AU-Philippines Clay Filipino` | 253 | 94% (50 companies checked) | `AU-Philippines v9 Scored` |
+| Arabic→SA | `Arabic-SouthAfrica - New Only` | 141 | 86% → fixed | `Arabic-SouthAfrica v8 Scored` |
 
-### Execution: 2 parallel streams per corridor
+**AU-PH and Arabic-SA source tabs have WRONG origin data** (Pakistani contacts, not Filipino/SA). Only the Clay Filipino tab and new Clay SA searches have correct origin.
 
-**Stream A: Clay People Search** (FREE, 0 credits for people without emails)
-- Sequential batches of 200 domains or filter-based searches
-- Runs on Hetzner host: `node scripts/clay/clay_people_search.js`
-- ~3 min per batch
-- Output: JSON with name, title, company, domain, location, LinkedIn
+## Data on Hetzner Server
 
-**Stream B: Apollo Scraper** (FREE, no credits for viewing search results)
-- Headless Puppeteer on Hetzner: `node scripts/apollo_scraper.js`
-- 25 contacts per page, ~3 min per page
-- Can filter by: location, title, company size, keywords
-- Output: JSON with name, title, company, location
+All in `/scripts/data/` (mounted Docker volume, survives restarts):
 
-**Parallel execution:** Clay and Apollo CAN run simultaneously (different services). But only ONE Clay session at a time (DDoS risk). Apollo can run independently.
+| File | What | Size |
+|------|------|------|
+| `uae_pk_v6_scrape.json` | Website scrape cache, 12,686 domains | 28MB |
+| `deep_scrape_v7.json` | About/contact/team pages | 2.9MB |
+| `{corridor}_v8_gpt_flags.json` | GPT binary flags per corridor | ~2MB each |
+| `{corridor}_v8_scored.json` | Scored output per corridor | ~500KB each |
+| `{corridor}_v8_company_analysis.csv` | Full company analysis | ~2MB each |
+| `apollo_uae_pk_v2.json` | 2,000 UAE contacts with LinkedIn | new |
+| `apollo_au_ph_v2.json` | 850 AU contacts with LinkedIn | partial |
+| `{corridor}_clay_all.json` | Consolidated Clay contacts | ~5MB each |
+| `backup_before_rescore_*/` | Timestamped backups | varies |
 
 ---
 
-## Approach 2: Company-Based Search (BACKLOG — after Approach 1 exhausted)
+## CRITICAL RULES (from docs/suck.md)
 
-Find companies in buyer country that have employees in talent country (using Clay TAM search), then find decision-makers at those companies.
+### NEVER overwrite Google Sheet tabs
+- Every scoring run creates a NEW tab: `{Corridor} Scored {MMDD_HHMM}`
+- The scoring script (`uae_pk_v7_score.py`) now enforces this with timestamps
+- **NEVER clear existing tab data**
+- Check `File → Version history` to verify no data was lost
 
-**Why backlog:** Approach 1 directly finds the right PEOPLE. Approach 2 finds companies first, then needs a second step to find people. More steps = more time. But useful for expanding the pool after Approach 1 is exhausted.
+### NEVER trust output without reading websites yourself
+- After scoring, read website text for 100 companies (sample across ALL score ranges)
+- Verification must be INDEPENDENT — don't check GPT flags against GPT flags
+- Report honest accuracy: "82% — here are the 18 bad ones" not "95%+"
+
+### Fix the ALGORITHM, not the blacklist
+- Enterprise companies: blacklist is OK (per user)
+- Everything else: find the PATTERN, add detection to the algorithm
+- Test fix against qualified leads (reference sheet `17O43ThvMNB5ToqsRjwNn81MYe2tjrNql5W93-H3x008`, tab `Leads`, 58 meetings)
+- 0 false negatives required
+
+### Store EVERYTHING
+- `/scripts/data/` only, NEVER `/tmp/` in Docker
+- Backup before every Clay/Apollo run (timestamped directory)
+- Consolidate Clay after every run (`python3 scripts/consolidate_clay.py all`)
+- Scored JSON backed up automatically by scoring script
+
+### Verify source data before scoring
+- Check origin signal matches the corridor (Urdu for UAE-PK, Tagalog for AU-PH, Afrikaans for Arabic-SA)
+- Check 5 sample contacts before full run
+- 37% of contacts have no domain — these are excluded from scoring
 
 ---
 
-## Approach 3: Apollo Broad Search + Scoring (BACKLOG)
+## Gathering Approach: Origin-Based Search
 
-Search Apollo for ALL decision-makers in buyer country at companies 1-200 employees. Don't filter by origin. Let the scoring pipeline prioritize based on company website analysis.
+**Core hypothesis:** People originally from the talent country, now C-level in the buyer country, likely have contractors from home country.
 
-**Why backlog:** No origin signal = lower precision. But massive volume (22K+ results for UAE alone). Good for filling remaining gaps after Approaches 1-2.
+### Search dimensions per corridor
+
+| Dimension | UAE→PK | AU→PH | Arabic→SA |
+|-----------|--------|-------|-----------|
+| Language | Urdu ✅ | Tagalog ✅ | Afrikaans ✅ |
+| Universities | LUMS, IBA, NUST, FAST, GIK, NED, Quaid-i-Azam, COMSATS, UET | Ateneo, De La Salle, UP Diliman, UST, Mapua, AIM | UCT, Wits, Stellenbosch, UP, UJ, UKZN, Rhodes |
+| Surnames | Khan, Ahmed, Ali, Hussain, Sheikh, Malik, Butt, Iqbal | Santos, Reyes, Cruz, Garcia, Ramos, Aquino, Torres | van der Merwe, Botha, Naidoo, Pillay, Govender |
+| Titles | CEO, CFO, COO, CTO, Founder, VP, Director, Head, MD, Owner | Same | Same |
+
+### Tools
+
+**Clay People Search** (FREE, 0 credits for people without emails):
+- Runs on Hetzner HOST: `node scripts/clay/clay_people_search.js`
+- Flags: `--countries "..." --schools "...|..." --titles --headless --auto`
+- Or: `--language "Urdu" --countries "United Arab Emirates"`
+- 200 domains per batch, ~3 min per batch
+- **SEQUENTIAL ONLY — never parallel Clay sessions**
+- After each run: `python3 scripts/consolidate_clay.py all`
+
+**Apollo Scraper** (FREE, no credits for viewing):
+- Runs on Hetzner HOST: `node scripts/apollo_scraper.js --url "..." --max-pages 80 --output file.json`
+- Login: `danila@getsally.io` / `UQdzDShCjAi5Nil!!`
+- Use Apollo UI to set filters, copy URL, pass to scraper
+- Gets: name, title, company, LinkedIn URL, orgId
+- Does NOT get: company domain, email (need to match domain separately)
+- **Can run parallel with Clay** (different service)
+
+### Company size from Clay/Apollo
+- Clay and Apollo provide employee counts — use DETERMINISTICALLY
+- Don't rely on GPT for enterprise detection when you have actual numbers
+- `Company Size` column in sheet, or Clay export `Company Size` field
+- >300 employees = enterprise = exclude
 
 ---
 
-## Prioritization Pipeline (applied to ALL gathered contacts)
+## Scoring Pipeline
 
-Already built and validated at 95%+ accuracy. 10-second scoring, $0 for re-runs.
+Script: `docker exec leadgen-backend python3 /scripts/uae_pk_v7_score.py {corridor}`
 
 ### Layer 0: Cheap deterministic filters (instant, $0)
 - No domain → drop
 - Location not in buyer country → drop
-- Enterprise blacklist (90+ domains) → drop
-- Anti-title (intern, student, freelancer) → drop
+- Enterprise blacklist (100+ domains) → drop
+- Anti-title → drop
+- Domain count >10 → drop
+- Clay 100+ employees → drop
 - .pk/.ph/.za domain → drop
 
-### Layer 1: Website scraping + regexp ($0, Apify proxy)
-- PK-HQ: neighborhoods + phone + company suffix + tech industry
-- Competitor: "employer of record", "payroll provider" keywords
-- Business setup: title/above-fold detection
-- Recruitment: text keywords
-- Broken/placeholder sites
+### Layer 1: Website regexp ($0)
+- PK-HQ: neighborhoods + phone + company suffix + tech industry → exclude
+- Competitor: "employer of record", "payroll provider" → exclude
+- Business setup: above-fold "business setup", "company formation" → exclude
+- Government: "sovereign", "government entity", "free zone authority" → exclude
+- Nonprofit: "not for profit", "nonprofit" → exclude
+- Freelancer platform: "hire freelancers", "freelancer platform" → exclude
+- Placeholder: "coming soon", broken encoding → exclude
 
 ### Layer 2: GPT-4o-mini binary flags ($0.30 per 5,000)
 - HQ country, competitor, enterprise, industry, would_need_easystaff
-- Only for domains with website text that passed Layer 0+1
+- Run: `docker exec leadgen-backend python3 /scripts/gpt_binary_flags.py {corridor} --model gpt`
 
 ### Layer 3: Selection gate
-- ANY red flag → excluded from output
+- ANY red flag → excluded from output entirely
 - No domain → excluded
 - No website → excluded
 - Non-tech industry + GPT no-need → excluded
@@ -108,121 +160,97 @@ origin(40%) + role(20%) + survived_filters(20%) + outsourcing_signal(10%) + clay
 ## Do-Check-Improve Loop
 
 ```
-GATHER (Clay + Apollo)
-    ↓
-SCORE (pipeline, 10 seconds)
-    ↓
-VERIFY (I read 100 companies' website text myself)
-    ↓
- 95%+ ? → YES → WRITE TO SHEET → CLAY ENRICHMENT (3/company)
-    ↓ NO
-FIX ALGORITHM (not blacklist)
-    ↓
-RE-SCORE → back to VERIFY
+1. GATHER contacts (Clay + Apollo)
+2. Upload to NEW Google Sheet tab
+3. SCORE (pipeline, 10 seconds)
+4. VERIFY: read website text for 100 companies myself
+5. 95%+ accuracy?
+   YES → done for this batch
+   NO → identify BAD patterns → fix algorithm → re-score → go to step 4
+6. Clay enrichment: 3 contacts per scored company
+7. Write final output to NEW timestamped Sheet tab
 ```
 
-**Rules:**
-- Verification is INDEPENDENT of scoring method (no circular checking)
-- Fix algorithm for patterns, not individual domains
-- Check against qualified leads after each fix (0 false negatives required)
-- Store EVERYTHING — every scrape, GPT call, Clay result, Apollo result
+**Between each step:**
+- Backup all data
+- Consolidate Clay exports
+- Check source data origin is correct
 
 ---
 
-## Execution Plan
+## Execution Order
 
-### Phase 1: UAE→Pakistan (812/2,000)
+### Phase 1: UAE→Pakistan
+1. ✅ Scored 569 contacts from existing source (98.5% verified)
+2. Apollo v2 gathered 2,000 contacts with LinkedIn — 550 matched to domains
+3. **TO DO:** Upload 550 Apollo contacts to new tab → score → verify
+4. **TO DO:** If <2,000, run more Clay searches (language, surname)
+5. **TO DO:** Clay enrichment for scored companies (3 per company)
 
-**Already done:**
-- 575 scored contacts from 15,369 source
-- +237 Clay enrichment = 812 total
-- 95%+ accuracy after 3 iterations
+### Phase 2: AU→Philippines
+1. ✅ Clay Filipino university search done (4,190 contacts, 253 scored)
+2. **TO DO:** Clay Tagalog language search
+3. **TO DO:** Clay Filipino surname search
+4. **TO DO:** Apollo AU broad search (re-run, previous killed by OOM)
+5. Score all → verify 100 → iterate
+6. Clay enrichment
 
-**Next steps:**
-1. Apollo scraper: decision-makers at 534 scored target companies
-   - URL with org domains filter + CEO/CFO/COO/CTO/VP/Director
-   - Expected: ~500 new contacts at validated companies
-2. Score new contacts → verify 100 → fix → iterate
-3. If <2,000: Apollo broad search (all UAE, 1-200 employees)
-4. Score → verify → iterate
-5. Clay enrichment for final scored companies (3/company)
+### Phase 3: Arabic→SouthAfrica
+1. ✅ Clay SA university search done (102 Gulf-based contacts)
+2. **TO DO:** Clay Afrikaans language search (failed to start previously)
+3. **TO DO:** Clay SA surname search
+4. **TO DO:** Apollo Gulf broad search (re-run, previous killed by OOM)
+5. Score all → verify 100 → iterate
+6. Clay enrichment
 
-### Phase 2: AU→Philippines (616/2,000, NEEDS NEW DATA)
-
-**Problem:** Current data has PK-origin contacts (wrong corridor)
-
-**Steps:**
-1. **Clay searches** (run on Hetzner, sequential):
-   - University search: Ateneo, De La Salle, UP Diliman, UST, Mapua, AIM → location=Australia
-   - Language search: Tagalog speakers → location=Australia
-   - Surname search: Santos, Reyes, Cruz, Garcia → location=Australia, title=CEO/CFO/COO/etc.
-2. **Apollo scraper** (parallel with Clay):
-   - Filter: location=Australia, titles=CEO/CFO/COO, company size=1-200
-   - Keyword in title: "Filipino" or search by Filipino surnames
-3. Import all contacts to Google Sheet new tab: `AU-Philippines v9 Raw`
-4. Score → verify 100 → fix → iterate
-5. Clay enrichment (3/company)
-
-### Phase 3: Arabic→SouthAfrica (152/2,000, NEEDS NEW DATA)
-
-**Steps:**
-1. **Clay searches:**
-   - University search: UCT, Wits, Stellenbosch, UP, UJ → location=Qatar/Saudi/UAE/Bahrain/Kuwait/Oman
-   - Language search: Afrikaans speakers → location=Gulf
-   - Surname search: van der Merwe, Botha, Naidoo, Pillay → location=Gulf, title=CEO/CFO/COO
-2. **Apollo scraper** (parallel with Clay):
-   - Filter: location=Gulf states, titles=decision-makers, company size=1-200
-3. Import → Score → verify → iterate → Clay enrichment
-
-### Parallel Execution Strategy
-
+### Parallel execution
 ```
-TIME →
-     ┌─ Clay: UAE-PK university search ──┐
-     │  Apollo: UAE-PK target companies   │
-     ├─ Clay: AU-PH university search ───┤
-     │  Apollo: AU-PH broad search       │
-     ├─ Clay: Arabic-SA university search┤
-     │  Apollo: Arabic-SA broad search   │
-     └───────────────────────────────────┘
+At any moment: 1 Clay + 1 Apollo running simultaneously = OK
+               2 Clay sessions = NOT OK (DDoS risk)
 
-Rule: 1 Clay + 1 Apollo at same time = OK
-      2 Clay sessions = NOT OK (DDoS risk)
-      2 Apollo sessions = probably OK (different browser instances)
+Corridor order: UAE-PK first (most data), then AU-PH, then Arabic-SA
 ```
-
-**Sequence:**
-1. Start Apollo UAE-PK + Clay UAE-PK university → wait for both
-2. Score UAE-PK → verify → fix
-3. Start Apollo AU-PH + Clay AU-PH university → wait for both
-4. Score AU-PH → verify → fix
-5. Start Apollo Arabic-SA + Clay Arabic-SA university → wait for both
-6. Score Arabic-SA → verify → fix
-7. Clay enrichment for all scored companies (sequential)
 
 ---
 
-## Data Persistence
+## Reference: Qualified Leads That Converted
 
-ALL in `/scripts/data/` on Hetzner:
-
-| File | What |
-|------|------|
-| `uae_pk_v6_scrape.json` | Website cache (12K+ domains, shared) |
-| `deep_scrape_v7.json` | Multi-page scrape cache (shared) |
-| `{corridor}_v8_gpt_flags.json` | GPT flags per corridor |
-| `{corridor}_v8_scored.json` | Scored output per corridor |
-| `{corridor}_v8_company_analysis.csv` | Full analysis per corridor |
-| `apollo_{corridor}.json` | Apollo scraper results per corridor |
-| `{corridor}_clay_enrich_domains.csv` | Domains for Clay enrichment |
-| `clay/exports/people_*.json` | Clay results (shared, append-only) |
+From sheet `17O43ThvMNB5ToqsRjwNn81MYe2tjrNql5W93-H3x008`, tab `Leads`:
+- 58 meetings total across all corridors
+- Key learnings: real estate, pet companies, business setup consultancies ALL converted
+- Only hard-exclude: construction, hospitality, oil & gas, mining, government
+- `arassociates.ae` (business setup) converted in 5 hours — don't blanket-exclude business setup
+- Company sizes that converted: 1 to 40+ employees (sweet spot 5-50)
 
 ---
 
-## Quality Gates
+## Scripts Reference
 
-- 95%+ accuracy on 100 companies before writing to Google Sheet
-- Verification: read website text myself, independent of scoring
-- 0% false negatives against 30 qualified meeting companies
-- Algorithm handles patterns, blacklist only for GPT misclassification (5 domains)
-- Each corridor verified independently
+| Script | What | Where to run |
+|--------|------|-------------|
+| `scripts/uae_pk_v7_score.py` | Scoring pipeline | Docker: `docker exec leadgen-backend python3 /scripts/uae_pk_v7_score.py {corridor}` |
+| `scripts/gpt_binary_flags.py` | GPT analysis | Docker: `docker exec leadgen-backend python3 /scripts/gpt_binary_flags.py {corridor} --model gpt` |
+| `scripts/deep_scrape.py` | Multi-page website scraper | Docker |
+| `scripts/consolidate_clay.py` | Merge & dedup Clay exports | Host: `python3 scripts/consolidate_clay.py all` |
+| `scripts/clay_enrich_targets.py` | Generate domain list for Clay enrichment | Docker |
+| `scripts/clay/clay_people_search.js` | Clay People Search automation | Host: `node scripts/clay/clay_people_search.js` |
+| `scripts/apollo_scraper.js` | Apollo UI scraper | Host: `node scripts/apollo_scraper.js --url "..." --max-pages N --output file.json` |
+
+---
+
+## Google Sheet Structure
+
+**Sheet ID:** `1pivHqk1NI-MHdDFSQugfg5olBMKTkBGr_yyjjXlWqKU`
+
+| Tab | What | DO NOT TOUCH |
+|-----|------|-------------|
+| `UAE-Pakistan` | All gathered contacts | ✅ |
+| `UAE-Pakistan - New Only` | Minus already contacted | ✅ source for scoring |
+| `UAE-Pakistan Priority 2000` | Original operator list | ✅ DESTROYED by mistake, restore from version history |
+| `AU-Philippines` / `- New Only` | All / clean pool | ✅ but WRONG ORIGIN (PK not Filipino) |
+| `Arabic-SouthAfrica` / `- New Only` | All / clean pool | ✅ but WRONG ORIGIN (PK not SA) |
+| `AU-Philippines Clay Filipino` | Filipino-origin contacts from Clay | ✅ correct origin for AU-PH |
+| `Sheet2` | UNIQUE(Domain) | ✅ |
+| `* v8 Scored *` | Pipeline output | Created by scoring script |
+
+**New tabs from scoring always have timestamp:** `{Corridor} Scored {MMDD_HHMM}`
