@@ -158,8 +158,9 @@ class SheetSyncService:
                 stats["errors"].append("No campaign_filters on project")
                 return stats
 
+            campaign_filters_lower = [c.lower() for c in campaign_filters if isinstance(c, str)]
             query = select(ProcessedReply).where(
-                ProcessedReply.campaign_name.in_(campaign_filters),
+                func.lower(ProcessedReply.campaign_name).in_(campaign_filters_lower),
                 # Only un-synced replies (bulletproof dedup)
                 ProcessedReply.sheet_synced_at.is_(None),
                 # Exclude outbound "Email N sent to..." SmartLead notifications

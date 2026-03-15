@@ -424,12 +424,14 @@ class CRMScheduler:
                 assigned_in_table = await session.execute(
                     select(Campaign).where(Campaign.project_id.isnot(None))
                 )
+                from sqlalchemy.orm.attributes import flag_modified
                 for camp in assigned_in_table.scalars():
                     if camp.name.lower() not in assigned_names and camp.project_id in project_by_id:
                         project = project_by_id[camp.project_id]
                         filters = list(project.campaign_filters or [])
                         filters.append(camp.name)
                         project.campaign_filters = filters
+                        flag_modified(project, "campaign_filters")
                         assigned_names.add(camp.name.lower())
 
                 # Try to assign unassigned campaigns via ownership rules
@@ -450,6 +452,7 @@ class CRMScheduler:
                             filters = list(project.campaign_filters or [])
                             filters.append(camp.name)
                             project.campaign_filters = filters
+                            flag_modified(project, "campaign_filters")
                             assigned_names.add(camp.name.lower())
                         assigned_count += 1
                         # Audit log

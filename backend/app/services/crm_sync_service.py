@@ -3076,8 +3076,7 @@ class CRMSyncService:
                     
                     if not contact:
                         stats["no_contact"] += 1
-                        # Still cache it to avoid re-checking
-                        new_reply_ids.append(message_id)
+                        # Do NOT cache — contact may be imported later, re-check next cycle
                         continue
                     
                     # Check if we already have this activity (fallback for cache miss)
@@ -3235,14 +3234,13 @@ class CRMSyncService:
                     except Exception as pr_err:
                         logger.warning(f"[GETSALES] Per-message processing failed (non-fatal): {pr_err}")
 
-                    stats["new_replies"] += 1
-
                     # --- Commit + cache + notify immediately after each new reply ---
                     # Each reply takes ~30s (AI draft). With 10+ new replies per page,
                     # a page takes 5+ min. Frequent container restarts (other deploys)
                     # were killing every cycle before page 1 committed, losing all work.
                     # Now each reply is durable the instant it's processed.
                     if _pr:
+                        stats["new_replies"] += 1
                         await session.commit()
                         await bulk_add_replies("getsales", [message_id])
 
@@ -3260,9 +3258,7 @@ class CRMSyncService:
                                 )
                             except Exception:
                                 pass  # Non-fatal
-                    else:
-                        # No PR created (failed or no-contact) — batch cache at end
-                        new_reply_ids.append(message_id)
+                    # else: processing failed — do NOT cache, will retry next cycle
 
                 # Pagination — fetch next page for next iteration
                 if not has_more:

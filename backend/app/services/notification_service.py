@@ -702,14 +702,17 @@ async def send_telegram_notification(
 
 
 async def _ensure_cache_fresh():
-    """Refresh the project cache if stale."""
+    """Refresh the project cache if stale (double-checked locking)."""
     from datetime import datetime
 
     now = datetime.utcnow()
     if (not _project_cache["last_refresh"] or
         (now - _project_cache["last_refresh"]).total_seconds() > _PROJECT_CACHE_TTL):
-        if not _project_cache_lock.locked():
-            async with _project_cache_lock:
+        async with _project_cache_lock:
+            # Re-check after acquiring lock — another coroutine may have refreshed
+            now2 = datetime.utcnow()
+            if (not _project_cache["last_refresh"] or
+                (now2 - _project_cache["last_refresh"]).total_seconds() > _PROJECT_CACHE_TTL):
                 try:
                     await _refresh_project_cache()
                 except Exception as e:
@@ -773,27 +776,9 @@ async def _get_project_for_campaign(campaign_name: str):
                 ))
                 return project_data
 
-    # 2. Prefix match — pick the LONGEST matching project name
-    #    (e.g. "easystaff global" beats "easystaff" for "easystaff -canada_eu")
-    best_match = None
-    best_len = 0
-    for project_data in _project_cache["data"].values():
-        project_name = (project_data.get("name") or "").lower()
-        if not project_name or len(project_name) < 4:
-            continue
-        if campaign_lower.startswith(project_name) or campaign_lower.startswith(project_name.replace(" ", "_")):
-            if len(project_name) > best_len:
-                best_match = project_data
-                best_len = len(project_name)
-    if best_match:
-        _asyncio.ensure_future(_track_campaign_resolution(
-            campaign_name, "prefix_match",
-            f"Matched prefix '{best_match.get('name')}' (len={best_len})",
-            best_match.get("id"),
-        ))
-        return best_match
-
-    # 2.5. Ownership rules match (prefix/contains/tags from campaign_ownership_rules)
+    # 2. Ownership rules match (prefix/contains/tags from campaign_ownership_rules)
+    #    Uses the same match_campaign_to_project() as reply_processor and scheduler —
+    #    longest-prefix-wins, explicit contains rules, SmartLead tags.
     try:
         from app.services.crm_sync_service import match_campaign_to_project
         matched_pid = match_campaign_to_project(campaign_name)

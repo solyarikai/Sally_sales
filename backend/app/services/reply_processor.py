@@ -1270,6 +1270,8 @@ async def process_reply_webhook(
                     existing_lower = {c.lower() for c in project.campaign_filters if isinstance(c, str)}
                     if campaign_name.lower() not in existing_lower:
                         project.campaign_filters = project.campaign_filters + [campaign_name]
+                        from sqlalchemy.orm.attributes import flag_modified
+                        flag_modified(project, "campaign_filters")
                         logger.info(f"[PROCESSOR] Auto-registered SmartLead campaign '{campaign_name}' to project '{project.name}'")
                         # Audit log
                         try:
@@ -1756,17 +1758,25 @@ async def process_reply_webhook(
     except Exception as e:
         logger.error(f"Error processing webhook: {e}")
         await session.rollback()
-        # Track error on automation if found (in separate transaction)
-        automation = locals().get('automation')
-        if automation:
+        # Track error on automation in a SEPARATE session (original is rolled back)
+        automation_id_local = locals().get('automation_id')
+        if automation_id_local:
             try:
-                automation.total_errors = (automation.total_errors or 0) + 1
-                automation.last_error = str(e)[:500]  # Truncate long errors
-                automation.last_error_at = datetime.utcnow()
-                await session.commit()
+                from app.db import async_session_maker
+                async with async_session_maker() as err_session:
+                    from sqlalchemy import update as sa_update
+                    await err_session.execute(
+                        sa_update(ReplyAutomation)
+                        .where(ReplyAutomation.id == automation_id_local)
+                        .values(
+                            total_errors=ReplyAutomation.total_errors + 1,
+                            last_error=str(e)[:500],
+                            last_error_at=datetime.utcnow(),
+                        )
+                    )
+                    await err_session.commit()
             except Exception as log_err:
                 logger.warning(f"Failed to log automation error stats: {log_err}")
-                await session.rollback()
         raise
 
 
@@ -1912,6 +1922,8 @@ async def process_getsales_reply(
                     existing_lower = {c.lower() for c in project.campaign_filters if isinstance(c, str)}
                     if flow_name.lower() not in existing_lower:
                         project.campaign_filters = project.campaign_filters + [flow_name]
+                        from sqlalchemy.orm.attributes import flag_modified
+                        flag_modified(project, "campaign_filters")
                         logger.info(f"[GETSALES] Auto-registered campaign '{flow_name}' to project '{project.name}'")
 
                 proj_sender_name = project.sender_name
@@ -2233,7 +2245,8 @@ async def send_getsales_notification(
             inbox_link = GetSalesClient.build_inbox_url(lead_uuid, sender_profile_uuid)
 
         # Fallback: resolve project by sender_profile_uuid if campaign routing fails
-        if not resolved_project_id and not effective_campaign and sender_profile_uuid:
+        _valid_campaign = effective_campaign and effective_campaign not in ("Unknown Flow", "Unknown", "synced", "")
+        if not resolved_project_id and not _valid_campaign and sender_profile_uuid:
             try:
                 from app.services.notification_service import _get_project_by_sender
                 proj = await _get_project_by_sender(sender_profile_uuid)
