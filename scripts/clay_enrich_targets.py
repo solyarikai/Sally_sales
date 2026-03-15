@@ -74,8 +74,24 @@ def main():
     print(f"\nWrote {len(need_more)} domains to {out_file}")
     print(f"Batches needed: {(len(need_more) + 199) // 200} (200 domains/batch)")
     print(f"Estimated time: ~{(len(need_more) + 199) // 200 * 3} min")
-    print(f"\nTo run Clay enrichment:")
-    print(f"  node scripts/clay/clay_people_search.js --domains-file {out_file} --countries \"{country}\" --headless --auto")
+    # APPROACH: Don't filter by talent-country origin. The COMPANY is already validated.
+    # Now find ANY decision-maker at this company in the buyer country.
+    # EasyStaff decision-makers: CFO, COO, HR Director, CEO, Founder, VP Finance/Ops
+    buyer_country = {
+        'uae-pakistan': 'United Arab Emirates',
+        'au-philippines': 'Australia',
+        'arabic-southafrica': 'Qatar,Saudi Arabia,Bahrain,Kuwait,Oman,United Arab Emirates',
+    }.get(corridor, 'United Arab Emirates')
+
+    print(f"\nTo run Clay enrichment (decision-makers at target companies):")
+    print(f"  node scripts/clay/clay_people_search.js \\")
+    print(f"    --domains-file {out_file} \\")
+    print(f"    --countries \"{buyer_country}\" \\")
+    print(f"    --titles \\")
+    print(f"    --headless --auto")
+    print(f"\n  This finds CFO/COO/HR/CEO/Founder at target companies in {buyer_country}.")
+    print(f"  NOT filtered by Pakistan origin — company already validated as ICP.")
+    print(f"  Result: up to 3 decision-makers per company → ~{total_slots} new contacts.")
 
 
 if __name__ == '__main__':
