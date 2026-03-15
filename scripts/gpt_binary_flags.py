@@ -225,12 +225,14 @@ async def main():
 
     # Get domains from analysis CSV
     import csv
-    csv_file = f'/tmp/{slug}_v7_company_analysis.csv'
+    csv_file = f'{DATA_DIR}/{slug}_v8_company_analysis.csv'
     if not os.path.exists(csv_file):
-        csv_file = '/tmp/uae_pakistan_v7_company_analysis.csv'
-        if not os.path.exists(csv_file):
-            print("No analysis CSV found.")
-            return
+        csv_file = f'{DATA_DIR}/{slug}_v7_company_analysis.csv'
+    if not os.path.exists(csv_file):
+        csv_file = f'/tmp/{slug}_v7_company_analysis.csv'
+    if not os.path.exists(csv_file):
+        print(f"No analysis CSV found. Checked {DATA_DIR} and /tmp")
+        return
 
     with open(csv_file) as f:
         rows = list(csv.DictReader(f))
