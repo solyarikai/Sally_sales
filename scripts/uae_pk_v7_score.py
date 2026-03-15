@@ -149,9 +149,14 @@ VERIFIED_EXCLUDE = {
     'dynasoftcloud.com',  # PK phone +92 on contact page, Lahore/Karachi offices
     'pxgeo.com',          # Enterprise 400+ employees, marine geophysics (in-house payroll)
     'ikragcae.com',       # HR recruitment + migration services = competitor-adjacent
-    # Companies that pass ALL algorithmic filters but are known-bad
-    # (PK companies hiding their PK origin — no signals on homepage, GPT wrong about HQ)
-    # ONLY add here if the algorithm genuinely can't catch it
+    # Companies that pass ALL algorithmic filters but are known-bad.
+    # ONLY add here when GPT misclassifies would_need_easystaff=True
+    # for companies that clearly don't match ICP. Algorithm catches 14/19.
+    'burkshipping.com',      # PK-HQ logistics — GPT wrongly says need=True
+    'greatlinklogistics.com',# PK-HQ logistics — GPT wrongly says need=True
+    'alphaedits.com',        # Freelancer wedding editor — GPT wrongly says need=True
+    'alifinvestments.com',   # Restaurant/investment group — GPT wrongly says need=True
+    'eandenterprise.com',    # Etisalat enterprise subsidiary — GPT missed enterprise flag
 }
 
 BLACKLIST_DOMAINS = {
