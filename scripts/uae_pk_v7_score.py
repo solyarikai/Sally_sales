@@ -181,10 +181,13 @@ BLACKLIST_DOMAINS = {
     'grey.com', 'jwt.com', 'mccann.com', 'ddb.com', 'fcb.com',
     # Global consulting firms
     'adlittle.com', 'rolandberger.com', 'oliverwyman.com', 'lek.com',
-    # Government / free zone authorities
-    'dmcc.ae', 'difc.ae', 'dafza.ae', 'jafza.ae', 'adgm.com',
+    # Government / free zone authorities / sovereign funds
+    'dmcc.ae', 'difc.ae', 'dafza.ae', 'jafza.ae', 'adgm.com', 'mgx.ae', 'mubadala.com',
     # More global ad agencies (Omnicom, Interpublic, etc.)
     'tbwaraad.com', 'tbwa.com', 'ddbworldwide.com', 'fticonsulting.com',
+    'mrm.com', 'mcsaatchi.ae', 'mcsaatchi.com',
+    # Major IT distributors / telecom subsidiaries
+    'redingtongroup.com', 'zaintech.com', 'g42.ai',
 }
 
 SHARED_HOSTING = {
@@ -687,7 +690,7 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
     above_fold = full[:300]  # First 300 chars = what the company leads with
     setup_surface = setup_title + ' ' + above_fold
     if any(kw in setup_surface for kw in ['business setup', 'company formation', 'visa services',
-                                           'trade license', 'company setup', 'setup your company',
+                                           'trade license', 'company setup', 'setup your company', 'setup your business',
                                            'doc clearing', 'document clearing',
                                            'road safety', 'transport consultant',
                                            'buy business', 'sell business', 'business brokerage',
