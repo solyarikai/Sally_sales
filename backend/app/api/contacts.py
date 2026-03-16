@@ -193,6 +193,7 @@ class ProjectUpdate(BaseModel):
     sender_position: Optional[str] = None
     sender_company: Optional[str] = None
     reply_prompt_template_id: Optional[int] = None
+    sdr_email: Optional[str] = None  # SDR email for test campaign notifications
 
 
 class ProjectResponse(BaseModel):
@@ -212,6 +213,7 @@ class ProjectResponse(BaseModel):
     sender_company: Optional[str] = None
     reply_prompt_template_id: Optional[int] = None
     external_status_config: Optional[Dict[str, Any]] = None
+    sdr_email: Optional[str] = None
     contact_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -2049,6 +2051,7 @@ async def list_projects(
             sender_position=project.sender_position,
             sender_company=project.sender_company,
             reply_prompt_template_id=project.reply_prompt_template_id,
+            sdr_email=project.sdr_email,
             contact_count=contact_count,
             created_at=project.created_at,
             updated_at=project.updated_at,
@@ -2144,6 +2147,7 @@ async def get_project(
         sender_position=project.sender_position,
         sender_company=project.sender_company,
         reply_prompt_template_id=project.reply_prompt_template_id,
+        sdr_email=project.sdr_email,
         contact_count=contact_count,
         created_at=project.created_at,
         updated_at=project.updated_at,
@@ -2261,6 +2265,7 @@ async def update_project(
         sender_position=project.sender_position,
         sender_company=project.sender_company,
         reply_prompt_template_id=project.reply_prompt_template_id,
+        sdr_email=project.sdr_email,
         contact_count=contact_count,
         created_at=project.created_at,
         updated_at=project.updated_at,

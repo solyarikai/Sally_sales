@@ -95,6 +95,7 @@ export interface Project {
   telegram_username?: string;
   webhooks_enabled?: boolean;
   sheet_sync_config?: SheetSyncConfig | null;
+  sdr_email?: string;  // SDR email for test campaign notifications
   contact_count: number;
   created_at: string;
   updated_at: string;
@@ -542,7 +543,7 @@ export const contactsApi = {
   },
 
   // Update project
-  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[]; campaign_ownership_rules?: CampaignOwnershipRules | Record<string, string[]> | null; telegram_username?: string; webhooks_enabled?: boolean; sheet_sync_config?: SheetSyncConfig | null }): Promise<Project> {
+  async updateProject(id: number, updates: { name?: string; description?: string; campaign_filters?: string[]; campaign_ownership_rules?: CampaignOwnershipRules | Record<string, string[]> | null; telegram_username?: string; webhooks_enabled?: boolean; sheet_sync_config?: SheetSyncConfig | null; sdr_email?: string }): Promise<Project> {
     const response = await api.patch(`/contacts/projects/${id}`, updates);
     return response.data;
   },

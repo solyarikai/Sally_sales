@@ -25,6 +25,15 @@ def upgrade() -> None:
     # Project table: SDR email for test notifications
     op.add_column('projects', sa.Column('sdr_email', sa.String(255), nullable=True))
 
+    # Data migration: mark all existing ACTIVE campaigns as already notified
+    # This prevents sending notifications for campaigns that were launched before this feature
+    op.execute("""
+        UPDATE campaigns
+        SET launch_notified = true,
+            previous_status = status
+        WHERE status = 'active'
+    """)
+
 
 def downgrade() -> None:
     op.drop_column('projects', 'sdr_email')

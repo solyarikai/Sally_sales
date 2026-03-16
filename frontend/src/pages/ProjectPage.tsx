@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Pencil, Check, X, Search, Trash2,
+  ArrowLeft, Pencil, Check, X, Search, Trash2, Mail,
   MessageCircle, Loader2, Unlink, FolderOpen, Zap, FileSpreadsheet, RefreshCw,
   Activity, Radio, Clock, AlertTriangle, CheckCircle2, XCircle, Info, Command, Send, ExternalLink, ChevronDown, Plus, Minus,
 } from 'lucide-react';
@@ -652,6 +652,9 @@ export function ProjectPage() {
         </h2>
         <TelegramConnect projectId={project.id} onUpdate={loadProject} isDark={isDark} />
       </div>
+
+      {/* SDR Test Email Section */}
+      <SDREmailSection project={project} onUpdate={loadProject} isDark={isDark} />
 
       {/* Google Sheet Sync Section */}
       <SheetSyncSection project={project} onUpdate={loadProject} isDark={isDark} />
@@ -1581,6 +1584,61 @@ function TelegramConnect({ projectId, onUpdate, isDark }: { projectId: number; o
           <span className={cn("text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>Get reply notifications in Telegram</span>
         </div>
       )}
+    </div>
+  );
+}
+
+
+/* SDR Email for test campaign notifications */
+function SDREmailSection({ project, onUpdate, isDark }: { project: Project; onUpdate: () => void; isDark: boolean }) {
+  const [email, setEmail] = useState(project.sdr_email || '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    const trimmed = email.trim();
+    if (trimmed === (project.sdr_email || '')) return;
+
+    setSaving(true);
+    try {
+      await contactsApi.updateProject(project.id, { sdr_email: trimmed || undefined });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      onUpdate();
+    } catch (e) {
+      console.error('Failed to save SDR email:', e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
+      <h2 className={cn("text-sm font-semibold mb-3 flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+        <Mail className="w-4 h-4" />
+        SDR Test Email
+      </h2>
+      <p className={cn("text-xs mb-3", isDark ? "text-[#6e6e6e]" : "text-neutral-500")}>
+        When a campaign is launched, a test email will be sent to this address (in addition to admin).
+      </p>
+      <div className="flex items-center gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="sdr@company.com"
+          className={cn(
+            "flex-1 px-3 py-1.5 rounded-lg text-sm border outline-none transition-colors",
+            isDark
+              ? "bg-[#1e1e1e] border-[#333] text-[#d4d4d4] placeholder-[#6e6e6e] focus:border-blue-500"
+              : "bg-white border-neutral-200 text-neutral-900 placeholder-neutral-400 focus:border-blue-500"
+          )}
+          onBlur={handleSave}
+          onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+        />
+        {saving && <Loader2 className={cn("w-4 h-4 animate-spin", isDark ? "text-[#6e6e6e]" : "text-neutral-400")} />}
+        {saved && <Check className="w-4 h-4 text-green-500" />}
+      </div>
     </div>
   );
 }
