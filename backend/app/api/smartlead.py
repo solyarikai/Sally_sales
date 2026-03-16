@@ -708,13 +708,16 @@ async def create_test_campaign(
             }
         )
         
-        # 5. Add leads
+        # 5. Add leads (SmartLead expects {"lead_list": [...]})
+        leads_to_add = []
         for email in emails:
             first_name = email.split("@")[0].replace(".", " ").title().split()[0]
-            await client.post(
-                f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads?api_key={api_key}",
-                json=[{"email": email, "first_name": first_name, "company": "Test Company"}]
-            )
+            leads_to_add.append({"email": email, "first_name": first_name, "company_name": "Test Company"})
+
+        await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads?api_key={api_key}",
+            json={"lead_list": leads_to_add}
+        )
         
         # 6. Launch if requested
         if launch:
@@ -736,7 +739,7 @@ async def create_test_campaign(
 async def launch_campaign(campaign_id: str):
     """Launch a campaign"""
     import httpx
-    
+
     api_key = settings.SMARTLEAD_API_KEY
     async with httpx.AsyncClient() as client:
         resp = await client.post(
@@ -744,3 +747,31 @@ async def launch_campaign(campaign_id: str):
             json={"status": "START"}
         )
         return resp.json()
+
+
+@router.post("/campaigns/{campaign_id}/add-leads")
+async def add_leads_to_campaign(campaign_id: str, emails: list[str]):
+    """Add leads to an existing campaign"""
+    import httpx
+
+    api_key = settings.SMARTLEAD_API_KEY
+    leads_to_add = []
+    for email in emails:
+        first_name = email.split("@")[0].replace(".", " ").title().split()[0]
+        leads_to_add.append({
+            "email": email,
+            "first_name": first_name,
+            "company_name": "Test Company"
+        })
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"https://server.smartlead.ai/api/v1/campaigns/{campaign_id}/leads?api_key={api_key}",
+            json={"lead_list": leads_to_add}
+        )
+        return {
+            "campaign_id": campaign_id,
+            "leads_added": len(emails),
+            "emails": emails,
+            "response": resp.json()
+        }
