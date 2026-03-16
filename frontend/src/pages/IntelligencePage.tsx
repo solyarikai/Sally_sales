@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Brain, Loader2, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Search, Filter } from 'lucide-react';
+import { Brain, Loader2, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Search } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useAppStore } from '../store/appStore';
@@ -99,7 +99,7 @@ function WarmthDots({ score, isDark }: { score: number | null; isDark: boolean }
 export function IntelligencePage() {
   const { isDark } = useTheme();
   const t = themeColors(isDark);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { currentProject, projects } = useAppStore();
 
   const projectId = Number(searchParams.get('project_id')) || currentProject?.id || null;
@@ -151,7 +151,7 @@ export function IntelligencePage() {
     if (!projectId) return;
     try {
       setAnalyzing(true);
-      const result = await intelligenceApi.analyze(projectId);
+      await intelligenceApi.analyze(projectId);
       await loadData();
       setAnalyzing(false);
     } catch (e) {
