@@ -564,6 +564,21 @@ export const contactsApi = {
     await api.post(`/replies/telegram/disconnect`, null, { params });
   },
 
+  // Calendly integration
+  async getCalendlyStatus(projectId: number): Promise<{ connected: boolean; user_name?: string; user_email?: string; webhook_url: string }> {
+    const response = await api.get(`/replies/calendly/project-status`, { params: { project_id: projectId } });
+    return response.data;
+  },
+
+  async connectCalendly(projectId: number, token: string): Promise<{ ok: boolean; user_name: string; user_email: string; webhook_url: string; message: string }> {
+    const response = await api.post(`/replies/calendly/connect`, { token }, { params: { project_id: projectId } });
+    return response.data;
+  },
+
+  async disconnectCalendly(projectId: number): Promise<void> {
+    await api.post(`/replies/calendly/disconnect`, null, { params: { project_id: projectId } });
+  },
+
   // Project monitoring data
   async getProjectMonitoring(projectId: number): Promise<ProjectMonitoring> {
     const response = await api.get(`/crm-sync/project/${projectId}/monitoring`);

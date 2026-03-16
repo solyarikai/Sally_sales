@@ -34,6 +34,7 @@ from .operator_tasks import router as operator_tasks_router
 from .god_panel import router as god_panel_router
 from .chat_intel import router as chat_intel_router
 from .diaspora import router as diaspora_router
+from .calendly_webhook import router as calendly_webhook_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -107,5 +108,8 @@ api_router.include_router(chat_intel_router)
 
 # Diaspora Contact Gathering
 api_router.include_router(diaspora_router)
+
+# Calendly Webhooks
+api_router.include_router(calendly_webhook_router)
 
 __all__ = ["api_router"]

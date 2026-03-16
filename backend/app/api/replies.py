@@ -5492,3 +5492,165 @@ async def telegram_webhook(
         return {"ok": True}
 
     return {"ok": True}
+
+
+# ============= Calendly Integration Endpoints =============
+
+
+class CalendlyConnectRequest(BaseModel):
+    token: str
+
+
+@router.get("/calendly/project-status")
+async def calendly_project_status(
+    project_id: int = Query(...),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return Calendly connection status for a project."""
+    from app.models.contact import Project
+
+    result = await db.execute(
+        select(Project).where(
+            and_(Project.id == project_id, Project.deleted_at.is_(None))
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    config = project.calendly_config or {}
+    members = config.get("members", [])
+
+    # Check if connected (has at least one member with token)
+    connected = any(m.get("pat_token") for m in members)
+
+    # Get user info if connected
+    user_name = None
+    user_email = None
+    if connected and members:
+        # Try to get user info from Calendly API
+        token = members[0].get("pat_token", "")
+        if token:
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=10) as client:
+                    resp = await client.get(
+                        "https://api.calendly.com/users/me",
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                    if resp.status_code == 200:
+                        user_data = resp.json().get("resource", {})
+                        user_name = user_data.get("name")
+                        user_email = user_data.get("email")
+            except Exception:
+                pass
+
+    return {
+        "connected": connected,
+        "user_name": user_name,
+        "user_email": user_email,
+        "members_count": len(members),
+        "webhook_url": "/api/webhooks/calendly",
+    }
+
+
+@router.post("/calendly/connect")
+async def calendly_connect(
+    project_id: int = Query(...),
+    body: CalendlyConnectRequest = Body(...),
+    db: AsyncSession = Depends(get_session),
+):
+    """Connect Calendly to a project by saving PAT token.
+
+    Tests the token first, then saves to project.calendly_config.
+    """
+    from app.models.contact import Project
+    import httpx
+
+    result = await db.execute(
+        select(Project).where(
+            and_(Project.id == project_id, Project.deleted_at.is_(None))
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    token = body.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Token is required")
+
+    # Test the token
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                "https://api.calendly.com/users/me",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid Calendly token: {resp.status_code}"
+                )
+            user_data = resp.json().get("resource", {})
+            user_name = user_data.get("name", "Unknown")
+            user_email = user_data.get("email", "")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=400, detail=f"Failed to connect to Calendly: {e}")
+
+    # Save token to project.calendly_config
+    config = project.calendly_config or {}
+    members = config.get("members", [])
+
+    # Update or add member
+    member_id = user_email.lower() if user_email else "default"
+    existing_idx = next((i for i, m in enumerate(members) if m.get("id") == member_id), None)
+
+    member_data = {
+        "id": member_id,
+        "pat_token": token,
+        "display_name": user_name,
+        "is_default": True,
+    }
+
+    if existing_idx is not None:
+        members[existing_idx] = member_data
+    else:
+        # Set all others to non-default
+        for m in members:
+            m["is_default"] = False
+        members.append(member_data)
+
+    project.calendly_config = {"members": members}
+    await db.commit()
+
+    return {
+        "ok": True,
+        "user_name": user_name,
+        "user_email": user_email,
+        "webhook_url": "/api/webhooks/calendly",
+        "message": f"Connected as {user_name}. Now configure webhook in Calendly.",
+    }
+
+
+@router.post("/calendly/disconnect")
+async def calendly_disconnect(
+    project_id: int = Query(...),
+    db: AsyncSession = Depends(get_session),
+):
+    """Disconnect Calendly from a project."""
+    from app.models.contact import Project
+
+    result = await db.execute(
+        select(Project).where(
+            and_(Project.id == project_id, Project.deleted_at.is_(None))
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project.calendly_config = None
+    await db.commit()
+
+    return {"ok": True}

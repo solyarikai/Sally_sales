@@ -653,6 +653,18 @@ export function ProjectPage() {
         <TelegramConnect projectId={project.id} onUpdate={loadProject} isDark={isDark} />
       </div>
 
+      {/* Calendly Section */}
+      <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
+        <h2 className={cn("text-sm font-semibold mb-3 flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+          <Activity className="w-4 h-4" />
+          Calendly Meetings
+        </h2>
+        <p className={cn("text-xs mb-3", isDark ? "text-[#6e6e6e]" : "text-neutral-500")}>
+          Get notified when meetings are booked. Data is enriched from CRM automatically.
+        </p>
+        <CalendlyConnect projectId={project.id} isDark={isDark} />
+      </div>
+
       {/* SDR Test Email Section */}
       <SDREmailSection project={project} onUpdate={loadProject} isDark={isDark} />
 
@@ -1582,6 +1594,151 @@ function TelegramConnect({ projectId, onUpdate, isDark }: { projectId: number; o
             {subscribers.length > 0 ? 'Connect Another' : 'Connect Telegram'}
           </button>
           <span className={cn("text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>Get reply notifications in Telegram</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* Calendly integration for meeting bookings */
+function CalendlyConnect({ projectId, isDark }: { projectId: number; isDark: boolean }) {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'connected' | 'error'>('loading');
+  const [userName, setUserName] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [token, setToken] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showWebhookInfo, setShowWebhookInfo] = useState(false);
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const data = await contactsApi.getCalendlyStatus(projectId);
+      if (data.connected) {
+        setStatus('connected');
+        setUserName(data.user_name || null);
+        setUserEmail(data.user_email || null);
+      } else {
+        setStatus('idle');
+      }
+    } catch {
+      setStatus('error');
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
+
+  const handleConnect = async () => {
+    if (!token.trim()) {
+      setError('Token is required');
+      return;
+    }
+    setConnecting(true);
+    setError(null);
+    try {
+      const result = await contactsApi.connectCalendly(projectId, token.trim());
+      setUserName(result.user_name);
+      setUserEmail(result.user_email);
+      setStatus('connected');
+      setToken('');
+      setShowWebhookInfo(true);
+    } catch (e: any) {
+      setError(e.response?.data?.detail || 'Failed to connect');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await contactsApi.disconnectCalendly(projectId);
+      setStatus('idle');
+      setUserName(null);
+      setUserEmail(null);
+      setShowWebhookInfo(false);
+    } catch {}
+  };
+
+  const webhookUrl = `${window.location.origin}/api/webhooks/calendly`;
+
+  return (
+    <div className="space-y-3">
+      {status === 'loading' && (
+        <div className={cn("flex items-center gap-2 text-sm", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading...
+        </div>
+      )}
+
+      {status === 'connected' && (
+        <div className="space-y-2">
+          <div className={cn("flex items-center justify-between py-2 px-3 rounded-lg", isDark ? "bg-green-900/20" : "bg-green-50")}>
+            <div className={cn("flex items-center gap-2 text-sm", isDark ? "text-green-400" : "text-green-700")}>
+              <Check className="w-4 h-4" />
+              <span>{userName || 'Connected'}</span>
+              {userEmail && <span className={cn("text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>({userEmail})</span>}
+            </div>
+            <button onClick={handleDisconnect} className={cn("flex items-center gap-1 text-xs transition-colors", isDark ? "text-[#6e6e6e] hover:text-red-400" : "text-neutral-400 hover:text-red-500")}>
+              <Unlink className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowWebhookInfo(!showWebhookInfo)}
+            className={cn("text-xs flex items-center gap-1", isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700")}
+          >
+            <Info className="w-3 h-3" />
+            {showWebhookInfo ? 'Hide' : 'Show'} webhook setup
+          </button>
+
+          {showWebhookInfo && (
+            <div className={cn("text-xs p-3 rounded-lg space-y-2", isDark ? "bg-[#1e1e1e] text-[#d4d4d4]" : "bg-neutral-50 text-neutral-700")}>
+              <p className="font-medium">Configure webhook in Calendly:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Go to Calendly → Integrations → Webhooks</li>
+                <li>Click "Create Webhook"</li>
+                <li>Paste this URL:</li>
+              </ol>
+              <code className={cn("block p-2 rounded text-[11px] break-all", isDark ? "bg-[#333]" : "bg-white border")}>{webhookUrl}</code>
+              <p>Events: <code>invitee.created</code>, <code>invitee.canceled</code></p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(status === 'idle' || status === 'error') && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Calendly Personal Access Token"
+              className={cn(
+                "flex-1 px-3 py-1.5 rounded-lg text-sm border outline-none transition-colors",
+                isDark
+                  ? "bg-[#1e1e1e] border-[#333] text-[#d4d4d4] placeholder-[#6e6e6e] focus:border-violet-500"
+                  : "bg-white border-neutral-200 text-neutral-900 placeholder-neutral-400 focus:border-violet-500"
+              )}
+              onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+            />
+            <button
+              onClick={handleConnect}
+              disabled={connecting || !token.trim()}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50",
+                isDark ? "bg-violet-900/30 text-violet-400 hover:bg-violet-900/50" : "bg-violet-50 text-violet-700 hover:bg-violet-100"
+              )}
+            >
+              {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect'}
+            </button>
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          <p className={cn("text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+            Get token from <a href="https://calendly.com/integrations/api_webhooks" target="_blank" rel="noopener noreferrer" className="underline">Calendly API settings</a>
+          </p>
         </div>
       )}
     </div>
