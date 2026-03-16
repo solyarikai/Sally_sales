@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   RefreshCw, Plus, Trash2, Pencil, Check, X, Download,
   Users, MessageSquare, ThumbsUp, Calendar, Loader2,
-  TrendingUp, BarChart3,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../hooks/useTheme';
