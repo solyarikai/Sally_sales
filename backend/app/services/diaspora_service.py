@@ -634,6 +634,26 @@ async def run_diaspora_pipeline(
     """
     from app.services.clay_service import clay_service
 
+    # ─── RAW DATA STORAGE ────────────────────────────────────────────────
+    # Always persist every Clay/Apollo response BEFORE any filtering.
+    # Stored on Hetzner local disk so we never need to re-crawl.
+    RAW_STORE_DIR = Path("/scripts/data/raw_contacts")
+    RAW_STORE_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _persist_raw(people: list, search_type: str, batch_name: str, corridor_key: str):
+        """Save raw Clay/Apollo response to local JSON. Never lose data."""
+        if not people:
+            return
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{corridor_key}_{search_type}_{batch_name}_{ts}.json"
+        path = RAW_STORE_DIR / filename
+        try:
+            path.write_text(json.dumps(people, default=str, ensure_ascii=False))
+            logger.info(f"Raw data persisted: {path} ({len(people)} contacts)")
+        except Exception as e:
+            logger.warning(f"Failed to persist raw data: {e}")
+    # ─────────────────────────────────────────────────────────────────────
+
     corridor = CORRIDORS.get(corridor_key)
     if not corridor:
         raise ValueError(f"Unknown corridor: {corridor_key}. Options: {list(CORRIDORS.keys())}")
@@ -983,6 +1003,7 @@ async def run_diaspora_pipeline(
                 continue
 
             all_people = result.get("people", [])
+            _persist_raw(all_people, "language", lang_label, corridor_key)
             if not all_people:
                 await _emit(f"No contacts for {', '.join(languages)}. Skipping.")
                 if _sheet_id:
@@ -1099,6 +1120,7 @@ async def run_diaspora_pipeline(
                     continue
 
                 all_people = result.get("people", [])
+                _persist_raw(all_people, "language_city_split", combo_label, corridor_key)
                 if not all_people:
                     await _emit(f"No contacts for {lang} in {city}. Skipping.")
                     # Log zero-result approach
@@ -1210,6 +1232,7 @@ async def run_diaspora_pipeline(
                 continue
 
             all_people = people_result.get("people", [])
+            _persist_raw(all_people, "university", uni_label, corridor_key)
             if not all_people:
                 await _emit(f"No contacts found for {uni_label}. Skipping.")
                 continue
@@ -1392,6 +1415,7 @@ async def run_diaspora_pipeline(
                 continue
 
             all_people = result.get("people", [])
+            _persist_raw(all_people, "extended_university", uni_label, corridor_key)
             if not all_people:
                 await _emit(f"No contacts found for {uni_label}. Skipping.")
                 if _sheet_id:
@@ -1566,6 +1590,7 @@ async def run_diaspora_pipeline(
                     continue
 
                 all_people = result.get("people", [])
+                _persist_raw(all_people, "surname", f"{batch_label}_{surname}", corridor_key)
                 if not all_people:
                     await _emit(f"No contacts for surname '{surname}'. Skipping.")
                     if _sheet_id:
@@ -1751,6 +1776,7 @@ async def run_diaspora_pipeline(
                 continue
 
             all_people = result.get("people", [])
+            _persist_raw(all_people, "title_split", t_label, corridor_key)
             if not all_people:
                 await _emit(f"No contacts for title '{titles[0]}'. Skipping.")
                 if _sheet_id:
@@ -1949,6 +1975,7 @@ async def run_diaspora_pipeline(
                 continue
 
             all_people = result.get("people", [])
+            _persist_raw(all_people, "industry", batch_label, corridor_key)
             if not all_people:
                 continue
 
