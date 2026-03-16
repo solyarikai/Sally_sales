@@ -62,6 +62,11 @@ class Campaign(Base, TimestampMixin):
     # Platform-specific config (sequence, schedule, tracking settings)
     config = Column(JSON, nullable=True)
 
+    # Campaign launch tracking
+    previous_status = Column(String(50), nullable=True)
+    launched_at = Column(DateTime, nullable=True)
+    launch_notified = Column(Boolean, default=False, server_default='false', nullable=False)
+
     # Relationships
     project = relationship("Project", back_populates="campaigns")
     company = relationship("Company")

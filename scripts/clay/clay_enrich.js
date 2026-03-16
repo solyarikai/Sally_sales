@@ -678,8 +678,39 @@ async function addFindymailEnrichment(page, tableId, linkedinColName) {
     console.log('  WARNING: No start button found. Buttons:', btns.filter(b => !b.disabled).map(b => b.text).join(' | '));
   }
   await humanDelay(2000, 3000);
-
   await screenshot(page, 'findymail_06_started');
+
+  // After "Continue to add fields" → column selection page appears
+  // Must click "Save" to actually start the enrichment
+  console.log('  Looking for "Save" on column selection page...');
+  await humanDelay(1000, 2000);
+
+  let saved = false;
+  for (const label of ['Save', 'Save and run', 'Run']) {
+    r = await realClickButton(page, label);
+    if (r && !r.startsWith('disabled')) {
+      console.log(`  ${r}`);
+      saved = true;
+      break;
+    }
+    // Try TreeWalker fallback
+    const pos = await findByText(page, label);
+    if (pos) {
+      await page.mouse.click(pos.x, pos.y);
+      console.log(`  Clicked "${label}" via text`);
+      saved = true;
+      break;
+    }
+  }
+
+  if (!saved) {
+    const btns = await listButtons(page);
+    console.log('  WARNING: No Save button found. Buttons:', btns.filter(b => !b.disabled).map(b => b.text).join(' | '));
+    await screenshot(page, 'findymail_err_no_save');
+  }
+
+  await humanDelay(3000, 5000);
+  await screenshot(page, 'findymail_07_saved');
   console.log('  Findymail enrichment started!');
 }
 

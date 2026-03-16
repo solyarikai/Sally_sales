@@ -125,6 +125,9 @@ class Settings(BaseSettings):
     # Telegram Sally Bot — client chat monitoring
     TELEGRAM_SALLY_BOT_TOKEN: Optional[str] = None
 
+    # Admin test email — receives test emails when campaigns launch
+    ADMIN_TEST_EMAIL: str = "pn@getsally.io"
+
     # Test recipient for test_mode sends
     TEST_RECIPIENT_EMAIL: Optional[str] = None
 

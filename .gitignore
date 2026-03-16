@@ -39,4 +39,6 @@ scripts/*.json
 # Stale artifacts
 bugs/
 screenshots/
-scripts/data/
+
+# Local folders
+projects/

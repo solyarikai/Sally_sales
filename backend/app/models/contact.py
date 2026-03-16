@@ -94,6 +94,9 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # JSON: {"enabled": bool, "delay_days": int}
     follow_up_config = Column(JSON, nullable=True)
 
+    # SDR email for test notifications — receives test email when campaign is launched
+    sdr_email = Column(String(255), nullable=True)
+
     # Generated content (for AI SDR)
     tam_analysis = Column(Text, nullable=True)
     gtm_plan = Column(Text, nullable=True)

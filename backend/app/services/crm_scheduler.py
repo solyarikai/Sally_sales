@@ -334,6 +334,13 @@ class CRMScheduler:
 
         async with async_session_maker() as session:
             try:
+                # ── Pre-load projects for campaign launch notifications ──
+                result = await session.execute(
+                    select(Project).where(Project.deleted_at.is_(None))
+                )
+                projects = result.scalars().all()
+                project_by_id = {p.id: p for p in projects}
+
                 # ── Phase 2: Register/update all campaigns in Campaign table ──
                 registered = 0
 
@@ -358,6 +365,30 @@ class CRMScheduler:
                             camp.name = c_name
                         if c_tags:
                             camp.config = {**(camp.config or {}), "tags": c_tags}
+
+                        # Detect campaign launch: transition to ACTIVE
+                        new_status = (c.get("status") or "").upper()
+                        old_status = (camp.previous_status or "").upper()
+                        if new_status == "ACTIVE" and old_status != "ACTIVE" and not camp.launch_notified:
+                            # Schedule launch notification
+                            project = project_by_id.get(camp.project_id) if camp.project_id else None
+                            from app.services.campaign_launch_service import notify_campaign_launched
+                            asyncio.create_task(notify_campaign_launched(
+                                campaign_id=camp.id,
+                                campaign_external_id=camp.external_id,
+                                campaign_name=camp.name,
+                                project_id=camp.project_id,
+                                project_name=project.name if project else None,
+                                project_telegram_chat=project.telegram_chat_id if project else None,
+                                sdr_email=project.sdr_email if project else None,
+                            ))
+                            camp.launched_at = datetime.utcnow()
+                            camp.launch_notified = True
+                            logger.info(f"Campaign '{camp.name}' launched -> notifying")
+
+                        # Track status transition
+                        camp.previous_status = camp.status
+                        camp.status = new_status.lower() if new_status else "active"
                     else:
                         matched_pid = match_campaign_to_project(c_name, c_tags)
                         camp = Campaign(
@@ -408,11 +439,7 @@ class CRMScheduler:
                     logger.info(f"Registered {registered} new campaigns in Campaign table")
 
                 # ── Phase 3: Assign unassigned campaigns to projects ──
-                result = await session.execute(
-                    select(Project).where(Project.deleted_at.is_(None))
-                )
-                projects = result.scalars().all()
-                project_by_id = {p.id: p for p in projects}
+                # (projects already loaded above for launch notifications)
 
                 # Collect already-assigned campaign names across all projects
                 assigned_names = set()
