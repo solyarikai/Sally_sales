@@ -1,7 +1,7 @@
 """add_call_transcripts_table
 
 Revision ID: ca40aae5085e
-Revises: 202603160400
+Revises: 202603161900
 Create Date: 2026-03-16 22:39:13.655603
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'ca40aae5085e'
-down_revision: Union[str, None] = '202603160400'
+down_revision: Union[str, None] = '202603161900'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
