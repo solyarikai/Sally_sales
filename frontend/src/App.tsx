@@ -23,6 +23,7 @@ import { ProjectChatPage } from './pages/ProjectChatPage';
 import { QueryDashboardPage } from './pages/QueryDashboardPage';
 import { OperatorActionsPage } from './pages/OperatorActionsPage';
 import { GodPanelPage } from './pages/GodPanelPage';
+import { IntelligencePage } from './pages/IntelligencePage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -105,6 +106,13 @@ function App() {
         <Route path="/actions" element={
           <Layout>
             <OperatorActionsPage />
+          </Layout>
+        } />
+
+        {/* Reply Intelligence */}
+        <Route path="/intelligence" element={
+          <Layout>
+            <IntelligencePage />
           </Layout>
         } />
 

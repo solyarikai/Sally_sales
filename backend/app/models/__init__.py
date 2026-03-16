@@ -35,6 +35,7 @@ from .gtm_log import GTMStrategyLog
 from .telegram_chat import TelegramChat, TelegramChatMessage, TelegramChatInsight
 from .meeting import Meeting, MeetingStatus, MeetingOutcome
 from .outreach_stats import OutreachStats
+from .reply_analysis import ReplyAnalysis
 from .pipeline_run import (
     PipelineRun, PipelineRunStatus, PipelinePhase,
     PipelinePhaseLog, PipelinePhaseStatus,
@@ -92,6 +93,8 @@ __all__ = [
     "Meeting", "MeetingStatus", "MeetingOutcome",
     # Outreach Stats
     "OutreachStats",
+    # Reply Intelligence
+    "ReplyAnalysis",
     # Pipeline Runs & Cost
     "PipelineRun", "PipelineRunStatus", "PipelinePhase",
     "PipelinePhaseLog", "PipelinePhaseStatus",

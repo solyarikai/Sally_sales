@@ -1,0 +1,211 @@
+"""
+Reply Intelligence API — structured classification of reply conversations.
+"""
+import logging
+from typing import Optional, List
+
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from pydantic import BaseModel
+from sqlalchemy import select, and_, func, desc, asc
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db import get_session, async_session_maker
+from app.models.reply import ProcessedReply
+from app.models.reply_analysis import ReplyAnalysis
+from app.services.intelligence_service import (
+    analyze_project_replies,
+    get_intelligence_summary,
+    get_intent_group,
+    INTENT_GROUPS,
+)
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/intelligence", tags=["Intelligence"])
+
+
+# ─── Response schemas ──────────────────────────────────────────
+
+class ReplyAnalysisOut(BaseModel):
+    id: int
+    processed_reply_id: int
+    project_id: int
+    offer_responded_to: Optional[str] = None
+    intent: Optional[str] = None
+    warmth_score: Optional[int] = None
+    campaign_segment: Optional[str] = None
+    sequence_type: Optional[str] = None
+    language: Optional[str] = None
+    reasoning: Optional[str] = None
+    # Joined from ProcessedReply
+    lead_email: Optional[str] = None
+    lead_name: Optional[str] = None
+    lead_company: Optional[str] = None
+    campaign_name: Optional[str] = None
+    reply_text: Optional[str] = None
+    category: Optional[str] = None
+    received_at: Optional[str] = None
+    approval_status: Optional[str] = None
+    intent_group: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SummaryOut(BaseModel):
+    total: int
+    by_group: dict
+    by_offer: dict
+    by_segment: dict
+    by_intent: dict
+
+
+class AnalyzeResult(BaseModel):
+    classified: int
+    project_id: int
+
+
+# ─── Endpoints ─────────────────────────────────────────────────
+
+@router.get("/", response_model=List[ReplyAnalysisOut])
+async def list_intelligence(
+    project_id: int = Query(..., description="Project ID"),
+    intent_group: Optional[str] = Query(None, description="warm|questions|soft_objection|hard_objection|noise"),
+    offer: Optional[str] = Query(None, description="Comma-separated: paygate,payout,otc,general"),
+    segment: Optional[str] = Query(None, description="Comma-separated segment filter"),
+    warmth_min: Optional[int] = Query(None, ge=0, le=5),
+    warmth_max: Optional[int] = Query(None, ge=0, le=5),
+    language: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, description="Search in reply text, lead name, company"),
+    sort_by: Optional[str] = Query("warmth_desc", description="warmth_desc|date_desc|intent_group"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+):
+    """List analyzed replies with filtering and sorting."""
+    query = (
+        select(
+            ReplyAnalysis,
+            ProcessedReply.lead_email,
+            (ProcessedReply.lead_first_name + " " + func.coalesce(ProcessedReply.lead_last_name, "")).label("lead_name"),
+            ProcessedReply.lead_company,
+            ProcessedReply.campaign_name,
+            ProcessedReply.reply_text,
+            ProcessedReply.category,
+            ProcessedReply.received_at,
+            ProcessedReply.approval_status,
+        )
+        .join(ProcessedReply, ReplyAnalysis.processed_reply_id == ProcessedReply.id)
+        .where(ReplyAnalysis.project_id == project_id)
+    )
+
+    # Filters
+    filters = []
+
+    if intent_group:
+        intents = INTENT_GROUPS.get(intent_group, [])
+        if intents:
+            filters.append(ReplyAnalysis.intent.in_(intents))
+
+    if offer:
+        offers = [o.strip() for o in offer.split(",")]
+        filters.append(ReplyAnalysis.offer_responded_to.in_(offers))
+
+    if segment:
+        segments = [s.strip() for s in segment.split(",")]
+        filters.append(ReplyAnalysis.campaign_segment.in_(segments))
+
+    if warmth_min is not None:
+        filters.append(ReplyAnalysis.warmth_score >= warmth_min)
+
+    if warmth_max is not None:
+        filters.append(ReplyAnalysis.warmth_score <= warmth_max)
+
+    if language:
+        filters.append(ReplyAnalysis.language == language)
+
+    if search:
+        search_filter = f"%{search}%"
+        filters.append(
+            (ProcessedReply.reply_text.ilike(search_filter))
+            | (ProcessedReply.lead_first_name.ilike(search_filter))
+            | (ProcessedReply.lead_last_name.ilike(search_filter))
+            | (ProcessedReply.lead_company.ilike(search_filter))
+        )
+
+    if filters:
+        query = query.where(and_(*filters))
+
+    # Sorting
+    if sort_by == "warmth_desc":
+        query = query.order_by(desc(ReplyAnalysis.warmth_score), desc(ProcessedReply.received_at))
+    elif sort_by == "date_desc":
+        query = query.order_by(desc(ProcessedReply.received_at))
+    else:
+        query = query.order_by(desc(ReplyAnalysis.warmth_score), desc(ProcessedReply.received_at))
+
+    # Pagination
+    offset = (page - 1) * page_size
+    query = query.offset(offset).limit(page_size)
+
+    result = await session.execute(query)
+    rows = result.all()
+
+    items = []
+    for row in rows:
+        analysis = row[0]
+        items.append(ReplyAnalysisOut(
+            id=analysis.id,
+            processed_reply_id=analysis.processed_reply_id,
+            project_id=analysis.project_id,
+            offer_responded_to=analysis.offer_responded_to,
+            intent=analysis.intent,
+            warmth_score=analysis.warmth_score,
+            campaign_segment=analysis.campaign_segment,
+            sequence_type=analysis.sequence_type,
+            language=analysis.language,
+            reasoning=analysis.reasoning,
+            lead_email=row[1],
+            lead_name=row[2],
+            lead_company=row[3],
+            campaign_name=row[4],
+            reply_text=row[5],
+            category=row[6],
+            received_at=str(row[7]) if row[7] else None,
+            approval_status=row[8],
+            intent_group=get_intent_group(analysis.intent or "empty"),
+        ))
+
+    return items
+
+
+@router.get("/summary/", response_model=SummaryOut)
+async def intelligence_summary(
+    project_id: int = Query(..., description="Project ID"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Get summary statistics for the intelligence dashboard."""
+    return await get_intelligence_summary(session, project_id)
+
+
+@router.post("/analyze/", response_model=AnalyzeResult)
+async def trigger_analysis(
+    project_id: int = Query(..., description="Project ID"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Classify all unanalyzed replies for a project."""
+    result = await analyze_project_replies(session, project_id)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.get("/count/")
+async def intelligence_count(
+    project_id: int = Query(..., description="Project ID"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Get total analyzed count for a project."""
+    query = select(func.count()).where(ReplyAnalysis.project_id == project_id)
+    result = await session.execute(query)
+    count = result.scalar() or 0
+    return {"count": count, "project_id": project_id}

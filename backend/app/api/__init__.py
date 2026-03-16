@@ -37,6 +37,7 @@ from .diaspora import router as diaspora_router
 from .calendly_webhook import router as calendly_webhook_router
 from .outreach_stats import router as outreach_stats_router
 from .fireflies import router as fireflies_router
+from .intelligence import router as intelligence_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -119,5 +120,8 @@ api_router.include_router(outreach_stats_router)
 
 # Fireflies.ai Call Transcripts
 api_router.include_router(fireflies_router)
+
+# Reply Intelligence
+api_router.include_router(intelligence_router)
 
 __all__ = ["api_router"]
