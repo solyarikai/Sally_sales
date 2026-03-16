@@ -411,6 +411,19 @@ def _strip_placeholder_brackets(text: str) -> str:
     return cleaned.strip()
 
 
+def _sanitize_draft(text: str) -> str:
+    """Post-process all AI-generated draft text: strip placeholders, em-dashes, markdown."""
+    if not text:
+        return text
+    text = _strip_placeholder_brackets(text)
+    text = _strip_markdown_formatting(text)
+    # Replace em-dashes (—) with simple dashes (-) — operator feedback
+    text = re.sub(r"—", " - ", text)
+    # Collapse double spaces from replacement
+    text = re.sub(r"  +", " ", text)
+    return text.strip()
+
+
 async def detect_and_translate(text: str) -> dict:
     """Detect language and translate to English if not en/ru.
 
@@ -815,9 +828,7 @@ async def generate_draft_reply(
                 if not clean_json.strip():
                     raise ValueError(f"Gemini JSON extraction failed, raw: {content[:300]}")
                 result = json.loads(clean_json)
-                draft_body = result.get("body", "")
-                draft_body = _strip_placeholder_brackets(draft_body)
-                draft_body = _strip_markdown_formatting(draft_body)
+                draft_body = _sanitize_draft(result.get("body", ""))
                 logger.info(f"[PROCESSOR] Gemini draft OK: {len(draft_body)} chars, tokens={result_raw.get('tokens', {})}")
                 return {
                     "subject": result.get("subject", f"Re: {subject}"),
@@ -865,10 +876,7 @@ async def generate_draft_reply(
             if attempt > 0:
                 logger.info(f"[PROCESSOR] Draft generation succeeded after {attempt + 1} attempts")
 
-            draft_body = result.get("body", "")
-            # Strip GPT placeholder brackets like [Your Name], [Ваше имя], etc.
-            draft_body = _strip_placeholder_brackets(draft_body)
-            draft_body = _strip_markdown_formatting(draft_body)
+            draft_body = _sanitize_draft(result.get("body", ""))
 
             return {
                 "subject": result.get("subject", f"Re: {subject}"),
@@ -1622,32 +1630,7 @@ async def process_reply_webhook(
         except Exception as activity_err:
             logger.warning(f"[PROCESSOR] Failed to create ContactActivity (non-fatal): {activity_err}")
         
-        # Send Slack notification
-        from app.services.notification_service import send_slack_notification
-        
-        # Determine channel - use automation config or default test channel
-        from app.core.config import settings as _cfg
-        channel_id = _cfg.SLACK_DEFAULT_CHANNEL
-        webhook_url = None
-        
-        if automation_id and automation:
-            channel_id = automation.slack_channel or channel_id
-            webhook_url = automation.slack_webhook_url
-        
-        # Always send notification (even without automation for testing)
-        # Wrap in try/catch to prevent Slack failures from breaking webhook processing
-        try:
-            slack_sent = await send_slack_notification(
-                channel_id=channel_id,
-                reply=processed_reply,
-                webhook_url=webhook_url
-            )
-            if slack_sent:
-                processed_reply.sent_to_slack = True
-                processed_reply.slack_sent_at = datetime.utcnow()
-        except Exception as slack_error:
-            logger.error(f"[PROCESSOR] Slack notification failed (non-fatal): {slack_error}")
-            # Continue processing - Slack failure should not break webhook handling
+        # Slack notifications disabled — operator uses Telegram exclusively
         
         # Send Telegram notification only for actual inbound replies
         # Uses DB-backed dedup (telegram_sent_at) to prevent duplicates even after Redis flush
