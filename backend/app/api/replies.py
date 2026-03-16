@@ -2877,20 +2877,21 @@ async def approve_and_send_reply(
     if reply.channel == "linkedin" or reply.source == "getsales":
         reply.approved_at = datetime.utcnow()
 
-        # Extract GetSales identifiers from raw webhook data.
-        # Webhook stores nested objects: contact.uuid, sender_profile.uuid
-        # Some older records may have flattened keys: lead_uuid, sender_profile_uuid
-        raw = reply.raw_webhook_data or {}
-        lead_uuid = (
-            raw.get("lead_uuid")
-            or raw.get("contact", {}).get("uuid")
-            or raw.get("lead", {}).get("uuid")
-        )
-        sender_profile_uuid = (
-            raw.get("sender_profile_uuid")
-            or raw.get("sender_profile", {}).get("uuid")
-            or (raw.get("automation") or {}).get("sender_profile_uuid")
-        )
+        # Use proper columns — never parse raw_webhook_data for operational logic.
+        # Columns populated at write time by extract_getsales_ids().
+        # Fallback to raw_webhook_data only for pre-backfill records.
+        lead_uuid = reply.getsales_lead_uuid
+        sender_profile_uuid = reply.getsales_sender_uuid
+        if not lead_uuid or not sender_profile_uuid:
+            from app.services.reply_processor import extract_getsales_ids
+            _ids = extract_getsales_ids(reply.raw_webhook_data or {})
+            lead_uuid = lead_uuid or _ids.get("getsales_lead_uuid")
+            sender_profile_uuid = sender_profile_uuid or _ids.get("getsales_sender_uuid")
+            # Backfill columns so this fallback never fires again
+            if lead_uuid and not reply.getsales_lead_uuid:
+                reply.getsales_lead_uuid = lead_uuid
+            if sender_profile_uuid and not reply.getsales_sender_uuid:
+                reply.getsales_sender_uuid = sender_profile_uuid
 
         send_result = None
         send_error = None

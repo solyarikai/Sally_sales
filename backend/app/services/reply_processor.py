@@ -14,6 +14,40 @@ from app.services.smartlead_service import smartlead_request
 logger = logging.getLogger(__name__)
 
 
+def extract_getsales_ids(raw: dict) -> dict:
+    """Extract GetSales operational identifiers from ANY raw_webhook_data shape.
+
+    Handles both:
+    - Webhook path: nested objects (contact.uuid, sender_profile.uuid)
+    - Sync path: flat keys (lead_uuid, sender_profile_uuid)
+
+    Returns dict with getsales_lead_uuid, getsales_sender_uuid, getsales_conversation_uuid.
+    All consumers MUST use ProcessedReply columns, not raw_webhook_data.
+    """
+    if not raw or not isinstance(raw, dict):
+        return {}
+    return {
+        "getsales_lead_uuid": (
+            raw.get("lead_uuid")
+            or raw.get("contact", {}).get("uuid")
+            or raw.get("lead", {}).get("uuid")
+            or None
+        ),
+        "getsales_sender_uuid": (
+            raw.get("sender_profile_uuid")
+            or raw.get("sender_profile", {}).get("uuid")
+            or (raw.get("automation") or {}).get("sender_profile_uuid")
+            or None
+        ),
+        "getsales_conversation_uuid": (
+            raw.get("linkedin_conversation_uuid")
+            or raw.get("conversation_uuid")
+            or (raw.get("contact") or {}).get("linkedin_conversation_uuid")
+            or None
+        ),
+    }
+
+
 def _format_knowledge_context(knowledge_entries, category: str = None) -> str:
     """Format knowledge entries into a prompt-friendly context string.
 
@@ -248,16 +282,10 @@ async def _load_reference_examples_legacy(session, project_id: int, category: st
 
         sender_uuids = [s for s in (project.getsales_senders or []) if isinstance(s, str)]
         if sender_uuids:
-            # Handle both flattened (sync path) and nested (webhook path) formats
-            from sqlalchemy import text as _sender_text
-            sender_flat = PRModel.raw_webhook_data.op("->>")("sender_profile_uuid")
-            sender_nested = _sender_text(
-                "raw_webhook_data::jsonb->'sender_profile'->>'uuid'"
-            )
+            # Use proper column — no more parsing raw_webhook_data
             sender_check = or_(
                 PRModel.channel != "linkedin",
-                sender_flat.in_(sender_uuids),
-                sender_nested.in_(sender_uuids),
+                PRModel.getsales_sender_uuid.in_(sender_uuids),
             )
             project_filter = and_(campaign_condition, sender_check)
         else:
@@ -2178,6 +2206,7 @@ async def process_getsales_reply(
             raw_webhook_data=raw_data,
             inbox_link=inbox_link,
             message_hash=message_hash,
+            **extract_getsales_ids(raw_data),
         )
         session.add(processed_reply)
         try:

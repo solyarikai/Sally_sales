@@ -150,6 +150,12 @@ class ProcessedReply(Base, TimestampMixin):
     smartlead_lead_id = Column(String(100), nullable=True, index=True)
     thread_fetched_at = Column(DateTime, nullable=True)
 
+    # GetSales operational identifiers — extracted at write time from raw_webhook_data.
+    # NEVER parse raw_webhook_data for these again. All consumers read these columns.
+    getsales_lead_uuid = Column(String(100), nullable=True, index=True)
+    getsales_sender_uuid = Column(String(100), nullable=True, index=True)
+    getsales_conversation_uuid = Column(String(100), nullable=True)
+
     # Content-based dedup hash — MD5 of normalized reply body.
     # Prevents duplicate ProcessedReply from concurrent webhook + polling
     # while allowing multiple DIFFERENT replies from the same lead.

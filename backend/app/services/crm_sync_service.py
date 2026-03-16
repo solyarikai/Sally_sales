@@ -3631,14 +3631,11 @@ async def sync_conversation_histories(
                 source = reply.source or "getsales"
                 group_key = (source, reply.campaign_id or "", email_lower)
 
-                # Get conversation UUID from raw_webhook_data
-                conv_uuid = None
-                if reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
-                    conv_uuid = (
-                        reply.raw_webhook_data.get("linkedin_conversation_uuid")
-                        or reply.raw_webhook_data.get("conversation_uuid")
-                        or (reply.raw_webhook_data.get("contact", {}) or {}).get("linkedin_conversation_uuid")
-                    )
+                # Use proper column for conversation UUID
+                conv_uuid = getattr(reply, "getsales_conversation_uuid", None)
+                if not conv_uuid and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+                    from app.services.reply_processor import extract_getsales_ids
+                    conv_uuid = extract_getsales_ids(reply.raw_webhook_data).get("getsales_conversation_uuid")
                 if not conv_uuid:
                     stats["no_lead_id"] += 1
                     continue
@@ -3840,14 +3837,11 @@ async def deep_cleanup_needs_reply(session: AsyncSession, batch_limit: int = 200
                 # GetSales: check if thread has outbound after reply
                 if not gs_key:
                     continue
-                # Get conversation UUID from raw_webhook_data
-                conv_uuid = None
-                if reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
-                    conv_uuid = (
-                        reply.raw_webhook_data.get("linkedin_conversation_uuid")
-                        or reply.raw_webhook_data.get("conversation_uuid")
-                        or (reply.raw_webhook_data.get("contact", {}) or {}).get("linkedin_conversation_uuid")
-                    )
+                # Use proper column for conversation UUID
+                conv_uuid = getattr(reply, "getsales_conversation_uuid", None)
+                if not conv_uuid and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
+                    from app.services.reply_processor import extract_getsales_ids
+                    conv_uuid = extract_getsales_ids(reply.raw_webhook_data).get("getsales_conversation_uuid")
                 if not conv_uuid:
                     continue
 
