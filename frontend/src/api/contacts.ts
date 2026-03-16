@@ -579,6 +579,21 @@ export const contactsApi = {
     await api.post(`/replies/calendly/disconnect`, null, { params: { project_id: projectId } });
   },
 
+  // Fireflies integration (per-project)
+  async getFirefliesStatus(projectId: number): Promise<{ connected: boolean; user_name?: string; user_email?: string; webhook_url: string }> {
+    const response = await api.get(`/fireflies/project-status`, { params: { project_id: projectId } });
+    return response.data;
+  },
+
+  async connectFireflies(projectId: number, token: string): Promise<{ ok: boolean; user_name: string; user_email: string; webhook_url: string; message: string }> {
+    const response = await api.post(`/fireflies/connect`, { token }, { params: { project_id: projectId } });
+    return response.data;
+  },
+
+  async disconnectFireflies(projectId: number): Promise<void> {
+    await api.post(`/fireflies/disconnect`, null, { params: { project_id: projectId } });
+  },
+
   // Project monitoring data
   async getProjectMonitoring(projectId: number): Promise<ProjectMonitoring> {
     const response = await api.get(`/crm-sync/project/${projectId}/monitoring`);

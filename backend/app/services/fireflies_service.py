@@ -1,6 +1,9 @@
 """Fireflies.ai integration service for call recording transcripts.
 
 Uses Fireflies GraphQL API: https://docs.fireflies.ai
+
+Supports per-project API keys (token passed explicitly) and
+legacy global key for backward compatibility.
 """
 import httpx
 from typing import Optional, List, Dict, Any
@@ -13,7 +16,11 @@ FIREFLIES_GRAPHQL_URL = "https://api.fireflies.ai/graphql"
 
 
 class FirefliesService:
-    """Service for interacting with Fireflies.ai GraphQL API."""
+    """Service for interacting with Fireflies.ai GraphQL API.
+
+    All methods accept an optional `api_key` parameter.
+    When provided, it takes precedence over the global key.
+    """
 
     def __init__(self):
         self._api_key: Optional[str] = settings.FIREFLIES_API_KEY
@@ -23,21 +30,29 @@ class FirefliesService:
         return self._api_key
 
     def set_api_key(self, api_key: str):
-        """Set the API key."""
+        """Set the global API key (legacy)."""
         self._api_key = api_key
 
-    def is_connected(self) -> bool:
-        """Check if we have an API key configured."""
-        return bool(self._api_key)
+    def _resolve_key(self, api_key: Optional[str] = None) -> Optional[str]:
+        """Return explicit key if given, else fall back to global."""
+        return api_key or self._api_key
 
-    def _get_headers(self) -> Dict[str, str]:
-        """Get headers for GraphQL requests."""
+    def is_connected(self, api_key: Optional[str] = None) -> bool:
+        return bool(self._resolve_key(api_key))
+
+    def _get_headers(self, api_key: Optional[str] = None) -> Dict[str, str]:
+        key = self._resolve_key(api_key)
         return {
-            "Authorization": f"Bearer {self._api_key}",
+            "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
         }
 
-    async def _query(self, query: str, variables: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _query(
+        self,
+        query: str,
+        variables: Optional[Dict[str, Any]] = None,
+        api_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Execute a GraphQL query against Fireflies API."""
         payload: Dict[str, Any] = {"query": query}
         if variables:
@@ -46,7 +61,7 @@ class FirefliesService:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 FIREFLIES_GRAPHQL_URL,
-                headers=self._get_headers(),
+                headers=self._get_headers(api_key),
                 json=payload,
             )
 
@@ -61,25 +76,23 @@ class FirefliesService:
 
             return data.get("data", {})
 
-    async def test_connection(self) -> bool:
-        """Test the API connection by fetching current user info."""
-        if not self._api_key:
+    async def test_connection(self, api_key: Optional[str] = None) -> bool:
+        key = self._resolve_key(api_key)
+        if not key:
             return False
-
         try:
-            data = await self._query("{ user { name email } }")
+            data = await self._query("{ user { name email } }", api_key=key)
             return data.get("user") is not None
         except Exception as e:
             logger.error(f"Fireflies connection test failed: {e}")
             return False
 
-    async def get_user(self) -> Optional[Dict[str, Any]]:
-        """Get current user info."""
-        if not self._api_key:
+    async def get_user(self, api_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        key = self._resolve_key(api_key)
+        if not key:
             return None
-
         try:
-            data = await self._query("{ user { name email user_id } }")
+            data = await self._query("{ user { name email user_id } }", api_key=key)
             return data.get("user")
         except Exception as e:
             logger.error(f"Error fetching Fireflies user: {e}")
@@ -89,9 +102,10 @@ class FirefliesService:
         self,
         limit: int = 20,
         skip: int = 0,
+        api_key: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Fetch list of transcripts."""
-        if not self._api_key:
+        key = self._resolve_key(api_key)
+        if not key:
             return []
 
         query = """
@@ -109,15 +123,19 @@ class FirefliesService:
         """
 
         try:
-            data = await self._query(query, {"limit": limit, "skip": skip})
+            data = await self._query(query, {"limit": limit, "skip": skip}, api_key=key)
             return data.get("transcripts", [])
         except Exception as e:
             logger.error(f"Error fetching Fireflies transcripts: {e}")
             return []
 
-    async def get_transcript(self, transcript_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch a single transcript with full details."""
-        if not self._api_key:
+    async def get_transcript(
+        self,
+        transcript_id: str,
+        api_key: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        key = self._resolve_key(api_key)
+        if not key:
             return None
 
         query = """
@@ -177,7 +195,7 @@ class FirefliesService:
         """
 
         try:
-            data = await self._query(query, {"id": transcript_id})
+            data = await self._query(query, {"id": transcript_id}, api_key=key)
             return data.get("transcript")
         except Exception as e:
             logger.error(f"Error fetching Fireflies transcript {transcript_id}: {e}")

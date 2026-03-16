@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Pencil, Check, X, Search, Trash2, Mail,
+  ArrowLeft, Pencil, Check, X, Search, Trash2, Mail, Mic,
   MessageCircle, Loader2, Unlink, FolderOpen, Zap, FileSpreadsheet, RefreshCw,
   Activity, Radio, Clock, AlertTriangle, CheckCircle2, XCircle, Info, Command, Send, ExternalLink, ChevronDown, Plus, Minus,
 } from 'lucide-react';
@@ -663,6 +663,18 @@ export function ProjectPage() {
           Get notified when meetings are booked. Data is enriched from CRM automatically.
         </p>
         <CalendlyConnect projectId={project.id} isDark={isDark} />
+      </div>
+
+      {/* Fireflies Section */}
+      <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
+        <h2 className={cn("text-sm font-semibold mb-3 flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+          <Mic className="w-4 h-4" />
+          Fireflies.ai Transcriptions
+        </h2>
+        <p className={cn("text-xs mb-3", isDark ? "text-[#6e6e6e]" : "text-neutral-500")}>
+          Receive call transcriptions automatically after each meeting.
+        </p>
+        <FirefliesConnect projectId={project.id} isDark={isDark} />
       </div>
 
       {/* SDR Test Email Section */}
@@ -1738,6 +1750,151 @@ function CalendlyConnect({ projectId, isDark }: { projectId: number; isDark: boo
           {error && <p className="text-xs text-red-500">{error}</p>}
           <p className={cn("text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
             Get token from <a href="https://calendly.com/integrations/api_webhooks" target="_blank" rel="noopener noreferrer" className="underline">Calendly API settings</a>
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* Fireflies.ai integration for call transcriptions (per-project, like Calendly) */
+function FirefliesConnect({ projectId, isDark }: { projectId: number; isDark: boolean }) {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'connected' | 'error'>('loading');
+  const [userName, setUserName] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [token, setToken] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showWebhookInfo, setShowWebhookInfo] = useState(false);
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const data = await contactsApi.getFirefliesStatus(projectId);
+      if (data.connected) {
+        setStatus('connected');
+        setUserName(data.user_name || null);
+        setUserEmail(data.user_email || null);
+      } else {
+        setStatus('idle');
+      }
+    } catch {
+      setStatus('error');
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
+
+  const handleConnect = async () => {
+    if (!token.trim()) {
+      setError('Token is required');
+      return;
+    }
+    setConnecting(true);
+    setError(null);
+    try {
+      const result = await contactsApi.connectFireflies(projectId, token.trim());
+      setUserName(result.user_name);
+      setUserEmail(result.user_email);
+      setStatus('connected');
+      setToken('');
+      setShowWebhookInfo(true);
+    } catch (e: any) {
+      setError(e.response?.data?.detail || 'Failed to connect');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await contactsApi.disconnectFireflies(projectId);
+      setStatus('idle');
+      setUserName(null);
+      setUserEmail(null);
+      setShowWebhookInfo(false);
+    } catch {}
+  };
+
+  const webhookUrl = `${window.location.origin}/api/fireflies/webhook`;
+
+  return (
+    <div className="space-y-3">
+      {status === 'loading' && (
+        <div className={cn("flex items-center gap-2 text-sm", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading...
+        </div>
+      )}
+
+      {status === 'connected' && (
+        <div className="space-y-2">
+          <div className={cn("flex items-center justify-between py-2 px-3 rounded-lg", isDark ? "bg-green-900/20" : "bg-green-50")}>
+            <div className={cn("flex items-center gap-2 text-sm", isDark ? "text-green-400" : "text-green-700")}>
+              <Check className="w-4 h-4" />
+              <span>{userName || 'Connected'}</span>
+              {userEmail && <span className={cn("text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>({userEmail})</span>}
+            </div>
+            <button onClick={handleDisconnect} className={cn("flex items-center gap-1 text-xs transition-colors", isDark ? "text-[#6e6e6e] hover:text-red-400" : "text-neutral-400 hover:text-red-500")}>
+              <Unlink className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowWebhookInfo(!showWebhookInfo)}
+            className={cn("text-xs flex items-center gap-1", isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700")}
+          >
+            <Info className="w-3 h-3" />
+            {showWebhookInfo ? 'Hide' : 'Show'} webhook setup
+          </button>
+
+          {showWebhookInfo && (
+            <div className={cn("text-xs p-3 rounded-lg space-y-2", isDark ? "bg-[#1e1e1e] text-[#d4d4d4]" : "bg-neutral-50 text-neutral-700")}>
+              <p className="font-medium">Configure webhook in Fireflies:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Go to Fireflies → Integrations → Webhooks</li>
+                <li>Click "Add Webhook"</li>
+                <li>Paste this URL:</li>
+              </ol>
+              <code className={cn("block p-2 rounded text-[11px] break-all", isDark ? "bg-[#333]" : "bg-white border")}>{webhookUrl}</code>
+              <p>Event: <code>Transcription completed</code></p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(status === 'idle' || status === 'error') && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Fireflies API Key"
+              className={cn(
+                "flex-1 px-3 py-1.5 rounded-lg text-sm border outline-none transition-colors",
+                isDark
+                  ? "bg-[#1e1e1e] border-[#333] text-[#d4d4d4] placeholder-[#6e6e6e] focus:border-purple-500"
+                  : "bg-white border-neutral-200 text-neutral-900 placeholder-neutral-400 focus:border-purple-500"
+              )}
+              onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+            />
+            <button
+              onClick={handleConnect}
+              disabled={connecting || !token.trim()}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50",
+                isDark ? "bg-purple-900/30 text-purple-400 hover:bg-purple-900/50" : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+              )}
+            >
+              {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect'}
+            </button>
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          <p className={cn("text-xs", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+            Get API key from <a href="https://app.fireflies.ai/integrations/custom/fireflies" target="_blank" rel="noopener noreferrer" className="underline">Fireflies → Integrations → API</a>
           </p>
         </div>
       )}
