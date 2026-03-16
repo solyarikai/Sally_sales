@@ -13,8 +13,9 @@ import { GTMPanel } from '../components/knowledge/GTMPanel';
 import { ChatIntelPanel } from '../components/knowledge/ChatIntelPanel';
 import { KnowledgeChatPanel } from '../components/knowledge/KnowledgeChatPanel';
 import { AnalyticsPanel } from '../components/knowledge/AnalyticsPanel';
+import { ClientReportPanel } from '../components/knowledge/ClientReportPanel';
 
-type Tab = 'icp' | 'templates' | 'logs' | 'gtm' | 'analytics' | 'chat-intel' | 'chat';
+type Tab = 'icp' | 'templates' | 'logs' | 'gtm' | 'analytics' | 'chat-intel' | 'chat' | 'client-report';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'chat', label: 'Chat' },
@@ -24,6 +25,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'logs', label: 'Learning Logs' },
   { key: 'analytics', label: 'Analytics' },
   { key: 'gtm', label: 'GTM Strategy' },
+  { key: 'client-report', label: 'Client Report' },
 ];
 
 const VALID_TABS = new Set<string>(TABS.map(t => t.key));
@@ -272,6 +274,9 @@ export function KnowledgePage() {
                 t={t}
                 logId={activeTab === 'gtm' ? highlightLogId : undefined}
               />
+            </div>
+            <div className={`absolute inset-0 overflow-y-auto ${activeTab === 'client-report' ? '' : 'invisible pointer-events-none'}`}>
+              <ClientReportPanel projectId={currentProject.id} />
             </div>
           </>
         )}

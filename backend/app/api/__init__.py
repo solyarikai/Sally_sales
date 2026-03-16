@@ -35,6 +35,7 @@ from .god_panel import router as god_panel_router
 from .chat_intel import router as chat_intel_router
 from .diaspora import router as diaspora_router
 from .calendly_webhook import router as calendly_webhook_router
+from .outreach_stats import router as outreach_stats_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -111,5 +112,8 @@ api_router.include_router(diaspora_router)
 
 # Calendly Webhooks
 api_router.include_router(calendly_webhook_router)
+
+# Outreach Stats (Client Report)
+api_router.include_router(outreach_stats_router)
 
 __all__ = ["api_router"]
