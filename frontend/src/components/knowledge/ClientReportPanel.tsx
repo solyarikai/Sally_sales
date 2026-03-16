@@ -7,6 +7,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../hooks/useTheme';
 import { themeColors } from '../../lib/themeColors';
+import api from '../../api/client';
 
 interface OutreachStat {
   id: number;
@@ -105,15 +106,12 @@ export function ClientReportPanel({ projectId }: { projectId: number }) {
   const loadStats = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        period_start: periodStart,
-        period_end: periodEnd,
+      const resp = await api.get<StatsResponse>(`/projects/${projectId}/outreach-stats`, {
+        params: { period_start: periodStart, period_end: periodEnd }
       });
-      const resp = await fetch(`/api/projects/${projectId}/outreach-stats?${params}`);
-      const data: StatsResponse = await resp.json();
-      setStats(data.stats || []);
-      setGrandTotal(data.grand_total || null);
-      setTotalsByChannel(data.totals_by_channel || []);
+      setStats(resp.data.stats || []);
+      setGrandTotal(resp.data.grand_total || null);
+      setTotalsByChannel(resp.data.totals_by_channel || []);
     } catch (e) {
       console.error('Failed to load stats:', e);
     } finally {
@@ -128,11 +126,9 @@ export function ClientReportPanel({ projectId }: { projectId: number }) {
   const syncStats = async () => {
     setSyncing(true);
     try {
-      const params = new URLSearchParams({
-        period_start: periodStart,
-        period_end: periodEnd,
+      await api.post(`/projects/${projectId}/outreach-stats/sync`, null, {
+        params: { period_start: periodStart, period_end: periodEnd }
       });
-      await fetch(`/api/projects/${projectId}/outreach-stats/sync?${params}`, { method: 'POST' });
       await loadStats();
     } catch (e) {
       console.error('Failed to sync stats:', e);
@@ -145,15 +141,11 @@ export function ClientReportPanel({ projectId }: { projectId: number }) {
     if (!newRow.segment.trim()) return;
     setAddingRow(true);
     try {
-      await fetch(`/api/projects/${projectId}/outreach-stats`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...newRow,
-          period_start: periodStart,
-          period_end: periodEnd,
-          is_manual: true,
-        }),
+      await api.post(`/projects/${projectId}/outreach-stats`, {
+        ...newRow,
+        period_start: periodStart,
+        period_end: periodEnd,
+        is_manual: true,
       });
       setShowAddModal(false);
       setNewRow({
@@ -187,11 +179,7 @@ export function ClientReportPanel({ projectId }: { projectId: number }) {
   const saveEdit = async () => {
     if (!editingId) return;
     try {
-      await fetch(`/api/projects/${projectId}/outreach-stats/${editingId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editValues),
-      });
+      await api.patch(`/projects/${projectId}/outreach-stats/${editingId}`, editValues);
       setEditingId(null);
       await loadStats();
     } catch (e) {
@@ -202,7 +190,7 @@ export function ClientReportPanel({ projectId }: { projectId: number }) {
   const deleteRow = async (id: number) => {
     if (!confirm('Delete this row?')) return;
     try {
-      await fetch(`/api/projects/${projectId}/outreach-stats/${id}`, { method: 'DELETE' });
+      await api.delete(`/projects/${projectId}/outreach-stats/${id}`);
       await loadStats();
     } catch (e) {
       console.error('Failed to delete row:', e);
