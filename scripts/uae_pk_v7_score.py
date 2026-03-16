@@ -755,7 +755,21 @@ def analyze_website(domain, scraped_data, gpt_flags, deep_data,
                     'trusted by governments',
                     'therapist', 'therapy', 'counselor', 'counselling', 'mental health support',
                     'one-on-one therapy', 'corporate support mental health',
-                    'index of /', 'buttons dont work', 'nothing to click']
+                    'personal trainer', 'fitness coach',
+                    'individual coaching', 'executive coach',
+                    'podcast host', 'solo entrepreneur',
+                    'domain for sale', 'domain expired', 'domain parked',
+                    'undergoing a refresh',
+                    'index of /', 'buttons dont work', 'nothing to click',
+                    'php error', 'wordpress error', 'webmail login',
+                    'decentralized labor', 'labor platform',
+                    'emiratization', 'talent on-demand',
+                    'global tech talent recruitment', 'it recruitment agency',
+                    'b2b executive search',
+                    'hr tech & workforce', 'workforce automation',
+                    'corporate services and incorporation',
+                    'sovereign wealth', 'investment council',
+                    'department for business']
     if any(kw in full for kw in personal_kws):
         result['red_flags'].append('placeholder_empty')
         result['negative_signals'].append('personal brand / trade body / networking club')
