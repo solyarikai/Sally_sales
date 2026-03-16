@@ -710,8 +710,11 @@ async def run_diaspora_pipeline(
             logger.warning(f"Failed to create sheet early: {e}")
             _sheet_id = None
 
-    # Try to resume from interim results
-    interim_path = Path("/tmp") / f"diaspora_{corridor_key}_interim.json"
+    # Try to resume from interim results — use PERSISTENT volume, not /tmp
+    # /scripts/data/ survives container restarts (mounted volume)
+    _persistent_dir = Path("/scripts/data/pipeline_state")
+    _persistent_dir.mkdir(parents=True, exist_ok=True)
+    interim_path = _persistent_dir / f"diaspora_{corridor_key}_interim.json"
     if interim_path.exists():
         try:
             interim_data = json.loads(interim_path.read_text())
