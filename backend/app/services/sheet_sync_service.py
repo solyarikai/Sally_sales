@@ -258,11 +258,25 @@ class SheetSyncService:
             # Collect final reply IDs (after filtering) for marking
             synced_ids = [r.id for r in replies]
 
-            # Batch append
-            first_row = google_sheets_service.append_rows(sheet_id, replies_tab, rows)
-            if first_row > 0:
+            # Write: chronological merge (if out-of-order) or simple append (fast path)
+            write_ok = False
+            if (row_format == "rizzult_28col" and existing_rows and len(existing_rows) > 1
+                    and self._needs_chronological_merge(existing_rows, rows)):
+                write_ok = self._chronological_merge_write(
+                    sheet_id, replies_tab, existing_rows, rows, config,
+                )
+                if write_ok:
+                    logger.info(
+                        f"Sheet sync project {project_id}: merged {len(rows)} rows chronologically"
+                    )
+            else:
+                first_row = google_sheets_service.append_rows(sheet_id, replies_tab, rows)
+                write_ok = first_row > 0
+                if write_ok:
+                    logger.info(f"Sheet sync project {project_id}: appended {len(rows)} rows")
+
+            if write_ok:
                 stats["rows_appended"] = len(rows)
-                logger.info(f"Sheet sync project {project_id}: appended {len(rows)} rows")
 
                 # Mark replies as synced (bulletproof — prevents re-push on any retry)
                 await session.execute(
@@ -281,9 +295,9 @@ class SheetSyncService:
                 project.sheet_sync_config = new_config
                 await session.commit()
             else:
-                stats["errors"].append("append_rows returned 0")
-                logger.warning(f"Sheet sync project {project_id}: append_rows returned 0 for {len(rows)} rows")
-                # Do NOT mark as synced — append failed, will retry next cycle
+                stats["errors"].append("write failed")
+                logger.warning(f"Sheet sync project {project_id}: write failed for {len(rows)} rows")
+                # Do NOT mark as synced — write failed, will retry next cycle
 
         return stats
 
@@ -326,6 +340,84 @@ class SheetSyncService:
             ]
             rows.append(row)
         return rows, latest_received
+
+    @staticmethod
+    def _needs_chronological_merge(existing_rows, new_rows) -> bool:
+        """Check if new rows have dates older than last existing sheet row (column W = index 22)."""
+        DATE_COL = 22
+        last_existing_date = None
+        for erow in reversed(existing_rows[1:]):  # skip header
+            if len(erow) > DATE_COL and erow[DATE_COL]:
+                try:
+                    last_existing_date = datetime.fromisoformat(erow[DATE_COL])
+                    break
+                except (ValueError, TypeError):
+                    continue
+        if not last_existing_date:
+            return False
+        for nrow in new_rows:
+            if len(nrow) > DATE_COL and nrow[DATE_COL]:
+                try:
+                    dt = datetime.fromisoformat(str(nrow[DATE_COL]))
+                    if dt < last_existing_date:
+                        return True
+                except (ValueError, TypeError):
+                    continue
+        return False
+
+    @staticmethod
+    def _chronological_merge_write(sheet_id, tab_name, existing_rows, new_rows, config):
+        """Merge new rows into existing sheet data maintaining chronological order.
+
+        Used when late-processed replies have received_at older than existing data.
+        Rewrites the data section in one batchUpdate call.
+        """
+        from app.services.google_sheets_service import google_sheets_service
+
+        DATE_COL = 22  # Column W: ISO datetime
+
+        # Combine existing data rows + new rows (all as string lists)
+        all_data = []
+        for row in existing_rows[1:]:
+            padded = list(row) + [""] * max(0, 29 - len(row))
+            all_data.append(padded)
+        for row in new_rows:
+            all_data.append([str(c) if c is not None else "" for c in row])
+
+        # Stable sort by date column (preserves order for same dates)
+        def date_key(row):
+            if len(row) > DATE_COL and row[DATE_COL]:
+                try:
+                    return datetime.fromisoformat(str(row[DATE_COL]))
+                except (ValueError, TypeError):
+                    pass
+            return datetime(9999, 1, 1)  # undated rows go to end
+
+        all_data.sort(key=date_key)
+
+        # Re-number index column (A) sequentially
+        for i, row in enumerate(all_data):
+            row[0] = str(i + 1)
+
+        # Recalculate week numbers using project's week_epoch
+        week_epoch = config.get("week_epoch")
+        WEEK_COL = 25  # Column Z
+        if week_epoch:
+            epoch = date.fromisoformat(week_epoch)
+            for row in all_data:
+                if len(row) > DATE_COL and row[DATE_COL]:
+                    try:
+                        dt = datetime.fromisoformat(str(row[DATE_COL]))
+                        delta_days = dt.date() - epoch
+                        row[WEEK_COL] = str(delta_days.days // 7 + 1)
+                    except (ValueError, TypeError):
+                        pass
+
+        # Write entire data section as one batch (row 2 onwards)
+        end_row = len(all_data) + 1
+        return google_sheets_service.update_cells(sheet_id, tab_name, [
+            {"range": f"A2:AC{end_row}", "values": all_data}
+        ])
 
     @staticmethod
     def _clean_email(email: str) -> str:

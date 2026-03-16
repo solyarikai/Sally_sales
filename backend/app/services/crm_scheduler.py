@@ -481,6 +481,11 @@ class CRMScheduler:
                             project.campaign_filters = filters
                             flag_modified(project, "campaign_filters")
                             assigned_names.add(camp.name.lower())
+                        # Reset reply count so sync_smartlead_replies() re-checks
+                        # ALL replied leads on next cycle instead of skipping this campaign.
+                        # Without this, old replies stay unprocessed until a *new* reply
+                        # changes the count — which could be days/weeks later.
+                        camp.sl_reply_count = 0
                         assigned_count += 1
                         # Audit log
                         from app.models.campaign_audit_log import CampaignAuditLog
