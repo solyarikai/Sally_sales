@@ -248,10 +248,16 @@ async def _load_reference_examples_legacy(session, project_id: int, category: st
 
         sender_uuids = [s for s in (project.getsales_senders or []) if isinstance(s, str)]
         if sender_uuids:
-            sender_text = PRModel.raw_webhook_data.op("->>")("sender_profile_uuid")
+            # Handle both flattened (sync path) and nested (webhook path) formats
+            from sqlalchemy import text as _sender_text
+            sender_flat = PRModel.raw_webhook_data.op("->>")("sender_profile_uuid")
+            sender_nested = _sender_text(
+                "raw_webhook_data::jsonb->'sender_profile'->>'uuid'"
+            )
             sender_check = or_(
                 PRModel.channel != "linkedin",
-                sender_text.in_(sender_uuids),
+                sender_flat.in_(sender_uuids),
+                sender_nested.in_(sender_uuids),
             )
             project_filter = and_(campaign_condition, sender_check)
         else:

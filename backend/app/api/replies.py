@@ -2877,10 +2877,20 @@ async def approve_and_send_reply(
     if reply.channel == "linkedin" or reply.source == "getsales":
         reply.approved_at = datetime.utcnow()
 
-        # Extract GetSales identifiers from raw webhook data
+        # Extract GetSales identifiers from raw webhook data.
+        # Webhook stores nested objects: contact.uuid, sender_profile.uuid
+        # Some older records may have flattened keys: lead_uuid, sender_profile_uuid
         raw = reply.raw_webhook_data or {}
-        lead_uuid = raw.get("lead_uuid") or raw.get("lead", {}).get("uuid")
-        sender_profile_uuid = raw.get("sender_profile_uuid")
+        lead_uuid = (
+            raw.get("lead_uuid")
+            or raw.get("contact", {}).get("uuid")
+            or raw.get("lead", {}).get("uuid")
+        )
+        sender_profile_uuid = (
+            raw.get("sender_profile_uuid")
+            or raw.get("sender_profile", {}).get("uuid")
+            or (raw.get("automation") or {}).get("sender_profile_uuid")
+        )
 
         send_result = None
         send_error = None
@@ -2891,8 +2901,14 @@ async def approve_and_send_reply(
             missing = []
             if not lead_uuid: missing.append("lead_uuid")
             if not sender_profile_uuid: missing.append("sender_profile_uuid")
+            raw_keys = list((raw or {}).keys())
             send_error = f"Missing GetSales identifiers: {', '.join(missing)} — operator must send manually"
-            logger.warning(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email}: {send_error}")
+            logger.error(
+                f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email}: {send_error} | "
+                f"lead_uuid={lead_uuid} sender_uuid={sender_profile_uuid} "
+                f"raw_keys={raw_keys} contact.uuid={raw.get('contact', {}).get('uuid')} "
+                f"sender_profile.uuid={raw.get('sender_profile', {}).get('uuid')}"
+            )
         else:
             try:
                 from app.services.crm_sync_service import GetSalesClient
