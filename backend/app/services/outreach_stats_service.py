@@ -3,12 +3,20 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Optional, Dict, List, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, case, literal_column
 
 from app.models import Contact, Project, Campaign, Meeting, OutreachStats
-from app.services.smartlead_service import smartlead_service
 
 logger = logging.getLogger(__name__)
+
+
+# Map source values to channels
+SOURCE_TO_CHANNEL = {
+    "getsales": "linkedin",
+    "smartlead": "email",
+    "getsales+smartlead": "email",  # Primary was email
+    "smartlead+getsales": "linkedin",  # Primary was LinkedIn
+}
 
 
 class OutreachStatsService:
@@ -31,7 +39,7 @@ class OutreachStatsService:
     ) -> Dict[str, Any]:
         """
         Sync all stats for a project for a given period.
-        Returns summary of what was synced.
+        Creates stats based on actual contact data grouped by source/segment.
         """
         results = {
             "synced_channels": [],
@@ -45,111 +53,25 @@ class OutreachStatsService:
             results["errors"].append(f"Project {project_id} not found")
             return results
 
-        # Sync Email from SmartLead
         try:
-            email_stats = await self._sync_email_stats(db, project, company_id, period_start, period_end)
-            results["stats"].extend(email_stats)
-            results["synced_channels"].append("email")
+            stats = await self._sync_from_contacts(db, project_id, company_id, period_start, period_end)
+            results["stats"].extend(stats)
+            results["synced_channels"].extend(["email", "linkedin"])
         except Exception as e:
-            logger.error(f"Error syncing email stats: {e}")
-            results["errors"].append(f"Email sync error: {str(e)}")
-
-        # Sync LinkedIn from contacts (GetSales data)
-        try:
-            linkedin_stats = await self._sync_linkedin_stats(db, project_id, company_id, period_start, period_end)
-            results["stats"].extend(linkedin_stats)
-            results["synced_channels"].append("linkedin")
-        except Exception as e:
-            logger.error(f"Error syncing LinkedIn stats: {e}")
-            results["errors"].append(f"LinkedIn sync error: {str(e)}")
+            logger.error(f"Error syncing contact stats: {e}", exc_info=True)
+            results["errors"].append(f"Contact sync error: {str(e)}")
 
         # Sync meetings from Calendly
         try:
             await self._sync_meeting_counts(db, project_id, period_start, period_end)
             results["synced_channels"].append("meetings")
         except Exception as e:
-            logger.error(f"Error syncing meeting stats: {e}")
+            logger.error(f"Error syncing meeting stats: {e}", exc_info=True)
             results["errors"].append(f"Meetings sync error: {str(e)}")
 
         return results
 
-    async def _sync_email_stats(
-        self,
-        db: AsyncSession,
-        project: Project,
-        company_id: int,
-        period_start: date,
-        period_end: date,
-    ) -> List[Dict]:
-        """Sync email stats from SmartLead campaigns."""
-        stats_list = []
-
-        # Get campaigns for this project from SmartLead
-        # We'll aggregate by segment (campaign name pattern)
-        campaigns_result = await db.execute(
-            select(Campaign).where(
-                and_(
-                    Campaign.project_id == project.id,
-                    Campaign.platform == "email"
-                )
-            )
-        )
-        campaigns = campaigns_result.scalars().all()
-
-        # Group campaigns by segment (extract from campaign name)
-        segment_stats: Dict[str, Dict] = {}
-
-        for campaign in campaigns:
-            # Extract segment from campaign name (e.g., "Mifort - FinTech - Wave 1" -> "FinTech")
-            segment = self._extract_segment_from_campaign(campaign.name)
-
-            if segment not in segment_stats:
-                segment_stats[segment] = {
-                    "contacts_sent": 0,
-                    "replies_count": 0,
-                    "positive_replies": 0,
-                }
-
-            # Get stats from SmartLead API if we have campaign ID
-            if campaign.smartlead_campaign_id:
-                try:
-                    sl_stats = await smartlead_service.get_campaign_stats(campaign.smartlead_campaign_id)
-                    if sl_stats:
-                        segment_stats[segment]["contacts_sent"] += sl_stats.get("sent_count", 0)
-                        segment_stats[segment]["replies_count"] += sl_stats.get("reply_count", 0)
-                except Exception as e:
-                    logger.warning(f"Failed to get SmartLead stats for campaign {campaign.id}: {e}")
-
-        # Count positive replies from contacts
-        for segment in segment_stats:
-            positive_count = await db.scalar(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.project_id == project.id,
-                        Contact.channel == "email",
-                        Contact.segment.ilike(f"%{segment}%"),
-                        Contact.status.in_(["interested", "meeting_request", "positive"]),
-                        Contact.last_reply_at >= datetime.combine(period_start, datetime.min.time()),
-                        Contact.last_reply_at <= datetime.combine(period_end, datetime.max.time()),
-                    )
-                )
-            )
-            segment_stats[segment]["positive_replies"] = positive_count or 0
-
-        # Upsert stats
-        for segment, data in segment_stats.items():
-            stat = await self._upsert_stat(
-                db, company_id, project.id, period_start, period_end,
-                channel="email",
-                segment=segment,
-                data=data,
-                data_source="smartlead"
-            )
-            stats_list.append(stat.to_dict())
-
-        return stats_list
-
-    async def _sync_linkedin_stats(
+    async def _sync_from_contacts(
         self,
         db: AsyncSession,
         project_id: int,
@@ -157,94 +79,125 @@ class OutreachStatsService:
         period_start: date,
         period_end: date,
     ) -> List[Dict]:
-        """Sync LinkedIn stats from contacts (GetSales data)."""
+        """
+        Sync stats directly from contacts table.
+        Groups by source (mapped to channel) and segment.
+        """
         stats_list = []
+        period_start_dt = datetime.combine(period_start, datetime.min.time())
+        period_end_dt = datetime.combine(period_end, datetime.max.time())
 
-        # Get all segments for LinkedIn contacts in this period
-        segments_result = await db.execute(
-            select(Contact.segment, func.count(Contact.id).label("count")).where(
-                and_(
-                    Contact.project_id == project_id,
-                    Contact.channel == "linkedin",
-                    Contact.created_at >= datetime.combine(period_start, datetime.min.time()),
-                    Contact.created_at <= datetime.combine(period_end, datetime.max.time()),
-                )
-            ).group_by(Contact.segment)
-        )
-        segments = segments_result.all()
-
-        for segment_row in segments:
-            segment = segment_row.segment or "Unknown"
-
-            # Count contacts sent (created in period)
-            contacts_sent = await db.scalar(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.project_id == project_id,
-                        Contact.channel == "linkedin",
-                        Contact.segment == segment_row.segment,
-                        Contact.created_at >= datetime.combine(period_start, datetime.min.time()),
-                        Contact.created_at <= datetime.combine(period_end, datetime.max.time()),
-                    )
-                )
+        # Get aggregated contact stats by source
+        query = select(
+            Contact.source,
+            Contact.segment,
+            func.count(Contact.id).label("total_contacts"),
+            func.sum(case((Contact.last_reply_at.isnot(None), 1), else_=0)).label("replied"),
+            func.sum(case(
+                (Contact.status.in_(["interested", "meeting_request", "positive", "qualified"]), 1),
+                else_=0
+            )).label("positive"),
+            func.sum(case(
+                (Contact.status.in_(["meeting_scheduled", "meeting_held"]), 1),
+                else_=0
+            )).label("meetings"),
+        ).where(
+            and_(
+                Contact.project_id == project_id,
+                Contact.created_at >= period_start_dt,
+                Contact.created_at <= period_end_dt,
+                Contact.is_active == True,
             )
+        ).group_by(Contact.source, Contact.segment)
 
-            # Count accepts (has linkedin_connected or similar)
-            contacts_accepted = await db.scalar(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.project_id == project_id,
-                        Contact.channel == "linkedin",
-                        Contact.segment == segment_row.segment,
-                        Contact.status.in_(["connected", "accepted", "replied", "interested", "meeting_request"]),
-                        Contact.created_at >= datetime.combine(period_start, datetime.min.time()),
-                        Contact.created_at <= datetime.combine(period_end, datetime.max.time()),
-                    )
-                )
-            )
+        result = await db.execute(query)
+        rows = result.all()
 
-            # Count replies
-            replies_count = await db.scalar(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.project_id == project_id,
-                        Contact.channel == "linkedin",
-                        Contact.segment == segment_row.segment,
-                        Contact.last_reply_at.isnot(None),
-                        Contact.last_reply_at >= datetime.combine(period_start, datetime.min.time()),
-                        Contact.last_reply_at <= datetime.combine(period_end, datetime.max.time()),
-                    )
-                )
-            )
+        # Process each source/segment combination
+        for row in rows:
+            source = row.source or "unknown"
+            segment = row.segment or "General"  # Default segment if empty
 
-            # Count positive replies
-            positive_replies = await db.scalar(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.project_id == project_id,
-                        Contact.channel == "linkedin",
-                        Contact.segment == segment_row.segment,
-                        Contact.status.in_(["interested", "meeting_request", "positive"]),
-                        Contact.last_reply_at >= datetime.combine(period_start, datetime.min.time()),
-                        Contact.last_reply_at <= datetime.combine(period_end, datetime.max.time()),
-                    )
-                )
-            )
+            # Determine channel from source
+            channel = self._get_channel_from_source(source)
+            if not channel:
+                continue  # Skip unknown sources
 
-            data = {
-                "contacts_sent": contacts_sent or 0,
-                "contacts_accepted": contacts_accepted or 0,
-                "replies_count": replies_count or 0,
-                "positive_replies": positive_replies or 0,
-            }
-
+            # Get or create stat
             stat = await self._upsert_stat(
                 db, company_id, project_id, period_start, period_end,
-                channel="linkedin",
+                channel=channel,
                 segment=segment,
-                data=data,
-                data_source="getsales"
+                data={
+                    "contacts_sent": row.total_contacts or 0,
+                    "contacts_accepted": row.total_contacts or 0,  # For LinkedIn, sent ≈ accepted for now
+                    "replies_count": row.replied or 0,
+                    "positive_replies": row.positive or 0,
+                    "meetings_scheduled": row.meetings or 0,
+                },
+                data_source="getsales" if channel == "linkedin" else "smartlead"
             )
+            stats_list.append(stat.to_dict())
+
+        # If no data found, create summary stats from campaign data
+        if not stats_list:
+            stats_list = await self._sync_from_campaigns(db, project_id, company_id, period_start, period_end)
+
+        return stats_list
+
+    async def _sync_from_campaigns(
+        self,
+        db: AsyncSession,
+        project_id: int,
+        company_id: int,
+        period_start: date,
+        period_end: date,
+    ) -> List[Dict]:
+        """Fallback: sync from campaigns table if contacts don't have data."""
+        stats_list = []
+
+        # Get campaigns for this project
+        campaigns_result = await db.execute(
+            select(Campaign).where(Campaign.project_id == project_id)
+        )
+        campaigns = campaigns_result.scalars().all()
+
+        for campaign in campaigns:
+            channel = "email" if campaign.platform == "email" else "linkedin"
+            segment = self._extract_segment_from_campaign(campaign.name)
+
+            # Check if stat already exists
+            existing = await db.execute(
+                select(OutreachStats).where(
+                    and_(
+                        OutreachStats.project_id == project_id,
+                        OutreachStats.channel == channel,
+                        OutreachStats.segment == segment,
+                        OutreachStats.period_start == period_start,
+                        OutreachStats.period_end == period_end,
+                    )
+                )
+            )
+            if existing.scalar_one_or_none():
+                continue
+
+            # Create placeholder stat
+            stat = OutreachStats(
+                company_id=company_id,
+                project_id=project_id,
+                period_start=period_start,
+                period_end=period_end,
+                channel=channel,
+                segment=segment,
+                contacts_sent=0,
+                is_manual=0,
+                data_source="campaign",
+                last_synced_at=datetime.utcnow(),
+            )
+            stat.calculate_rates()
+            db.add(stat)
+            await db.commit()
+            await db.refresh(stat)
             stats_list.append(stat.to_dict())
 
         return stats_list
@@ -257,25 +210,27 @@ class OutreachStatsService:
         period_end: date,
     ):
         """Update meeting counts in existing stats from meetings table."""
-        # Get meeting counts by channel/segment
-        meeting_counts = await db.execute(
-            select(
-                Meeting.channel,
-                Meeting.segment,
-                func.count(Meeting.id).label("scheduled"),
-                func.sum(
-                    func.cast(Meeting.status == "completed", Integer)
-                ).label("completed")
-            ).where(
-                and_(
-                    Meeting.project_id == project_id,
-                    Meeting.scheduled_at >= datetime.combine(period_start, datetime.min.time()),
-                    Meeting.scheduled_at <= datetime.combine(period_end, datetime.max.time()),
-                )
-            ).group_by(Meeting.channel, Meeting.segment)
-        )
+        period_start_dt = datetime.combine(period_start, datetime.min.time())
+        period_end_dt = datetime.combine(period_end, datetime.max.time())
 
-        for row in meeting_counts:
+        # Get meeting counts by channel/segment
+        meeting_query = select(
+            Meeting.channel,
+            Meeting.segment,
+            func.count(Meeting.id).label("scheduled"),
+            func.sum(case((Meeting.status == "completed", 1), else_=0)).label("completed")
+        ).where(
+            and_(
+                Meeting.project_id == project_id,
+                Meeting.scheduled_at >= period_start_dt,
+                Meeting.scheduled_at <= period_end_dt,
+            )
+        ).group_by(Meeting.channel, Meeting.segment)
+
+        result = await db.execute(meeting_query)
+        rows = result.all()
+
+        for row in rows:
             if not row.channel:
                 continue
 
@@ -285,7 +240,7 @@ class OutreachStatsService:
                     and_(
                         OutreachStats.project_id == project_id,
                         OutreachStats.channel == row.channel,
-                        OutreachStats.segment == (row.segment or "Unknown"),
+                        OutreachStats.segment == (row.segment or "General"),
                         OutreachStats.period_start == period_start,
                         OutreachStats.period_end == period_end,
                     )
@@ -334,6 +289,7 @@ class OutreachStatsService:
                 stat.contacts_accepted = data.get("contacts_accepted", stat.contacts_accepted)
                 stat.replies_count = data.get("replies_count", stat.replies_count)
                 stat.positive_replies = data.get("positive_replies", stat.positive_replies)
+                stat.meetings_scheduled = data.get("meetings_scheduled", stat.meetings_scheduled)
                 stat.data_source = data_source
                 stat.last_synced_at = datetime.utcnow()
                 stat.calculate_rates()
@@ -350,6 +306,7 @@ class OutreachStatsService:
                 contacts_accepted=data.get("contacts_accepted", 0),
                 replies_count=data.get("replies_count", 0),
                 positive_replies=data.get("positive_replies", 0),
+                meetings_scheduled=data.get("meetings_scheduled", 0),
                 is_manual=0,
                 data_source=data_source,
                 last_synced_at=datetime.utcnow(),
@@ -361,6 +318,25 @@ class OutreachStatsService:
         await db.refresh(stat)
         return stat
 
+    def _get_channel_from_source(self, source: str) -> Optional[str]:
+        """Map contact source to channel name."""
+        if not source:
+            return None
+
+        source_lower = source.lower()
+
+        # Direct mappings
+        if source_lower in SOURCE_TO_CHANNEL:
+            return SOURCE_TO_CHANNEL[source_lower]
+
+        # Pattern matching
+        if "getsales" in source_lower:
+            return "linkedin"
+        if "smartlead" in source_lower:
+            return "email"
+
+        return None
+
     def _extract_segment_from_campaign(self, campaign_name: str) -> str:
         """Extract segment name from campaign name.
 
@@ -370,7 +346,7 @@ class OutreachStatsService:
         - "General" -> "General"
         """
         if not campaign_name:
-            return "Unknown"
+            return "General"
 
         parts = campaign_name.split(" - ")
         if len(parts) >= 2:
@@ -378,7 +354,7 @@ class OutreachStatsService:
             return parts[1].strip()
 
         # Try to extract without delimiter
-        return campaign_name.strip()
+        return campaign_name.strip()[:50]  # Limit length
 
 
 # Singleton
