@@ -1,5 +1,5 @@
 """API endpoints for Reply Automation feature."""
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, Body
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, and_, or_, exists
