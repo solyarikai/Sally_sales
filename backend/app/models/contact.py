@@ -73,6 +73,10 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     sender_company = Column(String(255), nullable=True)
     sender_signature = Column(Text, nullable=True)
 
+    # Per-project classification prompt — appended to the default CLASSIFICATION_PROMPT.
+    # Allows project-specific guidance (e.g., Russian polite decline patterns for easystaff).
+    classification_prompt = Column(Text, nullable=True)
+
     # Webhook control
     webhooks_enabled = Column(Boolean, default=True, server_default='true', nullable=False)
 

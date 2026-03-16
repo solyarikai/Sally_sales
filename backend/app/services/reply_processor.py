@@ -454,7 +454,10 @@ Categories:
   says "send it", "yes", "ok", "давайте", "отправьте", "присылайте", or uses positive emojis
   (👍, 🤝, ✅, etc). Short affirmative replies = interested. When in doubt, classify as interested.
 - meeting_request: The person wants to schedule a call or meeting
-- not_interested: The person EXPLICITLY declines or says no
+- not_interested: The person EXPLICITLY declines or says no. Includes polite declines
+  like "no difficulties", "all good thanks", "not needed", "пока проблем нет",
+  "сложностей нет", "нет необходимости", "нас всё устраивает", "спасибо, не надо".
+  Key rule: short polite replies that acknowledge your message but express no need = not_interested.
 - out_of_office: Auto-reply or out of office message
 - wrong_person: Not the right contact, suggests someone else
 - unsubscribe: Wants to opt out or stop receiving emails
@@ -1217,9 +1220,31 @@ async def process_reply_webhook(
             else:
                 logger.info(f"[PROCESSOR] No automation found for campaign_id={campaign_id}")
         
-        # Classify the reply
+        # Classify the reply — merge automation + project-level classification prompts
         logger.info(f"[PROCESSOR] Starting classification...")
         custom_classification_prompt = automation.classification_prompt if automation else None
+        # Check for project-specific classification prompt (lightweight pre-lookup)
+        if campaign_name:
+            try:
+                from app.models.contact import Project as _ProjCls
+                from sqlalchemy import text as _sa_text
+                _pre = (await session.execute(
+                    select(_ProjCls.classification_prompt).where(
+                        and_(
+                            _ProjCls.campaign_filters.isnot(None),
+                            _ProjCls.deleted_at.is_(None),
+                            _sa_text(
+                                "EXISTS (SELECT 1 FROM jsonb_array_elements_text(projects.campaign_filters) AS cf "
+                                "WHERE LOWER(cf) = LOWER(:cname))"
+                            ),
+                        )
+                    ).params(cname=campaign_name).limit(1)
+                )).scalar()
+                if _pre:
+                    custom_classification_prompt = (custom_classification_prompt + "\n" + _pre) if custom_classification_prompt else _pre
+                    logger.info(f"[PROCESSOR] Using project-specific classification prompt for campaign '{campaign_name}'")
+            except Exception as _pe:
+                logger.debug(f"[PROCESSOR] Project classification prompt lookup failed: {_pe}")
         classification = await classify_reply(subject, body, custom_prompt=custom_classification_prompt)
         logger.info(f"[PROCESSOR] Classification: category={classification['category']}, confidence={classification['confidence']}")
 
@@ -2014,10 +2039,15 @@ async def process_getsales_reply(
 
     # --- Classify ---
     linkedin_suffix = "This is a LinkedIn DM, not an email. Classify based on the message content."
+    # Merge project-specific classification prompt if available
+    _classify_prompt = linkedin_suffix
+    if project and getattr(project, "classification_prompt", None):
+        _classify_prompt = linkedin_suffix + "\n" + project.classification_prompt
+        logger.info(f"[GETSALES] Using project-specific classification prompt for '{project.name}'")
     classification = await classify_reply(
         subject="(LinkedIn message)",
         body=message_text,
-        custom_prompt=linkedin_suffix,
+        custom_prompt=_classify_prompt,
     )
     logger.info(f"[GETSALES] Classification: {classification['category']} ({classification['confidence']})")
 
@@ -2065,7 +2095,9 @@ async def process_getsales_reply(
     # --- Generate draft ---
     linkedin_draft_suffix = (
         "This is a LinkedIn message, keep reply SHORT (2-3 sentences), "
-        "conversational, no subject line needed."
+        "conversational, no subject line needed. "
+        "Do NOT include any email signature, sign-off block, or contact details at the end — "
+        "this is a LinkedIn DM, not an email."
     )
     combined_prompt = linkedin_draft_suffix
     if custom_reply_prompt:
