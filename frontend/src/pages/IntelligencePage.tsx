@@ -12,6 +12,15 @@ import { cn } from '../lib/utils';
 
 const INTENT_GROUP_ORDER = ['warm', 'questions', 'soft_objection', 'hard_objection', 'noise'] as const;
 
+// Maps intent group → CRM reply_category filter for deep linking
+const GROUP_CRM_CATEGORIES: Record<string, string> = {
+  warm: 'interested,meeting_request',
+  questions: 'question',
+  soft_objection: 'not_interested',
+  hard_objection: 'not_interested',
+  noise: 'other,wrong_person,unsubscribe',
+};
+
 const GROUP_LABELS: Record<string, string> = {
   warm: 'Warm Replies',
   questions: 'Questions',
@@ -337,25 +346,42 @@ export function IntelligencePage() {
               return (
                 <div key={group} className="border-b" style={{ borderColor: t.cardBorder }}>
                   {/* Group header */}
-                  <button
-                    onClick={() => toggleGroup(group)}
-                    className={cn(
-                      'w-full px-4 py-2 flex items-center gap-2 text-left transition-colors',
-                      isDark ? 'hover:bg-zinc-800/50' : 'hover:bg-zinc-50',
+                  <div className={cn(
+                    'w-full px-4 py-2 flex items-center gap-2 transition-colors',
+                    isDark ? 'hover:bg-zinc-800/50' : 'hover:bg-zinc-50',
+                  )}>
+                    <button
+                      onClick={() => toggleGroup(group)}
+                      className="flex items-center gap-2 flex-1 text-left"
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="w-4 h-4" style={{ color: t.text2 }} />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" style={{ color: t.text2 }} />
+                      )}
+                      <span className={cn('text-[13px] font-semibold', gc[group].text)}>
+                        {GROUP_LABELS[group]}
+                      </span>
+                      <span className={cn('text-[11px] px-1.5 py-0.5 rounded', gc[group].bg, gc[group].text)}>
+                        {groupItems.length}
+                      </span>
+                    </button>
+                    {group !== 'noise' && (
+                      <a
+                        href={`/contacts?project_id=${projectId}&replied=true&reply_category=${GROUP_CRM_CATEGORIES[group] || ''}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(
+                          'flex items-center gap-1 text-[11px] px-2 py-0.5 rounded transition-colors',
+                          isDark ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50' : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100',
+                        )}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        View in CRM
+                      </a>
                     )}
-                  >
-                    {isCollapsed ? (
-                      <ChevronRight className="w-4 h-4" style={{ color: t.text2 }} />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" style={{ color: t.text2 }} />
-                    )}
-                    <span className={cn('text-[13px] font-semibold', gc[group].text)}>
-                      {GROUP_LABELS[group]}
-                    </span>
-                    <span className={cn('text-[11px] px-1.5 py-0.5 rounded', gc[group].bg, gc[group].text)}>
-                      {groupItems.length}
-                    </span>
-                  </button>
+                  </div>
 
                   {/* Group items */}
                   {!isCollapsed && (
