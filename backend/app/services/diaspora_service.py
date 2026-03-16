@@ -1259,45 +1259,16 @@ async def run_diaspora_pipeline(
                 classified = decision_makers
                 new_matches = []
             else:
-                # University signal is STRONG — auto-accept with surname pre-filter only
-                # Skip expensive GPT for high-confidence matches (school from target country = 95%+ match)
-                # Only GPT-classify contacts that DON'T pass surname pre-filter
-                known_names = _build_surname_set(COUNTRY_NAME_PROFILES.get(contractor_country, {}))
-                auto_accepted = []
-                needs_gpt = []
-
+                # University signal is DEFINITIVE — if you studied at a target-country
+                # university, you ARE from that country. No name filter, no GPT needed.
+                # Auto-accept ALL contacts found via university search.
                 for c in new_candidates:
-                    full_name = (c.get("name", "") or f"{c.get('first_name', '')} {c.get('last_name', '')}").strip().lower()
-                    name_parts = full_name.replace("-", " ").split()
-                    has_known_name = any(part in known_names for part in name_parts)
+                    c["_origin_score"] = 9
+                    c["_origin_match"] = True
 
-                    if has_known_name:
-                        # Known surname + target country university = auto-accept
-                        c["_origin_score"] = 9
-                        c["_origin_match"] = True
-                        auto_accepted.append(c)
-                    else:
-                        needs_gpt.append(c)
-
-                await _emit(f"Auto-accepted: {len(auto_accepted)} (surname match). GPT needed: {len(needs_gpt)}")
-
-                # Only classify the uncertain ones via GPT
-                gpt_matched = []
-                if needs_gpt:
-                    try:
-                        classified_gpt = await classify_names_by_origin(needs_gpt, contractor_country)
-                        gpt_matched = [c for c in classified_gpt if c.get("_origin_match")]
-                        await _emit(f"GPT classified: {len(gpt_matched)}/{len(needs_gpt)} matched")
-                    except Exception as e:
-                        logger.error(f"Classification failed: {e}")
-                        # University signal strong enough — accept all on failure
-                        for p in needs_gpt:
-                            p["_origin_score"] = 8
-                            p["_origin_match"] = True
-                        gpt_matched = needs_gpt
-
-                matched = auto_accepted + gpt_matched
+                matched = new_candidates
                 classified = new_candidates
+                await _emit(f"Auto-accepted ALL {len(matched)} (university = definitive origin signal). $0 GPT cost.")
 
             # Tag all matched contacts (already deduped above)
             new_matches = []
@@ -1483,36 +1454,15 @@ async def run_diaspora_pipeline(
                 classified = decision_makers
                 new_matches = []
             else:
-                # Auto-accept with surname pre-filter, GPT only for unknowns
-                known_names = _build_surname_set(COUNTRY_NAME_PROFILES.get(contractor_country, {}))
-                auto_accepted = []
-                needs_gpt = []
+                # Extended university signal is DEFINITIVE — same as regular university.
+                # Auto-accept ALL. No name filter, no GPT.
                 for c in new_candidates:
-                    full_name = (c.get("name", "") or f"{c.get('first_name', '')} {c.get('last_name', '')}").strip().lower()
-                    name_parts = full_name.replace("-", " ").split()
-                    if any(part in known_names for part in name_parts):
-                        c["_origin_score"] = 9
-                        c["_origin_match"] = True
-                        auto_accepted.append(c)
-                    else:
-                        needs_gpt.append(c)
+                    c["_origin_score"] = 9
+                    c["_origin_match"] = True
 
-                await _emit(f"Auto-accepted: {len(auto_accepted)} (surname). GPT needed: {len(needs_gpt)}")
-                gpt_matched = []
-                if needs_gpt:
-                    try:
-                        classified_gpt = await classify_names_by_origin(needs_gpt, contractor_country)
-                        gpt_matched = [c for c in classified_gpt if c.get("_origin_match")]
-                        await _emit(f"GPT classified: {len(gpt_matched)}/{len(needs_gpt)} matched")
-                    except Exception as e:
-                        logger.error(f"Classification failed: {e}")
-                        for p in needs_gpt:
-                            p["_origin_score"] = 8
-                            p["_origin_match"] = True
-                        gpt_matched = needs_gpt
-
-                matched = auto_accepted + gpt_matched
+                matched = new_candidates
                 classified = new_candidates
+                await _emit(f"Auto-accepted ALL {len(matched)} (university = definitive origin signal). $0 GPT cost.")
 
             new_matches = []
             for c in matched:
