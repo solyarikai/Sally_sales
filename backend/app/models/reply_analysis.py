@@ -33,7 +33,7 @@ class ReplyAnalysis(Base):
     sequence_type = Column(String(20), nullable=True)  # cold_email | cold_linkedin | conference_followup | personalized
 
     # Language of the reply
-    language = Column(String(5), nullable=True)
+    language = Column(String(10), nullable=True)
 
     # AI reasoning
     reasoning = Column(Text, nullable=True)
