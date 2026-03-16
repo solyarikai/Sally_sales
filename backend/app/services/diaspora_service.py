@@ -1368,7 +1368,7 @@ async def run_diaspora_pipeline(
 
     # Phase 3b: Extended university batches (full_tam mode, or if target not reached)
     ext_uni_batches = EXTENDED_UNIVERSITY_BATCHES.get(contractor_country, [])
-    if ext_uni_batches and len(all_matched_contacts) < target_count and mode in ("full", "full_tam"):
+    if ext_uni_batches and len(all_matched_contacts) < target_count and mode in ("full", "full_tam", "university"):
         await _emit(f"\n=== EXTENDED UNIVERSITY SEARCH ({contractor_country}) ===")
         for uni_batch in ext_uni_batches:
             if len(all_matched_contacts) >= target_count:
