@@ -1,7 +1,7 @@
 """Add meetings table for Calendly integration.
 
 Revision ID: 202603161900
-Revises: 202603161800
+Revises: 202603160400
 Create Date: 2026-03-16 19:00:00
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = '202603161900'
-down_revision = '202603161800'
+down_revision = '202603160400'
 branch_labels = None
 depends_on = None
 
