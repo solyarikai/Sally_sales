@@ -3003,11 +3003,14 @@ class CRMSyncService:
             logger.warning("GetSales API key not configured")
             return {"skipped": "no_api_key"}
         
-        stats = {"new_replies": 0, "existing": 0, "cached": 0, "no_contact": 0, "pages": 0}
+        stats = {"new_replies": 0, "existing": 0, "cached": 0, "no_contact": 0, "pages": 0, "conv_dedup": 0}
         cutoff_time = datetime.utcnow() - timedelta(hours=max_age_hours)
         consecutive_cached = 0
         new_reply_ids = []
         _pending_notifications = []  # (pr, contact, flow_name, flow_uuid, message_text, raw_data)
+        # Conversation-level dedup: only process the NEWEST inbound message per conversation.
+        # Messages arrive newest-first, so the first message we see per conversation_uuid wins.
+        _seen_conversations: set = set()
         
         try:
             # --- Total-count guard: skip if inbox total unchanged (like SmartLead analytics guard) ---
@@ -3064,7 +3067,17 @@ class CRMSyncService:
                     
                     # Reset consecutive counter on non-cached message
                     consecutive_cached = 0
-                    
+
+                    # Conversation-level dedup: skip older messages from the same conversation.
+                    # Messages are sorted newest-first, so the first we see is the latest reply.
+                    _conv_uuid = msg.get("linkedin_conversation_uuid") or msg.get("conversation_uuid")
+                    if _conv_uuid and _conv_uuid in _seen_conversations:
+                        stats["conv_dedup"] += 1
+                        new_reply_ids.append(message_id)  # cache it so we don't re-check next cycle
+                        continue
+                    if _conv_uuid:
+                        _seen_conversations.add(_conv_uuid)
+
                     # Extract lead info
                     lead_uuid = msg.get("lead_uuid") or msg.get("lead", {}).get("uuid")
                     message_text = msg.get("text") or msg.get("body", "")
