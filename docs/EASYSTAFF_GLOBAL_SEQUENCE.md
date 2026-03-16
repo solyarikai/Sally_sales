@@ -765,3 +765,70 @@ For leads from UAE, Qatar, Saudi Arabia requesting formal vendor documentation:
 - [ ] Case study deck (2-3 relevant Gulf client examples)
 - [ ] Sample invoice template
 - [ ] Compliance/regulatory statement (how EasyStaff handles cross-border compliance)
+
+---
+
+## Contact List Verification Process (Updated Mar 17, 2026)
+
+### Architecture
+
+1. **Algorithmic scoring** removes contacts matching blacklist patterns
+2. **Opus review** (5 parallel agents) catches what algo misses — brand recognition
+3. **Iterate** until Opus finds <1% new removals
+4. **Domain required** — contacts without company domain are removed (can't verify)
+5. **All industries welcome** — ANY business could hire freelancers (proven by Frizzon Studios creative agency booking a call)
+
+### Blacklist
+
+**File**: `scripts/data/enterprise_blacklist.json`
+
+Contains (after 7 passes, Mar 2026):
+- `enterprise_domains`: 556 domains (>500 employees). Hotels, banks, pharma, tech, luxury, consulting, conglomerates
+- `enterprise_names_contains`: 150+ patterns (marriott, hilton, adnoc, al futtaim, bank, hotel, resort, insurance, exchange, hospital, clinic, pharmacy, pvt, pjsc, academy, foundation, etc.)
+- `blocked_domain_suffixes`: .pk, .ir, .org, .in, .co.in, .ac.ae, .ac.uk, .edu, .gov, .gov.ae, .gov.sa
+- `government_names_contains`: 47 patterns (municipality, ministry, authority, etc.)
+- `recruitment_names_contains`: 15+ patterns (recruitment, staffing, headhunt, talent solution, etc.)
+- `competitor_domains`: deel.com, remote.com, papayaglobal.com, etc.
+- `anti_titles`: 40+ patterns (chef de partie, photographer, head of english, medical director, head of recruitment, etc.)
+- `junk_patterns`: fake domains (test.com, github.io), placeholder companies (confidential, self-employed)
+
+### Algorithmic Remove Criteria
+
+1. Domain in blacklist (556 domains)
+2. Domain suffix blocked (.pk, .ir, .org, .in, .ac.ae, .edu, .gov)
+3. Company name matches patterns (bank, hotel, insurance, hospital, clinic, pvt, pjsc, etc.)
+4. Government name patterns
+5. Recruitment name patterns
+6. Anti-title patterns (medical, school teachers, chefs, photographers, recruitment roles)
+7. Placeholder/junk companies
+8. No domain = removed (can't verify company)
+
+### Opus Review Criteria
+
+Agents read every contact and remove:
+- Companies they RECOGNIZE as large (>500 employees) — brand knowledge
+- Hotels, banks, insurance, hospitals not caught by algo keywords
+- Celebrities, sports clubs, nonprofits, personal coaches
+- Law firms, casting agencies, MLM companies
+- Junk/fake data (company name as person name, platform domains)
+
+**DO NOT remove** based on industry — any legitimate business is a valid target. Frizzon Studios (creative agency) booked a call. Restaurants, real estate, trading — all valid.
+
+### Lessons Learned (UAE-PK, 7 passes)
+
+1. **Algo alone catches ~17%** (1,592/9,206) — good for known patterns
+2. **Each Opus pass finds 7-14% more** — but different things each time
+3. **Never converges to 0%** because each agent knows different brands
+4. **Domain suffix blocking (.in, .ir, .org)** catches more than individual domain matching
+5. **"pvt" pattern** catches Pakistan/India-registered companies
+6. **Domainless contacts must be removed** — can't verify anything about them
+7. **Don't judge by industry** — any business with a founder in UAE is a valid target
+
+### Results (UAE-PK, Mar 2026)
+
+| Step | Removed | Remaining |
+|---|---|---|
+| Raw scored | — | 10,010 |
+| Algo v7 (blacklist + suffixes + anti-titles) | 1,592 | 7,614 |
+| Remove domainless | 2,913 | 4,701 |
+| Opus final review | TBD | TBD |

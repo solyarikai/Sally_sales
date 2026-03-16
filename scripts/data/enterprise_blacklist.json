@@ -1,6 +1,6 @@
 {
   "_description": "Master blacklist of companies to exclude from all EasyStaff corridor campaigns. Compiled from 2 rounds of Opus review on 10K+ UAE-PK contacts. Categories: enterprise (>5K employees), government, recruitment/staffing, competitors, non-business.",
-  "_updated": "2026-03-17 pass 5 final",
+  "_updated": "2026-03-17 final v7",
   "enterprise_domains": [
     "3m.com",
     "abb.com",
@@ -703,7 +703,17 @@
     "transguard",
     "emsteel",
     "bee'ah",
-    "arada developer"
+    "arada developer",
+    "bank",
+    "hotel",
+    "resort",
+    "insurance",
+    "pvt ltd",
+    "pvt. ltd",
+    "private limited",
+    "(pvt)",
+    "holding group",
+    "pvt"
   ],
   "government_domains_suffix": [
     ".gov.ae",
@@ -821,7 +831,9 @@
     ".edu.in",
     ".gov",
     ".gov.ae",
-    ".gov.sa"
+    ".gov.sa",
+    ".in",
+    ".co.in"
   ],
   "anti_titles": [
     "intern",
