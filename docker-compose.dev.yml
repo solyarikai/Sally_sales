@@ -5,7 +5,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: leadgen-postgres-dev
     environment:
       POSTGRES_DB: leadgen

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.db import get_session, async_session_maker
 from app.models import Dataset, DataRow, IntegrationSetting
 from app.services import instantly_service, smartlead_service, findymail_service, millionverifier_service
+from app.services.fireflies_service import fireflies_service
 from app.schemas import FindymailEnrichmentRequest, FindymailEnrichmentResponse
 from .websocket import notify_job_progress, notify_job_complete
 import logging
@@ -125,6 +126,11 @@ async def load_integration_keys(session: AsyncSession):
     if millionverifier_setting and millionverifier_setting.api_key:
         millionverifier_service.set_api_key(millionverifier_setting.api_key)
 
+    # Load Fireflies
+    fireflies_setting = await get_integration_setting(session, "fireflies")
+    if fireflies_setting and fireflies_setting.api_key:
+        fireflies_service.set_api_key(fireflies_setting.api_key)
+
 
 # ============ General Endpoints ============
 
@@ -167,7 +173,15 @@ async def get_all_integrations(session: AsyncSession = Depends(get_session)):
         connected=millionverifier_service.is_connected(),
         has_api_key=bool(millionverifier_setting and millionverifier_setting.api_key)
     ))
-    
+
+    # Fireflies
+    fireflies_setting = await get_integration_setting(session, "fireflies")
+    integrations.append(IntegrationStatus(
+        name="fireflies",
+        connected=fireflies_service.is_connected(),
+        has_api_key=bool(fireflies_setting and fireflies_setting.api_key)
+    ))
+
     return AllIntegrationsResponse(integrations=integrations)
 
 
@@ -1079,3 +1093,60 @@ async def send_leads_to_smartlead(
             "leads_sent": 0,
             "errors": errors + [response.get("message", "Unknown error")]
         }
+
+
+# ============ Fireflies Endpoints ============
+
+class FirefliesDetailsResponse(BaseModel):
+    connected: bool
+    user: Optional[dict] = None
+
+
+@router.get("/fireflies", response_model=FirefliesDetailsResponse)
+async def get_fireflies_details(session: AsyncSession = Depends(get_session)):
+    """Get Fireflies integration details."""
+    await load_integration_keys(session)
+
+    user_info = None
+    if fireflies_service.is_connected():
+        user_info = await fireflies_service.get_user()
+
+    return FirefliesDetailsResponse(
+        connected=fireflies_service.is_connected(),
+        user=user_info,
+    )
+
+
+@router.post("/fireflies/connect", response_model=FirefliesDetailsResponse)
+async def connect_fireflies(
+    data: IntegrationConnectRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Connect Fireflies integration."""
+    fireflies_service.set_api_key(data.api_key)
+
+    is_valid = await fireflies_service.test_connection()
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid API key or failed to connect to Fireflies",
+        )
+
+    await save_integration_setting(session, "fireflies", data.api_key, True)
+
+    user_info = await fireflies_service.get_user()
+    return FirefliesDetailsResponse(connected=True, user=user_info)
+
+
+@router.delete("/fireflies/disconnect")
+async def disconnect_fireflies(session: AsyncSession = Depends(get_session)):
+    """Disconnect Fireflies integration."""
+    setting = await get_integration_setting(session, "fireflies")
+    if setting:
+        setting.api_key = None
+        setting.is_connected = False
+        await session.commit()
+
+    fireflies_service.set_api_key("")
+
+    return {"status": "disconnected"}

@@ -46,6 +46,14 @@ export interface MillionVerifierDetails {
   } | null;
 }
 
+export interface FirefliesDetails {
+  connected: boolean;
+  user: {
+    name?: string;
+    email?: string;
+  } | null;
+}
+
 export interface SendLeadsRequest {
   campaign_id: string;
   dataset_id: number;
@@ -205,6 +213,23 @@ export const integrationsApi = {
   }> => {
     const response = await api.post('/integrations/millionverifier/verify', data);
     return response.data;
+  },
+
+  // Fireflies
+  getFireflies: async (): Promise<FirefliesDetails> => {
+    const response = await api.get('/integrations/fireflies');
+    return response.data;
+  },
+
+  connectFireflies: async (apiKey: string): Promise<FirefliesDetails> => {
+    const response = await api.post('/integrations/fireflies/connect', {
+      api_key: apiKey,
+    });
+    return response.data;
+  },
+
+  disconnectFireflies: async (): Promise<void> => {
+    await api.delete('/integrations/fireflies/disconnect');
   },
 
   // Legacy compatibility

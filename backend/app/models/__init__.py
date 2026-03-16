@@ -29,6 +29,7 @@ from .task import OperatorTask
 from .chat import ProjectChatMessage
 from .project_knowledge import ProjectKnowledge
 from .learning import LearningLog, OperatorCorrection, ReferenceExample
+from .call_transcript import CallTranscript
 from .campaign_audit_log import CampaignAuditLog
 from .gtm_log import GTMStrategyLog
 from .telegram_chat import TelegramChat, TelegramChatMessage, TelegramChatInsight
@@ -79,6 +80,8 @@ __all__ = [
     "ProjectKnowledge",
     # Learning System
     "LearningLog", "OperatorCorrection", "ReferenceExample",
+    # Call Transcripts
+    "CallTranscript",
     # Campaign Audit
     "CampaignAuditLog",
     # GTM Strategy Logs

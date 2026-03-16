@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Key, Check, AlertCircle, Loader2, Zap, Link2, Send, RefreshCw, ChevronRight, Mail, Search } from 'lucide-react';
+import { Key, Check, AlertCircle, Loader2, Zap, Link2, Send, RefreshCw, ChevronRight, Mail, Search, Mic } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { settingsApi, integrationsApi } from '../api';
-import type { IntegrationStatus, InstantlyDetails, SmartleadDetails, FindymailDetails, MillionVerifierDetails } from '../api/integrations';
+import type { IntegrationStatus, InstantlyDetails, SmartleadDetails, FindymailDetails, MillionVerifierDetails, FirefliesDetails } from '../api/integrations';
 import { cn } from '../lib/utils';
 
 type Tab = 'openai' | 'integrations';
@@ -44,6 +44,13 @@ const integrationCards = [
     color: 'from-green-500 to-emerald-600',
     image: '/millionverifier.png',
   },
+  {
+    id: 'fireflies',
+    name: 'Fireflies.ai',
+    description: 'Call recording & transcription',
+    icon: Mic,
+    color: 'from-purple-500 to-pink-600',
+  },
 ];
 
 export function SettingsPage() {
@@ -78,6 +85,10 @@ export function SettingsPage() {
   // MillionVerifier state
   const [millionverifierKey, setMillionverifierKey] = useState('');
   const [millionverifierDetails, setMillionverifierDetails] = useState<MillionVerifierDetails | null>(null);
+
+  // Fireflies state
+  const [firefliesKey, setFirefliesKey] = useState('');
+  const [firefliesDetails, setFirefliesDetails] = useState<FirefliesDetails | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -151,6 +162,18 @@ export function SettingsPage() {
     }
   };
 
+  const loadFirefliesDetails = async () => {
+    setIsLoadingIntegrations(true);
+    try {
+      const details = await integrationsApi.getFireflies();
+      setFirefliesDetails(details);
+    } catch (err) {
+      console.error('Failed to load Fireflies details:', err);
+    } finally {
+      setIsLoadingIntegrations(false);
+    }
+  };
+
   const handleSelectIntegration = (id: string) => {
     setSelectedIntegration(id);
     setIntegrationMessage(null);
@@ -163,6 +186,8 @@ export function SettingsPage() {
       loadFindymailDetails();
     } else if (id === 'millionverifier') {
       loadMillionverifierDetails();
+    } else if (id === 'fireflies') {
+      loadFirefliesDetails();
     }
   };
 
@@ -344,6 +369,42 @@ export function SettingsPage() {
       setMillionverifierDetails({ connected: false, credits: null });
       loadIntegrations();
       setIntegrationMessage({ type: 'success', text: 'MillionVerifier disconnected' });
+    } catch (err) {
+      console.error('Failed to disconnect:', err);
+    } finally {
+      setIsLoadingIntegrations(false);
+    }
+  };
+
+  const handleConnectFireflies = async () => {
+    if (!firefliesKey) return;
+
+    setIsLoadingIntegrations(true);
+    setIntegrationMessage(null);
+
+    try {
+      const details = await integrationsApi.connectFireflies(firefliesKey);
+      setFirefliesDetails(details);
+      setFirefliesKey('');
+      setIntegrationMessage({ type: 'success', text: 'Fireflies connected successfully!' });
+      loadIntegrations();
+    } catch (err: any) {
+      setIntegrationMessage({
+        type: 'error',
+        text: err.response?.data?.detail || 'Failed to connect to Fireflies',
+      });
+    } finally {
+      setIsLoadingIntegrations(false);
+    }
+  };
+
+  const handleDisconnectFireflies = async () => {
+    setIsLoadingIntegrations(true);
+    try {
+      await integrationsApi.disconnectFireflies();
+      setFirefliesDetails({ connected: false, user: null });
+      loadIntegrations();
+      setIntegrationMessage({ type: 'success', text: 'Fireflies disconnected' });
     } catch (err) {
       console.error('Failed to disconnect:', err);
     } finally {
@@ -656,6 +717,11 @@ export function SettingsPage() {
               )}
               {selectedIntegration === 'millionverifier' && millionverifierDetails?.connected && (
                 <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">
+                  Connected
+                </span>
+              )}
+              {selectedIntegration === 'fireflies' && firefliesDetails?.connected && (
+                <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-700">
                   Connected
                 </span>
               )}
@@ -1082,6 +1148,113 @@ export function SettingsPage() {
                         className="btn btn-danger btn-sm"
                       >
                         Disconnect MillionVerifier
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Fireflies Content */}
+            {selectedIntegration === 'fireflies' && (
+              <>
+                {!firefliesDetails?.connected ? (
+                  <>
+                    <div className="mb-4">
+                      <label className="label">Fireflies API Key</label>
+                      <div className="relative">
+                        <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                        <input
+                          type="password"
+                          value={firefliesKey}
+                          onChange={(e) => setFirefliesKey(e.target.value)}
+                          placeholder="Enter your API key"
+                          className="input pl-10"
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-neutral-500">
+                        Get your API key from{' '}
+                        <a
+                          href="https://app.fireflies.ai/integrations/custom/fireflies"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          Fireflies → Integrations → API
+                        </a>
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleConnectFireflies}
+                      disabled={isLoadingIntegrations || !firefliesKey}
+                      className="btn btn-primary"
+                    >
+                      {isLoadingIntegrations ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Link2 className="w-4 h-4" />
+                      )}
+                      <span>Connect Fireflies</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Account Info */}
+                    {firefliesDetails.user && (
+                      <div className="border-t border-neutral-200 pt-6">
+                        <label className="label mb-4">Connected Account</label>
+                        <div className="p-4 bg-neutral-50 rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                              <Mic className="w-5 h-5 text-purple-600" />
+                            </div>
+                            <div>
+                              {firefliesDetails.user.name && (
+                                <p className="text-sm font-medium text-neutral-900">{firefliesDetails.user.name}</p>
+                              )}
+                              {firefliesDetails.user.email && (
+                                <p className="text-xs text-neutral-500">{firefliesDetails.user.email}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Features */}
+                    <div className="border-t border-neutral-200 pt-6 mt-6">
+                      <label className="label mb-3">Available Features</label>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm text-neutral-600">
+                          <div className="w-2 h-2 rounded-full bg-purple-500" />
+                          <span>Automatic call transcription</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-neutral-600">
+                          <div className="w-2 h-2 rounded-full bg-purple-500" />
+                          <span>Contact matching by participant email</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-neutral-600">
+                          <div className="w-2 h-2 rounded-full bg-purple-500" />
+                          <span>Webhook-based real-time sync</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-neutral-600">
+                          <div className="w-2 h-2 rounded-full bg-purple-500" />
+                          <span>AI-powered meeting summaries & action items</span>
+                        </div>
+                      </div>
+                      <p className="mt-4 text-xs text-neutral-500">
+                        Transcripts are automatically synced and matched to contacts. View them in the contact timeline.
+                      </p>
+                    </div>
+
+                    {/* Disconnect */}
+                    <div className="border-t border-neutral-200 pt-6 mt-6">
+                      <button
+                        onClick={handleDisconnectFireflies}
+                        disabled={isLoadingIntegrations}
+                        className="btn btn-danger btn-sm"
+                      >
+                        Disconnect Fireflies
                       </button>
                     </div>
                   </>
