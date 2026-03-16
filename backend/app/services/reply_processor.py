@@ -2097,7 +2097,8 @@ async def process_getsales_reply(
         "This is a LinkedIn message, keep reply SHORT (2-3 sentences), "
         "conversational, no subject line needed. "
         "Do NOT include any email signature, sign-off block, or contact details at the end — "
-        "this is a LinkedIn DM, not an email."
+        "this is a LinkedIn DM, not an email. "
+        "Do NOT use em-dashes (—). Use commas, periods, or simple dashes (-) instead."
     )
     combined_prompt = linkedin_draft_suffix
     if custom_reply_prompt:

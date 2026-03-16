@@ -2910,7 +2910,13 @@ async def approve_and_send_reply(
                 send_error = str(gs_err)
                 logger.error(f"[SEND_FAIL] reply_id={reply_id} lead={reply.lead_email} campaign={reply.campaign_name}: GetSales API error: {gs_err}")
 
-        reply.approval_status = "approved"
+        # Only mark approved if send succeeded or test mode (not on error)
+        if send_error:
+            reply.approval_status = "pending"
+            reply.approved_at = None
+            logger.warning(f"[SEND_FAIL] reply_id={reply_id}: keeping pending due to send error: {send_error}")
+        else:
+            reply.approval_status = "approved"
 
         # Look up Contact for outbound activity tracking
         contact = None
@@ -3005,10 +3011,10 @@ async def approve_and_send_reply(
 
         status_msg = "Sent via LinkedIn" if send_result else "Approved — copy draft to LinkedIn"
         if send_error:
-            status_msg = f"Approved (send failed: {send_error[:100]})"
+            status_msg = f"Send failed: {send_error[:100]} — click Send to retry"
 
         return {
-            "status": "approved",
+            "status": "approved" if not send_error else "send_failed",
             "channel": "linkedin",
             "reply_id": reply_id,
             "lead_email": reply.lead_email,
