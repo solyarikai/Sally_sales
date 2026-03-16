@@ -342,31 +342,35 @@ class SheetSyncService:
         return rows, latest_received
 
     @staticmethod
-    def _needs_chronological_merge(existing_rows, new_rows) -> bool:
+    def _parse_naive_dt(val):
+        """Parse ISO datetime string, stripping timezone to avoid naive/aware comparison errors."""
+        try:
+            dt = datetime.fromisoformat(str(val))
+            return dt.replace(tzinfo=None)
+        except (ValueError, TypeError):
+            return None
+
+    @classmethod
+    def _needs_chronological_merge(cls, existing_rows, new_rows) -> bool:
         """Check if new rows have dates older than last existing sheet row (column W = index 22)."""
         DATE_COL = 22
         last_existing_date = None
         for erow in reversed(existing_rows[1:]):  # skip header
             if len(erow) > DATE_COL and erow[DATE_COL]:
-                try:
-                    last_existing_date = datetime.fromisoformat(erow[DATE_COL])
+                last_existing_date = cls._parse_naive_dt(erow[DATE_COL])
+                if last_existing_date:
                     break
-                except (ValueError, TypeError):
-                    continue
         if not last_existing_date:
             return False
         for nrow in new_rows:
             if len(nrow) > DATE_COL and nrow[DATE_COL]:
-                try:
-                    dt = datetime.fromisoformat(str(nrow[DATE_COL]))
-                    if dt < last_existing_date:
-                        return True
-                except (ValueError, TypeError):
-                    continue
+                dt = cls._parse_naive_dt(nrow[DATE_COL])
+                if dt and dt < last_existing_date:
+                    return True
         return False
 
-    @staticmethod
-    def _chronological_merge_write(sheet_id, tab_name, existing_rows, new_rows, config):
+    @classmethod
+    def _chronological_merge_write(cls, sheet_id, tab_name, existing_rows, new_rows, config):
         """Merge new rows into existing sheet data maintaining chronological order.
 
         Used when late-processed replies have received_at older than existing data.
@@ -385,13 +389,12 @@ class SheetSyncService:
             all_data.append([str(c) if c is not None else "" for c in row])
 
         # Stable sort by date column (preserves order for same dates)
+        _FAR_FUTURE = datetime(9999, 1, 1)
+
         def date_key(row):
             if len(row) > DATE_COL and row[DATE_COL]:
-                try:
-                    return datetime.fromisoformat(str(row[DATE_COL]))
-                except (ValueError, TypeError):
-                    pass
-            return datetime(9999, 1, 1)  # undated rows go to end
+                return cls._parse_naive_dt(row[DATE_COL]) or _FAR_FUTURE
+            return _FAR_FUTURE
 
         all_data.sort(key=date_key)
 
@@ -405,13 +408,10 @@ class SheetSyncService:
         if week_epoch:
             epoch = date.fromisoformat(week_epoch)
             for row in all_data:
-                if len(row) > DATE_COL and row[DATE_COL]:
-                    try:
-                        dt = datetime.fromisoformat(str(row[DATE_COL]))
-                        delta_days = dt.date() - epoch
-                        row[WEEK_COL] = str(delta_days.days // 7 + 1)
-                    except (ValueError, TypeError):
-                        pass
+                dt = cls._parse_naive_dt(row[DATE_COL]) if len(row) > DATE_COL else None
+                if dt:
+                    delta_days = dt.date() - epoch
+                    row[WEEK_COL] = str(delta_days.days // 7 + 1)
 
         # Write entire data section as one batch (row 2 onwards)
         end_row = len(all_data) + 1
