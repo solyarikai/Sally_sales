@@ -553,13 +553,9 @@ EXTENDED_UNIVERSITY_BATCHES = {
         # Existing extended batches
         {"label": "ph_uni_ext_1", "schools": ["University of the Philippines Diliman", "Philippine Normal University", "Manila Central University", "University of Perpetual Help", "Philippine Women's University"]},
         {"label": "ph_uni_ext_2", "schools": ["Cebu Technological University", "Mindanao State University", "Western Mindanao State University", "Batangas State University", "Bulacan State University"]},
-        # UP system campuses + Ateneo/DLSU branches (highest priority — same caliber, different LinkedIn entries)
+        # UP system campuses + DLSU branches
         {"label": "ph_uni_prestige_branches", "schools": ["University of the Philippines Los Banos", "University of the Philippines Visayas", "University of the Philippines Mindanao", "Ateneo de Davao University", "De La Salle-College of Saint Benilde"]},
-        # Australian Group of Eight — catches Filipinos who studied IN Australia (strongest AU signal)
-        {"label": "ph_uni_au_go8", "schools": ["University of New South Wales", "Monash University", "University of Sydney", "University of Melbourne", "University of Queensland", "Australian National University"]},
-        # Australian tech/metro unis — high Filipino enrollment
-        {"label": "ph_uni_au_tech", "schools": ["University of Technology Sydney", "RMIT University", "Western Sydney University", "Curtin University", "Griffith University"]},
-        # Large Manila private unis — AMA/STI have 60+ campuses each, massive overseas alumni
+        # Large Manila private unis
         {"label": "ph_uni_manila_priv_1", "schools": ["AMA University", "STI College", "Arellano University", "Jose Rizal University", "Emilio Aguinaldo College"]},
         {"label": "ph_uni_manila_priv_2", "schools": ["San Sebastian College", "Colegio de San Juan de Letran", "University of Manila", "Trinity University of Asia", "Our Lady of Fatima University"]},
         # Regional powerhouses — Visayas, Mindanao
@@ -570,11 +566,43 @@ EXTENDED_UNIVERSITY_BATCHES = {
         {"label": "ph_uni_state_2", "schools": ["Don Mariano Marcos Memorial State University", "Benguet State University", "Nueva Ecija University of Science and Technology", "Isabela State University", "Visayas State University"]},
         # IT/tech + professional schools
         {"label": "ph_uni_tech_prof", "schools": ["Technological Institute of the Philippines", "FEU Institute of Technology", "Informatics College", "CIIT College of Arts and Technology", "Enderun Colleges"]},
-        # Australian regional unis — migration pathway schools
-        {"label": "ph_uni_au_regional_1", "schools": ["Deakin University", "La Trobe University", "Macquarie University", "University of Wollongong", "Charles Sturt University"]},
-        {"label": "ph_uni_au_regional_2", "schools": ["University of South Australia", "Flinders University", "University of Newcastle", "Swinburne University of Technology", "Victoria University"]},
-        # Catholic/religious universities with strong alumni networks
+        # Catholic/religious universities
         {"label": "ph_uni_catholic", "schools": ["University of San Jose-Recoletos", "Assumption College", "Miriam College", "De La Salle Araneta University", "Angeles University Foundation"]},
+        # ── NEW WAVE: 115 more PH universities ──
+        # Maritime / seafarer schools (PH = #1 source of seafarers, many migrate to AU)
+        {"label": "ph_uni_maritime_1", "schools": ["Philippine Merchant Marine Academy", "Maritime Academy of Asia and the Pacific", "John B. Lacson Foundation Maritime University", "Asian Institute of Maritime Studies", "NYK-TDG Maritime Academy"]},
+        {"label": "ph_uni_maritime_2", "schools": ["Palompon Institute of Technology", "Mariners Polytechnic Colleges Foundation", "Philippine Merchant Marine School", "Southwestern University PHINMA", "Cebu Institute of Technology-University"]},
+        # Cebu cluster (major OFW hub)
+        {"label": "ph_uni_cebu_1", "schools": ["University of the Visayas", "Cebu Doctors University", "Velez College", "Foundation University", "University of Negros Occidental-Recoletos"]},
+        # Nursing / healthcare (nurses migrate to AU, transition to management)
+        {"label": "ph_uni_nursing_1", "schools": ["Brokenshire College", "Virgen Milagrosa University Foundation", "Wesleyan University Philippines", "Southville International School and Colleges", "St. Paul University Philippines"]},
+        {"label": "ph_uni_nursing_2", "schools": ["Lyceum-Northwestern University", "Capitol University", "Liceo de Cagayan University", "Father Saturnino Urios University", "Brent Hospital and Colleges"]},
+        {"label": "ph_uni_nursing_3", "schools": ["Columban College", "Baliuag University", "University of Batangas", "First Asia Institute of Technology and Humanities", "Adventist University of the Philippines"]},
+        # Mindanao universities (high OFW output)
+        {"label": "ph_uni_mindanao_1", "schools": ["University of Mindanao", "Ateneo de Zamboanga University", "Jose Rizal Memorial State University", "Central Mindanao University", "Cor Jesu College", "Bukidnon State University"]},
+        {"label": "ph_uni_mindanao_2", "schools": ["Misamis University", "Holy Cross of Davao College", "Philippine Women's College of Davao", "Caraga State University", "Surigao del Norte State University", "Universidad de Zamboanga"]},
+        {"label": "ph_uni_mindanao_3", "schools": ["Cotabato State University", "Sultan Kudarat State University", "Notre Dame of Marbel University", "Notre Dame University Cotabato", "Zamboanga City State Polytechnic College"]},
+        # Visayas universities (Iloilo, Bacolod, Tacloban)
+        {"label": "ph_uni_visayas_1", "schools": ["Iloilo Science and Technology University", "University of Iloilo", "Negros Oriental State University", "Aklan State University", "Capiz State University"]},
+        {"label": "ph_uni_visayas_2", "schools": ["Northern Iloilo State University", "Leyte Normal University", "Eastern Visayas State University", "Samar State University", "University of Eastern Philippines"]},
+        {"label": "ph_uni_visayas_3", "schools": ["Palawan State University", "Western Institute of Technology", "Eastern Samar State University", "Northwest Samar State University", "John B. Lacson Colleges Foundation-Bacolod"]},
+        # State universities Luzon
+        {"label": "ph_uni_state_luzon_1", "schools": ["Cagayan State University", "Mariano Marcos State University", "Laguna State Polytechnic University", "Partido State University", "Camarines Sur Polytechnic Colleges"]},
+        {"label": "ph_uni_state_luzon_2", "schools": ["Catanduanes State University", "Sorsogon State University", "Aurora State College of Technology", "Quirino State University", "Marinduque State College", "Mindoro State University"]},
+        {"label": "ph_uni_state_luzon_3", "schools": ["Romblon State University", "Kalinga State University", "Apayao State College", "Mountain Province State Polytechnic College", "Ifugao State University"]},
+        # Large private universities Metro Manila + CALABARZON
+        {"label": "ph_uni_private_metro_1", "schools": ["Philippine School of Business Administration", "Central Colleges of the Philippines", "Philippine Christian University", "Malayan Colleges Laguna", "De La Salle Lipa"]},
+        {"label": "ph_uni_private_metro_2", "schools": ["Systems Plus College Foundation", "La Consolacion College Manila", "Colegio de San Agustin-Makati", "University of Perpetual Help System DALTA-Molino", "De La Salle University-Dasmarinas"]},
+        # PHINMA education network (177K+ students)
+        {"label": "ph_uni_phinma", "schools": ["Araullo University", "University of Pangasinan", "Cagayan de Oro College", "Rizal College of Laguna", "St. Jude College"]},
+        # Northern Luzon
+        {"label": "ph_uni_north_luzon", "schools": ["University of Luzon", "Urdaneta City University", "Universidad de Dagupan", "University of La Salette", "St. Mary's University Bayombong"]},
+        # Central Luzon (Clark/Subic area, high migration)
+        {"label": "ph_uni_central_luzon", "schools": ["Don Honorio Ventura State University", "Pampanga State Agricultural University", "Columban College", "Baliuag University"]},
+        # CALABARZON (highest population region outside Metro Manila)
+        {"label": "ph_uni_calabarzon_1", "schools": ["Lyceum of the Philippines University-Batangas", "Lyceum of the Philippines University-Laguna", "Lyceum of the Philippines University-Cavite", "Laguna University"]},
+        # Bicol region (high OFW-sending)
+        {"label": "ph_uni_bicol", "schools": ["University of Nueva Caceres", "Partido State University", "Catanduanes State University", "Sorsogon State University"]},
     ],
     "South Africa": [
         {"label": "za_uni_ext_1", "schools": ["Monash South Africa", "University of Limpopo", "University of Venda", "Mangosuthu University of Technology", "Central University of Technology"]},

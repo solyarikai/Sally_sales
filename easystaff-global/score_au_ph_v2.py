@@ -121,7 +121,9 @@ COMPANY_REJECT = [
     r'\bmetro\b',  # Government infrastructure (Sydney Metro, etc.)
     r'\bmigration\b', r'\bvisa\b', r'\bimmigration\b',
     r'\brecruitment\b', r'\bstaffing\b', r'\brecruiter\b', r'\btalent acqui',
-    r'\btalent\s+formula\b',  # Specific known recruitment company
+    r'\btalent\s+formula\b',
+    r'\bschool\b', r'\bgrammar\b',  # Schools
+    r'\bcrc\b',  # Cooperative research centres
 ]
 COMPANY_REJECT_RE = [re.compile(p, re.I) for p in COMPANY_REJECT]
 
@@ -193,7 +195,14 @@ CREDENTIAL_SUFFIXES = {
     'cpeng', 'gaicd', 'faicd', 'maicd', 'cpa', 'cfa', 'mba', 'phd',
     'fracs', 'fracp', 'frcpa', 'fracgp', 'mbbs', 'rn', 'pmp', 'mrics',
     'mba', 'llb', 'llm', 'bsc', 'msc', 'dba', 'cma', 'cia', 'cisa',
+    'fcpa', 'fgia', 'ca', 'fca',
 }
+
+# Name looks like a domain or placeholder
+JUNK_NAME_PATTERNS = [
+    re.compile(r'\b\w+\.(com|au|org|net|io)\b', re.I),  # domain in name
+    re.compile(r'^dr\s+', re.I),  # Dr prefix (medical/academic)
+]
 
 def is_truncated_name(last_name: str) -> bool:
     """Detect truncated names like 'S.', 'C.', 'O.' and credential suffixes as names."""
@@ -241,9 +250,37 @@ def main():
         raw_dir = P("/scripts/data/raw_contacts")
         files = sorted(raw_dir.glob("australia-philippines_*.json"))
         log.info(f'Loading from {len(files)} raw JSON files...')
+        # AU university files — these have NO Filipino signal, must be excluded
+        AU_UNI_FILE_PATTERNS = ['ph_uni_au_go8', 'ph_uni_au_tech', 'ph_uni_au_regional']
+
         raw_contacts = []
         seen_li = set()
+        skipped_au_uni = 0
         for f in files:
+            # Skip AU university files entirely — they return all alumni, not just Filipinos
+            fname = f.name
+            is_au_uni = any(p in fname for p in AU_UNI_FILE_PATTERNS)
+            if is_au_uni:
+                try:
+                    skipped_au_uni += len(json.load(open(f)))
+                except:
+                    pass
+                continue
+
+            # Tag source from filename
+            if 'language' in fname:
+                src = 'language'
+            elif 'university' in fname or 'extended_university' in fname:
+                src = 'ph_university'
+            elif 'surname' in fname:
+                src = 'surname'
+            elif 'industry' in fname:
+                src = 'industry'
+            elif 'title_split' in fname:
+                src = 'title_split'
+            else:
+                src = 'other'
+
             try:
                 data = json.load(open(f))
                 for c in data:
@@ -252,9 +289,11 @@ def main():
                         continue
                     if li:
                         seen_li.add(li)
+                    c['_source'] = src
                     raw_contacts.append(c)
             except:
                 pass
+        log.info(f'Skipped {skipped_au_uni} contacts from AU university files (no Filipino signal)')
         log.info(f'Loaded {len(raw_contacts)} unique contacts from raw JSONs')
 
         # Map raw JSON fields to sheet column names
@@ -271,7 +310,7 @@ def main():
             'Industry': lambda c: c.get('industry', ''),
             'Company Size': lambda c: c.get('company_size', ''),
             'Schools (from Clay)': lambda c: c.get('schools', ''),
-            'Search Type': lambda c: c.get('_search_type', ''),
+            'Search Type': lambda c: c.get('_source', c.get('_search_type', '')),
             'Search Batch': lambda c: c.get('_search_batch', ''),
         }
         headers_list = list(FIELD_MAP.keys())
@@ -384,9 +423,21 @@ def main():
                     reject = f'company:{pat.pattern}'
                     break
 
-        # 6. Philippine domain = company not in Australia
+        # 6. Bad domains: Philippine, edu, gov
         if not reject and (domain.endswith('.ph') or domain.endswith('.com.ph')):
             reject = 'ph_domain'
+        if not reject and (domain.endswith('.edu.au') or domain.endswith('.edu')):
+            reject = 'edu_domain'
+        if not reject and (domain.endswith('.gov.au') or domain.endswith('.gov')):
+            reject = 'gov_domain'
+
+        # 6b. Junk name (domain as name, Dr prefix)
+        if not reject:
+            full_name = c.get('name', '') or (c.get('first_name', '') + ' ' + c.get('last_name', ''))
+            for pat in JUNK_NAME_PATTERNS:
+                if pat.search(full_name):
+                    reject = 'junk_name'
+                    break
 
         # 7. Blacklisted domain
         if not reject and domain:
@@ -555,7 +606,10 @@ def main():
         try:
             sheets_svc.spreadsheets().batchUpdate(
                 spreadsheetId=args.sheet_id,
-                body={'requests': [{'addSheet': {'properties': {'title': tab_name}}}]}
+                body={'requests': [{'addSheet': {'properties': {
+                    'title': tab_name,
+                    'gridProperties': {'rowCount': max(len(final) + 100, 10000), 'columnCount': 20},
+                }}}]}
             ).execute()
         except Exception as e:
             log.warning(f'Tab create: {e}')
