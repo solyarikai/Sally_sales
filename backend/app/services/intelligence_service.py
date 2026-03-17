@@ -270,12 +270,21 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
                 return _result("auto_response", 0, "general", campaign_name, channel, raw_text)
 
         # ── GUARD: contradictory signals — lead says negative but AI said warm ──
-        negative_signals = ["not interested", "not relevant", "не интересует", "не актуальн",
+        # Only trigger if there's NO positive counterbalance ("но"/"but"/"however")
+        negative_signals = ["not interested", "not relevant", "не интересует",
                             "отпишите", "отписать", "unsubscribe", "remove me",
-                            "we are not", "I am not", "no thanks", "не нужно",
                             "don't respond to mass", "spam"]
-        if any(p in text_lower for p in negative_signals):
-            # AI was wrong — this is actually a rejection
+        # "не актуальн" only counts as rejection if there's no "но"/"but" after it
+        has_hard_negative = any(p in text_lower for p in negative_signals)
+        has_soft_negative = "не актуальн" in text_lower or "не нужно" in text_lower
+        has_positive_turn = any(p in text_lower for p in [
+            " но ", " but ", "однако", "however", "а для другого", "более интересно",
+            "what interests", "что интересно", "хотели бы", "актуально",
+        ])
+        if has_hard_negative and not has_positive_turn:
+            return _result("not_relevant", 1, "general", campaign_name, channel, raw_text)
+        if has_soft_negative and not has_positive_turn and not is_warm_category:
+            # Only reject from question/other categories, not from warm
             return _result("not_relevant", 1, "general", campaign_name, channel, raw_text)
 
         # ── Schedule call (warmth 5) — on CLEANED text only ──
