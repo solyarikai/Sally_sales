@@ -67,6 +67,8 @@ interface ContactDetailModalProps {
   onClose: () => void;
   // Campaign pre-selection (from redirect with ?campaign=channel::name)
   initialCampaignKey?: string | null;
+  // Tab pre-selection (from intelligence deep links)
+  initialTab?: 'details' | 'conversation' | 'source';
   // Reply mode props
   replyMode?: boolean;
   contactList?: Contact[];
@@ -213,13 +215,14 @@ function ComposeArea({
 export function ContactDetailModal({
   contact, isOpen, onClose,
   initialCampaignKey,
+  initialTab,
   replyMode = false, contactList = [], currentIndex = 0,
   onNavigate, onMarkProcessed,
 }: ContactDetailModalProps) {
   const { isDark } = useTheme();
   const t = modalTheme(isDark);
 
-  const [activeTab, setActiveTab] = useState<'details' | 'conversation' | 'source'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'conversation' | 'source'>(initialTab || 'details');
   const [sequenceExpanded, setSequenceExpanded] = useState(false);
   const [sequencePlan, setSequencePlan] = useState<any>(null);
   const [, setSequenceLoading] = useState(false);
@@ -278,7 +281,7 @@ export function ContactDetailModal({
       setDraftReply('');
       setReplyChannel(null);
       setSavedDraft(false);
-      setActiveTab('details');
+      setActiveTab(initialTab || 'details');
       setSelectedProject(contact.project_id || null);
       setAddedToProject(false);
       setAiDraftBody('');

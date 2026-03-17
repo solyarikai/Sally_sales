@@ -23,7 +23,6 @@ import { ProjectChatPage } from './pages/ProjectChatPage';
 import { QueryDashboardPage } from './pages/QueryDashboardPage';
 import { OperatorActionsPage } from './pages/OperatorActionsPage';
 import { GodPanelPage } from './pages/GodPanelPage';
-import { IntelligencePage } from './pages/IntelligencePage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -109,12 +108,8 @@ function App() {
           </Layout>
         } />
 
-        {/* Reply Intelligence */}
-        <Route path="/intelligence" element={
-          <Layout>
-            <IntelligencePage />
-          </Layout>
-        } />
+        {/* Reply Intelligence — redirect to Knowledge sub-tab */}
+        <Route path="/intelligence" element={<Navigate to="/knowledge/intelligence" replace />} />
 
         {/* God Panel — campaign intelligence */}
         <Route path="/god-panel" element={

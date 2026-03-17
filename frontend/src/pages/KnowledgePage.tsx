@@ -14,8 +14,9 @@ import { ChatIntelPanel } from '../components/knowledge/ChatIntelPanel';
 import { KnowledgeChatPanel } from '../components/knowledge/KnowledgeChatPanel';
 import { AnalyticsPanel } from '../components/knowledge/AnalyticsPanel';
 import { ClientReportPanel } from '../components/knowledge/ClientReportPanel';
+import { IntelligencePanel } from '../components/knowledge/IntelligencePanel';
 
-type Tab = 'icp' | 'templates' | 'logs' | 'gtm' | 'analytics' | 'chat-intel' | 'chat' | 'client-report';
+type Tab = 'icp' | 'templates' | 'logs' | 'gtm' | 'analytics' | 'intelligence' | 'chat-intel' | 'chat' | 'client-report';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'chat', label: 'Chat' },
@@ -24,6 +25,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'templates', label: 'Templates' },
   { key: 'logs', label: 'Learning Logs' },
   { key: 'analytics', label: 'Analytics' },
+  { key: 'intelligence', label: 'Intelligence' },
   { key: 'gtm', label: 'GTM Strategy' },
   { key: 'client-report', label: 'Client Report' },
 ];
@@ -262,6 +264,13 @@ export function KnowledgePage() {
             </div>
             <div className={`absolute inset-0 overflow-y-auto ${activeTab === 'analytics' ? '' : 'invisible pointer-events-none'}`}>
               <AnalyticsPanel
+                projectId={currentProject.id}
+                isDark={isDark}
+                t={t}
+              />
+            </div>
+            <div className={`absolute inset-0 ${activeTab === 'intelligence' ? '' : 'invisible pointer-events-none'}`}>
+              <IntelligencePanel
                 projectId={currentProject.id}
                 isDark={isDark}
                 t={t}

@@ -1,5 +1,6 @@
 """Reply Intelligence — structured classification of reply conversations."""
 from sqlalchemy import Column, Integer, String, SmallInteger, Text, DateTime, ForeignKey, Index
+from sqlalchemy.dialects.postgresql import ARRAY
 from datetime import datetime
 
 from app.db import Base
@@ -35,6 +36,10 @@ class ReplyAnalysis(Base):
     # Language of the reply
     language = Column(String(10), nullable=True)
 
+    # AI-extracted insights
+    interests = Column(Text, nullable=True)  # Free-text: what the lead actually wants
+    tags = Column(ARRAY(String), nullable=True)  # Searchable tags: ["swift-settlement", "china-suppliers"]
+
     # AI reasoning
     reasoning = Column(Text, nullable=True)
     analyzed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -44,6 +49,7 @@ class ReplyAnalysis(Base):
         Index("ix_reply_analysis_project", "project_id"),
         Index("ix_reply_analysis_offer", "offer_responded_to"),
         Index("ix_reply_analysis_warmth", "warmth_score"),
+        Index("ix_reply_analysis_tags", "tags", postgresql_using="gin"),
     )
 
     def __repr__(self):
