@@ -33,6 +33,7 @@ class DiasporaGatherRequest(BaseModel):
     target_count: int = 1000
     mode: str = "full"  # "university" | "full" | "full_tam" (all approaches for max TAM)
     existing_sheet_id: Optional[str] = None  # Append results to existing sheet
+    skip_to: Optional[str] = None  # Skip to phase: "surname", "title_split", "industry"
 
 
 class DiasporaStatusResponse(BaseModel):
@@ -80,6 +81,7 @@ async def start_diaspora_gather(
             request.target_count,
             request.mode,
             request.existing_sheet_id,
+            request.skip_to,
         )
     else:
         # Multiple corridors — run SEQUENTIALLY in one task (they share Puppeteer)
@@ -110,6 +112,7 @@ async def start_diaspora_gather(
 async def _run_pipeline_task(
     corridor_key: str, project_id: int, target_count: int,
     mode: str = "full", existing_sheet_id: Optional[str] = None,
+    skip_to: Optional[str] = None,
 ):
     """Background task for running a single corridor pipeline."""
     import datetime
@@ -131,6 +134,7 @@ async def _run_pipeline_task(
             on_progress=on_progress,
             mode=mode,
             existing_sheet_id=existing_sheet_id,
+            skip_to=skip_to,
         )
         # Remove contacts from result (too large for status endpoint)
         result_summary = {k: v for k, v in result.items() if k != "contacts"}

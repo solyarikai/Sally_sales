@@ -639,6 +639,7 @@ async def run_diaspora_pipeline(
     on_progress: Optional[Callable] = None,
     mode: str = "full",  # "full" = industry + uni + surname, "university" = uni-only, "full_tam" = ALL approaches
     existing_sheet_id: Optional[str] = None,  # Append to existing sheet
+    skip_to: Optional[str] = None,  # Skip to phase: "surname", "industry", "title_split" — skips language + university
 ) -> Dict[str, Any]:
     """Run the full diaspora gathering pipeline for a corridor.
 
@@ -777,6 +778,14 @@ async def run_diaspora_pipeline(
         await _emit("FULL TAM mode — running ALL approaches: university → extended uni → surname → industry")
     else:
         await _emit("Full mode — running university + industry")
+
+    # skip_to support — skip completed phases on restart
+    _skip_phases = set()
+    if skip_to:
+        phase_order = ["language", "city_split", "university", "extended_university", "surname", "title_split", "industry"]
+        skip_idx = next((i for i, p in enumerate(phase_order) if p == skip_to), 0)
+        _skip_phases = set(phase_order[:skip_idx])
+        await _emit(f"SKIP-TO MODE: jumping to '{skip_to}', skipping {_skip_phases}")
 
     # Industry search is LAST (lowest yield, ~0.5% hit rate).
     # Skip it now — runs after university + surname phases below.
@@ -978,7 +987,9 @@ async def run_diaspora_pipeline(
     # Speaking Urdu in UAE = Pakistani, Tagalog in AU = Filipino, Afrikaans in Gulf = South African
     lang_batches = LANGUAGE_BATCHES.get(contractor_country, [])
     _broad_lang_max_found = 0  # Track max results from broad search — if < 5K, skip city splits
-    if lang_batches and len(all_matched_contacts) < target_count:
+    if "language" in _skip_phases:
+        await _emit("=== SKIPPING language phase (skip_to mode) ===")
+    elif lang_batches and len(all_matched_contacts) < target_count:
         await _emit(f"\n=== LANGUAGE SEARCH ({contractor_country}) — $0 GPT cost ===")
         await _emit(f"Searching {len(lang_batches)} language batches in {', '.join(employer_countries)}")
 
@@ -1109,15 +1120,18 @@ async def run_diaspora_pipeline(
                 except Exception as e:
                     logger.warning(f"Incremental export failed: {e}")
 
-    # Phase 0.5: City-split language search — bypass Clay's 5K cap per search
-    # SKIP if broad search returned < 4000 (didn't hit 5K cap = city splits will only find dupes)
-    city_config = CITY_SPLITS.get(corridor_key, {})
-    city_languages = city_config.get("languages", [])
-    city_list = city_config.get("cities", [])
-    _skip_city_splits = _broad_lang_max_found < 4000
-    if _skip_city_splits and city_languages:
-        await _emit(f"\n=== SKIPPING CITY-SPLIT LANGUAGE — broad search found {_broad_lang_max_found} < 4000 (no cap hit, splits would be dupes) ===")
-    if city_languages and city_list and len(all_matched_contacts) < target_count and not _skip_city_splits:
+    # Phase 0.5: City-split language search
+    if "city_split" in _skip_phases:
+        await _emit("=== SKIPPING city-split phase (skip_to mode) ===")
+    else:
+        # SKIP if broad search returned < 4000 (didn't hit 5K cap = city splits will only find dupes)
+        city_config = CITY_SPLITS.get(corridor_key, {})
+        city_languages = city_config.get("languages", [])
+        city_list = city_config.get("cities", [])
+        _skip_city_splits = _broad_lang_max_found < 4000
+        if _skip_city_splits and city_languages:
+            await _emit(f"\n=== SKIPPING CITY-SPLIT LANGUAGE — broad search found {_broad_lang_max_found} < 4000 (no cap hit, splits would be dupes) ===")
+    if "city_split" not in _skip_phases and city_languages and city_list and len(all_matched_contacts) < target_count and not _skip_city_splits:
         total_combos = len(city_languages) * len(city_list)
         await _emit(f"\n=== CITY-SPLIT LANGUAGE SEARCH — {total_combos} combos, $0 GPT ===")
         await _emit(f"Languages: {', '.join(city_languages)} × Cities: {', '.join(city_list)}")
@@ -1232,7 +1246,9 @@ async def run_diaspora_pipeline(
 
     # Phase 1: University-based people search (people-first, no company step)
     uni_batches = UNIVERSITY_BATCHES.get(contractor_country, [])
-    if uni_batches and len(all_matched_contacts) < target_count:
+    if "university" in _skip_phases:
+        await _emit("=== SKIPPING university base phase (skip_to mode) ===")
+    elif uni_batches and len(all_matched_contacts) < target_count:
         await _emit(f"\n=== University-based search: {len(uni_batches)} batches ===")
 
         for uni_batch in uni_batches:
@@ -1393,7 +1409,9 @@ async def run_diaspora_pipeline(
 
     # Phase 3b: Extended university batches (full_tam mode, or if target not reached)
     ext_uni_batches = EXTENDED_UNIVERSITY_BATCHES.get(contractor_country, [])
-    if ext_uni_batches and len(all_matched_contacts) < target_count and mode in ("full", "full_tam", "university"):
+    if "extended_university" in _skip_phases:
+        await _emit("=== SKIPPING extended university phase (skip_to mode) ===")
+    elif ext_uni_batches and len(all_matched_contacts) < target_count and mode in ("full", "full_tam", "university"):
         await _emit(f"\n=== EXTENDED UNIVERSITY SEARCH ({contractor_country}) ===")
         for uni_batch in ext_uni_batches:
             if len(all_matched_contacts) >= target_count:
