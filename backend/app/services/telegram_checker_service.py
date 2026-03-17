@@ -11,10 +11,12 @@ Usage:
 import asyncio
 import csv
 import io
+import json
 import logging
 import os
 import random
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Optional
 
 from telethon import TelegramClient
@@ -38,6 +40,8 @@ logger = logging.getLogger(__name__)
 
 # Session file path
 SESSION_PATH = "/app/state/telegram_checker.session"
+# Checkpoint file for saving progress
+CHECKPOINT_PATH = "/app/state/tg_checker_checkpoint.json"
 
 
 class TelegramCheckerService:
@@ -81,6 +85,20 @@ class TelegramCheckerService:
         if self.client:
             await self.client.disconnect()
             self._connected = False
+
+    def _save_checkpoint(self, results: list, fieldnames: list, stats: dict):
+        """Save intermediate results to checkpoint file."""
+        try:
+            checkpoint = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "stats": stats,
+                "fieldnames": list(fieldnames),
+                "results": results,
+            }
+            Path(CHECKPOINT_PATH).write_text(json.dumps(checkpoint, ensure_ascii=False, default=str))
+            logger.info(f"Checkpoint saved: {stats['checked']} checked")
+        except Exception as e:
+            logger.warning(f"Failed to save checkpoint: {e}")
 
     def _parse_status(self, status) -> tuple[str, Optional[int]]:
         """Parse user status to human-readable string and hours ago.
@@ -136,6 +154,8 @@ class TelegramCheckerService:
         try:
             entity = await self.client.get_entity(username)
             status_text, hours = self._parse_status(entity.status)
+
+            logger.info(f"Checked @{username}: {status_text} ({hours}h ago)" if hours else f"Checked @{username}: {status_text}")
 
             return {
                 "username": username,
@@ -234,6 +254,7 @@ class TelegramCheckerService:
             "errors": 0,
         }
 
+        flood_aborted = False
         for i, row in enumerate(rows):
             username = row.get(username_col, "").strip()
 
@@ -254,7 +275,14 @@ class TelegramCheckerService:
             # Determine status
             hours = result["last_seen_hours"]
             if result["error"]:
-                if "not found" in result["error"]:
+                if "flood" in result["error"].lower():
+                    row["tg_status"] = "flood_limit"
+                    stats["errors"] += 1
+                    results.append(row)
+                    flood_aborted = True
+                    logger.warning(f"Flood limit hit after {stats['checked']} checks, returning partial results")
+                    break  # Stop processing, return what we have
+                elif "not found" in result["error"]:
                     row["tg_status"] = "not_found"
                     stats["not_found"] += 1
                 else:
@@ -276,6 +304,10 @@ class TelegramCheckerService:
 
             results.append(row)
 
+            # Save checkpoint every 10 contacts
+            if stats["checked"] % 10 == 0:
+                self._save_checkpoint(results, fieldnames, stats)
+
             # Progress callback
             if progress_callback:
                 try:
@@ -283,9 +315,13 @@ class TelegramCheckerService:
                 except Exception:
                     pass
 
-            # Delay between checks (randomized to avoid Telegram flood)
+            # Delay between checks (randomized 12-15s to avoid Telegram flood)
             if i < total - 1:
-                await asyncio.sleep(random.uniform(6.0, 8.0))
+                await asyncio.sleep(random.uniform(12.0, 15.0))
+
+        # Mark if we aborted due to flood
+        stats["flood_aborted"] = flood_aborted
+        stats["remaining"] = total - len(results)
 
         # Generate output CSV
         output_fieldnames = list(fieldnames) + ["last_seen", "last_seen_hours", "tg_status"]
@@ -308,9 +344,16 @@ class TelegramCheckerService:
         Returns:
             (full_csv, filtered_csv, stats)
         """
-        full_csv, stats = await self.check_csv(
-            csv_content, max_hours=max_hours, delay=delay, progress_callback=progress_callback
-        )
+        try:
+            full_csv, stats = await self.check_csv(
+                csv_content, max_hours=max_hours, delay=delay, progress_callback=progress_callback
+            )
+        finally:
+            # Clean up checkpoint after successful completion
+            try:
+                Path(CHECKPOINT_PATH).unlink(missing_ok=True)
+            except Exception:
+                pass
 
         # Filter to recent only
         reader = csv.DictReader(io.StringIO(full_csv))
