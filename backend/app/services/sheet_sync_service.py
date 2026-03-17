@@ -658,10 +658,14 @@ class SheetSyncService:
 
             config = project.sheet_sync_config
             sheet_id = config.get("sheet_id")
-            leads_tab = config.get("leads_tab", "Leads")
+            leads_tab = config.get("leads_tab")
 
             if not sheet_id:
                 stats["errors"].append("No sheet_id configured")
+                return stats
+
+            if not leads_tab:
+                stats["skipped"] = "No leads_tab configured"
                 return stats
 
             # Validate headers
@@ -848,10 +852,14 @@ class SheetSyncService:
 
             config = project.sheet_sync_config
             sheet_id = config.get("sheet_id")
-            leads_tab = config.get("leads_tab", "Leads")
+            leads_tab = config.get("leads_tab")
 
             if not sheet_id:
                 stats["errors"].append("No sheet_id configured")
+                return stats
+
+            if not leads_tab:
+                stats["skipped"] = "No leads_tab configured"
                 return stats
 
             # Read full Leads tab

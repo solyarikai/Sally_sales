@@ -2299,7 +2299,7 @@ async def get_sheet_sync_status(
         "configured": bool(config.get("sheet_id")),
         "enabled": config.get("enabled", False),
         "sheet_id": config.get("sheet_id"),
-        "leads_tab": config.get("leads_tab", "Leads"),
+        "leads_tab": config.get("leads_tab"),
         "replies_tab": config.get("replies_tab", "Replies"),
         "last_replies_sync_at": config.get("last_replies_sync_at"),
         "last_leads_push_at": config.get("last_leads_push_at"),
@@ -2353,10 +2353,10 @@ async def test_sheet_connection(
     tabs = google_sheets_service.get_tab_info(sheet_id)
     tab_names = [t["name"] for t in tabs]
 
-    leads_tab = config.get("leads_tab", "Leads")
+    leads_tab = config.get("leads_tab")
     replies_tab = config.get("replies_tab", "Replies")
 
-    leads_ok = leads_tab in tab_names
+    leads_ok = leads_tab in tab_names if leads_tab else False
     replies_ok = replies_tab in tab_names
 
     # Read headers if leads tab exists

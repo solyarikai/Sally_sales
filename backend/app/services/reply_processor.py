@@ -1908,6 +1908,20 @@ async def process_getsales_reply(
         logger.warning(f"[GETSALES] Skipping reply — contact {contact.id} has no email")
         return None
 
+    # --- Skip LinkedIn reactions (single emoji, not real messages) ---
+    import re as _re
+    _stripped = (message_text or "").strip()
+    # Match messages that are purely emoji/variation-selectors/ZWJ sequences (no actual text)
+    _emoji_only = _re.sub(
+        r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF'
+        r'\U00002702-\U000027B0\U000024C2-\U0001F251\U0001F900-\U0001F9FF\U0001FA00-\U0001FA6F'
+        r'\U0001FA70-\U0001FAFF\U00002600-\U000026FF\U0000FE0F\U0000200D\U00000020]+',
+        '', _stripped
+    )
+    if _stripped and not _emoji_only:
+        logger.info(f"[GETSALES] Skipping LinkedIn reaction (emoji-only message): '{_stripped}' from {lead_email}")
+        return None
+
     # --- Content-based dedup via message_hash ---
     import hashlib
     body_for_hash = (message_text or "").strip().lower()[:500]
