@@ -526,7 +526,7 @@ class SallyBotService:
                 select(ProjectReportSubscription).where(
                     and_(
                         ProjectReportSubscription.project_id == project_id,
-                        ProjectReportSubscription.role == ReportRole.boss,
+                        ProjectReportSubscription.role == ReportRole.BOSS,
                         ProjectReportSubscription.is_active == True,
                     )
                 )
@@ -690,7 +690,7 @@ class SallyBotService:
                 )
                 project = proj_result.scalar_one_or_none()
                 if project:
-                    role = "👨‍💼 Босс" if sub.role == ReportRole.boss else "👤 Лид"
+                    role = "👨‍💼 Босс" if sub.role == ReportRole.BOSS else "👤 Лид"
                     text += f"• *{project.name}* — {role}\n"
 
             await self.send_message(chat_id, text, parse_mode="Markdown")

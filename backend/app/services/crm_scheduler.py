@@ -1208,7 +1208,7 @@ ANALYSIS FOCUS — answer with EVIDENCE:
             # Get all active lead subscriptions
             result = await session.execute(
                 select(ProjectReportSubscription).where(
-                    ProjectReportSubscription.role == ReportRole.lead,
+                    ProjectReportSubscription.role == ReportRole.LEAD,
                     ProjectReportSubscription.is_active == True,
                 )
             )
