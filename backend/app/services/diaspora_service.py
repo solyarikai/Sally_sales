@@ -1113,7 +1113,7 @@ async def run_diaspora_pipeline(
                         project_id=project_id,
                         on_progress=on_progress,
                         use_titles=True,
-                        countries=[city],  # City name works in Clay's location filter
+                        cities=[city],  # FIXED: use cities param, not countries (separate Clay field)
                         languages=[lang],
                     )
                 except Exception as e:

@@ -405,6 +405,7 @@ class ClayService:
         name: Optional[str] = None,
         job_title: Optional[str] = None,
         languages: Optional[List[str]] = None,
+        cities: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Run Clay People search via Puppeteer.
 
@@ -414,7 +415,10 @@ class ClayService:
           - "table_url": Clay table URL if available, else None
         on_progress: optional async callback(message: str) for live status updates.
         use_titles: if True, pass --titles flag to filter for decision-makers only.
-        countries: if provided, filter by location.
+        countries: if provided, filter by country (uses "Countries to include" field).
+        cities: if provided, filter by city (uses "Cities to include" field).
+           CRITICAL: cities and countries are SEPARATE Clay fields. Passing city
+           names via --countries silently fails — Clay ignores unrecognized country names.
         schools: if provided, filter by university/school names (pipe-separated in CLI).
         """
         async def _emit(msg: str):
@@ -459,6 +463,10 @@ class ClayService:
         if countries:
             args.extend(["--countries", ",".join(countries)])
             logger.info(f"Clay People: country filter = {countries}")
+
+        if cities:
+            args.extend(["--cities", ",".join(cities)])
+            logger.info(f"Clay People: city filter = {cities}")
 
         if schools:
             args.extend(["--schools", "|".join(schools)])
