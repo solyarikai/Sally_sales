@@ -550,8 +550,31 @@ EXTENDED_UNIVERSITY_BATCHES = {
         {"label": "pk_uni_ext_2", "schools": ["Beaconhouse National University", "University of Central Punjab", "Riphah International University", "International Islamic University", "FAST Lahore"]},
     ],
     "Philippines": [
+        # Existing extended batches
         {"label": "ph_uni_ext_1", "schools": ["University of the Philippines Diliman", "Philippine Normal University", "Manila Central University", "University of Perpetual Help", "Philippine Women's University"]},
         {"label": "ph_uni_ext_2", "schools": ["Cebu Technological University", "Mindanao State University", "Western Mindanao State University", "Batangas State University", "Bulacan State University"]},
+        # UP system campuses + Ateneo/DLSU branches (highest priority — same caliber, different LinkedIn entries)
+        {"label": "ph_uni_prestige_branches", "schools": ["University of the Philippines Los Banos", "University of the Philippines Visayas", "University of the Philippines Mindanao", "Ateneo de Davao University", "De La Salle-College of Saint Benilde"]},
+        # Australian Group of Eight — catches Filipinos who studied IN Australia (strongest AU signal)
+        {"label": "ph_uni_au_go8", "schools": ["University of New South Wales", "Monash University", "University of Sydney", "University of Melbourne", "University of Queensland", "Australian National University"]},
+        # Australian tech/metro unis — high Filipino enrollment
+        {"label": "ph_uni_au_tech", "schools": ["University of Technology Sydney", "RMIT University", "Western Sydney University", "Curtin University", "Griffith University"]},
+        # Large Manila private unis — AMA/STI have 60+ campuses each, massive overseas alumni
+        {"label": "ph_uni_manila_priv_1", "schools": ["AMA University", "STI College", "Arellano University", "Jose Rizal University", "Emilio Aguinaldo College"]},
+        {"label": "ph_uni_manila_priv_2", "schools": ["San Sebastian College", "Colegio de San Juan de Letran", "University of Manila", "Trinity University of Asia", "Our Lady of Fatima University"]},
+        # Regional powerhouses — Visayas, Mindanao
+        {"label": "ph_uni_regional_1", "schools": ["University of Southeastern Philippines", "MSU-Iligan Institute of Technology", "University of the Immaculate Conception", "Ateneo de Naga University", "University of Cebu"]},
+        {"label": "ph_uni_regional_2", "schools": ["Saint Louis University", "Holy Angel University", "Bicol University", "Cebu Normal University", "West Visayas State University"]},
+        # Large state universities (SUCs)
+        {"label": "ph_uni_state_1", "schools": ["Central Luzon State University", "Cavite State University", "Rizal Technological University", "Tarlac State University", "Pangasinan State University"]},
+        {"label": "ph_uni_state_2", "schools": ["Don Mariano Marcos Memorial State University", "Benguet State University", "Nueva Ecija University of Science and Technology", "Isabela State University", "Visayas State University"]},
+        # IT/tech + professional schools
+        {"label": "ph_uni_tech_prof", "schools": ["Technological Institute of the Philippines", "FEU Institute of Technology", "Informatics College", "CIIT College of Arts and Technology", "Enderun Colleges"]},
+        # Australian regional unis — migration pathway schools
+        {"label": "ph_uni_au_regional_1", "schools": ["Deakin University", "La Trobe University", "Macquarie University", "University of Wollongong", "Charles Sturt University"]},
+        {"label": "ph_uni_au_regional_2", "schools": ["University of South Australia", "Flinders University", "University of Newcastle", "Swinburne University of Technology", "Victoria University"]},
+        # Catholic/religious universities with strong alumni networks
+        {"label": "ph_uni_catholic", "schools": ["University of San Jose-Recoletos", "Assumption College", "Miriam College", "De La Salle Araneta University", "Angeles University Foundation"]},
     ],
     "South Africa": [
         {"label": "za_uni_ext_1", "schools": ["Monash South Africa", "University of Limpopo", "University of Venda", "Mangosuthu University of Technology", "Central University of Technology"]},
