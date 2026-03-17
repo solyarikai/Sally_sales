@@ -148,6 +148,10 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
             "language": "unknown",
         }
 
+    # Detect follow-up drafts (system-generated, not real replies)
+    if "(Follow-up" in raw_text or "(follow-up" in raw_text:
+        return _result("empty", 0, "general", campaign_name, channel, raw_text)
+
     # Clean text = lead's own words only (no quoted outbound, no signatures)
     text = _strip_quoted_and_signature(raw_text)
     text_lower = text.lower()
@@ -246,9 +250,24 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
     # ═══════════════════════════════════════════════════════════════
 
     if is_warm_category or is_question_category:
-        # ── GUARD: empty reply text = noise even if category says warm ──
+        # ── GUARD: empty or very short reply text ──
         if not text or len(text) < 5:
             return _result("empty", 0, "general", campaign_name, channel, raw_text)
+
+        # ── GUARD: very short text — only trust if it has clear warm signal ──
+        if len(text) < 20:
+            short_lower = text.lower()
+            # These short patterns are genuinely warm
+            short_warm = ["sure", "ok", "да", "хорошо", "ок", "yes", "давайте",
+                          "monday", "tuesday", "wednesday", "thursday", "friday",
+                          "понедельник", "вторник", "cal link", "calendly"]
+            if any(p in short_lower for p in short_warm):
+                if is_warm_category:
+                    return _result("interested_vague", 4, "general", campaign_name, channel, raw_text)
+            # Short acknowledgments = noise
+            short_ack = ["thanks", "thank you", "спасибо", "cheers", "thx"]
+            if any(p in short_lower for p in short_ack):
+                return _result("auto_response", 0, "general", campaign_name, channel, raw_text)
 
         # ── GUARD: contradictory signals — lead says negative but AI said warm ──
         negative_signals = ["not interested", "not relevant", "не интересует", "не актуальн",
