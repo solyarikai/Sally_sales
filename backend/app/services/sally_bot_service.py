@@ -468,7 +468,7 @@ class SallyBotService:
             tg_sub_result = await session.execute(
                 select(TelegramSubscription).where(
                     TelegramSubscription.chat_id == str(chat_id)
-                )
+                ).order_by(TelegramSubscription.project_id.desc()).limit(1)
             )
             tg_sub = tg_sub_result.scalar_one_or_none()
 
@@ -479,7 +479,7 @@ class SallyBotService:
                         ProjectReportSubscription.chat_id == str(chat_id),
                         ProjectReportSubscription.is_active == True,
                     )
-                )
+                ).limit(1)
             )
             sub = result.scalar_one_or_none()
 
