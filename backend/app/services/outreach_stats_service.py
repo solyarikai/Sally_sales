@@ -1,8 +1,8 @@
 """Service for auto-calculating outreach statistics from integrations."""
 import logging
 import re
-from datetime import date, datetime, timedelta
-from typing import Optional, Dict, List, Any
+from datetime import date, datetime
+from typing import Dict, List, Any, Set
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, case
 
@@ -13,12 +13,14 @@ logger = logging.getLogger(__name__)
 
 class OutreachStatsService:
     """
-    Auto-calculates outreach statistics from:
-    - SmartLead campaigns (email) - from campaigns table
-    - GetSales (LinkedIn) - from contacts table
-    - Calendly (meetings) - from meetings table
+    Auto-calculates outreach statistics by SEGMENT.
 
-    Manual channels (Telegram, WhatsApp) are not auto-calculated.
+    Segment is extracted from campaign names (e.g., "Mifort Partners BizDevs" -> "Partners").
+
+    For each campaign:
+    - Find contacts belonging to that campaign via platform_state
+    - Count sent/replied/positive in the selected period
+    - Group by segment extracted from campaign name
     """
 
     async def sync_project_stats(
@@ -29,40 +31,62 @@ class OutreachStatsService:
         period_start: date,
         period_end: date,
     ) -> Dict[str, Any]:
-        """
-        Sync all stats for a project for a given period.
-        """
+        """Sync stats for a project by scanning campaigns and their contacts."""
         results = {
             "synced_channels": [],
             "errors": [],
             "stats": []
         }
 
-        # Get project
         project = await db.get(Project, project_id)
         if not project:
             results["errors"].append(f"Project {project_id} not found")
             return results
 
-        # Sync Email from SmartLead campaigns
+        # Delete old auto-generated stats for this period (keep manual entries)
+        await db.execute(
+            OutreachStats.__table__.delete().where(
+                and_(
+                    OutreachStats.project_id == project_id,
+                    OutreachStats.period_start == period_start,
+                    OutreachStats.period_end == period_end,
+                    OutreachStats.is_manual == 0,
+                )
+            )
+        )
+        await db.commit()
+        logger.info(f"Cleared auto-generated stats for project {project_id}, period {period_start} - {period_end}")
+
+        period_start_dt = datetime.combine(period_start, datetime.min.time())
+        period_end_dt = datetime.combine(period_end, datetime.max.time())
+
+        # Sync Email (SmartLead campaigns)
         try:
-            email_stats = await self._sync_email_from_campaigns(db, project_id, company_id, period_start, period_end)
+            email_stats = await self._sync_email_stats(
+                db, project_id, company_id, period_start, period_end,
+                period_start_dt, period_end_dt,
+            )
             results["stats"].extend(email_stats)
-            results["synced_channels"].append("email")
+            if email_stats:
+                results["synced_channels"].append("email")
         except Exception as e:
             logger.error(f"Error syncing email stats: {e}", exc_info=True)
             results["errors"].append(f"Email sync error: {str(e)}")
 
-        # Sync LinkedIn from contacts (GetSales data)
+        # Sync LinkedIn (GetSales campaigns)
         try:
-            linkedin_stats = await self._sync_linkedin_from_contacts(db, project_id, company_id, period_start, period_end)
+            linkedin_stats = await self._sync_linkedin_stats(
+                db, project_id, company_id, period_start, period_end,
+                period_start_dt, period_end_dt,
+            )
             results["stats"].extend(linkedin_stats)
-            results["synced_channels"].append("linkedin")
+            if linkedin_stats:
+                results["synced_channels"].append("linkedin")
         except Exception as e:
             logger.error(f"Error syncing LinkedIn stats: {e}", exc_info=True)
             results["errors"].append(f"LinkedIn sync error: {str(e)}")
 
-        # Sync meetings from Calendly
+        # Sync meetings
         try:
             await self._sync_meeting_counts(db, project_id, period_start, period_end)
             results["synced_channels"].append("meetings")
@@ -72,18 +96,19 @@ class OutreachStatsService:
 
         return results
 
-    async def _sync_email_from_campaigns(
+    async def _sync_email_stats(
         self,
         db: AsyncSession,
         project_id: int,
         company_id: int,
         period_start: date,
         period_end: date,
+        period_start_dt: datetime,
+        period_end_dt: datetime,
     ) -> List[Dict]:
         """
-        Sync email stats from campaigns table.
-        Uses leads_count for sent, sl_reply_count for replies.
-        Extracts segment from campaign name.
+        Sync email stats from SmartLead campaigns.
+        Uses campaign-level stats (leads_count, sl_reply_count) and groups by segment.
         """
         stats_list = []
 
@@ -93,12 +118,17 @@ class OutreachStatsService:
                 and_(
                     Campaign.project_id == project_id,
                     Campaign.channel == "email",
+                    Campaign.status != "archived",
                 )
             )
         )
         campaigns = campaigns_result.scalars().all()
 
-        # Group by segment (extracted from campaign name)
+        if not campaigns:
+            logger.info(f"No email campaigns for project {project_id}")
+            return stats_list
+
+        # Group by segment
         segment_data: Dict[str, Dict] = {}
 
         for campaign in campaigns:
@@ -109,40 +139,64 @@ class OutreachStatsService:
                     "contacts_sent": 0,
                     "replies_count": 0,
                     "positive_replies": 0,
-                    "campaigns": [],
+                    "campaign_names": [],
                 }
 
-            # Add campaign stats
+            # Use campaign-level stats
             segment_data[segment]["contacts_sent"] += campaign.leads_count or 0
             segment_data[segment]["replies_count"] += campaign.sl_reply_count or 0
-            segment_data[segment]["campaigns"].append(campaign.name)
+            segment_data[segment]["campaign_names"].append(campaign.name)
 
-        # Count positive replies from contacts for each segment
-        for segment in segment_data:
-            # Try to match contacts by campaign names
-            campaign_names = segment_data[segment]["campaigns"]
-
-            # Simple approach: count positive contacts where source contains smartlead
-            # and segment matches (if available) or just count all positive for the project
-            positive_count = await db.scalar(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.project_id == project_id,
-                        Contact.source.ilike("%smartlead%"),
-                        Contact.status.in_(["interested", "meeting_request", "positive", "qualified"]),
-                    )
+        # Get positive contacts and distribute by segment based on their campaigns
+        positive_contacts_result = await db.execute(
+            select(Contact).where(
+                and_(
+                    Contact.project_id == project_id,
+                    Contact.deleted_at.is_(None),
+                    Contact.source.ilike("%smartlead%"),
+                    Contact.status.in_(["interested", "meeting_request", "positive", "qualified"]),
                 )
             )
-            # Distribute positive replies proportionally
-            total_replies = sum(s["replies_count"] for s in segment_data.values())
-            if total_replies > 0:
-                proportion = segment_data[segment]["replies_count"] / total_replies
-                segment_data[segment]["positive_replies"] = int((positive_count or 0) * proportion)
+        )
+        positive_contacts = positive_contacts_result.scalars().all()
 
-        # Create/update stats for each segment
+        # Build campaign ID to segment mapping
+        campaign_to_segment: Dict[str, str] = {}
+        for campaign in campaigns:
+            if campaign.external_id:
+                campaign_to_segment[campaign.external_id] = self._extract_segment_from_campaign(campaign.name)
+
+        # Count positive contacts per segment
+        for contact in positive_contacts:
+            contact_campaign_ids = self._get_contact_campaign_ids(contact, "smartlead")
+            matched_segments: Set[str] = set()
+
+            for cid in contact_campaign_ids:
+                if cid in campaign_to_segment:
+                    matched_segments.add(campaign_to_segment[cid])
+
+            # If no match, try campaign names in platform_state
+            if not matched_segments:
+                ps = contact.platform_state or {}
+                sl_data = ps.get("smartlead") or {}
+                sl_campaigns = sl_data.get("campaigns") or []
+                for sc in sl_campaigns:
+                    if isinstance(sc, dict):
+                        camp_name = sc.get("name")
+                        if camp_name:
+                            segment = self._extract_segment_from_campaign(camp_name)
+                            if segment in segment_data:
+                                matched_segments.add(segment)
+
+            # Distribute to matched segments
+            for segment in matched_segments:
+                if segment in segment_data:
+                    segment_data[segment]["positive_replies"] += 1
+
+        # Create stats for each segment with activity
         for segment, data in segment_data.items():
             if data["contacts_sent"] == 0:
-                continue  # Skip empty segments
+                continue
 
             stat = await self._upsert_stat(
                 db, company_id, project_id, period_start, period_end,
@@ -150,103 +204,208 @@ class OutreachStatsService:
                 segment=segment,
                 data={
                     "contacts_sent": data["contacts_sent"],
-                    "contacts_accepted": data["contacts_sent"],  # N/A for email
+                    "contacts_accepted": data["contacts_sent"],
                     "replies_count": data["replies_count"],
                     "positive_replies": data["positive_replies"],
                 },
                 data_source="smartlead"
             )
             stats_list.append(stat.to_dict())
+            logger.info(
+                f"EMAIL segment '{segment}': "
+                f"sent={data['contacts_sent']}, replied={data['replies_count']}, "
+                f"positive={data['positive_replies']}, campaigns={len(data['campaign_names'])}"
+            )
 
         return stats_list
 
-    async def _sync_linkedin_from_contacts(
+    async def _sync_linkedin_stats(
         self,
         db: AsyncSession,
         project_id: int,
         company_id: int,
         period_start: date,
         period_end: date,
+        period_start_dt: datetime,
+        period_end_dt: datetime,
     ) -> List[Dict]:
         """
-        Sync LinkedIn stats from contacts table.
-        Looks for contacts with source containing 'getsales'.
+        Sync LinkedIn stats by iterating through campaigns and matching contacts.
+
+        For each GetSales campaign:
+        1. Find contacts where platform_state.getsales.campaigns contains the campaign ID
+        2. Count sent/replied/positive
+        3. Group by segment extracted from campaign name
         """
         stats_list = []
 
-        # Get LinkedIn campaigns to extract segments
+        # Get LinkedIn campaigns for this project
         campaigns_result = await db.execute(
             select(Campaign).where(
                 and_(
                     Campaign.project_id == project_id,
                     Campaign.channel == "linkedin",
+                    Campaign.status != "archived",
                 )
             )
         )
         campaigns = campaigns_result.scalars().all()
 
-        # Get segments from campaigns or use "General"
-        segments = set()
+        if not campaigns:
+            logger.info(f"No LinkedIn campaigns for project {project_id}")
+            return stats_list
+
+        # Build campaign ID to segment mapping
+        campaign_to_segment: Dict[str, str] = {}
+        segment_data: Dict[str, Dict] = {}
+
         for campaign in campaigns:
             segment = self._extract_segment_from_campaign(campaign.name)
-            segments.add(segment)
+            if campaign.external_id:
+                campaign_to_segment[campaign.external_id] = segment
 
-        if not segments:
-            segments.add("General")
+            if segment not in segment_data:
+                segment_data[segment] = {
+                    "contacts_sent": 0,
+                    "replies_count": 0,
+                    "positive_replies": 0,
+                    "campaign_ids": [],
+                    "campaign_names": [],
+                }
+            if campaign.external_id:
+                segment_data[segment]["campaign_ids"].append(campaign.external_id)
+            segment_data[segment]["campaign_names"].append(campaign.name)
 
-        # For each segment, count contacts
-        for segment in segments:
-            # Count total LinkedIn contacts
-            total_count = await db.scalar(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.project_id == project_id,
-                        Contact.source.ilike("%getsales%"),
-                        Contact.is_active == True,
+        # Get all LinkedIn contacts for this project that were active in the period
+        contacts_result = await db.execute(
+            select(Contact).where(
+                and_(
+                    Contact.project_id == project_id,
+                    Contact.deleted_at.is_(None),
+                    Contact.source.ilike("%getsales%"),
+                    or_(
+                        and_(
+                            Contact.created_at >= period_start_dt,
+                            Contact.created_at <= period_end_dt,
+                        ),
+                        and_(
+                            Contact.last_reply_at >= period_start_dt,
+                            Contact.last_reply_at <= period_end_dt,
+                        ),
                     )
                 )
             )
+        )
+        contacts = contacts_result.scalars().all()
 
-            # Count replied
-            replied_count = await db.scalar(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.project_id == project_id,
-                        Contact.source.ilike("%getsales%"),
-                        Contact.last_reply_at.isnot(None),
-                    )
-                )
+        logger.info(f"Found {len(contacts)} LinkedIn contacts for project {project_id} in period")
+
+        # Process each contact and assign to segments
+        for contact in contacts:
+            # Get campaign IDs this contact belongs to
+            contact_campaign_ids = self._get_contact_campaign_ids(contact, "getsales")
+
+            # Find matching segments
+            matched_segments: Set[str] = set()
+            for cid in contact_campaign_ids:
+                if cid in campaign_to_segment:
+                    matched_segments.add(campaign_to_segment[cid])
+
+            # If no match via campaign ID, try matching by campaign name in platform_state
+            if not matched_segments:
+                ps = contact.platform_state or {}
+                gs_data = ps.get("getsales") or {}
+                gs_campaigns = gs_data.get("campaigns") or []
+                for gc in gs_campaigns:
+                    if isinstance(gc, dict):
+                        camp_name = gc.get("name")
+                        if camp_name:
+                            segment = self._extract_segment_from_campaign(camp_name)
+                            if segment in segment_data:
+                                matched_segments.add(segment)
+
+            # If still no match, assign to "General"
+            if not matched_segments:
+                if "General" not in segment_data:
+                    segment_data["General"] = {
+                        "contacts_sent": 0,
+                        "replies_count": 0,
+                        "positive_replies": 0,
+                        "campaign_ids": [],
+                        "campaign_names": [],
+                    }
+                matched_segments.add("General")
+
+            # Count for each matched segment
+            is_created_in_period = (
+                contact.created_at and
+                period_start_dt <= contact.created_at <= period_end_dt
             )
-
-            # Count positive
-            positive_count = await db.scalar(
-                select(func.count(Contact.id)).where(
-                    and_(
-                        Contact.project_id == project_id,
-                        Contact.source.ilike("%getsales%"),
-                        Contact.status.in_(["interested", "meeting_request", "positive", "qualified"]),
-                    )
-                )
+            is_replied_in_period = (
+                contact.last_reply_at and
+                period_start_dt <= contact.last_reply_at <= period_end_dt
             )
+            is_positive = contact.status in ["interested", "meeting_request", "positive", "qualified"]
 
-            # Distribute across segments proportionally (simple approach for now)
-            num_segments = len(segments)
+            for segment in matched_segments:
+                if is_created_in_period:
+                    segment_data[segment]["contacts_sent"] += 1
+                if is_replied_in_period:
+                    segment_data[segment]["replies_count"] += 1
+                if is_positive and is_replied_in_period:
+                    segment_data[segment]["positive_replies"] += 1
+
+        # Create stats for each segment with activity
+        for segment, data in segment_data.items():
+            if data["contacts_sent"] == 0 and data["replies_count"] == 0:
+                continue
 
             stat = await self._upsert_stat(
                 db, company_id, project_id, period_start, period_end,
                 channel="linkedin",
                 segment=segment,
                 data={
-                    "contacts_sent": (total_count or 0) // num_segments,
-                    "contacts_accepted": (total_count or 0) // num_segments,
-                    "replies_count": (replied_count or 0) // num_segments,
-                    "positive_replies": (positive_count or 0) // num_segments,
+                    "contacts_sent": data["contacts_sent"],
+                    "contacts_accepted": data["contacts_sent"],
+                    "replies_count": data["replies_count"],
+                    "positive_replies": data["positive_replies"],
                 },
                 data_source="getsales"
             )
             stats_list.append(stat.to_dict())
+            logger.info(
+                f"LINKEDIN segment '{segment}': "
+                f"sent={data['contacts_sent']}, replied={data['replies_count']}, "
+                f"positive={data['positive_replies']}, campaigns={len(data['campaign_names'])}"
+            )
 
         return stats_list
+
+    def _get_contact_campaign_ids(self, contact: Contact, platform: str) -> Set[str]:
+        """Extract campaign IDs from contact's platform_state and raw data."""
+        campaign_ids: Set[str] = set()
+
+        # From platform_state
+        ps = contact.platform_state or {}
+        platform_data = ps.get(platform) or {}
+        campaigns = platform_data.get("campaigns") or []
+        for camp in campaigns:
+            if isinstance(camp, dict) and camp.get("id"):
+                campaign_ids.add(str(camp["id"]))
+
+        # From raw data
+        if platform == "getsales" and contact.getsales_raw:
+            flows = contact.getsales_raw.get("flows") or []
+            for flow in flows:
+                if isinstance(flow, dict) and flow.get("flow_uuid"):
+                    campaign_ids.add(flow["flow_uuid"])
+        elif platform == "smartlead" and contact.smartlead_raw:
+            raw_camps = contact.smartlead_raw.get("campaigns") or []
+            for rc in raw_camps:
+                if isinstance(rc, dict) and rc.get("campaign_id"):
+                    campaign_ids.add(str(rc["campaign_id"]))
+
+        return campaign_ids
 
     async def _sync_meeting_counts(
         self,
@@ -259,7 +418,6 @@ class OutreachStatsService:
         period_start_dt = datetime.combine(period_start, datetime.min.time())
         period_end_dt = datetime.combine(period_end, datetime.max.time())
 
-        # Get meeting counts by channel/segment
         meeting_query = select(
             Meeting.channel,
             Meeting.segment,
@@ -280,7 +438,6 @@ class OutreachStatsService:
             if not row.channel:
                 continue
 
-            # Update corresponding outreach_stats record
             stat_result = await db.execute(
                 select(OutreachStats).where(
                     and_(
@@ -314,7 +471,6 @@ class OutreachStatsService:
         data_source: str,
     ) -> OutreachStats:
         """Create or update an outreach stats record."""
-        # Try to find existing
         result = await db.execute(
             select(OutreachStats).where(
                 and_(
@@ -329,7 +485,6 @@ class OutreachStatsService:
         stat = result.scalar_one_or_none()
 
         if stat:
-            # Update existing (but don't overwrite manual entries)
             if not stat.is_manual:
                 stat.contacts_sent = data.get("contacts_sent", stat.contacts_sent)
                 stat.contacts_accepted = data.get("contacts_accepted", stat.contacts_accepted)
@@ -340,7 +495,6 @@ class OutreachStatsService:
                 stat.last_synced_at = datetime.utcnow()
                 stat.calculate_rates()
         else:
-            # Create new
             stat = OutreachStats(
                 company_id=company_id,
                 project_id=project_id,
@@ -369,22 +523,24 @@ class OutreachStatsService:
         Extract segment name from campaign name.
 
         Examples:
-        - "Mifort Marketing iGaming Casino" -> "iGaming Casino"
-        - "Mifort. iGaming conf Marketing" -> "iGaming conf Marketing"
-        - "Mifort Partners BizDevs" -> "Partners BizDevs"
+        - "Mifort Partners BizDevs" -> "Partners"
+        - "Mifort Partners CEOs" -> "Partners"
         - "Mifort FinTech Clay 0303" -> "FinTech"
+        - "Mifort iGaming Marketing" -> "iGaming"
+        - "Mifort IT Partners Founders" -> "IT Partners"
         """
         if not campaign_name:
             return "General"
 
-        # Remove common prefixes
         name = campaign_name.strip()
 
-        # Remove "Mifort" prefix and variations
+        # Remove project prefix (Mifort, Mifort., etc.)
         name = re.sub(r'^Mifort\.?\s*', '', name, flags=re.IGNORECASE)
 
-        # Remove date patterns like "0303", "0603"
+        # Remove date patterns
         name = re.sub(r'\s+\d{4}$', '', name)
+        name = re.sub(r'\s+\d{2}\.\d{2}$', '', name)
+        name = re.sub(r'\s+\d{2}/\d{2}$', '', name)
 
         # Remove "Clay" suffix
         name = re.sub(r'\s+Clay\s*\d*$', '', name, flags=re.IGNORECASE)
@@ -392,15 +548,17 @@ class OutreachStatsService:
         # Remove trailing numbers
         name = re.sub(r'\s+\d+$', '', name)
 
+        # Remove job title suffixes to group by segment
+        name = re.sub(r'\s+(Marketing|BizDevs?|CEOs?|CTOs?|Founders?|VPs?|Directors?|CMOs?|COOs?|CFOs?)$', '', name, flags=re.IGNORECASE)
+
         # Clean up
-        name = name.strip()
+        name = ' '.join(name.split())
 
         if not name:
             return "General"
 
-        # Limit length
         if len(name) > 50:
-            name = name[:50]
+            name = name[:50].rsplit(' ', 1)[0]
 
         return name
 
