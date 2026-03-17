@@ -462,7 +462,17 @@ class SallyBotService:
     async def _save_report(self, chat_id: int, report_text: str, username: str, first_name: str):
         """Save report, analyze against plan, forward to boss."""
         async with async_session_maker() as session:
-            # Find subscription
+            # First check existing telegram_subscriptions (notification bot subscribers)
+            from app.models.reply import TelegramSubscription
+
+            tg_sub_result = await session.execute(
+                select(TelegramSubscription).where(
+                    TelegramSubscription.chat_id == str(chat_id)
+                )
+            )
+            tg_sub = tg_sub_result.scalar_one_or_none()
+
+            # Also check project_report_subscriptions as fallback
             result = await session.execute(
                 select(ProjectReportSubscription).where(
                     and_(
@@ -473,8 +483,15 @@ class SallyBotService:
             )
             sub = result.scalar_one_or_none()
 
-            if not sub:
-                await self.send_message(chat_id, "Вы не подписаны ни на один проект.")
+            # Determine project_id from either subscription
+            project_id = None
+            if tg_sub:
+                project_id = tg_sub.project_id
+            elif sub:
+                project_id = sub.project_id
+
+            if not project_id:
+                await self.send_message(chat_id, "Вы не подписаны ни на один проект. Используйте /start в боте уведомлений.")
                 return
 
             # Import here to avoid circular
@@ -483,7 +500,7 @@ class SallyBotService:
             # Create report
             today = date.today()
             report = ProjectReport(
-                project_id=sub.project_id,
+                project_id=project_id,
                 lead_chat_id=str(chat_id),
                 lead_username=username,
                 lead_first_name=first_name,
@@ -494,21 +511,21 @@ class SallyBotService:
             await session.flush()
 
             # Analyze against plan
-            analysis = await analyze_report_against_plan(session, sub.project_id, report_text)
+            analysis = await analyze_report_against_plan(session, project_id, report_text)
             report.ai_summary = analysis.get("summary", "")
 
             # Get project name
             proj_result = await session.execute(
-                select(Project).where(Project.id == sub.project_id)
+                select(Project).where(Project.id == project_id)
             )
             project = proj_result.scalar_one_or_none()
             project_name = project.name if project else "проект"
 
-            # Find boss subscription to forward
+            # Find boss subscription to forward (fallback)
             boss_result = await session.execute(
                 select(ProjectReportSubscription).where(
                     and_(
-                        ProjectReportSubscription.project_id == sub.project_id,
+                        ProjectReportSubscription.project_id == project_id,
                         ProjectReportSubscription.role == ReportRole.boss,
                         ProjectReportSubscription.is_active == True,
                     )
@@ -516,7 +533,49 @@ class SallyBotService:
             )
             boss_sub = boss_result.scalar_one_or_none()
 
-            if boss_sub:
+            # Forward to boss via notification bot (same bot as reply notifications)
+            # Use existing telegram_subscriptions table - all subscribers get the report
+            from app.models.reply import TelegramSubscription
+            from app.services.notification_service import send_telegram_notification
+
+            tg_subs_result = await session.execute(
+                select(TelegramSubscription).where(
+                    TelegramSubscription.project_id == project_id
+                )
+            )
+            tg_subscribers = tg_subs_result.scalars().all()
+
+            if tg_subscribers:
+                boss_message = (
+                    f"📝 <b>Отчет от {first_name}</b>\n"
+                    f"Проект: {project_name}\n"
+                    f"Дата: {today.strftime('%d.%m.%Y')}\n\n"
+                    f"{report_text}\n\n"
+                    f"---\n"
+                    f"📊 AI Summary: {analysis.get('summary', 'N/A')}"
+                )
+                forwarded_count = 0
+                for tg_sub in tg_subscribers:
+                    # Don't send to the person who submitted the report
+                    if tg_sub.chat_id == str(chat_id):
+                        continue
+                    try:
+                        success = await send_telegram_notification(
+                            message=boss_message,
+                            chat_id=tg_sub.chat_id,
+                            parse_mode="HTML"
+                        )
+                        if success:
+                            forwarded_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to forward report to {tg_sub.username}: {e}")
+
+                if forwarded_count > 0:
+                    report.forwarded_to_boss = True
+                    report.forwarded_at = datetime.now(timezone.utc)
+                    logger.info(f"Report forwarded to {forwarded_count} subscribers for project {project_name}")
+            elif boss_sub:
+                # Fallback to project_report_subscriptions if no telegram_subscriptions
                 boss_message = (
                     f"📝 *Отчет от {first_name}*\n"
                     f"Проект: {project_name}\n"
@@ -532,7 +591,8 @@ class SallyBotService:
                 except Exception as e:
                     logger.error(f"Failed to forward report to boss: {e}")
 
-            sub.last_reported_at = datetime.now(timezone.utc)
+            if sub:
+                sub.last_reported_at = datetime.now(timezone.utc)
             await session.commit()
 
             # Confirm to user
