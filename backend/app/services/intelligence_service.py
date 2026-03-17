@@ -246,6 +246,19 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
     # ═══════════════════════════════════════════════════════════════
 
     if is_warm_category or is_question_category:
+        # ── GUARD: empty reply text = noise even if category says warm ──
+        if not text or len(text) < 5:
+            return _result("empty", 0, "general", campaign_name, channel, raw_text)
+
+        # ── GUARD: contradictory signals — lead says negative but AI said warm ──
+        negative_signals = ["not interested", "not relevant", "не интересует", "не актуальн",
+                            "отпишите", "отписать", "unsubscribe", "remove me",
+                            "we are not", "I am not", "no thanks", "не нужно",
+                            "don't respond to mass", "spam"]
+        if any(p in text_lower for p in negative_signals):
+            # AI was wrong — this is actually a rejection
+            return _result("not_relevant", 1, "general", campaign_name, channel, raw_text)
+
         # ── Schedule call (warmth 5) — on CLEANED text only ──
         schedule_patterns = ["созвонимся", "давайте встретиться", "schedule a call", "let's meet",
                              "let me know your availability", "book a time",
@@ -331,20 +344,29 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
     # These need more careful analysis since AI wasn't sure.
     # ═══════════════════════════════════════════════════════════════
 
+    # ── GUARD: check for negative signals first in "other" ──
+    negative_in_other = ["not interested", "не интересует", "не актуальн", "unsubscribe",
+                         "отпишите", "remove me", "spam", "no thanks", "не нужно",
+                         "we are not", "I am not"]
+    if any(p in text_lower for p in negative_in_other):
+        return _result("not_relevant", 1, "general", campaign_name, channel, raw_text)
+
     # Acknowledgment only (very short, no substance)
     if len(text) < 40:
         ack_patterns = ["thanks for connecting", "nice to connect", "thanks", "thank you",
                         "спасибо", "cheers", "regards"]
         if any(p in text_lower for p in ack_patterns):
             return _result("auto_response", 0, "general", campaign_name, channel, raw_text)
-        # Very short other = gibberish
-        if len(text) < 10:
+        # Very short other = gibberish/noise
+        if len(text) < 15:
             return _result("gibberish", 0, "general", campaign_name, channel, raw_text)
 
-    # Check if it has warm signals even though category is "other"
-    warm_signals = ["созвонимся", "давайте", "schedule", "call", "meeting",
-                    "интересно", "interested", "send", "пришлите"]
-    if any(p in text_lower for p in warm_signals) and len(text) > 20:
+    # Check if it has STRONG warm signals even though category is "other"
+    # Be strict here — only unmistakable signals, not broad words
+    strong_warm = ["созвонимся", "давайте обсудим", "schedule a call", "let's meet",
+                   "давайте встретиться", "пришлите предложение", "send one pager",
+                   "calendly.com", "happy to explore", "interested in your"]
+    if any(p in text_lower for p in strong_warm) and len(text) > 20:
         return _result("interested_vague", 3, detect_offer(text, campaign_name), campaign_name, channel, raw_text)
 
     return _result("auto_response", 0, "general", campaign_name, channel, raw_text)
