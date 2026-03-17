@@ -207,20 +207,53 @@ Result: savepoint isolation, per-reply commits, parallel sync, channel indicator
 | Used `received_at < '2026-03-10'` as cutoff instead of calculating week 17 dates first | Re-marked wrong rows, left gaps | **Calculate the week epoch dates BEFORE writing SQL** |
 | Triggered manual sync without checking what the scheduler had already pushed | Created 13 more rows on top of scheduler's duplicates | **Check current sheet state before triggering sync** |
 | First dedup used WRONG column indices: col 6=last_name (not email), col 19=category (not campaign) | Removed 101 rows using (last_name, datetime, category) as key — deleted legitimate week 17 replies | **ALWAYS verify column indices against `_build_rizzult_rows()` before any sheet manipulation** |
+| Second dedup correct but left 382 dateless legacy rows sorting AFTER dated rows | Week 17 rows buried in the middle (row 544), legacy at bottom (row 559+) — operator scrolls to bottom and sees only week 16 | **Legacy dateless rows must come FIRST, dated rows AFTER, so newest weeks are always at the bottom** |
+| Typo in Python variable name (`legacy_count` instead of `len(legacy)`) wasted another round | Simple bug in one-off script caused crash | **Test scripts locally before running on production** |
 
-**Correct column mapping for dedup** (from `_build_rizzult_rows`):
-- **J (index 9)**: target_lead_email — the dedup email
-- **W (index 22)**: ISO datetime — the dedup timestamp
-- **R (index 17)**: campaign name — the dedup campaign
+**Correct column mapping for rizzult_28col** (from `_build_rizzult_rows`):
+
+| Index | Column | Field | Notes |
+|-------|--------|-------|-------|
+| 0 | A | index | Sequential, auto-generated |
+| 1 | B | updated email | Operator fills manually |
+| 2 | C | status | Legacy, unused |
+| 3 | D | current status | Operator fills manually |
+| 4 | E | (blank) | |
+| 5 | F | first name | Auto |
+| 6 | G | last name | Auto |
+| 7 | H | Position | Auto |
+| 8 | I | Linkedin | Auto |
+| **9** | **J** | **target_lead_email** | **DEDUP KEY 1** |
+| 10 | K | segment | Auto |
+| 11 | L | Company | Auto |
+| 12 | M | Website | Auto |
+| 13 | N | Company Location | Auto |
+| 14 | O | Employees | Auto |
+| 15 | P | text | Reply text, auto |
+| 16 | Q | time | `dd.mm.yyyy HH:MM` format |
+| **17** | **R** | **campaign** | **DEDUP KEY 3** |
+| 18 | S | campaign_id | Auto |
+| 19 | T | category | Auto (classification result) |
+| 20 | U | from_email | Auto |
+| 21 | V | to_email | Auto |
+| **22** | **W** | **created time (ISO)** | **DEDUP KEY 2, sort key, week calc source** |
+| 23 | X | Source | "Email" or "LinkedIn" |
+| 24 | Y | Status | Operator fills manually |
+| 25 | Z | Week | Calculated: `(received_at - epoch).days // 7 + 1` |
+| 26 | AA | Sequence + message | Operator fills |
+| 27 | AB | Comment | Operator fills |
+| 28 | AC | auto_updated_at | ISO timestamp of last sync |
+
+**Sheet row ordering rule**: Legacy dateless rows (382 from N8N era, no col W) come FIRST. Dated rows sorted chronologically AFTER. This ensures the newest week is always at the bottom where the operator looks.
 
 **Recovery actions**:
 
-1. First dedup (WRONG columns): 1,076 rows → removed 101 → 974 rows. Week 17 had only 1 row (deleted the rest!)
-2. Second dedup (CORRECT columns J=9, W=22, R=17): 975 rows → removed 34 actual duplicates → 941 clean rows
-3. Recalculated week numbers from epoch for ALL rows
-4. Updated DB config: `next_row_index: 943, _last_sheet_index: 941, replies_synced_count: 941`
+1. First dedup (WRONG cols 6,19,22): 1,076 → removed 101 → 974. Killed week 17 rows.
+2. Second dedup (CORRECT cols 9,22,17): 975 → removed 34 → 941. Week 17 present but buried at row 544 behind 382 dateless legacy rows.
+3. Reordered: legacy (382) first, then dated (560) chronologically. Week 17 now at rows 926-940, right after week 16.
+4. Updated DB config to match.
 
-**Final state**: Sheet has 941 non-OOO Rizzult replies. Week 17 (Mar 16-22) has **14 replies** correctly present with week=17.
+**Final state**: Sheet has 942 rows. 382 legacy (dateless) + 560 dated. Week 17 (Mar 16-22) = **15 replies at rows 926-940**, directly after week 16 at the bottom of the sheet.
 
 **Prevention rules for future**:
 - **NEVER mass-reset `sheet_synced_at` while scheduler is running** — stop scheduler first or use a maintenance window
