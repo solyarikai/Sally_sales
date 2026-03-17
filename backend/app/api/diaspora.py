@@ -154,8 +154,16 @@ async def _run_all_corridors_sequential(
 @router.get("/status")
 async def get_diaspora_status():
     """Get status of all running/completed diaspora pipelines."""
+    # Return only last 100 progress lines to avoid timeout on large responses
+    slim_pipelines = {}
+    for k, v in _running_pipelines.items():
+        slim = dict(v)
+        prog = slim.get("progress", [])
+        slim["progress"] = prog[-100:] if len(prog) > 100 else prog
+        slim["total_progress_lines"] = len(prog)
+        slim_pipelines[k] = slim
     return {
-        "pipelines": _running_pipelines,
+        "pipelines": slim_pipelines,
         "available_corridors": {k: v["label"] for k, v in CORRIDORS.items()},
     }
 
