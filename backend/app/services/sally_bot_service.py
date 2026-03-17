@@ -533,19 +533,11 @@ class SallyBotService:
             )
             boss_sub = boss_result.scalar_one_or_none()
 
-            # Forward to boss via notification bot (same bot as reply notifications)
-            # Use existing telegram_subscriptions table - all subscribers get the report
-            from app.models.reply import TelegramSubscription
+            # Forward to boss via notification bot
+            # Only send to people explicitly added as "boss" in project_report_subscriptions
             from app.services.notification_service import send_telegram_notification
 
-            tg_subs_result = await session.execute(
-                select(TelegramSubscription).where(
-                    TelegramSubscription.project_id == project_id
-                )
-            )
-            tg_subscribers = tg_subs_result.scalars().all()
-
-            if tg_subscribers:
+            if boss_sub:
                 boss_message = (
                     f"📝 <b>Отчет от {first_name}</b>\n"
                     f"Проект: {project_name}\n"
@@ -554,40 +546,17 @@ class SallyBotService:
                     f"---\n"
                     f"📊 AI Summary: {analysis.get('summary', 'N/A')}"
                 )
-                forwarded_count = 0
-                for tg_sub in tg_subscribers:
-                    # Don't send to the person who submitted the report
-                    if tg_sub.chat_id == str(chat_id):
-                        continue
-                    try:
-                        success = await send_telegram_notification(
-                            message=boss_message,
-                            chat_id=tg_sub.chat_id,
-                            parse_mode="HTML"
-                        )
-                        if success:
-                            forwarded_count += 1
-                    except Exception as e:
-                        logger.error(f"Failed to forward report to {tg_sub.username}: {e}")
-
-                if forwarded_count > 0:
-                    report.forwarded_to_boss = True
-                    report.forwarded_at = datetime.now(timezone.utc)
-                    logger.info(f"Report forwarded to {forwarded_count} subscribers for project {project_name}")
-            elif boss_sub:
-                # Fallback to project_report_subscriptions if no telegram_subscriptions
-                boss_message = (
-                    f"📝 *Отчет от {first_name}*\n"
-                    f"Проект: {project_name}\n"
-                    f"Дата: {today.strftime('%d.%m.%Y')}\n\n"
-                    f"{report_text}\n\n"
-                    f"---\n"
-                    f"📊 AI Summary: {analysis.get('summary', 'N/A')}"
-                )
                 try:
-                    await self.send_message(int(boss_sub.chat_id), boss_message, parse_mode="Markdown")
-                    report.forwarded_to_boss = True
-                    report.forwarded_at = datetime.now(timezone.utc)
+                    # Use notification bot (same as reply notifications)
+                    success = await send_telegram_notification(
+                        message=boss_message,
+                        chat_id=boss_sub.chat_id,
+                        parse_mode="HTML"
+                    )
+                    if success:
+                        report.forwarded_to_boss = True
+                        report.forwarded_at = datetime.now(timezone.utc)
+                        logger.info(f"Report forwarded to boss {boss_sub.first_name} for project {project_name}")
                 except Exception as e:
                     logger.error(f"Failed to forward report to boss: {e}")
 
