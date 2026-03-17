@@ -258,10 +258,10 @@ class SheetSyncService:
             # Collect final reply IDs (after filtering) for marking
             synced_ids = [r.id for r in replies]
 
-            # Write: chronological merge (if out-of-order) or simple append (fast path)
+            # Write: rizzult format ALWAYS uses merge (handles dedup, sort, legacy rows).
+            # Default format uses simple append.
             write_ok = False
-            if (row_format == "rizzult_28col" and existing_rows and len(existing_rows) > 1
-                    and self._needs_chronological_merge(existing_rows, rows)):
+            if row_format == "rizzult_28col" and existing_rows and len(existing_rows) > 1:
                 write_ok = self._chronological_merge_write(
                     sheet_id, replies_tab, existing_rows, rows, config,
                 )
@@ -375,10 +375,16 @@ class SheetSyncService:
 
         Used when late-processed replies have received_at older than existing data.
         Rewrites the data section in one batchUpdate call.
+
+        DEDUP: by (email col 9, ISO datetime col 22, campaign col 17).
+        SORT: dateless legacy rows FIRST, then dated rows chronologically.
+              This ensures the newest week is always at the bottom where the operator looks.
         """
         from app.services.google_sheets_service import google_sheets_service
 
-        DATE_COL = 22  # Column W: ISO datetime
+        DATE_COL = 22   # Column W: ISO datetime
+        EMAIL_COL = 9   # Column J: target_lead_email
+        CAMPAIGN_COL = 17  # Column R: campaign name
 
         # Combine existing data rows + new rows (all as string lists)
         all_data = []
@@ -388,13 +394,31 @@ class SheetSyncService:
         for row in new_rows:
             all_data.append([str(c) if c is not None else "" for c in row])
 
-        # Stable sort by date column (preserves order for same dates)
-        _FAR_FUTURE = datetime(9999, 1, 1)
+        # DEDUP by (email, datetime, campaign) — keep first occurrence (existing > new)
+        seen = set()
+        deduped = []
+        for row in all_data:
+            email = (row[EMAIL_COL] or "").strip().lower()
+            dt = (row[DATE_COL] or "").strip()
+            campaign = (row[CAMPAIGN_COL] or "").strip().lower()
+            if email and dt:
+                key = (email, dt, campaign)
+                if key in seen:
+                    continue
+                seen.add(key)
+            deduped.append(row)
+        if len(all_data) != len(deduped):
+            logger.info(f"Sheet merge dedup: removed {len(all_data) - len(deduped)} duplicate rows")
+        all_data = deduped
+
+        # Sort: dateless legacy rows FIRST (FAR_PAST), dated rows chronologically AFTER.
+        # This ensures newest weeks are always at the bottom where the operator scrolls.
+        _FAR_PAST = datetime(1, 1, 1)
 
         def date_key(row):
             if len(row) > DATE_COL and row[DATE_COL]:
-                return cls._parse_naive_dt(row[DATE_COL]) or _FAR_FUTURE
-            return _FAR_FUTURE
+                return cls._parse_naive_dt(row[DATE_COL]) or _FAR_PAST
+            return _FAR_PAST
 
         all_data.sort(key=date_key)
 
@@ -415,9 +439,20 @@ class SheetSyncService:
 
         # Write entire data section as one batch (row 2 onwards)
         end_row = len(all_data) + 1
-        return google_sheets_service.update_cells(sheet_id, tab_name, [
+        old_row_count = len(existing_rows)
+        result = google_sheets_service.update_cells(sheet_id, tab_name, [
             {"range": f"A2:AC{end_row}", "values": all_data}
         ])
+
+        # Clear ghost rows if merge produced fewer rows than existed before
+        if old_row_count > end_row:
+            blank = [[""] * 29] * (old_row_count - end_row)
+            google_sheets_service.update_cells(sheet_id, tab_name, [
+                {"range": f"A{end_row + 1}:AC{old_row_count}", "values": blank}
+            ])
+            logger.info(f"Sheet merge: cleared {old_row_count - end_row} ghost rows")
+
+        return result
 
     @staticmethod
     def _clean_email(email: str) -> str:

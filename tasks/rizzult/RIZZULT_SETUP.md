@@ -199,68 +199,57 @@ Result: savepoint isolation, per-reply commits, parallel sync, channel indicator
 | DB | `UPDATE projects SET campaign_filters = NULL WHERE id IN (6,7,49)` | One-time fix |
 | DB | Auto-resolved noisy reply 40088 (👍 reaction) | One-time fix |
 
-**Recovery errors (self-inflicted during fix)**:
+**Recovery errors (self-inflicted, 6 rounds of fuckups)**:
 
-| Mistake | Impact | Lesson |
-|---------|--------|--------|
-| Mass-reset ALL `sheet_synced_at` (1,057 rows) without stopping scheduler first | Scheduler ran mid-reset, pushed ~480 duplicate rows to sheet | **ALWAYS stop the scheduler before bulk-resetting sync flags** |
-| Used `received_at < '2026-03-10'` as cutoff instead of calculating week 17 dates first | Re-marked wrong rows, left gaps | **Calculate the week epoch dates BEFORE writing SQL** |
-| Triggered manual sync without checking what the scheduler had already pushed | Created 13 more rows on top of scheduler's duplicates | **Check current sheet state before triggering sync** |
-| First dedup used WRONG column indices: col 6=last_name (not email), col 19=category (not campaign) | Removed 101 rows using (last_name, datetime, category) as key — deleted legitimate week 17 replies | **ALWAYS verify column indices against `_build_rizzult_rows()` before any sheet manipulation** |
-| Second dedup correct but left 382 dateless legacy rows sorting AFTER dated rows | Week 17 rows buried in the middle (row 544), legacy at bottom (row 559+) — operator scrolls to bottom and sees only week 16 | **Legacy dateless rows must come FIRST, dated rows AFTER, so newest weeks are always at the bottom** |
-| Typo in Python variable name (`legacy_count` instead of `len(legacy)`) wasted another round | Simple bug in one-off script caused crash | **Test scripts locally before running on production** |
+| # | Mistake | Impact | Root Cause |
+|---|---------|--------|------------|
+| 1 | Mass-reset ALL `sheet_synced_at` (1,057 rows) without stopping scheduler | Scheduler ran mid-reset, pushed ~480 duplicate rows | Didn't think about the 5-min scheduler cycle running concurrently |
+| 2 | Used `received_at < '2026-03-10'` as week 17 cutoff | Marked wrong rows, left gaps | Didn't calculate week dates from epoch FIRST: week 17 = Mar 16-22, not Mar 10+ |
+| 3 | Triggered manual sync on top of scheduler's push | 13 more duplicates on top of 480 | Didn't check sheet state before triggering |
+| 4 | First dedup used WRONG column indices (col 6=last_name, col 19=category) | Removed 101 rows including legitimate week 17 data | Assumed column positions without reading `_build_rizzult_rows()` |
+| 5 | Second dedup correct but dateless legacy rows sorted AFTER dated rows | Week 17 buried at row 544, operator sees only legacy at bottom | Merge function used `FAR_FUTURE` for dateless rows = they sort last |
+| 6 | Typo in Python variable (`legacy_count` vs `len(legacy)`) | Script crashed, wasted another iteration | Running untested one-off scripts on production |
 
-**Correct column mapping for rizzult_28col** (from `_build_rizzult_rows`):
+**Correct rizzult_28col column mapping** (source of truth: `_build_rizzult_rows()` in `sheet_sync_service.py`):
 
-| Index | Column | Field | Notes |
-|-------|--------|-------|-------|
-| 0 | A | index | Sequential, auto-generated |
-| 1 | B | updated email | Operator fills manually |
+| Index | Col | Field | Role |
+|-------|-----|-------|------|
+| 0 | A | index | Auto, sequential |
+| 1 | B | updated email | **Operator manual** |
 | 2 | C | status | Legacy, unused |
-| 3 | D | current status | Operator fills manually |
-| 4 | E | (blank) | |
+| 3 | D | current status | **Operator manual** |
 | 5 | F | first name | Auto |
 | 6 | G | last name | Auto |
 | 7 | H | Position | Auto |
 | 8 | I | Linkedin | Auto |
 | **9** | **J** | **target_lead_email** | **DEDUP KEY 1** |
-| 10 | K | segment | Auto |
 | 11 | L | Company | Auto |
 | 12 | M | Website | Auto |
 | 13 | N | Company Location | Auto |
-| 14 | O | Employees | Auto |
-| 15 | P | text | Reply text, auto |
-| 16 | Q | time | `dd.mm.yyyy HH:MM` format |
+| 15 | P | text | Auto, reply body |
+| 16 | Q | time | Auto, `dd.mm.yyyy HH:MM` |
 | **17** | **R** | **campaign** | **DEDUP KEY 3** |
-| 18 | S | campaign_id | Auto |
-| 19 | T | category | Auto (classification result) |
-| 20 | U | from_email | Auto |
-| 21 | V | to_email | Auto |
-| **22** | **W** | **created time (ISO)** | **DEDUP KEY 2, sort key, week calc source** |
-| 23 | X | Source | "Email" or "LinkedIn" |
-| 24 | Y | Status | Operator fills manually |
-| 25 | Z | Week | Calculated: `(received_at - epoch).days // 7 + 1` |
-| 26 | AA | Sequence + message | Operator fills |
-| 27 | AB | Comment | Operator fills |
-| 28 | AC | auto_updated_at | ISO timestamp of last sync |
+| 19 | T | category | Auto |
+| **22** | **W** | **ISO datetime** | **DEDUP KEY 2, sort key, week source** |
+| 23 | X | Source | Auto, "Email"/"LinkedIn" |
+| 24 | Y | Status | **Operator manual** |
+| 25 | Z | Week | Auto, `(date - epoch).days // 7 + 1` |
+| 26 | AA | Sequence + message | **Operator manual** |
+| 27 | AB | Comment | **Operator manual** |
+| 28 | AC | auto_updated_at | Auto |
 
-**Sheet row ordering rule**: Legacy dateless rows (382 from N8N era, no col W) come FIRST. Dated rows sorted chronologically AFTER. This ensures the newest week is always at the bottom where the operator looks.
+**Code bugs fixed to prevent recurrence** (commit after this doc):
 
-**Recovery actions**:
+| Bug | What was wrong | Fix | File:Line |
+|-----|---------------|-----|-----------|
+| No dedup in merge | `_chronological_merge_write` combined existing+new without checking for duplicates. Same reply in both = duplicate row. | Added dedup by `(email[9], datetime[22], campaign[17])` before sort. First occurrence wins (preserves operator data). | `sheet_sync_service.py:_chronological_merge_write` |
+| Dateless rows sort to bottom | `FAR_FUTURE` for dateless legacy rows = they appear AFTER newest dated rows. Operator scrolls to bottom, sees legacy instead of latest week. | Changed to `FAR_PAST` (datetime(1,1,1)). Legacy rows now sort FIRST. Newest week always at the bottom. | `sheet_sync_service.py:_chronological_merge_write` |
+| Simple append bypasses sort | For rizzult format, simple append was used when new rows were all newer. Appended after legacy = week 17 after dateless rows, not after week 16. | Rizzult format now ALWAYS uses merge path (never simple append). Merge handles dedup + sort + ghost row cleanup. | `sheet_sync_service.py:sync_replies_to_sheet` |
+| No ghost row cleanup | Merge that produces fewer rows than before left old data below the new end. | Added blank-row write to clear `A{end+1}:AC{old_count}` after merge. | `sheet_sync_service.py:_chronological_merge_write` |
+| `jsonb_array_elements_text` on non-array | Projects with JSON `null` in `campaign_filters` crashed all GetSales processing. `IS NOT NULL` passes for JSON null. | Added `AND jsonb_typeof(projects.campaign_filters) = 'array'` to all 3 queries. | `reply_processor.py` (3 occurrences) |
+| Hardcoded `"Leads"` default | `config.get("leads_tab", "Leads")` hit nonexistent tab every 5min for projects without leads_tab. | Removed default. Returns early with `skipped` when `leads_tab` absent. | `sheet_sync_service.py:661,855`, `contacts.py:2302,2356` |
 
-1. First dedup (WRONG cols 6,19,22): 1,076 → removed 101 → 974. Killed week 17 rows.
-2. Second dedup (CORRECT cols 9,22,17): 975 → removed 34 → 941. Week 17 present but buried at row 544 behind 382 dateless legacy rows.
-3. Reordered: legacy (382) first, then dated (560) chronologically. Week 17 now at rows 926-940, right after week 16.
-4. Updated DB config to match.
-
-**Final state**: Sheet has 942 rows. 382 legacy (dateless) + 560 dated. Week 17 (Mar 16-22) = **15 replies at rows 926-940**, directly after week 16 at the bottom of the sheet.
-
-**Prevention rules for future**:
-- **NEVER mass-reset `sheet_synced_at` while scheduler is running** — stop scheduler first or use a maintenance window
-- **NEVER use hardcoded default tab names** — every project must explicitly configure tabs it uses, absent = skip
-- **ALWAYS calculate dates from week_epoch before operating on week-based data**
-- **The `_chronological_merge_write` function does NOT dedup** — it combines and sorts, duplicates pass through
-- **`sheet_synced_at` is the ONLY dedup mechanism** — if it lies, the system has no backup protection
+**Final state**: 942 rows. 15 week 17 replies at rows 929-943, right at the bottom after week 16.
 
 ## Key Files
 - `tasks/rizzult/index.md` — operator workflow, sender accounts, Calendly tokens

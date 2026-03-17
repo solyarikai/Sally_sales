@@ -1277,7 +1277,8 @@ async def process_reply_webhook(
                             _ProjCls.deleted_at.is_(None),
                             _sa_text(
                                 "EXISTS (SELECT 1 FROM jsonb_array_elements_text(projects.campaign_filters) AS cf "
-                                "WHERE LOWER(cf) = LOWER(:cname))"
+                                "WHERE LOWER(cf) = LOWER(:cname)) "
+                                "AND jsonb_typeof(projects.campaign_filters) = 'array'"
                             ),
                         )
                     ).params(cname=campaign_name).limit(1)
@@ -1310,7 +1311,8 @@ async def process_reply_webhook(
                             Project.deleted_at.is_(None),
                             sa_text(
                                 "EXISTS (SELECT 1 FROM jsonb_array_elements_text(projects.campaign_filters) AS cf "
-                                "WHERE LOWER(cf) = LOWER(:cname))"
+                                "WHERE LOWER(cf) = LOWER(:cname)) "
+                                "AND jsonb_typeof(projects.campaign_filters) = 'array'"
                             ),
                         )
                     ).params(cname=campaign_name).limit(1)
