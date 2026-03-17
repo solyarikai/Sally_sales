@@ -212,9 +212,14 @@ class SallyBotService:
 
             # Handle document upload for TG checker
             document = msg.get("document")
-            if document and chat_id in _tg_checker_state:
-                state = _tg_checker_state[chat_id]
-                if state.get("status") == "waiting_file":
+            if document:
+                file_name = document.get("file_name", "")
+                # Auto-process CSV files as TG checker
+                if file_name.lower().endswith(".csv"):
+                    await self._handle_tg_checker_file(chat_id, document, msg.get("caption", ""))
+                    return
+                # Or if waiting for file explicitly
+                if chat_id in _tg_checker_state and _tg_checker_state[chat_id].get("status") == "waiting_file":
                     await self._handle_tg_checker_file(chat_id, document, msg.get("caption", ""))
                     return
 
@@ -555,13 +560,13 @@ class SallyBotService:
                     )
                     if success:
                         report.forwarded_to_boss = True
-                        report.forwarded_at = datetime.now(timezone.utc)
+                        report.forwarded_at = datetime.utcnow()
                         logger.info(f"Report forwarded to boss {boss_sub.first_name} for project {project_name}")
                 except Exception as e:
                     logger.error(f"Failed to forward report to boss: {e}")
 
             if sub:
-                sub.last_reported_at = datetime.now(timezone.utc)
+                sub.last_reported_at = datetime.utcnow()
             await session.commit()
 
             # Confirm to user
@@ -724,7 +729,7 @@ class SallyBotService:
             except ValueError:
                 pass
 
-        _tg_checker_state[chat_id]["status"] = "processing"
+        _tg_checker_state[chat_id] = {"status": "processing", "started_at": datetime.now(timezone.utc)}
         await self.send_message(chat_id, f"⏳ Скачиваю файл и начинаю проверку (фильтр: {max_hours}ч)...")
 
         try:
