@@ -41,6 +41,10 @@ from .pipeline_run import (
     PipelinePhaseLog, PipelinePhaseStatus,
     CostEvent,
 )
+from .project_report import (
+    ProjectReport, ProjectPlan, ProjectProgressItem,
+    ProjectReportSubscription, ReportRole, ProgressStatus,
+)
 
 __all__ = [
     # User & Multi-tenancy
@@ -99,4 +103,7 @@ __all__ = [
     "PipelineRun", "PipelineRunStatus", "PipelinePhase",
     "PipelinePhaseLog", "PipelinePhaseStatus",
     "CostEvent",
+    # Project Reports
+    "ProjectReport", "ProjectPlan", "ProjectProgressItem",
+    "ProjectReportSubscription", "ReportRole", "ProgressStatus",
 ]

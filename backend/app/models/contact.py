@@ -101,6 +101,11 @@ class Project(Base, SoftDeleteMixin, TimestampMixin):
     # SDR email for test notifications — receives test email when campaign is launched
     sdr_email = Column(String(255), nullable=True)
 
+    # Project report config — evening questions to leads, forwarding to boss
+    # JSON: {"evening_question_time": "19:00", "timezone": "Europe/Moscow",
+    #        "question_template": "...", "enabled": bool}
+    report_config = Column(JSON, nullable=True)
+
     # Generated content (for AI SDR)
     tam_analysis = Column(Text, nullable=True)
     gtm_plan = Column(Text, nullable=True)

@@ -39,6 +39,7 @@ from .outreach_stats import router as outreach_stats_router
 from .client_dashboard import router as client_dashboard_router
 from .fireflies import router as fireflies_router
 from .intelligence import router as intelligence_router
+from .project_reports import router as project_reports_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -127,5 +128,8 @@ api_router.include_router(fireflies_router)
 
 # Reply Intelligence
 api_router.include_router(intelligence_router)
+
+# Project Reports (lead daily reports + plans + progress)
+api_router.include_router(project_reports_router)
 
 __all__ = ["api_router"]

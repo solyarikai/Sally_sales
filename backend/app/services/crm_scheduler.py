@@ -88,8 +88,9 @@ class CRMScheduler:
         self._cleanup_task: Optional[asyncio.Task] = None
         self._followup_task: Optional[asyncio.Task] = None
         self._gtm_analytics_task: Optional[asyncio.Task] = None
+        self._project_report_reminder_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
-        
+
         # Per-task tracking: last_run, interval_seconds, next_run
         self._task_timing: dict[str, dict] = {
             "reply_check": {"last_run": None, "interval": 180, "label": "Reply polling"},
@@ -103,6 +104,7 @@ class CRMScheduler:
             "needs_reply_cleanup": {"last_run": None, "interval": 21600, "label": "Needs-reply cleanup"},
             "followup_generation": {"last_run": None, "interval": 180, "label": "Follow-up generation"},
             "gtm_analytics": {"last_run": None, "interval": 43200, "label": "GTM analytics (2x daily)"},
+            "project_report_reminder": {"last_run": None, "interval": 60, "label": "Project report reminders"},
         }
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
@@ -162,7 +164,8 @@ class CRMScheduler:
             self._recovery_task, self._conversation_sync_task,
             self._followup_task, self._gtm_analytics_task,
             self._telegram_poll_task, self._sheet_sync_task,
-            self._cleanup_task, self._watchdog_task
+            self._cleanup_task, self._project_report_reminder_task,
+            self._watchdog_task
         ]
         for task in all_tasks:
             if task:
@@ -188,6 +191,7 @@ class CRMScheduler:
             ("_cleanup_task", self._run_needs_reply_cleanup_loop, "Needs-reply cleanup"),
             ("_followup_task", self._run_followup_generation_loop, "Follow-up generation"),
             ("_gtm_analytics_task", self._run_gtm_analytics_loop, "GTM analytics"),
+            ("_project_report_reminder_task", self._run_project_report_reminder_loop, "Project report reminder"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -1169,6 +1173,101 @@ ANALYSIS FOCUS — answer with EVIDENCE:
                 session.add(log)
                 await session.commit()
                 raise
+
+    # ===== Project Report Reminders (check every minute) =====
+
+    async def _run_project_report_reminder_loop(self):
+        """Send evening questions to leads based on their configured time.
+
+        Checks every minute if any lead's report_time matches current time.
+        Uses timezone-aware comparison for each subscription.
+        """
+        from zoneinfo import ZoneInfo
+        from app.models.project_report import ProjectReportSubscription, ReportRole
+        from app.models.contact import Project
+        from app.services.sally_bot_service import sally_bot_service
+
+        await asyncio.sleep(30)  # Wait for bot to initialize
+
+        while self._running:
+            try:
+                await self._check_and_send_report_reminders()
+                self._mark_task_run("project_report_reminder")
+            except Exception as e:
+                logger.error(f"[ReportReminder] Error: {e}")
+            await asyncio.sleep(60)  # Check every minute
+
+    async def _check_and_send_report_reminders(self):
+        """Check all lead subscriptions and send questions if time matches."""
+        from zoneinfo import ZoneInfo
+        from app.models.project_report import ProjectReportSubscription, ReportRole
+        from app.models.contact import Project
+        from app.services.sally_bot_service import sally_bot_service
+
+        async with async_session_maker() as session:
+            # Get all active lead subscriptions
+            result = await session.execute(
+                select(ProjectReportSubscription).where(
+                    ProjectReportSubscription.role == ReportRole.lead,
+                    ProjectReportSubscription.is_active == True,
+                )
+            )
+            subscriptions = result.scalars().all()
+
+            for sub in subscriptions:
+                try:
+                    # Get timezone (default Moscow)
+                    tz_name = sub.timezone or "Europe/Moscow"
+                    try:
+                        tz = ZoneInfo(tz_name)
+                    except Exception:
+                        tz = ZoneInfo("Europe/Moscow")
+
+                    # Get current time in user's timezone
+                    now_utc = datetime.now(ZoneInfo("UTC"))
+                    now_local = now_utc.astimezone(tz)
+                    current_time = now_local.strftime("%H:%M")
+
+                    # Get configured report time (default 19:00)
+                    report_time = sub.report_time or "19:00"
+
+                    # Check if time matches (within same minute)
+                    if current_time != report_time:
+                        continue
+
+                    # Check if already asked today
+                    today = now_local.date()
+                    if sub.last_asked_at:
+                        last_asked_local = sub.last_asked_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+                        if last_asked_local.date() == today:
+                            continue
+
+                    # Get project details
+                    proj_result = await session.execute(
+                        select(Project).where(Project.id == sub.project_id, Project.deleted_at.is_(None))
+                    )
+                    project = proj_result.scalar_one_or_none()
+                    if not project:
+                        continue
+
+                    # Get question template from project config
+                    report_config = project.report_config or {}
+                    question_template = report_config.get(
+                        "question_template",
+                        "Привет! Что сегодня было сделано по проекту *{name}*?"
+                    )
+
+                    # Send question via Sally bot
+                    logger.info(f"[ReportReminder] Sending question to {sub.first_name} (chat {sub.chat_id}) for project {project.name}")
+                    await sally_bot_service.ask_for_report(
+                        chat_id=int(sub.chat_id),
+                        project_id=sub.project_id,
+                        project_name=project.name,
+                        question_template=question_template,
+                    )
+
+                except Exception as e:
+                    logger.error(f"[ReportReminder] Failed for subscription {sub.id}: {e}")
 
     # ===== Telegram Bot Polling (long-poll every 30s) =====
 
