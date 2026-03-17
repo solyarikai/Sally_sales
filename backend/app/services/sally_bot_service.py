@@ -560,13 +560,13 @@ class SallyBotService:
                     )
                     if success:
                         report.forwarded_to_boss = True
-                        report.forwarded_at = datetime.utcnow()
+                        report.forwarded_at = datetime.now(timezone.utc)
                         logger.info(f"Report forwarded to boss {boss_sub.first_name} for project {project_name}")
                 except Exception as e:
                     logger.error(f"Failed to forward report to boss: {e}")
 
             if sub:
-                sub.last_reported_at = datetime.utcnow()
+                sub.last_reported_at = datetime.now(timezone.utc)
             await session.commit()
 
             # Confirm to user

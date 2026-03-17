@@ -128,6 +128,11 @@ class Settings(BaseSettings):
     # Telegram Sally Bot — client chat monitoring
     TELEGRAM_SALLY_BOT_TOKEN: Optional[str] = None
 
+    # Telegram Checker — MTProto API for last seen checking
+    TELEGRAM_CHECKER_API_ID: Optional[int] = None
+    TELEGRAM_CHECKER_API_HASH: Optional[str] = None
+    TELEGRAM_CHECKER_PHONE: Optional[str] = None
+
     # Admin test email — receives test emails when campaigns launch
     ADMIN_TEST_EMAIL: str = "pn@getsally.io"
 

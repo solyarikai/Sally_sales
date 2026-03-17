@@ -56,7 +56,7 @@ services:
       - ./backend:/app
       - ./scripts:/scripts
       - ./google-credentials.json:/app/google-credentials.json:ro
-      - ./state:/app/state:ro
+      - ./state:/app/state:rw
     depends_on:
       postgres:
         condition: service_healthy
