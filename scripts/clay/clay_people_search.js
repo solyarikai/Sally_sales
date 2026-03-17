@@ -554,24 +554,70 @@ async function runPeopleSearch(page, filters, label = 'default') {
   }
 
   // Location section (for geo splits)
-  if (filters.countries?.length) {
+  if (filters.countries?.length || filters.cities?.length) {
     const locSection = await findByText(page, 'Location', true);
     if (locSection) {
       await page.mouse.click(locSection.x, locSection.y);
       await humanDelay(800, 1200);
     }
-    const locInput = await page.$('input[placeholder*="United States"]')
-      || await page.$('input[placeholder*="country"]')
-      || await page.$('input[placeholder*="location"]');
-    if (locInput) {
-      for (const country of filters.countries) {
-        await locInput.click();
-        await locInput.type(country, { delay: 25 });
-        await humanDelay(400, 700);
-        await page.keyboard.press('Enter');
-        await humanDelay(200, 400);
+
+    // Countries filter — "Countries to include" field (placeholder: "United States, Canada" etc.)
+    if (filters.countries?.length) {
+      const countryInput = await page.$('input[placeholder*="United States"]')
+        || await page.$('input[placeholder*="country"]');
+      if (countryInput) {
+        for (const country of filters.countries) {
+          await countryInput.click();
+          await countryInput.type(country, { delay: 25 });
+          await humanDelay(400, 700);
+          await page.keyboard.press('Enter');
+          await humanDelay(200, 400);
+        }
+        console.log(`    Countries: ${filters.countries.join(', ')}`);
+      } else {
+        console.log('    WARNING: Country input not found');
       }
-      console.log(`    Location: ${filters.countries.join(', ')}`);
+    }
+
+    // Cities filter — "Cities to include" field (placeholder: "New York, Paris" etc.)
+    // CRITICAL: This is a SEPARATE input from countries. City names typed into the
+    // country input are silently ignored by Clay, returning worldwide results.
+    if (filters.cities?.length) {
+      const cityInput = await page.evaluate(() => {
+        const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null);
+        for (const input of inputs) {
+          const ph = (input.placeholder || '').toLowerCase();
+          if (ph.includes('new york') || ph.includes('paris') || ph.includes('city') || ph.includes('cities')) {
+            const rect = input.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder };
+          }
+        }
+        return null;
+      });
+      if (cityInput) {
+        for (const city of filters.cities) {
+          await page.mouse.click(cityInput.x, cityInput.y);
+          await humanDelay(100, 200);
+          await page.keyboard.type(city, { delay: 25 + Math.random() * 30 });
+          await humanDelay(800, 1200);
+          await page.keyboard.press('Enter');
+          await humanDelay(400, 700);
+        }
+        console.log(`    Cities: ${filters.cities.join(', ')}`);
+      } else {
+        console.log('    WARNING: City input not found, falling back to location input');
+        const locInput = await page.$('input[placeholder*="location"]');
+        if (locInput) {
+          for (const city of filters.cities) {
+            await locInput.click();
+            await locInput.type(city, { delay: 25 });
+            await humanDelay(400, 700);
+            await page.keyboard.press('Enter');
+            await humanDelay(200, 400);
+          }
+          console.log(`    Cities (fallback): ${filters.cities.join(', ')}`);
+        }
+      }
     }
   }
 
@@ -912,6 +958,9 @@ async function main() {
   const languageIdx = args.indexOf('--language');
   const languageArg = languageIdx >= 0 ? args[languageIdx + 1] : null;
   const customLanguages = languageArg ? languageArg.split(',').map(l => l.trim()) : null;
+  const citiesIdx = args.indexOf('--cities');
+  const citiesArg = citiesIdx >= 0 ? args[citiesIdx + 1] : null;
+  const customCities = citiesArg ? citiesArg.split(',').map(c => c.trim()) : null;
 
   if (useTitles) {
     GAMING_ICP_FILTERS.job_titles = ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
@@ -1019,6 +1068,10 @@ async function main() {
   if (customLanguages) {
     GAMING_ICP_FILTERS.languages = customLanguages;
     console.log(`  Language filter: ${customLanguages.join(', ')}`);
+  }
+  if (customCities) {
+    GAMING_ICP_FILTERS.cities = customCities;
+    console.log(`  City filter: ${customCities.join(', ')}`);
   }
 
   if (allDomains.length === 0) {
