@@ -190,9 +190,18 @@ async def intelligence_summary(
 @router.post("/analyze/", response_model=AnalyzeResult)
 async def trigger_analysis(
     project_id: int = Query(..., description="Project ID"),
+    rebuild: bool = Query(False, description="Delete existing and re-classify all"),
     session: AsyncSession = Depends(get_session),
 ):
-    """Classify all unanalyzed replies for a project."""
+    """Classify all unanalyzed replies for a project. Use rebuild=true to re-classify everything."""
+    if rebuild:
+        from sqlalchemy import delete
+        await session.execute(
+            delete(ReplyAnalysis).where(ReplyAnalysis.project_id == project_id)
+        )
+        await session.flush()
+        logger.info(f"Deleted all reply_analysis for project {project_id}")
+
     result = await analyze_project_replies(session, project_id)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
