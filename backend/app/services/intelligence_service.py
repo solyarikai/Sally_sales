@@ -254,6 +254,13 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
         if not text or len(text) < 5:
             return _result("empty", 0, "general", campaign_name, channel, raw_text)
 
+        # ── GUARD: LinkedIn noise — connection requests, not real interest ──
+        linkedin_noise = ["join your professional network", "accepting my invitation",
+                          "nice to connect", "thanks for connecting", "great to connect",
+                          "приятно познакомиться"]
+        if any(p in text_lower for p in linkedin_noise):
+            return _result("auto_response", 0, "general", campaign_name, channel, raw_text)
+
         # ── GUARD: very short text — only trust if it has clear warm signal ──
         if len(text) < 20:
             short_lower = text.lower()
@@ -264,9 +271,10 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
             if any(p in short_lower for p in short_warm):
                 if is_warm_category:
                     return _result("interested_vague", 4, "general", campaign_name, channel, raw_text)
-            # Short acknowledgments = noise
-            short_ack = ["thanks", "thank you", "спасибо", "cheers", "thx"]
-            if any(p in short_lower for p in short_ack):
+            # Short noise = greetings, acknowledgments
+            short_noise = ["thanks", "thank you", "спасибо", "cheers", "thx",
+                           "hello", "hi", "hey", "привет", "здравствуйте"]
+            if any(p in short_lower for p in short_noise):
                 return _result("auto_response", 0, "general", campaign_name, channel, raw_text)
 
         # ── GUARD: contradictory signals — lead says negative but AI said warm ──
