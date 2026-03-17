@@ -164,15 +164,64 @@ Planned: show scheduled calls in Godpanel (like easystaff ru).
 
 Result: savepoint isolation, per-reply commits, parallel sync, channel indicators, 7-day safety window.
 
-### 2026-03-17: Sheet Missing Replies + Reaction Noise
-**Root causes**:
-1. No `leads_tab` in config → code defaulted to "Leads" → nonexistent tab → error every 5min cycle
-2. LinkedIn 👍 reaction from Sofia Fornera classified as "interested" → noise row in sheet
+### 2026-03-17: Sheet Missing Replies + Reaction Noise + Recovery Mess
+
+**Symptom**: Aleksandra reported Google Sheet "Replies 09/03" missing week 17 replies. Sheet had 583 rows but DB had 1,056 non-OOO replies.
+
+**Root causes found**:
+
+1. **No `leads_tab` in config → "Leads" default → nonexistent tab → error every 5min**
+   - `sheet_sync_service.py` had `config.get("leads_tab", "Leads")` — hardcoded default
+   - Rizzult sheet has no "Leads" tab (uses HubSpot instead)
+   - `push_leads_to_sheet()` and `poll_qualification_from_sheet()` threw `Unable to parse range: 'Leads'` every 5min cycle
+   - This did NOT block reply sync (separate function) but generated error noise and poisoned session in some edge cases
+
+2. **LinkedIn 👍 reaction treated as real reply**
+   - Sofia Fornera's 👍 reaction → classified as "interested" → synced to sheet row 583 → noise for operator
+   - GetSales API sends LinkedIn reactions as regular messages with no type distinction
+
+3. **JSON `null` vs SQL `NULL` in `campaign_filters`**
+   - Projects 6, 7, 49 had `campaign_filters = 'null'::jsonb` (JSON null, not SQL NULL)
+   - `jsonb_array_elements_text(null)` → "cannot extract elements from a scalar"
+   - This broke ALL GetSales reply processing (project lookup query scans all projects)
+   - Error cascaded: poisoned transaction → webhook processing failures → retry exhaustion
+
+4. **473 replies marked as synced but never written to sheet**
+   - The DB had `sheet_synced_at` set for ALL 1,056 non-OOO replies, but only 583 were actually in the sheet
+   - Root cause unclear — likely a past bug where `sheet_synced_at` was set before confirming the Google Sheets API write succeeded, or a batch write partially failed
 
 **Fixes applied**:
-1. Removed default "Leads" fallback — `push_leads_to_sheet()` and `poll_qualification_from_sheet()` now skip when `leads_tab` absent
-2. Added emoji-only message filter in `process_getsales_reply()`
-3. Fixed JSON null vs SQL NULL in `campaign_filters` for projects 6, 7, 49 (was breaking all GetSales processing)
+
+| Fix | What | Where |
+|-----|------|-------|
+| Code | Removed default "Leads" fallback — skip when `leads_tab` absent | `sheet_sync_service.py:661,855`, `contacts.py:2302,2356` |
+| Code | Added emoji-only message filter for LinkedIn reactions | `reply_processor.py:1910` |
+| DB | `UPDATE projects SET campaign_filters = NULL WHERE id IN (6,7,49)` | One-time fix |
+| DB | Auto-resolved noisy reply 40088 (👍 reaction) | One-time fix |
+
+**Recovery errors (self-inflicted during fix)**:
+
+| Mistake | Impact | Lesson |
+|---------|--------|--------|
+| Mass-reset ALL `sheet_synced_at` (1,057 rows) without stopping scheduler first | Scheduler ran mid-reset, pushed ~480 duplicate rows to sheet | **ALWAYS stop the scheduler before bulk-resetting sync flags** |
+| Used `received_at < '2026-03-10'` as cutoff instead of calculating week 17 dates first | Re-marked wrong rows, left gaps | **Calculate the week epoch dates BEFORE writing SQL** |
+| Triggered manual sync without checking what the scheduler had already pushed | Created 13 more rows on top of scheduler's duplicates | **Check current sheet state before triggering sync** |
+
+**Recovery actions**:
+
+1. Read all 1,076 sheet rows
+2. Deduplicated by (email, datetime, campaign) key — removed 101 duplicates
+3. Rewrote sheet with 974 clean rows (sorted chronologically, re-indexed, weeks recalculated)
+4. Updated DB config: `next_row_index: 976, _last_sheet_index: 974, replies_synced_count: 974`
+
+**Final state**: Sheet has 974 non-OOO Rizzult replies across all time. Week 17 (Mar 16-22) has 13 replies correctly present.
+
+**Prevention rules for future**:
+- **NEVER mass-reset `sheet_synced_at` while scheduler is running** — stop scheduler first or use a maintenance window
+- **NEVER use hardcoded default tab names** — every project must explicitly configure tabs it uses, absent = skip
+- **ALWAYS calculate dates from week_epoch before operating on week-based data**
+- **The `_chronological_merge_write` function does NOT dedup** — it combines and sorts, duplicates pass through
+- **`sheet_synced_at` is the ONLY dedup mechanism** — if it lies, the system has no backup protection
 
 ## Key Files
 - `tasks/rizzult/index.md` — operator workflow, sender accounts, Calendly tokens
