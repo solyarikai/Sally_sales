@@ -977,6 +977,7 @@ async def run_diaspora_pipeline(
     # Phase 0: Language search — CHEAPEST approach, $0 GPT, auto-accept all
     # Speaking Urdu in UAE = Pakistani, Tagalog in AU = Filipino, Afrikaans in Gulf = South African
     lang_batches = LANGUAGE_BATCHES.get(contractor_country, [])
+    _broad_lang_max_found = 0  # Track max results from broad search — if < 5K, skip city splits
     if lang_batches and len(all_matched_contacts) < target_count:
         await _emit(f"\n=== LANGUAGE SEARCH ({contractor_country}) — $0 GPT cost ===")
         await _emit(f"Searching {len(lang_batches)} language batches in {', '.join(employer_countries)}")
@@ -1029,6 +1030,7 @@ async def run_diaspora_pipeline(
                 continue
 
             all_people = result.get("people", [])
+            _broad_lang_max_found = max(_broad_lang_max_found, len(all_people))
             _persist_raw(all_people, "language", lang_label, corridor_key)
             if not all_people:
                 await _emit(f"No contacts for {', '.join(languages)}. Skipping.")
@@ -1108,11 +1110,14 @@ async def run_diaspora_pipeline(
                     logger.warning(f"Incremental export failed: {e}")
 
     # Phase 0.5: City-split language search — bypass Clay's 5K cap per search
-    # Each language × city = separate search with its own 5K cap = much more coverage
+    # SKIP if broad search returned < 4000 (didn't hit 5K cap = city splits will only find dupes)
     city_config = CITY_SPLITS.get(corridor_key, {})
     city_languages = city_config.get("languages", [])
     city_list = city_config.get("cities", [])
-    if city_languages and city_list and len(all_matched_contacts) < target_count:
+    _skip_city_splits = _broad_lang_max_found < 4000
+    if _skip_city_splits and city_languages:
+        await _emit(f"\n=== SKIPPING CITY-SPLIT LANGUAGE — broad search found {_broad_lang_max_found} < 4000 (no cap hit, splits would be dupes) ===")
+    if city_languages and city_list and len(all_matched_contacts) < target_count and not _skip_city_splits:
         total_combos = len(city_languages) * len(city_list)
         await _emit(f"\n=== CITY-SPLIT LANGUAGE SEARCH — {total_combos} combos, $0 GPT ===")
         await _emit(f"Languages: {', '.join(city_languages)} × Cities: {', '.join(city_list)}")
