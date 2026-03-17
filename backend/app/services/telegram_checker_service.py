@@ -13,6 +13,7 @@ import csv
 import io
 import logging
 import os
+import random
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -163,6 +164,15 @@ class TelegramCheckerService:
 
         except FloodWaitError as e:
             logger.warning(f"Flood wait: {e.seconds}s")
+            # If flood wait is more than 5 minutes, abort instead of waiting
+            if e.seconds > 300:
+                logger.error(f"Flood wait too long ({e.seconds}s), aborting")
+                return {
+                    "username": username,
+                    "last_seen": "flood_limit",
+                    "last_seen_hours": None,
+                    "error": f"Telegram flood limit: wait {e.seconds // 60} minutes",
+                }
             await asyncio.sleep(e.seconds)
             return await self.check_username(username)  # Retry
 
@@ -273,9 +283,9 @@ class TelegramCheckerService:
                 except Exception:
                     pass
 
-            # Delay between checks
+            # Delay between checks (randomized to avoid Telegram flood)
             if i < total - 1:
-                await asyncio.sleep(delay)
+                await asyncio.sleep(random.uniform(6.0, 8.0))
 
         # Generate output CSV
         output_fieldnames = list(fieldnames) + ["last_seen", "last_seen_hours", "tg_status"]
