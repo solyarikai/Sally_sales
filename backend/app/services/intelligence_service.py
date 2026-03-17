@@ -254,12 +254,26 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
         if not text or len(text) < 5:
             return _result("empty", 0, "general", campaign_name, channel, raw_text)
 
-        # ── GUARD: LinkedIn noise — connection requests, not real interest ──
-        linkedin_noise = ["join your professional network", "accepting my invitation",
-                          "nice to connect", "thanks for connecting", "great to connect",
-                          "приятно познакомиться"]
-        if any(p in text_lower for p in linkedin_noise):
+        # ── GUARD: LinkedIn noise + auto-forwards + counter-pitches ──
+        noise_patterns = [
+            # LinkedIn connection requests
+            "join your professional network", "accepting my invitation",
+            "nice to connect", "thanks for connecting", "great to connect",
+            "приятно познакомиться",
+            # Auto-forwards (not real engagement)
+            "has been forwarded to the team", "forwarded to the relevant",
+            "someone will be in touch",
+            # Counter-pitches (lead selling THEIR product, not interested in INXY)
+            "join our", "would you like your firm to join",
+            "can you introduce some business customers to us",
+            # Unsubscribe signals
+            "stop", "STOP",
+        ]
+        if any(p in text_lower for p in noise_patterns):
             return _result("auto_response", 0, "general", campaign_name, channel, raw_text)
+        # Check for "STOP" as the entire cleaned message
+        if text.strip().upper() == "STOP":
+            return _result("hard_no", 1, "general", campaign_name, channel, raw_text)
 
         # ── GUARD: very short text — only trust if it has clear warm signal ──
         if len(text) < 20:
@@ -281,7 +295,8 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
         # Only trigger if there's NO positive counterbalance ("но"/"but"/"however")
         negative_signals = ["not interested", "not relevant", "не интересует",
                             "отпишите", "отписать", "unsubscribe", "remove me",
-                            "don't respond to mass", "spam"]
+                            "don't respond to mass", "spam",
+                            "уже пользуемся существующими", "we already use"]
         # "не актуальн" only counts as rejection if there's no "но"/"but" after it
         has_hard_negative = any(p in text_lower for p in negative_signals)
         has_soft_negative = "не актуальн" in text_lower or "не нужно" in text_lower
