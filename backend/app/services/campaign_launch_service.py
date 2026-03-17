@@ -15,15 +15,42 @@ from app.services.notification_service import send_telegram_notification, TELEGR
 logger = logging.getLogger(__name__)
 
 
-def _strip_html_tags(html: str) -> str:
-    """Remove HTML tags from text for preview."""
+def _html_to_telegram(html: str) -> str:
+    """Convert SmartLead HTML email body to Telegram-compatible plain text.
+
+    Preserves line breaks and paragraph structure.
+    """
     if not html:
         return ""
-    # Remove HTML tags
-    text = re.sub(r'<[^>]+>', ' ', html)
-    # Normalize whitespace
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+
+    from html import unescape
+
+    text = html
+
+    # Convert line breaks: <br>, <br/>, <br />
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+
+    # Convert block elements to line breaks
+    text = re.sub(r'</div>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</p>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</li>', '\n', text, flags=re.IGNORECASE)
+
+    # Remove remaining HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+
+    # Decode HTML entities (&lt; &gt; &amp; &nbsp; etc.)
+    text = unescape(text)
+
+    # Replace &nbsp; that might remain
+    text = text.replace('\u00a0', ' ')
+
+    # Normalize multiple newlines (max 2)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    # Remove trailing spaces on each line
+    text = '\n'.join(line.rstrip() for line in text.split('\n'))
+
+    return text.strip()
 
 
 def _escape_html(text: str) -> str:
@@ -66,15 +93,15 @@ async def notify_campaign_launched(
             first_seq = sequences[0] if isinstance(sequences, list) else sequences
             subject_preview = (first_seq.get("subject") or "—")[:100]
             body_html = first_seq.get("email_body") or ""
-            body_preview = _strip_html_tags(body_html)[:500]
+            body_preview = _html_to_telegram(body_html)
     except Exception as e:
         logger.warning(f"Failed to fetch sequences for campaign {campaign_external_id}: {e}")
 
     # 2. Build Telegram message
     project_line = f"\n<b>Project:</b> {_escape_html(project_name)}" if project_name else "\n<b>Project:</b> Not assigned"
-    body_text = _escape_html(body_preview[:400])
-    if len(body_preview) > 400:
-        body_text += "..."
+
+    # Escape HTML but preserve newlines for Telegram
+    body_text = _escape_html(body_preview)
 
     smartlead_url = f"https://app.smartlead.ai/app/email-campaign/{campaign_external_id}/overview"
 
@@ -84,8 +111,24 @@ async def notify_campaign_launched(
 
 <b>Subject:</b> {_escape_html(subject_preview)}
 
-<b>Body preview:</b>
-<code>{body_text}</code>
+<b>Email:</b>
+{body_text}
+
+<a href="{smartlead_url}">📬 Open in SmartLead</a>"""
+
+    # Telegram message limit is 4096 chars, truncate if needed
+    if len(message) > 4000:
+        # Recalculate with truncated body
+        max_body_len = 4000 - (len(message) - len(body_text)) - 20
+        body_text = _escape_html(body_preview[:max_body_len]) + "..."
+        message = f"""🚀 #check <b>Campaign Launched</b>
+
+<b>Campaign:</b> {_escape_html(campaign_name)}{project_line}
+
+<b>Subject:</b> {_escape_html(subject_preview)}
+
+<b>Email:</b>
+{body_text}
 
 <a href="{smartlead_url}">📬 Open in SmartLead</a>"""
 
@@ -133,8 +176,7 @@ async def add_test_leads_to_campaign(campaign_id: str, emails: List[str]) -> boo
     try:
         result = await smartlead_service.add_leads_to_campaign(
             campaign_id,
-            leads,
-            settings={"ignore_global_block_list": True}
+            leads
         )
         if result.get("success"):
             logger.info(f"Added {len(emails)} test leads to campaign {campaign_id}: {emails}")
