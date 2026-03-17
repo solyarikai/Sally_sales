@@ -206,15 +206,21 @@ Result: savepoint isolation, per-reply commits, parallel sync, channel indicator
 | Mass-reset ALL `sheet_synced_at` (1,057 rows) without stopping scheduler first | Scheduler ran mid-reset, pushed ~480 duplicate rows to sheet | **ALWAYS stop the scheduler before bulk-resetting sync flags** |
 | Used `received_at < '2026-03-10'` as cutoff instead of calculating week 17 dates first | Re-marked wrong rows, left gaps | **Calculate the week epoch dates BEFORE writing SQL** |
 | Triggered manual sync without checking what the scheduler had already pushed | Created 13 more rows on top of scheduler's duplicates | **Check current sheet state before triggering sync** |
+| First dedup used WRONG column indices: col 6=last_name (not email), col 19=category (not campaign) | Removed 101 rows using (last_name, datetime, category) as key — deleted legitimate week 17 replies | **ALWAYS verify column indices against `_build_rizzult_rows()` before any sheet manipulation** |
+
+**Correct column mapping for dedup** (from `_build_rizzult_rows`):
+- **J (index 9)**: target_lead_email — the dedup email
+- **W (index 22)**: ISO datetime — the dedup timestamp
+- **R (index 17)**: campaign name — the dedup campaign
 
 **Recovery actions**:
 
-1. Read all 1,076 sheet rows
-2. Deduplicated by (email, datetime, campaign) key — removed 101 duplicates
-3. Rewrote sheet with 974 clean rows (sorted chronologically, re-indexed, weeks recalculated)
-4. Updated DB config: `next_row_index: 976, _last_sheet_index: 974, replies_synced_count: 974`
+1. First dedup (WRONG columns): 1,076 rows → removed 101 → 974 rows. Week 17 had only 1 row (deleted the rest!)
+2. Second dedup (CORRECT columns J=9, W=22, R=17): 975 rows → removed 34 actual duplicates → 941 clean rows
+3. Recalculated week numbers from epoch for ALL rows
+4. Updated DB config: `next_row_index: 943, _last_sheet_index: 941, replies_synced_count: 941`
 
-**Final state**: Sheet has 974 non-OOO Rizzult replies across all time. Week 17 (Mar 16-22) has 13 replies correctly present.
+**Final state**: Sheet has 941 non-OOO Rizzult replies. Week 17 (Mar 16-22) has **14 replies** correctly present with week=17.
 
 **Prevention rules for future**:
 - **NEVER mass-reset `sheet_synced_at` while scheduler is running** — stop scheduler first or use a maintenance window
