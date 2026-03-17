@@ -1,3 +1,14 @@
+then allow to select contacts in crm and add to smarteald campaing - after creation os the campaing (create with sstatus draft) provide link to the campaing
+
+so taht flow is
+1. user writes in chat what to gather
+2. chats show crm link after finishing with draft contacts
+3. user adds draft contacts to newly created draft campaign, can click on the link and see 
+
+
+------
+
+
 First of all, why there are loading spinners for already passed steps? Then, well, why payroll segment interpreted as, like, skins selling payroll is like companies like for dev, for dev.com. So how the process of investigation of what user actually meant, how this should be interpreted, is made now. Use Gemini 2.5 Pro Mini at least for this case. And why... I don't want to see information about not decision makers. Like, why you told about in the final research, like 217 contacts found, but 42 decision makers. I need only decision makers. I mean, any person using this chat will need only decision makers. And like, when clicking to CRM, I have nothing. And, like, there is a segment payroll, but probably it shouldn't be on the segment payroll. It should be like each such data gathering must have a special ID for this, like, for instance, for exactly for play, data search run. And should have special ID, and by this ID in CRM, contacts should be visible and gathered within this run. Yeah, since there will be a lot of runs and I don't want to see the whole segment payroll. I want to see, like, hey, this is a link of gathered contacts for my project, of course, and for this specific run. You know what I mean?
 
 also why only link to companies link in clay? add link to contats link too

@@ -1,112 +1,109 @@
 // ── Wazzzup Content Script — runs on web.whatsapp.com ──
-// This script is injected AFTER navigation to /send?phone=X&text=Y
-// Its only job: wait for the compose box + send button, then click send.
+// Injects wa-js.js + inject.js into the page, bridges messages between background and inject.
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'clickSend') {
-    handleClickSend()
-      .then(sendResponse)
-      .catch(err => sendResponse({ success: false, error: err.message }));
-    return true; // async response
-  }
+// Guard against multiple injections
+if (!window._wazzzupInit) {
+  window._wazzzupInit = true;
 
-  if (request.action === 'checkStatus') {
-    const loggedIn = !!document.querySelector('[data-testid="chat-list"]');
-    sendResponse({ loggedIn });
-    return;
-  }
-});
-
-async function handleClickSend() {
-  try {
-    // Check for "invalid phone number" popup first
-    const invalidPopup = document.querySelector('[data-testid="popup-contents"]');
-    if (invalidPopup) {
-      const okBtn = invalidPopup.querySelector('[data-testid="popup-controls-ok"]');
-      if (okBtn) okBtn.click();
-      return { success: false, error: 'Invalid phone number' };
-    }
-
-    // Wait for the compose box to appear (means chat loaded and text is populated)
-    const inputBox = await waitForElement(
-      '[data-testid="conversation-compose-box-input"], div[contenteditable="true"][data-tab="10"]',
-      12000
-    );
-
-    if (!inputBox) {
-      // Check again for popup that may have appeared during wait
-      const popup = document.querySelector('[data-testid="popup-contents"]');
-      if (popup) {
-        const text = popup.textContent || '';
-        const okBtn = popup.querySelector('[data-testid="popup-controls-ok"]');
-        if (okBtn) okBtn.click();
-        return { success: false, error: 'WhatsApp error: ' + text.slice(0, 80) };
-      }
-      return { success: false, error: 'Chat did not load (compose box not found)' };
-    }
-
-    // Wait a bit for the message text to be fully populated by WhatsApp
-    await sleep(1500);
-
-    // Find the send button
-    const sendBtn = await waitForElement(
-      '[data-testid="send"], [data-testid="compose-btn-send"], button[aria-label="Send"]',
-      5000
-    );
-
-    if (!sendBtn) {
-      // Try pressing Enter as fallback
-      inputBox.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'Enter',
-        code: 'Enter',
-        keyCode: 13,
-        which: 13,
-        bubbles: true
-      }));
-      await sleep(1000);
-      return { success: true, method: 'enter-key' };
-    }
-
-    sendBtn.click();
-    await sleep(1500);
-
-    // Verify: check if message appeared in chat (look for latest outgoing msg tick)
-    const ticks = document.querySelectorAll('[data-testid="msg-check"], [data-testid="msg-dblcheck"], [data-testid="msg-time"]');
-    if (ticks.length > 0) {
-      return { success: true };
-    }
-
-    // Even without tick verification, the click likely worked
-    return { success: true };
-
-  } catch (err) {
-    return { success: false, error: err.message || 'Unknown error' };
-  }
-}
-
-function waitForElement(selector, timeout = 10000) {
-  return new Promise((resolve) => {
-    const existing = document.querySelector(selector);
-    if (existing) { resolve(existing); return; }
-
-    const observer = new MutationObserver(() => {
-      const el = document.querySelector(selector);
-      if (el) {
-        observer.disconnect();
-        clearTimeout(timer);
-        resolve(el);
-      }
+  // ── Step 1: Inject wa-js.js into the page context ──
+  function injectScript(file) {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = chrome.runtime.getURL(file);
+      script.onload = () => { script.remove(); resolve(); };
+      script.onerror = () => { script.remove(); resolve(); };
+      (document.head || document.documentElement).appendChild(script);
     });
+  }
 
-    observer.observe(document.body, { childList: true, subtree: true });
+  async function init() {
+    // Inject wa-js library (creates window.WPP)
+    await injectScript('wa-js.js');
+    // Inject our message handler
+    await injectScript('inject.js');
 
-    const timer = setTimeout(() => {
-      observer.disconnect();
-      resolve(null);
-    }, timeout);
+    // Poll until WPP is ready
+    let ready = false;
+    for (let i = 0; i < 60; i++) { // up to 30 seconds
+      ready = await checkReady();
+      if (ready) break;
+      await sleep(500);
+    }
+    console.log('[Wazzzup] WPP ready:', ready);
+  }
+
+  init();
+
+  // ── Step 2: Message bridge ──
+  // Background → content script → inject.js (page context) → back
+  const pendingRequests = new Map();
+  let msgId = 0;
+
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'sendMessage') {
+      sendToPage('sendMessage', request.phone, request.message)
+        .then(sendResponse)
+        .catch(err => sendResponse({ success: false, error: err.message }));
+      return true; // async
+    }
+    if (request.action === 'checkReady') {
+      checkReady().then(ready => sendResponse({ ready }));
+      return true;
+    }
   });
-}
 
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
+  // Listen for responses from inject.js
+  window.addEventListener('message', (event) => {
+    if (event.source !== window || !event.data || event.data.source !== 'wazzzup-inject') return;
+    const { id, success, error } = event.data;
+    const pending = pendingRequests.get(id);
+    if (pending) {
+      pendingRequests.delete(id);
+      pending.resolve({ success, error: error || null });
+    }
+  });
+
+  function sendToPage(action, phone, message) {
+    return new Promise((resolve, reject) => {
+      const id = ++msgId;
+      const timeout = setTimeout(() => {
+        pendingRequests.delete(id);
+        resolve({ success: false, error: 'Timeout waiting for WPP response' });
+      }, 20000);
+
+      pendingRequests.set(id, {
+        resolve: (result) => { clearTimeout(timeout); resolve(result); }
+      });
+
+      window.postMessage({
+        source: 'wazzzup-content',
+        id,
+        action,
+        phone,
+        message
+      }, '*');
+    });
+  }
+
+  function checkReady() {
+    return new Promise((resolve) => {
+      const id = ++msgId;
+      const timeout = setTimeout(() => {
+        pendingRequests.delete(id);
+        resolve(false);
+      }, 2000);
+
+      pendingRequests.set(id, {
+        resolve: (result) => { clearTimeout(timeout); resolve(result.success); }
+      });
+
+      window.postMessage({
+        source: 'wazzzup-content',
+        id,
+        action: 'checkReady'
+      }, '*');
+    });
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 }

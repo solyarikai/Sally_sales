@@ -1,20 +1,27 @@
 {
   "industries": [
-    "Online gaming",
-    "Computer games",
-    "E-commerce"
+    "Online media",
+    "Technology, information and internet",
+    "Entertainment providers",
+    "Mobile gaming apps",
+    "Software development"
   ],
   "description_keywords": [
-    "skins",
-    "CS2",
-    "CSGO",
-    "Dota2",
-    "Roblox",
-    "WoW",
-    "FIFA",
-    "gaming marketplace",
-    "virtual items",
-    "loot boxes",
-    "skin trading"
-  ]
+    "dating",
+    "matchmaking",
+    "swipe",
+    "dating app",
+    "meet people",
+    "social discovery",
+    "companion",
+    "relationship app"
+  ],
+  "description_keywords_exclude": [
+    "recruitment",
+    "staffing",
+    "hiring",
+    "news",
+    "blog"
+  ],
+  "semantic_description": "Dating apps and social discovery platforms for meeting new people. Mobile apps like Tinder Badoo Bumble Hinge Grindr OkCupid for dating matchmaking relationships social meetups companion finding"
 }

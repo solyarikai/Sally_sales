@@ -962,7 +962,16 @@ async function main() {
   const citiesArg = citiesIdx >= 0 ? args[citiesIdx + 1] : null;
   const customCities = citiesArg ? citiesArg.split(',').map(c => c.trim()) : null;
 
-  if (useTitles) {
+  // Custom titles via env var (for orchestration scripts)
+  const envTitles = process.env.CLAY_CUSTOM_TITLES;
+  if (envTitles) {
+    try {
+      GAMING_ICP_FILTERS.job_titles = JSON.parse(envTitles);
+      console.log(`  Title filter: CUSTOM (${GAMING_ICP_FILTERS.job_titles.length} titles from env)`);
+    } catch (e) {
+      console.log(`  WARNING: Could not parse CLAY_CUSTOM_TITLES: ${e.message}`);
+    }
+  } else if (useTitles) {
     GAMING_ICP_FILTERS.job_titles = ['CEO', 'Founder', 'Co-Founder', 'CTO', 'CFO', 'COO',
       'VP', 'Head of', 'Director', 'Chief', 'Managing Director', 'Owner'];
     console.log('  Title filter: ON (decision-makers only)');
