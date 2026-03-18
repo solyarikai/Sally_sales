@@ -3781,89 +3781,134 @@ async def contact_referral(
     import anthropic as _anthropic
     from app.services.smartlead_service import SmartleadService
 
-    # Referral campaign ID — "SquareFi - Fedor - Referral Outreach"
-    REFERRAL_CAMPAIGN_ID = "3053379"
-
     result = await db.execute(select(ProcessedReply).where(ProcessedReply.id == reply_id))
     reply = result.scalar_one_or_none()
     if not reply:
         raise HTTPException(status_code=404, detail="Reply not found")
 
     referrer_name = f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip() or reply.lead_email
-    referrer_first = reply.lead_first_name or referrer_name.split()[0] if referrer_name else ""
+    referrer_first = (reply.lead_first_name or referrer_name.split()[0]) if referrer_name else ""
     referrer_company = reply.lead_company or ""
     referred_first = body.referred_first_name or body.referred_email.split("@")[0].capitalize()
 
-    # Generate personalized outreach message using AI
-    original_sent = reply.draft_reply or ""
-    prompt = f"""You are Eugene Sukhoi, Partner at SquareFi (squarefi.co).
+    sl = SmartleadService()
+    try:
+        # 1. Find sender email: get message history from original campaign → last SENT message
+        sender_email = None
+        sender_account_id = None
+        if reply.campaign_id and reply.smartlead_lead_id:
+            history = await sl.get_lead_message_history(reply.campaign_id, reply.smartlead_lead_id)
+            sent_msgs = [m for m in history if m.get("type") == "SENT"]
+            if sent_msgs:
+                sender_email = sent_msgs[-1].get("from") or sent_msgs[0].get("from")
+
+        # 2. Look up the email account ID for that sender email
+        if sender_email:
+            all_accounts = await sl.get_all_email_accounts()
+            for acc in all_accounts:
+                acc_email = (acc.get("from_email") or acc.get("email") or "").lower()
+                if acc_email == sender_email.lower():
+                    sender_account_id = acc.get("id")
+                    break
+
+        # 3. Generate AI personalized message
+        original_sent = reply.draft_reply or ""
+        prompt = f"""You are Eugene Sukhoi, Partner at SquareFi (squarefi.co).
 
 {referrer_name}{f' from {referrer_company}' if referrer_company else ''} replied to your email saying you should contact {body.referred_email} instead — they handle the relevant operations.
 
-Write a SHORT, warm cold outreach email to {referred_first} (email: {body.referred_email}) referencing that {referrer_first} mentioned them.
+Write a SHORT, warm cold outreach email to {referred_first} referencing that {referrer_first} mentioned them.
 
 Context — what you originally sent to {referrer_first}:
 {original_sent[:600] if original_sent else '(payment infrastructure offer for SquareFi)'}
 
 Rules:
 - 3-4 sentences max, no fluff
-- First line: mention {referrer_first} said they're the right person
+- First line: mention {referrer_first} said they are the right person
 - One sentence on what SquareFi does (multi-currency accounts, crypto-fiat, cards)
 - End with a soft CTA (15-min call or send deck)
 - Signature: Eugene Sukhoi / Partner @Squarefi.co / Processed over $500M in 2025 | Trusted by 50+ fintech companies
 - Plain text, no HTML, no subject line"""
 
-    try:
-        ai_client = _anthropic.AsyncAnthropic()
-        ai_msg = await ai_client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=400,
-            messages=[{"role": "user", "content": prompt}],
+        try:
+            ai_client = _anthropic.AsyncAnthropic()
+            ai_msg = await ai_client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=400,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            personalized_message = ai_msg.content[0].text.strip()
+        except Exception as ai_err:
+            logger.warning(f"[REFERRAL] AI generation failed, using fallback: {ai_err}")
+            personalized_message = (
+                f"Hi {referred_first},\n\n"
+                f"{referrer_first}{f' from {referrer_company}' if referrer_company else ''} mentioned you might be the right person to talk to about payment infrastructure.\n\n"
+                f"We help companies like yours with multi-currency accounts, crypto-to-fiat settlement, and mass payouts — without bank account closures.\n\n"
+                f"Worth a quick 15-min call?\n\n"
+                f"Best,\nEugene Sukhoi\nPartner @Squarefi.co\nProcessed over $500M in 2025 | Trusted by 50+ fintech companies"
+            )
+
+        email_subject = (
+            f"{referrer_first} from {referrer_company} suggested I reach out | SquareFi"
+            if referrer_company else f"Introduction from {referrer_first} | SquareFi"
         )
-        personalized_message = ai_msg.content[0].text.strip()
-    except Exception as ai_err:
-        logger.warning(f"[REFERRAL] AI generation failed, using fallback: {ai_err}")
-        personalized_message = (
-            f"Hi {referred_first},\n\n"
-            f"{referrer_first}{f' from {referrer_company}' if referrer_company else ''} mentioned you might be the right person to talk to about payment infrastructure.\n\n"
-            f"We help companies like yours with multi-currency accounts, crypto-to-fiat settlement, and mass payouts — without bank account closures.\n\n"
-            f"Worth a quick 15-min call?\n\n"
-            f"Best,\nEugene Sukhoi\nPartner @Squarefi.co\nProcessed over $500M in 2025 | Trusted by 50+ fintech companies"
-        )
 
-    email_subject = f"{referrer_first} from {referrer_company} suggested I reach out | SquareFi" if referrer_company else f"Introduction from {referrer_first} | SquareFi"
+        # 4. Create a dedicated campaign for this referral so it sends from the right email
+        campaign_name = f"SquareFi - Referral - {body.referred_email}"
+        new_campaign = await sl.create_campaign(campaign_name)
+        new_campaign_id = str(new_campaign["id"])
 
-    target_campaign_id = body.campaign_id or REFERRAL_CAMPAIGN_ID
+        # 5. Add the original sender's email account (or fall back to referral campaign accounts)
+        if sender_account_id:
+            await sl.add_email_accounts_to_campaign(new_campaign_id, [sender_account_id])
+        else:
+            # Fallback: use all Eugene accounts from the base referral campaign
+            fallback_ids = [
+                15957139,15957138,15957134,15957131,15957127,15957119,15957116,
+                15957109,15957101,15957085,15957071,15957065,15957058,15957042,
+                15957038,15957029,15957022,15957008,15957000,15956987,15956983,
+                15956972,15956963,15956959,15956953,15956950,15956939,15956919,15956907,
+            ]
+            await sl.add_email_accounts_to_campaign(new_campaign_id, fallback_ids)
 
-    lead = {
-        "email": body.referred_email,
-        "first_name": body.referred_first_name or "",
-        "last_name": body.referred_last_name or "",
-        "company_name": referrer_company,
-        "custom_fields": {
-            "personalized_message": personalized_message,
-            "email_subject": email_subject,
-            "referred_by_name": referrer_name,
-            "referred_by_company": referrer_company,
-        },
-    }
+        # 6. Set the 1-email sequence
+        await sl.set_campaign_sequences(new_campaign_id, [{
+            "seq_number": 1,
+            "seq_delay_details": {"delay_in_days": 0},
+            "subject": "{{email_subject}}",
+            "email_body": "{{personalized_message}}",
+        }])
 
-    sl = SmartleadService()
-    try:
-        api_result = await sl.add_leads_to_campaign(target_campaign_id, [lead])
+        # 7. Add the referred lead with the personalized message as a custom field
+        lead = {
+            "email": body.referred_email,
+            "first_name": body.referred_first_name or "",
+            "last_name": body.referred_last_name or "",
+            "company_name": referrer_company,
+            "custom_fields": {
+                "personalized_message": personalized_message,
+                "email_subject": email_subject,
+            },
+        }
+        await sl.add_leads_to_campaign(new_campaign_id, [lead])
+
+        # 8. Launch the campaign
+        await sl.update_campaign_status(new_campaign_id, "START")
+
     finally:
         await sl.close()
 
     logger.info(
-        f"[REFERRAL] Added {body.referred_email} to referral campaign "
-        f"(referred by {referrer_name} from reply #{reply_id})"
+        f"[REFERRAL] Created campaign '{campaign_name}' (id={new_campaign_id}), "
+        f"sender={sender_email or 'fallback'}, referred by {referrer_name}"
     )
 
     return {
-        "status": "added",
+        "status": "sent",
         "referred_email": body.referred_email,
-        "campaign_id": target_campaign_id,
-        "campaign_name": "SquareFi - Fedor - Referral Outreach",
+        "campaign_id": new_campaign_id,
+        "campaign_name": campaign_name,
+        "sender_email": sender_email,
         "referred_by": referrer_name,
         "personalized_message": personalized_message,
         "email_subject": email_subject,

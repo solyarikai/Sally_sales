@@ -809,6 +809,72 @@ class SmartleadService:
             logger.error(f"Error setting sequences for campaign {campaign_id}: {e}")
             return False
 
+    async def get_lead_message_history(self, campaign_id: str, lead_id: str) -> List[Dict[str, Any]]:
+        """Get message history for a lead in a campaign. Returns list of messages with 'from', 'type', etc."""
+        if not self._api_key:
+            return []
+        try:
+            response = await smartlead_request(
+                "GET", f"{self.base_url}/campaigns/{campaign_id}/leads/{lead_id}/message-history",
+                params={"api_key": self._api_key},
+                timeout=20.0,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data if isinstance(data, list) else data.get("history", data.get("messages", []))
+        except Exception as e:
+            logger.warning(f"Error fetching message history for lead {lead_id}: {e}")
+        return []
+
+    async def get_all_email_accounts(self, limit: int = 200) -> List[Dict[str, Any]]:
+        """List all email accounts in the Smartlead workspace."""
+        if not self._api_key:
+            return []
+        try:
+            response = await smartlead_request(
+                "GET", f"{self.base_url}/email-accounts",
+                params={"api_key": self._api_key, "limit": limit},
+                timeout=20.0,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data if isinstance(data, list) else data.get("data", data.get("email_accounts", []))
+        except Exception as e:
+            logger.warning(f"Error fetching email accounts: {e}")
+        return []
+
+    async def add_email_accounts_to_campaign(self, campaign_id: str, account_ids: List[int]) -> bool:
+        """Add email account(s) to a campaign."""
+        if not self._api_key:
+            return False
+        try:
+            response = await smartlead_request(
+                "POST", f"{self.base_url}/campaigns/{campaign_id}/email-accounts",
+                params={"api_key": self._api_key},
+                json={"email_account_ids": account_ids},
+                timeout=20.0,
+            )
+            return response.status_code in [200, 201]
+        except Exception as e:
+            logger.warning(f"Error adding email accounts to campaign {campaign_id}: {e}")
+            return False
+
+    async def update_campaign_status(self, campaign_id: str, status: str) -> bool:
+        """Set campaign status: START, STOP, PAUSE."""
+        if not self._api_key:
+            return False
+        try:
+            response = await smartlead_request(
+                "POST", f"{self.base_url}/campaigns/{campaign_id}/status",
+                params={"api_key": self._api_key},
+                json={"status": status},
+                timeout=20.0,
+            )
+            return response.status_code in [200, 201]
+        except Exception as e:
+            logger.warning(f"Error updating campaign {campaign_id} status to {status}: {e}")
+            return False
+
     # configure_campaign_webhook was removed — it was one of three independent
     # webhook registration paths that caused 360+ duplicates across 102 campaigns.
     # Webhook registration now lives EXCLUSIVELY in crm_scheduler.py →
