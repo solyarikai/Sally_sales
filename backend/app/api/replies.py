@@ -3778,19 +3778,62 @@ async def contact_referral(
     person to Smartlead with custom fields so the campaign email can reference
     who sent them (e.g. '{{referred_by_name}} mentioned you handle payments').
     """
+    import anthropic as _anthropic
     from app.services.smartlead_service import SmartleadService
+
+    # Referral campaign ID — "SquareFi - Fedor - Referral Outreach"
+    REFERRAL_CAMPAIGN_ID = "3053379"
 
     result = await db.execute(select(ProcessedReply).where(ProcessedReply.id == reply_id))
     reply = result.scalar_one_or_none()
     if not reply:
         raise HTTPException(status_code=404, detail="Reply not found")
 
-    target_campaign_id = body.campaign_id or reply.campaign_id
-    if not target_campaign_id:
-        raise HTTPException(status_code=400, detail="No campaign_id available — provide one explicitly")
-
     referrer_name = f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip() or reply.lead_email
+    referrer_first = reply.lead_first_name or referrer_name.split()[0] if referrer_name else ""
     referrer_company = reply.lead_company or ""
+    referred_first = body.referred_first_name or body.referred_email.split("@")[0].capitalize()
+
+    # Generate personalized outreach message using AI
+    original_sent = reply.draft_reply or ""
+    prompt = f"""You are Eugene Sukhoi, Partner at SquareFi (squarefi.co).
+
+{referrer_name}{f' from {referrer_company}' if referrer_company else ''} replied to your email saying you should contact {body.referred_email} instead — they handle the relevant operations.
+
+Write a SHORT, warm cold outreach email to {referred_first} (email: {body.referred_email}) referencing that {referrer_first} mentioned them.
+
+Context — what you originally sent to {referrer_first}:
+{original_sent[:600] if original_sent else '(payment infrastructure offer for SquareFi)'}
+
+Rules:
+- 3-4 sentences max, no fluff
+- First line: mention {referrer_first} said they're the right person
+- One sentence on what SquareFi does (multi-currency accounts, crypto-fiat, cards)
+- End with a soft CTA (15-min call or send deck)
+- Signature: Eugene Sukhoi / Partner @Squarefi.co / Processed over $500M in 2025 | Trusted by 50+ fintech companies
+- Plain text, no HTML, no subject line"""
+
+    try:
+        ai_client = _anthropic.AsyncAnthropic()
+        ai_msg = await ai_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        personalized_message = ai_msg.content[0].text.strip()
+    except Exception as ai_err:
+        logger.warning(f"[REFERRAL] AI generation failed, using fallback: {ai_err}")
+        personalized_message = (
+            f"Hi {referred_first},\n\n"
+            f"{referrer_first}{f' from {referrer_company}' if referrer_company else ''} mentioned you might be the right person to talk to about payment infrastructure.\n\n"
+            f"We help companies like yours with multi-currency accounts, crypto-to-fiat settlement, and mass payouts — without bank account closures.\n\n"
+            f"Worth a quick 15-min call?\n\n"
+            f"Best,\nEugene Sukhoi\nPartner @Squarefi.co\nProcessed over $500M in 2025 | Trusted by 50+ fintech companies"
+        )
+
+    email_subject = f"{referrer_first} from {referrer_company} suggested I reach out | SquareFi" if referrer_company else f"Introduction from {referrer_first} | SquareFi"
+
+    target_campaign_id = body.campaign_id or REFERRAL_CAMPAIGN_ID
 
     lead = {
         "email": body.referred_email,
@@ -3798,6 +3841,8 @@ async def contact_referral(
         "last_name": body.referred_last_name or "",
         "company_name": referrer_company,
         "custom_fields": {
+            "personalized_message": personalized_message,
+            "email_subject": email_subject,
             "referred_by_name": referrer_name,
             "referred_by_company": referrer_company,
         },
@@ -3810,7 +3855,7 @@ async def contact_referral(
         await sl.close()
 
     logger.info(
-        f"[REFERRAL] Added {body.referred_email} to campaign {target_campaign_id} "
+        f"[REFERRAL] Added {body.referred_email} to referral campaign "
         f"(referred by {referrer_name} from reply #{reply_id})"
     )
 
@@ -3818,9 +3863,10 @@ async def contact_referral(
         "status": "added",
         "referred_email": body.referred_email,
         "campaign_id": target_campaign_id,
-        "campaign_name": reply.campaign_name,
+        "campaign_name": "SquareFi - Fedor - Referral Outreach",
         "referred_by": referrer_name,
-        "smartlead_response": api_result,
+        "personalized_message": personalized_message,
+        "email_subject": email_subject,
     }
 
 
