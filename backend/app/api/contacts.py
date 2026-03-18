@@ -306,46 +306,8 @@ async def _build_filtered_query(
     )
 
     if project_id:
-        proj_result = await session.execute(
-            select(Project.campaign_filters, Project.name, Project.company_id).where(Project.id == project_id)
-        )
-        proj_row = proj_result.first()
-        if proj_row and company_id and proj_row[2] and proj_row[2] != company_id:
-            # Project belongs to a different company — return empty results
-            query = query.where(sql_text("1 = 0"))
-        proj_campaign_filters = proj_row[0] if proj_row else None
-        proj_name = (proj_row[1] if proj_row else "") or ""
-
-        # When source_id is explicit (e.g. clay_641), use simple project_id filter —
-        # campaign_clause would exclude contacts that match source_id but lack campaign history
-        if source_id:
-            query = query.where(Contact.project_id == project_id)
-        elif proj_campaign_filters and len(proj_campaign_filters) > 0:
-            import os
-            common = os.path.commonprefix(proj_campaign_filters).strip()
-            if len(common) < 3 and proj_name and all(
-                proj_name.lower() in cf.lower() for cf in proj_campaign_filters
-            ):
-                common = proj_name
-
-            if len(common) >= 3:
-                campaign_clause = sql_text(
-                    "(contacts.project_id = :fk_pid OR contacts.platform_state::text ILIKE :cf_prefix)"
-                ).bindparams(fk_pid=project_id, cf_prefix=f"%{common}%")
-            else:
-                prefixes = list(set(cf[:15] for cf in proj_campaign_filters))[:10]
-                parts = " OR ".join(
-                    f"contacts.platform_state::text ILIKE :cfp_{i}"
-                    for i in range(len(prefixes))
-                )
-                params = {f"cfp_{i}": f"%{p}%" for i, p in enumerate(prefixes)}
-                campaign_clause = sql_text(
-                    f"(contacts.project_id = :fk_pid OR ({parts}))"
-                ).bindparams(fk_pid=project_id, **params)
-
-            query = query.where(campaign_clause)
-        else:
-            query = query.where(Contact.project_id == project_id)
+        # Простая фильтрация по project_id — быстро и надёжно
+        query = query.where(Contact.project_id == project_id)
 
     if segment:
         segments_list = [s.strip() for s in segment.split(',') if s.strip()]
