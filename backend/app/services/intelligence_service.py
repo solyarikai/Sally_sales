@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import select, func, and_, case, literal_column
+from sqlalchemy import select, func, and_, case, literal_column, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reply import ProcessedReply, ThreadMessage
@@ -476,8 +476,9 @@ Classify this reply. Return JSON only, no markdown:
   "intent": "<one of: schedule_call, send_info, interested_vague, redirect_colleague, pricing, how_it_works, compliance, specific_use_case, adjacent_demand, not_relevant, no_crypto, not_now, have_solution, regulatory, hard_no, spam_complaint, auto_response, bounce, gibberish, wrong_person_forward, empty>",
   "warmth_score": <0-5>,
   "offer_responded_to": "<paygate|payout|otc|general>",
-  "interests": "<1-2 sentence summary of what the lead specifically wants/needs. Be concrete: mention products, geographies, settlement methods, use cases. If rejection, describe what they have or why they declined.>",
+  "interests": "<1-2 sentence summary of what the lead specifically wants/needs. Be concrete: mention products, geographies, settlement methods, use cases. Include any countries or regions mentioned (e.g. 'China', 'CIS', 'Hong Kong'). If rejection, describe what they have or why they declined.>",
   "tags": ["<tag1>", "<tag2>"],
+  "geo_tags": ["<country-or-region>"],
   "language": "<en|ru|other>"
 }}
 
@@ -485,9 +486,13 @@ Tags should be lowercase, hyphenated, and capture:
 - Specific needs: "swift-settlement", "third-party-beneficiaries", "china-suppliers"
 - Product interest: "paygate", "payout", "otc", "on-ramp", "fiat-to-fiat"
 - Industry/vertical: "gaming", "saas", "fintech", "trading"
-- Geography: "china", "cis", "europe", "hong-kong"
 - Objection type: "no-crypto", "have-solution", "regulatory-block"
 - Status: "ready-to-meet", "needs-info", "referred-colleague"
+
+geo_tags: Extract ALL countries, regions, and cities mentioned in the reply OR inferable from context.
+Use lowercase: "china", "hong-kong", "cis", "europe", "uae", "singapore", "russia", "turkey", "india".
+If the lead's company domain or name suggests a geography (e.g. .hk = Hong Kong), include it.
+If no geography is mentioned or inferable, return empty array.
 """
 
 
@@ -549,12 +554,18 @@ async def ai_classify_reply(
             tags = []
         tags = [str(t).lower().strip() for t in tags if t][:20]
 
+        geo_tags = parsed.get("geo_tags", [])
+        if not isinstance(geo_tags, list):
+            geo_tags = []
+        geo_tags = [str(g).lower().strip() for g in geo_tags if g][:10]
+
         return {
             "intent": intent,
             "warmth_score": warmth,
             "offer_responded_to": offer,
             "interests": str(parsed.get("interests", ""))[:500],
             "tags": tags,
+            "geo_tags": geo_tags,
             "language": parsed.get("language", "en"),
             "reasoning": raw,
         }
@@ -649,6 +660,7 @@ async def analyze_project_replies(session: AsyncSession, project_id: int, use_ai
                     language=ai_result["language"],
                     interests=ai_result["interests"],
                     tags=ai_result["tags"],
+                    geo_tags=ai_result.get("geo_tags", []),
                     reasoning=ai_result["reasoning"],
                     analyzer_model="gemini-2.5-pro",
                 ), True
@@ -738,6 +750,7 @@ async def get_intelligence_summary(
     by_segment = {}
     by_intent = {}
     by_tag = {}
+    by_geo = {}
     total = 0
 
     for intent, offer, warmth, segment, tags, cnt in rows:
@@ -751,6 +764,20 @@ async def get_intelligence_summary(
             for tag in tags:
                 by_tag[tag] = by_tag.get(tag, 0) + cnt
 
+    # Geo tags — separate query since they're in a different column
+    geo_query = text("""
+        SELECT tag, COUNT(*) as cnt
+        FROM reply_analysis, unnest(geo_tags) AS tag
+        WHERE project_id = :pid AND geo_tags IS NOT NULL
+        GROUP BY tag ORDER BY cnt DESC LIMIT 30
+    """)
+    try:
+        geo_result = await session.execute(geo_query, {"pid": project_id})
+        for tag, cnt in geo_result.all():
+            by_geo[tag] = cnt
+    except Exception:
+        pass  # geo_tags column may not exist yet
+
     return {
         "total": total,
         "by_group": by_group,
@@ -758,4 +785,5 @@ async def get_intelligence_summary(
         "by_segment": dict(sorted(by_segment.items(), key=lambda x: -x[1])),
         "by_intent": dict(sorted(by_intent.items(), key=lambda x: -x[1])),
         "by_tag": dict(sorted(by_tag.items(), key=lambda x: -x[1])[:30]),
+        "by_geo": by_geo,
     }

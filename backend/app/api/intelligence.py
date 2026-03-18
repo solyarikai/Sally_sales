@@ -41,6 +41,7 @@ class ReplyAnalysisOut(BaseModel):
     reasoning: Optional[str] = None
     interests: Optional[str] = None
     tags: Optional[List[str]] = None
+    geo_tags: Optional[List[str]] = None
     # Joined from ProcessedReply
     lead_email: Optional[str] = None
     lead_name: Optional[str] = None
@@ -66,6 +67,7 @@ class SummaryOut(BaseModel):
     by_segment: dict
     by_intent: dict
     by_tag: Optional[dict] = None
+    by_geo: Optional[dict] = None
 
 
 class AnalyzeResult(BaseModel):
@@ -95,6 +97,7 @@ async def list_intelligence(
     offer: Optional[str] = Query(None, description="Comma-separated: paygate,payout,otc,general"),
     segment: Optional[str] = Query(None, description="Comma-separated segment filter"),
     tags: Optional[str] = Query(None, description="Comma-separated tag filter (array overlap)"),
+    geo: Optional[str] = Query(None, description="Comma-separated geography tag filter (array overlap)"),
     interests_search: Optional[str] = Query(None, description="Full-text search in interests"),
     warmth_min: Optional[int] = Query(None, ge=0, le=5),
     warmth_max: Optional[int] = Query(None, ge=0, le=5),
@@ -148,8 +151,11 @@ async def list_intelligence(
 
     if tags:
         tag_list = [t.strip() for t in tags.split(",")]
-        # PostgreSQL array overlap: reply tags && filter tags
         filters.append(ReplyAnalysis.tags.overlap(tag_list))
+
+    if geo:
+        geo_list = [g.strip() for g in geo.split(",")]
+        filters.append(ReplyAnalysis.geo_tags.overlap(geo_list))
 
     if interests_search:
         filters.append(ReplyAnalysis.interests.ilike(f"%{interests_search}%"))
@@ -211,6 +217,7 @@ async def list_intelligence(
             reasoning=analysis.reasoning,
             interests=analysis.interests,
             tags=analysis.tags,
+            geo_tags=analysis.geo_tags,
             lead_email=row[1],
             lead_name=row[2],
             lead_company=row[3],

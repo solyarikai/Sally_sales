@@ -13,6 +13,7 @@ export interface ReplyAnalysisItem {
   reasoning: string | null;
   interests: string | null;
   tags: string[] | null;
+  geo_tags: string[] | null;
   lead_email: string | null;
   lead_name: string | null;
   lead_company: string | null;
@@ -33,6 +34,7 @@ export interface IntelligenceSummary {
   by_segment: Record<string, number>;
   by_intent: Record<string, number>;
   by_tag?: Record<string, number>;
+  by_geo?: Record<string, number>;
 }
 
 export interface TagCount {
@@ -48,6 +50,7 @@ export const intelligenceApi = {
     offer?: string;
     segment?: string;
     tags?: string;
+    geo?: string;
     interests_search?: string;
     warmth_min?: number;
     warmth_max?: number;

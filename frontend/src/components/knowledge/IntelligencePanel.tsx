@@ -245,6 +245,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
   const [intentFilter, setIntentFilter] = useState<Set<string>>(new Set());
   const [segmentFilter, setSegmentFilter] = useState<Set<string>>(new Set());
   const [tagFilter, setTagFilter] = useState<Set<string>>(new Set());
+  const [geoFilter, setGeoFilter] = useState<Set<string>>(new Set());
   const [searchText, setSearchText] = useState('');
   const [period, setPeriod] = useState(0); // 0 = all time
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -272,6 +273,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
       if (intentFilter.size) params.intent = Array.from(intentFilter).join(',');
       if (segmentFilter.size) params.segment = Array.from(segmentFilter).join(',');
       if (tagFilter.size) params.tags = Array.from(tagFilter).join(',');
+      if (geoFilter.size) params.geo = Array.from(geoFilter).join(',');
       if (searchText) params.search = searchText;
       if (dateFrom) params.date_from = dateFrom;
 
@@ -286,7 +288,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
     } finally {
       setLoading(false);
     }
-  }, [projectId, intentGroupFilter, offerFilter, intentFilter, segmentFilter, tagFilter, searchText, dateFrom]);
+  }, [projectId, intentGroupFilter, offerFilter, intentFilter, segmentFilter, tagFilter, geoFilter, searchText, dateFrom]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -333,6 +335,10 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
     summary?.by_tag ? Object.entries(summary.by_tag).map(([v, c]) => ({ value: v, label: v, count: c })) : [],
     [summary]
   );
+  const geoOptions = useMemo(() =>
+    summary?.by_geo ? Object.entries(summary.by_geo).map(([v, c]) => ({ value: v, label: v, count: c })) : [],
+    [summary]
+  );
 
   const toggleSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, value: string) => {
     setter(prev => {
@@ -359,7 +365,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
     });
   };
 
-  const hasFilters = intentGroupFilter || offerFilter.size || intentFilter.size || segmentFilter.size || tagFilter.size || searchText || period;
+  const hasFilters = intentGroupFilter || offerFilter.size || intentFilter.size || segmentFilter.size || tagFilter.size || geoFilter.size || searchText || period;
 
   const clearFilters = () => {
     setIntentGroupFilter(null);
@@ -367,6 +373,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
     setIntentFilter(new Set());
     setSegmentFilter(new Set());
     setTagFilter(new Set());
+    setGeoFilter(new Set());
     setSearchText('');
     setPeriod(0);
   };
@@ -448,7 +455,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
           {/* Top tags */}
           {summary.by_tag && Object.keys(summary.by_tag).length > 0 && (
             <div className="border-l ml-2 pl-3 flex gap-1.5 items-center flex-wrap" style={{ borderColor: t.cardBorder }}>
-              {Object.entries(summary.by_tag).slice(0, 8).map(([tag, count]) => (
+              {Object.entries(summary.by_tag).slice(0, 6).map(([tag, count]) => (
                 <button
                   key={tag}
                   onClick={() => toggleSet(setTagFilter, tag)}
@@ -459,6 +466,25 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
                   )}
                 >
                   {tag}: {count}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Top geo */}
+          {summary.by_geo && Object.keys(summary.by_geo).length > 0 && (
+            <div className="border-l ml-2 pl-3 flex gap-1.5 items-center flex-wrap" style={{ borderColor: t.cardBorder }}>
+              {Object.entries(summary.by_geo).slice(0, 6).map(([geo, count]) => (
+                <button
+                  key={geo}
+                  onClick={() => toggleSet(setGeoFilter, geo)}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-medium transition-all',
+                    isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-600',
+                    geoFilter.has(geo) ? 'ring-2 ring-blue-500' : '',
+                  )}
+                >
+                  {geo}: {count}
                 </button>
               ))}
             </div>
@@ -487,6 +513,9 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
         <MultiSelectFilter label="Segment" options={segmentOptions} selected={segmentFilter} onToggle={v => toggleSet(setSegmentFilter, v)} isDark={isDark} />
         {tagOptions.length > 0 && (
           <MultiSelectFilter label="Tags" options={tagOptions} selected={tagFilter} onToggle={v => toggleSet(setTagFilter, v)} isDark={isDark} />
+        )}
+        {geoOptions.length > 0 && (
+          <MultiSelectFilter label="Geo" options={geoOptions} selected={geoFilter} onToggle={v => toggleSet(setGeoFilter, v)} isDark={isDark} />
         )}
         {hasFilters && (
           <button
@@ -660,6 +689,27 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
                                             isDark={isDark}
                                             onClick={() => toggleSet(setTagFilter, tag)}
                                           />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {item.geo_tags && item.geo_tags.length > 0 && (
+                                    <div>
+                                      <span className="font-medium block mb-1" style={{ color: t.text1 }}>Geography:</span>
+                                      <div className="flex flex-wrap gap-1">
+                                        {item.geo_tags.map(geo => (
+                                          <button
+                                            key={geo}
+                                            onClick={() => toggleSet(setGeoFilter, geo)}
+                                            className={cn(
+                                              'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
+                                              isDark
+                                                ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                                                : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100',
+                                            )}
+                                          >
+                                            {geo}
+                                          </button>
                                         ))}
                                       </div>
                                     </div>

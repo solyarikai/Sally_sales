@@ -39,6 +39,7 @@ class ReplyAnalysis(Base):
     # AI-extracted insights
     interests = Column(Text, nullable=True)  # Free-text: what the lead actually wants
     tags = Column(ARRAY(String), nullable=True)  # Searchable tags: ["swift-settlement", "china-suppliers"]
+    geo_tags = Column(ARRAY(String), nullable=True)  # Geography tags: ["china", "hong-kong", "cis"]
 
     # AI reasoning
     reasoning = Column(Text, nullable=True)
@@ -50,6 +51,7 @@ class ReplyAnalysis(Base):
         Index("ix_reply_analysis_offer", "offer_responded_to"),
         Index("ix_reply_analysis_warmth", "warmth_score"),
         Index("ix_reply_analysis_tags", "tags", postgresql_using="gin"),
+        Index("ix_reply_analysis_geo_tags", "geo_tags", postgresql_using="gin"),
     )
 
     def __repr__(self):
