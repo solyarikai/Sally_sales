@@ -111,6 +111,8 @@ async def list_intelligence(
     session: AsyncSession = Depends(get_session),
 ):
     """List analyzed replies with filtering and sorting."""
+    # NOTE: Contact join removed — was doing func.lower() on both sides, defeating indexes
+    # and causing full table scan on 194K contacts. Now batch-lookup contacts separately.
     query = (
         select(
             ReplyAnalysis,
@@ -122,11 +124,8 @@ async def list_intelligence(
             ProcessedReply.category,
             ProcessedReply.received_at,
             ProcessedReply.approval_status,
-            Contact.domain.label("lead_domain"),
-            Contact.id.label("contact_id"),
         )
         .join(ProcessedReply, ReplyAnalysis.processed_reply_id == ProcessedReply.id)
-        .outerjoin(Contact, func.lower(Contact.email) == func.lower(ProcessedReply.lead_email))
         .where(ReplyAnalysis.project_id == project_id)
     )
 
@@ -201,9 +200,21 @@ async def list_intelligence(
     result = await session.execute(query)
     rows = result.all()
 
+    # Batch-lookup contacts by email (single IN query instead of per-row JOIN)
+    emails = {row[1].lower() for row in rows if row[1]}
+    contact_map: dict = {}
+    if emails:
+        contact_q = select(Contact.id, Contact.email, Contact.domain).where(
+            func.lower(Contact.email).in_(list(emails))
+        )
+        for cid, cemail, cdomain in (await session.execute(contact_q)).all():
+            contact_map[cemail.lower()] = (cid, cdomain)
+
     items = []
     for row in rows:
         analysis = row[0]
+        email = row[1]
+        cinfo = contact_map.get(email.lower() if email else "", (None, None))
         items.append(ReplyAnalysisOut(
             id=analysis.id,
             processed_reply_id=analysis.processed_reply_id,
@@ -218,7 +229,7 @@ async def list_intelligence(
             interests=analysis.interests,
             tags=analysis.tags,
             geo_tags=analysis.geo_tags,
-            lead_email=row[1],
+            lead_email=email,
             lead_name=row[2],
             lead_company=row[3],
             campaign_name=row[4],
@@ -227,8 +238,8 @@ async def list_intelligence(
             received_at=str(row[7]) if row[7] else None,
             approval_status=row[8],
             intent_group=get_intent_group(analysis.intent or "empty"),
-            lead_domain=row[9],
-            contact_id=row[10],
+            lead_domain=cinfo[1],
+            contact_id=cinfo[0],
         ))
 
     return items
@@ -288,6 +299,55 @@ async def list_tags(
     result = await session.execute(query, {"pid": project_id})
     rows = result.all()
     return [{"tag": row[0], "count": row[1]} for row in rows]
+
+
+@router.get("/campaigns/")
+async def intelligence_campaigns(
+    project_id: int = Query(..., description="Project ID"),
+    date_from: Optional[str] = Query(None, description="ISO date filter start"),
+    date_to: Optional[str] = Query(None, description="ISO date filter end"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Campaign-level breakdown for debug panel — reply counts per campaign with channel info."""
+    query = (
+        select(
+            ProcessedReply.campaign_name,
+            ProcessedReply.source,
+            ProcessedReply.channel,
+            func.count().label("reply_count"),
+        )
+        .join(ReplyAnalysis, ReplyAnalysis.processed_reply_id == ProcessedReply.id)
+        .where(ReplyAnalysis.project_id == project_id)
+        .group_by(ProcessedReply.campaign_name, ProcessedReply.source, ProcessedReply.channel)
+        .order_by(desc(func.count()))
+    )
+
+    dt_from = _parse_date(date_from)
+    dt_to = _parse_date(date_to)
+    if dt_from:
+        query = query.where(ProcessedReply.received_at >= dt_from)
+    if dt_to:
+        query = query.where(ProcessedReply.received_at <= dt_to)
+
+    result = await session.execute(query)
+    rows = result.all()
+
+    campaigns = []
+    total = 0
+    for name, source, channel, count in rows:
+        total += count
+        campaigns.append({
+            "campaign_name": name or "Unknown",
+            "source": source or "smartlead",
+            "channel": channel or "email",
+            "reply_count": count,
+        })
+
+    return {
+        "campaigns": campaigns,
+        "total_replies": total,
+        "campaign_count": len(campaigns),
+    }
 
 
 @router.get("/count/")

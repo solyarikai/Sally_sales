@@ -42,6 +42,19 @@ export interface TagCount {
   count: number;
 }
 
+export interface CampaignDebugItem {
+  campaign_name: string;
+  source: string;
+  channel: string;
+  reply_count: number;
+}
+
+export interface CampaignDebugResponse {
+  campaigns: CampaignDebugItem[];
+  total_replies: number;
+  campaign_count: number;
+}
+
 export const intelligenceApi = {
   async list(params: {
     project_id: number;
@@ -89,6 +102,14 @@ export const intelligenceApi = {
 
   async count(project_id: number): Promise<{ count: number }> {
     const { data } = await api.get('/intelligence/count/', { params: { project_id } });
+    return data;
+  },
+
+  async campaigns(project_id: number, date_from?: string, date_to?: string): Promise<CampaignDebugResponse> {
+    const params: Record<string, any> = { project_id };
+    if (date_from) params.date_from = date_from;
+    if (date_to) params.date_to = date_to;
+    const { data } = await api.get('/intelligence/campaigns/', { params });
     return data;
   },
 };

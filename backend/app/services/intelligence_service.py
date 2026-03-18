@@ -476,23 +476,32 @@ Classify this reply. Return JSON only, no markdown:
   "intent": "<one of: schedule_call, send_info, interested_vague, redirect_colleague, pricing, how_it_works, compliance, specific_use_case, adjacent_demand, not_relevant, no_crypto, not_now, have_solution, regulatory, hard_no, spam_complaint, auto_response, bounce, gibberish, wrong_person_forward, empty>",
   "warmth_score": <0-5>,
   "offer_responded_to": "<paygate|payout|otc|general>",
-  "interests": "<1-2 sentence summary of what the lead specifically wants/needs. Be concrete: mention products, geographies, settlement methods, use cases. Include any countries or regions mentioned (e.g. 'China', 'CIS', 'Hong Kong'). If rejection, describe what they have or why they declined.>",
+  "interests": "<STRICTLY FINANCIAL. 1-2 sentences about the specific financial product/service need. Mention: settlement methods (SWIFT, SEPA, wire), crypto products (on-ramp, off-ramp, OTC), currencies (USDT, USD, EUR), volumes, payment corridors (from→to). NEVER write generic phrases like 'wants to schedule a call' or 'interested in learning more' — describe the FINANCIAL need. For rejections: describe what alternative they use or why no fit.>",
   "tags": ["<tag1>", "<tag2>"],
   "geo_tags": ["<country-or-region>"],
   "language": "<en|ru|other>"
 }}
 
-Tags should be lowercase, hyphenated, and capture:
-- Specific needs: "swift-settlement", "third-party-beneficiaries", "china-suppliers"
-- Product interest: "paygate", "payout", "otc", "on-ramp", "fiat-to-fiat"
-- Industry/vertical: "gaming", "saas", "fintech", "trading"
-- Objection type: "no-crypto", "have-solution", "regulatory-block"
-- Status: "ready-to-meet", "needs-info", "referred-colleague"
+TAGS — STRICTLY FINANCIAL, lowercase, hyphenated. Capture what the lead needs financially:
+- Settlement methods: "swift-settlement", "sepa-settlement", "wire-transfer", "local-bank-transfer"
+- Crypto flow: "on-ramp", "off-ramp", "crypto-to-fiat", "fiat-to-crypto", "stablecoin-settlement"
+- Financial products: "supplier-payments", "contractor-payouts", "mass-disbursements", "treasury-management", "fx-conversion"
+- Payment infra: "payment-gateway", "merchant-acceptance", "white-label", "api-integration"
+- Compliance: "kyc-kyb", "licensing", "regulatory-block", "sanctions-risk"
+- Industry: "gaming", "fintech", "trading", "ecommerce", "marketplace", "remittance"
+- Objection: "no-crypto", "have-solution", "not-priority"
+- Specific needs: "third-party-beneficiaries", "multi-currency", "high-volume", "recurring-payments"
+NEVER use outreach/status tags like "ready-to-meet", "needs-info", "referred-colleague", "wants-pricing".
+Those are captured by the intent field, not tags. Tags = WHAT they need financially.
 
-geo_tags: Extract ALL countries, regions, and cities mentioned in the reply OR inferable from context.
-Use lowercase: "china", "hong-kong", "cis", "europe", "uae", "singapore", "russia", "turkey", "india".
-If the lead's company domain or name suggests a geography (e.g. .hk = Hong Kong), include it.
-If no geography is mentioned or inferable, return empty array.
+GEO_TAGS — money flow CORRIDORS, not lead location:
+- Capture WHERE money needs to FLOW (sender→receiver geography)
+- GOOD: "china" because lead wants to PAY suppliers in China
+- GOOD: "cis", "turkey" because lead wants to SEND payouts to contractors there
+- BAD: "france" just because the lead is French — that's their location, not a payment corridor
+- BAD: "uk" just because lead is based in London — unless they mention UK as payment destination
+- If no money flow direction is mentioned or inferable, return empty array
+Use lowercase: "china", "hong-kong", "cis", "europe", "uae", "singapore", "russia", "turkey", "india", "southeast-asia".
 """
 
 

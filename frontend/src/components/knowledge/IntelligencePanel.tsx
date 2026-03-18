@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Brain, Loader2, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Search, X, Tag } from 'lucide-react';
+import { Brain, Loader2, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Search, X, Tag, Bug } from 'lucide-react';
 import { intelligenceApi } from '../../api/intelligence';
-import type { ReplyAnalysisItem, IntelligenceSummary } from '../../api/intelligence';
+import type { ReplyAnalysisItem, IntelligenceSummary, CampaignDebugItem } from '../../api/intelligence';
 import { cn } from '../../lib/utils';
 
 // ── Props ───────────────────────────────────────────────────────
@@ -130,7 +130,9 @@ function TagChip({ tag, isDark, onClick }: { tag: string; isDark: boolean; onCli
   );
 }
 
-function MultiSelectFilter({
+// ── Column Filter (embedded in header) ──────────────────────────
+
+function ColumnFilter({
   label,
   options,
   selected,
@@ -160,22 +162,20 @@ function MultiSelectFilter({
     : options;
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative inline-flex items-center" ref={ref}>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         className={cn(
-          'flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors',
-          isDark
-            ? 'border-zinc-700 text-zinc-300 hover:border-zinc-500'
-            : 'border-zinc-200 text-zinc-600 hover:border-zinc-400',
-          selected.size > 0 && 'ring-1 ring-blue-500',
+          'flex items-center gap-0.5 text-[10px] uppercase tracking-wider transition-colors',
+          isDark ? 'hover:text-zinc-200' : 'hover:text-zinc-700',
+          selected.size > 0 ? (isDark ? 'text-blue-400' : 'text-blue-600') : '',
         )}
       >
         {label}
         {selected.size > 0 && (
-          <span className="px-1 rounded-full text-[9px] bg-blue-500 text-white">{selected.size}</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 ml-0.5" />
         )}
-        <ChevronDown className="w-3 h-3" />
+        <ChevronDown className="w-2.5 h-2.5 ml-0.5" />
       </button>
       {open && (
         <div className={cn(
@@ -258,12 +258,27 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
     return d.toISOString();
   }, [period]);
 
-  // ── Data loading ──
+  // ── Debounced search ──
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    searchTimerRef.current = setTimeout(() => setDebouncedSearch(searchText), 300);
+    return () => clearTimeout(searchTimerRef.current);
+  }, [searchText]);
+
+  // ── Data loading (staggered: summary first, list second) ──
   const loadData = useCallback(async () => {
     if (!projectId) return;
     try {
       setLoading(true);
       setError(null);
+
+      // 1) Summary is fast — load and show immediately
+      const summaryPromise = intelligenceApi.summary(projectId, dateFrom);
+      summaryPromise.then(s => setSummary(s)).catch(() => {});
+
+      // 2) List query (the heavy one)
       const params: Parameters<typeof intelligenceApi.list>[0] = {
         project_id: projectId,
         page_size: 200,
@@ -274,21 +289,17 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
       if (segmentFilter.size) params.segment = Array.from(segmentFilter).join(',');
       if (tagFilter.size) params.tags = Array.from(tagFilter).join(',');
       if (geoFilter.size) params.geo = Array.from(geoFilter).join(',');
-      if (searchText) params.search = searchText;
+      if (debouncedSearch) params.search = debouncedSearch;
       if (dateFrom) params.date_from = dateFrom;
 
-      const [listData, summaryData] = await Promise.all([
-        intelligenceApi.list(params),
-        intelligenceApi.summary(projectId, dateFrom),
-      ]);
+      const listData = await intelligenceApi.list(params);
       setItems(listData);
-      setSummary(summaryData);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
       setLoading(false);
     }
-  }, [projectId, intentGroupFilter, offerFilter, intentFilter, segmentFilter, tagFilter, geoFilter, searchText, dateFrom]);
+  }, [projectId, intentGroupFilter, offerFilter, intentFilter, segmentFilter, tagFilter, geoFilter, debouncedSearch, dateFrom]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -327,10 +338,29 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
     summary ? Object.entries(summary.by_intent).map(([v, c]) => ({ value: v, label: INTENT_LABELS[v] || v, count: c })) : [],
     [summary]
   );
-  const segmentOptions = useMemo(() =>
-    summary ? Object.entries(summary.by_segment).map(([v, c]) => ({ value: v, label: v, count: c })) : [],
+  const tagOptions = useMemo(() =>
+    summary?.by_tag ? Object.entries(summary.by_tag).map(([v, c]) => ({ value: v, label: v, count: c })) : [],
     [summary]
   );
+  const geoOptions = useMemo(() =>
+    summary?.by_geo ? Object.entries(summary.by_geo).map(([v, c]) => ({ value: v, label: v, count: c })) : [],
+    [summary]
+  );
+
+  // ── Debug panel state ──
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugCampaigns, setDebugCampaigns] = useState<CampaignDebugItem[]>([]);
+  const [debugLoading, setDebugLoading] = useState(false);
+
+  useEffect(() => {
+    if (debugOpen && projectId) {
+      setDebugLoading(true);
+      intelligenceApi.campaigns(projectId, dateFrom).then(data => {
+        setDebugCampaigns(data.campaigns);
+        setDebugLoading(false);
+      }).catch(() => setDebugLoading(false));
+    }
+  }, [debugOpen, projectId, dateFrom]);
 
   const toggleSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, value: string) => {
     setter(prev => {
@@ -478,7 +508,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
         </div>
       )}
 
-      {/* Filters bar */}
+      {/* Search bar + active filter chips */}
       <div className="flex-none px-4 py-2 border-b flex gap-2 items-center flex-wrap" style={{ borderColor: t.cardBorder }}>
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: t.text2 }} />
@@ -487,34 +517,38 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
             placeholder="Search replies, leads, companies..."
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && loadData()}
             className={cn(
               'w-full pl-8 pr-3 py-1.5 rounded text-[12px] border outline-none',
               isDark ? 'bg-[#2a2a2a] border-zinc-700 text-white placeholder-zinc-500' : 'bg-white border-zinc-200 text-zinc-900 placeholder-zinc-400',
             )}
           />
         </div>
-        <MultiSelectFilter label="Offer" options={offerOptions} selected={offerFilter} onToggle={v => toggleSet(setOfferFilter, v)} isDark={isDark} />
-        <MultiSelectFilter label="Intent" options={intentOptions} selected={intentFilter} onToggle={v => toggleSet(setIntentFilter, v)} isDark={isDark} />
-        <MultiSelectFilter label="Segment" options={segmentOptions} selected={segmentFilter} onToggle={v => toggleSet(setSegmentFilter, v)} isDark={isDark} />
-        {tagFilter.size > 0 && (
-          <div className="flex items-center gap-1">
-            {Array.from(tagFilter).map(tag => (
-              <button key={tag} onClick={() => toggleSet(setTagFilter, tag)} className={cn('flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium', isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-600')}>
-                {tag} <X className="w-2.5 h-2.5" />
-              </button>
-            ))}
-          </div>
-        )}
-        {geoFilter.size > 0 && (
-          <div className="flex items-center gap-1">
-            {Array.from(geoFilter).map(geo => (
-              <button key={geo} onClick={() => toggleSet(setGeoFilter, geo)} className={cn('flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium', isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-600')}>
-                {geo} <X className="w-2.5 h-2.5" />
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Active filter chips */}
+        {offerFilter.size > 0 && Array.from(offerFilter).map(v => (
+          <button key={`of-${v}`} onClick={() => toggleSet(setOfferFilter, v)} className={cn('flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium', isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-600')}>
+            offer:{v} <X className="w-2.5 h-2.5" />
+          </button>
+        ))}
+        {intentFilter.size > 0 && Array.from(intentFilter).map(v => (
+          <button key={`in-${v}`} onClick={() => toggleSet(setIntentFilter, v)} className={cn('flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium', isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-600')}>
+            {INTENT_LABELS[v] || v} <X className="w-2.5 h-2.5" />
+          </button>
+        ))}
+        {segmentFilter.size > 0 && Array.from(segmentFilter).map(v => (
+          <button key={`sg-${v}`} onClick={() => toggleSet(setSegmentFilter, v)} className={cn('flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium', isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-600')}>
+            seg:{v} <X className="w-2.5 h-2.5" />
+          </button>
+        ))}
+        {tagFilter.size > 0 && Array.from(tagFilter).map(tag => (
+          <button key={`tg-${tag}`} onClick={() => toggleSet(setTagFilter, tag)} className={cn('flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium', isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-600')}>
+            {tag} <X className="w-2.5 h-2.5" />
+          </button>
+        ))}
+        {geoFilter.size > 0 && Array.from(geoFilter).map(geo => (
+          <button key={`ge-${geo}`} onClick={() => toggleSet(setGeoFilter, geo)} className={cn('flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium', isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-600')}>
+            {geo} <X className="w-2.5 h-2.5" />
+          </button>
+        ))}
         {hasFilters && (
           <button
             onClick={clearFilters}
@@ -530,7 +564,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
       {error && <div className="px-4 py-3 text-red-400 text-[13px]">{error}</div>}
 
       {/* Table */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto relative">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-6 h-6 animate-spin" style={{ color: t.text2 }} />
@@ -544,6 +578,27 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
           </div>
         ) : (
           <div className="pb-4">
+            {/* STICKY column headers with embedded filters */}
+            <div
+              className={cn(
+                'grid grid-cols-[1fr_0.8fr_110px_70px_90px_50px_1.2fr_1fr_0.7fr_70px_32px] px-4 py-1.5 text-[10px] uppercase tracking-wider sticky top-0 z-20 border-b',
+                isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-200',
+              )}
+              style={{ color: t.text2 }}
+            >
+              <span>Lead</span>
+              <span>Company</span>
+              <span>Website</span>
+              <ColumnFilter label="Offer" options={offerOptions} selected={offerFilter} onToggle={v => toggleSet(setOfferFilter, v)} isDark={isDark} />
+              <ColumnFilter label="Intent" options={intentOptions} selected={intentFilter} onToggle={v => toggleSet(setIntentFilter, v)} isDark={isDark} />
+              <span>W</span>
+              <span>Interests</span>
+              <ColumnFilter label="Tags" options={tagOptions} selected={tagFilter} onToggle={v => toggleSet(setTagFilter, v)} isDark={isDark} />
+              <ColumnFilter label="Geo" options={geoOptions} selected={geoFilter} onToggle={v => toggleSet(setGeoFilter, v)} isDark={isDark} />
+              <span>Date</span>
+              <span></span>
+            </div>
+
             {INTENT_GROUP_ORDER.map(group => {
               const groupItems = grouped[group] || [];
               if (groupItems.length === 0) return null;
@@ -583,25 +638,6 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
                   {/* Group items */}
                   {!isCollapsed && (
                     <div>
-                      {/* Column headers */}
-                      <div
-                        className={cn('grid grid-cols-[1fr_0.8fr_110px_70px_90px_50px_1.2fr_1fr_0.7fr_70px_32px] px-4 py-1 text-[10px] uppercase tracking-wider',
-                          isDark ? 'bg-zinc-800/30' : 'bg-zinc-50',
-                        )}
-                        style={{ color: t.text2 }}
-                      >
-                        <span>Lead</span>
-                        <span>Company</span>
-                        <span>Website</span>
-                        <span>Offer</span>
-                        <span>Intent</span>
-                        <span>W</span>
-                        <span>Interests</span>
-                        <span>Tags</span>
-                        <span>Geo</span>
-                        <span>Date</span>
-                        <span></span>
-                      </div>
 
                       {groupItems.map(item => (
                         <div key={item.id}>
@@ -790,6 +826,80 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* Debug Panel */}
+      <div className="flex-none border-t" style={{ borderColor: t.cardBorder }}>
+        <button
+          onClick={() => setDebugOpen(!debugOpen)}
+          className={cn(
+            'w-full px-4 py-1.5 flex items-center gap-3 text-[11px] transition-colors',
+            isDark ? 'hover:bg-zinc-800/50 text-zinc-500' : 'hover:bg-zinc-50 text-zinc-400',
+          )}
+        >
+          <Bug className="w-3 h-3" />
+          <span>Debug Panel</span>
+          {debugCampaigns.length > 0 && (
+            <>
+              <span>{debugCampaigns.length} campaigns</span>
+              <span>{debugCampaigns.reduce((s, c) => s + c.reply_count, 0)} replies</span>
+              {(() => {
+                const campTotal = debugCampaigns.reduce((s, c) => s + c.reply_count, 0);
+                const summaryTotal = summary?.total || 0;
+                const match = campTotal === summaryTotal;
+                return (
+                  <span className={match ? 'text-green-500' : 'text-red-400'}>
+                    {match ? 'checksums ok' : `MISMATCH: summary=${summaryTotal} campaigns=${campTotal}`}
+                  </span>
+                );
+              })()}
+            </>
+          )}
+          <ChevronDown className={cn('w-3 h-3 ml-auto transition-transform', debugOpen && 'rotate-180')} />
+        </button>
+
+        {debugOpen && (
+          <div className={cn('px-4 pb-3 max-h-64 overflow-y-auto', isDark ? 'bg-zinc-900/50' : 'bg-zinc-50')}>
+            {debugLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin mx-auto my-4" style={{ color: t.text2 }} />
+            ) : (
+              <>
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b" style={{ borderColor: t.cardBorder }}>
+                      <th className="text-left py-1 font-medium" style={{ color: t.text2 }}>Campaign</th>
+                      <th className="text-left py-1 font-medium w-24" style={{ color: t.text2 }}>Channel</th>
+                      <th className="text-right py-1 font-medium w-16" style={{ color: t.text2 }}>Replies</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {debugCampaigns.map((c, i) => (
+                      <tr key={i} className="border-b" style={{ borderColor: isDark ? '#333' : '#eee' }}>
+                        <td className="py-1 truncate max-w-[400px]" style={{ color: t.text1 }}>{c.campaign_name}</td>
+                        <td className="py-1">
+                          <span className={cn(
+                            'px-1.5 py-0.5 rounded text-[9px] font-medium',
+                            c.channel === 'linkedin'
+                              ? (isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700')
+                              : (isDark ? 'bg-zinc-600/30 text-zinc-300' : 'bg-zinc-100 text-zinc-600'),
+                          )}>
+                            {c.channel === 'linkedin' ? 'LinkedIn' : 'Email'}
+                          </span>
+                        </td>
+                        <td className="py-1 text-right font-mono" style={{ color: t.text1 }}>{c.reply_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-2 flex gap-4 text-[10px]" style={{ color: t.text2 }}>
+                  <span>Summary total: <strong style={{ color: t.text1 }}>{summary?.total || 0}</strong></span>
+                  <span>Campaign sum: <strong style={{ color: t.text1 }}>{debugCampaigns.reduce((s, c) => s + c.reply_count, 0)}</strong></span>
+                  <span>List loaded: <strong style={{ color: t.text1 }}>{items.length}</strong></span>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
