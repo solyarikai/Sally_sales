@@ -916,7 +916,7 @@ async def list_replies(
     base_conditions = list(conditions)
 
     if inbox:
-        conditions.append(ProcessedReply.category.in_(["meeting_request", "interested", "question", "other"]))
+        conditions.append(ProcessedReply.category.in_(["meeting_request", "interested", "question"]))
     elif category:
         conditions.append(ProcessedReply.category == category)
 

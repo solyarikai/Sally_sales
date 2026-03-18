@@ -114,7 +114,6 @@ const ACTIONABLE_CATEGORY_FILTERS = [
   { key: 'meeting_request', label: 'Meetings', countKey: 'meeting_request' },
   { key: 'interested', label: 'Interested', countKey: 'interested' },
   { key: 'question', label: 'Questions', countKey: 'question' },
-  { key: 'other', label: 'Other', countKey: 'other' },
 ] as const;
 
 const ARCHIVE_CATEGORY_FILTERS = [
