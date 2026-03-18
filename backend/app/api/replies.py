@@ -767,6 +767,7 @@ async def list_replies(
     automation_id: Optional[int] = None,
     campaign_id: Optional[str] = None,
     campaign_names: Optional[str] = Query(None, description="Comma-separated campaign names to filter by"),
+    campaign_name_contains: Optional[str] = Query(None, description="Filter by campaign name substring (case-insensitive)"),
     project_id: Optional[int] = Query(None, description="Filter by project (uses project's campaign_filters)"),
     category: Optional[str] = None,
     approval_status: Optional[str] = Query(None, description="Filter by status: pending, approved, dismissed"),
@@ -820,6 +821,9 @@ async def list_replies(
         names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
         if names:
             conditions.append(func.lower(ProcessedReply.campaign_name).in_(names))
+
+    if campaign_name_contains:
+        conditions.append(ProcessedReply.campaign_name.ilike(f"%{campaign_name_contains}%"))
 
     if channel:
         conditions.append(ProcessedReply.channel == channel)
