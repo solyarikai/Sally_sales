@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 
 
 revision = "202603180100"
-down_revision = ("202603162200", "202603171000")
+down_revision = "c2d87b5f252e"
 branch_labels = None
 depends_on = None
 
