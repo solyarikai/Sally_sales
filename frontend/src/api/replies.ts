@@ -319,6 +319,7 @@ export async function getReplies(params: {
   category?: ReplyCategory;
   approval_status?: string;
   needs_reply?: boolean;
+  inbox?: boolean;
   channel?: string;
   source?: string;
   lead_email?: string;

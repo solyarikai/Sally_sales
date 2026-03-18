@@ -772,6 +772,7 @@ async def list_replies(
     category: Optional[str] = None,
     approval_status: Optional[str] = Query(None, description="Filter by status: pending, approved, dismissed"),
     needs_reply: Optional[bool] = Query(None, description="Filter to replies with no outbound activity after received_at"),
+    inbox: Optional[bool] = Query(None, description="Show all actionable replies (meeting_request, interested, question, other) regardless of needs_reply"),
     needs_followup: Optional[bool] = Query(None, description="Show approved replies where lead hasn't responded (for follow-up tab)"),
     channel: Optional[str] = Query(None, description="Filter by channel: email, linkedin"),
     source: Optional[str] = Query(None, description="Filter by source: smartlead, getsales"),
@@ -914,7 +915,9 @@ async def list_replies(
     # Snapshot conditions BEFORE adding category filter — used for global tab counts
     base_conditions = list(conditions)
 
-    if category:
+    if inbox:
+        conditions.append(ProcessedReply.category.in_(["meeting_request", "interested", "question", "other"]))
+    elif category:
         conditions.append(ProcessedReply.category == category)
 
     # Category priority expression

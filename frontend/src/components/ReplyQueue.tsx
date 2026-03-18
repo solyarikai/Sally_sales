@@ -436,7 +436,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
       // "All" tab: no needs_reply, no category filter — shows everything
       // Archive tabs: no needs_reply, specific category filter
       // Actionable tabs: needs_reply=true, specific category filter (or all actionable if none)
-      const useNeedsReply = isDeepLink ? undefined : (isAllMode || isArchiveMode ? undefined : true);
+      const useNeedsReply = isDeepLink ? undefined : (isAllMode || isArchiveMode || isInboxMode ? undefined : true);
       const useCategory = isDeepLink ? undefined :
         (isAllMode || isInboxMode ? undefined : (categoryFilter as ReplyCategory) || undefined);
       const response = await repliesApi.getReplies({
@@ -446,6 +446,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
         needs_followup: mode === 'followups' ? true : undefined,
         lead_email: isDeepLink ? initialSearch : undefined,
         category: mode === 'followups' ? undefined : useCategory,
+        inbox: (!isDeepLink && mode !== 'followups' && isInboxMode) ? true : undefined,
         group_by_contact: true,
         received_since: isDeepLink ? 'all' : timingFilter,
         page: pg,
