@@ -168,6 +168,9 @@ class ProcessedReply(Base, TimestampMixin):
     # Qualified flag — operator-controlled marker for truly warm leads (client-facing reports)
     is_qualified = Column(Boolean, default=False, nullable=False, index=True)
 
+    # Operator notes — free-form text for warm lead tracking, call notes, status updates
+    operator_notes = Column(Text, nullable=True)
+
     # Relationships
     automation = relationship("ReplyAutomation", back_populates="processed_replies")
     thread_messages = relationship(

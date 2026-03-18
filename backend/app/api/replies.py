@@ -2603,6 +2603,34 @@ async def toggle_reply_qualified(
     }
 
 
+@router.patch("/{reply_id}/notes")
+async def update_reply_notes(
+    reply_id: int,
+    notes: str = Query(..., description="Operator notes text"),
+    db: AsyncSession = Depends(get_session)
+):
+    """Update operator notes on a reply.
+
+    Free-form text field for warm lead tracking, call notes, status updates.
+    """
+    result = await db.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    reply.operator_notes = notes if notes.strip() else None
+    db.add(reply)
+    await db.commit()
+
+    return {
+        "success": True,
+        "reply_id": reply_id,
+        "operator_notes": reply.operator_notes
+    }
+
+
 @router.post("/{reply_id}/send")
 async def send_reply(
     reply_id: int,

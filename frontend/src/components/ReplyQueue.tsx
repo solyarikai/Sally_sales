@@ -210,6 +210,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
   const [selectedHistoryCampaign, setSelectedHistoryCampaign] = useState<Record<number, string | null>>({});
   const [confirmSendId, setConfirmSendId] = useState<number | null>(null);
 
+  // Warm mode: editable notes
+  const [editingNotes, setEditingNotes] = useState<Record<number, string>>({});
+  const [savingNotes, setSavingNotes] = useState<Set<number>>(new Set());
+
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [projectDocs, setProjectDocs] = useState<KnowledgeEntry[]>([]);
 
@@ -1204,7 +1208,73 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                         <div style={{ borderBottom: `1px solid ${t.divider}` }} />
                       </div>
 
-                      {/* Their message — hidden in Warm mode until conversation is opened */}
+                      {/* Warm mode: info card with campaign, channel, last activity, notes */}
+                      {isWarmMode && (
+                        <div className="px-4 py-3">
+                          {/* Info grid */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-3">
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>Campaign</div>
+                              <div className="text-[13px]" style={{ color: t.text2 }}>{displayCampaignName(reply.campaign_name) || '—'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>Channel</div>
+                              <div className="text-[13px] flex items-center gap-1" style={{ color: t.text2 }}>
+                                {reply.channel === 'linkedin' ? (
+                                  <><Linkedin className="w-3.5 h-3.5" style={{ color: '#0a66c2' }} /> LinkedIn</>
+                                ) : (
+                                  <><Mail className="w-3.5 h-3.5" style={{ color: '#b45309' }} /> Email</>
+                                )}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>Last Activity</div>
+                              <div className="text-[13px]" style={{ color: t.text2 }}>
+                                {reply.last_touched_at ? new Date(reply.last_touched_at).toLocaleDateString('ru-RU') : (reply.received_at ? new Date(reply.received_at).toLocaleDateString('ru-RU') : '—')}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>Category</div>
+                              <div className="text-[13px]" style={{ color: t.text2 }}>{catLabel || '—'}</div>
+                            </div>
+                          </div>
+                          {/* Editable notes */}
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider mb-1 flex items-center justify-between" style={{ color: t.text5 }}>
+                              <span>Notes</span>
+                              {savingNotes.has(reply.id) && <span className="text-[10px] normal-case" style={{ color: t.text5 }}>Saving...</span>}
+                            </div>
+                            <textarea
+                              value={editingNotes[reply.id] ?? reply.operator_notes ?? ''}
+                              onChange={e => setEditingNotes(prev => ({ ...prev, [reply.id]: e.target.value }))}
+                              onBlur={async () => {
+                                const newNotes = editingNotes[reply.id];
+                                if (newNotes === undefined || newNotes === (reply.operator_notes ?? '')) return;
+                                setSavingNotes(prev => new Set(prev).add(reply.id));
+                                try {
+                                  await repliesApi.updateNotes(reply.id, newNotes);
+                                  // Update local reply data
+                                  setReplies(prev => prev.map(r => r.id === reply.id ? { ...r, operator_notes: newNotes || null } : r));
+                                  setEditingNotes(prev => { const n = { ...prev }; delete n[reply.id]; return n; });
+                                } catch {
+                                  toast.error('Failed to save notes', { style: toastErr });
+                                } finally {
+                                  setSavingNotes(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+                                }
+                              }}
+                              placeholder="Add notes about this lead..."
+                              className="w-full text-[13px] rounded p-2.5 focus:outline-none min-h-[60px] resize-y border"
+                              style={{
+                                background: t.draftBg,
+                                borderColor: t.draftBorder,
+                                color: t.text1,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Their message — hidden in Warm mode */}
                       {!isWarmMode && (
                         <div className="px-4 py-2">
                           {reply.email_subject && (

@@ -135,6 +135,7 @@ export interface ProcessedReply {
   email_body: string | null;
   reply_text: string | null;
   received_at: string | null;
+  last_touched_at: string | null;
   category: ReplyCategory | null;
   category_confidence: string | null;
   classification_reasoning: string | null;
@@ -158,6 +159,8 @@ export interface ProcessedReply {
   follow_up_number: number | null;
   // Qualified flag — operator-controlled marker for truly warm leads
   is_qualified?: boolean;
+  // Operator notes — free-form text for warm lead tracking
+  operator_notes?: string | null;
   // Contact dedup: how many campaigns this contact has (only set with group_by_contact)
   contact_campaign_count?: number;
 }
@@ -673,6 +676,15 @@ export async function toggleQualified(replyId: number, isQualified: boolean): Pr
   return response.data;
 }
 
+export async function updateNotes(replyId: number, notes: string): Promise<{
+  success: boolean;
+  reply_id: number;
+  operator_notes: string | null;
+}> {
+  const response = await api.patch(`/replies/${replyId}/notes`, null, { params: { notes } });
+  return response.data;
+}
+
 export async function getReferralInfo(replyId: number): Promise<{
   referred_emails: string[];
   original_lead: { email: string; name: string; company: string };
@@ -751,6 +763,7 @@ export const repliesApi = {
   dismissReply,
   regenerateDraft,
   toggleQualified,
+  updateNotes,
   // Testing
   simulateReply,
   // Google Sheets

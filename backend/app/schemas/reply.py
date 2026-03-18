@@ -199,6 +199,9 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     # Qualified flag — operator-controlled marker for truly warm leads
     is_qualified: bool = False
 
+    # Operator notes — free-form text for warm lead tracking
+    operator_notes: Optional[str] = None
+
     # Pre-generated follow-up draft (child ProcessedReply with pending status)
     followup_draft: Optional[dict] = None
 
