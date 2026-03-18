@@ -30,10 +30,6 @@ export const ReplyCategoryColumnFilter = forwardRef((props: IFilterParams, ref) 
     doesFilterPass: () => true, // Server-side filtering
   }));
 
-  useEffect(() => {
-    props.filterChangedCallback?.();
-  }, [replyCategoryFilters]);
-
   const handleToggle = (key: string) => {
     toggleReplyCategory(key);
     resetPage();

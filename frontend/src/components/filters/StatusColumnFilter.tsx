@@ -37,13 +37,10 @@ export const StatusColumnFilter = forwardRef((props: IFilterParams, ref) => {
     doesFilterPass: () => true, // Server-side filtering
   }));
 
-  useEffect(() => {
-    props.filterChangedCallback?.();
-  }, [statusFilters]);
-
   const handleToggle = (key: string) => {
     toggleStatus(key);
     resetPage();
+    // Не вызываем filterChangedCallback — данные обновятся через контекст
   };
 
   const fmtCount = (n: number) => {
