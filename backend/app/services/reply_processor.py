@@ -96,11 +96,11 @@ def _format_knowledge_context(knowledge_entries, category: str = None) -> str:
             "\n\n=== REFERENCE REPLIES FROM OPERATOR (YOUR #1 PRIORITY) ===\n"
             "These are REAL replies the operator wrote. They define the EXACT style you must follow.\n"
             "Your draft MUST replicate:\n"
-            "- The SAME structure (greeting, then detailed body, then call-to-action, then signature)\n"
-            "- The SAME level of detail (full pricing breakdowns, bullet point lists, specific numbers)\n"
-            "- The SAME tone, language style, and formatting\n"
-            "- The SAME length — if the example is long and detailed, yours must be too\n"
-            "Adapt names/company for the current lead, but COPY the structure and detail level.\n\n"
+            "- The SAME tone, language style, and greeting patterns\n"
+            "- The SAME level of detail FOR THE SAME CHANNEL (email examples for email, LinkedIn for LinkedIn)\n"
+            "- Use pricing breakdowns from examples, but ONLY include rates relevant to the lead's question\n"
+            "- LinkedIn replies are ALWAYS shorter than email replies — match the channel, not just the content\n"
+            "Pick the CLOSEST matching example (same channel + similar question) and adapt for the current lead.\n\n"
             + "\n\n".join(example_parts)
             + "\n=== END REFERENCE REPLIES ==="
         )
