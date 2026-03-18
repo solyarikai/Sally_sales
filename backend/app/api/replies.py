@@ -2847,6 +2847,21 @@ async def regenerate_draft(
     _old_draft = reply.draft_reply
     _old_subject = reply.draft_subject
 
+    # For LinkedIn replies, append channel-specific instructions
+    reply_channel = reply.channel or "email"
+    if reply_channel == "linkedin":
+        linkedin_suffix = (
+            "\n\nIMPORTANT: This is a LinkedIn message, keep reply SHORT (2-3 sentences), "
+            "conversational, no subject line needed. "
+            "Do NOT include any email signature, sign-off block, or contact details at the end — "
+            "this is a LinkedIn DM, not an email. "
+            "Do NOT use em-dashes (—). Use commas, periods, or simple dashes (-) instead."
+        )
+        if custom_reply_prompt:
+            custom_reply_prompt += linkedin_suffix
+        else:
+            custom_reply_prompt = linkedin_suffix
+
     # Generate draft — allow model override (e.g. "gpt-4o" for higher quality)
     # Validate model to prevent arbitrary model names
     allowed_models = {"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "gemini-2.5-pro", "gemini-2.5-flash"}
@@ -2864,6 +2879,7 @@ async def regenerate_draft(
             sender_position=sender_position,
             sender_company=sender_company,
             model=draft_model,
+            channel=reply_channel,
         )
     except Exception as e:
         logger.error(f"Draft regeneration failed for reply {reply_id}: {e}")

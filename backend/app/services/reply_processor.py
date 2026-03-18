@@ -715,6 +715,7 @@ def render_draft_prompt(
     sender_name: Optional[str] = None,
     sender_position: Optional[str] = None,
     sender_company: Optional[str] = None,
+    channel: Optional[str] = None,
 ) -> str:
     """Render the draft reply prompt with actual values.
     
@@ -741,6 +742,7 @@ def render_draft_prompt(
         subject=subject or "(no subject)",
         body=body or "(empty)",
         category=category,
+        channel=channel or "email",
         first_name=first_name or "",
         last_name=last_name or "",
         company=company or "their company",
@@ -780,6 +782,7 @@ async def generate_draft_reply(
     sender_position: Optional[str] = None,
     sender_company: Optional[str] = None,
     model: Optional[str] = None,
+    channel: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate a draft reply using OpenAI with retry logic.
     
@@ -829,6 +832,7 @@ async def generate_draft_reply(
         sender_name=sender_name,
         sender_position=sender_position,
         sender_company=sender_company,
+        channel=channel,
     )
     last_error = None
     # Default to Gemini 2.5 Pro — best KPI (style match) at $0.05/reply
@@ -1452,6 +1456,7 @@ async def process_reply_webhook(
             sender_name=proj_sender_name,
             sender_position=proj_sender_position,
             sender_company=proj_sender_company,
+            channel="email",
         )
         
         # Detect language & translate if needed (non-blocking)
@@ -2148,6 +2153,7 @@ async def process_getsales_reply(
         sender_name=proj_sender_name,
         sender_position=proj_sender_position,
         sender_company=proj_sender_company,
+        channel="linkedin",
     )
 
     # --- Build GetSales inbox link ---
