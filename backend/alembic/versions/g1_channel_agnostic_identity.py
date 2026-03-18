@@ -12,7 +12,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "g1_channel_agnostic"
-down_revision = "merge_followup_config"
+down_revision = "202603180100"
 branch_labels = None
 depends_on = None
 
