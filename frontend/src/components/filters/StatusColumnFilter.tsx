@@ -6,7 +6,6 @@ import { Check, Search } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 
 const STATUSES = [
-  // Новая воронка
   { key: 'new',             label: 'Новый',              dot: 'bg-gray-400',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
   { key: 'contacted',       label: 'Написали',           dot: 'bg-blue-400',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
   { key: 'replied',         label: 'Ответил',            dot: 'bg-blue-500',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
@@ -15,12 +14,6 @@ const STATUSES = [
   { key: 'meeting_held',    label: 'Звонок состоялся',   dot: 'bg-green-500',   colors: 'bg-green-100 text-green-700 border-green-300' },
   { key: 'qualified',       label: 'Квал',               dot: 'bg-emerald-500', colors: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
   { key: 'not_qualified',   label: 'Не квал',            dot: 'bg-gray-600',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
-  // Старые статусы (совместимость)
-  { key: 'lead',            label: 'Lead',               dot: 'bg-gray-300',    colors: 'bg-gray-100 text-gray-500 border-gray-300' },
-  { key: 'touched',         label: 'Touched',            dot: 'bg-blue-300',    colors: 'bg-blue-100 text-blue-600 border-blue-300' },
-  { key: 'warm',            label: 'Warm',               dot: 'bg-amber-400',   colors: 'bg-amber-100 text-amber-700 border-amber-300' },
-  { key: 'interested',      label: 'Interested',         dot: 'bg-green-400',   colors: 'bg-green-100 text-green-600 border-green-300' },
-  { key: 'not_interested',  label: 'Not Interested',     dot: 'bg-gray-400',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
 ] as const;
 
 export const StatusColumnFilter = forwardRef((_props: IFilterParams, ref) => {

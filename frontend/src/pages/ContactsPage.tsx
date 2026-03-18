@@ -36,7 +36,6 @@ import { useAppStore } from '../store/appStore';
 
 // Status configuration — воронка процесса
 const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
-  // Новая воронка
   new:            { dot: '#9ca3af', label: 'Новый' },
   contacted:      { dot: '#60a5fa', label: 'Написали' },
   replied:        { dot: '#3b82f6', label: 'Ответил' },
@@ -45,17 +44,6 @@ const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
   meeting_held:   { dot: '#22c55e', label: 'Звонок состоялся' },
   qualified:      { dot: '#10b981', label: 'Квал' },
   not_qualified:  { dot: '#4b5563', label: 'Не квал' },
-  // Старые статусы (совместимость)
-  lead:           { dot: '#d1d5db', label: 'Lead' },
-  touched:        { dot: '#93c5fd', label: 'Touched' },
-  warm:           { dot: '#fbbf24', label: 'Warm' },
-  interested:     { dot: '#4ade80', label: 'Interested' },
-  not_interested: { dot: '#9ca3af', label: 'Not Interested' },
-  synced:         { dot: '#a5b4fc', label: 'Synced' },
-  sent:           { dot: '#7dd3fc', label: 'Sent' },
-  active:         { dot: '#86efac', label: 'Active' },
-  draft:          { dot: '#e5e7eb', label: 'Draft' },
-  other:          { dot: '#c4b5fd', label: 'Other' },
 };
 
 // Reply Type configuration — интент ответа
