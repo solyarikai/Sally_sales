@@ -3153,6 +3153,11 @@ class CRMSyncService:
                             # autoflush errors during SELECTs inside process_getsales_reply()
                             await session.flush()
 
+                            # Normalize sender_profile_uuid for notification routing
+                            _sp = msg.get("sender_profile") or {}
+                            if isinstance(_sp, dict) and _sp.get("uuid") and "sender_profile_uuid" not in msg:
+                                msg["sender_profile_uuid"] = _sp["uuid"]
+
                             # Resolve campaign name for ProcessedReply
                             from app.services.reply_processor import process_getsales_reply
                             automation_info = msg.get("automation") or {}
@@ -3269,8 +3274,8 @@ class CRMSyncService:
                                 flow_name=flow_name, flow_uuid=flow_uuid,
                                 message_text=message_text, raw_data=msg, session=session,
                             )
-                        except Exception:
-                            pass  # Non-fatal
+                        except Exception as _notif_err:
+                            logger.warning(f"[GETSALES] Polling notification failed for reply {_pr.id}: {_notif_err}")
                     # else: processing failed — do NOT cache, will retry next cycle
 
                 # Pagination — fetch next page for next iteration

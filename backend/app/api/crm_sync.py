@@ -1258,9 +1258,13 @@ async def getsales_webhook(
         
         # Telegram notification sent AFTER commit (see below)
 
-    # Mark webhook event as processed
-    webhook_event.processed = True
-    webhook_event.processed_at = datetime.utcnow()
+    # Mark webhook event as processed — but ONLY if reply was created (or not a reply event)
+    if not is_reply or pr:
+        webhook_event.processed = True
+        webhook_event.processed_at = datetime.utcnow()
+    else:
+        webhook_event.error = f"process_getsales_reply returned None for contact {contact.id if contact else 'unknown'}"
+        logger.warning(f"[GETSALES] Webhook event {gs_event_id} NOT marked processed — reply creation failed")
 
     await session.commit()
 

@@ -4,6 +4,7 @@ import re
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
+import sqlalchemy as sa
 from sqlalchemy import select, and_
 
 from app.models.reply import ProcessedReply, ReplyAutomation, ReplyCategory, ThreadMessage
@@ -1222,9 +1223,7 @@ async def process_reply_webhook(
         logger.info(f"[PROCESSOR] Name: {first_name} {last_name}")
         logger.info(f"[PROCESSOR] Inbox: {inbox_link}")
         
-        if not lead_email:
-            logger.warning("No lead_email in webhook payload, skipping")
-            return None
+        # lead_email may be None for non-email channels — proceed regardless
 
         # Skip empty/meaningless reply bodies — no point classifying or drafting
         _body_stripped = (body or "").strip().lower()
@@ -1910,10 +1909,7 @@ async def process_getsales_reply(
     """
     from sqlalchemy import func as sa_func
 
-    lead_email = (contact.email or "").lower().strip()
-    if not lead_email:
-        logger.warning(f"[GETSALES] Skipping reply — contact {contact.id} has no email")
-        return None
+    lead_email = (contact.email or "").lower().strip() or None
 
     # --- Skip LinkedIn reactions (single emoji, not real messages) ---
     import re as _re
@@ -2182,9 +2178,17 @@ async def process_getsales_reply(
     # Check if a reply with the same content already exists (regardless of campaign_id).
     # This handles the sync-first-then-webhook scenario: sync creates a record with
     # empty campaign info, webhook later arrives with the real automation name/UUID.
+    # Dedup: anchor on lead_email when available, getsales_lead_uuid when not
+    _gs_uuid = raw_data.get("contact", {}).get("uuid") if isinstance(raw_data.get("contact"), dict) else None
+    if lead_email:
+        _dedup_filter = ProcessedReply.lead_email == lead_email
+    elif _gs_uuid:
+        _dedup_filter = ProcessedReply.getsales_lead_uuid == _gs_uuid
+    else:
+        _dedup_filter = sa.literal(False)  # No anchor — can't dedup, create new
     existing_result = await session.execute(
         select(ProcessedReply).where(
-            ProcessedReply.lead_email == lead_email,
+            _dedup_filter,
             ProcessedReply.message_hash == message_hash,
         ).limit(1)
     )
@@ -2234,14 +2238,12 @@ async def process_getsales_reply(
         try:
             await session.flush()
         except Exception as flush_err:
-            if "uq_processed_reply_content" in str(flush_err):
-                logger.info(f"[GETSALES] Duplicate reply (race condition) for {lead_email} — skipping")
-                # Re-raise to let the caller's begin_nested() savepoint handle rollback.
-                # Do NOT call session.rollback() here — it corrupts the outer session
-                # when this function runs inside a savepoint (polling path).
+            err_str = str(flush_err)
+            if "uq_processed_reply_content" in err_str or "uq_reply_dedup" in err_str:
+                logger.info(f"[GETSALES] Duplicate reply (race condition) for {lead_email or f'contact:{contact.id}'} — skipping")
                 raise
             raise
-        logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email} (hash={message_hash[:8]})")
+        logger.info(f"[GETSALES] Created ProcessedReply {processed_reply.id} for {lead_email or f'contact:{contact.id}'} (hash={message_hash[:8]})")
 
     # --- Fetch LinkedIn conversation thread and store as ThreadMessage rows ---
     # SKIP during polling path (_source == "polling"): thread fetch adds ThreadMessage
@@ -2293,16 +2295,18 @@ async def send_getsales_notification(
     if not processed_reply or processed_reply.telegram_sent_at:
         return False
 
+    # Time guard: don't spam Telegram for old replies (mirrors SmartLead guard at line 1686)
+    if processed_reply.received_at:
+        age = datetime.utcnow() - processed_reply.received_at
+        if age > timedelta(hours=2):
+            logger.info(f"[GETSALES] Skipping Telegram for old reply ({age} old): {processed_reply.id}")
+            return False
+
     try:
         from app.services.notification_service import notify_linkedin_reply
         from app.services.crm_sync_service import GETSALES_UUID_TO_PROJECT, GETSALES_SENDER_PROFILES
 
         contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Unknown"
-        resolved_project_id = (
-            getattr(contact, "project_id", None)
-            or GETSALES_UUID_TO_PROJECT.get(flow_uuid)
-        )
-        # Use campaign_name from ProcessedReply if flow_name is empty
         effective_campaign = flow_name or processed_reply.campaign_name or ""
         sender_profile_uuid = (
             raw_data.get("sender_profile_uuid")
@@ -2311,15 +2315,9 @@ async def send_getsales_notification(
         )
         resolved_sender_name = GETSALES_SENDER_PROFILES.get(sender_profile_uuid or "")
 
-        lead_uuid = raw_data.get("lead_uuid") or raw_data.get("lead", {}).get("uuid") or raw_data.get("contact", {}).get("uuid")
-        inbox_link = None
-        if lead_uuid:
-            from app.services.crm_sync_service import GetSalesClient
-            inbox_link = GetSalesClient.build_inbox_url(lead_uuid, sender_profile_uuid)
-
-        # Fallback: resolve project by sender_profile_uuid if campaign routing fails
-        _valid_campaign = effective_campaign and effective_campaign not in ("Unknown Flow", "Unknown", "synced", "")
-        if not resolved_project_id and not _valid_campaign and sender_profile_uuid:
+        # Project routing: sender UUID FIRST (most reliable for GetSales)
+        resolved_project_id = None
+        if sender_profile_uuid:
             try:
                 from app.services.notification_service import _get_project_by_sender
                 proj = await _get_project_by_sender(sender_profile_uuid)
@@ -2329,9 +2327,22 @@ async def send_getsales_notification(
             except Exception:
                 pass
 
+        # Fallback: contact's project_id or flow UUID mapping
+        if not resolved_project_id:
+            resolved_project_id = (
+                getattr(contact, "project_id", None)
+                or GETSALES_UUID_TO_PROJECT.get(flow_uuid)
+            )
+
+        lead_uuid = raw_data.get("lead_uuid") or raw_data.get("lead", {}).get("uuid") or raw_data.get("contact", {}).get("uuid")
+        inbox_link = None
+        if lead_uuid:
+            from app.services.crm_sync_service import GetSalesClient
+            inbox_link = GetSalesClient.build_inbox_url(lead_uuid, sender_profile_uuid)
+
         sent = await notify_linkedin_reply(
             contact_name=contact_name,
-            contact_email=contact.email or "N/A",
+            contact_email=contact.email or "",
             flow_name=effective_campaign,
             message_text=message_text,
             campaign_name=effective_campaign,
@@ -2339,6 +2350,7 @@ async def send_getsales_notification(
             inbox_link=inbox_link,
             sender_name=resolved_sender_name,
             category=processed_reply.category,
+            sender_profile_uuid=sender_profile_uuid,
         )
         if sent:
             processed_reply.telegram_sent_at = datetime.utcnow()

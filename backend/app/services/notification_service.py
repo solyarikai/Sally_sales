@@ -941,7 +941,12 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     project_param = ""
     if project:
         project_param = f"&project={quote(project['name'].lower().replace(' ', '-'))}"
-    replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(reply.lead_email)}{project_param}"
+    if reply.lead_email:
+        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(reply.lead_email)}{project_param}"
+    elif project_param:
+        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?{project_param.lstrip('&')}"
+    else:
+        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies"
 
     project_line = f"\n<b>Project:</b> {project['name']}" if project else ""
 
@@ -1064,6 +1069,7 @@ async def notify_linkedin_reply(
     inbox_link: str = None,
     sender_name: str = None,
     category: str = None,
+    sender_profile_uuid: str = None,
 ) -> bool:
     """Send Telegram notification for LinkedIn replies with per-project routing.
 
@@ -1101,18 +1107,26 @@ async def notify_linkedin_reply(
         except Exception as e:
             logger.warning(f"LinkedIn project_id routing failed (non-fatal): {e}")
 
-    is_real_email = contact_email and "@linkedin.placeholder" not in contact_email and not contact_email.startswith("gs_")
+    if not project and sender_profile_uuid:
+        try:
+            project = await _get_project_by_sender(sender_profile_uuid)
+            if project:
+                logger.info(f"LinkedIn reply routed via sender UUID={sender_profile_uuid} ({project.get('name')})")
+        except Exception as e:
+            logger.warning(f"LinkedIn sender routing failed (non-fatal): {e}")
+
+    is_real_email = contact_email and "@" in contact_email and "@linkedin.placeholder" not in contact_email and not contact_email.startswith("gs_")
 
     project_param = ""
     if project:
         project_param = f"&project={quote(project['name'].lower().replace(' ', '-'))}"
-    # Always include lead email in URL (even placeholder) for direct linking
-    if contact_email:
+    # Include lead email in URL for direct linking — skip if not a real email
+    if is_real_email:
         replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(contact_email)}{project_param}"
     elif project_param:
         replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?{project_param.lstrip('&')}"
     else:
-        replies_ui_url = None
+        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies"
     replies_line = f'\n<a href="{replies_ui_url}">📋 Open in Replies UI</a>' if replies_ui_url else ""
 
     sender_line = f"\n<b>Sender:</b> {sender_name}" if sender_name else ""

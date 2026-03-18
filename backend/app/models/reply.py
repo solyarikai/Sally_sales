@@ -92,7 +92,7 @@ class ProcessedReply(Base, TimestampMixin):
     channel = Column(String(50), nullable=True, index=True)   # "email" or "linkedin"
 
     # Lead information
-    lead_email = Column(String(255), nullable=False, index=True)
+    lead_email = Column(String(255), nullable=True, index=True)
     lead_first_name = Column(String(100), nullable=True)
     lead_last_name = Column(String(100), nullable=True)
     lead_company = Column(String(255), nullable=True)
@@ -180,11 +180,10 @@ class ProcessedReply(Base, TimestampMixin):
         lazy="noload",
     )
 
-    __table_args__ = (
-        # Content-based dedup: same reply body from same lead in same campaign = duplicate.
-        # Different replies from the same lead get their own records + notifications.
-        Index('uq_processed_reply_content', 'lead_email', 'campaign_id', 'message_hash', unique=True),
-    )
+    # Dedup index managed by migration g1_channel_agnostic_identity:
+    # UNIQUE ON (COALESCE(lead_email, getsales_lead_uuid), COALESCE(campaign_id, ''), message_hash)
+    # Falls back to getsales_lead_uuid when lead_email is NULL (LinkedIn contacts without email).
+    __table_args__ = ()
 
     def __repr__(self):
         return f"<ProcessedReply(id={self.id}, email='{self.lead_email}', category='{self.category}')>"
