@@ -1,0 +1,67 @@
+{
+  "industries": [
+    "Hospital & Health Care",
+    "Health, Wellness and Fitness",
+    "Medical Devices",
+    "Biotechnology",
+    "Medical Practice"
+  ],
+  "industries_exclude": [
+    "Pharmaceuticals",
+    "Veterinary",
+    "Insurance",
+    "Staffing and Recruiting",
+    "Hospitals and Health Care"
+  ],
+  "description_keywords": [
+    "blood test",
+    "blood testing",
+    "health check",
+    "health screening",
+    "preventive health",
+    "biomarker",
+    "at-home test",
+    "home test kit",
+    "lab test",
+    "diagnostic test",
+    "wellness test",
+    "health assessment"
+  ],
+  "description_keywords_exclude": [
+    "veterinary",
+    "animal",
+    "clinical trial",
+    "CRO",
+    "pharmaceutical manufacturing",
+    "drug development"
+  ],
+  "country_names": [
+    "Germany",
+    "Australia",
+    "Canada",
+    "Singapore",
+    "Sweden",
+    "Netherlands",
+    "Belgium",
+    "Italy",
+    "Spain",
+    "Norway",
+    "Ireland",
+    "Switzerland",
+    "Czech Republic",
+    "Austria",
+    "Denmark",
+    "Finland",
+    "France",
+    "New Zealand"
+  ],
+  "sizes": [
+    "1-10",
+    "11-50",
+    "51-200",
+    "201-500"
+  ],
+  "types": [
+    "Privately held"
+  ]
+}
