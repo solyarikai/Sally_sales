@@ -260,7 +260,12 @@ class ProjectContactAnalysis(BaseModel):
 
 # ============= Status and Segment Constants =============
 
-CONTACT_STATUSES = ["new", "contacted", "replied", "calendly_sent", "meeting_booked", "meeting_held", "qualified", "not_qualified"]
+CONTACT_STATUSES = [
+    # Новая воронка
+    "new", "contacted", "replied", "calendly_sent", "meeting_booked", "meeting_held", "qualified", "not_qualified",
+    # Старые статусы (совместимость)
+    "lead", "touched", "warm", "interested", "not_interested", "synced", "sent", "active", "draft", "other"
+]
 CONTACT_SOURCES = ["manual", "smartlead", "apollo", "csv", "api"]
 DEFAULT_SEGMENTS = ["iGaming", "B2B SaaS", "FinTech", "E-commerce", "Healthcare", "Other"]
 
