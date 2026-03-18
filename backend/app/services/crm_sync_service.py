@@ -3260,20 +3260,17 @@ class CRMSyncService:
                         await session.commit()
                         await bulk_add_replies("getsales", [message_id])
 
-                        # Notify only for recent replies (< 1 hour old)
-                        _notif_cutoff = datetime.utcnow() - timedelta(hours=1)
-                        if _pr.received_at and _pr.received_at < _notif_cutoff:
-                            stats["skipped_old_notif"] = stats.get("skipped_old_notif", 0) + 1
-                        else:
-                            try:
-                                from app.services.reply_processor import send_getsales_notification
-                                await send_getsales_notification(
-                                    processed_reply=_pr, contact=contact,
-                                    flow_name=flow_name, flow_uuid=flow_uuid,
-                                    message_text=message_text, raw_data=msg, session=session,
-                                )
-                            except Exception:
-                                pass  # Non-fatal
+                        # Always notify for newly processed replies.
+                        # Dedup is handled by telegram_sent_at check in send_getsales_notification.
+                        try:
+                            from app.services.reply_processor import send_getsales_notification
+                            await send_getsales_notification(
+                                processed_reply=_pr, contact=contact,
+                                flow_name=flow_name, flow_uuid=flow_uuid,
+                                message_text=message_text, raw_data=msg, session=session,
+                            )
+                        except Exception:
+                            pass  # Non-fatal
                     # else: processing failed — do NOT cache, will retry next cycle
 
                 # Pagination — fetch next page for next iteration
