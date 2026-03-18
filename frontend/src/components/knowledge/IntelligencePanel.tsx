@@ -331,14 +331,6 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
     summary ? Object.entries(summary.by_segment).map(([v, c]) => ({ value: v, label: v, count: c })) : [],
     [summary]
   );
-  const tagOptions = useMemo(() =>
-    summary?.by_tag ? Object.entries(summary.by_tag).map(([v, c]) => ({ value: v, label: v, count: c })) : [],
-    [summary]
-  );
-  const geoOptions = useMemo(() =>
-    summary?.by_geo ? Object.entries(summary.by_geo).map(([v, c]) => ({ value: v, label: v, count: c })) : [],
-    [summary]
-  );
 
   const toggleSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, value: string) => {
     setter(prev => {
