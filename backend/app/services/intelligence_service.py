@@ -580,11 +580,11 @@ async def _get_outbound_text(session: AsyncSession, reply_id: int) -> str:
         select(ThreadMessage.body)
         .where(
             and_(
-                ThreadMessage.processed_reply_id == reply_id,
+                ThreadMessage.reply_id == reply_id,
                 ThreadMessage.direction == "outbound",
             )
         )
-        .order_by(ThreadMessage.position.desc())
+        .order_by(ThreadMessage.id.desc())
         .limit(1)
     )
     result = await session.execute(query)
