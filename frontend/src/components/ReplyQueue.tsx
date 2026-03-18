@@ -1204,36 +1204,38 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                         <div style={{ borderBottom: `1px solid ${t.divider}` }} />
                       </div>
 
-                      {/* Their message */}
-                      <div className="px-4 py-2">
-                        {reply.email_subject && (
-                          <div className="text-[13px] mb-1" style={{ color: t.text2 }}>{reply.email_subject}</div>
-                        )}
-                        <div
-                          className="text-[13px] leading-relaxed whitespace-pre-wrap break-words"
-                          style={{ color: t.text3 }}
-                        >
-                          {stripHtml(reply.email_body || reply.reply_text || '') || '(empty)'}
-                        </div>
-                        {reply.translated_body && (
-                          <div className="mt-2 pt-2" style={{ borderTop: `1px dashed ${t.divider}` }}>
-                            <div className="flex items-center gap-1 text-[11px] mb-1" style={{ color: t.text5 }}>
-                              <Languages className="w-3 h-3" />
-                              English translation
-                            </div>
-                            <div
-                              className="text-[13px] leading-relaxed whitespace-pre-wrap break-words"
-                              style={{ color: t.text4 }}
-                            >
-                              {reply.translated_body}
-                            </div>
+                      {/* Their message — hidden in Warm mode until conversation is opened */}
+                      {!isWarmMode && (
+                        <div className="px-4 py-2">
+                          {reply.email_subject && (
+                            <div className="text-[13px] mb-1" style={{ color: t.text2 }}>{reply.email_subject}</div>
+                          )}
+                          <div
+                            className="text-[13px] leading-relaxed whitespace-pre-wrap break-words"
+                            style={{ color: t.text3 }}
+                          >
+                            {stripHtml(reply.email_body || reply.reply_text || '') || '(empty)'}
                           </div>
-                        )}
-                      </div>
+                          {reply.translated_body && (
+                            <div className="mt-2 pt-2" style={{ borderTop: `1px dashed ${t.divider}` }}>
+                              <div className="flex items-center gap-1 text-[11px] mb-1" style={{ color: t.text5 }}>
+                                <Languages className="w-3 h-3" />
+                                English translation
+                              </div>
+                              <div
+                                className="text-[13px] leading-relaxed whitespace-pre-wrap break-words"
+                                style={{ color: t.text4 }}
+                              >
+                                {reply.translated_body}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                      {/* History */}
+                      {/* History — in Warm mode, only show thread when opened via View Conversation button */}
                       <div className="px-4">
-                        {isThreadOpen && (
+                        {isThreadOpen && !isWarmMode && (
                           <div
                             className="flex items-center gap-2 py-1.5 -mx-4 px-4"
                             style={{
@@ -1295,7 +1297,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                             )}
                           </div>
                         )}
-                        {!isThreadOpen && (
+                        {!isThreadOpen && !isWarmMode && (
                           <button
                             onClick={() => loadHistory(reply)}
                             className="text-[11px] flex items-center gap-1 py-0.5 transition-colors cursor-pointer"
