@@ -3707,6 +3707,123 @@ async def dismiss_followup(
     return {"status": "dismissed", "reply_id": reply_id}
 
 
+# ============= Referral Contact Feature =============
+
+@router.get("/{reply_id}/referral-info")
+async def get_referral_info(
+    reply_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    """Extract referred contact info from a wrong_person reply.
+
+    Scans the reply body for email addresses that don't belong to the original
+    lead or the sender (SquareFi), and returns them as potential referral targets.
+    """
+    import re
+    result = await db.execute(select(ProcessedReply).where(ProcessedReply.id == reply_id))
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    text = (reply.email_body or "") + " " + (reply.reply_text or "")
+    email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+    all_emails = [e.lower() for e in re.findall(email_pattern, text)]
+
+    # Filter out: sender domains, original lead's email, generic/noreply addresses
+    exclude_domains = {"squarefi.co", "squarefi-finance.com", "mostasolution.com", "squarefi-payment.com"}
+    exclude_emails = {(reply.lead_email or "").lower()}
+    referred = []
+    seen = set()
+    for e in all_emails:
+        domain = e.split("@")[-1] if "@" in e else ""
+        if domain in exclude_domains:
+            continue
+        if e in exclude_emails:
+            continue
+        if e in seen:
+            continue
+        if e.startswith("noreply") or e.startswith("no-reply"):
+            continue
+        seen.add(e)
+        referred.append(e)
+
+    return {
+        "referred_emails": referred,
+        "original_lead": {
+            "email": reply.lead_email,
+            "name": f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip(),
+            "company": reply.lead_company,
+        },
+        "campaign_id": reply.campaign_id,
+        "campaign_name": reply.campaign_name,
+    }
+
+
+class ContactReferralRequest(BaseModel):
+    referred_email: str
+    referred_first_name: Optional[str] = None
+    referred_last_name: Optional[str] = None
+    campaign_id: Optional[str] = None  # defaults to same campaign as original reply
+
+
+@router.post("/{reply_id}/contact-referral")
+async def contact_referral(
+    reply_id: int,
+    body: ContactReferralRequest,
+    db: AsyncSession = Depends(get_session),
+):
+    """Add a referred contact to the Smartlead campaign.
+
+    Extracts the referrer info from the original reply and adds the referred
+    person to Smartlead with custom fields so the campaign email can reference
+    who sent them (e.g. '{{referred_by_name}} mentioned you handle payments').
+    """
+    from app.services.smartlead_service import SmartleadService
+
+    result = await db.execute(select(ProcessedReply).where(ProcessedReply.id == reply_id))
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    target_campaign_id = body.campaign_id or reply.campaign_id
+    if not target_campaign_id:
+        raise HTTPException(status_code=400, detail="No campaign_id available — provide one explicitly")
+
+    referrer_name = f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip() or reply.lead_email
+    referrer_company = reply.lead_company or ""
+
+    lead = {
+        "email": body.referred_email,
+        "first_name": body.referred_first_name or "",
+        "last_name": body.referred_last_name or "",
+        "company_name": referrer_company,
+        "custom_fields": {
+            "referred_by_name": referrer_name,
+            "referred_by_company": referrer_company,
+        },
+    }
+
+    sl = SmartleadService()
+    try:
+        api_result = await sl.add_leads_to_campaign(target_campaign_id, [lead])
+    finally:
+        await sl.close()
+
+    logger.info(
+        f"[REFERRAL] Added {body.referred_email} to campaign {target_campaign_id} "
+        f"(referred by {referrer_name} from reply #{reply_id})"
+    )
+
+    return {
+        "status": "added",
+        "referred_email": body.referred_email,
+        "campaign_id": target_campaign_id,
+        "campaign_name": reply.campaign_name,
+        "referred_by": referrer_name,
+        "smartlead_response": api_result,
+    }
+
+
 async def _sync_approval_to_sheet(db, reply, status, google_sheets_service):
     """Sync approval status to Google Sheets if configured."""
     try:

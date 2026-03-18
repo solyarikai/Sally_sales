@@ -660,6 +660,32 @@ export async function dismissFollowup(replyId: number): Promise<{
   return response.data;
 }
 
+export async function getReferralInfo(replyId: number): Promise<{
+  referred_emails: string[];
+  original_lead: { email: string; name: string; company: string };
+  campaign_id: string | null;
+  campaign_name: string | null;
+}> {
+  const response = await api.get(`/replies/${replyId}/referral-info`);
+  return response.data;
+}
+
+export async function contactReferral(replyId: number, body: {
+  referred_email: string;
+  referred_first_name?: string;
+  referred_last_name?: string;
+  campaign_id?: string;
+}): Promise<{
+  status: string;
+  referred_email: string;
+  campaign_id: string;
+  campaign_name: string | null;
+  referred_by: string;
+}> {
+  const response = await api.post(`/replies/${replyId}/contact-referral`, body);
+  return response.data;
+}
+
 // Export all functions as named object for consistency
 export const repliesApi = {
   // Smartlead
@@ -721,6 +747,9 @@ export const repliesApi = {
   generateFollowupDraft,
   sendFollowup,
   dismissFollowup,
+  // Referral
+  getReferralInfo,
+  contactReferral,
 };
 
 
