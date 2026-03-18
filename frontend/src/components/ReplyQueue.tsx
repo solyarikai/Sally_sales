@@ -1330,8 +1330,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
 
                       <div className="mx-4" style={{ borderTop: `1px solid ${t.divider}` }} />
 
-                      {/* Draft */}
-                      <div className="px-4 py-2.5">
+                      {/* Draft — hidden in Warm mode (client-facing view) */}
+                      {!isWarmMode && <div className="px-4 py-2.5">
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-[11px] uppercase tracking-wider" style={{ color: draftFailed ? t.errorText : t.text5 }}>
                             {mode === 'followups' ? 'Follow-up Draft' : (draftFailed ? 'Draft (failed)' : 'Draft')}
@@ -1489,7 +1489,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                             )}
                           </>
                         )}
-                      </div>
+                      </div>}
 
                       {/* Cross-campaign safety modal */}
                       {confirmSendId === reply.id && (() => {
@@ -1553,7 +1553,40 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                         className="px-4 pb-3 pt-2 flex items-center gap-1.5"
                         style={{ position: 'sticky', bottom: 0, zIndex: 10, background: t.cardBg, borderTop: `1px solid ${t.divider}` }}
                       >
-                        {mode === 'followups' ? (
+                        {isWarmMode ? (
+                          /* Warm mode: simplified actions — View Profile + remove from warm */
+                          <>
+                            <button
+                              onClick={() => loadHistory(reply)}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded text-[13px] font-medium transition-all cursor-pointer active:scale-[0.98]"
+                              style={{
+                                background: t.btnPrimaryBg,
+                                color: t.btnPrimaryText,
+                              }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.btnPrimaryHover; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = t.btnPrimaryBg; }}
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              {isThreadOpen ? 'Hide Conversation' : 'View Conversation'}
+                            </button>
+                            <button
+                              onClick={() => handleToggleWarm(reply)}
+                              disabled={togglingWarmIds.has(reply.id)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-all cursor-pointer active:scale-[0.98]"
+                              style={{ color: t.text4 }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.btnGhostHover; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                              title="Remove from warm leads"
+                            >
+                              {togglingWarmIds.has(reply.id) ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5" />
+                              )}
+                              Remove
+                            </button>
+                          </>
+                        ) : mode === 'followups' ? (
                           <>
                             <button
                               onClick={async () => {
