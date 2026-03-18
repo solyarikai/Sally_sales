@@ -325,6 +325,7 @@ export interface ContactFilters {
   reply_category?: string;
   reply_since?: string;
   source_id?: string;
+  is_qualified?: boolean;
 }
 
 export interface GenerateReplyResponse {

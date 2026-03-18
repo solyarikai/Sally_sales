@@ -260,7 +260,7 @@ class ProjectContactAnalysis(BaseModel):
 
 # ============= Status and Segment Constants =============
 
-CONTACT_STATUSES = ["lead", "contacted", "replied", "qualified", "customer", "lost"]
+CONTACT_STATUSES = ["new", "contacted", "replied", "calendly_sent", "meeting_booked", "meeting_held", "qualified", "not_qualified"]
 CONTACT_SOURCES = ["manual", "smartlead", "apollo", "csv", "api"]
 DEFAULT_SEGMENTS = ["iGaming", "B2B SaaS", "FinTech", "E-commerce", "Healthcare", "Other"]
 
@@ -290,6 +290,7 @@ async def _build_filtered_query(
     reply_since: Optional[str] = None,
     status_external: Optional[str] = None,
     source_id: Optional[str] = None,
+    is_qualified: Optional[bool] = None,
 ):
     """Build a filtered Contact query. Shared by list, CSV export, and Google Sheet export."""
     query = select(Contact).where(
@@ -482,6 +483,16 @@ async def _build_filtered_query(
         elif ext_list:
             query = query.where(Contact.status_external.in_(ext_list))
 
+    if is_qualified is True:
+        # Filter contacts that have at least one qualified (warm) ProcessedReply
+        from app.models.reply import ProcessedReply
+        qualified_emails = (
+            select(ProcessedReply.lead_email)
+            .distinct(ProcessedReply.lead_email)
+            .where(ProcessedReply.is_qualified == True)
+        ).subquery()
+        query = query.where(Contact.email.in_(select(qualified_emails.c.lead_email)))
+
     return query
 
 
@@ -512,6 +523,7 @@ async def list_contacts(
     reply_since: Optional[str] = Query(None, description="Only include replies received after this date (ISO format)"),
     status_external: Optional[str] = Query(None, description="Filter by external status (comma-separated)"),
     source_id: Optional[str] = Query(None, description="Filter by source_id (e.g., clay_123 for gather run)"),
+    is_qualified: Optional[bool] = Query(None, description="Filter warm/qualified leads (from ProcessedReply.is_qualified)"),
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
 ):
@@ -526,6 +538,7 @@ async def list_contacts(
         created_after=created_after, created_before=created_before, search=search,
         domain=domain, suitable_for=suitable_for, reply_category=reply_category,
         reply_since=reply_since, status_external=status_external, source_id=source_id,
+        is_qualified=is_qualified,
     )
     
     # Count total

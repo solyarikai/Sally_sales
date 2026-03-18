@@ -6,16 +6,14 @@ import { Check, Search } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 
 const STATUSES = [
-  { key: 'touched',        label: 'Touched',         dot: 'bg-blue-500',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
-  { key: 'warm',           label: 'Warm',            dot: 'bg-amber-500',   colors: 'bg-amber-100 text-amber-700 border-amber-300' },
-  { key: 'replied',        label: 'Replied',         dot: 'bg-green-500',   colors: 'bg-green-100 text-green-700 border-green-300' },
-  { key: 'qualified',      label: 'Qualified',       dot: 'bg-emerald-500', colors: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
-  { key: 'not_interested', label: 'Not Interested',  dot: 'bg-gray-400',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
-  { key: 'wrong_person',   label: 'Wrong Person',    dot: 'bg-red-400',     colors: 'bg-red-100 text-red-600 border-red-300' },
-  { key: 'out_of_office',  label: 'OOO',             dot: 'bg-yellow-400',  colors: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
-  { key: 'other',          label: 'Other',           dot: 'bg-purple-400',  colors: 'bg-purple-100 text-purple-600 border-purple-300' },
-  { key: 'customer',       label: 'Customer',        dot: 'bg-emerald-600', colors: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
-  { key: 'lost',           label: 'Lost',            dot: 'bg-red-500',     colors: 'bg-red-100 text-red-600 border-red-300' },
+  { key: 'new',             label: 'Новый',              dot: 'bg-gray-400',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
+  { key: 'contacted',       label: 'Написали',           dot: 'bg-blue-400',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
+  { key: 'replied',         label: 'Ответил',            dot: 'bg-blue-500',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
+  { key: 'calendly_sent',   label: 'Calendly отправлен', dot: 'bg-orange-400',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
+  { key: 'meeting_booked',  label: 'Звонок назначен',    dot: 'bg-orange-500',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
+  { key: 'meeting_held',    label: 'Звонок состоялся',   dot: 'bg-green-500',   colors: 'bg-green-100 text-green-700 border-green-300' },
+  { key: 'qualified',       label: 'Квал',               dot: 'bg-emerald-500', colors: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+  { key: 'not_qualified',   label: 'Не квал',            dot: 'bg-gray-600',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
 ] as const;
 
 export const StatusColumnFilter = forwardRef((props: IFilterParams, ref) => {

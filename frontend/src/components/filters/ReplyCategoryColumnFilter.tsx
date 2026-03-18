@@ -6,14 +6,14 @@ import { Check, Search } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 
 const REPLY_CATEGORIES = [
-  { key: 'meeting_request', label: 'Meeting',        dot: 'bg-green-500' },
-  { key: 'interested',      label: 'Interested',     dot: 'bg-blue-500' },
-  { key: 'question',        label: 'Question',       dot: 'bg-indigo-500' },
-  { key: 'not_interested',  label: 'Not Interested', dot: 'bg-gray-400' },
-  { key: 'out_of_office',   label: 'OOO',            dot: 'bg-yellow-400' },
-  { key: 'wrong_person',    label: 'Wrong Person',   dot: 'bg-red-400' },
-  { key: 'unsubscribe',     label: 'Unsubscribe',    dot: 'bg-orange-400' },
-  { key: 'other',           label: 'Other',          dot: 'bg-purple-400' },
+  { key: 'meeting_request', label: 'Просит встречу',  dot: 'bg-green-500' },
+  { key: 'interested',      label: 'Заинтересован',   dot: 'bg-blue-500' },
+  { key: 'question',        label: 'Вопрос',          dot: 'bg-indigo-500' },
+  { key: 'not_interested',  label: 'Не интересно',    dot: 'bg-gray-400' },
+  { key: 'out_of_office',   label: 'Нет на месте',    dot: 'bg-yellow-400' },
+  { key: 'wrong_person',    label: 'Не тот человек',  dot: 'bg-red-400' },
+  { key: 'unsubscribe',     label: 'Отписка',         dot: 'bg-orange-400' },
+  { key: 'other',           label: 'Другое',          dot: 'bg-purple-400' },
 ] as const;
 
 export const ReplyCategoryColumnFilter = forwardRef((props: IFilterParams, ref) => {

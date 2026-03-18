@@ -34,28 +34,28 @@ import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useAppStore } from '../store/appStore';
 
-// Status configuration — dot-only, theme-neutral
+// Status configuration — воронка процесса
 const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
-  touched:        { dot: '#3b82f6', label: 'Touched' },
-  warm:           { dot: '#f59e0b', label: 'Warm' },
-  not_interested: { dot: '#9ca3af', label: 'Not Interested' },
-  wrong_person:   { dot: '#f87171', label: 'Wrong Person' },
-  out_of_office:  { dot: '#fbbf24', label: 'OOO' },
-  other:          { dot: '#a78bfa', label: 'Other' },
-  qualified:      { dot: '#10b981', label: 'Qualified' },
-  customer:       { dot: '#059669', label: 'Customer' },
-  lost:           { dot: '#ef4444', label: 'Lost' },
+  new:            { dot: '#9ca3af', label: 'Новый' },
+  contacted:      { dot: '#60a5fa', label: 'Написали' },
+  replied:        { dot: '#3b82f6', label: 'Ответил' },
+  calendly_sent:  { dot: '#fb923c', label: 'Calendly отправлен' },
+  meeting_booked: { dot: '#f97316', label: 'Звонок назначен' },
+  meeting_held:   { dot: '#22c55e', label: 'Звонок состоялся' },
+  qualified:      { dot: '#10b981', label: 'Квал' },
+  not_qualified:  { dot: '#4b5563', label: 'Не квал' },
 };
 
+// Reply Type configuration — интент ответа
 const REPLY_CATEGORY_CONFIG: Record<string, { dot: string; label: string }> = {
-  meeting_request: { dot: '#22c55e', label: 'Meeting' },
-  interested:      { dot: '#3b82f6', label: 'Interested' },
-  question:        { dot: '#6366f1', label: 'Question' },
-  not_interested:  { dot: '#9ca3af', label: 'Not Interested' },
-  out_of_office:   { dot: '#fbbf24', label: 'OOO' },
-  wrong_person:    { dot: '#f87171', label: 'Wrong Person' },
-  unsubscribe:     { dot: '#fb923c', label: 'Unsubscribe' },
-  other:           { dot: '#a78bfa', label: 'Other' },
+  meeting_request: { dot: '#22c55e', label: 'Просит встречу' },
+  interested:      { dot: '#3b82f6', label: 'Заинтересован' },
+  question:        { dot: '#6366f1', label: 'Вопрос' },
+  not_interested:  { dot: '#9ca3af', label: 'Не интересно' },
+  out_of_office:   { dot: '#fbbf24', label: 'Нет на месте' },
+  wrong_person:    { dot: '#f87171', label: 'Не тот человек' },
+  unsubscribe:     { dot: '#fb923c', label: 'Отписка' },
+  other:           { dot: '#a78bfa', label: 'Другое' },
 };
 
 export function ContactsPage() {
