@@ -213,6 +213,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
   // Warm mode: editable notes
   const [editingNotes, setEditingNotes] = useState<Record<number, string>>({});
   const [savingNotes, setSavingNotes] = useState<Set<number>>(new Set());
+  const [expandedNotes, setExpandedNotes] = useState<Set<number>>(new Set());
 
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [projectDocs, setProjectDocs] = useState<KnowledgeEntry[]>([]);
@@ -1208,11 +1209,11 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                         <div style={{ borderBottom: `1px solid ${t.divider}` }} />
                       </div>
 
-                      {/* Warm mode: info card with campaign, channel, last activity, notes */}
+                      {/* Warm mode: compact info card */}
                       {isWarmMode && (
                         <div className="px-4 py-3">
                           {/* Info grid */}
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-3">
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                             <div>
                               <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: t.text5 }}>Campaign</div>
                               <div className="text-[13px]" style={{ color: t.text2 }}>{displayCampaignName(reply.campaign_name) || '—'}</div>
@@ -1238,39 +1239,40 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                               <div className="text-[13px]" style={{ color: t.text2 }}>{catLabel || '—'}</div>
                             </div>
                           </div>
-                          {/* Editable notes */}
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wider mb-1 flex items-center justify-between" style={{ color: t.text5 }}>
-                              <span>Notes</span>
-                              {savingNotes.has(reply.id) && <span className="text-[10px] normal-case" style={{ color: t.text5 }}>Saving...</span>}
+                          {/* Notes panel — shown when expanded */}
+                          {expandedNotes.has(reply.id) && (
+                            <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${t.divider}` }}>
+                              <div className="text-[10px] uppercase tracking-wider mb-1 flex items-center justify-between" style={{ color: t.text5 }}>
+                                <span>Notes</span>
+                                {savingNotes.has(reply.id) && <span className="text-[10px] normal-case" style={{ color: t.text5 }}>Saving...</span>}
+                              </div>
+                              <textarea
+                                value={editingNotes[reply.id] ?? reply.operator_notes ?? ''}
+                                onChange={e => setEditingNotes(prev => ({ ...prev, [reply.id]: e.target.value }))}
+                                onBlur={async () => {
+                                  const newNotes = editingNotes[reply.id];
+                                  if (newNotes === undefined || newNotes === (reply.operator_notes ?? '')) return;
+                                  setSavingNotes(prev => new Set(prev).add(reply.id));
+                                  try {
+                                    await repliesApi.updateNotes(reply.id, newNotes);
+                                    setReplies(prev => prev.map(r => r.id === reply.id ? { ...r, operator_notes: newNotes || null } : r));
+                                    setEditingNotes(prev => { const n = { ...prev }; delete n[reply.id]; return n; });
+                                  } catch {
+                                    toast.error('Failed to save notes', { style: toastErr });
+                                  } finally {
+                                    setSavingNotes(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
+                                  }
+                                }}
+                                placeholder="Add notes about this lead..."
+                                className="w-full text-[13px] rounded p-2.5 focus:outline-none min-h-[80px] resize-y border"
+                                style={{
+                                  background: t.draftBg,
+                                  borderColor: t.draftBorder,
+                                  color: t.text1,
+                                }}
+                              />
                             </div>
-                            <textarea
-                              value={editingNotes[reply.id] ?? reply.operator_notes ?? ''}
-                              onChange={e => setEditingNotes(prev => ({ ...prev, [reply.id]: e.target.value }))}
-                              onBlur={async () => {
-                                const newNotes = editingNotes[reply.id];
-                                if (newNotes === undefined || newNotes === (reply.operator_notes ?? '')) return;
-                                setSavingNotes(prev => new Set(prev).add(reply.id));
-                                try {
-                                  await repliesApi.updateNotes(reply.id, newNotes);
-                                  // Update local reply data
-                                  setReplies(prev => prev.map(r => r.id === reply.id ? { ...r, operator_notes: newNotes || null } : r));
-                                  setEditingNotes(prev => { const n = { ...prev }; delete n[reply.id]; return n; });
-                                } catch {
-                                  toast.error('Failed to save notes', { style: toastErr });
-                                } finally {
-                                  setSavingNotes(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
-                                }
-                              }}
-                              placeholder="Add notes about this lead..."
-                              className="w-full text-[13px] rounded p-2.5 focus:outline-none min-h-[60px] resize-y border"
-                              style={{
-                                background: t.draftBg,
-                                borderColor: t.draftBorder,
-                                color: t.text1,
-                              }}
-                            />
-                          </div>
+                          )}
                         </div>
                       )}
 
@@ -1626,20 +1628,38 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                         style={{ position: 'sticky', bottom: 0, zIndex: 10, background: t.cardBg, borderTop: `1px solid ${t.divider}` }}
                       >
                         {isWarmMode ? (
-                          /* Warm mode: simplified actions — View Profile + remove from warm */
+                          /* Warm mode: simplified actions — View Conversation + Notes + Remove */
                           <>
                             <button
                               onClick={() => loadHistory(reply)}
                               className="flex items-center gap-1.5 px-4 py-2 rounded text-[13px] font-medium transition-all cursor-pointer active:scale-[0.98]"
                               style={{
-                                background: t.btnPrimaryBg,
-                                color: t.btnPrimaryText,
+                                background: isThreadOpen ? t.btnGhostHover : t.btnPrimaryBg,
+                                color: isThreadOpen ? t.text2 : t.btnPrimaryText,
                               }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.btnPrimaryHover; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = t.btnPrimaryBg; }}
+                              onMouseEnter={e => { if (!isThreadOpen) (e.currentTarget as HTMLElement).style.background = t.btnPrimaryHover; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isThreadOpen ? t.btnGhostHover : t.btnPrimaryBg; }}
                             >
                               <MessageCircle className="w-4 h-4" />
-                              {isThreadOpen ? 'Hide Conversation' : 'View Conversation'}
+                              {isThreadOpen ? 'Hide Conversation' : 'Conversation'}
+                            </button>
+                            <button
+                              onClick={() => setExpandedNotes(prev => {
+                                const next = new Set(prev);
+                                if (next.has(reply.id)) next.delete(reply.id);
+                                else next.add(reply.id);
+                                return next;
+                              })}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded text-[13px] font-medium transition-all cursor-pointer active:scale-[0.98]"
+                              style={{
+                                background: expandedNotes.has(reply.id) ? t.btnGhostHover : (isDark ? '#1e3a5f' : '#dbeafe'),
+                                color: expandedNotes.has(reply.id) ? t.text2 : '#2563eb',
+                              }}
+                              onMouseEnter={e => { if (!expandedNotes.has(reply.id)) (e.currentTarget as HTMLElement).style.opacity = '0.85'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+                            >
+                              <Edit3 className="w-4 h-4" />
+                              {expandedNotes.has(reply.id) ? 'Hide Notes' : 'Notes'}
                             </button>
                             <button
                               onClick={() => handleToggleWarm(reply)}
