@@ -234,6 +234,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
   const [referralInfo, setReferralInfo] = useState<Record<number, { referred_emails: string[]; campaign_id: string | null }>>({});
   const [referralSending, setReferralSending] = useState<Set<string>>(new Set()); // key: `${replyId}:${email}`
   const [referralDone, setReferralDone] = useState<Set<string>>(new Set());  // key: `${replyId}:${email}`
+  // Referral draft editing: key = `${replyId}:${email}` → { message, subject, generating, editing }
+  const [referralDrafts, setReferralDrafts] = useState<Record<string, { message: string; subject: string; generating: boolean; editing: boolean }>>({});
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -1600,7 +1602,6 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                             {/* Referral button: only for wrong_person replies with a detected email */}
                             {reply.category === 'wrong_person' && (() => {
                               const info = referralInfo[reply.id];
-                              // Trigger fetch if not yet loaded
                               if (!info) {
                                 repliesApi.getReferralInfo(reply.id).then(data => {
                                   setReferralInfo(prev => ({ ...prev, [reply.id]: { referred_emails: data.referred_emails, campaign_id: data.campaign_id } }));
@@ -1609,43 +1610,95 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                               }
                               if (!info.referred_emails.length) return null;
                               return (
-                                <div className="flex items-center gap-1 ml-auto">
+                                <div className="flex flex-col gap-2 w-full mt-1">
                                   {info.referred_emails.map(email => {
                                     const key = `${reply.id}:${email}`;
                                     const isSendingRef = referralSending.has(key);
                                     const isDone = referralDone.has(key);
+                                    const draft = referralDrafts[key];
                                     return (
-                                      <button
-                                        key={email}
-                                        disabled={isSendingRef || isDone}
-                                        onClick={async () => {
-                                          setReferralSending(prev => new Set(prev).add(key));
-                                          try {
-                                            await repliesApi.contactReferral(reply.id, { referred_email: email, campaign_id: info.campaign_id || undefined });
-                                            setReferralDone(prev => new Set(prev).add(key));
-                                            toast.success(`Added ${email} to campaign`, { style: toastOk });
-                                          } catch (err: any) {
-                                            toast.error(err.response?.data?.detail || 'Failed to add referral', { style: toastErr });
-                                          } finally {
-                                            setReferralSending(prev => { const s = new Set(prev); s.delete(key); return s; });
-                                          }
-                                        }}
-                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded text-[12px] font-medium transition-all cursor-pointer active:scale-[0.98]"
-                                        style={{
-                                          background: isDone ? t.divider : '#16a34a',
-                                          color: isDone ? t.text4 : '#fff',
-                                          opacity: isSendingRef ? 0.7 : 1,
-                                        }}
-                                        title={`Add ${email} to ${info.campaign_id ? 'campaign' : 'same campaign'} referencing ${reply.lead_first_name || reply.lead_email}`}
-                                      >
-                                        {isSendingRef ? (
-                                          <RefreshCw className="w-3 h-3 animate-spin" />
-                                        ) : isDone ? (
-                                          <span>✓ Sent to {email.split('@')[0]}</span>
-                                        ) : (
-                                          <span>→ Contact {email.split('@')[0]}</span>
+                                      <div key={email} className="flex flex-col gap-1.5">
+                                        {/* Generate button (initial state) */}
+                                        {!draft && !isDone && (
+                                          <button
+                                            disabled={isSendingRef}
+                                            onClick={async () => {
+                                              setReferralDrafts(prev => ({ ...prev, [key]: { message: '', subject: '', generating: true, editing: false } }));
+                                              try {
+                                                const result = await repliesApi.generateReferralDraft(reply.id, { referred_email: email, referred_first_name: email.split('@')[0] });
+                                                setReferralDrafts(prev => ({ ...prev, [key]: { message: result.personalized_message, subject: result.email_subject, generating: false, editing: true } }));
+                                              } catch (err: any) {
+                                                setReferralDrafts(prev => { const s = { ...prev }; delete s[key]; return s; });
+                                                toast.error('Failed to generate draft', { style: toastErr });
+                                              }
+                                            }}
+                                            className="flex items-center gap-1 px-2.5 py-1.5 rounded text-[12px] font-medium transition-all cursor-pointer active:scale-[0.98] self-start"
+                                            style={{ background: '#16a34a', color: '#fff' }}
+                                          >
+                                            {draft?.generating ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+                                            → Contact {email.split('@')[0]}
+                                          </button>
                                         )}
-                                      </button>
+                                        {/* Inline draft editor */}
+                                        {draft?.editing && !isDone && (
+                                          <div className="flex flex-col gap-1.5 w-full rounded-lg p-3" style={{ background: t.cardBg, border: `1px solid ${t.divider}` }}>
+                                            <div className="text-[11px] font-semibold" style={{ color: t.text4 }}>TO: {email}</div>
+                                            <input
+                                              value={draft.subject}
+                                              onChange={e => setReferralDrafts(prev => ({ ...prev, [key]: { ...prev[key], subject: e.target.value } }))}
+                                              className="w-full rounded px-2 py-1 text-[12px] font-medium"
+                                              style={{ background: t.inputBg, border: `1px solid ${t.divider}`, color: t.text1 }}
+                                              placeholder="Subject"
+                                            />
+                                            <textarea
+                                              value={draft.message}
+                                              onChange={e => setReferralDrafts(prev => ({ ...prev, [key]: { ...prev[key], message: e.target.value } }))}
+                                              rows={7}
+                                              className="w-full rounded px-2 py-1.5 text-[12px] resize-none"
+                                              style={{ background: t.inputBg, border: `1px solid ${t.divider}`, color: t.text1, fontFamily: 'inherit' }}
+                                            />
+                                            <div className="flex gap-2">
+                                              <button
+                                                disabled={isSendingRef}
+                                                onClick={async () => {
+                                                  setReferralSending(prev => new Set(prev).add(key));
+                                                  try {
+                                                    await repliesApi.contactReferral(reply.id, {
+                                                      referred_email: email,
+                                                      campaign_id: info.campaign_id || undefined,
+                                                      personalized_message: draft.message,
+                                                      email_subject: draft.subject,
+                                                    });
+                                                    setReferralDone(prev => new Set(prev).add(key));
+                                                    setReferralDrafts(prev => { const s = { ...prev }; delete s[key]; return s; });
+                                                    toast.success(`Sent to ${email}`, { style: toastOk });
+                                                  } catch (err: any) {
+                                                    toast.error(err.response?.data?.detail || 'Failed to send', { style: toastErr });
+                                                  } finally {
+                                                    setReferralSending(prev => { const s = new Set(prev); s.delete(key); return s; });
+                                                  }
+                                                }}
+                                                className="flex items-center gap-1 px-3 py-1.5 rounded text-[12px] font-medium cursor-pointer active:scale-[0.98]"
+                                                style={{ background: '#16a34a', color: '#fff', opacity: isSendingRef ? 0.7 : 1 }}
+                                              >
+                                                {isSendingRef ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+                                                Send
+                                              </button>
+                                              <button
+                                                onClick={() => setReferralDrafts(prev => { const s = { ...prev }; delete s[key]; return s; })}
+                                                className="px-3 py-1.5 rounded text-[12px] cursor-pointer"
+                                                style={{ background: t.divider, color: t.text3 }}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {/* Done state */}
+                                        {isDone && (
+                                          <span className="text-[12px] px-2.5 py-1.5" style={{ color: t.text4 }}>✓ Sent to {email.split('@')[0]}</span>
+                                        )}
+                                      </div>
                                     );
                                   })}
                                 </div>

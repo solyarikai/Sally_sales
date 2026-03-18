@@ -670,11 +670,28 @@ export async function getReferralInfo(replyId: number): Promise<{
   return response.data;
 }
 
+export async function generateReferralDraft(replyId: number, body: {
+  referred_email: string;
+  referred_first_name?: string;
+}): Promise<{
+  personalized_message: string;
+  email_subject: string;
+  referred_email: string;
+  referred_first: string;
+  referrer_name: string;
+  referrer_company: string;
+}> {
+  const response = await api.post(`/replies/${replyId}/generate-referral-draft`, body);
+  return response.data;
+}
+
 export async function contactReferral(replyId: number, body: {
   referred_email: string;
   referred_first_name?: string;
   referred_last_name?: string;
   campaign_id?: string;
+  personalized_message?: string;
+  email_subject?: string;
 }): Promise<{
   status: string;
   referred_email: string;
@@ -749,6 +766,7 @@ export const repliesApi = {
   dismissFollowup,
   // Referral
   getReferralInfo,
+  generateReferralDraft,
   contactReferral,
 };
 

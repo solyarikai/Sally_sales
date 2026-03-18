@@ -3759,11 +3759,98 @@ async def get_referral_info(
     }
 
 
+class GenerateReferralDraftRequest(BaseModel):
+    referred_email: str
+    referred_first_name: Optional[str] = None
+
+
+@router.post("/{reply_id}/generate-referral-draft")
+async def generate_referral_draft(
+    reply_id: int,
+    body: GenerateReferralDraftRequest,
+    db: AsyncSession = Depends(get_session),
+):
+    """Generate AI draft for a referral outreach without sending — operator reviews/edits first."""
+    import anthropic as _anthropic
+
+    result = await db.execute(select(ProcessedReply).where(ProcessedReply.id == reply_id))
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    referrer_name = f"{reply.lead_first_name or ''} {reply.lead_last_name or ''}".strip() or reply.lead_email
+    referrer_first = (reply.lead_first_name or referrer_name.split()[0]) if referrer_name else ""
+    referrer_company = reply.lead_company or ""
+    referred_first = body.referred_first_name or body.referred_email.split("@")[0].capitalize()
+
+    original_sent = reply.draft_reply or ""
+    original_reply_text = reply.email_body or reply.reply_text or ""
+
+    prompt = f"""You are Eugene Sukhoi, Partner at SquareFi (squarefi.co).
+
+{referrer_name}{f' from {referrer_company}' if referrer_company else ''} replied to your cold email saying you should contact {body.referred_email} instead.
+
+Their exact reply was:
+---
+{original_reply_text[:800]}
+---
+
+Your original email to {referrer_first} was:
+---
+{original_sent[:800] if original_sent else '(payment infrastructure pitch for SquareFi)'}
+---
+
+Write a SHORT, personalized cold email to {referred_first} referencing:
+- That {referrer_first}{f' from {referrer_company}' if referrer_company else ''} suggested reaching out
+- The specific context from your original email (what product/benefit is relevant to THEIR company)
+- A clear CTA (15-min call or "I can send our deck")
+
+Rules:
+- 4-5 sentences, plain text, no HTML tags
+- No subject line — just the email body
+- Warm but direct
+- End with: Best,\\nEugene Sukhoi\\nPartner @Squarefi.co\\nProcessed over $500M in 2025 | Trusted by 50+ fintech companies"""
+
+    try:
+        ai_client = _anthropic.AsyncAnthropic()
+        ai_msg = await ai_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        personalized_message = ai_msg.content[0].text.strip()
+    except Exception as ai_err:
+        logger.warning(f"[REFERRAL] Draft generation failed: {ai_err}")
+        personalized_message = (
+            f"Hi {referred_first},\n\n"
+            f"{referrer_first}{f' from {referrer_company}' if referrer_company else ''} mentioned you might be the right person to talk to about payment infrastructure.\n\n"
+            f"We help companies with multi-currency accounts, crypto-to-fiat settlement, and mass payouts — without bank account closures.\n\n"
+            f"Worth a quick 15-min call?\n\n"
+            f"Best,\nEugene Sukhoi\nPartner @Squarefi.co\nProcessed over $500M in 2025 | Trusted by 50+ fintech companies"
+        )
+
+    email_subject = (
+        f"{referrer_first} from {referrer_company} suggested I reach out | SquareFi"
+        if referrer_company else f"Introduction from {referrer_first} | SquareFi"
+    )
+
+    return {
+        "personalized_message": personalized_message,
+        "email_subject": email_subject,
+        "referred_email": body.referred_email,
+        "referred_first": referred_first,
+        "referrer_name": referrer_name,
+        "referrer_company": referrer_company,
+    }
+
+
 class ContactReferralRequest(BaseModel):
     referred_email: str
     referred_first_name: Optional[str] = None
     referred_last_name: Optional[str] = None
-    campaign_id: Optional[str] = None  # defaults to same campaign as original reply
+    campaign_id: Optional[str] = None
+    personalized_message: Optional[str] = None  # operator-edited draft
+    email_subject: Optional[str] = None          # operator-edited subject
 
 
 @router.post("/{reply_id}/contact-referral")
@@ -3811,11 +3898,18 @@ async def contact_referral(
                     sender_account_id = acc.get("id")
                     break
 
-        # 3. Generate AI personalized message
-        original_sent = reply.draft_reply or ""
-        prompt = f"""You are Eugene Sukhoi, Partner at SquareFi (squarefi.co).
+        # 3. Use operator-edited message if provided, otherwise generate via AI
+        if body.personalized_message:
+            personalized_message = body.personalized_message
+            email_subject = body.email_subject or (
+                f"{referrer_first} from {referrer_company} suggested I reach out | SquareFi"
+                if referrer_company else f"Introduction from {referrer_first} | SquareFi"
+            )
+        else:
+            original_sent = reply.draft_reply or ""
+            prompt = f"""You are Eugene Sukhoi, Partner at SquareFi (squarefi.co).
 
-{referrer_name}{f' from {referrer_company}' if referrer_company else ''} replied to your email saying you should contact {body.referred_email} instead — they handle the relevant operations.
+{referrer_name}{f' from {referrer_company}' if referrer_company else ''} replied to your email saying you should contact {body.referred_email} instead.
 
 Write a SHORT, warm cold outreach email to {referred_first} referencing that {referrer_first} mentioned them.
 
@@ -3830,28 +3924,28 @@ Rules:
 - Signature: Eugene Sukhoi / Partner @Squarefi.co / Processed over $500M in 2025 | Trusted by 50+ fintech companies
 - Plain text, no HTML, no subject line"""
 
-        try:
-            ai_client = _anthropic.AsyncAnthropic()
-            ai_msg = await ai_client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=400,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            personalized_message = ai_msg.content[0].text.strip()
-        except Exception as ai_err:
-            logger.warning(f"[REFERRAL] AI generation failed, using fallback: {ai_err}")
-            personalized_message = (
-                f"Hi {referred_first},\n\n"
-                f"{referrer_first}{f' from {referrer_company}' if referrer_company else ''} mentioned you might be the right person to talk to about payment infrastructure.\n\n"
-                f"We help companies like yours with multi-currency accounts, crypto-to-fiat settlement, and mass payouts — without bank account closures.\n\n"
-                f"Worth a quick 15-min call?\n\n"
-                f"Best,\nEugene Sukhoi\nPartner @Squarefi.co\nProcessed over $500M in 2025 | Trusted by 50+ fintech companies"
-            )
+            try:
+                ai_client = _anthropic.AsyncAnthropic()
+                ai_msg = await ai_client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=400,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                personalized_message = ai_msg.content[0].text.strip()
+            except Exception as ai_err:
+                logger.warning(f"[REFERRAL] AI generation failed, using fallback: {ai_err}")
+                personalized_message = (
+                    f"Hi {referred_first},\n\n"
+                    f"{referrer_first}{f' from {referrer_company}' if referrer_company else ''} mentioned you might be the right person.\n\n"
+                    f"We help companies with multi-currency accounts, crypto-to-fiat settlement, and mass payouts.\n\n"
+                    f"Worth a quick 15-min call?\n\n"
+                    f"Best,\nEugene Sukhoi\nPartner @Squarefi.co\nProcessed over $500M in 2025 | Trusted by 50+ fintech companies"
+                )
 
-        email_subject = (
-            f"{referrer_first} from {referrer_company} suggested I reach out | SquareFi"
-            if referrer_company else f"Introduction from {referrer_first} | SquareFi"
-        )
+            email_subject = (
+                f"{referrer_first} from {referrer_company} suggested I reach out | SquareFi"
+                if referrer_company else f"Introduction from {referrer_first} | SquareFi"
+            )
 
         # 4. Create a dedicated campaign for this referral so it sends from the right email
         campaign_name = f"SquareFi - Referral - {body.referred_email}"
