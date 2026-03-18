@@ -1618,10 +1618,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                                     const draft = referralDrafts[key];
                                     return (
                                       <div key={email} className="flex flex-col gap-1.5">
-                                        {/* Generate button (initial state) */}
-                                        {!draft && !isDone && (
+                                        {/* Generate button (initial state or loading) */}
+                                        {(!draft || (draft.generating && !draft.editing)) && !isDone && (
                                           <button
-                                            disabled={isSendingRef}
+                                            disabled={!!draft}
                                             onClick={async () => {
                                               setReferralDrafts(prev => ({ ...prev, [key]: { message: '', subject: '', generating: true, editing: false } }));
                                               try {
@@ -1633,9 +1633,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                                               }
                                             }}
                                             className="flex items-center gap-1 px-2.5 py-1.5 rounded text-[12px] font-medium transition-all cursor-pointer active:scale-[0.98] self-start"
-                                            style={{ background: '#16a34a', color: '#fff' }}
+                                            style={{ background: '#16a34a', color: '#fff', opacity: draft ? 0.7 : 1 }}
                                           >
-                                            {draft?.generating ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+                                            {draft && draft.generating ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
                                             → Contact {email.split('@')[0]}
                                           </button>
                                         )}
