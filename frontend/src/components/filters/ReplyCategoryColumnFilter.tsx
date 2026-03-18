@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useEffect, useState, useMemo } from 'react';
+import { forwardRef, useImperativeHandle, useState, useMemo } from 'react';
 import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
@@ -16,7 +16,7 @@ const REPLY_CATEGORIES = [
   { key: 'other',           label: 'Другое',          dot: 'bg-purple-400' },
 ] as const;
 
-export const ReplyCategoryColumnFilter = forwardRef((props: IFilterParams, ref) => {
+export const ReplyCategoryColumnFilter = forwardRef((_props: IFilterParams, ref) => {
   const { replyCategoryFilters, toggleReplyCategory, setReplyCategoryFilters, resetPage } = useContactsFilter();
   const { isDark } = useTheme();
   const [query, setQuery] = useState('');

@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useEffect, useState, useMemo } from 'react';
+import { forwardRef, useImperativeHandle, useState, useMemo } from 'react';
 import type { IFilterParams } from 'ag-grid-community';
 import { useContactsFilter } from './ContactsFilterContext';
 import { cn } from '../../lib/utils';
@@ -23,7 +23,7 @@ const STATUSES = [
   { key: 'not_interested',  label: 'Not Interested',     dot: 'bg-gray-400',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
 ] as const;
 
-export const StatusColumnFilter = forwardRef((props: IFilterParams, ref) => {
+export const StatusColumnFilter = forwardRef((_props: IFilterParams, ref) => {
   const { statusFilters, toggleStatus, setStatusFilters, stats, resetPage } = useContactsFilter();
   const { isDark } = useTheme();
   const [query, setQuery] = useState('');
