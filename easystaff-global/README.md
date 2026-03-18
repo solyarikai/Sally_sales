@@ -51,17 +51,40 @@ docker exec leadgen-backend python3 /app/scripts/upload_leads_to_campaign.py
 - Stop when removal rate drops below 1%
 
 ### 4. FindyMail enrichment
-- Script: `findymail_enrich_uae_pk.py`
-- Finds emails by LinkedIn URL (not domain)
-- ~70% hit rate
-- Saves progress to `/tmp/findymail_*_progress.json` (resumable)
-- API key: `FINDYMAIL_API_KEY` env var, needs `set_api_key()` call
+- **Script**: `findymail_host.py` — runs on HOST, NOT inside Docker
+- **Why host**: `docker exec` processes die on container rebuild/restart. Host process with `nohup` survives everything.
+- **Persistent cache**: `/scripts/findymail_email_cache.json` (host-mounted volume) — maps LinkedIn URL → email (or empty string for no-result). Survives container restarts, deploys, crashes.
+- **Contacts file**: `/scripts/findymail_contacts.json` — pre-filtered from Google Sheet + FINAL_keep IDs, also persistent
+- **Results**: `/scripts/findymail_results.json` — contacts that got emails, ready for SmartLead upload
+- **Hit rate**: ~50% (niche Pakistani-origin contacts in UAE)
+- **Auto-upload**: script uploads to SmartLead campaign automatically after enrichment
+
+**How to run:**
+```bash
+# Launch on host (NOT docker exec!)
+ssh hetzner 'nohup python3 ~/findymail_host.py </dev/null >~/findymail_nohup.log 2>&1 &'
+
+# Check progress
+ssh hetzner 'tail -5 ~/findymail_log.txt'
+ssh hetzner 'python3 -c "import json; d=json.load(open(\"/home/leadokol/magnum-opus-project/repo/scripts/findymail_email_cache.json\")); e=sum(1 for v in d.values() if v); print(f\"Cache: {len(d)}/4411, {e} emails, {e*100//max(1,len(d))}% hit\")"'
+
+# Check if alive
+ssh hetzner 'ps aux | grep findymail_host | grep -v grep'
+```
+
+**Critical rules:**
+1. NEVER run FindyMail inside Docker container — it WILL die on rebuild
+2. NEVER store cache/progress in `/tmp/` inside container — it vanishes on restart
+3. Always use `/scripts/` for persistent data (host-mounted volume)
+4. Cache key = LinkedIn URL, value = email or empty string. Empty = "checked, no email found" (don't re-check)
+5. Cache saved after EVERY batch of 50 — crash-safe, max 50 wasted credits on any failure
+6. FindyMail API returns email in `response['contact']['email']`, NOT `response['email']`
 
 ### 5. SmartLead campaign
 - Create: `create_campaign_and_project.py`
 - Add email accounts: `add_accounts_to_campaign.py`
-- Set sequence: `set_sequence_uae_pk.py`
-- Upload leads: `upload_leads_to_campaign.py`
+- Set sequence: `set_sequence_v2.py` (multi-country payments angle)
+- Upload leads: auto-done by `findymail_host.py`, or manual with `upload_leads_to_campaign.py`
 - Campaign created in DRAFT — launch from UI only
 
 ---
@@ -73,8 +96,9 @@ docker exec leadgen-backend python3 /app/scripts/upload_leads_to_campaign.py
 | `enterprise_blacklist.json` | 1004 enterprise domains, 150+ name patterns, 73 credential patterns |
 | `score_corridors_algo.py` | Algorithmic scorer for AU-PH and Arabic-SA corridors |
 | `score_uae_pk_god.py` | UAE-PK scorer with relaxed filters |
-| `findymail_enrich_uae_pk.py` | FindyMail email enrichment by LinkedIn URL |
-| `upload_leads_to_campaign.py` | Upload to SmartLead campaign |
+| `findymail_host.py` | FindyMail enrichment — runs on HOST with persistent cache + auto-upload |
+| `findymail_persistent.py` | FindyMail enrichment — runs in Docker (backup, less reliable) |
+| `upload_leads_to_campaign.py` | Upload to SmartLead campaign (standalone) |
 | `create_campaign_and_project.py` | Create SmartLead campaign + system project |
 | `add_accounts_to_campaign.py` | Add Petr email accounts from infra sheet |
 | `set_sequence_uae_pk.py` | Set 5-email sequence on campaign |
@@ -94,5 +118,6 @@ docker exec leadgen-backend python3 /app/scripts/upload_leads_to_campaign.py
 `1pivHqk1NI-MHdDFSQugfg5olBMKTkBGr_yyjjXlWqKU`
 
 ## SmartLead Campaigns
-- UAE-Pakistan: `3043938` (Petr accounts, 5-email sequence, LIVE)
+- UAE-Pakistan v1: `3043938` (Petr accounts, 5-email sequence, LIVE)
+- UAE-Pakistan v2: `3048388` (multi-country payments angle, 4411 validated contacts)
 - Infra sheet: `1MepWTwCGJX-fGQPkygQouF-hfL8WYV4DRAdmqI3DbDg` (Accounts infra tab)

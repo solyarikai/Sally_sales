@@ -126,15 +126,20 @@ def main():
         print("\nNo PK-origin contacts found in other corridors.")
         return
 
-    # Dedup by email
+    # Dedup by LinkedIn URL or name+company (emails are empty in combined tabs)
     idx = {h: i for i, h in enumerate(headers)}
-    email_idx = idx.get("Email", 3)
-    seen_emails = set()
+    linkedin_idx = idx.get("LinkedIn URL", 8)
+    name_idx = idx.get("Name", 0)
+    company_idx = idx.get("Company", 5)
+    seen_keys = set()
     deduped = []
     for row in all_pk_contacts:
-        email = row[email_idx].strip().lower() if email_idx < len(row) else ""
-        if email and email not in seen_emails:
-            seen_emails.add(email)
+        linkedin = (row[linkedin_idx].strip().lower() if linkedin_idx < len(row) else "")
+        name = (row[name_idx].strip().lower() if name_idx < len(row) else "")
+        company = (row[company_idx].strip().lower() if company_idx < len(row) else "")
+        key = linkedin if linkedin else f"{name}|{company}"
+        if key and key not in seen_keys:
+            seen_keys.add(key)
             deduped.append(row)
 
     print(f"\nTotal PK-origin: {len(all_pk_contacts)}, after dedup: {len(deduped)}")
