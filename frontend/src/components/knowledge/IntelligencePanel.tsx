@@ -452,36 +452,30 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
             </button>
           ))}
 
-          {/* Top tags */}
-          {summary.by_tag && Object.keys(summary.by_tag).length > 0 && (
-            <div className="border-l ml-2 pl-3 flex gap-1.5 items-center flex-wrap" style={{ borderColor: t.cardBorder }}>
-              {Object.entries(summary.by_tag).slice(0, 6).map(([tag, count]) => (
+          {/* Top tags + geo as compact chips */}
+          {((summary.by_tag && Object.keys(summary.by_tag).length > 0) || (summary.by_geo && Object.keys(summary.by_geo).length > 0)) && (
+            <div className="border-l ml-2 pl-3 flex gap-1 items-center flex-wrap max-w-[400px]" style={{ borderColor: t.cardBorder }}>
+              {summary.by_tag && Object.entries(summary.by_tag).slice(0, 5).map(([tag, count]) => (
                 <button
                   key={tag}
                   onClick={() => toggleSet(setTagFilter, tag)}
                   className={cn(
-                    'px-2 py-0.5 rounded text-[10px] font-medium transition-all',
+                    'px-1.5 py-0.5 rounded text-[9px] font-medium transition-all',
                     isDark ? 'bg-violet-500/15 text-violet-300' : 'bg-violet-50 text-violet-600',
-                    tagFilter.has(tag) ? 'ring-2 ring-blue-500' : '',
+                    tagFilter.has(tag) ? 'ring-1 ring-blue-500' : '',
                   )}
                 >
                   {tag}: {count}
                 </button>
               ))}
-            </div>
-          )}
-
-          {/* Top geo */}
-          {summary.by_geo && Object.keys(summary.by_geo).length > 0 && (
-            <div className="border-l ml-2 pl-3 flex gap-1.5 items-center flex-wrap" style={{ borderColor: t.cardBorder }}>
-              {Object.entries(summary.by_geo).slice(0, 6).map(([geo, count]) => (
+              {summary.by_geo && Object.entries(summary.by_geo).slice(0, 4).map(([geo, count]) => (
                 <button
                   key={geo}
                   onClick={() => toggleSet(setGeoFilter, geo)}
                   className={cn(
-                    'px-2 py-0.5 rounded text-[10px] font-medium transition-all',
+                    'px-1.5 py-0.5 rounded text-[9px] font-medium transition-all',
                     isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-600',
-                    geoFilter.has(geo) ? 'ring-2 ring-blue-500' : '',
+                    geoFilter.has(geo) ? 'ring-1 ring-blue-500' : '',
                   )}
                 >
                   {geo}: {count}
@@ -511,11 +505,23 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
         <MultiSelectFilter label="Offer" options={offerOptions} selected={offerFilter} onToggle={v => toggleSet(setOfferFilter, v)} isDark={isDark} />
         <MultiSelectFilter label="Intent" options={intentOptions} selected={intentFilter} onToggle={v => toggleSet(setIntentFilter, v)} isDark={isDark} />
         <MultiSelectFilter label="Segment" options={segmentOptions} selected={segmentFilter} onToggle={v => toggleSet(setSegmentFilter, v)} isDark={isDark} />
-        {tagOptions.length > 0 && (
-          <MultiSelectFilter label="Tags" options={tagOptions} selected={tagFilter} onToggle={v => toggleSet(setTagFilter, v)} isDark={isDark} />
+        {tagFilter.size > 0 && (
+          <div className="flex items-center gap-1">
+            {Array.from(tagFilter).map(tag => (
+              <button key={tag} onClick={() => toggleSet(setTagFilter, tag)} className={cn('flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium', isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-600')}>
+                {tag} <X className="w-2.5 h-2.5" />
+              </button>
+            ))}
+          </div>
         )}
-        {geoOptions.length > 0 && (
-          <MultiSelectFilter label="Geo" options={geoOptions} selected={geoFilter} onToggle={v => toggleSet(setGeoFilter, v)} isDark={isDark} />
+        {geoFilter.size > 0 && (
+          <div className="flex items-center gap-1">
+            {Array.from(geoFilter).map(geo => (
+              <button key={geo} onClick={() => toggleSet(setGeoFilter, geo)} className={cn('flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium', isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-600')}>
+                {geo} <X className="w-2.5 h-2.5" />
+              </button>
+            ))}
+          </div>
         )}
         {hasFilters && (
           <button
@@ -587,7 +593,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
                     <div>
                       {/* Column headers */}
                       <div
-                        className={cn('grid grid-cols-[1fr_1fr_120px_80px_100px_60px_1.5fr_90px_40px] px-4 py-1 text-[10px] uppercase tracking-wider',
+                        className={cn('grid grid-cols-[1fr_0.8fr_110px_70px_90px_50px_1.2fr_1fr_0.7fr_70px_32px] px-4 py-1 text-[10px] uppercase tracking-wider',
                           isDark ? 'bg-zinc-800/30' : 'bg-zinc-50',
                         )}
                         style={{ color: t.text2 }}
@@ -599,8 +605,10 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
                         <span>Intent</span>
                         <span>W</span>
                         <span>Interests</span>
+                        <span>Tags</span>
+                        <span>Geo</span>
                         <span>Date</span>
-                        <span>CRM</span>
+                        <span></span>
                       </div>
 
                       {groupItems.map(item => (
@@ -608,7 +616,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
                           <div
                             onClick={() => toggleRow(item.id)}
                             className={cn(
-                              'grid grid-cols-[1fr_1fr_120px_80px_100px_60px_1.5fr_90px_40px] px-4 py-2 cursor-pointer items-center border-t transition-colors',
+                              'grid grid-cols-[1fr_0.8fr_110px_70px_90px_50px_1.2fr_1fr_0.7fr_70px_32px] px-4 py-2 cursor-pointer items-center border-t transition-colors',
                               isDark ? 'border-zinc-800 hover:bg-zinc-800/40' : 'border-zinc-100 hover:bg-zinc-50',
                             )}
                           >
@@ -632,18 +640,56 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
                               ) : '—'}
                             </span>
                             <span className={cn(
-                              'text-[10px] px-1.5 py-0.5 rounded font-medium w-fit',
+                              'text-[10px] px-1.5 py-0.5 rounded font-medium w-fit cursor-pointer',
                               oc[item.offer_responded_to || 'general'] || (isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-100 text-zinc-600'),
-                            )}>
+                            )}
+                              onClick={e => { e.stopPropagation(); toggleSet(setOfferFilter, item.offer_responded_to || 'general'); }}
+                            >
                               {item.offer_responded_to || 'general'}
                             </span>
-                            <span className="text-[11px]" style={{ color: t.text2 }}>
+                            <span
+                              className="text-[11px] cursor-pointer hover:underline"
+                              style={{ color: t.text2 }}
+                              onClick={e => { e.stopPropagation(); toggleSet(setIntentFilter, item.intent || ''); }}
+                            >
                               {INTENT_LABELS[item.intent || ''] || item.intent || '—'}
                             </span>
                             <WarmthDots score={item.warmth_score} isDark={isDark} />
                             <span className="text-[11px] truncate" style={{ color: t.text2 }}>
                               {item.interests || '—'}
                             </span>
+                            {/* Tags column */}
+                            <div className="flex flex-wrap gap-0.5 overflow-hidden max-h-[20px]">
+                              {item.tags && item.tags.length > 0 ? item.tags.slice(0, 3).map(tag => (
+                                <button
+                                  key={tag}
+                                  onClick={e => { e.stopPropagation(); toggleSet(setTagFilter, tag); }}
+                                  className={cn(
+                                    'px-1 py-0 rounded text-[9px] font-medium whitespace-nowrap',
+                                    isDark ? 'bg-violet-500/15 text-violet-300 hover:bg-violet-500/30' : 'bg-violet-50 text-violet-600 hover:bg-violet-100',
+                                    tagFilter.has(tag) && 'ring-1 ring-blue-500',
+                                  )}
+                                >
+                                  {tag}
+                                </button>
+                              )) : <span className="text-[10px]" style={{ color: t.text2 }}>—</span>}
+                            </div>
+                            {/* Geo column */}
+                            <div className="flex flex-wrap gap-0.5 overflow-hidden max-h-[20px]">
+                              {item.geo_tags && item.geo_tags.length > 0 ? item.geo_tags.slice(0, 2).map(geo => (
+                                <button
+                                  key={geo}
+                                  onClick={e => { e.stopPropagation(); toggleSet(setGeoFilter, geo); }}
+                                  className={cn(
+                                    'px-1 py-0 rounded text-[9px] font-medium whitespace-nowrap',
+                                    isDark ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/30' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100',
+                                    geoFilter.has(geo) && 'ring-1 ring-blue-500',
+                                  )}
+                                >
+                                  {geo}
+                                </button>
+                              )) : <span className="text-[10px]" style={{ color: t.text2 }}>—</span>}
+                            </div>
                             <span className="text-[10px]" style={{ color: t.text2 }}>
                               {item.received_at ? new Date(item.received_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}
                             </span>
