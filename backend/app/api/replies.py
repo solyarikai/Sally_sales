@@ -64,32 +64,56 @@ def _parse_received_since(value: str | None) -> datetime | None:
 async def _auto_embed_reference(reply_id: int, project_id: int, was_edited: bool,
                                 lead_message: str, sent_text: str, lead_name: str,
                                 lead_company: str, channel: str, category: str):
-    """Auto-add approved reply to reference_examples with embedding. Fire-and-forget with own session."""
+    """Auto-add approved reply to reference_examples with embedding. Fire-and-forget with own session.
+
+    Every operator-approved send becomes a golden example (source=feedback, quality=5)
+    so it survives backfill --rebuild and ranks highest in semantic retrieval.
+    Deduplicates by processed_reply_id — updates existing if found.
+    """
     try:
         from app.db.database import async_session_maker
         from app.models.learning import ReferenceExample
         from app.services.embedding_service import get_embedding
 
-        if len(sent_text) < 100:
+        if len(sent_text) < 50:
             return
 
         async with async_session_maker() as session:
-            ref = ReferenceExample(
-                project_id=project_id,
-                lead_message=lead_message or "(no lead message)",
-                operator_reply=sent_text,
-                lead_context={
-                    "name": lead_name,
-                    "company": lead_company,
-                    "channel": channel,
-                },
-                channel=channel,
-                category=category,
-                quality_score=5 if not was_edited else 4,
-                source="learned",
-                processed_reply_id=reply_id,
+            # Check for existing example (dedup by processed_reply_id)
+            existing_result = await session.execute(
+                select(ReferenceExample).where(
+                    ReferenceExample.project_id == project_id,
+                    ReferenceExample.processed_reply_id == reply_id,
+                )
             )
-            session.add(ref)
+            existing = existing_result.scalar_one_or_none()
+
+            if existing:
+                # Update existing with latest operator send
+                existing.operator_reply = sent_text
+                existing.lead_message = lead_message or existing.lead_message
+                existing.quality_score = 5
+                existing.source = "feedback"
+                ref = existing
+                logger.info(f"[EMBED] Updated existing reference example for reply {reply_id}")
+            else:
+                ref = ReferenceExample(
+                    project_id=project_id,
+                    lead_message=lead_message or "(no lead message)",
+                    operator_reply=sent_text,
+                    lead_context={
+                        "name": lead_name,
+                        "company": lead_company,
+                        "channel": channel,
+                    },
+                    channel=channel,
+                    category=category,
+                    quality_score=5,
+                    source="feedback",
+                    processed_reply_id=reply_id,
+                )
+                session.add(ref)
+
             await session.flush()
 
             # Embed the LEAD MESSAGE (not operator reply) — so semantic search finds
@@ -99,7 +123,7 @@ async def _auto_embed_reference(reply_id: int, project_id: int, was_edited: bool
             if embedding:
                 ref.embedding = embedding
             await session.commit()
-            logger.info(f"[EMBED] Auto-embedded reference example for reply {reply_id} (has_embed={embedding is not None})")
+            logger.info(f"[EMBED] Auto-embedded golden example for reply {reply_id} (has_embed={embedding is not None})")
     except Exception as e:
         logger.warning(f"[EMBED] Auto-embed failed (non-fatal): {e}")
 
