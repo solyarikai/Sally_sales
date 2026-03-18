@@ -108,6 +108,7 @@ export interface ReplyQueueProps {
 
 // "All" shows everything (no needs_reply filter). Actionable tabs use needs_reply=true.
 const ALL_TAB = { key: '__all__', label: 'All', countKey: '__all__' } as const;
+const INBOX_TAB = { key: '__inbox__', label: 'Inbox', countKey: '__inbox__' } as const;
 
 const ACTIONABLE_CATEGORY_FILTERS = [
   { key: 'meeting_request', label: 'Meetings', countKey: 'meeting_request' },
@@ -133,6 +134,7 @@ const TIMING_OPTIONS = [
 
 const VALID_CATEGORIES = new Set<string>([
   ALL_TAB.key,
+  INBOX_TAB.key,
   ...ACTIONABLE_CATEGORY_FILTERS.map(f => f.key),
   ...ARCHIVE_CATEGORY_FILTERS.map(f => f.key),
 ]);
@@ -190,6 +192,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
   const [allCounts, setAllCounts] = useState<Record<string, number>>({});
   const isArchiveMode = ARCHIVE_KEYS.has(categoryFilter);
   const isAllMode = categoryFilter === '__all__';
+  const isInboxMode = categoryFilter === '__inbox__';
 
   const [editingDrafts, setEditingDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
   const [sendingIds, setSendingIds] = useState<Set<number>>(new Set());
@@ -435,7 +438,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
       // Actionable tabs: needs_reply=true, specific category filter (or all actionable if none)
       const useNeedsReply = isDeepLink ? undefined : (isAllMode || isArchiveMode ? undefined : true);
       const useCategory = isDeepLink ? undefined :
-        (isAllMode ? undefined : (categoryFilter as ReplyCategory) || undefined);
+        (isAllMode || isInboxMode ? undefined : (categoryFilter as ReplyCategory) || undefined);
       const response = await repliesApi.getReplies({
         project_id: currentProject?.id,
         campaign_names: campaignNames,
@@ -803,6 +806,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
   const allTotal = Object.values(allCounts).reduce((a, b) => a + b, 0);
   const getActionableCount = (countKey: string): number => categoryCounts[countKey] || 0;
   const getArchiveCount = (countKey: string): number => allCounts[countKey] || 0;
+  const inboxCount = ACTIONABLE_CATEGORY_FILTERS.reduce((sum, f) => sum + (categoryCounts[f.countKey] || 0), 0);
 
   /* ==================================================================== */
   return (
@@ -822,6 +826,17 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
             </span>
           ) : (
             <>
+              {/* "Inbox" tab — all actionable (meetings + interested + questions + other) */}
+              <button
+                onClick={() => setCategoryFilter('__inbox__')}
+                className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", isInboxMode ? "font-medium" : "")}
+                style={{
+                  background: isInboxMode ? '#f97316' : 'transparent',
+                  color: isInboxMode ? '#fff' : (inboxCount > 0 ? '#f97316' : t.text4),
+                }}
+              >
+                Inbox{inboxCount > 0 ? ` ${inboxCount}` : ''}
+              </button>
               {/* "All" tab */}
               <button
                 onClick={() => setCategoryFilter('__all__')}
