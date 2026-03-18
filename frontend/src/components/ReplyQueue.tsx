@@ -125,6 +125,9 @@ const ARCHIVE_CATEGORY_FILTERS = [
 
 const ARCHIVE_KEYS = new Set<string>(ARCHIVE_CATEGORY_FILTERS.map(f => f.key));
 
+// Qualified tab: operator-vetted warm leads for client-facing reports
+const QUALIFIED_TAB = { key: '__qualified__', label: 'Qualified', countKey: '__qualified__' } as const;
+
 const TIMING_OPTIONS = [
   { value: '1w', label: '1 week' },
   { value: '1m', label: '1 month' },
@@ -133,6 +136,7 @@ const TIMING_OPTIONS = [
 
 const VALID_CATEGORIES = new Set<string>([
   ALL_TAB.key,
+  QUALIFIED_TAB.key,
   ...ACTIONABLE_CATEGORY_FILTERS.map(f => f.key),
   ...ARCHIVE_CATEGORY_FILTERS.map(f => f.key),
 ]);
@@ -188,8 +192,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
   const isDeepLink = Boolean(initialSearch) && search === initialSearch && categoryFilter === '__all__';
 
   const [allCounts, setAllCounts] = useState<Record<string, number>>({});
+  const [qualifiedCount, setQualifiedCount] = useState(0);
   const isArchiveMode = ARCHIVE_KEYS.has(categoryFilter);
   const isAllMode = categoryFilter === '__all__';
+  const isQualifiedMode = categoryFilter === '__qualified__';
 
   const [editingDrafts, setEditingDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
   const [sendingIds, setSendingIds] = useState<Set<number>>(new Set());
@@ -229,6 +235,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
   // Follow-up drafts (stored in component state, not DB)
   const [followupDrafts, setFollowupDrafts] = useState<Record<number, { reply: string; subject: string }>>({});
   const [followupGenerating, setFollowupGenerating] = useState<Set<number>>(new Set());
+
+  // Qualified toggle loading state
+  const [togglingQualifiedIds, setTogglingQualifiedIds] = useState<Set<number>>(new Set());
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -426,8 +435,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
       // "All" tab: no needs_reply, no category filter — shows everything
       // Archive tabs: no needs_reply, specific category filter
       // Actionable tabs: needs_reply=true, specific category filter (or all actionable if none)
-      const useNeedsReply = isDeepLink ? undefined : (isAllMode || isArchiveMode ? undefined : true);
-      const useCategory = isDeepLink ? undefined :
+      const useNeedsReply = isDeepLink ? undefined : (isAllMode || isArchiveMode || isQualifiedMode ? undefined : true);
+      const useCategory = isDeepLink || isQualifiedMode ? undefined :
         (isAllMode ? undefined : (categoryFilter as ReplyCategory) || undefined);
       const response = await repliesApi.getReplies({
         project_id: currentProject?.id,
@@ -436,8 +445,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
         needs_followup: mode === 'followups' ? true : undefined,
         lead_email: isDeepLink ? initialSearch : undefined,
         category: mode === 'followups' ? undefined : useCategory,
+        is_qualified: isQualifiedMode ? true : undefined,
         group_by_contact: true,
-        received_since: isDeepLink ? 'all' : timingFilter,
+        received_since: isDeepLink ? 'all' : (isQualifiedMode ? 'all' : timingFilter),
         page: pg,
         page_size: PAGE_SIZE,
       });
@@ -464,8 +474,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
       }
       setTotal(response.total || 0);
       // Actionable tab counts come from the reply list response (needs_reply=true context).
-      // All/archive modes have different filter contexts, so only update from actionable tabs.
-      if (!isArchiveMode && !isAllMode) {
+      // All/archive/qualified modes have different filter contexts, so only update from actionable tabs.
+      if (!isArchiveMode && !isAllMode && !isQualifiedMode) {
         setCategoryCounts(response.category_counts || {});
       }
       setHasMore(newReplies.length >= PAGE_SIZE);
@@ -475,7 +485,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [currentProject, categoryFilter, campaignNames, timingFilter]);
+  }, [currentProject, categoryFilter, campaignNames, timingFilter, isQualifiedMode]);
 
   useEffect(() => { loadReplies(true); }, [loadReplies]);
 
@@ -520,6 +530,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
         if (cancelled) return;
         const serverTotal = resp.total || 0;
         setCategoryCounts(resp.category_counts || {});
+        setQualifiedCount(resp.qualified_count || 0);
         const prev = allTotalRef.current;
         allTotalRef.current = serverTotal;
         if (prev >= 0 && serverTotal > prev) {
@@ -673,6 +684,25 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
       optimisticRemoveReply(reply);
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed', { style: toastErr });
+    }
+  };
+
+  const handleToggleQualified = async (reply: ProcessedReply) => {
+    const newValue = !reply.is_qualified;
+    setTogglingQualifiedIds(prev => new Set(prev).add(reply.id));
+    try {
+      await repliesApi.toggleQualified(reply.id, newValue);
+      // Update local state
+      setReplies(prev => prev.map(r =>
+        r.id === reply.id ? { ...r, is_qualified: newValue } : r
+      ));
+      // Update qualified count
+      setQualifiedCount(prev => newValue ? prev + 1 : Math.max(0, prev - 1));
+      toast.success(newValue ? 'Marked as qualified' : 'Removed from qualified', { style: toastOk, duration: 1500 });
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to update', { style: toastErr });
+    } finally {
+      setTogglingQualifiedIds(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
     }
   };
 
@@ -863,6 +893,18 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                   </button>
                 );
               })}
+              {/* Separator + Qualified tab (operator-vetted warm leads) */}
+              <div className="w-px h-4 mx-1" style={{ background: t.cardBorder }} />
+              <button
+                onClick={() => setCategoryFilter('__qualified__')}
+                className={cn("px-2.5 py-1 rounded text-[12px] transition-colors cursor-pointer", isQualifiedMode ? "font-medium" : "")}
+                style={{
+                  background: isQualifiedMode ? '#16a34a' : 'transparent',
+                  color: isQualifiedMode ? '#fff' : (qualifiedCount > 0 ? '#16a34a' : t.text5),
+                }}
+              >
+                🔥 Qualified{qualifiedCount > 0 ? ` ${qualifiedCount}` : ''}
+              </button>
             </>
           )}
         </div>
@@ -1039,6 +1081,14 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                                 style={{ background: t.badgeBg, color: t.badgeText }}
                               >
                                 {catLabel}
+                              </span>
+                            )}
+                            {reply.is_qualified && (
+                              <span
+                                className="text-[11px] px-1.5 py-0.5 rounded font-medium"
+                                style={{ background: isDark ? '#052e16' : '#dcfce7', color: '#16a34a' }}
+                              >
+                                🔥 Qualified
                               </span>
                             )}
                             {/* Stale badge removed — auto-regen handles it silently */}
@@ -1591,6 +1641,29 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                             >
                               <XCircle className="w-3.5 h-3.5" /> Skip
+                            </button>
+                            <button
+                              onClick={() => handleToggleQualified(reply)}
+                              disabled={togglingQualifiedIds.has(reply.id)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-all cursor-pointer active:scale-[0.98]"
+                              style={{
+                                color: reply.is_qualified ? '#16a34a' : t.text4,
+                                background: reply.is_qualified ? (isDark ? '#052e16' : '#dcfce7') : 'transparent',
+                              }}
+                              onMouseEnter={e => {
+                                if (!reply.is_qualified) (e.currentTarget as HTMLElement).style.background = t.btnGhostHover;
+                              }}
+                              onMouseLeave={e => {
+                                if (!reply.is_qualified) (e.currentTarget as HTMLElement).style.background = 'transparent';
+                              }}
+                              title={reply.is_qualified ? 'Remove from qualified' : 'Mark as qualified (warm lead)'}
+                            >
+                              {togglingQualifiedIds.has(reply.id) ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <span>🔥</span>
+                              )}
+                              {reply.is_qualified ? 'Qualified' : 'Qualify'}
                             </button>
                           </>
                         )}

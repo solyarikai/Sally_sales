@@ -165,6 +165,9 @@ class ProcessedReply(Base, TimestampMixin):
     parent_reply_id = Column(Integer, ForeignKey("processed_replies.id"), nullable=True, index=True)
     follow_up_number = Column(Integer, nullable=True)  # 1 = first follow-up, 2 = second, etc.
 
+    # Qualified flag — operator-controlled marker for truly warm leads (client-facing reports)
+    is_qualified = Column(Boolean, default=False, nullable=False, index=True)
+
     # Relationships
     automation = relationship("ReplyAutomation", back_populates="processed_replies")
     thread_messages = relationship(

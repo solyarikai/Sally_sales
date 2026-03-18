@@ -774,6 +774,7 @@ async def list_replies(
     needs_followup: Optional[bool] = Query(None, description="Show approved replies where lead hasn't responded (for follow-up tab)"),
     channel: Optional[str] = Query(None, description="Filter by channel: email, linkedin"),
     source: Optional[str] = Query(None, description="Filter by source: smartlead, getsales"),
+    is_qualified: Optional[bool] = Query(None, description="Filter by qualified status (operator-vetted warm leads)"),
     lead_email: Optional[str] = Query(None, description="Filter by lead email (exact match)"),
     group_by_contact: bool = Query(False, description="Dedup by lead_email, one card per unique contact"),
     received_since: Optional[str] = Query("1w", description="Time window: 1w, 1m, all"),
@@ -826,6 +827,10 @@ async def list_replies(
 
     if source:
         conditions.append(ProcessedReply.source == source)
+
+    # Filter by qualified status (operator-vetted warm leads)
+    if is_qualified is not None:
+        conditions.append(ProcessedReply.is_qualified == is_qualified)
 
     # Filter by approval status
     if approval_status:
@@ -1235,7 +1240,25 @@ async def get_reply_counts(
     category_counts = {row[0] or "other": row[1] for row in cat_r.all()}
     total = sum(category_counts.values())
 
-    return {"total": total, "category_counts": category_counts}
+    # Qualified count: separate query since qualified replies can be in any category
+    qualified_conds = [ProcessedReply.is_qualified == True]
+    if project_id:
+        from app.models.contact import Project
+        proj_r2 = await session.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
+        proj2 = proj_r2.scalar_one_or_none()
+        if proj2 and proj2.campaign_filters:
+            pc2 = [c.lower() for c in proj2.campaign_filters if isinstance(c, str)]
+            if pc2:
+                qualified_conds.append(func.lower(ProcessedReply.campaign_name).in_(pc2))
+    elif campaign_names:
+        names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
+        if names:
+            qualified_conds.append(func.lower(ProcessedReply.campaign_name).in_(names))
+    qualified_q = select(func.count(func.distinct(ProcessedReply.lead_email))).where(*qualified_conds)
+    qualified_r = await session.execute(qualified_q)
+    qualified_count = qualified_r.scalar() or 0
+
+    return {"total": total, "category_counts": category_counts, "qualified_count": qualified_count}
 
 
 @router.post("/contact-info-batch")
@@ -2543,6 +2566,35 @@ async def update_reply_status(
         "approval_status": approval_status,
         "sheet_updated": sheet_updated
     }
+
+
+@router.patch("/{reply_id}/qualified")
+async def toggle_reply_qualified(
+    reply_id: int,
+    is_qualified: bool = Query(..., description="Set qualified status (true/false)"),
+    db: AsyncSession = Depends(get_session)
+):
+    """Toggle the is_qualified flag on a reply.
+
+    Qualified replies are operator-vetted warm leads for client-facing reports.
+    """
+    result = await db.execute(
+        select(ProcessedReply).where(ProcessedReply.id == reply_id)
+    )
+    reply = result.scalar_one_or_none()
+    if not reply:
+        raise HTTPException(status_code=404, detail="Reply not found")
+
+    reply.is_qualified = is_qualified
+    db.add(reply)
+    await db.commit()
+
+    return {
+        "success": True,
+        "reply_id": reply_id,
+        "is_qualified": is_qualified
+    }
+
 
 @router.post("/{reply_id}/send")
 async def send_reply(

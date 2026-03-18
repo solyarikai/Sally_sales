@@ -156,6 +156,8 @@ export interface ProcessedReply {
   // Follow-up tracking
   parent_reply_id: number | null;
   follow_up_number: number | null;
+  // Qualified flag — operator-controlled marker for truly warm leads
+  is_qualified?: boolean;
   // Contact dedup: how many campaigns this contact has (only set with group_by_contact)
   contact_campaign_count?: number;
 }
@@ -321,6 +323,7 @@ export async function getReplies(params: {
   needs_reply?: boolean;
   channel?: string;
   source?: string;
+  is_qualified?: boolean;
   lead_email?: string;
   group_by_contact?: boolean;
   needs_followup?: boolean;
@@ -412,7 +415,7 @@ export async function getReplyCounts(params: {
   received_since?: string;
   include_all?: boolean;
   needs_followup?: boolean;
-}): Promise<{ total: number; category_counts: Record<string, number> }> {
+}): Promise<{ total: number; category_counts: Record<string, number>; qualified_count?: number }> {
   const response = await api.get('/replies/counts', { params });
   return response.data;
 }
@@ -660,6 +663,15 @@ export async function dismissFollowup(replyId: number): Promise<{
   return response.data;
 }
 
+export async function toggleQualified(replyId: number, isQualified: boolean): Promise<{
+  success: boolean;
+  reply_id: number;
+  is_qualified: boolean;
+}> {
+  const response = await api.patch(`/replies/${replyId}/qualified`, null, { params: { is_qualified: isQualified } });
+  return response.data;
+}
+
 // Export all functions as named object for consistency
 export const repliesApi = {
   // Smartlead
@@ -694,6 +706,7 @@ export const repliesApi = {
   approveAndSendReply,
   dismissReply,
   regenerateDraft,
+  toggleQualified,
   // Testing
   simulateReply,
   // Google Sheets

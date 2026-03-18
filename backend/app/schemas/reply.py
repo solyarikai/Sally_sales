@@ -196,6 +196,9 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     parent_reply_id: Optional[int] = None
     follow_up_number: Optional[int] = None
 
+    # Qualified flag — operator-controlled marker for truly warm leads
+    is_qualified: bool = False
+
     # Pre-generated follow-up draft (child ProcessedReply with pending status)
     followup_draft: Optional[dict] = None
 
