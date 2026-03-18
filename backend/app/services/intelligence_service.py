@@ -1,13 +1,16 @@
 """
 Reply Intelligence Service — classify replies by offer, intent, warmth, segment.
 
-Deterministic rules first, AI fallback for ambiguous cases.
+AI-powered classification via Gemini 2.5 Pro with deterministic fallback.
 """
+import asyncio
+import json
 import logging
 import re
+from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import select, func, and_, case, literal_column
+from sqlalchemy import select, func, and_, case, literal_column, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reply import ProcessedReply, ThreadMessage
@@ -451,13 +454,151 @@ def get_intent_group(intent: str) -> str:
     return "noise"
 
 
+# ── AI Classification ──
+
+AI_CLASSIFY_PROMPT = """You are analyzing a reply to a B2B cold outreach for INXY.io (crypto payment infrastructure).
+INXY offers 3 products:
+- Paygate: accept crypto payments from customers, receive EUR/USD on bank account
+- Payout: mass crypto payouts to contractors/partners via API
+- OTC: over-the-counter crypto↔fiat exchange for large sums/treasury
+
+OUTBOUND MESSAGE (what was pitched):
+{outbound_text}
+
+LEAD REPLY:
+{reply_text}
+
+Campaign: {campaign_name}
+Channel: {channel}
+
+Classify this reply. Return JSON only, no markdown:
+{{
+  "intent": "<one of: schedule_call, send_info, interested_vague, redirect_colleague, pricing, how_it_works, compliance, specific_use_case, adjacent_demand, not_relevant, no_crypto, not_now, have_solution, regulatory, hard_no, spam_complaint, auto_response, bounce, gibberish, wrong_person_forward, empty>",
+  "warmth_score": <0-5>,
+  "offer_responded_to": "<paygate|payout|otc|general>",
+  "interests": "<1-2 sentence summary of what the lead specifically wants/needs. Be concrete: mention products, geographies, settlement methods, use cases. Include any countries or regions mentioned (e.g. 'China', 'CIS', 'Hong Kong'). If rejection, describe what they have or why they declined.>",
+  "tags": ["<tag1>", "<tag2>"],
+  "geo_tags": ["<country-or-region>"],
+  "language": "<en|ru|other>"
+}}
+
+Tags should be lowercase, hyphenated, and capture:
+- Specific needs: "swift-settlement", "third-party-beneficiaries", "china-suppliers"
+- Product interest: "paygate", "payout", "otc", "on-ramp", "fiat-to-fiat"
+- Industry/vertical: "gaming", "saas", "fintech", "trading"
+- Objection type: "no-crypto", "have-solution", "regulatory-block"
+- Status: "ready-to-meet", "needs-info", "referred-colleague"
+
+geo_tags: Extract ALL countries, regions, and cities mentioned in the reply OR inferable from context.
+Use lowercase: "china", "hong-kong", "cis", "europe", "uae", "singapore", "russia", "turkey", "india".
+If the lead's company domain or name suggests a geography (e.g. .hk = Hong Kong), include it.
+If no geography is mentioned or inferable, return empty array.
+"""
+
+
+async def ai_classify_reply(
+    reply_text: str,
+    outbound_text: str,
+    campaign_name: str,
+    channel: str,
+    project_id: int,
+) -> Optional[dict]:
+    """Classify a reply using Gemini 2.5 Pro. Returns structured dict or None on failure."""
+    try:
+        from app.services.gemini_client import gemini_generate, extract_json_from_gemini, is_gemini_available
+
+        if not is_gemini_available():
+            return None
+
+        cleaned = _strip_quoted_and_signature(reply_text)
+        prompt = AI_CLASSIFY_PROMPT.format(
+            outbound_text=outbound_text[:1000] if outbound_text else "(no outbound message available)",
+            reply_text=cleaned[:2000],
+            campaign_name=campaign_name,
+            channel=channel,
+        )
+
+        result = await gemini_generate(
+            system_prompt="You are a B2B reply classification engine. Return valid JSON only.",
+            user_prompt=prompt,
+            temperature=0.1,
+            max_tokens=1000,
+            project_id=project_id,
+        )
+
+        raw = extract_json_from_gemini(result["content"])
+        parsed = json.loads(raw)
+
+        # Validate required fields
+        valid_intents = {
+            "schedule_call", "send_info", "interested_vague", "redirect_colleague",
+            "pricing", "how_it_works", "compliance", "specific_use_case", "adjacent_demand",
+            "not_relevant", "no_crypto", "not_now", "have_solution", "regulatory", "hard_no",
+            "spam_complaint", "auto_response", "bounce", "gibberish", "wrong_person_forward", "empty",
+        }
+
+        intent = parsed.get("intent", "empty")
+        if intent not in valid_intents:
+            intent = "empty"
+
+        warmth = parsed.get("warmth_score", 0)
+        if not isinstance(warmth, int) or warmth < 0 or warmth > 5:
+            warmth = 0
+
+        offer = parsed.get("offer_responded_to", "general")
+        if offer not in ("paygate", "payout", "otc", "general"):
+            offer = "general"
+
+        tags = parsed.get("tags", [])
+        if not isinstance(tags, list):
+            tags = []
+        tags = [str(t).lower().strip() for t in tags if t][:20]
+
+        geo_tags = parsed.get("geo_tags", [])
+        if not isinstance(geo_tags, list):
+            geo_tags = []
+        geo_tags = [str(g).lower().strip() for g in geo_tags if g][:10]
+
+        return {
+            "intent": intent,
+            "warmth_score": warmth,
+            "offer_responded_to": offer,
+            "interests": str(parsed.get("interests", ""))[:500],
+            "tags": tags,
+            "geo_tags": geo_tags,
+            "language": parsed.get("language", "en"),
+            "reasoning": raw,
+        }
+    except Exception as e:
+        logger.warning(f"AI classification failed: {e}")
+        return None
+
+
+async def _get_outbound_text(session: AsyncSession, reply_id: int) -> str:
+    """Get the last outbound message before the lead's reply from thread_messages."""
+    query = (
+        select(ThreadMessage.body)
+        .where(
+            and_(
+                ThreadMessage.processed_reply_id == reply_id,
+                ThreadMessage.direction == "outbound",
+            )
+        )
+        .order_by(ThreadMessage.position.desc())
+        .limit(1)
+    )
+    result = await session.execute(query)
+    row = result.scalar_one_or_none()
+    return row or ""
+
+
 # ── Batch analysis ──
 
-async def analyze_project_replies(session: AsyncSession, project_id: int) -> dict:
+async def analyze_project_replies(session: AsyncSession, project_id: int, use_ai: bool = True) -> dict:
     """
-    Classify all unanalyzed replies for a project. Returns stats.
+    Classify all unanalyzed replies for a project.
+    Uses AI (Gemini) when available, falls back to deterministic rules.
     """
-    # Get project's campaign filters
     project = await session.get(Project, project_id)
     if not project:
         return {"error": "Project not found"}
@@ -466,7 +607,6 @@ async def analyze_project_replies(session: AsyncSession, project_id: int) -> dic
     if not campaign_filters:
         return {"error": "No campaign_filters configured for project"}
 
-    # Get all non-OOO replies for this project that don't have analysis yet
     already_analyzed = select(ReplyAnalysis.processed_reply_id)
 
     query = (
@@ -485,69 +625,158 @@ async def analyze_project_replies(session: AsyncSession, project_id: int) -> dic
     replies = result.scalars().all()
 
     classified = 0
-    for reply in replies:
-        reply_text = reply.reply_text or reply.email_body or ""
-        classification = classify_reply(
-            reply_text=reply_text,
-            category=reply.category or "other",
-            campaign_name=reply.campaign_name or "",
-            channel=reply.channel or "email",
-        )
+    ai_count = 0
+    CHUNK_SIZE = 20
 
-        analysis = ReplyAnalysis(
-            processed_reply_id=reply.id,
-            project_id=project_id,
-            offer_responded_to=classification["offer_responded_to"],
-            intent=classification["intent"],
-            warmth_score=classification["warmth_score"],
-            campaign_segment=classification["campaign_segment"],
-            sequence_type=classification["sequence_type"],
-            language=classification["language"],
-            reasoning="deterministic_v1",
-            analyzer_model="rules_v1",
-        )
-        session.add(analysis)
-        classified += 1
+    for i in range(0, len(replies), CHUNK_SIZE):
+        chunk = replies[i:i + CHUNK_SIZE]
 
-    await session.flush()
-    return {"classified": classified, "project_id": project_id}
+        async def _classify_one(reply):
+            reply_text = reply.reply_text or reply.email_body or ""
+            campaign_name = reply.campaign_name or ""
+            channel = reply.channel or "email"
+            category = reply.category or "other"
+
+            ai_result = None
+            if use_ai:
+                outbound = await _get_outbound_text(session, reply.id)
+                ai_result = await ai_classify_reply(
+                    reply_text=reply_text,
+                    outbound_text=outbound,
+                    campaign_name=campaign_name,
+                    channel=channel,
+                    project_id=project_id,
+                )
+
+            if ai_result:
+                return ReplyAnalysis(
+                    processed_reply_id=reply.id,
+                    project_id=project_id,
+                    offer_responded_to=ai_result["offer_responded_to"],
+                    intent=ai_result["intent"],
+                    warmth_score=ai_result["warmth_score"],
+                    campaign_segment=detect_segment(campaign_name),
+                    sequence_type=detect_sequence_type(campaign_name, channel),
+                    language=ai_result["language"],
+                    interests=ai_result["interests"],
+                    tags=ai_result["tags"],
+                    geo_tags=ai_result.get("geo_tags", []),
+                    reasoning=ai_result["reasoning"],
+                    analyzer_model="gemini-2.5-pro",
+                ), True
+            else:
+                fallback = classify_reply(reply_text, category, campaign_name, channel)
+                return ReplyAnalysis(
+                    processed_reply_id=reply.id,
+                    project_id=project_id,
+                    offer_responded_to=fallback["offer_responded_to"],
+                    intent=fallback["intent"],
+                    warmth_score=fallback["warmth_score"],
+                    campaign_segment=fallback["campaign_segment"],
+                    sequence_type=fallback["sequence_type"],
+                    language=fallback["language"],
+                    reasoning="deterministic_v1",
+                    analyzer_model="rules_v1",
+                ), False
+
+        tasks = [_classify_one(r) for r in chunk]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for res in results:
+            if isinstance(res, Exception):
+                logger.error(f"Classification error: {res}")
+                continue
+            analysis, was_ai = res
+            session.add(analysis)
+            classified += 1
+            if was_ai:
+                ai_count += 1
+
+        await session.flush()
+
+    return {"classified": classified, "ai_classified": ai_count, "project_id": project_id}
 
 
-async def get_intelligence_summary(session: AsyncSession, project_id: int) -> dict:
+async def get_intelligence_summary(
+    session: AsyncSession, project_id: int,
+    date_from: Optional[datetime] = None, date_to: Optional[datetime] = None,
+) -> dict:
     """Get summary stats for the intelligence dashboard."""
-    query = (
-        select(
-            ReplyAnalysis.intent,
-            ReplyAnalysis.offer_responded_to,
-            ReplyAnalysis.warmth_score,
-            ReplyAnalysis.campaign_segment,
-            func.count().label("cnt"),
+    base_filter = [ReplyAnalysis.project_id == project_id]
+
+    if date_from or date_to:
+        # Join with ProcessedReply for date filtering
+        base_query = (
+            select(
+                ReplyAnalysis.intent,
+                ReplyAnalysis.offer_responded_to,
+                ReplyAnalysis.warmth_score,
+                ReplyAnalysis.campaign_segment,
+                ReplyAnalysis.tags,
+                func.count().label("cnt"),
+            )
+            .join(ProcessedReply, ReplyAnalysis.processed_reply_id == ProcessedReply.id)
+            .where(and_(*base_filter))
         )
-        .where(ReplyAnalysis.project_id == project_id)
-        .group_by(
-            ReplyAnalysis.intent,
-            ReplyAnalysis.offer_responded_to,
-            ReplyAnalysis.warmth_score,
-            ReplyAnalysis.campaign_segment,
+        if date_from:
+            base_query = base_query.where(ProcessedReply.received_at >= date_from)
+        if date_to:
+            base_query = base_query.where(ProcessedReply.received_at <= date_to)
+    else:
+        base_query = (
+            select(
+                ReplyAnalysis.intent,
+                ReplyAnalysis.offer_responded_to,
+                ReplyAnalysis.warmth_score,
+                ReplyAnalysis.campaign_segment,
+                ReplyAnalysis.tags,
+                func.count().label("cnt"),
+            )
+            .where(and_(*base_filter))
         )
+
+    query = base_query.group_by(
+        ReplyAnalysis.intent,
+        ReplyAnalysis.offer_responded_to,
+        ReplyAnalysis.warmth_score,
+        ReplyAnalysis.campaign_segment,
+        ReplyAnalysis.tags,
     )
     result = await session.execute(query)
     rows = result.all()
 
-    # Aggregate
     by_group = {"warm": 0, "questions": 0, "soft_objection": 0, "hard_objection": 0, "noise": 0}
     by_offer = {}
     by_segment = {}
     by_intent = {}
+    by_tag = {}
+    by_geo = {}
     total = 0
 
-    for intent, offer, warmth, segment, cnt in rows:
+    for intent, offer, warmth, segment, tags, cnt in rows:
         total += cnt
         group = get_intent_group(intent or "empty")
         by_group[group] = by_group.get(group, 0) + cnt
         by_offer[offer or "general"] = by_offer.get(offer or "general", 0) + cnt
         by_segment[segment or "other"] = by_segment.get(segment or "other", 0) + cnt
         by_intent[intent or "empty"] = by_intent.get(intent or "empty", 0) + cnt
+        if tags:
+            for tag in tags:
+                by_tag[tag] = by_tag.get(tag, 0) + cnt
+
+    # Geo tags — separate query since they're in a different column
+    geo_query = text("""
+        SELECT tag, COUNT(*) as cnt
+        FROM reply_analysis, unnest(geo_tags) AS tag
+        WHERE project_id = :pid AND geo_tags IS NOT NULL
+        GROUP BY tag ORDER BY cnt DESC LIMIT 30
+    """)
+    try:
+        geo_result = await session.execute(geo_query, {"pid": project_id})
+        for tag, cnt in geo_result.all():
+            by_geo[tag] = cnt
+    except Exception:
+        pass  # geo_tags column may not exist yet
 
     return {
         "total": total,
@@ -555,4 +784,6 @@ async def get_intelligence_summary(session: AsyncSession, project_id: int) -> di
         "by_offer": dict(sorted(by_offer.items(), key=lambda x: -x[1])),
         "by_segment": dict(sorted(by_segment.items(), key=lambda x: -x[1])),
         "by_intent": dict(sorted(by_intent.items(), key=lambda x: -x[1])),
+        "by_tag": dict(sorted(by_tag.items(), key=lambda x: -x[1])[:30]),
+        "by_geo": by_geo,
     }

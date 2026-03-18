@@ -33,6 +33,7 @@ class DiasporaGatherRequest(BaseModel):
     target_count: int = 1000
     mode: str = "full"  # "university" | "full" | "full_tam" (all approaches for max TAM)
     existing_sheet_id: Optional[str] = None  # Append results to existing sheet
+    skip_to: Optional[str] = None  # Skip to phase: "surname", "title_split", "industry"
 
 
 class DiasporaStatusResponse(BaseModel):
@@ -80,6 +81,7 @@ async def start_diaspora_gather(
             request.target_count,
             request.mode,
             request.existing_sheet_id,
+            request.skip_to,
         )
     else:
         # Multiple corridors — run SEQUENTIALLY in one task (they share Puppeteer)
@@ -110,6 +112,7 @@ async def start_diaspora_gather(
 async def _run_pipeline_task(
     corridor_key: str, project_id: int, target_count: int,
     mode: str = "full", existing_sheet_id: Optional[str] = None,
+    skip_to: Optional[str] = None,
 ):
     """Background task for running a single corridor pipeline."""
     import datetime
@@ -131,6 +134,7 @@ async def _run_pipeline_task(
             on_progress=on_progress,
             mode=mode,
             existing_sheet_id=existing_sheet_id,
+            skip_to=skip_to,
         )
         # Remove contacts from result (too large for status endpoint)
         result_summary = {k: v for k, v in result.items() if k != "contacts"}
@@ -154,8 +158,16 @@ async def _run_all_corridors_sequential(
 @router.get("/status")
 async def get_diaspora_status():
     """Get status of all running/completed diaspora pipelines."""
+    # Return only last 100 progress lines to avoid timeout on large responses
+    slim_pipelines = {}
+    for k, v in _running_pipelines.items():
+        slim = dict(v)
+        prog = slim.get("progress", [])
+        slim["progress"] = prog[-100:] if len(prog) > 100 else prog
+        slim["total_progress_lines"] = len(prog)
+        slim_pipelines[k] = slim
     return {
-        "pipelines": _running_pipelines,
+        "pipelines": slim_pipelines,
         "available_corridors": {k: v["label"] for k, v in CORRIDORS.items()},
     }
 

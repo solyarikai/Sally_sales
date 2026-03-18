@@ -1,77 +1,48 @@
 // ── Wazzzup Background Service Worker ──
-// Orchestrates: navigate WA tab → inject content script → send message
+// Opens popup as persistent window, routes messages to content script on WA tab.
+// No URL navigation — wa-js handles everything via WhatsApp's internal API.
 
+// ── Popup as persistent window ──
+chrome.action.onClicked.addListener(async () => {
+  const windows = await chrome.windows.getAll({ populate: true });
+  for (const win of windows) {
+    if (win.type === 'popup' && win.tabs?.some(t => t.url?.includes('popup.html'))) {
+      await chrome.windows.update(win.id, { focused: true });
+      return;
+    }
+  }
+  await chrome.windows.create({
+    url: 'popup.html',
+    type: 'popup',
+    width: 400,
+    height: 650
+  });
+});
+
+// ── Message routing: popup → background → content script on WA tab ──
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'sendMessage') {
-    handleSendMessage(request.phone, request.message)
+    routeToWhatsApp(request)
       .then(sendResponse)
       .catch(err => sendResponse({ success: false, error: err.message }));
-    return true; // async
+    return true;
   }
 });
 
-async function handleSendMessage(phone, message) {
-  // 1. Find the WhatsApp Web tab
+async function routeToWhatsApp(request) {
   const tabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
   if (!tabs || tabs.length === 0) {
     return { success: false, error: 'WhatsApp Web not open' };
   }
 
-  const tab = tabs[0];
-
-  // 2. Navigate the tab to the send URL
-  const sendUrl = `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
-
-  await chrome.tabs.update(tab.id, { url: sendUrl, active: true });
-
-  // 3. Wait for the page to finish loading
-  await waitForTabLoad(tab.id);
-
-  // 4. Give WhatsApp extra time to render the chat UI
-  await sleep(3000);
-
-  // 5. Inject the content script fresh (previous one died with navigation)
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ['content.js']
+    const response = await chrome.tabs.sendMessage(tabs[0].id, {
+      action: 'sendMessage',
+      phone: request.phone,
+      message: request.message
     });
-  } catch (err) {
-    return { success: false, error: 'Failed to inject script: ' + err.message };
-  }
-
-  // 6. Small delay for script to initialize
-  await sleep(500);
-
-  // 7. Tell the content script to click send
-  try {
-    const response = await chrome.tabs.sendMessage(tab.id, { action: 'clickSend' });
     return response;
   } catch (err) {
-    return { success: false, error: 'Content script error: ' + err.message };
+    return { success: false, error: 'Content script not ready: ' + err.message };
   }
-}
-
-function waitForTabLoad(tabId) {
-  return new Promise((resolve) => {
-    // Set a max timeout
-    const timeout = setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(listener);
-      resolve();
-    }, 20000);
-
-    function listener(updatedTabId, changeInfo) {
-      if (updatedTabId === tabId && changeInfo.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
-        clearTimeout(timeout);
-        resolve();
-      }
-    }
-
-    chrome.tabs.onUpdated.addListener(listener);
-  });
-}
-
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
 }

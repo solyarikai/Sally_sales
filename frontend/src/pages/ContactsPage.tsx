@@ -1271,6 +1271,7 @@ export function ContactsPage() {
           contact={selectedContact}
           isOpen={showContactModal}
           initialCampaignKey={initialCampaignKey}
+          initialTab={searchParams.get('tab') as 'details' | 'conversation' | 'source' || undefined}
           onClose={() => {
             setShowContactModal(false);
             setSelectedContact(null);

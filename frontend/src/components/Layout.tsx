@@ -56,7 +56,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/tasks/replies', icon: ListTodo, label: 'Tasks', global: true },
     { path: '/knowledge/icp', icon: BookOpen, label: 'Knowledge', global: true },
     { path: '/actions', icon: Activity, label: 'Actions', global: true },
-    { path: '/intelligence', icon: Brain, label: 'Intelligence', global: true },
+    { path: '/knowledge/intelligence', icon: Brain, label: 'Intelligence', global: true },
     { path: '/god-panel', icon: Shield, label: 'God Panel', global: true, badge: true },
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },
     { path: '/settings', icon: Settings, label: 'Settings', global: true },
@@ -136,8 +136,11 @@ export function Layout({ children }: LayoutProps) {
     if (path.startsWith('/tasks/')) {
       return location.pathname.startsWith('/tasks');
     }
+    if (path === '/knowledge/intelligence') {
+      return location.pathname === '/knowledge/intelligence';
+    }
     if (path.startsWith('/knowledge/')) {
-      return location.pathname.startsWith('/knowledge');
+      return location.pathname.startsWith('/knowledge') && location.pathname !== '/knowledge/intelligence';
     }
     return location.pathname.startsWith(path);
   };

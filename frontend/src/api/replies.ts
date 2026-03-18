@@ -321,6 +321,7 @@ export async function getReplies(params: {
   category?: ReplyCategory;
   approval_status?: string;
   needs_reply?: boolean;
+  inbox?: boolean;
   channel?: string;
   source?: string;
   is_qualified?: boolean;
@@ -672,6 +673,49 @@ export async function toggleQualified(replyId: number, isQualified: boolean): Pr
   return response.data;
 }
 
+export async function getReferralInfo(replyId: number): Promise<{
+  referred_emails: string[];
+  original_lead: { email: string; name: string; company: string };
+  campaign_id: string | null;
+  campaign_name: string | null;
+}> {
+  const response = await api.get(`/replies/${replyId}/referral-info`);
+  return response.data;
+}
+
+export async function generateReferralDraft(replyId: number, body: {
+  referred_email: string;
+  referred_first_name?: string;
+}): Promise<{
+  personalized_message: string;
+  email_subject: string;
+  referred_email: string;
+  referred_first: string;
+  referrer_name: string;
+  referrer_company: string;
+}> {
+  const response = await api.post(`/replies/${replyId}/generate-referral-draft`, body);
+  return response.data;
+}
+
+export async function contactReferral(replyId: number, body: {
+  referred_email: string;
+  referred_first_name?: string;
+  referred_last_name?: string;
+  campaign_id?: string;
+  personalized_message?: string;
+  email_subject?: string;
+}): Promise<{
+  status: string;
+  referred_email: string;
+  campaign_id: string;
+  campaign_name: string | null;
+  referred_by: string;
+}> {
+  const response = await api.post(`/replies/${replyId}/contact-referral`, body);
+  return response.data;
+}
+
 // Export all functions as named object for consistency
 export const repliesApi = {
   // Smartlead
@@ -734,6 +778,10 @@ export const repliesApi = {
   generateFollowupDraft,
   sendFollowup,
   dismissFollowup,
+  // Referral
+  getReferralInfo,
+  generateReferralDraft,
+  contactReferral,
 };
 
 

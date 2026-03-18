@@ -38,7 +38,7 @@
           Message Template
           <span class="hint">Use <code>{name}</code> or <code>{{name}}</code></span>
         </label>
-        <div class="template-toolbar">
+        <div id="var-chips" class="template-toolbar">
           <button class="chip" data-var="{{name}}">+ name</button>
           <button class="chip" data-var="{{company}}">+ company</button>
           <button class="chip" data-var="{{custom1}}">+ custom1</button>
@@ -86,7 +86,7 @@
         <div id="drop-zone" class="drop-zone">
           <input type="file" id="file-input" accept=".csv,.txt,.tsv" hidden>
           <p>Drop file here or <button id="browse-btn" class="link-btn">browse</button></p>
-          <p class="hint">CSV with columns: phone, name, company</p>
+          <p class="hint">CSV with header row (Phone, Name, ...) — any columns become variables</p>
         </div>
       </div>
 
@@ -99,7 +99,6 @@
                 <th><input type="checkbox" id="select-all" checked></th>
                 <th>Phone</th>
                 <th>Name</th>
-                <th>Company</th>
                 <th></th>
               </tr>
             </thead>

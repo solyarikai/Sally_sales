@@ -1,5 +1,6 @@
 // ── State ──────────────────────────────────────────
 let contacts = [];
+let csvColumns = [];
 let templates = {};
 let sendLog = [];
 let sending = false;
@@ -46,18 +47,8 @@ function initCompose() {
     saveState();
   });
 
-  // Variable chips
-  $$('.chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const v = chip.dataset.var;
-      const start = tpl.selectionStart;
-      const end = tpl.selectionEnd;
-      tpl.value = tpl.value.slice(0, start) + v + tpl.value.slice(end);
-      tpl.selectionStart = tpl.selectionEnd = start + v.length;
-      tpl.focus();
-      tpl.dispatchEvent(new Event('input'));
-    });
-  });
+  // Variable chips (re-rendered when CSV columns change)
+  renderChips();
 
   // Save template
   $('#save-template').addEventListener('click', () => {
@@ -78,12 +69,40 @@ function updatePreview() {
     preview.innerHTML = '<span class="preview-placeholder">Type a message above to see preview</span>';
     return;
   }
-  const sample = { name: 'John', company: 'Acme Inc', custom1: 'VIP' };
+  // Use first contact data if available, otherwise defaults
+  const defaults = { name: 'John', company: 'Acme Inc', custom1: 'VIP' };
+  const cols = csvColumns.length > 0 ? csvColumns : ['name', 'company', 'custom1'];
+  const sample = {};
+  for (const col of cols) {
+    sample[col] = (contacts.length > 0 && contacts[0][col]) ? contacts[0][col] : (defaults[col] || col);
+  }
   let msg = tpl;
   for (const [k, v] of Object.entries(sample)) {
     msg = msg.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), v);
+    msg = msg.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
   }
   preview.textContent = msg;
+}
+
+function renderChips() {
+  const container = $('#var-chips');
+  if (!container) return;
+  const cols = csvColumns.length > 0 ? csvColumns : ['name', 'company', 'custom1'];
+  container.innerHTML = cols.map(col =>
+    `<button class="chip" data-var="{{${col}}}">+ ${col}</button>`
+  ).join('');
+  container.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const tpl = $('#template');
+      const v = chip.dataset.var;
+      const start = tpl.selectionStart;
+      const end = tpl.selectionEnd;
+      tpl.value = tpl.value.slice(0, start) + v + tpl.value.slice(end);
+      tpl.selectionStart = tpl.selectionEnd = start + v.length;
+      tpl.focus();
+      tpl.dispatchEvent(new Event('input'));
+    });
+  });
 }
 
 function renderSavedTemplates() {
@@ -155,10 +174,6 @@ function initContacts() {
     if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
   });
 
-  $('#select-all').addEventListener('change', (e) => {
-    contacts.forEach(c => c.selected = e.target.checked);
-    renderContactsTable();
-  });
 }
 
 function readFile(file) {
@@ -172,29 +187,98 @@ function readFile(file) {
   reader.readAsText(file);
 }
 
+// RFC 4180 CSV parser — handles quoted fields with commas, newlines, escaped quotes
+function parseCSVText(text) {
+  if (!text.trim()) return [];
+
+  // Detect delimiter from first line (outside quotes)
+  let firstLine = '';
+  let inQ = false;
+  for (let k = 0; k < text.length; k++) {
+    if (text[k] === '"') inQ = !inQ;
+    if (!inQ && (text[k] === '\n' || text[k] === '\r')) { firstLine = text.slice(0, k); break; }
+  }
+  if (!firstLine) firstLine = text;
+
+  const counts = { ',': 0, '\t': 0, ';': 0 };
+  inQ = false;
+  for (const ch of firstLine) {
+    if (ch === '"') inQ = !inQ;
+    if (!inQ && ch in counts) counts[ch]++;
+  }
+  const delim = counts['\t'] > counts[','] ? '\t' : counts[';'] > counts[','] ? ';' : ',';
+
+  const rows = [];
+  let i = 0;
+  const len = text.length;
+
+  while (i < len) {
+    const row = [];
+    while (i < len) {
+      if (text[i] === '"') {
+        i++;
+        let val = '';
+        while (i < len) {
+          if (text[i] === '"') {
+            if (i + 1 < len && text[i + 1] === '"') { val += '"'; i += 2; }
+            else { i++; break; }
+          } else { val += text[i]; i++; }
+        }
+        row.push(val);
+      } else {
+        let val = '';
+        while (i < len && text[i] !== delim && text[i] !== '\n' && text[i] !== '\r') { val += text[i]; i++; }
+        row.push(val.trim());
+      }
+      if (i >= len) break;
+      if (text[i] === delim) { i++; continue; }
+      if (text[i] === '\r') i++;
+      if (i < len && text[i] === '\n') i++;
+      break;
+    }
+    if (row.length > 0 && !(row.length === 1 && row[0] === '')) rows.push(row);
+  }
+  return rows;
+}
+
 function parseContacts() {
   const raw = $('#numbers').value.trim();
-  if (!raw) { contacts = []; renderContactsTable(); return; }
+  if (!raw) { contacts = []; csvColumns = []; renderContactsTable(); renderChips(); updatePreview(); return; }
 
-  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const rows = parseCSVText(raw);
+  if (rows.length === 0) { contacts = []; csvColumns = []; renderContactsTable(); renderChips(); updatePreview(); return; }
+
   contacts = [];
+  let headers = null;
 
-  for (const line of lines) {
-    if (/^(phone|number|tel)/i.test(line)) continue;
+  // Detect header row (first cell starts with phone/number/tel)
+  if (rows[0].length > 0 && /^(phone|number|tel)/i.test(rows[0][0])) {
+    headers = rows[0].map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+    rows.shift();
+  }
 
-    const parts = line.split(/[,\t;]/).map(p => p.trim());
-    let phone = parts[0] || '';
+  // Column names (everything after phone)
+  if (headers && headers.length > 1) {
+    csvColumns = headers.slice(1);
+  } else if (!headers) {
+    csvColumns = ['name', 'company']; // fallback for headerless input
+  } else {
+    csvColumns = [];
+  }
 
-    phone = phone.replace(/[^\d+]/g, '');
+  for (const row of rows) {
+    let phone = (row[0] || '').replace(/[^\d+]/g, '');
     if (!phone || phone.length < 7) continue;
     if (!phone.startsWith('+')) phone = '+' + phone;
 
-    contacts.push({
-      phone,
-      name: parts[1] || '',
-      company: parts[2] || '',
-      selected: true
-    });
+    const contact = { phone, selected: true };
+    if (headers) {
+      for (let j = 1; j < headers.length; j++) contact[headers[j]] = row[j] || '';
+    } else {
+      contact.name = row[1] || '';
+      contact.company = row[2] || '';
+    }
+    contacts.push(contact);
   }
 
   // Dedupe by phone
@@ -206,15 +290,31 @@ function parseContacts() {
   });
 
   renderContactsTable();
+  renderChips();
+  updatePreview();
 }
 
 function renderContactsTable() {
   const body = $('#contacts-body');
   const noContacts = $('#no-contacts');
   const countEl = $('#contact-count');
+  const thead = $('#contacts-table thead tr');
 
   const selected = contacts.filter(c => c.selected);
   countEl.textContent = `${selected.length} / ${contacts.length} contacts`;
+
+  // Dynamic table header based on CSV columns
+  const cols = csvColumns.length > 0 ? csvColumns : ['name', 'company'];
+  thead.innerHTML = `
+    <th><input type="checkbox" id="select-all" ${contacts.length > 0 && contacts.every(c => c.selected) ? 'checked' : ''}></th>
+    <th>Phone</th>
+    ${cols.map(c => `<th>${esc(c.charAt(0).toUpperCase() + c.slice(1))}</th>`).join('')}
+    <th></th>
+  `;
+  $('#select-all').addEventListener('change', (e) => {
+    contacts.forEach(c => c.selected = e.target.checked);
+    renderContactsTable();
+  });
 
   if (contacts.length === 0) {
     body.innerHTML = '';
@@ -227,8 +327,11 @@ function renderContactsTable() {
     <tr>
       <td><input type="checkbox" data-idx="${i}" ${c.selected ? 'checked' : ''}></td>
       <td>${esc(c.phone)}</td>
-      <td>${esc(c.name) || '<span style="color:var(--text-muted)">\u2014</span>'}</td>
-      <td>${esc(c.company) || '<span style="color:var(--text-muted)">\u2014</span>'}</td>
+      ${cols.map(col => {
+        const val = c[col] || '';
+        const display = val.length > 40 ? val.slice(0, 40) + '...' : val;
+        return `<td>${esc(display) || '<span style="color:var(--text-muted)">\u2014</span>'}</td>`;
+      }).join('')}
       <td><button class="row-del" data-idx="${i}">&times;</button></td>
     </tr>
   `).join('');
@@ -473,18 +576,17 @@ async function startSending() {
     }
     if (stopRequested) break;
 
-    // Update progress
-    const pct = Math.round((sent / total) * 100);
-    $('#progress-bar').style.width = pct + '%';
-    $('#progress-text').textContent = `${sent} / ${total}`;
+    // Show sending status
+    $('#progress-text').textContent = `${sent} / ${total} — sending...`;
 
-    // Build personalized message (support both {var} and {{var}})
+    // Build personalized message — dynamic columns from CSV (support both {var} and {{var}})
     const contact = selected[i];
     let msg = tpl;
-    const vars = { name: contact.name || '', company: contact.company || '', custom1: contact.custom1 || '' };
-    for (const [k, v] of Object.entries(vars)) {
-      msg = msg.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), v);
-      msg = msg.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
+    const cols = csvColumns.length > 0 ? csvColumns : ['name', 'company', 'custom1'];
+    for (const col of cols) {
+      const val = contact[col] || '';
+      msg = msg.replace(new RegExp(`\\{\\{${col}\\}\\}`, 'g'), val);
+      msg = msg.replace(new RegExp(`\\{${col}\\}`, 'g'), val);
     }
     msg = msg.trim();
 
@@ -507,6 +609,15 @@ async function startSending() {
 
     sent++;
     batchCount++;
+
+    // Update progress AFTER send — show errors visibly
+    const pct = Math.round((sent / total) * 100);
+    $('#progress-bar').style.width = pct + '%';
+    if (result.success) {
+      $('#progress-text').textContent = `${sent} / ${total}`;
+    } else {
+      $('#progress-text').textContent = `${sent} / ${total} — FAILED: ${result.error || 'unknown'}`;
+    }
 
     // Check if we've completed a batch
     if (batchCount >= cfg.batchSize && sent < total && !stopRequested) {
@@ -562,12 +673,17 @@ async function sleepInterruptible(ms) {
 
 async function sendMessage(phone, message) {
   return new Promise((resolve) => {
-    // Send to background service worker which handles navigation + injection
+    // 30-second timeout so the loop never hangs
+    const timeout = setTimeout(() => {
+      resolve({ success: false, error: 'Timeout — no response from background' });
+    }, 30000);
+
     chrome.runtime.sendMessage({
       action: 'sendMessage',
       phone: phone.replace('+', ''),
       message
     }, (response) => {
+      clearTimeout(timeout);
       if (chrome.runtime.lastError) {
         resolve({ success: false, error: chrome.runtime.lastError.message });
       } else {

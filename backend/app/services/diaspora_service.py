@@ -550,8 +550,59 @@ EXTENDED_UNIVERSITY_BATCHES = {
         {"label": "pk_uni_ext_2", "schools": ["Beaconhouse National University", "University of Central Punjab", "Riphah International University", "International Islamic University", "FAST Lahore"]},
     ],
     "Philippines": [
+        # Existing extended batches
         {"label": "ph_uni_ext_1", "schools": ["University of the Philippines Diliman", "Philippine Normal University", "Manila Central University", "University of Perpetual Help", "Philippine Women's University"]},
         {"label": "ph_uni_ext_2", "schools": ["Cebu Technological University", "Mindanao State University", "Western Mindanao State University", "Batangas State University", "Bulacan State University"]},
+        # UP system campuses + DLSU branches
+        {"label": "ph_uni_prestige_branches", "schools": ["University of the Philippines Los Banos", "University of the Philippines Visayas", "University of the Philippines Mindanao", "Ateneo de Davao University", "De La Salle-College of Saint Benilde"]},
+        # Large Manila private unis
+        {"label": "ph_uni_manila_priv_1", "schools": ["AMA University", "STI College", "Arellano University", "Jose Rizal University", "Emilio Aguinaldo College"]},
+        {"label": "ph_uni_manila_priv_2", "schools": ["San Sebastian College", "Colegio de San Juan de Letran", "University of Manila", "Trinity University of Asia", "Our Lady of Fatima University"]},
+        # Regional powerhouses — Visayas, Mindanao
+        {"label": "ph_uni_regional_1", "schools": ["University of Southeastern Philippines", "MSU-Iligan Institute of Technology", "University of the Immaculate Conception", "Ateneo de Naga University", "University of Cebu"]},
+        {"label": "ph_uni_regional_2", "schools": ["Saint Louis University", "Holy Angel University", "Bicol University", "Cebu Normal University", "West Visayas State University"]},
+        # Large state universities (SUCs)
+        {"label": "ph_uni_state_1", "schools": ["Central Luzon State University", "Cavite State University", "Rizal Technological University", "Tarlac State University", "Pangasinan State University"]},
+        {"label": "ph_uni_state_2", "schools": ["Don Mariano Marcos Memorial State University", "Benguet State University", "Nueva Ecija University of Science and Technology", "Isabela State University", "Visayas State University"]},
+        # IT/tech + professional schools
+        {"label": "ph_uni_tech_prof", "schools": ["Technological Institute of the Philippines", "FEU Institute of Technology", "Informatics College", "CIIT College of Arts and Technology", "Enderun Colleges"]},
+        # Catholic/religious universities
+        {"label": "ph_uni_catholic", "schools": ["University of San Jose-Recoletos", "Assumption College", "Miriam College", "De La Salle Araneta University", "Angeles University Foundation"]},
+        # ── NEW WAVE: 115 more PH universities ──
+        # Maritime / seafarer schools (PH = #1 source of seafarers, many migrate to AU)
+        {"label": "ph_uni_maritime_1", "schools": ["Philippine Merchant Marine Academy", "Maritime Academy of Asia and the Pacific", "John B. Lacson Foundation Maritime University", "Asian Institute of Maritime Studies", "NYK-TDG Maritime Academy"]},
+        {"label": "ph_uni_maritime_2", "schools": ["Palompon Institute of Technology", "Mariners Polytechnic Colleges Foundation", "Philippine Merchant Marine School", "Southwestern University PHINMA", "Cebu Institute of Technology-University"]},
+        # Cebu cluster (major OFW hub)
+        {"label": "ph_uni_cebu_1", "schools": ["University of the Visayas", "Cebu Doctors University", "Velez College", "Foundation University", "University of Negros Occidental-Recoletos"]},
+        # Nursing / healthcare (nurses migrate to AU, transition to management)
+        {"label": "ph_uni_nursing_1", "schools": ["Brokenshire College", "Virgen Milagrosa University Foundation", "Wesleyan University Philippines", "Southville International School and Colleges", "St. Paul University Philippines"]},
+        {"label": "ph_uni_nursing_2", "schools": ["Lyceum-Northwestern University", "Capitol University", "Liceo de Cagayan University", "Father Saturnino Urios University", "Brent Hospital and Colleges"]},
+        {"label": "ph_uni_nursing_3", "schools": ["Columban College", "Baliuag University", "University of Batangas", "First Asia Institute of Technology and Humanities", "Adventist University of the Philippines"]},
+        # Mindanao universities (high OFW output)
+        {"label": "ph_uni_mindanao_1", "schools": ["University of Mindanao", "Ateneo de Zamboanga University", "Jose Rizal Memorial State University", "Central Mindanao University", "Cor Jesu College", "Bukidnon State University"]},
+        {"label": "ph_uni_mindanao_2", "schools": ["Misamis University", "Holy Cross of Davao College", "Philippine Women's College of Davao", "Caraga State University", "Surigao del Norte State University", "Universidad de Zamboanga"]},
+        {"label": "ph_uni_mindanao_3", "schools": ["Cotabato State University", "Sultan Kudarat State University", "Notre Dame of Marbel University", "Notre Dame University Cotabato", "Zamboanga City State Polytechnic College"]},
+        # Visayas universities (Iloilo, Bacolod, Tacloban)
+        {"label": "ph_uni_visayas_1", "schools": ["Iloilo Science and Technology University", "University of Iloilo", "Negros Oriental State University", "Aklan State University", "Capiz State University"]},
+        {"label": "ph_uni_visayas_2", "schools": ["Northern Iloilo State University", "Leyte Normal University", "Eastern Visayas State University", "Samar State University", "University of Eastern Philippines"]},
+        {"label": "ph_uni_visayas_3", "schools": ["Palawan State University", "Western Institute of Technology", "Eastern Samar State University", "Northwest Samar State University", "John B. Lacson Colleges Foundation-Bacolod"]},
+        # State universities Luzon
+        {"label": "ph_uni_state_luzon_1", "schools": ["Cagayan State University", "Mariano Marcos State University", "Laguna State Polytechnic University", "Partido State University", "Camarines Sur Polytechnic Colleges"]},
+        {"label": "ph_uni_state_luzon_2", "schools": ["Catanduanes State University", "Sorsogon State University", "Aurora State College of Technology", "Quirino State University", "Marinduque State College", "Mindoro State University"]},
+        {"label": "ph_uni_state_luzon_3", "schools": ["Romblon State University", "Kalinga State University", "Apayao State College", "Mountain Province State Polytechnic College", "Ifugao State University"]},
+        # Large private universities Metro Manila + CALABARZON
+        {"label": "ph_uni_private_metro_1", "schools": ["Philippine School of Business Administration", "Central Colleges of the Philippines", "Philippine Christian University", "Malayan Colleges Laguna", "De La Salle Lipa"]},
+        {"label": "ph_uni_private_metro_2", "schools": ["Systems Plus College Foundation", "La Consolacion College Manila", "Colegio de San Agustin-Makati", "University of Perpetual Help System DALTA-Molino", "De La Salle University-Dasmarinas"]},
+        # PHINMA education network (177K+ students)
+        {"label": "ph_uni_phinma", "schools": ["Araullo University", "University of Pangasinan", "Cagayan de Oro College", "Rizal College of Laguna", "St. Jude College"]},
+        # Northern Luzon
+        {"label": "ph_uni_north_luzon", "schools": ["University of Luzon", "Urdaneta City University", "Universidad de Dagupan", "University of La Salette", "St. Mary's University Bayombong"]},
+        # Central Luzon (Clark/Subic area, high migration)
+        {"label": "ph_uni_central_luzon", "schools": ["Don Honorio Ventura State University", "Pampanga State Agricultural University", "Columban College", "Baliuag University"]},
+        # CALABARZON (highest population region outside Metro Manila)
+        {"label": "ph_uni_calabarzon_1", "schools": ["Lyceum of the Philippines University-Batangas", "Lyceum of the Philippines University-Laguna", "Lyceum of the Philippines University-Cavite", "Laguna University"]},
+        # Bicol region (high OFW-sending)
+        {"label": "ph_uni_bicol", "schools": ["University of Nueva Caceres", "Partido State University", "Catanduanes State University", "Sorsogon State University"]},
     ],
     "South Africa": [
         {"label": "za_uni_ext_1", "schools": ["Monash South Africa", "University of Limpopo", "University of Venda", "Mangosuthu University of Technology", "Central University of Technology"]},
@@ -616,6 +667,7 @@ async def run_diaspora_pipeline(
     on_progress: Optional[Callable] = None,
     mode: str = "full",  # "full" = industry + uni + surname, "university" = uni-only, "full_tam" = ALL approaches
     existing_sheet_id: Optional[str] = None,  # Append to existing sheet
+    skip_to: Optional[str] = None,  # Skip to phase: "surname", "industry", "title_split" — skips language + university
 ) -> Dict[str, Any]:
     """Run the full diaspora gathering pipeline for a corridor.
 
@@ -754,6 +806,14 @@ async def run_diaspora_pipeline(
         await _emit("FULL TAM mode — running ALL approaches: university → extended uni → surname → industry")
     else:
         await _emit("Full mode — running university + industry")
+
+    # skip_to support — skip completed phases on restart
+    _skip_phases = set()
+    if skip_to:
+        phase_order = ["language", "city_split", "university", "extended_university", "surname", "title_split", "industry"]
+        skip_idx = next((i for i, p in enumerate(phase_order) if p == skip_to), 0)
+        _skip_phases = set(phase_order[:skip_idx])
+        await _emit(f"SKIP-TO MODE: jumping to '{skip_to}', skipping {_skip_phases}")
 
     # Industry search is LAST (lowest yield, ~0.5% hit rate).
     # Skip it now — runs after university + surname phases below.
@@ -954,7 +1014,10 @@ async def run_diaspora_pipeline(
     # Phase 0: Language search — CHEAPEST approach, $0 GPT, auto-accept all
     # Speaking Urdu in UAE = Pakistani, Tagalog in AU = Filipino, Afrikaans in Gulf = South African
     lang_batches = LANGUAGE_BATCHES.get(contractor_country, [])
-    if lang_batches and len(all_matched_contacts) < target_count:
+    _broad_lang_max_found = 0  # Track max results from broad search — if < 5K, skip city splits
+    if "language" in _skip_phases:
+        await _emit("=== SKIPPING language phase (skip_to mode) ===")
+    elif lang_batches and len(all_matched_contacts) < target_count:
         await _emit(f"\n=== LANGUAGE SEARCH ({contractor_country}) — $0 GPT cost ===")
         await _emit(f"Searching {len(lang_batches)} language batches in {', '.join(employer_countries)}")
 
@@ -1006,6 +1069,7 @@ async def run_diaspora_pipeline(
                 continue
 
             all_people = result.get("people", [])
+            _broad_lang_max_found = max(_broad_lang_max_found, len(all_people))
             _persist_raw(all_people, "language", lang_label, corridor_key)
             if not all_people:
                 await _emit(f"No contacts for {', '.join(languages)}. Skipping.")
@@ -1084,12 +1148,18 @@ async def run_diaspora_pipeline(
                 except Exception as e:
                     logger.warning(f"Incremental export failed: {e}")
 
-    # Phase 0.5: City-split language search — bypass Clay's 5K cap per search
-    # Each language × city = separate search with its own 5K cap = much more coverage
-    city_config = CITY_SPLITS.get(corridor_key, {})
-    city_languages = city_config.get("languages", [])
-    city_list = city_config.get("cities", [])
-    if city_languages and city_list and len(all_matched_contacts) < target_count:
+    # Phase 0.5: City-split language search
+    if "city_split" in _skip_phases:
+        await _emit("=== SKIPPING city-split phase (skip_to mode) ===")
+    else:
+        # SKIP if broad search returned < 4000 (didn't hit 5K cap = city splits will only find dupes)
+        city_config = CITY_SPLITS.get(corridor_key, {})
+        city_languages = city_config.get("languages", [])
+        city_list = city_config.get("cities", [])
+        _skip_city_splits = _broad_lang_max_found < 4000
+        if _skip_city_splits and city_languages:
+            await _emit(f"\n=== SKIPPING CITY-SPLIT LANGUAGE — broad search found {_broad_lang_max_found} < 4000 (no cap hit, splits would be dupes) ===")
+    if "city_split" not in _skip_phases and city_languages and city_list and len(all_matched_contacts) < target_count and not _skip_city_splits:
         total_combos = len(city_languages) * len(city_list)
         await _emit(f"\n=== CITY-SPLIT LANGUAGE SEARCH — {total_combos} combos, $0 GPT ===")
         await _emit(f"Languages: {', '.join(city_languages)} × Cities: {', '.join(city_list)}")
@@ -1204,7 +1274,9 @@ async def run_diaspora_pipeline(
 
     # Phase 1: University-based people search (people-first, no company step)
     uni_batches = UNIVERSITY_BATCHES.get(contractor_country, [])
-    if uni_batches and len(all_matched_contacts) < target_count:
+    if "university" in _skip_phases:
+        await _emit("=== SKIPPING university base phase (skip_to mode) ===")
+    elif uni_batches and len(all_matched_contacts) < target_count:
         await _emit(f"\n=== University-based search: {len(uni_batches)} batches ===")
 
         for uni_batch in uni_batches:
@@ -1365,7 +1437,9 @@ async def run_diaspora_pipeline(
 
     # Phase 3b: Extended university batches (full_tam mode, or if target not reached)
     ext_uni_batches = EXTENDED_UNIVERSITY_BATCHES.get(contractor_country, [])
-    if ext_uni_batches and len(all_matched_contacts) < target_count and mode in ("full", "full_tam", "university"):
+    if "extended_university" in _skip_phases:
+        await _emit("=== SKIPPING extended university phase (skip_to mode) ===")
+    elif ext_uni_batches and len(all_matched_contacts) < target_count and mode in ("full", "full_tam", "university"):
         await _emit(f"\n=== EXTENDED UNIVERSITY SEARCH ({contractor_country}) ===")
         for uni_batch in ext_uni_batches:
             if len(all_matched_contacts) >= target_count:

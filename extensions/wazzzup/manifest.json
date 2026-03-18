@@ -1,12 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Wazzzup — Bulk WhatsApp Sender",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Send personalized messages to a list of phone numbers via WhatsApp Web",
-  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "permissions": ["storage", "tabs"],
   "host_permissions": ["https://web.whatsapp.com/*"],
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "48": "icon48.png",
       "128": "icon128.png"
@@ -20,6 +19,12 @@
       "matches": ["https://web.whatsapp.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["wa-js.js", "inject.js"],
+      "matches": ["https://web.whatsapp.com/*"]
     }
   ],
   "icons": {
