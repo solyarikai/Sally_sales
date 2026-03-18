@@ -68,12 +68,34 @@ async def backfill_project(session: AsyncSession, project_id: int, dry_run: bool
 
     logger.info(f"=== Backfilling project: {project.name} (id={project_id}) ===")
 
-    # If rebuild, delete all existing reference examples
+    # If rebuild, delete only auto-generated examples (preserve manually curated ones)
     if rebuild and not dry_run:
         del_result = await session.execute(
-            delete(ReferenceExample).where(ReferenceExample.project_id == project_id)
+            delete(ReferenceExample).where(
+                ReferenceExample.project_id == project_id,
+                ReferenceExample.source.in_(["learned"]),  # Keep feedback/manual
+            )
         )
-        logger.info(f"REBUILD: Deleted {del_result.rowcount} existing reference examples")
+        logger.info(f"REBUILD: Deleted {del_result.rowcount} auto-generated examples (preserved feedback/manual)")
+
+    # Embed any existing examples that lack embeddings (e.g. manually inserted)
+    if not dry_run:
+        from app.services.embedding_service import get_embeddings_batch as _emb_batch
+        null_emb_result = await session.execute(
+            select(ReferenceExample).where(
+                ReferenceExample.project_id == project_id,
+                ReferenceExample.embedding.is_(None),
+            )
+        )
+        null_emb_rows = null_emb_result.scalars().all()
+        if null_emb_rows:
+            texts = [r.lead_message[:2000] for r in null_emb_rows]
+            new_embeddings = await _emb_batch(texts)
+            for i, row in enumerate(null_emb_rows):
+                if i < len(new_embeddings):
+                    row.embedding = new_embeddings[i]
+            await session.flush()
+            logger.info(f"Embedded {len(null_emb_rows)} examples with missing embeddings")
 
     # Build campaign filter
     campaign_parts = []
