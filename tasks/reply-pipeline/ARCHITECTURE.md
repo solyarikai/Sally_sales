@@ -402,3 +402,126 @@ WHERE event_type = 'linkedin_inbox'
 
 ### INV-7: Classification failure must not produce silent "other"
 When classification API fails, the fallback category should be clearly marked (e.g., `category=unclassified` or `category=other_api_error`) so operators and monitoring can distinguish real "other" from API failures. Add OpenAI balance monitoring alert.
+
+---
+
+## Part 10: Missed Telegram Notifications — Analysis & Fix Plan
+
+### Incident: Sachin Singh (OnSocial) — Reply Never Received
+
+**Report claims**: Reply from sachin.singh@fabulate.com.au was processed (classified as Meeting Request, draft generated) but Telegram notification never sent.
+
+**Reality (verified against DB)**:
+- **NO ProcessedReply exists** for sachin.singh@fabulate.com.au
+- **NO EMAIL_REPLY webhook** in webhook_events — only `LEAD_CATEGORY_UPDATED` (SmartLead AI category update, not a reply webhook)
+- The reply was **never received by our system**, not just "missing notification"
+
+**Root cause**: SmartLead webhook delivery failure OR server restart killed the async task before the webhook_event was committed. The report's analysis is partially wrong — it assumes the reply was processed.
+
+### Full Scope: telegram_sent_at IS NULL Analysis
+
+Queried all ProcessedReplies from last 7 days where `telegram_sent_at IS NULL`:
+
+| Category | Count | Should we re-notify? |
+|----------|-------|---------------------|
+| Old replies polled late (`received_at` > 1h before `created_at`) | 193 | **NO** — time guard correctly blocked these. They're old messages discovered during historical polling. Sending notifications for week-old replies is confusing. |
+| Genuinely missed (received ≈ created, should have been notified) | 14 | **MAYBE** — but they're 1-7 days old. Re-sending now would confuse operators. |
+| OpenAI quota failure | 1 | **NO** — already reclassified, but notification window passed. |
+
+**The 14 genuinely missed**, by project:
+| Project | Missed | Categories | Oldest |
+|---------|--------|-----------|--------|
+| easystaff ru | 7 | interested, question, wrong_person | Mar 12 |
+| mifort | 4 | interested | Mar 18 |
+| Inxy | 3 | meeting_request | Mar 13 |
+| Rizzult | 1 | not_interested | Mar 16 |
+
+### Why Notifications Were Missed (3 bugs from the report, verified)
+
+**Bug 1 (CONFIRMED): No retry for failed Telegram sends**
+- `reply_processor.py:1720`: `if sent: processed_reply.telegram_sent_at = datetime.utcnow()`
+- If `send_telegram_notification()` returns False (rate limit, timeout, network error), `telegram_sent_at` stays NULL
+- No background process ever checks for `telegram_sent_at IS NULL` to retry
+- Notification permanently lost
+
+**Bug 2 (CONFIRMED): Event Recovery passes raw event_type**
+- `crm_scheduler.py:689`: Recovery passes raw SmartLead payload where `event_type` may be "reply" or "lead.replied"
+- `reply_processor.py:1674`: `should_notify = event_type == "EMAIL_REPLY"` — only matches the normalized type
+- Recovery-processed replies → no notification
+
+**Bug 3 (CONFIRMED): 2-hour time guard blocks legitimate retries**
+- OUR FIX from tonight added `send_getsales_notification` time guard
+- SmartLead path already had it at `reply_processor.py:1686`
+- If a reply is processed normally but notification fails, then retry happens > 2h later → time guard blocks it
+
+### CRITICAL SAFETY ANALYSIS: Why a Naive Retry Loop Would Spam
+
+If we add `SELECT * FROM processed_replies WHERE telegram_sent_at IS NULL AND created_at > NOW() - 24h`:
+
+1. **193 old-polled replies** would be re-notified → operators get 193 old notifications
+2. **The 8 Rizzult backfill replies** have `telegram_sent_at` set (safe), but future backfills might not
+3. **Every project affected** — Rizzult, EasyStaff RU, Mifort, Inxy, TFP, OnSocial, Paybis operators ALL get spammed
+4. **No per-project scoping** — the retry loop doesn't know which notifications are intentionally skipped vs genuinely missed
+
+### Safe Retry Design (Proposed)
+
+**Principle**: Never re-notify replies older than 30 minutes. If notification fails, retry 3 times within 30 minutes. After that, accept the loss — operator will see it in Replies UI.
+
+**Implementation**:
+
+Add two columns to `processed_replies`:
+```sql
+ALTER TABLE processed_replies ADD COLUMN notification_attempts INTEGER DEFAULT 0;
+ALTER TABLE processed_replies ADD COLUMN last_notification_attempt_at TIMESTAMP;
+```
+
+Retry loop in `crm_scheduler.py` (every 5 minutes):
+```python
+# Find replies that need notification retry
+candidates = SELECT * FROM processed_replies
+WHERE telegram_sent_at IS NULL
+  AND notification_attempts < 3
+  AND created_at > NOW() - INTERVAL '30 minutes'
+  AND (last_notification_attempt_at IS NULL
+       OR last_notification_attempt_at < NOW() - INTERVAL '5 minutes')
+```
+
+**Safety guarantees**:
+- `created_at > NOW() - 30 minutes` → NEVER touches old replies (not 193, not backfills)
+- `notification_attempts < 3` → max 3 retries, then stops
+- `5-minute cooldown` → no rapid-fire retries
+- Time guard in `send_getsales_notification` stays (blocks old GetSales replies)
+- Each retry still goes through full project routing → correct operator only
+
+**What this does NOT fix**:
+- The 14 historical missed notifications → too old, don't re-notify
+- Sachin Singh → reply never received (webhook delivery issue, not notification issue)
+- Old-polled replies → correctly blocked by time guard
+
+### Fix for Bug 2 (Event Recovery payload normalization)
+
+In `crm_scheduler.py:689`, after loading the payload:
+```python
+payload = json.loads(event.payload)
+# Normalize event_type for recovery processing
+if event.event_type in ("EMAIL_REPLY", "lead.replied", "reply"):
+    payload["event_type"] = "EMAIL_REPLY"
+```
+
+### Historical Missed Notifications — DO NOT RE-SEND
+
+The 14 genuinely missed notifications from March 12-18 are too old. Re-sending them would:
+- Confuse operators ("why am I getting a notification for a 7-day-old reply?")
+- Potentially trigger re-processing of already-handled replies
+- Create duplicate notifications if the operator already saw it in the UI
+
+**Decision**: Accept the loss. The retry mechanism only protects FUTURE notifications.
+
+### Files to Change
+
+| File | Change | Risk |
+|------|--------|------|
+| Alembic migration | Add `notification_attempts`, `last_notification_attempt_at` columns | None — additive |
+| `crm_scheduler.py` | Add notification retry loop (every 5 min) | LOW — scoped to 30-min window |
+| `crm_scheduler.py:689` | Normalize event_type in recovery | LOW — only affects recovery path |
+| `reply_processor.py:1720` | Increment `notification_attempts` on every attempt | LOW — field update only |
