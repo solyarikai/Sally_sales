@@ -93,6 +93,29 @@ async def notify_campaign_launched(
             first_seq = sequences[0] if isinstance(sequences, list) else sequences
             subject_preview = (first_seq.get("subject") or "—")[:100]
             body_html = first_seq.get("email_body") or ""
+
+            # If template has variables, try to substitute from first lead
+            if "{{" in subject_preview or "{{" in body_html:
+                try:
+                    result = await smartlead_service.get_campaign_leads(campaign_external_id, offset=0, limit=1)
+                    leads = result.get("leads", [])
+                    if leads:
+                        custom_fields = leads[0].get("custom_fields") or {}
+                        lead_data = {
+                            "first_name": leads[0].get("first_name", ""),
+                            "last_name": leads[0].get("last_name", ""),
+                            "email": leads[0].get("email", ""),
+                            "company_name": leads[0].get("company_name", ""),
+                            **custom_fields
+                        }
+                        # Substitute {{Variable}} with actual values
+                        for key, value in lead_data.items():
+                            if value:
+                                subject_preview = subject_preview.replace("{{" + key + "}}", str(value))
+                                body_html = body_html.replace("{{" + key + "}}", str(value))
+                except Exception as e:
+                    logger.debug(f"Could not substitute template variables: {e}")
+
             body_preview = _html_to_telegram(body_html)
     except Exception as e:
         logger.warning(f"Failed to fetch sequences for campaign {campaign_external_id}: {e}")
