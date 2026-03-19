@@ -6,15 +6,12 @@ import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { ReplyQueue } from '../components/ReplyQueue';
 import { MeetingsPanel } from '../components/MeetingsPanel';
-import { QualifiedPanel } from '../components/QualifiedPanel';
-
-type Tab = 'replies' | 'followups' | 'meetings' | 'qualified';
+type Tab = 'replies' | 'followups' | 'meetings';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'replies', label: 'Replies' },
   { key: 'followups', label: 'Follow-ups' },
   { key: 'meetings', label: 'Meetings' },
-  { key: 'qualified', label: 'Qualified' },
 ];
 
 const VALID_TABS = new Set<string>(TABS.map(t => t.key));
@@ -32,7 +29,6 @@ export function TasksPage() {
   const [repliesCount, setRepliesCount] = useState(0);
   const [followupsCount, setFollowupsCount] = useState(0);
   const [meetingsCount, setMeetingsCount] = useState(0);
-  const [qualifiedCount, setQualifiedCount] = useState(0);
 
   // Skip the first project→URL sync so the URL→project effect runs first
   const urlSynced = useRef(false);
@@ -89,16 +85,11 @@ export function TasksPage() {
     setMeetingsCount(count);
   }, []);
 
-  const handleQualifiedCount = useCallback((count: number) => {
-    setQualifiedCount(count);
-  }, []);
-
   const getBadgeCount = (tab: Tab): number => {
     switch (tab) {
       case 'replies': return repliesCount;
       case 'followups': return followupsCount;
       case 'meetings': return meetingsCount;
-      case 'qualified': return qualifiedCount;
     }
   };
 
@@ -107,7 +98,6 @@ export function TasksPage() {
       case 'replies': return isDark ? '#ef4444' : '#dc2626';
       case 'followups': return isDark ? '#8b5cf6' : '#7c3aed';
       case 'meetings': return isDark ? '#f59e0b' : '#d97706';
-      case 'qualified': return isDark ? '#3b82f6' : '#2563eb';
     }
   };
 
@@ -181,9 +171,6 @@ export function TasksPage() {
         </div>
         <div className={`absolute inset-0 ${activeTab === 'meetings' ? '' : 'invisible pointer-events-none'}`}>
           <MeetingsPanel isDark={isDark} onCountChange={handleMeetingsCount} />
-        </div>
-        <div className={`absolute inset-0 ${activeTab === 'qualified' ? '' : 'invisible pointer-events-none'}`}>
-          <QualifiedPanel isDark={isDark} onCountChange={handleQualifiedCount} />
         </div>
       </div>
     </div>

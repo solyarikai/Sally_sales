@@ -461,6 +461,20 @@ export function ContactsPage() {
     }
   };
 
+  // Handle status change from inline dropdown
+  const handleStatusChange = useCallback(async (contactId: number, newStatus: string) => {
+    try {
+      await contactsApi.updateStatus(contactId, newStatus);
+      // Update local state to avoid full reload
+      setContacts(prev => prev.map(c =>
+        c.id === contactId ? { ...c, status: newStatus } : c
+      ));
+      toast.success('Статус обновлён', `${STATUS_CONFIG[newStatus]?.label || newStatus}`);
+    } catch (err) {
+      toast.error('Ошибка', getErrorMessage(err));
+    }
+  }, [toast]);
+
   // AG Grid Column Definitions — with column-embedded filters
   const columnDefs = useMemo<ColDef[]>(() => [
     {
@@ -488,17 +502,38 @@ export function ContactsPage() {
     {
       field: 'status',
       headerName: 'Status',
-      width: 120,
+      width: 145,
       sortable: true,
       filter: StatusColumnFilter,
-      cellRenderer: (params: { value: string }) => {
-        const cfg = STATUS_CONFIG[params.value];
-        return cfg ? (
-          <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: isDark ? '#aaa' : '#555' }}>
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.dot }} />
-            {cfg.label}
-          </span>
-        ) : <span className="text-xs" style={{ color: t.text6 }}>—</span>;
+      cellRenderer: (params: { value: string; data: Contact }) => {
+        const currentStatus = params.value || '';
+        return (
+          <select
+            value={currentStatus}
+            onChange={(e) => {
+              e.stopPropagation();
+              if (params.data?.id && e.target.value !== currentStatus) {
+                handleStatusChange(params.data.id, e.target.value);
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full bg-transparent border-0 text-xs cursor-pointer focus:outline-none focus:ring-0 p-0 appearance-none"
+            style={{
+              color: isDark ? '#aaa' : '#555',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 0 center',
+              paddingRight: '16px',
+            }}
+          >
+            <option value="" style={{ color: '#888' }}>—</option>
+            {Object.entries(STATUS_CONFIG).map(([key, val]) => (
+              <option key={key} value={key} style={{ color: val.dot }}>
+                {val.label}
+              </option>
+            ))}
+          </select>
+        );
       },
     },
     {
@@ -716,7 +751,7 @@ export function ContactsPage() {
       width: 110,
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
     },
-  ], [isDark, t]);
+  ], [isDark, t, handleStatusChange, replyMode, processedContacts]);
 
   // System columns excluded from toggle list
   const SYSTEM_COLUMNS = new Set([undefined, 'Done']);
