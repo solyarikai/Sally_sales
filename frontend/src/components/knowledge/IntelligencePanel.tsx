@@ -387,7 +387,7 @@ export function IntelligencePanel({ projectId, isDark, t }: IntelligencePanelPro
     });
   };
 
-  const hasFilters = intentGroupFilter || offerFilter.size || intentFilter.size || segmentFilter.size || tagFilter.size || geoFilter.size || searchText || period;
+  const hasFilters = !!(intentGroupFilter || offerFilter.size || intentFilter.size || segmentFilter.size || tagFilter.size || geoFilter.size || searchText || period);
 
   const clearFilters = () => {
     setIntentGroupFilter(null);
