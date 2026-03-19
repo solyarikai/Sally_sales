@@ -36,13 +36,14 @@ import { useAppStore } from '../store/appStore';
 
 // Status configuration — воронка процесса
 const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
-  new:             { dot: '#9ca3af', label: 'Новый' },
-  interested:      { dot: '#22c55e', label: 'Заинтересован' },
-  not_interested:  { dot: '#ef4444', label: 'Не заинтересован' },
-  calendly_sent:   { dot: '#fb923c', label: 'Calendly отправлен' },
-  meeting_booked:  { dot: '#f97316', label: 'Звонок назначен' },
-  qualified:       { dot: '#10b981', label: 'Квал' },
-  not_qualified:   { dot: '#4b5563', label: 'Не квал' },
+  new:            { dot: '#9ca3af', label: 'Новый' },
+  contacted:      { dot: '#60a5fa', label: 'Написали' },
+  replied:        { dot: '#3b82f6', label: 'Ответил' },
+  calendly_sent:  { dot: '#fb923c', label: 'Calendly отправлен' },
+  meeting_booked: { dot: '#f97316', label: 'Звонок назначен' },
+  meeting_held:   { dot: '#22c55e', label: 'Звонок состоялся' },
+  qualified:      { dot: '#10b981', label: 'Квал' },
+  not_qualified:  { dot: '#4b5563', label: 'Не квал' },
 };
 
 // Reply Type configuration — интент ответа

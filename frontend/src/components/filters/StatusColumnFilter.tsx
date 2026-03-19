@@ -7,10 +7,11 @@ import { useTheme } from '../../hooks/useTheme';
 
 const STATUSES = [
   { key: 'new',             label: 'Новый',              dot: 'bg-gray-400',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
-  { key: 'interested',      label: 'Заинтересован',      dot: 'bg-green-500',   colors: 'bg-green-100 text-green-700 border-green-300' },
-  { key: 'not_interested',  label: 'Не заинтересован',   dot: 'bg-red-400',     colors: 'bg-red-100 text-red-700 border-red-300' },
+  { key: 'contacted',       label: 'Написали',           dot: 'bg-blue-400',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
+  { key: 'replied',         label: 'Ответил',            dot: 'bg-blue-500',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
   { key: 'calendly_sent',   label: 'Calendly отправлен', dot: 'bg-orange-400',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
   { key: 'meeting_booked',  label: 'Звонок назначен',    dot: 'bg-orange-500',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
+  { key: 'meeting_held',    label: 'Звонок состоялся',   dot: 'bg-green-500',   colors: 'bg-green-100 text-green-700 border-green-300' },
   { key: 'qualified',       label: 'Квал',               dot: 'bg-emerald-500', colors: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
   { key: 'not_qualified',   label: 'Не квал',            dot: 'bg-gray-600',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
 ] as const;
