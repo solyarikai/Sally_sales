@@ -163,14 +163,27 @@ async def add_test_leads_to_campaign(campaign_id: str, emails: List[str]) -> boo
     if not emails:
         return True
 
+    # Get custom_fields from first lead in campaign (for variable substitution)
+    sample_custom_fields = {}
+    try:
+        result = await smartlead_service.get_campaign_leads(campaign_id, offset=0, limit=1)
+        leads = result.get("leads", [])
+        if leads and len(leads) > 0:
+            sample_custom_fields = leads[0].get("custom_fields") or {}
+            if sample_custom_fields:
+                logger.info(f"Copied {len(sample_custom_fields)} custom fields from sample lead for test leads")
+    except Exception as e:
+        logger.debug(f"Could not get sample lead custom_fields: {e}")
+
     leads = []
     for email in emails:
+        custom_fields = {**sample_custom_fields, "is_test_lead": "true"}
         leads.append({
             "email": email,
             "first_name": "Test",
             "last_name": "Lead",
             "company_name": "TEST - DELETE",
-            "custom_fields": {"is_test_lead": "true"}
+            "custom_fields": custom_fields
         })
 
     try:
