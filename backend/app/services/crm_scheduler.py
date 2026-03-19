@@ -377,14 +377,30 @@ class CRMScheduler:
                             # Schedule launch notification
                             project = project_by_id.get(camp.project_id) if camp.project_id else None
                             from app.services.campaign_launch_service import notify_campaign_launched
-                            asyncio.create_task(notify_campaign_launched(
-                                campaign_id=camp.id,
-                                campaign_external_id=camp.external_id,
-                                campaign_name=camp.name,
-                                project_id=camp.project_id,
-                                project_name=project.name if project else None,
-                                project_telegram_chat=project.telegram_chat_id if project else None,
-                                sdr_email=project.sdr_email if project else None,
+
+                            async def _safe_notify(camp_id, ext_id, name, pid, pname, tg_chat, sdr):
+                                """Wrapper to catch and log exceptions from fire-and-forget task."""
+                                try:
+                                    await notify_campaign_launched(
+                                        campaign_id=camp_id,
+                                        campaign_external_id=ext_id,
+                                        campaign_name=name,
+                                        project_id=pid,
+                                        project_name=pname,
+                                        project_telegram_chat=tg_chat,
+                                        sdr_email=sdr,
+                                    )
+                                except Exception as e:
+                                    logger.error(f"Campaign launch notification failed for '{name}': {e}")
+
+                            asyncio.create_task(_safe_notify(
+                                camp.id,
+                                camp.external_id,
+                                camp.name,
+                                camp.project_id,
+                                project.name if project else None,
+                                project.telegram_chat_id if project else None,
+                                project.sdr_email if project else None,
                             ))
                             camp.launched_at = datetime.utcnow()
                             camp.launch_notified = True
