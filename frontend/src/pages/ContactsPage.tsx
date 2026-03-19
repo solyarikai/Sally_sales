@@ -37,8 +37,8 @@ import { useAppStore } from '../store/appStore';
 // Status configuration — sales funnel
 const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
   new:            { dot: '#9ca3af', label: 'New' },
-  contacted:      { dot: '#60a5fa', label: 'Contacted' },
   replied:        { dot: '#3b82f6', label: 'Replied' },
+  warm:           { dot: '#f59e0b', label: 'Warm' },
   calendly_sent:  { dot: '#fb923c', label: 'Calendly Sent' },
   meeting_booked: { dot: '#f97316', label: 'Meeting Booked' },
   meeting_held:   { dot: '#22c55e', label: 'Meeting Held' },

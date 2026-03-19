@@ -7,8 +7,8 @@ import { useTheme } from '../../hooks/useTheme';
 
 const STATUSES = [
   { key: 'new',             label: 'New',             dot: 'bg-gray-400',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
-  { key: 'contacted',       label: 'Contacted',       dot: 'bg-blue-400',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
   { key: 'replied',         label: 'Replied',         dot: 'bg-blue-500',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
+  { key: 'warm',            label: 'Warm',            dot: 'bg-amber-500',   colors: 'bg-amber-100 text-amber-700 border-amber-300' },
   { key: 'calendly_sent',   label: 'Calendly Sent',   dot: 'bg-orange-400',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
   { key: 'meeting_booked',  label: 'Meeting Booked',  dot: 'bg-orange-500',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
   { key: 'meeting_held',    label: 'Meeting Held',    dot: 'bg-green-500',   colors: 'bg-green-100 text-green-700 border-green-300' },
