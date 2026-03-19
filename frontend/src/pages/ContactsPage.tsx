@@ -34,28 +34,28 @@ import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useAppStore } from '../store/appStore';
 
-// Status configuration — воронка процесса
+// Status configuration — sales funnel
 const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
-  new:            { dot: '#9ca3af', label: 'Новый' },
-  contacted:      { dot: '#60a5fa', label: 'Написали' },
-  replied:        { dot: '#3b82f6', label: 'Ответил' },
-  calendly_sent:  { dot: '#fb923c', label: 'Calendly отправлен' },
-  meeting_booked: { dot: '#f97316', label: 'Звонок назначен' },
-  meeting_held:   { dot: '#22c55e', label: 'Звонок состоялся' },
-  qualified:      { dot: '#10b981', label: 'Квал' },
-  not_qualified:  { dot: '#4b5563', label: 'Не квал' },
+  new:            { dot: '#9ca3af', label: 'New' },
+  contacted:      { dot: '#60a5fa', label: 'Contacted' },
+  replied:        { dot: '#3b82f6', label: 'Replied' },
+  calendly_sent:  { dot: '#fb923c', label: 'Calendly Sent' },
+  meeting_booked: { dot: '#f97316', label: 'Meeting Booked' },
+  meeting_held:   { dot: '#22c55e', label: 'Meeting Held' },
+  qualified:      { dot: '#10b981', label: 'Qualified' },
+  not_qualified:  { dot: '#4b5563', label: 'Not Qualified' },
 };
 
-// Reply Type configuration — интент ответа
+// Reply Type configuration — reply intent
 const REPLY_CATEGORY_CONFIG: Record<string, { dot: string; label: string }> = {
-  meeting_request: { dot: '#22c55e', label: 'Просит встречу' },
-  interested:      { dot: '#3b82f6', label: 'Заинтересован' },
-  question:        { dot: '#6366f1', label: 'Вопрос' },
-  not_interested:  { dot: '#9ca3af', label: 'Не интересно' },
-  out_of_office:   { dot: '#fbbf24', label: 'Нет на месте' },
-  wrong_person:    { dot: '#f87171', label: 'Не тот человек' },
-  unsubscribe:     { dot: '#fb923c', label: 'Отписка' },
-  other:           { dot: '#a78bfa', label: 'Другое' },
+  meeting_request: { dot: '#22c55e', label: 'Meeting Request' },
+  interested:      { dot: '#3b82f6', label: 'Interested' },
+  question:        { dot: '#6366f1', label: 'Question' },
+  not_interested:  { dot: '#9ca3af', label: 'Not Interested' },
+  out_of_office:   { dot: '#fbbf24', label: 'Out of Office' },
+  wrong_person:    { dot: '#f87171', label: 'Wrong Person' },
+  unsubscribe:     { dot: '#fb923c', label: 'Unsubscribe' },
+  other:           { dot: '#a78bfa', label: 'Other' },
 };
 
 export function ContactsPage() {
@@ -469,9 +469,9 @@ export function ContactsPage() {
       setContacts(prev => prev.map(c =>
         c.id === contactId ? { ...c, status: newStatus } : c
       ));
-      toast.success('Статус обновлён', `${STATUS_CONFIG[newStatus]?.label || newStatus}`);
+      toast.success('Status Updated', `${STATUS_CONFIG[newStatus]?.label || newStatus}`);
     } catch (err) {
-      toast.error('Ошибка', getErrorMessage(err));
+      toast.error('Error', getErrorMessage(err));
     }
   }, [toast]);
 

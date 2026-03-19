@@ -1088,7 +1088,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                                 className="text-[11px] px-1.5 py-0.5 rounded font-medium"
                                 style={{ background: isDark ? '#052e16' : '#dcfce7', color: '#16a34a' }}
                               >
-                                ✓ Квал
+                                ✓ Qualified
                               </span>
                             )}
                             {/* Stale badge removed — auto-regen handles it silently */}
