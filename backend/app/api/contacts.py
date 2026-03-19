@@ -91,7 +91,7 @@ class ContactUpdate(BaseModel):
 class ContactResponse(BaseModel):
     """Clean API contract. No deprecated DB internals leak here."""
     id: int
-    email: str
+    email: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     company_name: Optional[str] = None
