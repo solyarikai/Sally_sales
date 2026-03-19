@@ -416,7 +416,15 @@ When classification API fails, the fallback category should be clearly marked (e
 - **NO EMAIL_REPLY webhook** in webhook_events — only `LEAD_CATEGORY_UPDATED` (SmartLead AI category update, not a reply webhook)
 - The reply was **never received by our system**, not just "missing notification"
 
-**Root cause**: SmartLead webhook delivery failure OR server restart killed the async task before the webhook_event was committed. The report's analysis is partially wrong — it assumes the reply was processed.
+**Root cause** (verified via SmartLead API):
+1. Sachin's reply EXISTS in SmartLead: `REPLY 2026-03-18T21:36:15 "Yes, I would be interested. When are..."`
+2. SmartLead **never delivered EMAIL_REPLY webhook** (only LEAD_CATEGORY_UPDATED arrived)
+3. Polling path didn't catch it because `sl_reply_count = 3` in our DB is STALE — SmartLead actually has 4+ replies for this campaign
+4. Polling loop compares our count vs SmartLead's reported count. If they match, it skips the campaign entirely.
+
+**This is a DISCOVERY bug, not a notification bug.** The reply was never ingested into our system at all.
+
+**Fix needed**: Polling must not rely solely on `sl_reply_count` matching. It should periodically do a full campaign scan regardless of count (e.g., once per hour). OR use the campaign message-history API to find replies the webhook missed.
 
 ### Full Scope: telegram_sent_at IS NULL Analysis
 
