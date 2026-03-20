@@ -146,7 +146,7 @@ async function login(page) {
   await sleep(2000);
 
   const url = page.url();
-  if (url.includes('/people') || url.includes('/home') || url.includes('/companies')) {
+  if (url.includes('/people') || url.includes('/home') || url.includes('/companies') || url.includes('/sequences')) {
     console.log(`[${ts()}] LOGIN: Already logged in`);
     return;
   }
@@ -155,20 +155,21 @@ async function login(page) {
   await page.type('input[name="email"]', APOLLO_EMAIL, { delay: 30 });
   await sleep(500);
   await page.type('input[name="password"]', APOLLO_PASS, { delay: 30 });
+  await sleep(500);
   await page.click('button[type="submit"]');
-  await sleep(8000);
+  await sleep(5000);
 
-  // Verify login
-  for (let i = 0; i < 15; i++) {
+  // Verify login - wait up to 60 seconds (same as working script)
+  for (let i = 0; i < 30; i++) {
     const u = page.url();
-    if (u.includes('/people') || u.includes('/home') || u.includes('/companies')) {
+    if (u.includes('/people') || u.includes('/home') || u.includes('/companies') || u.includes('/sequences')) {
       console.log(`[${ts()}] LOGIN: Success`);
       return;
     }
     await sleep(2000);
   }
 
-  throw new Error('Login failed - could not verify successful login');
+  throw new Error('Login failed - stuck at: ' + page.url());
 }
 
 // ================================================================
