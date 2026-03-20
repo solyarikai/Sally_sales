@@ -281,15 +281,14 @@ async def _get_conversation_summary(session, email: str, project_id: int) -> str
 
     combined = "\n---\n".join(messages)
 
-    # Use Gemini for quick summary (cheaper than GPT)
+    # Use GPT-4o-mini for quick summary
     try:
         from app.services.openai_service import OpenAIService
         ai = OpenAIService()
 
-        summary = await ai.generate_text(
+        summary = await ai.generate_single(
             prompt=f"Summarize this email thread in 1-2 sentences in Russian. Focus on: what the lead wants, their interest level.\n\nThread:\n{combined}",
-            max_tokens=100,
-            model="gemini"
+            model="gpt-4o-mini"
         )
         return summary.strip() if summary else ""
     except Exception as e:
