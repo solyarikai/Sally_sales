@@ -428,27 +428,82 @@ async function main() {
     await fillNumberField(page, 'Max', filters.maximum_member_count);
   }
   if (filters.country_names?.length) {
-    // Scroll down to find Location section
+    // Scroll down in the filter panel to make Location section visible
     await page.evaluate(() => {
-      const loc = [...document.querySelectorAll('span, div, button')].find(e => e.textContent?.trim() === 'Location');
-      if (loc) loc.click();
+      const panel = document.querySelector('[class*="filter"], [class*="sidebar"], [class*="panel"]');
+      if (panel) panel.scrollTop = panel.scrollHeight;
+      // Also try scrolling any scrollable parent of the filter inputs
+      const inputs = document.querySelectorAll('input');
+      if (inputs.length > 3) {
+        const lastInput = inputs[inputs.length - 1];
+        lastInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     });
-    await humanDelay(500, 1000);
-    // Look for location input
-    const locInput = await page.$('input[placeholder*="location"], input[placeholder*="country"], input[placeholder*="United States"]');
-    if (locInput) {
+    await humanDelay(800, 1200);
+
+    // Click "Location" section header to expand it (matches people search approach)
+    const locSection = await findByText(page, 'Location', true);
+    if (locSection) {
+      await page.mouse.click(locSection.x, locSection.y);
+      await humanDelay(800, 1200);
+      console.log('    Expanded Location section');
+    } else {
+      console.log('    WARNING: Location section not found');
+    }
+
+    // Find country input — Clay uses placeholder like "United States, Canada" or "country"
+    let countryInput = await page.$('input[placeholder*="United States"]')
+      || await page.$('input[placeholder*="country"]')
+      || await page.$('input[placeholder*="location"]');
+
+    // Fallback: dump all visible input placeholders to debug
+    if (!countryInput) {
+      const allPlaceholders = await page.evaluate(() => {
+        return [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
+          .map(i => i.placeholder).filter(p => p);
+      });
+      console.log('    All input placeholders:', allPlaceholders.join(' | '));
+      // Try partial matching
+      for (const ph of allPlaceholders) {
+        if (ph.toLowerCase().includes('united') || ph.toLowerCase().includes('country') || ph.toLowerCase().includes('locat')) {
+          countryInput = await page.$(`input[placeholder="${ph}"]`);
+          if (countryInput) {
+            console.log(`    Found location input via fallback: "${ph}"`);
+            break;
+          }
+        }
+      }
+    }
+
+    if (countryInput) {
       for (const country of filters.country_names) {
-        await locInput.click();
-        await locInput.type(country, { delay: 30 });
-        await humanDelay(500, 800);
+        await countryInput.click();
+        await humanDelay(200, 400);
+        // Clear any existing text first
+        await page.keyboard.down('Control');
+        await page.keyboard.press('a');
+        await page.keyboard.up('Control');
+        await countryInput.type(country, { delay: 25 + Math.random() * 30 });
+        await humanDelay(600, 1000);
         await page.keyboard.press('Enter');
         await humanDelay(300, 500);
       }
       console.log(`    Location: ${filters.country_names.join(', ')}`);
+    } else {
+      console.log('    WARNING: Country input not found — location filter NOT applied!');
     }
   }
 
   await humanDelay(2000, 3000);
+
+  // Log result count after filters to verify location filter is working
+  const resultCountText = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('*')].find(e =>
+      e.textContent?.includes(' of ') && e.textContent?.includes('results') && e.innerText?.length < 50
+    );
+    return el?.innerText?.trim() || 'unknown';
+  });
+  console.log(`  Results after filters: ${resultCountText}`);
   await screenshot(page, 'tam_03_filters_applied');
 
   // Step 6: Click Continue dropdown → "Save to new workbook and table"
