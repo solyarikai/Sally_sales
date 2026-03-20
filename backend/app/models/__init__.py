@@ -41,6 +41,10 @@ from .pipeline_run import (
     PipelinePhaseLog, PipelinePhaseStatus,
     CostEvent,
 )
+from .gathering import (
+    GatheringRun, CompanySourceLink, CompanyScrape,
+    GatheringPrompt, AnalysisRun, AnalysisResult, ApprovalGate,
+)
 from .project_report import (
     ProjectReport, ProjectPlan, ProjectProgressItem,
     ProjectReportSubscription, ReportRole, ProgressStatus,
@@ -106,4 +110,7 @@ __all__ = [
     # Project Reports
     "ProjectReport", "ProjectPlan", "ProjectProgressItem",
     "ProjectReportSubscription", "ReportRole", "ProgressStatus",
+    # TAM Gathering
+    "GatheringRun", "CompanySourceLink", "CompanyScrape",
+    "GatheringPrompt", "AnalysisRun", "AnalysisResult", "ApprovalGate",
 ]

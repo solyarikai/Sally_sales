@@ -101,6 +101,9 @@ class SearchJob(Base):
     # Project link (optional — for project-aware search pipeline)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
 
+    # Gathering system link
+    gathering_run_id = Column(Integer, ForeignKey("gathering_runs.id", ondelete="SET NULL"), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships

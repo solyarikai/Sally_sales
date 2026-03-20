@@ -100,6 +100,24 @@ class DiscoveredCompany(Base):
     # annual_revenue, founded_year, linkedin_url, languages, technologies, etc.
     apollo_org_data = Column(JSONB, nullable=True)
 
+    # Multi-source tracking (gathering system)
+    source_count = Column(Integer, server_default="1")
+    first_found_by = Column(Integer, ForeignKey("gathering_runs.id", ondelete="SET NULL"), nullable=True)
+
+    # CRM blacklist cache
+    blacklist_checked_at = Column(DateTime(timezone=True), nullable=True)
+    in_active_campaign = Column(Boolean, server_default="false")
+    campaign_ids_active = Column(JSONB, nullable=True)
+    crm_contact_id = Column(Integer, ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True)
+
+    # Latest analysis reference
+    latest_analysis_run_id = Column(Integer, ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True)
+    latest_analysis_verdict = Column(Boolean, nullable=True)
+    latest_analysis_segment = Column(String(100), nullable=True)
+
+    # LinkedIn identity (secondary dedup)
+    linkedin_company_url = Column(String(500), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

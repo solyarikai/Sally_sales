@@ -40,6 +40,7 @@ from .client_dashboard import router as client_dashboard_router
 from .fireflies import router as fireflies_router
 from .intelligence import router as intelligence_router
 from .project_reports import router as project_reports_router
+from .gathering import router as gathering_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -131,5 +132,8 @@ api_router.include_router(intelligence_router)
 
 # Project Reports (lead daily reports + plans + progress)
 api_router.include_router(project_reports_router)
+
+# TAM Gathering Pipeline
+api_router.include_router(gathering_router)
 
 __all__ = ["api_router"]
