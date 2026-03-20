@@ -157,12 +157,8 @@ async function searchPerson(page, name, company, debug = false) {
   // Go to People search page with query
   const searchUrl = `https://app.apollo.io/#/people?qKeywords=${encodeURIComponent(searchQuery)}&sortByField=recommendations_score&sortAscending=false`;
 
-  await page.goto(searchUrl, { waitUntil: 'networkidle0', timeout: 30000 });
-  await humanDelay(1000, 1500);
-
-  // Wait for results to load
-  await page.waitForSelector('table, .zp_RFed0, [class*="Table"], [class*="zp"]', { timeout: 10000 }).catch(() => {});
-  await humanDelay(500, 1000);
+  await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+  await sleep(2000);  // Fixed wait for React to render
 
   // Debug screenshot
   if (debug) {
