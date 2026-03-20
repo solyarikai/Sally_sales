@@ -795,8 +795,9 @@ class GatheringService:
 
         total = 0; targets = 0; rejected = 0; total_tokens = 0; total_cost = 0.0
         target_list = []
+        BATCH_SIZE = 50  # Commit every 50 companies to avoid massive transactions
 
-        for dc in dc_list:
+        for i, dc in enumerate(dc_list):
             try:
                 analysis = await company_search_service.analyze_company(
                     content=dc.scraped_text or "", target_segments=prompt_text,
@@ -842,6 +843,16 @@ class GatheringService:
 
             except Exception as e:
                 logger.error(f"Analysis failed for {dc.domain}: {e}")
+
+            # Intermediate commit every BATCH_SIZE to avoid losing progress
+            if (i + 1) % BATCH_SIZE == 0:
+                analysis_run.total_analyzed = total
+                analysis_run.targets_found = targets
+                analysis_run.rejected_count = rejected
+                analysis_run.total_tokens = total_tokens
+                analysis_run.total_cost_usd = total_cost
+                await session.commit()
+                logger.info(f"Analysis batch {i+1}/{len(dc_list)}: {targets} targets so far ({total} analyzed)")
 
         analysis_run.total_analyzed = total
         analysis_run.targets_found = targets
