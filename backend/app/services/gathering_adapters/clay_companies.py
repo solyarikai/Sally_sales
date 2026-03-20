@@ -90,7 +90,10 @@ class ClayCompaniesAdapter(GatheringAdapter):
             clay_companies = result.get("companies", [])
             companies = []
             for item in clay_companies:
-                domain = item.get("domain", "") or item.get("website", "")
+                # Clay exports use Title Case keys (Domain, Name, etc.)
+                # Build a case-insensitive lookup
+                ci = {k.lower(): v for k, v in item.items()}
+                domain = ci.get("domain", "") or ci.get("website", "")
                 if domain:
                     if "://" in domain:
                         from urllib.parse import urlparse
@@ -99,12 +102,12 @@ class ClayCompaniesAdapter(GatheringAdapter):
 
                 companies.append({
                     "domain": domain,
-                    "name": item.get("name", "") or item.get("company_name", ""),
-                    "employees": item.get("employees") or item.get("employee_count"),
-                    "industry": item.get("industry", ""),
-                    "city": item.get("city", ""),
-                    "country": item.get("country", ""),
-                    "linkedin_url": item.get("linkedin_url", ""),
+                    "name": ci.get("name", "") or ci.get("company_name", ""),
+                    "employees": ci.get("employees") or ci.get("employee_count") or ci.get("size", ""),
+                    "industry": ci.get("industry", ""),
+                    "city": ci.get("city", ""),
+                    "country": ci.get("country", ""),
+                    "linkedin_url": ci.get("linkedin_url") or ci.get("linkedin url", ""),
                     "raw_clay": item,
                 })
 
