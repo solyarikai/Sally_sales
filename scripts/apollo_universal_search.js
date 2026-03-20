@@ -340,7 +340,6 @@ async function runSearch(config) {
 
   // Launch browser
   // Use system Chromium - check multiple possible paths
-  const fs = require('fs');
   const chromiumPaths = [
     process.env.PUPPETEER_EXECUTABLE_PATH,
     '/usr/bin/chromium',
