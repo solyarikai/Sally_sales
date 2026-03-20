@@ -1152,7 +1152,7 @@ CRITICAL FALSE POSITIVE RULES:
                         "contents": [{"parts": [{"text": full_prompt}]}],
                         "generationConfig": {
                             "temperature": 0.1,
-                            "maxOutputTokens": 800,
+                            "maxOutputTokens": 1200,
                             "responseMimeType": "application/json",
                         }
                     }
@@ -1197,7 +1197,7 @@ CRITICAL FALSE POSITIVE RULES:
                         {"role": "user", "content": prompt},
                     ],
                     "temperature": 0.1,
-                    "max_tokens": 600,
+                    "max_tokens": 1000,
                 }
                 headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json; charset=utf-8"}
                 for attempt in range(4):
@@ -1258,7 +1258,7 @@ CRITICAL FALSE POSITIVE RULES:
                 "user": prompt,
                 "model": model_used,
                 "temperature": 0.1,
-                "max_tokens": 600,
+                "max_tokens": 1000,
             }
             return result
 
