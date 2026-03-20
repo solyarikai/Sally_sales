@@ -150,7 +150,7 @@ async function loginToApollo(page) {
 //  PERSON SEARCH
 // ================================================================
 
-async function searchPerson(page, name, company) {
+async function searchPerson(page, name, company, debug = false) {
   const searchQuery = `${name} ${company}`.trim();
   console.log(`[${ts()}] Searching: "${searchQuery}"`);
 
@@ -158,16 +158,49 @@ async function searchPerson(page, name, company) {
   const searchUrl = `https://app.apollo.io/#/people?qKeywords=${encodeURIComponent(searchQuery)}&sortByField=recommendations_score&sortAscending=false`;
 
   await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-  await humanDelay(2000, 4000);
+  await humanDelay(3000, 5000);
 
   // Wait for results to load
-  await page.waitForSelector('table, .zp_RFed0, [class*="Table"]', { timeout: 15000 }).catch(() => {});
-  await humanDelay(1000, 2000);
+  await page.waitForSelector('table, .zp_RFed0, [class*="Table"], [class*="zp"]', { timeout: 20000 }).catch(() => {});
+  await humanDelay(2000, 3000);
 
-  // Extract first result's LinkedIn URL
+  // Debug screenshot
+  if (debug) {
+    const screenshotPath = path.join(OUT_DIR, `debug_${Date.now()}.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: false });
+    console.log(`[${ts()}]   Debug screenshot: ${screenshotPath}`);
+  }
+
+  // Extract first result's LinkedIn URL - improved selectors for Apollo UI
   const result = await page.evaluate((targetName, targetCompany) => {
-    // Find all person rows
-    const rows = document.querySelectorAll('tr, [class*="TableRow"], [data-cy*="row"]');
+    const debug = [];
+
+    // Apollo uses various table structures - try multiple selectors
+    const tableSelectors = [
+      'table tbody tr',
+      '[class*="zp_RFed0"]',  // Apollo specific class
+      '[class*="TableRow"]',
+      '[data-cy*="row"]',
+      'div[class*="zp_"] > div[class*="zp_"]',  // nested divs
+    ];
+
+    let rows = [];
+    for (const sel of tableSelectors) {
+      const found = document.querySelectorAll(sel);
+      if (found.length > 0) {
+        rows = found;
+        debug.push(`Found ${found.length} rows with selector: ${sel}`);
+        break;
+      }
+    }
+
+    if (rows.length === 0) {
+      // Try to find any content that looks like person cards
+      rows = document.querySelectorAll('div[class*="person"], div[class*="contact"], article');
+      debug.push(`Fallback: found ${rows.length} person-like elements`);
+    }
+
+    debug.push(`Total rows to check: ${rows.length}`);
 
     for (const row of rows) {
       const rowText = row.textContent?.toLowerCase() || '';
@@ -175,41 +208,64 @@ async function searchPerson(page, name, company) {
       const companyLower = targetCompany.toLowerCase();
 
       // Check if this row matches our search
-      const nameMatch = nameLower.split(' ').some(part => rowText.includes(part));
+      const nameMatch = nameLower.split(' ').some(part => part.length > 2 && rowText.includes(part));
       const companyMatch = companyLower.split(' ').filter(w => w.length > 2).some(part => rowText.includes(part));
 
-      if (nameMatch && companyMatch) {
-        // Look for LinkedIn link
-        const linkedinLink = row.querySelector('a[href*="linkedin.com"]');
-        if (linkedinLink) {
-          return {
-            linkedin_url: linkedinLink.href,
-            matched_text: row.textContent?.substring(0, 200).trim()
-          };
+      if (nameMatch || companyMatch) {
+        debug.push(`Potential match: ${rowText.substring(0, 100)}`);
+
+        // Look for LinkedIn link in various places
+        const linkedinSelectors = [
+          'a[href*="linkedin.com/in/"]',
+          'a[href*="linkedin.com"]',
+          '[class*="linkedin"] a',
+          'a[title*="LinkedIn"]',
+        ];
+
+        for (const sel of linkedinSelectors) {
+          const linkedinLink = row.querySelector(sel);
+          if (linkedinLink?.href) {
+            return {
+              linkedin_url: linkedinLink.href,
+              matched_text: rowText.substring(0, 200).trim(),
+              debug: debug
+            };
+          }
         }
 
-        // Try to find person name link and extract profile
-        const personLink = row.querySelector('a[href*="/people/"]');
-        if (personLink) {
+        // Try to find person profile link (to visit and get LinkedIn from there)
+        const personLink = row.querySelector('a[href*="/people/"], a[href*="contact"]');
+        if (personLink?.href) {
           return {
             apollo_url: personLink.href,
-            matched_text: row.textContent?.substring(0, 200).trim()
+            matched_text: rowText.substring(0, 200).trim(),
+            debug: debug
           };
         }
       }
     }
 
-    // Fallback: get first result if any
+    // Fallback: get first LinkedIn link on page
     const firstLinkedin = document.querySelector('a[href*="linkedin.com/in/"]');
     if (firstLinkedin) {
       return {
         linkedin_url: firstLinkedin.href,
-        matched_text: 'first_result_fallback'
+        matched_text: 'first_result_fallback',
+        debug: debug
       };
     }
 
-    return null;
+    // Return debug info even if no match
+    return { debug: debug, no_results: true }
+
   }, name, company);
+
+  // Log debug info
+  if (result?.debug) {
+    for (const d of result.debug) {
+      console.log(`[${ts()}]   Debug: ${d}`);
+    }
+  }
 
   if (result?.linkedin_url) {
     console.log(`[${ts()}]   Found LinkedIn: ${result.linkedin_url}`);
@@ -254,6 +310,7 @@ async function main() {
   const companyCol = getArg('--company-col') || 'company';
   const outputFile = getArg('--output');
   const headless = hasFlag('--headless');
+  const debug = hasFlag('--debug');
   const limit = parseInt(getArg('--limit')) || 0;
 
   if (!inputFile) {
@@ -343,7 +400,7 @@ async function main() {
     console.log(`\n[${ts()}] [${i + 1}/${processRows.length}] ${name} @ ${company}`);
 
     try {
-      const linkedinUrl = await searchPerson(page, name, company);
+      const linkedinUrl = await searchPerson(page, name, company, debug);
 
       if (linkedinUrl) {
         row.linkedin_url = linkedinUrl;
