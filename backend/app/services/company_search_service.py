@@ -1098,7 +1098,7 @@ CRITICAL RULES — violations mean AUTOMATIC FAILURE:
 
 Respond ONLY with valid JSON."""
 
-        prompt = f"""{knowledge_context}TARGET SEGMENT: {target_segments}
+            prompt = f"""{knowledge_context}TARGET SEGMENT: {target_segments}
 
 {website_context}
 
@@ -1200,8 +1200,18 @@ CRITICAL FALSE POSITIVE RULES:
             if "scores" not in result:
                 result["scores"] = {}
 
-            # Phase 1c: Post-processing validation
-            result = self._validate_analysis(result, clean, target_segments=target_segments)
+            # Normalize segment key: v2 prompt uses "segment", legacy uses "matched_segment"
+            if "segment" in result and "matched_segment" not in result:
+                result["matched_segment"] = result["segment"]
+            # Normalize NOT_A_MATCH → is_target=false
+            seg = result.get("matched_segment", "") or result.get("segment", "")
+            if seg and seg.upper() in ("NOT_A_MATCH", "NOT_TARGET"):
+                result["is_target"] = False
+                result["matched_segment"] = "NOT_A_MATCH"
+
+            # Phase 1c: Post-processing validation (skip for custom prompts — via negativa handles its own)
+            if not custom_system_prompt:
+                result = self._validate_analysis(result, clean, target_segments=target_segments)
 
             result["tokens_used"] = tokens_used
             # Store the exact prompts sent to GPT for full reproducibility
