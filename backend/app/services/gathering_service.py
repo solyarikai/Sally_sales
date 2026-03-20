@@ -795,8 +795,8 @@ class GatheringService:
 
         total = 0; targets = 0; rejected = 0; total_tokens = 0; total_cost = 0.0
         target_list = []
-        BATCH_SIZE = 100  # Commit to DB every 100 results
-        CONCURRENCY = 50  # Parallel GPT-4o-mini requests (500 RPM limit, ~50 concurrent safe)
+        BATCH_SIZE = 50   # Commit to DB every 50 results
+        CONCURRENCY = 25  # Parallel GPT-4o-mini requests (safe under 500 RPM, avoids 429)
         import asyncio as _aio
         sem = _aio.Semaphore(CONCURRENCY)
 
