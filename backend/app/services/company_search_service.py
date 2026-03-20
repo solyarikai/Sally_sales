@@ -1027,10 +1027,11 @@ class CompanySearchService:
         domain: str,
         knowledge: Optional[Dict[str, Any]] = None,
         is_html: bool = True,
+        custom_system_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        GPT-4o-mini analyzes scraped website against target segments using
-        a multi-criteria scoring rubric. Kept on GPT-4o-mini (cheap, high volume).
+        Analyzes scraped website against target segments using AI.
+        Prefers Gemini (free quota), falls back to OpenAI if needed.
 
         Args:
             content: Raw HTML or clean text (from Crona)
@@ -1041,9 +1042,11 @@ class CompanySearchService:
 
         Returns: {is_target, confidence, reasoning, company_info, scores}
         """
-        api_key = settings.OPENAI_API_KEY
-        if not api_key:
-            return {"is_target": False, "confidence": 0, "reasoning": "No OpenAI API key",
+        # OpenAI primary (fast), Gemini disabled for now (slow)
+        gemini_key = None  # settings.GEMINI_API_KEY — disabled, too slow
+        openai_key = settings.OPENAI_API_KEY
+        if not openai_key:
+            return {"is_target": False, "confidence": 0, "reasoning": "No AI API key configured",
                     "company_info": {}, "scores": {}}
 
         # Extract/structure text with language detection
@@ -1072,7 +1075,18 @@ class CompanySearchService:
             if parts:
                 knowledge_context = "\n\n".join(parts) + "\n\n"
 
-        system_prompt = """You are an expert at analyzing company websites to determine if they match a B2B target customer segment. You use a strict multi-criteria scoring system.
+        # Use custom system prompt if provided (gathering pipeline v2 via negativa)
+        # Otherwise fall back to the legacy scoring rubric
+        if custom_system_prompt:
+            system_prompt = custom_system_prompt
+            prompt = f"""{knowledge_context}{website_context}"""
+            # For custom prompts, the target_segments IS the system prompt
+            # so we don't need to inject it again
+        else:
+            pass  # Fall through to legacy prompt below
+
+        if not custom_system_prompt:
+            system_prompt = """You are an expert at analyzing company websites to determine if they match a B2B target customer segment. You use a strict multi-criteria scoring system.
 
 CRITICAL RULES — violations mean AUTOMATIC FAILURE:
 1. Website language must be compatible with target geography. For Russian market: non-Russian site = language_match 0. For UAE/Dubai market: English OR Russian OR Arabic are all acceptable.
@@ -1086,7 +1100,7 @@ CRITICAL RULES — violations mean AUTOMATIC FAILURE:
 
 Respond ONLY with valid JSON."""
 
-        prompt = f"""{knowledge_context}TARGET SEGMENT: {target_segments}
+            prompt = f"""{knowledge_context}TARGET SEGMENT: {target_segments}
 
 {website_context}
 
@@ -1127,60 +1141,101 @@ CRITICAL FALSE POSITIVE RULES:
 - Companies that don't provide any of the services described in TARGET SEGMENT → is_target = false
 - IMPORTANT: "name" in company_info must be the name of the company whose WEBSITE you are analyzing, extracted from the website content (title, logo, about page). NEVER use the client/searcher name from the TARGET SEGMENT description. If you cannot find the company name on the website, use the domain name."""
 
-        payload = {
-            "model": "gpt-4o-mini",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.1,
-            "max_tokens": 600,
-        }
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json; charset=utf-8",
-        }
+        # Combine prompts for API call
+        full_prompt = f"{system_prompt}\n\n{prompt}"
 
         try:
-            # Retry with backoff on 429
             resp = None
-            for attempt in range(4):
-                async with httpx.AsyncClient(timeout=30) as client:
-                    resp = await client.post(
-                        "https://api.openai.com/v1/chat/completions",
-                        json=payload,
-                        headers=headers,
-                    )
-                if resp.status_code == 429:
-                    import random as _rng
-                    wait = min(2.0 * (2 ** attempt), 20.0) + _rng.uniform(0, 1)
-                    logger.warning(f"OpenAI 429 for {domain}, backoff {wait:.1f}s (attempt {attempt + 1}/4)")
-                    await asyncio.sleep(wait)
-                    continue
-                resp.raise_for_status()
-                break
-            if resp is None or resp.status_code == 429:
-                return {"is_target": False, "confidence": 0, "reasoning": "OpenAI rate limited",
-                        "company_info": {}, "scores": {}, "tokens_used": 0}
+            content_text = ""
+            tokens_used = 0
+            model_used = "gpt-4o-mini"
 
-            data = resp.json()
+            # Try Gemini first (disabled — too slow)
+            async with _gpt_analysis_semaphore:  # Rate limit concurrent AI calls
+                if gemini_key:
+                    gemini_payload = {
+                        "contents": [{"parts": [{"text": full_prompt}]}],
+                        "generationConfig": {
+                            "temperature": 0.1,
+                            "maxOutputTokens": 1200,
+                            "responseMimeType": "application/json",
+                        }
+                    }
+                    resp = None
+                    for attempt in range(3):
+                        async with httpx.AsyncClient(timeout=45) as client:
+                            resp = await client.post(
+                                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}",
+                                json=gemini_payload,
+                                headers={"Content-Type": "application/json"},
+                            )
+                        if resp.status_code == 429:
+                            import random as _rng
+                            wait = min(2.0 * (2 ** attempt), 15.0) + _rng.uniform(0, 1)
+                            logger.warning(f"Gemini 429 for {domain}, backoff {wait:.1f}s (attempt {attempt + 1}/3)")
+                            await asyncio.sleep(wait)
+                            continue
+                        break
 
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            tokens_used = data.get("usage", {}).get("total_tokens", 0)
+                if resp and resp.status_code == 200:
+                    data = resp.json()
+                    content_text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                    tokens_used = data.get("usageMetadata", {}).get("totalTokenCount", 0)
+                    model_used = "gemini-2.5-flash"
+                elif openai_key:
+                    # Fallback to OpenAI
+                    logger.warning(f"Gemini failed for {domain}, trying OpenAI")
+                    resp = None
+                else:
+                    return {"is_target": False, "confidence": 0, "reasoning": "Gemini API failed and no OpenAI fallback",
+                            "company_info": {}, "scores": {}, "tokens_used": 0}
+
+            # OpenAI fallback or primary if no Gemini
+            if not gemini_key or (resp and resp.status_code != 200):
+                if not openai_key:
+                    return {"is_target": False, "confidence": 0, "reasoning": "No OpenAI API key for fallback",
+                            "company_info": {}, "scores": {}, "tokens_used": 0}
+                openai_payload = {
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 1000,
+                }
+                headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json; charset=utf-8"}
+                for attempt in range(4):
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        resp = await client.post("https://api.openai.com/v1/chat/completions", json=openai_payload, headers=headers)
+                    if resp.status_code == 429:
+                        import random as _rng
+                        wait = min(2.0 * (2 ** attempt), 20.0) + _rng.uniform(0, 1)
+                        logger.warning(f"OpenAI 429 for {domain}, backoff {wait:.1f}s (attempt {attempt + 1}/4)")
+                        await asyncio.sleep(wait)
+                        continue
+                    resp.raise_for_status()
+                    break
+                if resp is None or resp.status_code == 429:
+                    return {"is_target": False, "confidence": 0, "reasoning": "OpenAI rate limited",
+                            "company_info": {}, "scores": {}, "tokens_used": 0}
+                data = resp.json()
+                content_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                tokens_used = data.get("usage", {}).get("total_tokens", 0)
+                model_used = "gpt-4o-mini"
 
             # Parse JSON response
             try:
-                result = json.loads(content)
+                result = json.loads(content_text)
             except json.JSONDecodeError:
-                start = content.find("{")
-                end = content.rfind("}")
+                start = content_text.find("{")
+                end = content_text.rfind("}")
                 if start != -1 and end != -1:
-                    result = json.loads(content[start:end + 1])
+                    result = json.loads(content_text[start:end + 1])
                 else:
                     result = {
                         "is_target": False, "confidence": 0,
-                        "reasoning": f"Failed to parse GPT response: {content[:200]}",
+                        "reasoning": f"Failed to parse AI response: {content_text[:200]}",
                         "company_info": {}, "scores": {},
                     }
 
@@ -1188,22 +1243,32 @@ CRITICAL FALSE POSITIVE RULES:
             if "scores" not in result:
                 result["scores"] = {}
 
-            # Phase 1c: Post-processing validation
-            result = self._validate_analysis(result, clean, target_segments=target_segments)
+            # Normalize segment key: v2 prompt uses "segment", legacy uses "matched_segment"
+            if "segment" in result and "matched_segment" not in result:
+                result["matched_segment"] = result["segment"]
+            # Normalize NOT_A_MATCH → is_target=false
+            seg = result.get("matched_segment", "") or result.get("segment", "")
+            if seg and seg.upper() in ("NOT_A_MATCH", "NOT_TARGET"):
+                result["is_target"] = False
+                result["matched_segment"] = "NOT_A_MATCH"
+
+            # Phase 1c: Post-processing validation (skip for custom prompts — via negativa handles its own)
+            if not custom_system_prompt:
+                result = self._validate_analysis(result, clean, target_segments=target_segments)
 
             result["tokens_used"] = tokens_used
-            # Store the exact prompts sent to GPT for full reproducibility
+            # Store the exact prompts sent for full reproducibility
             result["_prompt_sent"] = {
                 "system": system_prompt,
                 "user": prompt,
-                "model": "gpt-4o-mini",
+                "model": model_used,
                 "temperature": 0.1,
-                "max_tokens": 600,
+                "max_tokens": 1000,
             }
             return result
 
         except Exception as e:
-            logger.error(f"GPT analysis failed for {domain}: {e}")
+            logger.error(f"AI analysis failed for {domain}: {e}")
             return {
                 "is_target": False, "confidence": 0,
                 "reasoning": f"Analysis error: {str(e)}",
