@@ -804,10 +804,19 @@ class GatheringService:
             """Analyze single company with semaphore for rate limiting."""
             async with sem:
                 try:
-                    return dc, await company_search_service.analyze_company(
+                    result = await company_search_service.analyze_company(
                         content=dc.scraped_text or "", target_segments=prompt_text,
                         domain=dc.domain, is_html=False,
                     )
+                    # Parse CAPS_LOCKED segment from matched_segment if present
+                    seg = result.get("matched_segment", "")
+                    if seg and seg == seg.upper() and "_" in seg:
+                        # Already CAPS_LOCKED format — use as-is
+                        pass
+                    elif seg:
+                        # Convert to CAPS_LOCKED: "real_estate" → "REAL_ESTATE"
+                        result["matched_segment"] = seg.upper().replace(" ", "_")
+                    return dc, result
                 except Exception as e:
                     logger.error(f"Analysis failed for {dc.domain}: {e}")
                     return dc, None

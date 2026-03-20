@@ -1,59 +1,107 @@
 # ICP: EasyStaff Global — Dubai Agencies Segment
 
 ## What EasyStaff sells
-International freelancer/contractor payment platform. Companies use it to pay remote workers in other countries — handles compliance, payroll, payments.
+International freelancer/contractor payment platform. Companies use it to pay remote workers in other countries.
 
 ## Who we're gathering
-**Digital agencies, tech companies, and creative studios in UAE** that hire freelancers and remote contractors for their projects.
+Companies in UAE that deliver digital/creative/tech services and hire freelancers for their projects.
 
-These companies ARE the customers — they need EasyStaff to pay their freelancers internationally.
+## Analysis approach: VIA NEGATIVA
 
-## Target criteria
+**Primary job of GPT: find shit and exclude it.** If it's not shit, assign a segment.
 
-### GOOD targets (score high)
-- Digital marketing agency, 20 employees, does web development projects with freelancers
-- Software development company, 15 people, likely has remote contractors
-- Creative/branding agency, 30 employees, outsources design to freelancers
-- SaaS startup, 10 people, has remote developers
-- IT services company, 50 employees, uses contractors for projects
-- Video/animation production studio with freelance artists
-- Game studio with remote developers
-- E-commerce agency managing campaigns with freelancers
+GPT-4o-mini is NOT good at complex multi-dimensional scoring. It IS good at pattern matching: "is this a restaurant? yes → reject." So the prompt focuses on EXCLUSION PATTERNS, not scoring rubrics.
 
-### BAD targets (score 0, reject)
-- **Staffing agencies, recruitment firms** — COMPETITORS (Toptal, BairesDev, Robert Half, etc.)
-- **Nearshoring/offshoring providers** — COMPETITORS
-- **EOR/PEO platforms** — COMPETITORS (Deel, Remote.com, Oyster, Papaya Global)
-- **Freelance marketplaces** — COMPETITORS (Fiverr, Upwork)
-- **HR tech companies** selling workforce tools — COMPETITORS
-- Construction, real estate, restaurants, hotels — offline, no freelancers
-- Government, schools, hospitals — institutional
-- Banks, insurance — regulated, won't use EasyStaff
-- Trading, logistics, shipping — offline operations
+### Output format
+```
+SEGMENT_TAG
+Reasoning: why this segment, what the company does
+```
 
-### Size
-5-200 employees ideal. Under 5 = too small. Over 200 = likely has internal HR/payroll.
+If rejected:
+```
+NOT_A_MATCH
+Reasoning: why rejected (competitor/offline/irrelevant)
+```
 
-### Geography
-UAE: Dubai, Abu Dhabi, Sharjah primarily. Also Ajman, RAK.
+`SEGMENT_TAG` is ALWAYS the first line, CAPS_LOCKED with underscores. Parseable algorithmically: `segment = output.split('\n')[0].strip()`
 
-### Key signal
-The company DELIVERS digital/creative services using a team that likely includes freelancers. NOT a company that SELLS staffing/recruitment services.
+## Target segments (CAPS_LOCKED constants)
 
-## Scoring rubric for GPT analysis
-- `industry_match`: 1.0 = digital agency/tech/creative. 0.5 = adjacent (consulting). 0.0 = offline
-- `service_match`: 1.0 = delivers project-based services (needs freelancers). 0.0 = sells products only
-- `company_type`: 1.0 = operating agency/studio. 0.0 = aggregator/directory/marketplace
-- `geography_match`: 1.0 = UAE based. 0.5 = regional. 0.0 = no UAE presence
-- `language_match`: 1.0 = English or Arabic site. 0.0 = irrelevant language
+| Segment | Description | Example |
+|---------|-------------|---------|
+| `DIGITAL_AGENCY` | Web dev, digital marketing, SEO, PPC | Agency doing Shopify stores |
+| `CREATIVE_STUDIO` | Design, branding, video, photography | Branding agency in DIFC |
+| `SOFTWARE_HOUSE` | Custom software, app development | Company building mobile apps |
+| `IT_SERVICES` | Managed IT, cloud, DevOps, infra | Cloud consulting firm |
+| `MARKETING_AGENCY` | Advertising, PR, social media, content | Social media management agency |
+| `TECH_STARTUP` | SaaS, fintech, edtech, healthtech product | AI startup with 20 devs |
+| `MEDIA_PRODUCTION` | Video, animation, audio, broadcasting | Animation studio |
+| `GAME_STUDIO` | Game development, interactive media | Mobile game developer |
+| `CONSULTING_FIRM` | Management, strategy, tech consulting | Digital transformation consultancy |
+| `ECOMMERCE_COMPANY` | Online retail, D2C brands with tech teams | E-commerce brand with dev team |
+| `NOT_A_MATCH` | **HARDCODED DEFAULT** — everything that doesn't fit above | Restaurant, bank, competitor |
 
-## Current prompt (v1)
-Stored in `gathering_prompts` table, ID 7, hash `ec6bd15b...`
+GPT can propose NEW segment tags if a company doesn't fit existing ones but IS a legitimate target. New tags follow the same format: `CAPS_LOCKED_WITH_UNDERSCORES`.
 
-## How to improve
-After reviewing analysis results:
-1. Check false positives (competitors marked as targets) → add to exclusion list
-2. Check false negatives (good agencies rejected) → adjust scoring thresholds
-3. Check `analysis_results.raw_output._prompt_sent` for the exact prompt used
-4. Create new prompt version via `POST /api/pipeline/gathering/prompts`
-5. Re-analyze via `POST /api/pipeline/gathering/runs/{id}/re-analyze`
+## Exclusion patterns (via negativa — things that DEFINITELY SUCK)
+
+### COMPETITORS (always NOT_A_MATCH)
+- Staffing agencies, recruitment firms, headhunting
+- Nearshoring/offshoring service providers (Toptal, BairesDev, Andela, Turing)
+- EOR/PEO platforms (Deel, Remote.com, Oyster, Papaya Global, Multiplier)
+- Freelance marketplaces (Fiverr, Upwork, Freelancer.com)
+- HR tech companies selling workforce management tools
+- Payroll providers (our direct competitors)
+- Any company whose PRODUCT is "hire people" or "find talent"
+
+### OFFLINE BUSINESSES (always NOT_A_MATCH)
+- Restaurant, cafe, bakery, catering, food delivery
+- Hotel, resort, spa, salon, beauty
+- Construction, contracting, real estate, property management
+- Trading, import/export, wholesale, retail store
+- Shipping, freight, cargo, logistics, warehouse
+- Oil, gas, petroleum, mining, metals
+- Medical, hospital, clinic, pharmacy, dental
+- School, university, nursery
+- Car dealer, garage, auto repair
+- Furniture, textile, garment, jewelry
+- Travel agency, tourism, airline
+- Church, mosque, temple
+
+### INSTITUTIONAL (always NOT_A_MATCH)
+- Government, ministry, municipality
+- Banks, insurance, exchange
+- Law firms (most don't use freelancers)
+- Large enterprise (>500 employees, has internal HR)
+
+### JUNK SITES (always NOT_A_MATCH)
+- Aggregators, directories, listing sites
+- Job boards, classifieds
+- News sites, blogs, forums
+- Domain parked, under construction, empty
+
+## Anti-examples from actual pipeline results (things GPT wrongly marked as target)
+
+| Domain | Name | Why it SUCKS |
+|--------|------|-------------|
+| crayonsys.com | CRAYONSYS Cloud Consulting | Has "flexible staffing capabilities" — borderline competitor |
+| _any staffing site_ | Any "we provide talent" | COMPETITOR — they sell what we sell |
+
+## Size filter
+5-200 employees. Under 5 = solo freelancer. Over 200 = has HR department.
+
+## Stored in DB
+- Prompt: `gathering_prompts` table (create new version for each iteration)
+- Results: `analysis_results.segment` = the CAPS_LOCKED tag
+- Full output: `analysis_results.raw_output` (includes `_prompt_sent`)
+- Filters: `gathering_runs.filters` (Apollo search parameters)
+
+## Iteration workflow
+1. Run analysis with current prompt
+2. Review targets: `SELECT domain, name, segment, reasoning FROM analysis_results WHERE is_target = true`
+3. Find false positives → add to anti-examples in this doc
+4. Find false negatives → adjust exclusion patterns
+5. Create new prompt version: `POST /api/pipeline/gathering/prompts`
+6. Re-analyze: `POST /api/pipeline/gathering/runs/{id}/re-analyze`
+7. Compare: `GET /api/pipeline/gathering/analysis-runs/{a}/compare/{b}`
