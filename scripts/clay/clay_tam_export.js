@@ -480,27 +480,46 @@ async function main() {
     await humanDelay(1000, 1500);
 
     // Step 2: Click Location section header to expand it
-    // Clay's section headers are clickable containers with icon + text + chevron
-    // We need to find the "Location" text, then click its PARENT container
+    // The section header has: icon + "Location" text + chevron
+    // Strategy: find the chevron (SVG or ∨) near the Location text and click it
     const locCoords = await page.evaluate(() => {
-      const allEls = [...document.querySelectorAll('*')];
-      for (const el of allEls) {
-        // Find leaf text nodes containing exactly "Location"
-        if (el.children.length <= 2 && el.textContent?.trim() === 'Location') {
-          const rect = el.getBoundingClientRect();
-          if (rect.x < 400 && rect.y > 0 && rect.y < window.innerHeight && rect.height > 10 && rect.height < 60) {
-            // Click the parent (the full section header row)
-            const parent = el.closest('[role="button"]') || el.parentElement?.parentElement || el.parentElement || el;
-            const parentRect = parent.getBoundingClientRect();
-            return {
-              x: parentRect.x + parentRect.width / 2,
-              y: parentRect.y + parentRect.height / 2,
-              tag: el.tagName,
-              parentTag: parent.tagName,
-              w: parentRect.width,
-              h: parentRect.height,
-            };
+      // Find all elements that contain "Location" text
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (node.textContent?.trim() === 'Location') {
+          const parent = node.parentElement;
+          if (!parent || parent.offsetParent === null) continue;
+          const rect = parent.getBoundingClientRect();
+          if (rect.x > 400 || rect.y < 0 || rect.y > window.innerHeight) continue;
+
+          // Walk up to find the clickable section header (usually 2-3 levels up)
+          let target = parent;
+          for (let i = 0; i < 4; i++) {
+            if (!target.parentElement) break;
+            target = target.parentElement;
+            const r = target.getBoundingClientRect();
+            // The section header row is typically full-width (>200px) and short (<60px height)
+            if (r.width > 200 && r.height > 20 && r.height < 70 && r.x < 50) {
+              return {
+                x: r.x + r.width / 2,
+                y: r.y + r.height / 2,
+                w: r.width, h: r.height,
+                tag: target.tagName,
+                classes: target.className?.substring?.(0, 80) || '',
+              };
+            }
           }
+
+          // Fallback: just click the direct parent
+          return {
+            x: rect.x + rect.width / 2,
+            y: rect.y + rect.height / 2,
+            w: rect.width, h: rect.height,
+            tag: parent.tagName,
+            classes: parent.className?.substring?.(0, 80) || '',
+            fallback: true,
+          };
         }
       }
       return null;
@@ -508,13 +527,43 @@ async function main() {
     console.log(`    Location coords: ${JSON.stringify(locCoords)}`);
 
     if (locCoords) {
-      // Use mouse.click on the exact coordinates
       await page.mouse.click(locCoords.x, locCoords.y);
       await humanDelay(1500, 2000);
       console.log('    Clicked Location section');
-
-      // Take screenshot to verify expansion
       await screenshot(page, 'tam_03b_location_expanded');
+
+      // Check if it expanded by looking for new inputs
+      const expanded = await page.evaluate(() => {
+        const inputs = [...document.querySelectorAll('input')].filter(i => {
+          const r = i.getBoundingClientRect();
+          return i.offsetParent !== null && r.x < 400;
+        });
+        return inputs.map(i => i.placeholder).filter(p => p);
+      });
+      console.log(`    Inputs after expand: ${JSON.stringify(expanded)}`);
+
+      // If not expanded, try clicking the chevron directly (the ∨ icon)
+      if (expanded.length < 8) {
+        // Already expanded (or failed) — try a second click strategy
+        console.log('    Trying direct chevron click...');
+        const chevronClicked = await page.evaluate(() => {
+          const svgs = [...document.querySelectorAll('svg')];
+          for (const svg of svgs) {
+            const rect = svg.getBoundingClientRect();
+            // Chevron should be near Location text (x ~300-370, same y range)
+            if (rect.x > 300 && rect.x < 400 && rect.y > 350 && rect.y < 500 && rect.width < 30) {
+              svg.parentElement?.click();
+              return { x: rect.x, y: rect.y };
+            }
+          }
+          return null;
+        });
+        if (chevronClicked) {
+          console.log(`    Clicked chevron at: ${JSON.stringify(chevronClicked)}`);
+          await humanDelay(1500, 2000);
+          await screenshot(page, 'tam_03b_after_chevron');
+        }
+      }
     } else {
       console.log('    WARNING: Location section not found after scroll');
     }
