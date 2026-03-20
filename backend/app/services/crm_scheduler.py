@@ -89,6 +89,7 @@ class CRMScheduler:
         self._followup_task: Optional[asyncio.Task] = None
         self._gtm_analytics_task: Optional[asyncio.Task] = None
         self._project_report_reminder_task: Optional[asyncio.Task] = None
+        self._calendly_sync_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
 
         # Per-task tracking: last_run, interval_seconds, next_run
@@ -105,6 +106,7 @@ class CRMScheduler:
             "followup_generation": {"last_run": None, "interval": 180, "label": "Follow-up generation"},
             "gtm_analytics": {"last_run": None, "interval": 43200, "label": "GTM analytics (2x daily)"},
             "project_report_reminder": {"last_run": None, "interval": 60, "label": "Project report reminders"},
+            "calendly_sync": {"last_run": None, "interval": 300, "label": "Calendly sync"},
         }
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
@@ -165,7 +167,7 @@ class CRMScheduler:
             self._followup_task, self._gtm_analytics_task,
             self._telegram_poll_task, self._sheet_sync_task,
             self._cleanup_task, self._project_report_reminder_task,
-            self._watchdog_task
+            self._calendly_sync_task, self._watchdog_task
         ]
         for task in all_tasks:
             if task:
@@ -192,6 +194,7 @@ class CRMScheduler:
             ("_followup_task", self._run_followup_generation_loop, "Follow-up generation"),
             ("_gtm_analytics_task", self._run_gtm_analytics_loop, "GTM analytics"),
             ("_project_report_reminder_task", self._run_project_report_reminder_loop, "Project report reminder"),
+            ("_calendly_sync_task", self._run_calendly_sync_loop, "Calendly sync"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -1823,6 +1826,28 @@ ANALYSIS FOCUS — answer with EVIDENCE:
             "sync_count": self._sync_count,
             "reply_check_count": self._reply_count
         }
+
+    # ===== Calendly Sync Loop (every 5 min) =====
+
+    async def _run_calendly_sync_loop(self):
+        """Sync Calendly scheduled events to meetings table.
+
+        Polls Calendly API every 5 minutes for all projects with calendly_config.
+        Creates Meeting records and updates contact statuses.
+        """
+        from app.services.calendly_service import sync_all_calendly_projects
+
+        await asyncio.sleep(60)  # Initial delay
+
+        while self._running:
+            try:
+                result = await sync_all_calendly_projects()
+                self._mark_task_run("calendly_sync")
+                if result["total_synced"] > 0:
+                    logger.info(f"[CALENDLY] Synced {result['total_synced']} meetings from {result['projects_processed']} projects")
+            except Exception as e:
+                logger.error(f"[CALENDLY] Sync error: {e}")
+            await asyncio.sleep(300)  # 5 minutes
 
 
 # ===== Global scheduler instance =====

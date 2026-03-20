@@ -252,6 +252,231 @@ async def count_project_meetings(config: dict, since: datetime, until: datetime)
         return 0
 
 
+async def sync_calendly_events_for_project(
+    project_id: int, project_name: str, config: dict, session
+) -> dict:
+    """Sync scheduled events from Calendly API to meetings table.
+
+    Fetches events for the past 7 days and next 30 days.
+    Creates new Meeting records for events not yet in DB.
+    Updates contact status to meeting_booked if contact found.
+
+    Returns: {"synced": int, "skipped": int, "errors": list}
+    """
+    from datetime import timezone
+    from app.models.meeting import Meeting, MeetingStatus
+    from app.models.contact import Contact
+    from sqlalchemy import select
+
+    members = config.get("members", [])
+    if not members:
+        return {"synced": 0, "skipped": 0, "errors": ["No members configured"]}
+
+    # Use first member's token for org-level query
+    token = next((m.get("pat_token", "") for m in members if m.get("pat_token")), "")
+    if not token:
+        return {"synced": 0, "skipped": 0, "errors": ["No PAT token found"]}
+
+    synced = 0
+    skipped = 0
+    errors = []
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            # Get user/org info
+            me_resp = await client.get(
+                f"{CALENDLY_API}/users/me",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if me_resp.status_code != 200:
+                return {"synced": 0, "skipped": 0, "errors": [f"API error: {me_resp.status_code}"]}
+
+            user_data = me_resp.json().get("resource", {})
+            org_uri = user_data.get("current_organization")
+            if not org_uri:
+                return {"synced": 0, "skipped": 0, "errors": ["No organization found"]}
+
+            # Fetch events: past 7 days + next 30 days
+            now = datetime.now(timezone.utc)
+            min_start = (now - timedelta(days=7)).strftime("%Y-%m-%dT00:00:00Z")
+            max_start = (now + timedelta(days=30)).strftime("%Y-%m-%dT23:59:59Z")
+
+            events_resp = await client.get(
+                f"{CALENDLY_API}/scheduled_events",
+                headers={"Authorization": f"Bearer {token}"},
+                params={
+                    "organization": org_uri,
+                    "min_start_time": min_start,
+                    "max_start_time": max_start,
+                    "status": "active",
+                    "count": 100,
+                },
+            )
+            if events_resp.status_code != 200:
+                return {"synced": 0, "skipped": 0, "errors": [f"Events API error: {events_resp.status_code}"]}
+
+            events = events_resp.json().get("collection", [])
+            logger.info(f"[CALENDLY SYNC] {project_name}: found {len(events)} events")
+
+            for event in events:
+                event_uri = event.get("uri", "")
+
+                # Check if already exists
+                existing = await session.execute(
+                    select(Meeting).where(Meeting.calendly_event_uri == event_uri).limit(1)
+                )
+                if existing.scalar():
+                    skipped += 1
+                    continue
+
+                # Fetch invitee details
+                invitees_resp = await client.get(
+                    f"{event_uri}/invitees",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                if invitees_resp.status_code != 200:
+                    errors.append(f"Invitee fetch failed for {event_uri}")
+                    continue
+
+                invitees = invitees_resp.json().get("collection", [])
+                if not invitees:
+                    continue
+
+                invitee = invitees[0]
+                invitee_email = invitee.get("email", "").lower()
+                invitee_name = invitee.get("name", "")
+                invitee_uri = invitee.get("uri", "")
+
+                # Parse event data
+                start_time_str = event.get("start_time", "")
+                end_time_str = event.get("end_time", "")
+                try:
+                    scheduled_at = datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
+                except:
+                    scheduled_at = now
+
+                duration_minutes = 30
+                try:
+                    if end_time_str and start_time_str:
+                        end_time = datetime.fromisoformat(end_time_str.replace("Z", "+00:00"))
+                        duration_minutes = int((end_time - scheduled_at).total_seconds() / 60)
+                except:
+                    pass
+
+                # Host info
+                memberships = event.get("event_memberships", [])
+                host_name = ""
+                host_email = ""
+                if memberships:
+                    host_name = memberships[0].get("user_name", "")
+                    host_email = memberships[0].get("user_email", "")
+
+                # Location/meeting link
+                location = event.get("location", {})
+                meeting_link = location.get("join_url", "")
+                location_type = location.get("type", "")
+
+                event_type_name = event.get("name", "Meeting")
+
+                # Find contact by email
+                contact_id = None
+                contact_info = None
+                if invitee_email:
+                    contact_result = await session.execute(
+                        select(Contact).where(
+                            Contact.email == invitee_email,
+                            Contact.project_id == project_id,
+                            Contact.deleted_at.is_(None)
+                        ).limit(1)
+                    )
+                    contact = contact_result.scalar()
+                    if contact:
+                        contact_id = contact.id
+                        contact_info = {
+                            "company_name": contact.company_name,
+                            "job_title": contact.job_title,
+                            "segment": contact.segment,
+                            "source": contact.source,
+                        }
+                        # Update contact status
+                        if contact.status not in ('qualified', 'meeting_held', 'meeting_booked'):
+                            contact.status = 'meeting_booked'
+                            logger.info(f"[CALENDLY SYNC] Updated contact {contact_id} to meeting_booked")
+
+                # Create meeting
+                meeting = Meeting(
+                    company_id=1,
+                    project_id=project_id,
+                    contact_id=contact_id,
+                    calendly_event_uri=event_uri,
+                    calendly_invitee_uri=invitee_uri,
+                    invitee_name=invitee_name,
+                    invitee_email=invitee_email,
+                    invitee_company=contact_info.get("company_name") if contact_info else None,
+                    invitee_title=contact_info.get("job_title") if contact_info else None,
+                    event_type_name=event_type_name,
+                    scheduled_at=scheduled_at,
+                    duration_minutes=duration_minutes,
+                    meeting_link=meeting_link,
+                    location=location_type,
+                    host_name=host_name,
+                    host_email=host_email,
+                    status=MeetingStatus.SCHEDULED,
+                    channel=contact_info.get("source") if contact_info else None,
+                    segment=contact_info.get("segment") if contact_info else None,
+                )
+                session.add(meeting)
+                synced += 1
+                logger.info(f"[CALENDLY SYNC] Created meeting for {invitee_name} ({invitee_email})")
+
+            await session.commit()
+
+    except Exception as e:
+        logger.error(f"[CALENDLY SYNC] Error for {project_name}: {e}")
+        errors.append(str(e))
+
+    return {"synced": synced, "skipped": skipped, "errors": errors}
+
+
+async def sync_all_calendly_projects() -> dict:
+    """Sync Calendly events for all projects with calendly_config.
+
+    Called by scheduler every 5 minutes.
+    Returns: {"total_synced": int, "projects_processed": int}
+    """
+    from app.db import async_session_maker
+    from app.models.contact import Project
+    from sqlalchemy import select
+
+    total_synced = 0
+    projects_processed = 0
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Project).where(
+                Project.calendly_config.isnot(None),
+                Project.deleted_at.is_(None)
+            )
+        )
+        projects = result.scalars().all()
+
+        for project in projects:
+            config = project.calendly_config or {}
+            if not config.get("members"):
+                continue
+
+            sync_result = await sync_calendly_events_for_project(
+                project.id, project.name, config, session
+            )
+            total_synced += sync_result["synced"]
+            projects_processed += 1
+
+            if sync_result["synced"] > 0:
+                logger.info(f"[CALENDLY SYNC] {project.name}: synced {sync_result['synced']}, skipped {sync_result['skipped']}")
+
+    return {"total_synced": total_synced, "projects_processed": projects_processed}
+
+
 async def get_slots_with_fallback(
     config: dict, member_id: Optional[str] = None, days: int = 3,
 ) -> dict:
