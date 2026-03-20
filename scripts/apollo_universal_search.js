@@ -339,9 +339,19 @@ async function runSearch(config) {
   console.log(`[${ts()}] SEARCHES: ${searches.length} total, ${searches.length - completedSearches.size} remaining`);
 
   // Launch browser
+  // Use system Chromium in Docker, or default in local env
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+
   const browser = await puppeteer.launch({
     headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    executablePath,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-software-rasterizer',
+    ],
   });
 
   const page = await browser.newPage();
