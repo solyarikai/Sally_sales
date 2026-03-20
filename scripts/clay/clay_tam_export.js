@@ -428,70 +428,137 @@ async function main() {
     await fillNumberField(page, 'Max', filters.maximum_member_count);
   }
   if (filters.country_names?.length) {
-    // Scroll down in the filter panel to make Location section visible
-    await page.evaluate(() => {
-      const panel = document.querySelector('[class*="filter"], [class*="sidebar"], [class*="panel"]');
-      if (panel) panel.scrollTop = panel.scrollHeight;
-      // Also try scrolling any scrollable parent of the filter inputs
-      const inputs = document.querySelectorAll('input');
-      if (inputs.length > 3) {
-        const lastInput = inputs[inputs.length - 1];
-        lastInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    });
-    await humanDelay(800, 1200);
+    // The Location section in Clay's Find Companies is COLLAPSED by default.
+    // It shows as "⊕ Location" in the filter sidebar. We need to:
+    // 1. Click the section header to expand it
+    // 2. Wait for the country input to appear
+    // 3. Type each country and select from dropdown
 
-    // Click "Location" section header to expand it (matches people search approach)
-    const locSection = await findByText(page, 'Location', true);
-    if (locSection) {
-      await page.mouse.click(locSection.x, locSection.y);
-      await humanDelay(800, 1200);
-      console.log('    Expanded Location section');
-    } else {
-      console.log('    WARNING: Location section not found');
+    // Step 1: Find and click the Location section header to expand it
+    const expanded = await page.evaluate(() => {
+      // Look for any element that says "Location" in the sidebar
+      const allEls = [...document.querySelectorAll('div, span, button, label, h3, h4')];
+      for (const el of allEls) {
+        const text = el.textContent?.trim();
+        // Match "Location" but not "Location:" inside company cards
+        if (text === 'Location' && el.offsetParent !== null) {
+          const rect = el.getBoundingClientRect();
+          // Must be in the left sidebar (x < 300) and reasonably sized
+          if (rect.x < 300 && rect.width > 30 && rect.width < 250) {
+            el.click();
+            return { clicked: true, x: rect.x, y: rect.y, text: el.tagName };
+          }
+        }
+      }
+      return { clicked: false };
+    });
+    console.log(`    Location section click: ${JSON.stringify(expanded)}`);
+    await humanDelay(1000, 1500);
+
+    // Step 2: If first click didn't work, try scrolling and clicking again
+    if (!expanded.clicked) {
+      await page.evaluate(() => {
+        // Scroll the sidebar to find Location
+        const sidebar = document.querySelector('[class*="sidebar"], [class*="filter"]');
+        if (sidebar) sidebar.scrollBy(0, 300);
+      });
+      await humanDelay(500, 800);
+      const locSection = await findByText(page, 'Location', true);
+      if (locSection) {
+        await page.mouse.click(locSection.x, locSection.y);
+        await humanDelay(1000, 1500);
+        console.log('    Location section found via findByText');
+      }
     }
 
-    // Find country input — Clay uses placeholder like "United States, Canada" or "country"
+    // Step 3: Wait for country input to appear and dump all placeholders for debugging
+    await humanDelay(500, 800);
+    const allPlaceholders = await page.evaluate(() => {
+      return [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
+        .map(i => ({ placeholder: i.placeholder, rect: i.getBoundingClientRect() }))
+        .filter(p => p.placeholder && p.rect.x < 300);
+    });
+    console.log('    Sidebar inputs:', JSON.stringify(allPlaceholders.map(p => p.placeholder)));
+
+    // Step 4: Find country input
     let countryInput = await page.$('input[placeholder*="United States"]')
       || await page.$('input[placeholder*="country"]')
-      || await page.$('input[placeholder*="location"]');
+      || await page.$('input[placeholder*="location"]')
+      || await page.$('input[placeholder*="Country"]');
 
-    // Fallback: dump all visible input placeholders to debug
+    // Broader fallback: look for any new input that appeared in the sidebar
     if (!countryInput) {
-      const allPlaceholders = await page.evaluate(() => {
-        return [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
-          .map(i => i.placeholder).filter(p => p);
-      });
-      console.log('    All input placeholders:', allPlaceholders.join(' | '));
-      // Try partial matching
       for (const ph of allPlaceholders) {
-        if (ph.toLowerCase().includes('united') || ph.toLowerCase().includes('country') || ph.toLowerCase().includes('locat')) {
-          countryInput = await page.$(`input[placeholder="${ph}"]`);
+        const p = ph.placeholder.toLowerCase();
+        if (p.includes('united') || p.includes('countr') || p.includes('locat') || p.includes('region') || p.includes('geo')) {
+          countryInput = await page.$(`input[placeholder="${ph.placeholder}"]`);
           if (countryInput) {
-            console.log(`    Found location input via fallback: "${ph}"`);
+            console.log(`    Found location input via fallback: "${ph.placeholder}"`);
             break;
           }
         }
       }
     }
 
-    if (countryInput) {
+    // Last resort: if Location section expanded, find the first NEW input (one that wasn't there before)
+    if (!countryInput) {
+      console.log('    Trying last resort: looking for any input inside Location section...');
+      countryInput = await page.evaluate(() => {
+        // Find the Location text node, then look for inputs near it
+        const allEls = [...document.querySelectorAll('*')];
+        let locationEl = null;
+        for (const el of allEls) {
+          if (el.textContent?.trim() === 'Location' && el.children.length === 0 && el.offsetParent !== null) {
+            const rect = el.getBoundingClientRect();
+            if (rect.x < 300) { locationEl = el; break; }
+          }
+        }
+        if (!locationEl) return null;
+
+        // Find the nearest input below this element
+        const locRect = locationEl.getBoundingClientRect();
+        const inputs = [...document.querySelectorAll('input')].filter(i => {
+          const r = i.getBoundingClientRect();
+          return i.offsetParent !== null && r.x < 300 && r.y > locRect.y && r.y < locRect.y + 200;
+        });
+        if (inputs.length > 0) {
+          const rect = inputs[0].getBoundingClientRect();
+          return { x: rect.x + 10, y: rect.y + 10, placeholder: inputs[0].placeholder };
+        }
+        return null;
+      });
+      if (countryInput && countryInput.x) {
+        console.log(`    Last resort: clicking input at (${countryInput.x}, ${countryInput.y}) placeholder="${countryInput.placeholder}"`);
+        // Use mouse click on coordinates
+        for (const country of filters.country_names) {
+          await page.mouse.click(countryInput.x, countryInput.y);
+          await humanDelay(200, 400);
+          await page.keyboard.type(country, { delay: 25 });
+          await humanDelay(600, 1000);
+          await page.keyboard.press('Enter');
+          await humanDelay(300, 500);
+        }
+        console.log(`    Location: ${filters.country_names.join(', ')}`);
+        countryInput = null; // Already handled
+      }
+    }
+
+    if (countryInput && countryInput.click) {
       for (const country of filters.country_names) {
         await countryInput.click();
         await humanDelay(200, 400);
-        // Clear any existing text first
-        await page.keyboard.down('Control');
-        await page.keyboard.press('a');
-        await page.keyboard.up('Control');
         await countryInput.type(country, { delay: 25 + Math.random() * 30 });
         await humanDelay(600, 1000);
         await page.keyboard.press('Enter');
         await humanDelay(300, 500);
       }
       console.log(`    Location: ${filters.country_names.join(', ')}`);
-    } else {
+    } else if (countryInput !== null) {
       console.log('    WARNING: Country input not found — location filter NOT applied!');
     }
+
+    // Take a debug screenshot after location attempt
+    await screenshot(page, 'tam_03a_location_debug');
   }
 
   await humanDelay(2000, 3000);
