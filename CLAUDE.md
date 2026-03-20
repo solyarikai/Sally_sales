@@ -5,7 +5,22 @@
 - **NEVER send messages to leads** via SmartLead, GetSales, or any outreach API
 - **NEVER call approve-and-send, /send, or any message-sending endpoint**
 - **NEVER call FindyMail API without explicit operator approval** (costs real money)
+- **NEVER run scripts, scrapers, or DB operations locally.** ALL execution happens on Hetzner (46.62.210.24). Local machine is for code editing only.
 - Only operators can send messages through the UI
+
+## Execution Environment — HETZNER ONLY
+
+**All scripts, scrapers, migrations, and DB queries run on Hetzner. Never locally.**
+
+- Production DB, env vars, Puppeteer, Node.js — all on Hetzner
+- SSH: `ssh hetzner` (host alias, aggressive rate-limiting — use 10-20s delays between connections)
+- Run scripts: `ssh hetzner "cd ~/magnum-opus-project/repo && <command>"`
+- DB access: `ssh hetzner "docker exec leadgen-postgres psql -U leadgen -d leadgen -c 'SQL'"`
+- Alembic: `ssh hetzner "cd ~/magnum-opus-project/repo/backend && alembic upgrade head"`
+- Node scripts: `ssh hetzner "cd ~/magnum-opus-project/repo && node scripts/<script>.js"`
+- Deploy: `ssh hetzner "cd ~/magnum-opus-project/repo && git pull origin main && docker-compose up --build -d"`
+
+**Local machine = edit code, commit, push. Hetzner = run everything.**
 
 ## Setup (after git pull)
 
