@@ -25,7 +25,7 @@ const OUT_DIR = path.join(__dirname, 'exports');
 const SESSION_FILE = path.join(__dirname, 'apollo_session.json');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-function humanDelay(min = 500, max = 1500) {
+function humanDelay(min = 300, max = 800) {
   return sleep(min + Math.random() * (max - min));
 }
 function ts() { return new Date().toISOString().replace('T', ' ').substring(0, 19); }
@@ -157,12 +157,12 @@ async function searchPerson(page, name, company, debug = false) {
   // Go to People search page with query
   const searchUrl = `https://app.apollo.io/#/people?qKeywords=${encodeURIComponent(searchQuery)}&sortByField=recommendations_score&sortAscending=false`;
 
-  await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-  await humanDelay(3000, 5000);
+  await page.goto(searchUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+  await humanDelay(1000, 1500);
 
   // Wait for results to load
-  await page.waitForSelector('table, .zp_RFed0, [class*="Table"], [class*="zp"]', { timeout: 20000 }).catch(() => {});
-  await humanDelay(2000, 3000);
+  await page.waitForSelector('table, .zp_RFed0, [class*="Table"], [class*="zp"]', { timeout: 10000 }).catch(() => {});
+  await humanDelay(500, 1000);
 
   // Debug screenshot
   if (debug) {
@@ -412,8 +412,8 @@ async function main() {
 
       results.push(row);
 
-      // Random delay between searches to avoid detection
-      await humanDelay(2000, 4000);
+      // Brief delay between searches
+      await humanDelay(500, 1000);
 
       // Save progress every 10 rows
       if ((i + 1) % 10 === 0) {
