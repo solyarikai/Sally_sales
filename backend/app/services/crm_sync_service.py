@@ -2033,9 +2033,26 @@ class CRMSyncService:
                     select(Campaign).where(sl_filter).order_by(Campaign.leads_count.desc())
                 )
                 sl_campaigns = sl_camps_result.scalars().all()
-                logger.info(f"[GLOBAL-SYNC] SmartLead: exporting {len(sl_campaigns)} campaigns via CSV")
 
-                for idx, camp in enumerate(sl_campaigns):
+                # STEP 1: Refresh leads_count from SmartLead API (1 lightweight call)
+                try:
+                    api_campaigns = await self.smartlead.get_campaigns()
+                    api_counts = {str(c.get("id", "")): c.get("lead_count", 0) or 0 for c in api_campaigns}
+                    for camp in sl_campaigns:
+                        api_count = api_counts.get(camp.external_id, 0)
+                        if api_count > 0 and api_count != (camp.leads_count or 0):
+                            camp.leads_count = api_count
+                    await session.flush()
+                    logger.info(f"[GLOBAL-SYNC] Refreshed leads_count from SmartLead API for {len(api_counts)} campaigns")
+                except Exception as e:
+                    logger.warning(f"[GLOBAL-SYNC] Failed to refresh leads_count: {e}")
+
+                # STEP 2: Skip campaigns where synced == actual (no change)
+                needs_sync = [c for c in sl_campaigns if (c.synced_leads_count or 0) != (c.leads_count or 0)]
+                already_synced = len(sl_campaigns) - len(needs_sync)
+                logger.info(f"[GLOBAL-SYNC] SmartLead: {len(needs_sync)} campaigns need sync, {already_synced} already up-to-date")
+
+                for idx, camp in enumerate(needs_sync):
                     # Check cancel flag
                     if report_progress and redis:
                         try:
@@ -2096,7 +2113,7 @@ class CRMSyncService:
                         await session.flush()
 
                     # Report progress
-                    if report_progress and redis and (idx + 1) % 10 == 0:
+                    if report_progress and redis and (idx + 1) % 5 == 0:
                         try:
                             await redis.hset("contact_sync:progress", mapping={
                                 "sl_processed": str(processed),
