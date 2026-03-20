@@ -1974,6 +1974,7 @@ class CRMSyncService:
         max_leads: int = 3000,
         report_progress: bool = False,
         platform: Optional[str] = None,
+        project_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Sync contacts via SmartLead CSV export + GetSales bulk search.
 
@@ -1983,6 +1984,7 @@ class CRMSyncService:
 
         When report_progress=True, writes live stats to Redis and checks cancel flag.
         platform: None="all", "smartlead", or "getsales" — run only one platform.
+        project_id: if set, only sync campaigns for this project (fast).
         """
         import json as json_mod
         from app.models.campaign import Campaign
@@ -2020,14 +2022,15 @@ class CRMSyncService:
         try:
             if run_smartlead and self.smartlead:
                 # Get campaigns with leads
+                sl_filter = and_(
+                    Campaign.platform == "smartlead",
+                    Campaign.external_id.isnot(None),
+                    func.coalesce(Campaign.leads_count, 0) > 0,
+                )
+                if project_id:
+                    sl_filter = and_(sl_filter, Campaign.project_id == project_id)
                 sl_camps_result = await session.execute(
-                    select(Campaign).where(
-                        and_(
-                            Campaign.platform == "smartlead",
-                            Campaign.external_id.isnot(None),
-                            func.coalesce(Campaign.leads_count, 0) > 0,
-                        )
-                    ).order_by(Campaign.leads_count.desc())
+                    select(Campaign).where(sl_filter).order_by(Campaign.leads_count.desc())
                 )
                 sl_campaigns = sl_camps_result.scalars().all()
                 logger.info(f"[GLOBAL-SYNC] SmartLead: exporting {len(sl_campaigns)} campaigns via CSV")

@@ -1437,6 +1437,7 @@ async def get_recent_replies(
 async def start_contact_sync(
     background_tasks: BackgroundTasks,
     phase: str = Query("full_load", regex="^(full_load|incremental)$"),
+    project_id: Optional[int] = Query(None, description="Sync only this project's campaigns (fast)"),
     session: AsyncSession = Depends(get_session),
     company: Company = Depends(get_required_company),
 ):
@@ -1444,6 +1445,7 @@ async def start_contact_sync(
 
     - phase=full_load: resets offsets to 0, syncs all leads (no limit)
     - phase=incremental: syncs from saved offset with 3K limit
+    - project_id: if set, only sync campaigns for this project (much faster)
     """
     import redis.asyncio as aioredis
     import os
@@ -1488,11 +1490,18 @@ async def start_contact_sync(
                         max_leads=max_leads,
                         report_progress=True,
                         platform=plat,
+                        project_id=project_id,
                     )
 
-            if phase == "full_load":
-                # GetSales has ES 10K offset limit — full load done via CSV import
+            if phase == "full_load" and not project_id:
+                # Global full load: SmartLead only (GetSales has ES 10K offset limit)
                 await _run_platform("smartlead")
+            elif project_id:
+                # Project-scoped: run both in parallel (small dataset, fast)
+                await asyncio.gather(
+                    _run_platform("smartlead"),
+                    _run_platform("getsales"),
+                )
             else:
                 await asyncio.gather(
                     _run_platform("smartlead"),
