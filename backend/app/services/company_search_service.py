@@ -1152,7 +1152,8 @@ CRITICAL FALSE POSITIVE RULES:
                         "contents": [{"parts": [{"text": full_prompt}]}],
                         "generationConfig": {
                             "temperature": 0.1,
-                            "maxOutputTokens": 600,
+                            "maxOutputTokens": 800,
+                            "responseMimeType": "application/json",
                         }
                     }
                     resp = None
