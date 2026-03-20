@@ -57,34 +57,54 @@ class ClayCompaniesAdapter(GatheringAdapter):
         validated = ClayCompaniesFilters(**filters)
 
         try:
-            # If icp_text provided, Clay service maps it to filters internally
             if validated.icp_text:
+                # Free-text ICP: let Clay service map via GPT
                 result = await clay_service.run_tam_export(
                     icp_text=validated.icp_text,
                     max_results=validated.max_results,
                     on_progress=on_progress,
                 )
             else:
-                # Build ICP text from structured filters for the Clay mapper
+                # Structured filters: pass directly to Puppeteer, skip GPT round-trip
+                direct_filters = {}
+                if validated.industries:
+                    direct_filters["industries"] = validated.industries
+                if validated.industries_exclude:
+                    direct_filters["industries_exclude"] = validated.industries_exclude
+                if validated.sizes:
+                    direct_filters["sizes"] = validated.sizes
+                if validated.types:
+                    direct_filters["types"] = validated.types
+                if validated.country_names:
+                    direct_filters["country_names"] = validated.country_names
+                if validated.country_names_exclude:
+                    direct_filters["country_names_exclude"] = validated.country_names_exclude
+                if validated.annual_revenues:
+                    direct_filters["annual_revenues"] = validated.annual_revenues
+                if validated.description_keywords:
+                    direct_filters["description_keywords"] = validated.description_keywords
+                if validated.description_keywords_exclude:
+                    direct_filters["description_keywords_exclude"] = validated.description_keywords_exclude
+                if validated.minimum_member_count:
+                    direct_filters["minimum_member_count"] = validated.minimum_member_count
+                if validated.maximum_member_count:
+                    direct_filters["maximum_member_count"] = validated.maximum_member_count
+
+                # Build a descriptive ICP text for logging (Puppeteer still needs it as CLI arg)
                 icp_parts = []
                 if validated.industries:
                     icp_parts.append(f"Industries: {', '.join(validated.industries)}")
                 if validated.country_names:
                     icp_parts.append(f"Countries: {', '.join(validated.country_names)}")
                 if validated.sizes:
-                    icp_parts.append(f"Company sizes: {', '.join(validated.sizes)}")
-                if validated.description_keywords:
-                    icp_parts.append(f"Keywords: {', '.join(validated.description_keywords)}")
-                if validated.minimum_member_count:
-                    icp_parts.append(f"Min employees: {validated.minimum_member_count}")
-                if validated.maximum_member_count:
-                    icp_parts.append(f"Max employees: {validated.maximum_member_count}")
-
+                    icp_parts.append(f"Sizes: {', '.join(validated.sizes)}")
                 icp_text = ". ".join(icp_parts) if icp_parts else "General companies"
+
                 result = await clay_service.run_tam_export(
                     icp_text=icp_text,
                     max_results=validated.max_results,
                     on_progress=on_progress,
+                    filters_override=direct_filters,
                 )
 
             clay_companies = result.get("companies", [])

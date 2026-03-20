@@ -161,15 +161,17 @@ class ClayService:
         max_results: int = 5000,
         test_mode: bool = False,
         on_progress: Optional[Any] = None,
+        filters_override: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Run full TAM export pipeline.
 
-        1. Maps ICP to Clay filters via GPT
+        1. Maps ICP to Clay filters via GPT (or uses filters_override if provided)
         2. Runs Puppeteer Clay automation
         3. Returns company data
 
         Returns dict with {filters, companies, credits_spent, table_id}.
         on_progress: optional async callback(message: str) for live status updates.
+        filters_override: if provided, skip GPT mapping and use these filters directly.
         """
         async def _emit(msg: str):
             if on_progress:
@@ -178,12 +180,17 @@ class ClayService:
                 except Exception:
                     pass
 
-        # Step 1: Map ICP to filters
-        await _emit("AI mapping ICP description to search filters...")
-        logger.info(f"Clay TAM: mapping ICP to filters...")
-        filters = await map_icp_to_clay_filters(icp_text)
-        logger.info(f"Clay TAM: filters = {json.dumps(filters)}")
-        await _emit("Filters mapped. Starting search engine...")
+        # Step 1: Map ICP to filters (or use override)
+        if filters_override:
+            filters = filters_override
+            logger.info(f"Clay TAM: using direct filters (no GPT mapping): {json.dumps(filters)}")
+            await _emit("Using structured filters. Starting search engine...")
+        else:
+            await _emit("AI mapping ICP description to search filters...")
+            logger.info(f"Clay TAM: mapping ICP to filters...")
+            filters = await map_icp_to_clay_filters(icp_text)
+            logger.info(f"Clay TAM: filters = {json.dumps(filters)}")
+            await _emit("Filters mapped. Starting search engine...")
 
         # Step 2: Run Node.js Puppeteer script
         if not CLAY_TAM_SCRIPT.exists():
