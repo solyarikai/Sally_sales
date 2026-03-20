@@ -1155,23 +1155,24 @@ CRITICAL FALSE POSITIVE RULES:
         }
 
         try:
-            # Retry with backoff on 429
-            resp = None
-            for attempt in range(4):
-                async with httpx.AsyncClient(timeout=30) as client:
-                    resp = await client.post(
-                        "https://api.openai.com/v1/chat/completions",
-                        json=payload,
-                        headers=headers,
-                    )
-                if resp.status_code == 429:
+            # Rate limit: max 25 concurrent GPT calls
+            async with _gpt_analysis_semaphore:
+                resp = None
+                for attempt in range(6):
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        resp = await client.post(
+                            "https://api.openai.com/v1/chat/completions",
+                            json=payload,
+                            headers=headers,
+                        )
+                    if resp.status_code == 429:
                     import random as _rng
                     wait = min(2.0 * (2 ** attempt), 20.0) + _rng.uniform(0, 1)
-                    logger.warning(f"OpenAI 429 for {domain}, backoff {wait:.1f}s (attempt {attempt + 1}/4)")
-                    await asyncio.sleep(wait)
-                    continue
-                resp.raise_for_status()
-                break
+                        logger.warning(f"OpenAI 429 for {domain}, backoff {wait:.1f}s (attempt {attempt + 1}/6)")
+                        await asyncio.sleep(wait)
+                        continue
+                    resp.raise_for_status()
+                    break
             if resp is None or resp.status_code == 429:
                 return {"is_target": False, "confidence": 0, "reasoning": "OpenAI rate limited",
                         "company_info": {}, "scores": {}, "tokens_used": 0}
