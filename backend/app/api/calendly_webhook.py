@@ -14,7 +14,7 @@ from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import async_session_maker
-from app.models.meeting import Meeting, MeetingStatus
+from app.models.meeting import Meeting
 from app.models.contact import Project, Contact
 from app.services.notification_service import send_telegram_notification
 
@@ -383,7 +383,7 @@ async def process_invitee_created(payload: dict) -> dict:
             location=location_type,
             host_name=host_name,
             host_email=host_email,
-            status=MeetingStatus.SCHEDULED,
+            status="scheduled",
             invitee_questions=questions_text.strip() if questions_text.strip() else None,
             # CRM enrichment
             channel=contact_info.get("source") if contact_info else None,
@@ -396,6 +396,18 @@ async def process_invitee_created(payload: dict) -> dict:
         await session.refresh(meeting)
 
         logger.info(f"[CALENDLY] Created meeting {meeting.id} for {invitee_name} ({invitee_email})")
+
+        # Update contact status to meeting_booked if contact found
+        if contact_id:
+            contact_result = await session.execute(
+                select(Contact).where(Contact.id == contact_id)
+            )
+            contact = contact_result.scalar()
+            if contact and contact.status not in ('qualified', 'meeting_held'):
+                old_status = contact.status
+                contact.status = 'meeting_booked'
+                await session.commit()
+                logger.info(f"[CALENDLY] Updated contact {contact_id} status: {old_status} → meeting_booked")
 
         # Send TG notification to admin + project subscribers (enriched with CRM data)
         await notify_meeting_booked(meeting, project, contact_info)
@@ -428,7 +440,7 @@ async def process_invitee_canceled(payload: dict) -> dict:
             logger.info(f"[CALENDLY] No meeting found for cancelled event {event_uri}")
             return {"status": "not_found", "event_uri": event_uri}
 
-        meeting.status = MeetingStatus.CANCELLED
+        meeting.status = "cancelled"
         meeting.cancellation_reason = f"{canceled_by}: {cancellation_reason}" if cancellation_reason else canceled_by
         meeting.cancelled_at = datetime.utcnow()
 

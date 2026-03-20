@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Batch analyze EasyStaff Global companies — via negativa approach with CAPS_LOCKED segments."""
+"""EasyStaff Dubai analysis — V3 via negativa with geography + solo consultant filters."""
 import sys
 import asyncio
 import logging
@@ -7,12 +7,30 @@ import logging
 sys.path.insert(0, '/app')
 logging.basicConfig(level=logging.WARNING)
 
-# Via negativa prompt — focus on EXCLUDING shit, not complex scoring
-PROMPT_V2 = """Analyze this company website. Your PRIMARY job is to EXCLUDE companies that are NOT potential customers for an international freelancer payment platform.
+PROMPT_V3 = """Analyze this company website for an international freelancer payment platform targeting UAE-based companies.
 
-=== EXCLUSION RULES (via negativa) — if ANY match, output NOT_A_MATCH ===
+=== EXCLUSION RULES — if ANY match, output NOT_A_MATCH ===
 
-COMPETITORS (they sell what we sell):
+GEOGRAPHY (NOT UAE = reject):
+- Company must be BASED IN UAE or have a UAE office clearly mentioned on the website
+- Non-UAE domains (.in, .ir, .pk, .com.au, .sd) WITHOUT a clear UAE address on the website = NOT_A_MATCH
+- Website entirely in a non-English/non-Arabic language with no UAE mentions = NOT_A_MATCH
+- If the website says "India", "Pakistan", "Iran" as their location and does NOT mention UAE = NOT_A_MATCH
+- If you cannot find a CLEAR UAE address, office, or "Dubai/Abu Dhabi/UAE" mention on the website = NOT_A_MATCH
+- "Location not explicitly mentioned" = NOT_A_MATCH (when in doubt about location, reject)
+
+INVESTMENT/HOLDING (not freelancer hirers = reject):
+- Investment firms, holding companies, venture capital, private equity = NOT_A_MATCH
+- Asset managers, fund managers, family offices = NOT_A_MATCH
+- These companies hire bankers, not freelancers
+
+SOLO/TINY (not a company = reject):
+- Solo consultant, individual advisor, personal branding website = NOT_A_MATCH
+- One person with a personal website offering advisory/coaching = NOT_A_MATCH
+- If the website is clearly about ONE person (their photo, "I help CEOs", "Book a call with me") = NOT_A_MATCH
+- We need COMPANIES with TEAMS (3+ people), not individuals
+
+COMPETITORS (they sell what we sell = reject):
 - Staffing/recruitment agencies, headhunting firms
 - Nearshoring/offshoring providers (Toptal, BairesDev, Andela, Turing)
 - EOR/PEO platforms (Deel, Remote.com, Oyster, Papaya Global)
@@ -20,7 +38,7 @@ COMPETITORS (they sell what we sell):
 - HR tech, payroll providers, workforce management tools
 - Any company whose PRODUCT is "hire people" or "find talent" or "staff augmentation"
 
-OFFLINE/IRRELEVANT:
+OFFLINE/IRRELEVANT (no freelancers = reject):
 - Restaurant, cafe, hotel, salon, spa, gym, construction, real estate
 - Trading, import/export, retail store, wholesale, logistics, shipping
 - Oil, gas, mining, metals, manufacturing plant
@@ -29,39 +47,40 @@ OFFLINE/IRRELEVANT:
 - Bank, insurance, law firm, accounting firm (unless tech-focused)
 - Car dealer, garage, furniture, textile, jewelry, travel agency
 
-JUNK:
-- Aggregator, directory, listing site, job board, classifieds
+JUNK (not a real business site = reject):
+- Aggregator, directory, listing site, job board
 - News site, blog, forum, domain parked, under construction
 
 === IF NOT EXCLUDED — assign a segment ===
 
-Pick the BEST matching segment (CAPS_LOCKED constant):
+Pick the BEST matching segment (CAPS_LOCKED):
 - DIGITAL_AGENCY — web dev, digital marketing, SEO, PPC, performance marketing
 - CREATIVE_STUDIO — design, branding, video, photography, visual identity
 - SOFTWARE_HOUSE — custom software development, app development
 - IT_SERVICES — managed IT, cloud, DevOps, infrastructure, cybersecurity
 - MARKETING_AGENCY — advertising, PR, social media management, content marketing
-- TECH_STARTUP — SaaS product company, fintech, edtech, healthtech, proptech
+- TECH_STARTUP — SaaS product, fintech, edtech, healthtech, proptech
 - MEDIA_PRODUCTION — video, animation, audio, broadcasting, content creation
 - GAME_STUDIO — game development, interactive media, VR/AR
-- CONSULTING_FIRM — management consulting, strategy, digital transformation
+- CONSULTING_FIRM — management consulting, strategy, digital transformation (MUST be a firm with team, NOT solo)
 - ECOMMERCE_COMPANY — online retail, D2C brand with tech/marketing team
 
-Or propose a NEW segment if none fit (same CAPS_LOCKED format).
+Or propose a NEW segment (same CAPS_LOCKED format).
 
 === OUTPUT FORMAT (valid JSON) ===
 
 {
   "segment": "CAPS_LOCKED_SEGMENT or NOT_A_MATCH",
   "is_target": true/false,
-  "reasoning": "1-2 sentences: what the company does and why this segment (or why excluded)",
-  "company_info": {"name": "from website", "description": "what they do", "location": "if found"}
+  "reasoning": "1-2 sentences: what the company does, WHERE they are based, and why this segment (or why excluded)",
+  "company_info": {"name": "from website", "description": "what they do", "location": "city, country"}
 }
 
-IMPORTANT:
-- When in doubt → NOT_A_MATCH. False positives are worse than false negatives.
-- "name" = company name from THE WEBSITE, not from the search query.
+CRITICAL:
+- When in doubt → NOT_A_MATCH. False positives cost real money.
 - is_target = true ONLY if segment is NOT "NOT_A_MATCH"
+- ALWAYS mention the company's LOCATION in reasoning
+- "name" = from THE WEBSITE, not from search query
 """
 
 
@@ -78,21 +97,19 @@ async def main():
                 from app.models.gathering import GatheringRun
                 run = await s.get(GatheringRun, run_id)
                 if not run:
-                    print(f"  Not found, skipping")
                     continue
 
-                # If at CP2, use re_analyze to reset and re-run with new prompt
                 if run.current_phase == "awaiting_targets_ok":
-                    print(f"  Re-analyzing (was at CP2, resetting to scraped)...")
+                    print(f"  Re-analyzing (resetting from CP2)...")
                     result = await gathering_service.re_analyze(
-                        s, run_id, model="gpt-4o-mini", prompt_text=PROMPT_V2,
-                        prompt_name="EasyStaff UAE Via Negativa v2"
+                        s, run_id, model="gpt-4o-mini", prompt_text=PROMPT_V3,
+                        prompt_name="EasyStaff UAE Via Negativa v4"
                     )
                 elif run.current_phase == "scraped":
-                    print(f"  Analyzing (first run)...")
+                    print(f"  Analyzing...")
                     result = await gathering_service.run_analysis(
-                        s, run_id, model="gpt-4o-mini", prompt_text=PROMPT_V2,
-                        prompt_name="EasyStaff UAE Via Negativa v2"
+                        s, run_id, model="gpt-4o-mini", prompt_text=PROMPT_V3,
+                        prompt_name="EasyStaff UAE Via Negativa v4"
                     )
                 else:
                     print(f"  Phase={run.current_phase}, skipping")
@@ -100,7 +117,6 @@ async def main():
 
                 print(f"  Analyzed: {result.get('total_analyzed', 0)}")
                 print(f"  Targets: {result.get('targets_found', 0)}")
-                print(f"  Rejected: {result.get('rejected', 0)}")
                 print(f"  Skipped: {result.get('skipped_no_scraped_text', 0)}")
             except Exception as e:
                 print(f"  ERROR: {e}")

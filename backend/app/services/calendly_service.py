@@ -264,7 +264,7 @@ async def sync_calendly_events_for_project(
     Returns: {"synced": int, "skipped": int, "errors": list}
     """
     from datetime import timezone
-    from app.models.meeting import Meeting, MeetingStatus
+    from app.models.meeting import Meeting
     from app.models.contact import Contact
     from sqlalchemy import select
 
@@ -403,7 +403,7 @@ async def sync_calendly_events_for_project(
                             contact.status = 'meeting_booked'
                             logger.info(f"[CALENDLY SYNC] Updated contact {contact_id} to meeting_booked")
 
-                # Create meeting
+                # Create meeting (use string values for status/outcome since DB uses varchar)
                 meeting = Meeting(
                     company_id=1,
                     project_id=project_id,
@@ -421,7 +421,7 @@ async def sync_calendly_events_for_project(
                     location=location_type,
                     host_name=host_name,
                     host_email=host_email,
-                    status=MeetingStatus.SCHEDULED,
+                    status="scheduled",
                     channel=contact_info.get("source") if contact_info else None,
                     segment=contact_info.get("segment") if contact_info else None,
                 )
