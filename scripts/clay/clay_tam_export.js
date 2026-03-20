@@ -527,43 +527,45 @@ async function main() {
     console.log(`    Location coords: ${JSON.stringify(locCoords)}`);
 
     if (locCoords) {
-      await page.mouse.click(locCoords.x, locCoords.y);
-      await humanDelay(1500, 2000);
-      console.log('    Clicked Location section');
-      await screenshot(page, 'tam_03b_location_expanded');
+      // Try multiple click strategies to expand the Location section
+      for (let attempt = 0; attempt < 3; attempt++) {
+        // Click center of the found element
+        await page.mouse.click(locCoords.x, locCoords.y);
+        await humanDelay(1000, 1500);
 
-      // Check if it expanded by looking for new inputs
-      const expanded = await page.evaluate(() => {
-        const inputs = [...document.querySelectorAll('input')].filter(i => {
-          const r = i.getBoundingClientRect();
-          return i.offsetParent !== null && r.x < 400;
-        });
-        return inputs.map(i => i.placeholder).filter(p => p);
-      });
-      console.log(`    Inputs after expand: ${JSON.stringify(expanded)}`);
+        // Check if expanded by looking for a country-related input
+        const countryInputCheck = await page.$('input[placeholder*="United States"]')
+          || await page.$('input[placeholder*="country"]')
+          || await page.$('input[placeholder*="Country"]');
+        if (countryInputCheck) {
+          console.log(`    Location expanded on attempt ${attempt + 1}!`);
+          break;
+        }
 
-      // If not expanded, try clicking the chevron directly (the ∨ icon)
-      if (expanded.length < 8) {
-        // Already expanded (or failed) — try a second click strategy
-        console.log('    Trying direct chevron click...');
-        const chevronClicked = await page.evaluate(() => {
-          const svgs = [...document.querySelectorAll('svg')];
-          for (const svg of svgs) {
-            const rect = svg.getBoundingClientRect();
-            // Chevron should be near Location text (x ~300-370, same y range)
-            if (rect.x > 300 && rect.x < 400 && rect.y > 350 && rect.y < 500 && rect.width < 30) {
-              svg.parentElement?.click();
-              return { x: rect.x, y: rect.y };
-            }
-          }
-          return null;
-        });
-        if (chevronClicked) {
-          console.log(`    Clicked chevron at: ${JSON.stringify(chevronClicked)}`);
-          await humanDelay(1500, 2000);
-          await screenshot(page, 'tam_03b_after_chevron');
+        // Try different click position each attempt
+        if (attempt === 0) {
+          // Try clicking the chevron on the right side (~x=345, same y)
+          console.log('    Attempt 2: clicking right chevron area...');
+          await page.mouse.click(345, locCoords.y);
+          await humanDelay(1000, 1500);
+        } else if (attempt === 1) {
+          // Try clicking the text itself (~x=85)
+          console.log('    Attempt 3: clicking text area...');
+          await page.mouse.click(85, locCoords.y);
+          await humanDelay(1000, 1500);
         }
       }
+
+      await screenshot(page, 'tam_03b_location_expanded');
+
+      // Dump all visible inputs for debugging
+      const allInputs = await page.evaluate(() => {
+        return [...document.querySelectorAll('input')].filter(i => {
+          const r = i.getBoundingClientRect();
+          return i.offsetParent !== null && r.x < 400;
+        }).map(i => ({ placeholder: i.placeholder, y: Math.round(i.getBoundingClientRect().y) }));
+      });
+      console.log(`    All sidebar inputs: ${JSON.stringify(allInputs)}`);
     } else {
       console.log('    WARNING: Location section not found after scroll');
     }
