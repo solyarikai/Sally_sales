@@ -14,6 +14,8 @@ A reusable system that remembers **everything** about TAM gathering:
 
 **Reusable across projects**: EasyStaff Global, OnSocial, Inxy, any future project — same tables, same pipeline.
 
+**Runs on Hetzner only**: All scripts, scrapers, migrations, DB queries execute on the production server (46.62.210.24). Local machines are for code editing only. Claude Code SSHes to Hetzner for all execution.
+
 ---
 
 ## Pipeline Flow — Strict Linear, No Skipping
