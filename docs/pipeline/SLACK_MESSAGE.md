@@ -24,3 +24,4 @@ Claude сам запустит пайплайн и остановится на 3
 > Проверь незавершенные запуски для [проект]
 
 Полная инструкция: `docs/pipeline/OPERATOR_GUIDE.md`
+Техническая документация: `docs/pipeline/TAM_GATHERING_ARCHITECTURE.md`

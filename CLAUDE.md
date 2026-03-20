@@ -191,7 +191,7 @@ These words change meaning depending on which phase you're in. Always be precise
 | `csv.companies.manual` | CSV file/URL import | Free |
 | `manual.companies.manual` | Direct domain list | Free |
 
-**Default enrichment is Apollo UI emulator (Puppeteer) — NOT Apollo API.** Apollo API costs credits. If API credits are needed, that's a separate approval from the operator.
+**Apollo and Clay run ONLY via Puppeteer emulators — NEVER via paid API.** This is to avoid spending credits. The emulators scrape the UI for free. The only credit-spending step in the entire pipeline is FindyMail (CP3). If for any reason you need to use a paid API (Apollo people enrichment, Clay API), you MUST get explicit operator approval first — treat it like a separate checkpoint.
 
 ### Blacklisting is PROJECT-SCOPED
 
