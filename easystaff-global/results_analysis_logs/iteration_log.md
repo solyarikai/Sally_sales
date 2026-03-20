@@ -56,13 +56,71 @@
 - prismxai.com: GPT noted "does not mention specific location" but still passed (should be NOT_A_MATCH)
 - neurixmedia.com: GPT "assumed" UAE location without evidence
 
-**Verdict: 97% > 95% target. V4 is production-ready.**
+**Small-sample test showed 97%. Full-corpus Opus review revealed 83%. Need V5.**
+
+---
+
+## Iteration 4 FULL REVIEW — actual accuracy: 83%
+
+4 parallel Opus agents reviewed ALL 546 targets with web search verification.
+
+| Segment | Reviewed | OK | Borderline | False Positive | FP Rate |
+|---------|----------|-----|-----------|----------------|---------|
+| CONSULTING_FIRM | 49 | 20 | 13 | 16 | 33% |
+| DIGITAL_AGENCY | 95 | 68 | 14 | 13 | 14% |
+| IT_SERVICES | 127 | 94 | 19 | 14 | 11% |
+| Others (~275) | pending | — | — | — | — |
+| **Subtotal** | **271** | **182** | **46** | **43** | **16%** |
+
+**False positive patterns found:**
+1. Solo consultants (fractional CxO, one-person advisory) — 11 cases
+2. Non-UAE companies (India Pvt Ltd, Singapore, Canada, Oman, Lebanon, Swiss) — 15 cases
+3. Investment/holding/VC firms — 4 cases
+4. Government-linked entities (DEWA, Mubadala subsidiaries) — 2 cases
+5. Misclassified (hardware store, rewards platform, e-commerce reseller) — 5 cases
+6. Competitors (outsourcing/staffing firm) — 1 case
+7. Duplicates — 1 case
+8. Ghost companies (no web presence) — 1 case
+
+**Detailed reviews:** `batch_review_consulting.md`, `batch_review_digital_agency.md`, `batch_review_it_services.md`
+
+---
+
+## Iteration 5 — V5 (pending)
+
+**V5 prompt additions based on Opus review:**
+
+COMPANY STRUCTURE SIGNALS (NOT_A_MATCH):
+- "Pvt Ltd", "Private Limited", "LLP" = Indian/Pakistani entity type
+- "Fractional CxO/leadership" = solo freelancer, not a company
+- Only ONE person named on website = solo consultant
+- IFZA/RAKEZ free zone with no team = likely 1-person
+- Company name IS a person's name = solo
+
+INVESTMENT (NOT_A_MATCH):
+- Venture studios, VCs, angel investors, fund managers
+- M&A advisory, capital raising, investment banking
+
+GOVERNMENT/TOO LARGE (NOT_A_MATCH):
+- Government subsidiaries (DEWA, Mubadala, etc.)
+- Companies with 1000+ employees
+
+WRONG COUNTRY (NOT_A_MATCH):
+- Oman, Lebanon, Singapore, Canada — NOT UAE
+- "Pvt Ltd" / "Private Limited" / "LLP" = Indian/Pakistani designation
+- Company name contains country: "India", "Pakistan", "Oman"
+
+MISCLASSIFIED (NOT_A_MATCH):
+- Computer/hardware stores
+- Rewards/loyalty platforms
+- E-commerce product resellers (different from agencies)
 
 **Full iteration summary:**
 
-| Version | Accuracy | Issues fixed | Key change |
-|---------|----------|-------------|------------|
-| V1 | 0% | — | Wrong approach (complex scoring) |
-| V2 | 76% | V1 scrapped | Via negativa, CAPS_LOCKED segments |
-| V3 | 93% | +17% from V2 | Geography filter, solo consultant exclusion |
-| V4 | 97% | +4% from V3 | Strict location requirement, investment exclusion |
+| Version | Accuracy | Targets | Key change |
+|---------|----------|---------|------------|
+| V1 | 0% | wrong segments | Complex scoring rubric |
+| V2 | 76% | ~450 | Via negativa, CAPS_LOCKED segments |
+| V3 | 93% (small sample) | ~47/375 | Geography filter, solo consultant |
+| V4 | 83% (full review) | ~546 total, ~453 real | Strict location, investment exclusion |
+| V5 | target 95%+ | — | Entity type patterns, gov exclusion, country names |
