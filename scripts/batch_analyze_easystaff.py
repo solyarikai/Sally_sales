@@ -16,6 +16,13 @@ GEOGRAPHY (NOT UAE = reject):
 - Non-UAE domains (.in, .ir, .pk, .com.au, .sd) WITHOUT a clear UAE address on the website = NOT_A_MATCH
 - Website entirely in a non-English/non-Arabic language with no UAE mentions = NOT_A_MATCH
 - If the website says "India", "Pakistan", "Iran" as their location and does NOT mention UAE = NOT_A_MATCH
+- If you cannot find a CLEAR UAE address, office, or "Dubai/Abu Dhabi/UAE" mention on the website = NOT_A_MATCH
+- "Location not explicitly mentioned" = NOT_A_MATCH (when in doubt about location, reject)
+
+INVESTMENT/HOLDING (not freelancer hirers = reject):
+- Investment firms, holding companies, venture capital, private equity = NOT_A_MATCH
+- Asset managers, fund managers, family offices = NOT_A_MATCH
+- These companies hire bankers, not freelancers
 
 SOLO/TINY (not a company = reject):
 - Solo consultant, individual advisor, personal branding website = NOT_A_MATCH
@@ -96,13 +103,13 @@ async def main():
                     print(f"  Re-analyzing (resetting from CP2)...")
                     result = await gathering_service.re_analyze(
                         s, run_id, model="gpt-4o-mini", prompt_text=PROMPT_V3,
-                        prompt_name="EasyStaff UAE Via Negativa v3"
+                        prompt_name="EasyStaff UAE Via Negativa v4"
                     )
                 elif run.current_phase == "scraped":
                     print(f"  Analyzing...")
                     result = await gathering_service.run_analysis(
                         s, run_id, model="gpt-4o-mini", prompt_text=PROMPT_V3,
-                        prompt_name="EasyStaff UAE Via Negativa v3"
+                        prompt_name="EasyStaff UAE Via Negativa v4"
                     )
                 else:
                     print(f"  Phase={run.current_phase}, skipping")
