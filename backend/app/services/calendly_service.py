@@ -252,6 +252,117 @@ async def count_project_meetings(config: dict, since: datetime, until: datetime)
         return 0
 
 
+async def _get_conversation_summary(session, email: str, project_id: int) -> str:
+    """Get AI summary of conversation with lead."""
+    from app.models.reply import ProcessedReply
+    from sqlalchemy import select, desc
+
+    # Get last 5 messages from this lead
+    result = await session.execute(
+        select(ProcessedReply)
+        .where(ProcessedReply.lead_email == email.lower())
+        .order_by(desc(ProcessedReply.received_at))
+        .limit(5)
+    )
+    replies = result.scalars().all()
+
+    if not replies:
+        return ""
+
+    # Combine messages
+    messages = []
+    for r in reversed(replies):  # chronological order
+        text = (r.reply_text or "")[:300]
+        if text:
+            messages.append(text)
+
+    if not messages:
+        return ""
+
+    combined = "\n---\n".join(messages)
+
+    # Use Gemini for quick summary (cheaper than GPT)
+    try:
+        from app.services.openai_service import OpenAIService
+        ai = OpenAIService()
+
+        summary = await ai.generate_text(
+            prompt=f"Summarize this email thread in 1-2 sentences in Russian. Focus on: what the lead wants, their interest level.\n\nThread:\n{combined}",
+            max_tokens=100,
+            model="gemini"
+        )
+        return summary.strip() if summary else ""
+    except Exception as e:
+        logger.warning(f"[CALENDLY] Summary generation failed: {e}")
+        # Fallback: just return last message snippet
+        return messages[-1][:150] + "..." if len(messages[-1]) > 150 else messages[-1]
+
+
+async def _send_meeting_notification(
+    meeting, project_name: str, project_id: int,
+    contact_info: dict, session
+) -> bool:
+    """Send Telegram notification about new meeting with conversation summary."""
+    from app.services.notification_service import send_telegram_notification
+    from app.models.reply import TelegramSubscription
+    from sqlalchemy import select
+    from html import escape
+    from zoneinfo import ZoneInfo
+
+    MSK = ZoneInfo("Europe/Moscow")
+
+    # Format time in Moscow timezone
+    dt = meeting.scheduled_at
+    if dt.tzinfo:
+        dt_msk = dt.astimezone(MSK)
+    else:
+        dt_msk = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(MSK)
+    time_str = dt_msk.strftime("%d.%m.%Y %H:%M") + " МСК"
+
+    # Build message
+    name = escape(meeting.invitee_name or "Unknown")
+    email = escape(meeting.invitee_email or "")
+    company = escape(contact_info.get("company_name") or meeting.invitee_company or "—")
+
+    # Get domain from email
+    domain = email.split("@")[-1] if "@" in email else ""
+
+    message = f"""📅 <b>Новый звонок забукан!</b>
+
+<b>Кто:</b> {name}
+<b>Email:</b> {email}
+<b>Компания:</b> {company}
+<b>Сайт:</b> {domain}
+<b>Когда:</b> {time_str}"""
+
+    # Get conversation summary
+    summary = await _get_conversation_summary(session, meeting.invitee_email, project_id)
+    if summary:
+        message += f"\n\n<b>Контекст:</b>\n<i>{escape(summary)}</i>"
+
+    message += f"\n\n<b>Проект:</b> {escape(project_name)}"
+
+    # Get project subscribers
+    subs_result = await session.execute(
+        select(TelegramSubscription).where(
+            TelegramSubscription.project_id == project_id
+        )
+    )
+    subscribers = subs_result.scalars().all()
+
+    sent = False
+    for sub in subscribers:
+        if sub.chat_id:
+            try:
+                await send_telegram_notification(message, chat_id=sub.chat_id)
+                sent = True
+                logger.info(f"[CALENDLY] Sent notification to {sub.chat_id} for {name}")
+            except Exception as e:
+                logger.warning(f"[CALENDLY] Failed to send to {sub.chat_id}: {e}")
+
+    return sent
+
+
 async def sync_calendly_events_for_project(
     project_id: int, project_name: str, config: dict, session
 ) -> dict:
@@ -428,6 +539,15 @@ async def sync_calendly_events_for_project(
                 session.add(meeting)
                 synced += 1
                 logger.info(f"[CALENDLY SYNC] Created meeting for {invitee_name} ({invitee_email})")
+
+                # Send TG notification
+                try:
+                    await _send_meeting_notification(
+                        meeting, project_name, project_id,
+                        contact_info or {}, session
+                    )
+                except Exception as e:
+                    logger.warning(f"[CALENDLY SYNC] Notification failed: {e}")
 
             await session.commit()
 
