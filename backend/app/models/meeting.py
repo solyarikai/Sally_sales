@@ -5,7 +5,7 @@ Source of truth is Calendly. Meetings are created via webhook when
 invitee.created event fires. TG notification is sent immediately.
 """
 from enum import Enum
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Index, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db import Base
@@ -66,9 +66,9 @@ class Meeting(Base):
     host_name = Column(String(255), nullable=True)
     host_email = Column(String(255), nullable=True)
 
-    # Status tracking
-    status = Column(SQLEnum(MeetingStatus), default=MeetingStatus.SCHEDULED, nullable=False)
-    outcome = Column(SQLEnum(MeetingOutcome), default=MeetingOutcome.PENDING, nullable=True)
+    # Status tracking (using String to match DB migration which created varchar columns)
+    status = Column(String(20), default="scheduled", nullable=False)
+    outcome = Column(String(20), default="pending", nullable=True)
 
     # Notes
     notes = Column(Text, nullable=True)  # Internal notes
