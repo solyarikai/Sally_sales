@@ -527,35 +527,92 @@ async function main() {
     console.log(`    Location coords: ${JSON.stringify(locCoords)}`);
 
     if (locCoords) {
-      // Try multiple click strategies to expand the Location section
-      for (let attempt = 0; attempt < 3; attempt++) {
-        // Click center of the found element
-        await page.mouse.click(locCoords.x, locCoords.y);
-        await humanDelay(1000, 1500);
+      // Try multiple strategies to expand the Location section
+      let expanded = false;
 
-        // Check if expanded by looking for a country-related input
-        const countryInputCheck = await page.$('input[placeholder*="United States"]')
+      // Check if already expanded
+      const checkExpanded = async () => {
+        const inp = await page.$('input[placeholder*="United States"]')
           || await page.$('input[placeholder*="country"]')
           || await page.$('input[placeholder*="Country"]');
-        if (countryInputCheck) {
-          console.log(`    Location expanded on attempt ${attempt + 1}!`);
-          break;
-        }
+        return !!inp;
+      };
 
-        // Try different click position each attempt
-        if (attempt === 0) {
-          // Try clicking the chevron on the right side (~x=345, same y)
-          console.log('    Attempt 2: clicking right chevron area...');
-          await page.mouse.click(345, locCoords.y);
-          await humanDelay(1000, 1500);
-        } else if (attempt === 1) {
-          // Try clicking the text itself (~x=85)
-          console.log('    Attempt 3: clicking text area...');
-          await page.mouse.click(85, locCoords.y);
-          await humanDelay(1000, 1500);
+      // Strategy 1: Click the exact coords from locCoords
+      console.log(`    Strategy 1: click (${locCoords.x}, ${locCoords.y})`);
+      await page.mouse.click(locCoords.x, locCoords.y);
+      await humanDelay(1500, 2000);
+      expanded = await checkExpanded();
+
+      // Strategy 2: Find ALL clickable elements near the Location y-coordinate and click each
+      if (!expanded) {
+        console.log('    Strategy 2: clicking all elements near Location row...');
+        const nearbyClickTargets = await page.evaluate((targetY) => {
+          const targets = [];
+          const allEls = [...document.querySelectorAll('div, span, button, svg, path')];
+          for (const el of allEls) {
+            const rect = el.getBoundingClientRect();
+            // Within 15px of Location y, in sidebar (x < 400)
+            if (Math.abs(rect.y + rect.height/2 - targetY) < 15 && rect.x < 400 && rect.width > 5) {
+              targets.push({
+                x: rect.x + rect.width/2,
+                y: rect.y + rect.height/2,
+                w: rect.width,
+                tag: el.tagName,
+              });
+            }
+          }
+          return targets;
+        }, locCoords.y);
+
+        console.log(`    Found ${nearbyClickTargets.length} targets near Location`);
+        for (const t of nearbyClickTargets) {
+          console.log(`      Clicking ${t.tag} at (${Math.round(t.x)}, ${Math.round(t.y)}) w=${Math.round(t.w)}`);
+          await page.mouse.click(t.x, t.y);
+          await humanDelay(800, 1200);
+          expanded = await checkExpanded();
+          if (expanded) {
+            console.log('    Location expanded!');
+            break;
+          }
         }
       }
 
+      // Strategy 3: Use keyboard to navigate and open
+      if (!expanded) {
+        console.log('    Strategy 3: Tab navigation...');
+        // Press Tab multiple times to reach the Location section, then Enter
+        for (let i = 0; i < 30; i++) {
+          await page.keyboard.press('Tab');
+          await humanDelay(50, 100);
+        }
+        await page.keyboard.press('Enter');
+        await humanDelay(1500, 2000);
+        expanded = await checkExpanded();
+      }
+
+      // Strategy 4: Use page.evaluate to find and dispatch click on the closest interactive parent
+      if (!expanded) {
+        console.log('    Strategy 4: React event dispatch...');
+        await page.evaluate(() => {
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          while (walker.nextNode()) {
+            if (walker.currentNode.textContent?.trim() === 'Location') {
+              let el = walker.currentNode.parentElement;
+              // Walk up and dispatch click on each parent
+              for (let i = 0; i < 6 && el; i++) {
+                el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                el = el.parentElement;
+              }
+              break;
+            }
+          }
+        });
+        await humanDelay(1500, 2000);
+        expanded = await checkExpanded();
+      }
+
+      console.log(`    Location expanded: ${expanded}`);
       await screenshot(page, 'tam_03b_location_expanded');
 
       // Dump all visible inputs for debugging
