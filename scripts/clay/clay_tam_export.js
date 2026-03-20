@@ -479,23 +479,45 @@ async function main() {
     console.log(`    Location scroll: ${JSON.stringify(scrollResult)}`);
     await humanDelay(1000, 1500);
 
-    // Step 2: Click Location section to expand it
-    const expanded = await page.evaluate(() => {
-      const allEls = [...document.querySelectorAll('div, span, button, label')];
+    // Step 2: Click Location section header to expand it
+    // Clay's section headers are clickable containers with icon + text + chevron
+    // We need to find the "Location" text, then click its PARENT container
+    const locCoords = await page.evaluate(() => {
+      const allEls = [...document.querySelectorAll('*')];
       for (const el of allEls) {
-        const text = el.textContent?.trim();
-        if (text === 'Location' && el.offsetParent !== null) {
+        // Find leaf text nodes containing exactly "Location"
+        if (el.children.length <= 2 && el.textContent?.trim() === 'Location') {
           const rect = el.getBoundingClientRect();
-          if (rect.x < 400 && rect.width < 300 && rect.y > 0 && rect.y < window.innerHeight) {
-            el.click();
-            return { clicked: true, x: rect.x, y: rect.y };
+          if (rect.x < 400 && rect.y > 0 && rect.y < window.innerHeight && rect.height > 10 && rect.height < 60) {
+            // Click the parent (the full section header row)
+            const parent = el.closest('[role="button"]') || el.parentElement?.parentElement || el.parentElement || el;
+            const parentRect = parent.getBoundingClientRect();
+            return {
+              x: parentRect.x + parentRect.width / 2,
+              y: parentRect.y + parentRect.height / 2,
+              tag: el.tagName,
+              parentTag: parent.tagName,
+              w: parentRect.width,
+              h: parentRect.height,
+            };
           }
         }
       }
-      return { clicked: false };
+      return null;
     });
-    console.log(`    Location click: ${JSON.stringify(expanded)}`);
-    await humanDelay(1000, 1500);
+    console.log(`    Location coords: ${JSON.stringify(locCoords)}`);
+
+    if (locCoords) {
+      // Use mouse.click on the exact coordinates
+      await page.mouse.click(locCoords.x, locCoords.y);
+      await humanDelay(1500, 2000);
+      console.log('    Clicked Location section');
+
+      // Take screenshot to verify expansion
+      await screenshot(page, 'tam_03b_location_expanded');
+    } else {
+      console.log('    WARNING: Location section not found after scroll');
+    }
 
     // Step 3: Wait for country input to appear and dump all placeholders for debugging
     await humanDelay(500, 800);
