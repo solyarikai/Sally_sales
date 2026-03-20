@@ -187,6 +187,7 @@ class GatheringService:
             run.completed_at = datetime.now(timezone.utc)
 
         await session.commit()
+        await session.refresh(run)
         return run
 
     async def _dedup_and_store(
@@ -1120,6 +1121,7 @@ class GatheringService:
         run.error_message = reason or "Cancelled by operator"
         run.completed_at = datetime.now(timezone.utc)
         await session.commit()
+        await session.refresh(run)
         logger.info(f"Run #{run_id} cancelled at phase '{run.current_phase}': {reason}")
         return run
 
