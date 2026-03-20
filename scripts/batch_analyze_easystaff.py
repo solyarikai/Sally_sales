@@ -25,36 +25,58 @@ ENTITY TYPE SIGNALS (non-UAE company types = reject):
 - "GmbH" = German/Swiss entity = NOT_A_MATCH unless explicit UAE office
 - "Inc" with no UAE address = likely US = NOT_A_MATCH
 
-SOLO/TINY (not a company = reject):
-- Only ONE person named/visible on entire website = solo consultant = NOT_A_MATCH
-- "Fractional CxO", "Fractional leadership", "Interim CEO/COO/CTO" = IS a freelancer, not a hirer = NOT_A_MATCH
-- Personal brand website ("I help CEOs", "Book a call with me") = NOT_A_MATCH
-- IFZA/RAKEZ/SHAMS free zone with no team page or employees = likely 1-person setup = NOT_A_MATCH
-- Company name IS a person's name (e.g. "John Smith Consulting") = solo = NOT_A_MATCH
+SOLO/TINY (RED FLAG — reject aggressively):
+- Only ONE person named/visible on entire website = NOT_A_MATCH
+- "Fractional CxO", "Fractional leadership", "Interim" anything = IS a freelancer = NOT_A_MATCH
+- Personal brand: "I help...", "Book a call with me", single headshot hero = NOT_A_MATCH
+- IFZA/RAKEZ/SHAMS free zone with no team page = 1-person setup = NOT_A_MATCH
+- Company name IS a person's name = NOT_A_MATCH
+- "Blogger", "content creator", "influencer" as the BUSINESS = NOT_A_MATCH
+- Website has no "team", "about us", or "our people" page showing multiple employees = RED FLAG
 
-INVESTMENT/HOLDING (not freelancer hirers = reject):
-- Investment firms, holding companies, venture capital, private equity, angel investors = NOT_A_MATCH
+INTERIOR DESIGN / ARCHITECTURE (NOT digital/creative agency = reject):
+- Interior design firms, interior decoration = NOT_A_MATCH
+- Architecture firms, architectural visualization = NOT_A_MATCH
+- Fit-out companies, renovation, furniture design = NOT_A_MATCH
+- These are OFFLINE service businesses, not digital agencies that hire freelancers
+
+COMPANY FORMATION / PRO SERVICES (reject):
+- Business setup services, company formation, PRO services = NOT_A_MATCH
+- Visa services, labor card services, trade license = NOT_A_MATCH
+- These help FORM companies, they don't HIRE freelancers for projects
+
+INVESTMENT/HOLDING (reject):
+- Investment firms, holding companies, VC, PE, angel investors = NOT_A_MATCH
 - Venture studios, accelerators, incubators = NOT_A_MATCH
 - M&A advisory, capital raising, investment banking = NOT_A_MATCH
 - Asset managers, fund managers, family offices = NOT_A_MATCH
-- Sovereign wealth funds, government investment vehicles = NOT_A_MATCH
+- Sovereign wealth funds = NOT_A_MATCH
 
 GOVERNMENT/TOO LARGE (reject):
 - Government entities, ministries, municipalities = NOT_A_MATCH
-- Government subsidiaries (DEWA, Mubadala, ADNOC, etc.) = NOT_A_MATCH
-- Companies with 1000+ employees = too large, has internal HR = NOT_A_MATCH
+- Government subsidiaries (DEWA, Mubadala, ADNOC, Etisalat, etc.) = NOT_A_MATCH
+- Companies with 1000+ employees = NOT_A_MATCH
 
-COMPETITORS (they sell what we sell = reject):
-- Staffing/recruitment agencies, headhunting, outsourcing providers = NOT_A_MATCH
+COMPETITORS (RED FLAG — reject aggressively):
+- Staffing, recruitment, headhunting, outsourcing = NOT_A_MATCH
+- "IT staffing", "IT recruitment", "tech recruitment" = COMPETITOR = NOT_A_MATCH
 - EOR/PEO platforms, freelance marketplaces, HR tech = NOT_A_MATCH
 - "Staff augmentation", "talent acquisition", "workforce solutions" = NOT_A_MATCH
+- Any company that PROVIDES workers to other companies = NOT_A_MATCH
 
 OFFLINE/IRRELEVANT (reject):
 - Restaurant, hotel, construction, real estate, trading, logistics, oil/gas, medical, school
 - Bank, insurance, law firm, car dealer, furniture, jewelry, travel agency
-- Computer/hardware STORES (selling equipment, not services) = NOT_A_MATCH
+- Computer/hardware STORES, printer rental, office equipment = NOT_A_MATCH
 - Rewards/loyalty platforms = NOT_A_MATCH
-- E-commerce RESELLERS (selling products, not providing agency services) = NOT_A_MATCH
+- E-commerce RESELLERS (selling products, not agency services) = NOT_A_MATCH
+- DOOH / billboard / outdoor advertising inventory = NOT_A_MATCH
+
+FAKE/SUSPICIOUS SITES (reject):
+- Template/placeholder website with no real content = NOT_A_MATCH
+- Contact info from a different country than claimed = NOT_A_MATCH
+- Email domain doesn't match website domain = RED FLAG
+- No portfolio, no clients, no case studies, no real work shown = RED FLAG
 
 JUNK (reject):
 - Aggregator, directory, job board, news, blog, parked domain
@@ -105,13 +127,13 @@ async def main():
                     print(f"  Re-analyzing (resetting from CP2)...")
                     result = await gathering_service.re_analyze(
                         s, run_id, model="gpt-4o-mini", prompt_text=PROMPT_V5,
-                        prompt_name="EasyStaff UAE Via Negativa v5"
+                        prompt_name="EasyStaff UAE Via Negativa v6"
                     )
                 elif run.current_phase == "scraped":
                     print(f"  Analyzing...")
                     result = await gathering_service.run_analysis(
                         s, run_id, model="gpt-4o-mini", prompt_text=PROMPT_V5,
-                        prompt_name="EasyStaff UAE Via Negativa v5"
+                        prompt_name="EasyStaff UAE Via Negativa v6"
                     )
                 else:
                     print(f"  Phase={run.current_phase}, skipping")
