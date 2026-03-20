@@ -1027,6 +1027,7 @@ class CompanySearchService:
         domain: str,
         knowledge: Optional[Dict[str, Any]] = None,
         is_html: bool = True,
+        custom_system_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         GPT-4o-mini analyzes scraped website against target segments using
@@ -1072,7 +1073,18 @@ class CompanySearchService:
             if parts:
                 knowledge_context = "\n\n".join(parts) + "\n\n"
 
-        system_prompt = """You are an expert at analyzing company websites to determine if they match a B2B target customer segment. You use a strict multi-criteria scoring system.
+        # Use custom system prompt if provided (gathering pipeline v2 via negativa)
+        # Otherwise fall back to the legacy scoring rubric
+        if custom_system_prompt:
+            system_prompt = custom_system_prompt
+            prompt = f"""{knowledge_context}{website_context}"""
+            # For custom prompts, the target_segments IS the system prompt
+            # so we don't need to inject it again
+        else:
+            pass  # Fall through to legacy prompt below
+
+        if not custom_system_prompt:
+            system_prompt = """You are an expert at analyzing company websites to determine if they match a B2B target customer segment. You use a strict multi-criteria scoring system.
 
 CRITICAL RULES — violations mean AUTOMATIC FAILURE:
 1. Website language must be compatible with target geography. For Russian market: non-Russian site = language_match 0. For UAE/Dubai market: English OR Russian OR Arabic are all acceptable.

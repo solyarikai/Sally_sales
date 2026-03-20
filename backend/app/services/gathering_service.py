@@ -807,6 +807,7 @@ class GatheringService:
                     result = await company_search_service.analyze_company(
                         content=dc.scraped_text or "", target_segments=prompt_text,
                         domain=dc.domain, is_html=False,
+                        custom_system_prompt=prompt_text,
                     )
                     # Parse CAPS_LOCKED segment from matched_segment if present
                     seg = result.get("matched_segment", "")
