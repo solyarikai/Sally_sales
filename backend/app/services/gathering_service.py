@@ -397,15 +397,20 @@ class GatheringService:
         except Exception:
             pass
 
-        # Apply verdicts
+        # Apply verdicts — deduplicate by domain to avoid constraint violations
         in_bl = 0; in_same = 0; in_enterprise = 0; passed = 0
         rejected_domains = []; warning_domains = []
+        seen_domains = set()
 
         for dc in dc_list:
             d = (dc.domain or "").lower()
-            if not d:
-                passed += 1
+            if not d or d in seen_domains:
+                if d:
+                    seen_domains.add(d)
+                else:
+                    passed += 1
                 continue
+            seen_domains.add(d)
 
             if d in blacklisted:
                 dc.status = DiscoveredCompanyStatus.REJECTED
