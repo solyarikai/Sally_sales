@@ -366,8 +366,11 @@ async function runSearch(config) {
       '--disable-dev-shm-usage',
       '--disable-gpu',
       '--disable-software-rasterizer',
-      '--single-process',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--window-size=1920,1080',
     ],
+    ignoreDefaultArgs: ['--enable-automation'],
   });
 
   const page = await browser.newPage();
