@@ -339,8 +339,24 @@ async function runSearch(config) {
   console.log(`[${ts()}] SEARCHES: ${searches.length} total, ${searches.length - completedSearches.size} remaining`);
 
   // Launch browser
-  // Use system Chromium in Docker, or default in local env
-  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+  // Use system Chromium - check multiple possible paths
+  const fs = require('fs');
+  const chromiumPaths = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+  ].filter(Boolean);
+
+  let executablePath;
+  for (const p of chromiumPaths) {
+    if (fs.existsSync(p)) {
+      executablePath = p;
+      console.log(`[${ts()}] Using Chromium at: ${p}`);
+      break;
+    }
+  }
 
   const browser = await puppeteer.launch({
     headless: 'new',
@@ -351,6 +367,7 @@ async function runSearch(config) {
       '--disable-dev-shm-usage',
       '--disable-gpu',
       '--disable-software-rasterizer',
+      '--single-process',
     ],
   });
 
