@@ -7,9 +7,7 @@
 ## Как начать
 
 ```bash
-git pull origin main
-cd ~/magnum-opus-project/repo
-claude
+git pull && claude --dangerously-skip-permissions
 ```
 
 Скажите Claude что нужно. **Обязательно назовите проект:**

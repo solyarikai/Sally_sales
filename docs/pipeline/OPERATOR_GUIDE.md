@@ -9,7 +9,7 @@
 ### 1. Открыть Claude Code
 
 ```bash
-cd ~/magnum-opus-project/repo && git pull && claude
+git pull && claude --dangerously-skip-permissions
 ```
 
 ### 2. Сказать что нужно + назвать проект
