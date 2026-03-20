@@ -1030,8 +1030,8 @@ class CompanySearchService:
         custom_system_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        GPT-4o-mini analyzes scraped website against target segments using
-        a multi-criteria scoring rubric. Kept on GPT-4o-mini (cheap, high volume).
+        Analyzes scraped website against target segments using AI.
+        Prefers Gemini (free quota), falls back to OpenAI if needed.
 
         Args:
             content: Raw HTML or clean text (from Crona)
@@ -1042,9 +1042,11 @@ class CompanySearchService:
 
         Returns: {is_target, confidence, reasoning, company_info, scores}
         """
-        api_key = settings.OPENAI_API_KEY
-        if not api_key:
-            return {"is_target": False, "confidence": 0, "reasoning": "No OpenAI API key",
+        # Prefer Gemini (has free quota), fallback to OpenAI
+        gemini_key = settings.GEMINI_API_KEY
+        openai_key = settings.OPENAI_API_KEY
+        if not gemini_key and not openai_key:
+            return {"is_target": False, "confidence": 0, "reasoning": "No AI API key configured",
                     "company_info": {}, "scores": {}}
 
         # Extract/structure text with language detection
@@ -1139,61 +1141,95 @@ CRITICAL FALSE POSITIVE RULES:
 - Companies that don't provide any of the services described in TARGET SEGMENT → is_target = false
 - IMPORTANT: "name" in company_info must be the name of the company whose WEBSITE you are analyzing, extracted from the website content (title, logo, about page). NEVER use the client/searcher name from the TARGET SEGMENT description. If you cannot find the company name on the website, use the domain name."""
 
-        payload = {
-            "model": "gpt-4o-mini",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.1,
-            "max_tokens": 600,
-        }
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json; charset=utf-8",
-        }
+        # Combine prompts for API call
+        full_prompt = f"{system_prompt}\n\n{prompt}"
 
         try:
-            # Rate limit: max 25 concurrent GPT calls
-            async with _gpt_analysis_semaphore:
-                resp = None
-                for attempt in range(6):
+            # Try Gemini first (has free quota, OpenAI has insufficient_quota)
+            async with _gpt_analysis_semaphore:  # Rate limit concurrent AI calls
+                if gemini_key:
+                    gemini_payload = {
+                        "contents": [{"parts": [{"text": full_prompt}]}],
+                        "generationConfig": {
+                            "temperature": 0.1,
+                            "maxOutputTokens": 600,
+                        }
+                    }
+                    resp = None
+                    for attempt in range(3):
+                        async with httpx.AsyncClient(timeout=45) as client:
+                            resp = await client.post(
+                                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}",
+                                json=gemini_payload,
+                                headers={"Content-Type": "application/json"},
+                            )
+                        if resp.status_code == 429:
+                            import random as _rng
+                            wait = min(2.0 * (2 ** attempt), 15.0) + _rng.uniform(0, 1)
+                            logger.warning(f"Gemini 429 for {domain}, backoff {wait:.1f}s (attempt {attempt + 1}/3)")
+                            await asyncio.sleep(wait)
+                            continue
+                        break
+
+                if resp and resp.status_code == 200:
+                    data = resp.json()
+                    content_text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                    tokens_used = data.get("usageMetadata", {}).get("totalTokenCount", 0)
+                    model_used = "gemini-2.5-flash"
+                elif openai_key:
+                    # Fallback to OpenAI
+                    logger.warning(f"Gemini failed for {domain}, trying OpenAI")
+                    resp = None
+                else:
+                    return {"is_target": False, "confidence": 0, "reasoning": "Gemini API failed and no OpenAI fallback",
+                            "company_info": {}, "scores": {}, "tokens_used": 0}
+
+            # OpenAI fallback or primary if no Gemini
+            if not gemini_key or (resp and resp.status_code != 200):
+                if not openai_key:
+                    return {"is_target": False, "confidence": 0, "reasoning": "No OpenAI API key for fallback",
+                            "company_info": {}, "scores": {}, "tokens_used": 0}
+                openai_payload = {
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 600,
+                }
+                headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json; charset=utf-8"}
+                for attempt in range(4):
                     async with httpx.AsyncClient(timeout=30) as client:
-                        resp = await client.post(
-                            "https://api.openai.com/v1/chat/completions",
-                            json=payload,
-                            headers=headers,
-                        )
+                        resp = await client.post("https://api.openai.com/v1/chat/completions", json=openai_payload, headers=headers)
                     if resp.status_code == 429:
                         import random as _rng
                         wait = min(2.0 * (2 ** attempt), 20.0) + _rng.uniform(0, 1)
-                        logger.warning(f"OpenAI 429 for {domain}, backoff {wait:.1f}s (attempt {attempt + 1}/6)")
+                        logger.warning(f"OpenAI 429 for {domain}, backoff {wait:.1f}s (attempt {attempt + 1}/4)")
                         await asyncio.sleep(wait)
                         continue
                     resp.raise_for_status()
                     break
-            if resp is None or resp.status_code == 429:
-                return {"is_target": False, "confidence": 0, "reasoning": "OpenAI rate limited",
-                        "company_info": {}, "scores": {}, "tokens_used": 0}
-
-            data = resp.json()
-
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            tokens_used = data.get("usage", {}).get("total_tokens", 0)
+                if resp is None or resp.status_code == 429:
+                    return {"is_target": False, "confidence": 0, "reasoning": "OpenAI rate limited",
+                            "company_info": {}, "scores": {}, "tokens_used": 0}
+                data = resp.json()
+                content_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                tokens_used = data.get("usage", {}).get("total_tokens", 0)
+                model_used = "gpt-4o-mini"
 
             # Parse JSON response
             try:
-                result = json.loads(content)
+                result = json.loads(content_text)
             except json.JSONDecodeError:
-                start = content.find("{")
-                end = content.rfind("}")
+                start = content_text.find("{")
+                end = content_text.rfind("}")
                 if start != -1 and end != -1:
-                    result = json.loads(content[start:end + 1])
+                    result = json.loads(content_text[start:end + 1])
                 else:
                     result = {
                         "is_target": False, "confidence": 0,
-                        "reasoning": f"Failed to parse GPT response: {content[:200]}",
+                        "reasoning": f"Failed to parse AI response: {content_text[:200]}",
                         "company_info": {}, "scores": {},
                     }
 
@@ -1215,18 +1251,18 @@ CRITICAL FALSE POSITIVE RULES:
                 result = self._validate_analysis(result, clean, target_segments=target_segments)
 
             result["tokens_used"] = tokens_used
-            # Store the exact prompts sent to GPT for full reproducibility
+            # Store the exact prompts sent for full reproducibility
             result["_prompt_sent"] = {
                 "system": system_prompt,
                 "user": prompt,
-                "model": "gpt-4o-mini",
+                "model": model_used,
                 "temperature": 0.1,
                 "max_tokens": 600,
             }
             return result
 
         except Exception as e:
-            logger.error(f"GPT analysis failed for {domain}: {e}")
+            logger.error(f"AI analysis failed for {domain}: {e}")
             return {
                 "is_target": False, "confidence": 0,
                 "reasoning": f"Analysis error: {str(e)}",
