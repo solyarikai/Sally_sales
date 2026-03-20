@@ -795,14 +795,31 @@ class GatheringService:
 
         total = 0; targets = 0; rejected = 0; total_tokens = 0; total_cost = 0.0
         target_list = []
-        BATCH_SIZE = 50  # Commit every 50 companies to avoid massive transactions
+        BATCH_SIZE = 50  # Commit to DB every 50 results
+        CONCURRENCY = 20  # Parallel GPT-4o-mini requests (below 429 threshold)
+        import asyncio as _aio
+        sem = _aio.Semaphore(CONCURRENCY)
 
-        for i, dc in enumerate(dc_list):
-            try:
-                analysis = await company_search_service.analyze_company(
-                    content=dc.scraped_text or "", target_segments=prompt_text,
-                    domain=dc.domain, is_html=False,
-                )
+        async def analyze_one(dc):
+            """Analyze single company with semaphore for rate limiting."""
+            async with sem:
+                try:
+                    return dc, await company_search_service.analyze_company(
+                        content=dc.scraped_text or "", target_segments=prompt_text,
+                        domain=dc.domain, is_html=False,
+                    )
+                except Exception as e:
+                    logger.error(f"Analysis failed for {dc.domain}: {e}")
+                    return dc, None
+
+        # Process in batches: fire BATCH_SIZE concurrent calls, commit, repeat
+        for batch_start in range(0, len(dc_list), BATCH_SIZE):
+            batch = dc_list[batch_start:batch_start + BATCH_SIZE]
+            results = await _aio.gather(*[analyze_one(dc) for dc in batch])
+
+            for dc, analysis in results:
+                if not analysis:
+                    continue
 
                 is_target = analysis.get("is_target", False)
                 confidence = analysis.get("confidence", 0.0)
@@ -841,18 +858,14 @@ class GatheringService:
 
                 total += 1; total_tokens += tokens; total_cost += cost
 
-            except Exception as e:
-                logger.error(f"Analysis failed for {dc.domain}: {e}")
-
-            # Intermediate commit every BATCH_SIZE to avoid losing progress
-            if (i + 1) % BATCH_SIZE == 0:
-                analysis_run.total_analyzed = total
-                analysis_run.targets_found = targets
-                analysis_run.rejected_count = rejected
-                analysis_run.total_tokens = total_tokens
-                analysis_run.total_cost_usd = total_cost
-                await session.commit()
-                logger.info(f"Analysis batch {i+1}/{len(dc_list)}: {targets} targets so far ({total} analyzed)")
+            # Commit after each batch
+            analysis_run.total_analyzed = total
+            analysis_run.targets_found = targets
+            analysis_run.rejected_count = rejected
+            analysis_run.total_tokens = total_tokens
+            analysis_run.total_cost_usd = total_cost
+            await session.commit()
+            logger.info(f"Analysis {batch_start + len(batch)}/{len(dc_list)}: {targets} targets ({total} analyzed)")
 
         analysis_run.total_analyzed = total
         analysis_run.targets_found = targets
