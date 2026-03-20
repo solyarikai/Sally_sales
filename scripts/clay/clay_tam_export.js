@@ -428,48 +428,74 @@ async function main() {
     await fillNumberField(page, 'Max', filters.maximum_member_count);
   }
   if (filters.country_names?.length) {
-    // The Location section in Clay's Find Companies is COLLAPSED by default.
-    // It shows as "⊕ Location" in the filter sidebar. We need to:
-    // 1. Click the section header to expand it
-    // 2. Wait for the country input to appear
-    // 3. Type each country and select from dropdown
+    // The Location section in Clay's Find Companies is below the fold in the left sidebar.
+    // We need to: 1. Scroll the sidebar down  2. Click Location to expand  3. Fill countries
 
-    // Step 1: Find and click the Location section header to expand it
+    // Step 1: Scroll the LEFT SIDEBAR to make Location visible
+    // The sidebar is a scrollable container — find it and scroll it aggressively
+    const scrollResult = await page.evaluate(() => {
+      // Find the Location element first to know if we need to scroll
+      const findLocation = () => {
+        const allEls = [...document.querySelectorAll('div, span, button, label')];
+        for (const el of allEls) {
+          if (el.childNodes.length === 1 && el.childNodes[0].nodeType === 3) {
+            const text = el.textContent?.trim();
+            if (text === 'Location') {
+              const rect = el.getBoundingClientRect();
+              if (rect.x < 400 && rect.width < 300) return { el, rect };
+            }
+          }
+        }
+        return null;
+      };
+
+      let loc = findLocation();
+      if (loc && loc.rect.y < window.innerHeight) {
+        return { found: true, scrolled: false, y: loc.rect.y };
+      }
+
+      // Need to scroll — find the scrollable sidebar container
+      // It's the parent container of all the filter sections
+      const scrollableEls = [...document.querySelectorAll('*')].filter(el => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return (style.overflowY === 'auto' || style.overflowY === 'scroll')
+          && rect.x < 400 && rect.width > 200 && rect.height > 200;
+      });
+
+      for (const scrollEl of scrollableEls) {
+        scrollEl.scrollTop = scrollEl.scrollHeight;
+      }
+
+      // Also try scrollIntoView on Location if found but off-screen
+      loc = findLocation();
+      if (loc) {
+        loc.el.scrollIntoView({ behavior: 'instant', block: 'center' });
+        return { found: true, scrolled: true, y: loc.el.getBoundingClientRect().y };
+      }
+
+      return { found: false, scrolled: true, scrollableCount: scrollableEls.length };
+    });
+    console.log(`    Location scroll: ${JSON.stringify(scrollResult)}`);
+    await humanDelay(1000, 1500);
+
+    // Step 2: Click Location section to expand it
     const expanded = await page.evaluate(() => {
-      // Look for any element that says "Location" in the sidebar
-      const allEls = [...document.querySelectorAll('div, span, button, label, h3, h4')];
+      const allEls = [...document.querySelectorAll('div, span, button, label')];
       for (const el of allEls) {
         const text = el.textContent?.trim();
-        // Match "Location" but not "Location:" inside company cards
         if (text === 'Location' && el.offsetParent !== null) {
           const rect = el.getBoundingClientRect();
-          // Must be in the left sidebar (x < 300) and reasonably sized
-          if (rect.x < 300 && rect.width > 30 && rect.width < 250) {
+          if (rect.x < 400 && rect.width < 300 && rect.y > 0 && rect.y < window.innerHeight) {
             el.click();
-            return { clicked: true, x: rect.x, y: rect.y, text: el.tagName };
+            return { clicked: true, x: rect.x, y: rect.y };
           }
         }
       }
       return { clicked: false };
     });
-    console.log(`    Location section click: ${JSON.stringify(expanded)}`);
+    console.log(`    Location click: ${JSON.stringify(expanded)}`);
     await humanDelay(1000, 1500);
-
-    // Step 2: If first click didn't work, try scrolling and clicking again
-    if (!expanded.clicked) {
-      await page.evaluate(() => {
-        // Scroll the sidebar to find Location
-        const sidebar = document.querySelector('[class*="sidebar"], [class*="filter"]');
-        if (sidebar) sidebar.scrollBy(0, 300);
-      });
-      await humanDelay(500, 800);
-      const locSection = await findByText(page, 'Location', true);
-      if (locSection) {
-        await page.mouse.click(locSection.x, locSection.y);
-        await humanDelay(1000, 1500);
-        console.log('    Location section found via findByText');
-      }
-    }
 
     // Step 3: Wait for country input to appear and dump all placeholders for debugging
     await humanDelay(500, 800);
