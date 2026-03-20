@@ -1192,6 +1192,14 @@ CRITICAL FALSE POSITIVE RULES:
             result = self._validate_analysis(result, clean, target_segments=target_segments)
 
             result["tokens_used"] = tokens_used
+            # Store the exact prompts sent to GPT for full reproducibility
+            result["_prompt_sent"] = {
+                "system": system_prompt,
+                "user": prompt,
+                "model": "gpt-4o-mini",
+                "temperature": 0.1,
+                "max_tokens": 600,
+            }
             return result
 
         except Exception as e:
