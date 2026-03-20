@@ -1145,7 +1145,12 @@ CRITICAL FALSE POSITIVE RULES:
         full_prompt = f"{system_prompt}\n\n{prompt}"
 
         try:
-            # Try Gemini first (has free quota, OpenAI has insufficient_quota)
+            resp = None
+            content_text = ""
+            tokens_used = 0
+            model_used = "gpt-4o-mini"
+
+            # Try Gemini first (disabled — too slow)
             async with _gpt_analysis_semaphore:  # Rate limit concurrent AI calls
                 if gemini_key:
                     gemini_payload = {
