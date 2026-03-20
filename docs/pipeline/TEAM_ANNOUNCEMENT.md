@@ -1,50 +1,43 @@
-# TAM Gathering Pipeline — What Changed & How to Use It
+# TAM Gathering Pipeline — Что нового
 
-## For the team — March 2026
+## Короткая версия
 
-### What's new
+Теперь есть общий пайплайн для поиска целевых компаний. Работает через Claude Code. Не надо писать скрипты — просто скажите Claude что искать и для какого проекта.
 
-We now have a **shared pipeline for finding target companies**. Instead of each person writing Apollo/Clay scripts, there's one system that everyone uses through Claude Code.
+## Как начать
 
-**What it gives you:**
-- Automatic dedup (no more "we already contacted this company")
-- Project-scoped blacklisting (your Inxy search won't block EasyStaff contacts)
-- AI analysis with quality checkpoints before spending money
-- Google Sheets import (just paste a URL)
-- Full history of every search ever run
+```bash
+git pull origin main
+cd ~/magnum-opus-project/repo
+claude
+```
 
-### How to start
+Скажите Claude что нужно. **Обязательно назовите проект:**
 
-1. `git pull origin main`
-2. Open Claude Code: `cd ~/magnum-opus-project/repo && claude`
-3. Tell Claude what you need. **Always mention your project name:**
+> "Найди 5000 digital-агентств в ОАЭ для **easystaff global**"
 
-> "Find 5000 digital agencies in UAE for **easystaff global**"
+> "Импортируй этот экспорт из Apollo для **inxy**: https://docs.google.com/spreadsheets/d/..."
 
-> "Import this Apollo export for **inxy**: https://docs.google.com/spreadsheets/d/..."
+> "Поищи в Clay fintech в Сингапуре для **tfp**"
 
-> "Search Clay for fintech companies in Singapore for **tfp**"
+Claude сам запустит пайплайн и остановится на 3 чекпоинтах для вашего одобрения.
 
-Claude handles the rest. It will pause at 3 checkpoints for your approval.
+## Что изменилось
 
-### The 3 checkpoints
+- **Один пайплайн на всех.** Поиски не дублируются между проектами.
+- **Проекты изолированы.** Ваша работа по Inxy не блокирует контакты EasyStaff.
+- **3 обязательных чекпоинта.** Деньги (FindyMail) не тратятся без вашего ОК.
+- **Google Sheets.** Просто вставьте ссылку — колонки определятся автоматически.
+- **История всех поисков.** Видно кто что искал, какие фильтры, какие результаты.
 
-1. **After blacklist** — Confirm this is your project + the right campaigns are being checked
-2. **After AI analysis** — Review the target list before any money is spent
-3. **Before FindyMail** — Approve the verification cost
+## Если Claude пишет скрипт вместо пайплайна
 
-You can't skip these. The system blocks until you approve.
+Скажите: **"Используй gathering pipeline, не пиши скрипт. Посмотри CLAUDE.md."**
 
-### If Claude writes a script instead of using the pipeline
+## Если что-то зависло
 
-Say: **"Use the gathering pipeline, don't write a separate script. Check CLAUDE.md."**
+Скажите: **"Проверь незавершенные запуски для [название проекта]"**
 
-### If something is stuck
+## Полная инструкция
 
-Say: **"Check for in-progress runs for [my project name]"**
-
-There might be a paused run waiting for your approval from a previous session.
-
-### Full guide
-
-See `docs/pipeline/OPERATOR_GUIDE.md` for troubleshooting and best practices.
+`docs/pipeline/OPERATOR_GUIDE.md`

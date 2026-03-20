@@ -1,99 +1,67 @@
-# TAM Gathering Pipeline — Operator Guide
+# Пайплайн сбора компаний (TAM Gathering)
 
-## What is this?
+## Что это
 
-A reusable system for finding target companies across all projects. Instead of everyone writing separate scripts for Apollo/Clay/Google Sheets, there's now ONE pipeline that tracks everything: which searches were run, which companies were found, which were rejected, and why.
+Общая система поиска целевых компаний. Вместо отдельных скриптов для Apollo/Clay — один пайплайн через Claude Code. Он запоминает все поиски, не дублирует компании и не тратит деньги без вашего одобрения.
 
-## Why use it?
+## Как пользоваться
 
-- **No duplicate work.** If someone already searched "SaaS companies in Germany", the system knows and won't re-search.
-- **No lost data.** Every search, every filter, every AI analysis is saved. You can always see what was tried before.
-- **Project isolation.** Your work on Inxy doesn't affect EasyStaff RU. Different projects, different pipelines.
-- **Cost control.** FindyMail (the expensive part) only runs after you explicitly approve the target list and the cost.
-
-## How to use it
-
-### Step 1: Open Claude Code in the magnum-opus repo
+### 1. Открыть Claude Code
 
 ```bash
-cd ~/magnum-opus-project/repo
-claude
+cd ~/magnum-opus-project/repo && git pull && claude
 ```
 
-### Step 2: Tell Claude which project and what you need
+### 2. Сказать что нужно + назвать проект
 
-**Always mention your project name.** This is the most important thing.
+**Всегда называйте проект.** Это самое важное.
 
-Examples:
-- "Find digital agencies in UAE with 10-50 employees for **easystaff global**"
-- "Import this Google Sheet into the pipeline for **inxy**: https://docs.google.com/spreadsheets/d/..."
-- "Search Apollo for SaaS companies in Germany for **tfp**"
-- "I have a Clay export, analyze it for **mifort**"
+- "Найди digital-агентства в ОАЭ до 50 человек для **easystaff global**"
+- "Импортируй эту таблицу для **inxy**: https://docs.google.com/spreadsheets/d/..."
+- "Поищи в Apollo fintech-компании в Сингапуре для **tfp**"
+- "Вот мой экспорт из Clay, проанализируй для **mifort**"
 
-### Step 3: Follow the checkpoints
+### 3. Пройти 3 чекпоинта
 
-Claude will run the pipeline and stop at 3 checkpoints. You must approve each one.
+Claude сам запустит пайплайн и остановится в 3 местах. Пока не подтвердите — дальше не пойдет.
 
-**Checkpoint 1 — "Is this my project?"**
-Claude shows you:
-- Your project name and ID
-- Your active campaigns and contact counts
-- Which companies were rejected (already in your campaigns)
+**Чекпоинт 1 — Проект и блеклист**
+Claude покажет: название проекта, активные кампании, сколько компаний отсеяно (уже в аутриче).
+Проверьте, что это ваш проект и кампании правильные. Скажите "ок" или "не тот проект".
 
-→ Confirm if the project and campaigns look correct.
+**Чекпоинт 2 — Список целевых компаний**
+Claude покажет: какие компании AI считает целевыми, с оценкой уверенности.
+Просмотрите список. Уберите лишнее. Скажите "ок".
 
-**Checkpoint 2 — "Are these the right targets?"**
-Claude shows you:
-- The list of companies AI thinks are good targets
-- Confidence scores and reasoning
-- How many companies couldn't be analyzed (scraping failed)
+**Чекпоинт 3 — Стоимость FindyMail**
+Claude покажет: сколько email проверить и сколько это стоит.
+Одобрите или откажите.
 
-→ Review the list. Remove any that don't fit. Confirm.
+## Что можно загрузить
 
-**Checkpoint 3 — "Approve the cost?"**
-Claude shows you:
-- How many emails to verify via FindyMail
-- The estimated cost
-
-→ Approve or reject.
-
-### Step 4: Done
-
-After all checkpoints, you have a verified target list ready for outreach.
-
-## Available data sources
-
-| Say this to Claude | What happens |
+| Что сказать | Что произойдет |
 |---|---|
-| "Search Apollo for [description]" | Uses Apollo People or Companies search |
-| "Search Clay for [description]" | Uses Clay TAM export |
-| "Import this Google Sheet: [URL]" | Reads the sheet (auto-detects columns) |
-| "Import this CSV" | Reads CSV file |
-| "Here's a list of domains: [...]" | Manual domain import |
+| "Поищи в Apollo [описание]" | Поиск через Apollo |
+| "Поищи в Clay [описание]" | Экспорт через Clay |
+| "Импортируй таблицу: [ссылка]" | Загрузка из Google Sheets |
+| "Вот список доменов: [...]" | Ручной импорт |
 
-## If Claude tries to write a script instead of using the pipeline
+Google Sheets: просто вставьте ссылку. Колонки определяются автоматически. Таблица должна быть в общей папке Google Drive или расшарена.
 
-This can happen. If Claude starts writing a standalone Python script instead of calling the pipeline API, say:
+## Если что-то пошло не так
 
-> "Use the gathering pipeline, don't write a separate script. Check CLAUDE.md."
-
-This redirects Claude to the pipeline system.
-
-## If something goes wrong
-
-| Problem | What to do |
+| Проблема | Решение |
 |---|---|
-| Claude picked the wrong project | At checkpoint 1, say "wrong project, cancel this run" |
-| Blacklist rejected too many/too few | Check if campaign_filters are correct for your project |
-| AI analysis gave bad results | At checkpoint 2, say "re-analyze with a different prompt" |
-| Google Sheet won't import | Make sure the sheet is in the shared Google Drive folder, or share it with the service account |
-| Pipeline is stuck | Say "check for in-progress runs for project [name]" — there might be a paused checkpoint |
-| Want to start over | Say "cancel run [number]" |
+| Claude выбрал не тот проект | На чекпоинте 1: "не тот проект, отмени этот запуск" |
+| AI плохо отобрал компании | На чекпоинте 2: "переанализируй с другим промптом" |
+| Таблица не загружается | Убедитесь, что она в общей папке Google Drive |
+| Пайплайн завис | "Проверь незавершенные запуски для [проект]" |
+| Хочу начать заново | "Отмени запуск [номер]" |
+| Claude пишет отдельный скрипт | "Используй gathering pipeline, не пиши скрипт. Посмотри CLAUDE.md" |
 
-## Best practices
+## Главные правила
 
-1. **Always say your project name.** "For inxy", "for easystaff ru", "for tfp". Every time.
-2. **Review checkpoint 1 carefully.** This is where you catch wrong project scope.
-3. **Don't approve targets blindly at checkpoint 2.** Scan the list — AI makes mistakes.
-4. **Check for paused runs** before starting new ones. Say "any in-progress runs for [project]?"
-5. **Google Sheets**: just paste the URL. The system auto-detects column names.
+1. **Всегда называйте проект.** Каждый раз.
+2. **На чекпоинте 1 проверяйте кампании.** Если кампании чужие — проект неправильный.
+3. **На чекпоинте 2 просматривайте список.** AI ошибается.
+4. **Перед новым поиском** спросите "есть незавершенные запуски для [проект]?"
