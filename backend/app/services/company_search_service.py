@@ -1166,8 +1166,8 @@ CRITICAL FALSE POSITIVE RULES:
                             headers=headers,
                         )
                     if resp.status_code == 429:
-                    import random as _rng
-                    wait = min(2.0 * (2 ** attempt), 20.0) + _rng.uniform(0, 1)
+                        import random as _rng
+                        wait = min(2.0 * (2 ** attempt), 20.0) + _rng.uniform(0, 1)
                         logger.warning(f"OpenAI 429 for {domain}, backoff {wait:.1f}s (attempt {attempt + 1}/6)")
                         await asyncio.sleep(wait)
                         continue
