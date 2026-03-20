@@ -201,21 +201,34 @@ class ScraperService:
         
         return result
     
+    def _get_proxy_url(self) -> Optional[str]:
+        """Build Apify residential proxy URL if configured."""
+        from app.core.config import settings
+        if not getattr(settings, 'APIFY_PROXY_PASSWORD', None):
+            return None
+        import random
+        session_id = f"scrape_{random.randint(10000, 99999)}"
+        host = getattr(settings, 'APIFY_PROXY_HOST', 'proxy.apify.com')
+        port = getattr(settings, 'APIFY_PROXY_PORT', 8000)
+        return f"http://groups-RESIDENTIAL,session-{session_id}:{settings.APIFY_PROXY_PASSWORD}@{host}:{port}"
+
     async def _fetch_url(
         self,
         original_url: str,
         fetch_url: str,
         timeout: int,
     ) -> Dict[str, Any]:
-        """Fetch a URL and extract text content."""
-        
+        """Fetch a URL and extract text content. Uses Apify proxy if configured."""
+
         headers = self._get_headers()
-        
+        proxy_url = self._get_proxy_url()
+
         try:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(timeout),
                 follow_redirects=True,
                 verify=True,
+                proxy=proxy_url,
             ) as client:
                 response = await client.get(fetch_url, headers=headers)
                 status_code = response.status_code

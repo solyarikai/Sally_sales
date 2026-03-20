@@ -200,6 +200,11 @@ These words change meaning depending on which phase you're in. Always be precise
 | `apollo.companies.api` | Apollo org search API | Free |
 | `apollo.people.emulator` | Apollo People tab via Puppeteer | Free |
 | `apollo.companies.emulator` | Apollo Companies tab via Puppeteer | Free |
+
+**Scraping architecture:**
+- **Website scraping** = httpx + Apify residential proxy (if configured). Plain HTTP, no browser, no CPU load.
+- **Apollo/Clay UI scraping** = Puppeteer (headless Chromium). Only for platform UI automation.
+- **Crona is deprecated.** Do not use.
 | `clay.companies.emulator` | Clay TAM export with ICP text | ~$0.01/company |
 | `clay.people.emulator` | Clay People search by domains | ~$0.01/domain |
 | `google_sheets.companies.manual` | Import from Google Sheet URL (uses service account, auto-detects columns) | Free |
