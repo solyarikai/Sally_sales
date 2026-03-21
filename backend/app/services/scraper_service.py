@@ -357,59 +357,62 @@ class ScraperService:
         self,
         urls: List[Dict[str, Any]],
         timeout: int = 15,
-        max_concurrent: int = 10,
-        delay_between_requests: float = 0.2,
+        max_concurrent: int = 50,
+        delay_between_requests: float = 0.05,
         progress_callback: Optional[Callable[[int, int], None]] = None,
+        on_result: Optional[Callable] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Scrape multiple websites with concurrency control.
-        
+        Scrape multiple websites with high concurrency + streaming results.
+
         Args:
             urls: List of dicts with 'row_id' and 'url' keys
             timeout: Request timeout in seconds
-            max_concurrent: Maximum concurrent requests
+            max_concurrent: Maximum concurrent requests (default 50)
             delay_between_requests: Delay between starting new requests
-            progress_callback: Optional callback for progress updates
-            
+            progress_callback: Optional callback(completed, total)
+            on_result: Optional async callback(result_dict) — called per result for
+                       immediate DB commit. If set, results are NOT accumulated in memory.
+
         Returns:
-            List of results with row_id included
+            List of results (empty if on_result is used — results streamed via callback)
         """
         semaphore = asyncio.Semaphore(max_concurrent)
         completed = 0
         total = len(urls)
-        results = []
-        
-        async def process_url(item: Dict[str, Any]) -> Dict[str, Any]:
+        results = [] if not on_result else None
+
+        async def process_url(item: Dict[str, Any]):
             nonlocal completed
             async with semaphore:
                 await asyncio.sleep(delay_between_requests)
-                
-                result = await self.scrape_website(item["url"], timeout=timeout)
-                result["row_id"] = item["row_id"]
-                
+
+                try:
+                    result = await self.scrape_website(item["url"], timeout=timeout)
+                    result["row_id"] = item["row_id"]
+                except Exception as e:
+                    result = {
+                        "row_id": item["row_id"],
+                        "success": False,
+                        "error": f"ERROR: {str(e)[:100]}",
+                        "url": item["url"],
+                        "status_code": None,
+                    }
+
                 completed += 1
                 if progress_callback:
                     progress_callback(completed, total)
-                
-                return result
-        
-        # Process all URLs concurrently with semaphore limiting
+
+                if on_result:
+                    await on_result(result)
+                else:
+                    results.append(result)
+
+        # Process all URLs concurrently with semaphore
         tasks = [process_url(item) for item in urls]
-        all_results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        for i, result in enumerate(all_results):
-            if isinstance(result, Exception):
-                results.append({
-                    "row_id": urls[i]["row_id"],
-                    "success": False,
-                    "error": f"ERROR: {str(result)[:100]}",
-                    "url": urls[i]["url"],
-                    "status_code": None,
-                })
-            else:
-                results.append(result)
-        
-        return results
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+        return results or []
 
 
 # Global instance
