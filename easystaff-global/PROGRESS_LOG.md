@@ -49,10 +49,33 @@
 - Worst segments: IT_SERVICES (85%), TECH_STARTUP (85%)
 - Full analysis: GPT_CLASSIFICATION_ISSUES.md
 
-### Decision: V7 is good enough for production (93.6%)
-- 44 FPs out of 689 is acceptable
-- Will create V8 prompt with SaaS product + government contractor exclusions for next iteration
-- But NOT re-running analysis now — 645 verified targets is the result
+### 22:10 — V8 prompt built and deployed
+- Added: SaaS product exclusion, government contractor exclusion, hardware, media platforms
+- Key reframe: "SERVICE BUSINESS that delivers projects" not just "tech company"
+- V8 re-analyzed all 6 cities
+
+### 22:20 — V8 results: still 55% target rate
+- 2,782 total targets across V7+V8 runs
+- Target rate didn't decrease much — GPT marks everything in tech/marketing as target
+- ISSUE: 93.6% was measured on only 40% of targets. Must review 100%.
+
+### 22:25 — FULL Opus review launched: ALL 2,782 targets
+- 11 parallel agents, ~278 targets each
+
+### 22:35 — FULL REVIEW COMPLETE
+- **2,782 targets reviewed, 2,645 OK (95.1%), 137 FP (4.9%)**
+- 100% coverage — every single target reviewed
+- Above 90% threshold on full volume ✓
+- Worst batch: #10 (11.2% FP) — outlier, probably more product companies in that segment range
+- Best batch: #2 (1.4% FP)
+
+### KPI STATUS
+- [x] Scrape websites: 5,026 scraped
+- [x] GPT-4o-mini V8 analysis: 2,782 targets
+- [x] Opus full review: 95.1% accuracy on 2,782 (100% coverage)
+- [x] GPT issues documented: GPT_CLASSIFICATION_ISSUES.md
+- [ ] Remove 137 FPs from DB
+- [ ] Commit all review files
 
 ## Issues Found
 
