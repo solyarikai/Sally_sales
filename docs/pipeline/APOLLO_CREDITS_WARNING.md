@@ -58,6 +58,19 @@ Use Apify residential proxy for Puppeteer browser connections.
 - Rotates IP per session — Cloudflare can't fingerprint
 - Must be added to Puppeteer launch args, not just httpx
 
+## Account Blocked Incident — March 21, 2026
+
+**"Your Apollo account has been blocked for 1 hour due to suspicious login attempts."**
+
+Root cause: Multiple rapid login attempts from:
+1. Hetzner IP (direct) — Cloudflare blocked after 2 cities
+2. Apify residential proxy (different IPs) — each triggered email verification
+3. Repeated failed verification attempts — Apollo flagged as suspicious
+
+**Lesson: NEVER retry Apollo logins rapidly.** Max 1 login attempt per hour. If Cloudflare blocks, wait 2+ hours. If proxy triggers verification, do it ONCE with operator standing by for the code.
+
+**Unblock:** Click the link in the email from support@tryapollo.io, then wait 1 hour.
+
 ### Proxy config
 ```javascript
 // Puppeteer with Apify residential proxy
