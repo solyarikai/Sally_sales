@@ -58,7 +58,9 @@ for SLUG in los_angeles miami riyadh london singapore sydney austin doha jeddah 
     fi
 
     echo ""
-    sleep 10  # Cool down between cities
+    # Kill any lingering Chrome processes
+    pkill -f 'chrome' 2>/dev/null || true
+    sleep 30  # Longer cooldown — Apollo rate limits after many sessions
 done
 
 echo "=== ALL CITIES COMPLETE ==="
