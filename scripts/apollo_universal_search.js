@@ -357,24 +357,45 @@ async function runSearch(config) {
     }
   }
 
+  // Apify residential proxy — rotates IP per session, bypasses Cloudflare
+  const APIFY_PROXY_PASSWORD = process.env.APIFY_PROXY_PASSWORD;
+  const proxyUrl = APIFY_PROXY_PASSWORD
+    ? `http://proxy.apify.com:8000`
+    : null;
+
+  const launchArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--disable-software-rasterizer',
+    '--disable-blink-features=AutomationControlled',
+    '--disable-features=IsolateOrigins,site-per-process',
+    '--window-size=1920,1080',
+  ];
+  if (proxyUrl) {
+    launchArgs.push(`--proxy-server=${proxyUrl}`);
+    console.log(`[${ts()}] Using Apify residential proxy`);
+  }
+
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-software-rasterizer',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--window-size=1920,1080',
-    ],
+    args: launchArgs,
     ignoreDefaultArgs: ['--enable-automation'],
   });
 
   const page = await browser.newPage();
   await page.setViewport({ width: 1920, height: 1080 });
+
+  // Authenticate proxy if configured
+  if (APIFY_PROXY_PASSWORD) {
+    const sessionId = `apollo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    await page.authenticate({
+      username: `groups-RESIDENTIAL,session-${sessionId}`,
+      password: APIFY_PROXY_PASSWORD,
+    });
+  }
 
   try {
     await login(page);

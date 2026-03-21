@@ -197,7 +197,7 @@ These words change meaning depending on which phase you're in. Always be precise
 
 | source_type | What it does | Cost |
 |-------------|-------------|------|
-| `apollo.companies.api` | Apollo org search API | Free |
+| `apollo.companies.api` | Apollo org search API | **COSTS CREDITS — DO NOT USE** |
 | `apollo.people.emulator` | Apollo People tab via Puppeteer | Free |
 | `apollo.companies.emulator` | Apollo Companies tab via Puppeteer | Free |
 

@@ -227,12 +227,26 @@ async function main() {
 
   if (remaining.length === 0) { console.log('All done!'); return; }
 
+  const APIFY_PROXY_PASSWORD = process.env.APIFY_PROXY_PASSWORD;
+  const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
+  if (APIFY_PROXY_PASSWORD) {
+    launchArgs.push('--proxy-server=http://proxy.apify.com:8000');
+    console.log('Using Apify residential proxy');
+  }
+
   const browser = await puppeteer.launch({
     headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    args: launchArgs,
   });
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 900 });
+
+  if (APIFY_PROXY_PASSWORD) {
+    await page.authenticate({
+      username: `groups-RESIDENTIAL,session-apollo_${Date.now()}`,
+      password: APIFY_PROXY_PASSWORD,
+    });
+  }
 
   // API response interception
   const interceptedOrgs = new Map();
