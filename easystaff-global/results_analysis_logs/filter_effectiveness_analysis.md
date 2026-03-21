@@ -78,6 +78,51 @@ Normal = broad keywords with 1-5% target rate (lots of noise).
 **DO NOT spend on (very low target rate, huge noise):**
 - e-commerce, data analytics (1-2% rate, thousands of irrelevant companies)
 
+## REAL DATA: Apollo industry tags on our 331 verified targets
+
+These are Apollo's OWN classification tags on companies we confirmed as targets:
+
+| Apollo industry/keyword tag | # of our targets with this tag | % of 331 |
+|---|---|---|
+| information technology & services | 229 | 69% |
+| b2b | 219 | 66% |
+| marketing & advertising | 178 | 54% |
+| digital marketing | 134 | 40% |
+| consulting | 131 | 40% |
+| web development | 118 | 36% |
+| content creation | 117 | 35% |
+| branding | 96 | 29% |
+| computer software | 96 | 29% |
+| software development | 94 | 28% |
+| social media marketing | 94 | 28% |
+| web design | 84 | 25% |
+| video production | 72 | 22% |
+| social media management | 72 | 22% |
+| content marketing | 86 | 26% |
+
+### What this means for Apollo API search filters
+
+The API accepts `q_organization_keyword_tags` which matches these EXACT tags. So instead of guessing keywords, we should search by the PROVEN tags:
+
+**TOP FILTERS (match >30% of targets):**
+1. `information technology & services` — 69% of targets
+2. `marketing & advertising` — 54%
+3. `digital marketing` — 40%
+4. `consulting` — 40%
+5. `web development` — 36%
+6. `content creation` — 35%
+
+**MEDIUM FILTERS (match 20-30% of targets):**
+7. `branding` — 29%
+8. `software development` — 28%
+9. `social media marketing` — 28%
+10. `content marketing` — 26%
+11. `web design` — 25%
+12. `video production` — 22%
+13. `social media management` — 22%
+
+**These are the filters to use for new city gathering.** Not "digital agency" as a keyword, but "marketing & advertising" as an industry tag.
+
 ## Architectural fix needed
 
 The pipeline MUST tag each company with the keyword that found it. Currently:
