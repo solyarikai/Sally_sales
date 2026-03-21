@@ -116,19 +116,18 @@ class GatheringService:
         notes: Optional[str] = None,
         parent_run_id: Optional[int] = None,
     ) -> GatheringRun:
-        """Phase 1: Create GatheringRun, execute adapter, dedup results.
-        After this, current_phase = 'gathered'. Next: blacklist."""
+        """Phase 1: Create GatheringRun, launch adapter in background.
+        Returns immediately. Poll GET /runs/{id} for completion."""
         adapter = get_adapter(source_type)
         cleaned_filters = await adapter.validate(filters)
         filter_hash = _compute_filter_hash(cleaned_filters)
 
-        # Check for duplicate run (bypass if intentional re-run)
         if not parent_run_id:
             existing = await session.execute(
                 select(GatheringRun).where(
                     GatheringRun.project_id == project_id,
                     GatheringRun.filter_hash == filter_hash,
-                    GatheringRun.status == "completed",
+                    GatheringRun.status.in_(["completed", "running"]),
                 )
             )
             existing_run = existing.scalar_one_or_none()
@@ -154,41 +153,55 @@ class GatheringService:
             parent_run_id=parent_run_id,
         )
         session.add(run)
-        await session.flush()
-
-        try:
-            result = await adapter.execute(cleaned_filters)
-
-            run.raw_results_count = result.raw_results_count
-            run.credits_used = result.credits_used
-            run.total_cost_usd = result.cost_usd
-            run.raw_output_sample = result.companies[:50]
-
-            if result.error_message:
-                run.status = "failed"
-                run.error_message = result.error_message
-            else:
-                dedup = await self._dedup_and_store(
-                    session, run.id, project_id, company_id, result.companies
-                )
-                run.new_companies_count = dedup["new_companies"]
-                run.duplicate_count = dedup["duplicates"]
-                run.status = "running"
-                run.current_phase = "gathered"
-
-            run.completed_at = datetime.now(timezone.utc)
-            if run.started_at:
-                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
-
-        except Exception as e:
-            logger.error(f"Gathering run #{run.id} failed: {e}")
-            run.status = "failed"
-            run.error_message = str(e)
-            run.completed_at = datetime.now(timezone.utc)
-
         await session.commit()
         await session.refresh(run)
+
+        import asyncio as _aio
+        _aio.create_task(self._gather_background(
+            run.id, project_id, company_id, source_type, cleaned_filters
+        ))
+        logger.info(f"Gathering #{run.id} launched in background ({source_type})")
         return run
+
+    async def _gather_background(self, run_id, project_id, company_id, source_type, filters):
+        """Background: execute adapter, dedup, update run."""
+        from app.db import async_session_maker
+        adapter = get_adapter(source_type)
+        try:
+            result = await adapter.execute(filters)
+            async with async_session_maker() as s:
+                run = await s.get(GatheringRun, run_id)
+                if not run:
+                    return
+                run.raw_results_count = result.raw_results_count
+                run.credits_used = result.credits_used
+                run.total_cost_usd = result.cost_usd
+                run.raw_output_sample = result.companies[:50]
+                if result.error_message:
+                    run.status = "failed"
+                    run.error_message = result.error_message
+                else:
+                    dedup = await self._dedup_and_store(s, run.id, project_id, company_id, result.companies)
+                    run.new_companies_count = dedup["new_companies"]
+                    run.duplicate_count = dedup["duplicates"]
+                    run.status = "running"
+                    run.current_phase = "gathered"
+                run.completed_at = datetime.now(timezone.utc)
+                if run.started_at:
+                    run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+                await s.commit()
+                logger.info(f"Gathering #{run_id} done: {run.new_companies_count} new, {run.duplicate_count} dup")
+        except Exception as e:
+            logger.error(f"Gathering #{run_id} failed: {e}")
+            async with async_session_maker() as s:
+                run = await s.get(GatheringRun, run_id)
+                if run:
+                    run.status = "failed"
+                    run.error_message = str(e)
+                    run.completed_at = datetime.now(timezone.utc)
+                    await s.commit()
+
+
 
     async def _dedup_and_store(
         self, session: AsyncSession, gathering_run_id: int,
