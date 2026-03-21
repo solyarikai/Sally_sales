@@ -27,13 +27,25 @@ const COOKIES_FILE = path.join(__dirname, '..', 'gathering-data', '.apollo_cooki
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function askCode() {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise(resolve => {
-    rl.question('Enter 6-digit code from email: ', answer => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
+  // Check if code passed as CLI arg first
+  const cliCode = process.argv.find(a => /^\d{6}$/.test(a));
+  if (cliCode) return cliCode;
+
+  // Otherwise poll /tmp/apollo_code.txt every 2 seconds for up to 5 minutes
+  const codeFile = '/tmp/apollo_code.txt';
+  fs.writeFileSync(codeFile, '');
+  console.log('WAITING FOR CODE — write it to /tmp/apollo_code.txt:');
+  console.log('  echo 123456 > /tmp/apollo_code.txt');
+  console.log('Or pass as argument: node scripts/apollo_proxy_verify.js 123456');
+
+  for (let i = 0; i < 150; i++) {
+    await sleep(2000);
+    try {
+      const code = fs.readFileSync(codeFile, 'utf8').trim();
+      if (code && /^\d{6}$/.test(code)) return code;
+    } catch (e) {}
+  }
+  throw new Error('No code received within 5 minutes');
 }
 
 async function main() {
