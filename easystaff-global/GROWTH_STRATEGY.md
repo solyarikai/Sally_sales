@@ -373,6 +373,84 @@ From shared "EasyStaff Global <> Sally" Google Sheet, column T = "Засчиты
 
 **8 qualified meetings** confirmed by EasyStaff team. Pattern: diverse industries (biotech, consulting, ed-tech, media, hardware) — the common thread is NOT industry, it's company size (11-50 emp) and geographic corridor (HQ in developed country, hiring internationally).
 
+### REAL INTEREST — Who Actually Scheduled Calls (Tier 1 Analysis)
+
+Filtered to replies where leads shared **specific times, calendly links, day names, or timezone** — concrete scheduling actions, not just "sounds interesting."
+
+**33 leads actually scheduled calls (excluding conferences).**
+
+| Geography | Scheduled Calls | Share |
+|-----------|----------------|-------|
+| **United Arab Emirates** | **12** | **36%** |
+| **Australia** | **6** | **18%** |
+| United States | 3 | 9% |
+| Singapore | 2 | 6% |
+| Qatar | 1 | 3% |
+| Saudi Arabia | 1 | 3% |
+| Others | 8 | 24% |
+
+| Industry | Scheduled Calls |
+|----------|----------------|
+| **Outsourcing/Offshoring** | **5** |
+| **Information Technology & Services** | **5** |
+| **Management Consulting** | **3** |
+| **Media Production** | **3** |
+| Financial Services | 2 |
+| Real Estate | 2 |
+
+| Company Size | Scheduled |
+|-------------|-----------|
+| 1-10 | 8 (24%) |
+| **11-50** | **15 (46%)** |
+| 51-200 | 6 (18%) |
+
+| Campaign | Scheduled Calls |
+|----------|----------------|
+| **EasyStaff - UAE - India** | **8** |
+| **EasyStaff - UAE - Pakistan** | **5** |
+| **EasyStaff - Australia_Philipines** | **5** |
+| EasyStaff - Websummit - rest of the world | 4 |
+
+**THE PATTERN**: Companies headquartered in UAE hiring from India/Pakistan + Australian companies hiring from Philippines. These are the ONLY cold outreach segments that consistently produce real scheduled meetings.
+
+**Top Apollo keywords across companies that scheduled calls:**
+`outsourcing/offshoring`, `virtual assistant`, `video editing`, `b2b`, `regulatory compliance`, `e-commerce`, `distribution`, `transportation & logistics`
+
+**What this means**: The companies that schedule calls are SERVICE BUSINESSES that already use remote/international talent. They're not "interested in exploring" — they ALREADY have the pain point. They need a better payroll/compliance solution for existing international teams.
+
+### Qualified from EasyStaff Sheet (8 confirmed meetings)
+
+Companies where EasyStaff confirmed real business discussion ("Засчитываем"):
+- **Herabiotech** (biotech, Italy→intl) — scheduling real
+- **H2O Allegiant** (water, US→LatAm)
+- **Huckleberry** (consulting, AU)
+- **SAM Labs** (ed-tech, UK→intl)
+- **MedTrainer** (health-tech, US→MX) — 390 employees
+- **ComingOut** (NGO, Russia→intl)
+- **Lotter Media** (media, Germany→intl)
+- **IGT Glass Hardware** (hardware, UAE→intl)
+
+Pattern: mid-size companies (11-200 emp) ALREADY paying international contractors. They don't need convincing — they need a better tool.
+
+### Apollo API Cost Estimate: 10K More Target Companies
+
+**All Apollo API calls cost credits.**
+
+To gather 10K target companies via Apollo API:
+- **Search**: `mixed_companies/search` = 1 credit/page (25 results). At ~35% target rate → ~28,500 raw companies → ~1,140 pages = **~1,140 credits**
+- **Org enrichment**: 1 credit/domain for the 10K targets = **~10,000 credits**
+- **People enrichment**: 1 credit/person for contacts = depends on contacts/company
+
+**Total estimate: ~11,140 Apollo credits minimum for 10K target companies.**
+
+Prioritized approach (by conversion data):
+1. **Gulf corridors first** (UAE+KSA+Qatar, 11-50 emp, outsourcing/consulting/media) — ~3,000 targets, ~3,500 credits
+2. **Australia corridors** (AU, 11-100 emp, outsourcing/BPO) — ~2,000 targets, ~2,300 credits
+3. **US corridors** (US→LatAm/PH, 11-50 emp, services) — ~3,000 targets, ~3,500 credits
+4. **Rest** — ~2,000 targets, ~2,300 credits
+
+**Phase 1 (highest ROI): Gulf + AU = ~5,800 credits for ~5,000 targets**
+
 ### Recommended Strategy Adjustments
 
 1. **GULF IS #1 PRIORITY. 3x investment.**

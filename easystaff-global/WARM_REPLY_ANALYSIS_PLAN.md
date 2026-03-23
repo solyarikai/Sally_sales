@@ -20,7 +20,7 @@ EasyStaff Global has 170 campaigns across 28+ cities with 68,192 SmartLead leads
 
 - **APOLLO CREDIT LIMIT: 200 CREDITS MAX. NON-NEGOTIABLE.**
 - Prioritize: meeting_request (warmest) > interested > question
-- Check `discovered_companies.apollo_org_data` FIRST — reuse existing data for free
+- Check `discovered_companies.apollo_org_data` FIRST — reuse already-enriched data (no extra credits)
 - If 200 credits exhausted → stop, document which are missing
 
 ## Status: Apollo Enrichment COMPLETE
