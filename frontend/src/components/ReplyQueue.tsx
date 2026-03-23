@@ -188,7 +188,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
   // and skip needs_reply/category/group_by_contact so the reply is always visible.
   // Clears when user changes search or switches category tab.
   const isDeepLinkByEmail = Boolean(initialSearch) && search === initialSearch && categoryFilter === '__all__';
-  const isDeepLinkById = Boolean(replyId);
+  const isDeepLinkById = Boolean(replyId) && categoryFilter === '__all__';
   const isDeepLink = isDeepLinkByEmail || isDeepLinkById;
 
   const [allCounts, setAllCounts] = useState<Record<string, number>>({});
