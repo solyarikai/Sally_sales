@@ -11,6 +11,11 @@ EasyStaff Global has 170 campaigns across 28+ cities with 68,192 SmartLead leads
 3. **100% warm reply coverage** — All 183 warm replies (61 meeting_request + 61 interested + 61 question) documented
 4. **Apollo enrichment** — 141 unique company domains enriched (141/200 credits used)
 
+## ANALYSIS RULES
+
+- **EXCLUDE conference campaigns** (Sigma, TES, IGB, ICE) from analysis — conferences always convert better, it's obvious and not actionable for cold outreach strategy
+- **INCLUDE qualified leads from shared Google Sheet** ("Easystaff Global <> Sally", Leads tab, column T = "Засчитываем")
+
 ## HARD CONSTRAINTS
 
 - **APOLLO CREDIT LIMIT: 200 CREDITS MAX. NON-NEGOTIABLE.**
