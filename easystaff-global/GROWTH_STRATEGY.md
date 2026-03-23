@@ -1083,3 +1083,42 @@ POST /mixed_companies/search
 **Outreach**: "I see [PLATFORM] pays creators/sellers internationally. We provide payout infrastructure: fees under 1%, 70+ countries, USDT option, full tax docs — all via API. Currently powering 5,000+ monthly transactions for similar platforms."
 
 **Key difference**: These companies' ENTIRE PRODUCT is paying people internationally. The conversation starts at "what's your fee structure?" not "do you need this?"
+
+---
+
+## Growth Hack #8 (2026-03-24): "Email Kills LinkedIn for Scheduling" — Channel Optimization From Hard Data
+
+**Data signal nobody noticed**: Of 33 leads who actually scheduled calls (shared times, calendly, specific days):
+- **Email: 31 (94%)**
+- **LinkedIn: 2 (6%)**
+
+Email produces **15x more scheduling** than LinkedIn for EasyStaff Global. LinkedIn generates warm replies ("sounds interesting") but almost never converts to actual meeting bookings.
+
+**Also**: 27 of 33 scheduling leads came from **geographic corridor campaigns** (UAE→India, AU→Philippines, etc.). Zero came from Glassdoor-sourced or LinkedIn-sourced campaigns. The corridor + email combo is the ONLY cold outreach formula that produces meetings.
+
+**Why this matters for pipeline**:
+- Current Apollo people enrichment gets both emails AND LinkedIn URLs
+- GetSales LinkedIn campaigns cost sender accounts + connection requests + are rate-limited
+- SmartLead email campaigns scale faster, cost less per lead, and produce 15x more meetings
+
+**Actionable changes**:
+
+1. **Apollo people search: REQUIRE verified email, not just LinkedIn**
+```json
+{
+  "person_locations": ["United Arab Emirates", "Australia", "United States"],
+  "organization_num_employees_ranges": ["5,100"],
+  "q_keywords": "outsourcing OR consulting OR media",
+  "email_status": ["verified"],
+  "per_page": 25
+}
+```
+Adding `email_status: verified` to Apollo people search ensures every contact has a deliverable email — no wasted leads on LinkedIn-only profiles.
+
+2. **Budget reallocation**: Shift 80% of new lead budget to SmartLead email campaigns, 20% to GetSales LinkedIn. Current split is roughly 50/50 — that's wasting half the budget on a channel that produces 6% of meetings.
+
+3. **FindyMail as force multiplier**: For the ~40% of Apollo contacts without verified email, run FindyMail verification (1¢/email). A $50 FindyMail spend on 5,000 contacts recovers ~2,000 additional emails = ~2,000 more leads in the email channel.
+
+4. **Fix the "warm but not scheduling" campaigns**: 6 campaigns have warm replies but zero meetings — AU-Philippines Petr, Australia_South_Africa, US-MX Glassdoor, UAE-PH, US-Peru, UAE-Outsourcing. Likely cause: sequence stops after first reply instead of pushing for a specific meeting time. **Add a CTA in the follow-up sequence**: "Would [specific day] at [specific time] work for a 15-min call?"
+
+**This isn't a new segment or data source — it's a CHANNEL EFFICIENCY fix that multiplies everything else.** Every hack above (#1-7) should prioritize email-reachable contacts over LinkedIn-only ones. The Apollo `email_status: verified` filter is the single highest-ROI parameter to add to every search query.
