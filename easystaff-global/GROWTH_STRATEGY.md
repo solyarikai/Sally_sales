@@ -893,3 +893,37 @@ POST /mixed_people/search
 }
 ```
 This finds decision-makers at companies that self-describe with remote/international hiring keywords — a proxy for active international hiring intent.
+
+---
+
+## Growth Hack #3 (2026-03-24): "Healthcare Offshore Billing" — An Untapped Vertical With Proof
+
+**Data signal**: "healthcare" / "hospital & health care" / "health, wellness & fitness" appear 91 times combined in Apollo keywords across warm leads. MedTrainer (390 emp, US→Mexico, healthcare SaaS) is one of only 8 QUALIFIED leads — and they had the strongest pain point: "ADP took 8 months to resolve one issue."
+
+**The opportunity**: US healthcare companies are massively outsourcing medical billing, coding, revenue cycle management, and telehealth support to Philippines, India, and Mexico. This is a $50B+ industry with strict compliance needs — exactly EasyStaff's sweet spot.
+
+**Why this hasn't been targeted**: Current keyword targeting uses generic terms ("outsourcing", "remote team"). Healthcare outsourcing is a SPECIFIC vertical with its own vocabulary: "medical billing", "revenue cycle", "healthcare BPO", "clinical documentation", "telehealth staffing."
+
+**Apollo search — Healthcare Offshore segment**:
+```
+POST /mixed_companies/search
+{
+  "person_locations": ["United States"],
+  "organization_num_employees_ranges": ["10,200", "201,1000"],
+  "q_keywords": "medical billing outsourcing OR healthcare BPO OR revenue cycle management OR clinical documentation OR telehealth staffing OR medical coding offshore",
+  "per_page": 25
+}
+```
+
+**Cost**: ~120 search pages (3,000 companies) + ~1,000 target enrichments + ~2,000 people = **~3,120 credits** for ~1,000 healthcare targets.
+
+**Why they'll convert**:
+- Healthcare has the STRICTEST compliance requirements — EasyStaff's compliance documentation is a differentiator
+- Healthcare outsourcing companies pay hundreds of billers/coders monthly — high volume per account
+- MedTrainer's pain (provider took 8 months on one issue) is INDUSTRY-WIDE — healthcare companies hate their payroll providers
+- HIPAA compliance creates lock-in once set up — high retention
+
+**Outreach messaging**:
+> Hi [NAME], I see [COMPANY] manages medical billing/coding teams internationally. We help healthcare companies handle contractor payouts in [COUNTRY] with full compliance documentation — fees under 1%, no cost to contractors. Currently helping companies switch from ADP/Deel with same-day onboarding. Worth a 10-min comparison?
+
+**This is a new VERTICAL, not just a new geography.** Every other hack targets the same generalist companies with different filters. This targets a specific, high-pain, high-volume industry that the data PROVED converts (MedTrainer = qualified, signed).
