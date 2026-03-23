@@ -377,6 +377,13 @@ class CRMScheduler:
                         if c_tags:
                             camp.config = {**(camp.config or {}), "tags": c_tags}
 
+                        # Re-match project if not yet assigned
+                        if not camp.project_id:
+                            matched_pid = match_campaign_to_project(c_name, c_tags)
+                            if matched_pid:
+                                camp.project_id = matched_pid
+                                logger.info(f"Campaign '{c_name}' matched to project {matched_pid}")
+
                         # Detect campaign launch: transition to ACTIVE
                         new_status = (c.get("status") or "").upper()
                         old_status = (camp.previous_status or "").upper()
