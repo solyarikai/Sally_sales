@@ -41,6 +41,7 @@ from .fireflies import router as fireflies_router
 from .intelligence import router as intelligence_router
 from .project_reports import router as project_reports_router
 from .gathering import router as gathering_router
+from .campaign_intelligence import router as campaign_intelligence_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -135,5 +136,8 @@ api_router.include_router(project_reports_router)
 
 # TAM Gathering Pipeline
 api_router.include_router(gathering_router)
+
+# Campaign Intelligence (GOD_SEQUENCE)
+api_router.include_router(campaign_intelligence_router)
 
 __all__ = ["api_router"]
