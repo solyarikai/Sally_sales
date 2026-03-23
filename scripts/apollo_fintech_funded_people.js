@@ -159,30 +159,43 @@ async function searchPeople(page, params) {
       }
 
       const people = result.people || [];
+      const accounts = result.accounts || [];
       totalEntries = result.pagination?.total_entries || totalEntries;
 
+      // Build org lookup from accounts (has funding, employees, etc.)
+      const orgMap = {};
+      for (const acc of accounts) {
+        const orgId = acc.organization_id || acc.id;
+        if (orgId) orgMap[orgId] = acc;
+      }
+
       if (pageNum === 1) {
-        console.log(`[${ts()}] Total available: ${totalEntries} people`);
+        console.log(`[${ts()}] Total available: ${totalEntries} people (${accounts.length} accounts on page)`);
       }
 
       if (people.length === 0) break;
 
       for (const p of people) {
+        // Match person to account by organization_id
+        const orgId = p.organization_id || (p.organization || {}).id;
+        const acc = orgMap[orgId] || {};
         const org = p.organization || {};
         allPeople.push({
           name: p.name || '',
           title: p.title || '',
+          email: p.email || '',
           linkedin_url: p.linkedin_url || '',
           city: p.city || '',
           country: p.country || '',
-          company_name: org.name || p.organization_name || '',
-          company_domain: org.primary_domain || org.domain || p.organization?.website_url || '',
-          company_linkedin: org.linkedin_url || '',
-          company_employees: org.estimated_num_employees || null,
-          company_industry: org.industry || '',
-          company_country: org.country || '',
-          company_funding_stage: org.latest_funding_stage || '',
-          company_total_funding: org.total_funding || null,
+          company_name: acc.name || org.name || p.organization_name || '',
+          company_domain: acc.domain || acc.primary_domain || org.primary_domain || org.domain || '',
+          company_linkedin: acc.linkedin_url || org.linkedin_url || '',
+          company_employees: acc.estimated_num_employees || org.estimated_num_employees || null,
+          company_industry: (acc.industries || []).join(', ') || org.industry || '',
+          company_country: acc.country || org.country || '',
+          company_funding_stage: acc.latest_funding_stage || org.latest_funding_stage || '',
+          company_total_funding: acc.total_funding || org.total_funding || null,
+          company_latest_funding_amount: acc.latest_funding_amount || null,
         });
       }
 
@@ -210,24 +223,50 @@ async function searchPeople(page, params) {
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(OUT_FILE, JSON.stringify(unique, null, 2));
 
-    console.log(`\n[${ts()}] DONE: ${unique.length} unique people from ${new Set(unique.map(p => p.company_domain)).size} companies`);
-    console.log(`[${ts()}] Saved to ${OUT_FILE}`);
+    // Stats
+    const withEmail = unique.filter(p => p.email).length;
+    const withFunding = unique.filter(p => p.company_funding_stage).length;
+    const companies = new Set(unique.map(p => p.company_domain)).size;
 
-    // Print summary
-    console.log(`\n${'─'.repeat(130)}`);
-    console.log(`${'Name'.padEnd(25)} | ${'Title'.padEnd(30)} | ${'Company'.padEnd(25)} | ${'Domain'.padEnd(25)} | ${'Country'.padEnd(12)} | Funding`);
-    console.log(`${'─'.repeat(130)}`);
-    for (const p of unique.slice(0, 50)) {
+    console.log(`\n[${ts()}] DONE: ${unique.length} unique people from ${companies} companies`);
+    console.log(`[${ts()}]   With email: ${withEmail}, With funding stage: ${withFunding}`);
+    console.log(`[${ts()}] JSON: ${OUT_FILE}`);
+
+    // Save CSV
+    const CSV_FILE = OUT_FILE.replace('.json', '.csv');
+    const csvHeader = 'funding_round,name,title,company,website,email,linkedin,company_country,employees';
+    const csvRows = unique.map(p => {
+      const esc = (s) => `"${(s || '').replace(/"/g, '""')}"`;
+      return [
+        esc(p.company_funding_stage),
+        esc(p.name),
+        esc(p.title),
+        esc(p.company_name),
+        esc(p.company_domain),
+        esc(p.email),
+        esc(p.linkedin_url),
+        esc(p.company_country),
+        p.company_employees || '',
+      ].join(',');
+    });
+    fs.writeFileSync(CSV_FILE, csvHeader + '\n' + csvRows.join('\n'));
+    console.log(`[${ts()}] CSV: ${CSV_FILE}`);
+
+    // Print first 30
+    console.log(`\n${'─'.repeat(140)}`);
+    console.log(`${'Funding'.padEnd(12)} | ${'Name'.padEnd(25)} | ${'Title'.padEnd(28)} | ${'Company'.padEnd(22)} | ${'Domain'.padEnd(22)} | Email`);
+    console.log(`${'─'.repeat(140)}`);
+    for (const p of unique.slice(0, 30)) {
       console.log(
+        `${(p.company_funding_stage || '?').padEnd(12)} | ` +
         `${(p.name || '').substring(0, 24).padEnd(25)} | ` +
-        `${(p.title || '').substring(0, 29).padEnd(30)} | ` +
-        `${(p.company_name || '').substring(0, 24).padEnd(25)} | ` +
-        `${(p.company_domain || '').substring(0, 24).padEnd(25)} | ` +
-        `${(p.company_country || '').substring(0, 11).padEnd(12)} | ` +
-        `${p.company_funding_stage || '?'}`
+        `${(p.title || '').substring(0, 27).padEnd(28)} | ` +
+        `${(p.company_name || '').substring(0, 21).padEnd(22)} | ` +
+        `${(p.company_domain || '').substring(0, 21).padEnd(22)} | ` +
+        `${p.email || '-'}`
       );
     }
-    if (unique.length > 50) console.log(`  ... and ${unique.length - 50} more`);
+    if (unique.length > 30) console.log(`  ... and ${unique.length - 30} more`);
 
   } catch (e) {
     console.error(`[${ts()}] FATAL: ${e.message}`);
