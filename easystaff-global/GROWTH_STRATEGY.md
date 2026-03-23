@@ -927,3 +927,50 @@ POST /mixed_companies/search
 > Hi [NAME], I see [COMPANY] manages medical billing/coding teams internationally. We help healthcare companies handle contractor payouts in [COUNTRY] with full compliance documentation — fees under 1%, no cost to contractors. Currently helping companies switch from ADP/Deel with same-day onboarding. Worth a 10-min comparison?
 
 **This is a new VERTICAL, not just a new geography.** Every other hack targets the same generalist companies with different filters. This targets a specific, high-pain, high-volume industry that the data PROVED converts (MedTrainer = qualified, signed).
+
+---
+
+## Growth Hack #4 (2026-03-24): "UAE Business Setup Consultancy Channel" — Partners Who Deliver Clients
+
+**Data signal from scheduling leads**: Three of the companies that scheduled calls are UAE "business setup" consultancies:
+- **AR Associates** (23 emp): keywords `business advisory, business setup, uae business advisory, uae business setup`
+- **BFG Advisory** (12 emp): keywords `company formation, business consultancy, vat consultation, business registration in dubai`
+- **Emifast** (42 emp): keywords `uae trade licensing, tax advice, relocation, business consultancy`
+
+These firms HELP foreign companies establish operations in the UAE. Every company they onboard needs to pay international contractors and freelancers. They are a **channel**, not just a customer.
+
+**The insight**: Instead of finding 10K individual companies one by one, partner with UAE business setup consultancies who each onboard 50-200 new companies per year. One partnership = a recurring pipeline of pre-qualified leads.
+
+**BUSINESS**: There are ~500-800 licensed business setup consultancies in UAE free zones (DMCC, DIFC, JAFZA, etc.). Each handles company formation, visa processing, bank account setup — and the next logical step is "how do I pay my team?" EasyStaff becomes part of their service stack.
+
+**PIPELINE — Apollo search for UAE business setup firms**:
+```
+POST /mixed_companies/search
+{
+  "organization_locations": ["United Arab Emirates"],
+  "organization_num_employees_ranges": ["5,50", "51,200"],
+  "q_keywords": "business setup OR company formation OR PRO services OR free zone OR trade license OR business consultancy UAE",
+  "organization_industries": ["management consulting", "accounting", "legal services"],
+  "per_page": 25
+}
+```
+
+**Apollo cost**: ~40 search pages + ~500 org enrichments + ~1,000 people = **~1,540 credits** for ~500 business setup consultancies.
+
+**Then for people search — target the partner/referral decision-makers**:
+```
+POST /mixed_people/search
+{
+  "person_titles": ["Managing Partner", "Director", "CEO", "Business Development Manager"],
+  "organization_locations": ["United Arab Emirates"],
+  "q_keywords": "company formation OR business setup OR free zone consultancy",
+  "per_page": 25
+}
+```
+
+**Outreach angle — NOT "buy our product" but "let's partner"**:
+> Hi [NAME], I see [COMPANY] helps businesses set up in the UAE. We help your clients' next pain point — paying international contractors compliantly with fees under 1%. We'd love to offer this as part of your service package. Interested in a referral partnership?
+
+**Why this is different from hacks #1-3**: This isn't direct sales. It's a MULTIPLIER. One deal with a consultancy like AR Associates (who already scheduled a call!) creates an ongoing stream of referred clients. The three scheduling leads from this exact segment prove the conversation starts naturally.
+
+**Expected impact**: If 50 consultancies partner and each refers 5 clients/year = 250 new clients annually with zero per-lead Apollo cost after setup.
