@@ -492,17 +492,34 @@ async def generate_sequence(
             if detected_market != "en":
                 break
 
-    # Load active patterns (market-specific + universal)
+    # Load patterns from all 3 knowledge levels:
+    # Level 1 (universal): scope_level='universal', project_id IS NULL
+    # Level 2 (business): scope_level='business', business_key = project.sender_company
+    # Level 3 (project): scope_level='project', project_id = this project
+    from sqlalchemy import or_
+
+    business_key = project.sender_company  # e.g. "easystaff.io" groups projects 9+40
+
+    pattern_filters = [
+        CampaignPattern.company_id == company_id,
+        CampaignPattern.is_active == True,
+        CampaignPattern.market.in_([detected_market, None]),
+        or_(
+            CampaignPattern.scope_level == "universal",
+            and_(CampaignPattern.scope_level == "business",
+                 CampaignPattern.business_key == business_key) if business_key else False,
+            and_(CampaignPattern.scope_level == "project",
+                 CampaignPattern.project_id == project_id),
+        ),
+    ]
+
     patterns_result = await session.execute(
-        select(CampaignPattern).where(
-            CampaignPattern.company_id == company_id,
-            CampaignPattern.is_active == True,
-            CampaignPattern.market.in_([detected_market, None]),
-        ).order_by(desc(CampaignPattern.confidence))
+        select(CampaignPattern).where(*pattern_filters)
+        .order_by(CampaignPattern.scope_level, desc(CampaignPattern.confidence))
     )
     patterns = patterns_result.scalars().all()
 
-    # Load project knowledge
+    # Load project knowledge (Level 3 — project-specific ICP, outreach, GTM)
     knowledge_result = await session.execute(
         select(ProjectKnowledge).where(
             ProjectKnowledge.project_id == project_id,
@@ -510,6 +527,25 @@ async def generate_sequence(
         )
     )
     knowledge_items = knowledge_result.scalars().all()
+
+    # Also load business-level knowledge from sibling projects (same sender_company)
+    business_knowledge_items = []
+    if business_key:
+        sibling_projects = (await session.execute(
+            select(Project.id).where(
+                Project.sender_company == business_key,
+                Project.id != project_id,
+                Project.deleted_at.is_(None),
+            )
+        )).scalars().all()
+        if sibling_projects:
+            bk_result = await session.execute(
+                select(ProjectKnowledge).where(
+                    ProjectKnowledge.project_id.in_(sibling_projects),
+                    ProjectKnowledge.category.in_(["outreach", "gtm"]),
+                )
+            )
+            business_knowledge_items = bk_result.scalars().all()
 
     # Load a top-performing sequence as structural reference
     ref_snapshot = (await session.execute(
@@ -532,6 +568,7 @@ async def generate_sequence(
         campaign_name=campaign_name,
         custom_instructions=custom_instructions,
         step_count=step_count,
+        business_knowledge_items=business_knowledge_items,
     )
 
     # Call Gemini
@@ -761,35 +798,65 @@ def _build_generation_user_prompt(
     campaign_name: Optional[str],
     custom_instructions: Optional[str],
     step_count: int,
+    business_knowledge_items: Optional[list] = None,
 ) -> str:
     lines = []
 
-    # Section 1: Patterns
-    lines.append("## PROVEN PATTERNS FROM TOP CAMPAIGNS\n")
-    if patterns:
-        for p in patterns[:15]:  # Limit to avoid token bloat
+    # ===== LEVEL 1: UNIVERSAL PATTERNS =====
+    universal = [p for p in patterns if p.scope_level == "universal"]
+    if universal:
+        lines.append("## LEVEL 1: UNIVERSAL COLD EMAIL PATTERNS")
+        lines.append("(Apply to ALL projects — how cold email works)\n")
+        for p in universal[:10]:
             lines.append(f"**[{p.pattern_type}] {p.title}** (confidence: {p.confidence:.0%})")
             lines.append(f"{p.description}\n")
-    else:
-        lines.append("No patterns extracted yet. Use general cold outreach best practices.\n")
 
-    # Section 2: Business context
-    lines.append("## BUSINESS CONTEXT\n")
+    # ===== LEVEL 2: BUSINESS KNOWLEDGE =====
+    business = [p for p in patterns if p.scope_level == "business"]
+    lines.append(f"\n## LEVEL 2: BUSINESS KNOWLEDGE — {project.sender_company or project.name}")
+    lines.append("(What this business sells, competitors, objections, proof points)\n")
+
     lines.append(f"Company: {project.sender_company or project.name}")
     if project.sender_name:
         lines.append(f"Sender: {project.sender_name}, {project.sender_position or 'BDM'}")
+
+    # Business-level patterns
+    for p in business[:8]:
+        lines.append(f"\n**[{p.pattern_type}] {p.title}** (confidence: {p.confidence:.0%})")
+        lines.append(f"{p.description}")
+
+    # Business-level knowledge from sibling projects
+    if business_knowledge_items:
+        lines.append("\n### Shared knowledge from other projects of this business:")
+        for ki in business_knowledge_items[:5]:
+            value = ki.value if isinstance(ki.value, str) else json.dumps(ki.value, default=str)
+            if len(value) > 300:
+                value = value[:300] + "..."
+            lines.append(f"  [{ki.category}] {ki.title or ki.key}: {value}")
+
+    # ===== LEVEL 3: PROJECT-SPECIFIC CONTEXT =====
+    project_patterns = [p for p in patterns if p.scope_level == "project"]
+    lines.append(f"\n## LEVEL 3: PROJECT CONTEXT — {project.name}")
+    lines.append("(This project's ICP, market, target segments, specific knowledge)\n")
+
     if project.target_segments:
         lines.append(f"Target Segments: {project.target_segments}")
     if project.target_industries:
         lines.append(f"Target Industries: {project.target_industries}")
 
+    # Project-level patterns
+    for p in project_patterns[:5]:
+        lines.append(f"\n**[{p.pattern_type}] {p.title}** (confidence: {p.confidence:.0%})")
+        lines.append(f"{p.description}")
+
+    # Project knowledge (ICP, outreach, GTM)
     for ki in knowledge_items:
         value = ki.value if isinstance(ki.value, str) else json.dumps(ki.value, default=str)
         if len(value) > 500:
             value = value[:500] + "..."
         lines.append(f"\n[{ki.category}] {ki.title or ki.key}: {value}")
 
-    # Section 3: Reference sequence
+    # ===== REFERENCE SEQUENCE =====
     if ref_snapshot and ref_snapshot.sequence_steps:
         lines.append(f"\n## REFERENCE SEQUENCE (top performer: {ref_snapshot.campaign_name})")
         lines.append(f"Quality score: {ref_snapshot.quality_score:.4f} | "
@@ -800,7 +867,7 @@ def _build_generation_user_prompt(
             delay = step.get("seq_delay_details", {}).get("delay_in_days", 0)
             lines.append(f"\n  Step {step_num} (day +{delay}): {step.get('email_body', '')[:400]}")
 
-    # Section 4: Custom instructions
+    # ===== CUSTOM INSTRUCTIONS =====
     if campaign_name:
         lines.append(f"\n## CAMPAIGN NAME: {campaign_name}")
     if custom_instructions:

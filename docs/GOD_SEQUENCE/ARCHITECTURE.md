@@ -36,6 +36,89 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## 3-Level Knowledge Architecture
+
+The knowledge base has 3 levels. When generating a sequence, ALL levels are assembled into one Gemini prompt:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  LEVEL 1: UNIVERSAL  (scope_level='universal', project_id=NULL)   │
+│                                                                  │
+│  "How cold email works" — structural patterns that apply to      │
+│  EVERY project regardless of what you sell:                      │
+│  - Subject: {{first_name}} – [pain point question]               │
+│  - Timing: Day 0/3/4/7/7 cadence                                │
+│  - Steps 2-5: empty subject (thread replies)                     │
+│  - Tone: casual-professional, no hype words                      │
+│  - CTA: offer value, don't ask for time                          │
+│                                                                  │
+│  Source: Extracted from ALL campaigns across all projects         │
+│  Updated: Weekly by AI extraction from top performers            │
+└──────────────────────┬───────────────────────────────────────────┘
+                       │
+┌──────────────────────▼───────────────────────────────────────────┐
+│  LEVEL 2: BUSINESS  (scope_level='business', business_key=X)      │
+│                                                                  │
+│  "What this business sells" — product knowledge shared across    │
+│  all projects of the SAME business:                              │
+│  - Product description, pricing, key differentiators             │
+│  - Competitors and displacement stories                          │
+│  - Objection map with counters                                   │
+│  - Proof points (case studies, savings numbers)                  │
+│                                                                  │
+│  Grouping: Projects with same sender_company share this level    │
+│  Example: "easystaff.io" groups project 9 (Global) + 40 (RU)    │
+│           "Squarefi.co" groups project 46 (Fedor) + 47 (Evgeny) │
+│                                                                  │
+│  Source: Business-level patterns + ProjectKnowledge from siblings │
+└──────────────────────┬───────────────────────────────────────────┘
+                       │
+┌──────────────────────▼───────────────────────────────────────────┐
+│  LEVEL 3: PROJECT  (scope_level='project', project_id=X)          │
+│                                                                  │
+│  "Who we're targeting and how" — specific to ONE project:        │
+│  - Market/language (English, Russian, Arabic)                    │
+│  - ICP details (agency 10-50 employees, US/UAE/UK)               │
+│  - Sender identity (Petr Nikolaev, BDM)                          │
+│  - Geographic personalization ({{city}} usage)                   │
+│  - Competitor naming for THIS market (Deel for US, Wise for Gulf)│
+│                                                                  │
+│  Source: ProjectKnowledge (icp, outreach, gtm) + project patterns │
+│  EasyStaff Global ≠ EasyStaff RU (different market, language)    │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### How Levels Combine When Generating
+
+```
+POST /api/campaign-intelligence/generate-sequence/
+  { "project_id": 9 }  (EasyStaff Global)
+
+System loads:
+  Level 1: 11 universal patterns (timing, subject, tone, CTA...)
+  Level 2: EasyStaff business patterns (Deel displacement, $3K savings)
+         + ProjectKnowledge from project 40 (EasyStaff RU) outreach/gtm
+  Level 3: Project 9 ICP (English agencies), sender (Petr), segments
+
+All 3 levels → assembled into one prompt → Gemini 2.5 Pro → 5-step sequence
+```
+
+### What Each Level Looks Like (real data)
+
+**Level 1 (universal)** — applies to EasyStaff, Inxy, Mifort, everyone:
+> `[timing] day_0_3_4_7_7`: "Step 1: 25% of warm replies. Step 2: 31%. Step 4: 31%."
+> `[tone] casual_professional_no_hype`: "NEVER use: revolutionary, cutting-edge, seamless"
+
+**Level 2 (business: easystaff.io)** — applies to Global + RU:
+> `[proof_point] competitor_displacement_story`: "Name Deel/Upwork — 90% of leads already use something"
+> `[proof_point] specific_savings_number`: "$3,000/month savings for 50 contractors"
+
+**Level 3 (project: easystaff global)** — only this project:
+> `[personalization] city_in_proof_paragraph`: "Use {{city}} in case study, not greeting"
+> Market: English. ICP: agencies 10-50 emp. Corridors: UAE→India, US→Mexico.
+
+---
+
 ## Integration with Gathering Pipeline
 
 GOD_SEQUENCE is **Step 10** in the TAM gathering pipeline — right between FindyMail verification and SmartLead push:
