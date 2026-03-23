@@ -77,6 +77,27 @@
 - [ ] Remove 137 FPs from DB
 - [ ] Commit all review files
 
+### 00:05 (Mar 22) — Cron loop set up
+- Job `8317e12c`: every 5 min checks all KPIs
+- `/loop 5min act as god achieving kpis...`
+- Auto-expires in 7 days. Cancel: `/cron-delete 8317e12c`
+- **FINAL KPIs (session is NOT done until ALL are green):**
+  1. ✅ = ALL Apollo companies with domains have scraped website text (0 remaining)
+  2. ✅ = ALL scraped companies analyzed by GPT-4o-mini (0 remaining)
+  3. ✅ = ALL GPT targets reviewed by Opus (100% coverage, 0 unreviewed)
+  4. ✅ = GPT accuracy ≥90% proven on FULL volume (not a sample)
+- Current: scraper running, KPIs NOT yet achieved
+
+### How to use cron tasks in Claude Code
+```
+/loop 5m check status              # every 5 min
+/loop 30m run tests                # every 30 min
+/loop 1h check deploy              # every hour
+/cron-delete 8317e12c              # cancel a specific job
+```
+Cron jobs are session-only — they die when Claude exits. Auto-expire after 7 days.
+They only fire when REPL is idle (not mid-query).
+
 ## Issues Found
 
 ### CRITICAL: City filter was wrong
