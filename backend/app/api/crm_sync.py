@@ -1034,11 +1034,12 @@ async def getsales_webhook(
         if linkedin_url and not contact.linkedin_url:
             contact.linkedin_url = linkedin_url
     
-    # If contact has a placeholder email and webhook provides a real one, update it
-    if is_existing_contact and lead_email and contact.email and any(
-        p in contact.email for p in ("@linkedin.placeholder", "@getsales.local", "@placeholder.local")
+    # If contact has a placeholder/NULL email and webhook provides a real one, update it
+    if is_existing_contact and lead_email and (
+        not contact.email
+        or any(p in contact.email for p in ("@linkedin.placeholder", "@getsales.local", "@placeholder.local"))
     ):
-        logger.info(f"Updating placeholder email {contact.email} -> {lead_email}")
+        logger.info(f"Updating email {contact.email} -> {lead_email}")
         contact.email = lead_email.lower().strip()
         if '@' in lead_email:
             contact.domain = lead_email.split('@')[1].lower()
@@ -1072,7 +1073,7 @@ async def getsales_webhook(
         contact = Contact(
             company_id=1,  # Default company
             project_id=webhook_project_id,
-            email=lead_email or f"gs_{lead_uuid}@linkedin.placeholder",
+            email=lead_email or None,
             first_name=contact_data.get("first_name"),
             last_name=contact_data.get("last_name"),
             company_name=contact_data.get("company_name") or account_data.get("name"),

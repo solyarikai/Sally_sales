@@ -9,7 +9,7 @@ Endpoints:
 """
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
@@ -3134,17 +3134,10 @@ async def _handle_clay_gather(
                     email_clean = email.lower().strip() if email else None
                     linkedin_url = person.get("linkedin_url")
 
-                    # Build a valid email: real email > linkedin placeholder > name placeholder
-                    contact_email = email_clean
-                    if not contact_email and linkedin_url:
-                        # Use linkedin-based placeholder so contact is trackable
-                        li_slug = linkedin_url.rstrip("/").split("/")[-1]
-                        contact_email = f"{li_slug}@linkedin.placeholder"
-                    elif not contact_email and first_name and last_name:
-                        contact_email = f"{first_name.lower()}.{last_name.lower()}@{domain}"
-
-                    if not contact_email:
-                        # No email, no linkedin, no name — skip CRM promotion
+                    # Build email if available; NULL is OK for LinkedIn-only contacts
+                    contact_email = email_clean or None
+                    if not contact_email and not linkedin_url:
+                        # No email and no linkedin — skip CRM promotion
                         continue
 
                     provenance = {
@@ -3246,12 +3239,12 @@ async def _handle_clay_gather(
                         if _app_settings.FINDYMAIL_API_KEY:
                             findymail_service.set_api_key(_app_settings.FINDYMAIL_API_KEY)
                     if findymail_service.is_connected():
-                        # Get contacts with linkedin placeholder emails
+                        # Get contacts with no email (LinkedIn-only) that need FindyMail enrichment
                         placeholder_rows = (await task_db.execute(
                             select(Contact).where(
                                 Contact.source_id == f"clay_{job_id}",
                                 Contact.deleted_at.is_(None),
-                                Contact.email.like("%@linkedin.placeholder"),
+                                or_(Contact.email.is_(None), Contact.email.like("%@linkedin.placeholder")),
                                 Contact.linkedin_url.isnot(None),
                             )
                         )).scalars().all()
@@ -3322,7 +3315,7 @@ async def _handle_clay_gather(
                     except Exception as _seed_err:
                         logger.warning(f"Seed contacts step failed: {_seed_err}")
 
-                # ── Hide contacts that still have placeholder emails ──
+                # ── Hide contacts that still have no real email ──
                 hidden_placeholder = 0
                 try:
                     from sqlalchemy import update as _sql_upd
@@ -3330,7 +3323,7 @@ async def _handle_clay_gather(
                         _sql_upd(Contact).where(
                             Contact.source_id == f"clay_{job_id}",
                             Contact.deleted_at.is_(None),
-                            Contact.email.like("%@linkedin.placeholder"),
+                            or_(Contact.email.is_(None), Contact.email.like("%@linkedin.placeholder")),
                         ).values(
                             source_id=f"clay_{job_id}_unresolved",
                         )

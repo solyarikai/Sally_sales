@@ -2357,6 +2357,7 @@ async def send_getsales_notification(
             sender_name=resolved_sender_name,
             category=processed_reply.category,
             sender_profile_uuid=sender_profile_uuid,
+            reply_id=processed_reply.id,
         )
         if sent:
             processed_reply.telegram_sent_at = datetime.utcnow()
