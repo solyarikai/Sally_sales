@@ -770,3 +770,68 @@ TOTAL: ~1,000 credits
 | **Grand total** | | **~17,950 credits** | **5,650 companies, 11,300 contacts** |
 
 To reach 10K targets: repeat Searches 1-4 with additional keyword variations + add EU + add Saudi Arabia. Estimated total: **~25,000-30,000 Apollo credits.**
+
+---
+
+## FINAL STRATEGY — 5x Critical Review (2026-03-24)
+
+### Review #1: Warm ≠ Qualified — Resolved
+
+Gulf dominates WARM replies (50%) and SCHEDULING (36% of calls). But US→LatAm dominates QUALIFIED deals (5/8 confirmed). Both matter:
+- **Gulf = pipeline volume** (schedule fast, close slower)
+- **US = deal velocity** (smaller volume, closes faster — they're comparing Deel alternatives)
+
+**Strategy**: Run BOTH in parallel. Phase 1 = US Switchers (revenue now). Phase 2 = UAE Builders (pipeline for next quarter).
+
+### Review #2: Government Entities Are Noise — Removed
+
+NEOM, TDF, RAWEC produced warm replies but ZERO qualified. Government contacts are friendly but procurement cycles are years. **Removed from targeting. Private sector only.**
+
+### Review #3: The Real Target Is "Competitor Switchers"
+
+Every qualified lead conversation revealed the same pattern:
+- IGT Glass Hardware: "We use Deel at $45/mo+$5, want cheaper"
+- Tony Zheng: "We pay $19/contractor/mo, can you beat that?"
+- George Ladkany: "How do you compare with DEEL?"
+- MedTrainer: "ADP was terrible, current provider 8 months on one issue"
+- Johannes Lotter: asked about royalty payments → **signed contract**
+
+**These aren't companies discovering they need a payroll tool. They already have one and want BETTER.**
+
+**Apollo can't filter "uses Deel" directly. But we can proxy it:**
+- Companies with 5+ employees in ≥2 countries (Apollo multi-location filter)
+- Industries known to use freelancers (outsourcing, IT, consulting, media, e-commerce)
+- Companies with recent job posts mentioning "contractor" or "freelancer"
+
+### Review #4: Budget — One Number
+
+**30,000 Apollo credits** for 10K target companies + 2 contacts each:
+
+| Phase | Segment | Search | Enrich (org) | Enrich (people) | Total Credits | Targets |
+|-------|---------|--------|-------------|-----------------|---------------|---------|
+| 1 | US Switchers | 350 | 2,950 | 5,900 | **9,200** | 2,950 |
+| 2 | UAE Builders | 200 | 2,000 | 4,000 | **6,200** | 2,000 |
+| 3 | AU Corridor | 80 | 800 | 1,600 | **2,480** | 800 |
+| 4 | SG + EU + SA private | 240 | 1,950 | 3,900 | **6,090** | 1,950 |
+| 5 | Keyword expansion | 200 | 2,300 | 4,600 | **7,100** | 2,300 |
+| **TOTAL** | | **1,070** | **10,000** | **20,000** | **~31,070** | **10,000** |
+
+### Review #5: Messaging Must Be Competitor-Specific
+
+Based on actual conversations that led to meetings:
+
+**Template A (US → LatAm/PH — proven by 5 qualified leads):**
+> Hi [NAME], I noticed [COMPANY] has team members in [COUNTRY]. Many companies like yours switch from Deel/ADP to save on international contractor payouts — our fees are under 1% with no cost to freelancers. Want me to send a fee comparison?
+
+**Template B (UAE → PK/IN — proven by 12 scheduling leads):**
+> Hi [NAME], We help UAE companies pay freelancers in Pakistan/India with custom fee structures under 1%, including USDT option. Setup takes 10 minutes. Would you like to see a demo?
+
+### What NOT To Target (from disqualified data)
+
+| Don't Target | Why | Data Source |
+|-------------|-----|-------------|
+| Government entities | Friendly replies, 0 qualified | NEOM, TDF, RAWEC all unqualified |
+| US-only employers | No international pain point | DQ Pursuit "hires inside USA only" |
+| Companies locked into competitor | Won't switch | Grandave Capital "already has platform" |
+| Solo consultants (1 person, no team) | No contractors to pay | Multiple 1-person leads didn't progress |
+| Conference leads as cold outreach proxy | Different funnel | Conferences work but not replicable at scale |
