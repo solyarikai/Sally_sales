@@ -123,11 +123,17 @@ class ApolloPeopleUIAdapter(GatheringAdapter):
                 if on_progress:
                     await on_progress(f"Batch {batch_idx + 1}/{len(batches)}: {len(batch_domains)} domains")
 
+                import os
+                env = {
+                    **os.environ,
+                    "CHROME_PATH": os.environ.get("CHROME_PATH", "/usr/bin/chromium"),
+                }
                 proc = await asyncio.create_subprocess_exec(
                     *args,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     cwd=str(scraper_script.parent.parent),
+                    env=env,
                 )
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
 
