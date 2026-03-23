@@ -83,13 +83,30 @@ class CampaignPattern(Base):
     """
     Extracted reusable pattern from top-performing campaigns.
 
-    Each record is one discrete learning: a subject line technique,
-    a timing pattern, a personalization strategy, etc.
+    3-level knowledge hierarchy:
+    - scope_level='universal': Applies to ALL projects (cold email mechanics)
+    - scope_level='business':  Applies to all projects with same sender_company
+                               (product knowledge, competitors, objections)
+    - scope_level='project':   Applies to one project only (market, ICP, language)
+
+    When generating a sequence, all 3 levels are assembled:
+    Universal patterns + Business knowledge + Project specifics → Gemini → sequence
     """
     __tablename__ = "campaign_patterns"
 
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+
+    # Knowledge hierarchy
+    scope_level = Column(String(20), nullable=False, server_default="universal")
+    # 'universal' = all projects, 'business' = same sender_company, 'project' = one project
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
+    # NULL for universal. For business-level, points to the "source" project.
+    # Business grouping uses Project.sender_company — all projects with same
+    # sender_company share business-level patterns.
+    business_key = Column(String(255), nullable=True)
+    # Denormalized from Project.sender_company for fast filtering.
+    # e.g. "easystaff.io" groups project 9 (global) + project 40 (ru)
 
     # Pattern identity
     pattern_type = Column(String(50), nullable=False)
