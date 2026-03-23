@@ -499,17 +499,21 @@ CLASSIFICATION_PROMPT = """Classify the following email reply into one of these 
 
 Categories:
 - interested: The person shows ANY positive signal — wants to learn more, requests materials,
-  says "send it", "yes", "ok", "давайте", "отправьте", "присылайте", or uses positive emojis
-  (👍, 🤝, ✅, etc). Short affirmative replies = interested. When in doubt, classify as interested.
+  says "send it", "yes", "ok", "давайте", "отправьте", "присылайте", "нам это нужно", "это нужно",
+  "нам актуально", "нам интересно", or uses positive emojis (👍, 🤝, ✅, etc).
+  Short affirmative replies = interested. When in doubt, classify as interested.
   IMPORTANT: If the person shares their OWN contact info (Telegram handle, WhatsApp, phone number)
   to continue the conversation on a different channel — that is "interested", NOT "wrong_person".
+  IMPORTANT: "нужно" (need) WITHOUT negation is POSITIVE. "Нам это нужно" = "We need this" = interested.
+  Only "НЕ нужно" (don't need) is negative.
 - meeting_request: The person wants to schedule a call or meeting, OR shares their availability,
   timezone, schedule, or location to coordinate timing (e.g. "I'm free Thursday", "back in office Monday",
   "on Singapore time next week"). Any message that implies willingness to meet = meeting_request.
 - not_interested: The person EXPLICITLY declines or says no. Includes polite declines
-  like "no difficulties", "all good thanks", "not needed", "пока проблем нет",
+  like "no difficulties", "all good thanks", "not needed", "НЕ нужно", "пока проблем нет",
   "сложностей нет", "нет необходимости", "нас всё устраивает", "спасибо, не надо".
   Key rule: short polite replies that acknowledge your message but express no need = not_interested.
+  CRITICAL: "нужно" without "не" is POSITIVE (interested). Only "не нужно" is negative.
 - out_of_office: Auto-reply or out of office message
 - wrong_person: Not the right contact, suggests someone else. ONLY use when they explicitly say
   they're the wrong person or redirect to a colleague. If they share THEIR OWN Telegram/WhatsApp/phone
