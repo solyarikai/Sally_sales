@@ -60,13 +60,15 @@ class ApolloOrgAPIAdapter(GatheringAdapter):
                     per_page=validated.per_page,
                 )
 
-                orgs = result.get("organizations", [])
+                # Apollo returns data in both 'organizations' and 'accounts' —
+                # 'accounts' has richer data and more results
+                orgs = result.get("accounts", []) or result.get("organizations", [])
                 if not orgs:
                     break
 
                 for org in orgs:
                     company = {
-                        "domain": org.get("primary_domain", ""),
+                        "domain": org.get("primary_domain") or org.get("domain", ""),
                         "name": org.get("name", ""),
                         "linkedin_url": org.get("linkedin_url", ""),
                         "employees": org.get("estimated_num_employees"),
