@@ -217,6 +217,12 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
         return _result("hard_no", 1, "general", campaign_name, channel, raw_text)
 
     if category == "not_interested":
+        # Rescue: "нужно" without negation is POSITIVE — AI confused "нужно" with "не нужно"
+        positive_need = ["нам это нужно", "это нужно", "нам нужно", "нам актуально",
+                         "нам интересно", "we need this", "this is needed", "we need it"]
+        if any(p in text_lower for p in positive_need) and "не нужно" not in text_lower:
+            return _result("interested_vague", 4, detect_offer(text, campaign_name), campaign_name, channel, raw_text)
+
         # Subclassify the type of rejection
         spam_patterns = ["mass mailing", "how did you get my", "stop writing", "stop emailing",
                          "перестаньте писать", "откуда у вас мой", "why do you keep",
