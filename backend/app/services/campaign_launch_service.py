@@ -84,20 +84,41 @@ async def notify_campaign_launched(
     """
     logger.info(f"Campaign launched: '{campaign_name}' (external_id={campaign_external_id})")
 
-    # 1. Get campaign sequences for email preview
-    subject_preview = "—"
-    body_preview = ""
+    # 1. Get campaign sequences and extract all A/B variants
+    variants_data: list[dict] = []  # [{label, subject, body_html}]
     try:
         sequences = await smartlead_service.get_campaign_sequences(campaign_external_id)
         if sequences:
             first_seq = sequences[0] if isinstance(sequences, list) else sequences
-            subject_preview = (first_seq.get("subject") or "—")[:100]
-            body_html = first_seq.get("email_body") or ""
+            raw_variants = first_seq.get("sequence_variants") or []
+            active_variants = [v for v in raw_variants if not v.get("is_deleted")]
 
-            # If template has variables, try to substitute from first lead
-            if "{{" in subject_preview or "{{" in body_html:
+            if active_variants:
+                for v in active_variants:
+                    variants_data.append({
+                        "label": v.get("variant_label", ""),
+                        "subject": (v.get("subject") or "—")[:100],
+                        "body_html": v.get("email_body") or "",
+                    })
+            else:
+                # Fallback: top-level subject/body (no variants)
+                variants_data.append({
+                    "label": "",
+                    "subject": (first_seq.get("subject") or "—")[:100],
+                    "body_html": first_seq.get("email_body") or "",
+                })
+
+            # Substitute template variables from first lead
+            lead_data = {}
+            needs_sub = any(
+                "{{" in vd["subject"] or "{{" in vd["body_html"]
+                for vd in variants_data
+            )
+            if needs_sub:
                 try:
-                    result = await smartlead_service.get_campaign_leads(campaign_external_id, offset=0, limit=1)
+                    result = await smartlead_service.get_campaign_leads(
+                        campaign_external_id, offset=0, limit=1
+                    )
                     leads = result.get("leads", [])
                     if leads:
                         custom_fields = leads[0].get("custom_fields") or {}
@@ -106,54 +127,84 @@ async def notify_campaign_launched(
                             "last_name": leads[0].get("last_name", ""),
                             "email": leads[0].get("email", ""),
                             "company_name": leads[0].get("company_name", ""),
-                            **custom_fields
+                            **custom_fields,
                         }
-                        # Substitute {{Variable}} with actual values
-                        for key, value in lead_data.items():
-                            if value:
-                                subject_preview = subject_preview.replace("{{" + key + "}}", str(value))
-                                body_html = body_html.replace("{{" + key + "}}", str(value))
                 except Exception as e:
                     logger.debug(f"Could not substitute template variables: {e}")
 
-            body_preview = _html_to_telegram(body_html)
+            for vd in variants_data:
+                for key, value in lead_data.items():
+                    if value:
+                        vd["subject"] = vd["subject"].replace("{{" + key + "}}", str(value))
+                        vd["body_html"] = vd["body_html"].replace("{{" + key + "}}", str(value))
+                vd["body_text"] = _html_to_telegram(vd["body_html"])
     except Exception as e:
         logger.warning(f"Failed to fetch sequences for campaign {campaign_external_id}: {e}")
 
-    # 2. Build Telegram message
+    # 2. Build Telegram message with all variants
     project_line = f"\n<b>Project:</b> {_escape_html(project_name)}" if project_name else "\n<b>Project:</b> Not assigned"
-
-    # Escape HTML but preserve newlines for Telegram
-    body_text = _escape_html(body_preview)
-
     smartlead_url = f"https://app.smartlead.ai/app/email-campaign/{campaign_external_id}/overview"
 
-    message = f"""🚀 #check <b>Campaign Launched</b>
+    variants_block = ""
+    if not variants_data:
+        variants_block = "\n<b>Subject:</b> —\n\n<b>Email:</b>\n(not available)"
+    elif len(variants_data) == 1:
+        vd = variants_data[0]
+        variants_block = (
+            f"\n<b>Subject:</b> {_escape_html(vd['subject'])}"
+            f"\n\n<b>Email:</b>\n{_escape_html(vd.get('body_text', ''))}"
+        )
+    else:
+        for vd in variants_data:
+            label = vd["label"] or "?"
+            variants_block += (
+                f"\n\n━━━ <b>Variant {_escape_html(label)}</b> ━━━"
+                f"\n<b>Subject:</b> {_escape_html(vd['subject'])}"
+                f"\n\n{_escape_html(vd.get('body_text', ''))}"
+            )
 
-<b>Campaign:</b> {_escape_html(campaign_name)}{project_line}
-
-<b>Subject:</b> {_escape_html(subject_preview)}
-
-<b>Email:</b>
-{body_text}
-
-<a href="{smartlead_url}">📬 Open in SmartLead</a>"""
+    message = (
+        f"🚀 #check <b>Campaign Launched</b>\n"
+        f"\n<b>Campaign:</b> {_escape_html(campaign_name)}{project_line}"
+        f"{variants_block}\n"
+        f"\n<a href=\"{smartlead_url}\">📬 Open in SmartLead</a>"
+    )
 
     # Telegram message limit is 4096 chars, truncate if needed
     if len(message) > 4000:
-        # Recalculate with truncated body
-        max_body_len = 4000 - (len(message) - len(body_text)) - 20
-        body_text = _escape_html(body_preview[:max_body_len]) + "..."
-        message = f"""🚀 #check <b>Campaign Launched</b>
+        over = len(message) - 3980
+        # Trim body_text from the last variant
+        last_body = variants_data[-1].get("body_text", "") if variants_data else ""
+        if len(last_body) > over + 20:
+            variants_data[-1]["body_text"] = last_body[:len(last_body) - over] + "..."
+        else:
+            # Too long even after trim — just cut variants to first one
+            variants_data = variants_data[:1]
+            if variants_data:
+                variants_data[0]["body_text"] = variants_data[0].get("body_text", "")[:500] + "..."
 
-<b>Campaign:</b> {_escape_html(campaign_name)}{project_line}
-
-<b>Subject:</b> {_escape_html(subject_preview)}
-
-<b>Email:</b>
-{body_text}
-
-<a href="{smartlead_url}">📬 Open in SmartLead</a>"""
+        # Rebuild
+        variants_block = ""
+        if len(variants_data) == 1:
+            vd = variants_data[0]
+            variants_block = (
+                f"\n<b>Subject:</b> {_escape_html(vd['subject'])}"
+                f"\n\n<b>Email:</b>\n{_escape_html(vd.get('body_text', ''))}"
+            )
+        else:
+            for vd in variants_data:
+                label = vd["label"] or "?"
+                variants_block += (
+                    f"\n\n━━━ <b>Variant {_escape_html(label)}</b> ━━━"
+                    f"\n<b>Subject:</b> {_escape_html(vd['subject'])}"
+                    f"\n\n{_escape_html(vd.get('body_text', ''))}"
+                )
+        message = (
+            f"🚀 #check <b>Campaign Launched</b>\n"
+            f"\n<b>Campaign:</b> {_escape_html(campaign_name)}{project_line}"
+            f"{variants_block}\n"
+            f"\n<a href=\"{smartlead_url}\">📬 Open in SmartLead</a>"
+        )
 
     # 3. Send to admin
     admin_sent = await send_telegram_notification(message, chat_id=TELEGRAM_CHAT_ID)
