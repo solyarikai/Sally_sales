@@ -319,7 +319,14 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
                              "can we speak", "давайте обсудим", "готовы встретиться",
                              "let's have a call", "happy to have a chat", "let's schedule",
                              "забукайте", "hop on a call", "arrange a call",
-                             "готовы с вами встретиться"]
+                             "готовы с вами встретиться",
+                             # Availability sharing = scheduling coordination
+                             "i'm available", "i am available", "my availability",
+                             "available on", "free on", "back in office",
+                             "back on monday", "back on tuesday", "back on wednesday",
+                             "back on thursday", "back on friday",
+                             "вернусь в офис", "буду доступен", "буду доступна",
+                             "буду свободен", "буду свободна"]
         # Calendly link in cleaned text (not in signature of quoted outbound)
         has_calendly = "calendly.com" in text_lower
         has_schedule = any(p in text_lower for p in schedule_patterns)
@@ -328,7 +335,16 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
             w in text_lower for w in ["monday", "tuesday", "wednesday", "thursday", "friday",
                                        "понедельник", "вторник", "среда", "четверг", "пятница",
                                        "пн", "вт", "ср", "чт", "пт", "am", "pm", "cet"])
-        if has_schedule or has_calendly or has_time_slot:
+        # Availability sharing: day names + timezone/location context (no numeric time needed)
+        day_names = ["monday", "tuesday", "wednesday", "thursday", "friday",
+                     "понедельник", "вторник", "среда", "четверг", "пятница"]
+        day_count = sum(1 for d in day_names if d in text_lower)
+        has_tz_or_location = any(w in text_lower for w in [
+            "time zone", "timezone", " time ", "gmt", "utc", "cet", "est", "pst",
+            "singapore", "sydney", "london", "dubai", "moscow", "часовой пояс",
+            "по москве", "back in ", "вернусь в "])
+        has_availability = day_count >= 2 or (day_count >= 1 and has_tz_or_location)
+        if has_schedule or has_calendly or has_time_slot or has_availability:
             return _result("schedule_call", 5, detect_offer(text, campaign_name), campaign_name, channel, raw_text)
 
         # ── Send info (warmth 4) ──
@@ -419,9 +435,22 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
     # Be strict here — only unmistakable signals, not broad words
     strong_warm = ["созвонимся", "давайте обсудим", "schedule a call", "let's meet",
                    "давайте встретиться", "пришлите предложение", "send one pager",
-                   "calendly.com", "happy to explore", "interested in your"]
+                   "calendly.com", "happy to explore", "interested in your",
+                   "i'm available", "i am available", "my availability",
+                   "буду доступен", "буду доступна"]
     if any(p in text_lower for p in strong_warm) and len(text) > 20:
         return _result("interested_vague", 3, detect_offer(text, campaign_name), campaign_name, channel, raw_text)
+
+    # Availability sharing in "other" — day names + timezone/location = scheduling
+    day_names_other = ["monday", "tuesday", "wednesday", "thursday", "friday",
+                       "понедельник", "вторник", "среда", "четверг", "пятница"]
+    day_count_other = sum(1 for d in day_names_other if d in text_lower)
+    has_tz_other = any(w in text_lower for w in [
+        "time zone", "timezone", " time ", "gmt", "utc", "cet", "est", "pst",
+        "singapore", "sydney", "london", "dubai", "moscow", "часовой пояс",
+        "по москве", "back in ", "вернусь в "])
+    if (day_count_other >= 2 or (day_count_other >= 1 and has_tz_other)) and len(text) > 20:
+        return _result("schedule_call", 4, detect_offer(text, campaign_name), campaign_name, channel, raw_text)
 
     return _result("auto_response", 0, "general", campaign_name, channel, raw_text)
 
@@ -531,7 +560,7 @@ async def ai_classify_reply(
             system_prompt="You are a B2B reply classification engine. Return valid JSON only.",
             user_prompt=prompt,
             temperature=0.1,
-            max_tokens=1000,
+            max_tokens=8000,  # thinking tokens count against limit in Gemini 2.5 Pro
             project_id=project_id,
         )
 
