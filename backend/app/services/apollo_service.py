@@ -201,6 +201,7 @@ class ApolloService:
         keyword_tags: List[str],
         locations: Optional[List[str]] = None,
         num_employees_ranges: Optional[List[str]] = None,
+        latest_funding_stages: Optional[List[str]] = None,
         page: int = 1,
         per_page: int = 100,
     ) -> Optional[Dict[str, Any]]:
@@ -211,6 +212,7 @@ class ApolloService:
             keyword_tags: keyword array e.g. ["family office", "wealth management"]
             locations: country names e.g. ["Russia", "Cyprus"]
             num_employees_ranges: size ranges e.g. ["1,10", "11,50"]
+            latest_funding_stages: funding round codes e.g. ["seed", "series_a", "series_b"]
             page: page number (1-indexed)
             per_page: results per page (max 100)
 
@@ -230,6 +232,8 @@ class ApolloService:
             payload["organization_locations"] = locations
         if num_employees_ranges:
             payload["organization_num_employees_ranges"] = num_employees_ranges
+        if latest_funding_stages:
+            payload["organization_latest_funding_stage_cd"] = latest_funding_stages
 
         return await self._api_call("POST", "/mixed_companies/search", payload)
 
@@ -238,6 +242,7 @@ class ApolloService:
         keyword_tags: List[str],
         locations: Optional[List[str]] = None,
         num_employees_ranges: Optional[List[str]] = None,
+        latest_funding_stages: Optional[List[str]] = None,
         max_pages: int = 50,
         per_page: int = 100,
     ) -> List[Dict[str, Any]]:
@@ -255,6 +260,7 @@ class ApolloService:
                 keyword_tags=keyword_tags,
                 locations=locations,
                 num_employees_ranges=num_employees_ranges,
+                latest_funding_stages=latest_funding_stages,
                 page=page,
                 per_page=per_page,
             )

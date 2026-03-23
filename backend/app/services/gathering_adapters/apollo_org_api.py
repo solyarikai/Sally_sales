@@ -16,6 +16,7 @@ class ApolloOrgAPIFilters(BaseModel):
     q_organization_keyword_tags: List[str] = Field(default_factory=list, description="Keywords to search organizations")
     organization_locations: List[str] = Field(default_factory=list, description="Location strings e.g. 'United Arab Emirates'")
     organization_num_employees_ranges: List[str] = Field(default_factory=list, description="Size ranges e.g. '1,10', '11,50'")
+    organization_latest_funding_stage_cd: List[str] = Field(default_factory=list, description="Funding stages e.g. 'seed', 'series_a', 'series_b'")
     max_pages: int = Field(default=5, ge=1, le=100)
     per_page: int = Field(default=25, ge=1, le=100)
 
@@ -54,6 +55,7 @@ class ApolloOrgAPIAdapter(GatheringAdapter):
                     keyword_tags=validated.q_organization_keyword_tags,
                     locations=validated.organization_locations,
                     num_employees_ranges=validated.organization_num_employees_ranges,
+                    latest_funding_stages=validated.organization_latest_funding_stage_cd or None,
                     page=page,
                     per_page=validated.per_page,
                 )
