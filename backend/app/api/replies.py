@@ -1062,18 +1062,16 @@ async def list_replies(
                 resp.followup_draft = fu_draft_map[r.id]
             reply_responses.append(resp)
 
-        # Category counts — deduped, using base_conditions (without category filter) for global tab counts
+        # Category counts — count distinct contacts per category.
+        # A contact can appear on multiple tabs (e.g. question + interested),
+        # so we count contacts per category, not assign each contact to one.
+        # This matches what each tab actually shows with group_by_contact=true.
         category_counts: dict = {}
         try:
-            cat_sub = (
-                select(_contact_ident.label("_dedup_ident"), ProcessedReply.category.label("category"))
-                .distinct(_contact_ident)
-                .where(*base_conditions)
-                .order_by(_contact_ident, desc(ProcessedReply.received_at), category_priority)
-            ).subquery()
             cat_q = (
-                select(cat_sub.c.category, func.count())
-                .group_by(cat_sub.c.category)
+                select(ProcessedReply.category, func.count(func.distinct(_contact_ident)))
+                .where(*base_conditions)
+                .group_by(ProcessedReply.category)
             )
             cat_result = await session.execute(cat_q)
             category_counts = {row[0] or "other": row[1] for row in cat_result.all()}
@@ -1291,30 +1289,13 @@ async def get_reply_counts(
         if cutoff:
             base.append(ProcessedReply.received_at >= cutoff)
 
-    # Dedup: one category per contact (newest first, then best priority as tiebreaker)
-    # Matches list_replies group_by_contact logic exactly
-    from sqlalchemy import case
-    cat_priority = case(
-        (ProcessedReply.category == "meeting_request", 0),
-        (ProcessedReply.category == "interested", 1),
-        (ProcessedReply.category == "question", 2),
-        (ProcessedReply.category == "other", 3),
-        else_=4,
-    )
+    # Count distinct contacts per category — matches what each tab actually shows.
+    # A contact with replies in multiple categories appears on all relevant tabs.
     _counts_ident = func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid)
-    dedup_sub = (
-        select(
-            _counts_ident.label("_ident"),
-            ProcessedReply.category.label("category"),
-        )
-        .distinct(_counts_ident)
-        .where(*base)
-        .order_by(_counts_ident, desc(ProcessedReply.received_at), cat_priority)
-    ).subquery()
-
     cat_q = (
-        select(dedup_sub.c.category, func.count())
-        .group_by(dedup_sub.c.category)
+        select(ProcessedReply.category, func.count(func.distinct(_counts_ident)))
+        .where(*base)
+        .group_by(ProcessedReply.category)
     )
     cat_r = await session.execute(cat_q)
     category_counts = {row[0] or "other": row[1] for row in cat_r.all()}
