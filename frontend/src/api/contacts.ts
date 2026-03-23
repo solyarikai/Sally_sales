@@ -376,9 +376,12 @@ export const contactsApi = {
     return response.data;
   },
 
-  // Get contact stats
-  async getStats(): Promise<ContactStats> {
-    const response = await api.get('/contacts/stats');
+  // Get contact stats (optionally filtered by project)
+  async getStats(projectId?: number | null): Promise<ContactStats> {
+    const params = new URLSearchParams();
+    if (projectId) params.append('project_id', String(projectId));
+    const query = params.toString();
+    const response = await api.get(`/contacts/stats${query ? `?${query}` : ''}`);
     return response.data;
   },
 

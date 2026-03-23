@@ -579,10 +579,16 @@ async def list_contacts(
 async def get_contact_stats(
     session: AsyncSession = Depends(get_session),
     company_id: int | None = Depends(get_optional_company_id),
+    project_id: int | None = Query(None),
 ):
-    """Get contact statistics"""
-    
-    base_filter = and_(Contact.company_id == company_id if company_id else True, Contact.deleted_at.is_(None))
+    """Get contact statistics, optionally filtered by project."""
+
+    filters = [Contact.deleted_at.is_(None)]
+    if company_id:
+        filters.append(Contact.company_id == company_id)
+    if project_id:
+        filters.append(Contact.project_id == project_id)
+    base_filter = and_(*filters)
     
     # Total count
     total_result = await session.execute(

@@ -407,6 +407,11 @@ export function ContactsPage() {
     loadProjects();
   }, []);
 
+  // Reload stats when project changes
+  useEffect(() => {
+    loadStats(activeProject?.id ?? null);
+  }, [activeProject?.id]);
+
   const campaignsLoadedRef = useRef(false);
   const loadCampaigns = async () => {
     try {
@@ -425,9 +430,10 @@ export function ContactsPage() {
     loadCampaigns();
   }, []);
 
-  const loadStats = async () => {
+  const loadStats = async (projectId?: number | null) => {
     try {
-      const data = await contactsApi.getStats();
+      const pid = projectId !== undefined ? projectId : activeProject?.id;
+      const data = await contactsApi.getStats(pid);
       setStats(data);
     } catch (err) {
       console.error('Failed to load stats:', err);
