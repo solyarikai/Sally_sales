@@ -98,6 +98,50 @@ class ApolloService:
                 return None
         return None
 
+    async def search_people_by_domain(
+        self,
+        domain: str,
+        limit: int = 5,
+        titles: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for people at a domain using /mixed_people/api_search.
+        FREE — does NOT call bulk_match, does NOT reveal emails, does NOT use credits.
+        Returns partial names (Apollo obfuscates last names), titles, LinkedIn URLs.
+        """
+        if not self.api_key:
+            logger.warning("Apollo API key not configured")
+            return []
+
+        payload: Dict[str, Any] = {
+            "q_organization_domains": domain,
+            "page": 1,
+            "per_page": min(limit, 10),
+        }
+        if titles:
+            payload["person_titles"] = titles
+
+        data = await self._api_call("POST", "/mixed_people/api_search", payload)
+        if not data:
+            return []
+
+        people = data.get("people", [])[:limit]
+        results = []
+        for p in people:
+            org = p.get("organization") or {}
+            results.append({
+                "apollo_id": p.get("id", ""),
+                "first_name": p.get("first_name", ""),
+                "last_name": p.get("last_name", ""),
+                "title": p.get("title", ""),
+                "company": org.get("name", ""),
+                "linkedin_url": p.get("linkedin_url", ""),
+                "domain": domain,
+                "raw": p,
+            })
+        logger.info(f"Apollo search_people_by_domain({domain}): {len(results)} people found")
+        return results
+
     async def enrich_by_domain(
         self,
         domain: str,

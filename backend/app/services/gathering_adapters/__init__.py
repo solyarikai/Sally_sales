@@ -36,6 +36,7 @@ def list_adapters() -> list[dict]:
 # Import adapters to trigger registration
 from . import apollo_org_api  # noqa: E402, F401
 from . import apollo_people_ui  # noqa: E402, F401
+from . import apollo_people_api  # noqa: E402, F401
 from . import apollo_companies_ui  # noqa: E402, F401
 from . import clay_companies  # noqa: E402, F401
 from . import clay_people  # noqa: E402, F401
