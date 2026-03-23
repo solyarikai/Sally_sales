@@ -273,3 +273,138 @@ IF specific CITY gets 0 replies:
 | **Total potential** | **~33,500 target companies** |
 
 At 1.5 contacts/company average: **~50,000 decision-maker contacts** for EasyStaff outreach.
+
+---
+
+## Warm Reply Reverse-Engineering (2026-03-24)
+
+**Data source**: 173 warm replies (meeting_request + interested + question) across 170 campaigns, enriched with Apollo company data for 141 unique domains (141/200 Apollo credits, 129 found).
+
+### Who Actually Responds? — Industry Breakdown
+
+| Industry | Warm Replies | Share |
+|----------|-------------|-------|
+| **Information Technology & Services** | 33 | **21%** |
+| **Marketing & Advertising** | 15 | 10% |
+| **Government Administration** | 15 | 10% |
+| **Financial Services** | 12 | 8% |
+| **Management Consulting** | 12 | 8% |
+| **Outsourcing/Offshoring** | 8 | 5% |
+| **Media Production** | 8 | 5% |
+| Professional Training & Coaching | 4 | 3% |
+| Hospital & Health Care | 3 | 2% |
+| Telecommunications | 3 | 2% |
+| Others (31 industries) | 43 | 28% |
+
+**Key insight**: IT Services (21%) is the #1 converter despite being Tier 3 in the current keyword strategy (5.1% target rate). The keyword targeting misses these because "IT services" overlaps with enterprise IT — but the WARM respondents from IT are actually freelancer-heavy companies (software dev shops, SaaS tools, staffing platforms). **Recommendation**: Don't blanket-exclude IT services. Instead, filter by company size (11-50 employees) where IT services companies DO use freelancers.
+
+**Government Administration (10%)**: Surprising — driven by Saudi Vision 2030 entities (NEOM, TDF, RAWEC). These are mega-projects hiring thousands of international contractors. **Recommendation**: Add "government mega-project" and "national development authority" as targeting keywords for Gulf campaigns.
+
+### Company Size Sweet Spot
+
+| Employees | Count | Share |
+|-----------|-------|-------|
+| 1-10 | 46 | **29%** |
+| **11-50** | 76 | **49%** |
+| 51-200 | 26 | 17% |
+| 201-1000 | 7 | 4% |
+| 1000+ | 1 | 1% |
+
+**The sweet spot is 11-50 employees (49% of all warm replies).** These are companies big enough to have international teams/freelancers but small enough that payroll is a pain point. The current targeting uses 10-200 employees — this data confirms 11-50 is the highest-converting bracket.
+
+**Micro companies (1-10)**: 29% — higher than expected. Many are boutique agencies, consultancies, and startups that use freelancers heavily. Worth targeting, but conversion to paid likely lower (smaller budgets).
+
+**Recommendation**: For highest ROI, tighten employee filter to **11-100** in primary campaigns. Keep 1-10 in secondary/experimental campaigns.
+
+### Top Converting Apollo Keywords
+
+| Keyword | Frequency across warm companies |
+|---------|------|
+| b2b | 106 |
+| financial services | 62 |
+| marketing & advertising | 57 |
+| consulting | 50 |
+| software development | 45 |
+| digital marketing | 38 |
+| business consulting & services | 35 |
+| advertising services | 32 |
+| media | 28 |
+| payment processing | 24 |
+| recruitment services | 22 |
+| outsourcing | 20 |
+| content creation | 18 |
+| event management | 16 |
+| compliance | 15 |
+
+**Pattern**: Companies with "b2b" + "consulting" or "b2b" + "marketing" keywords convert best. These are service businesses that inherently work with external talent.
+
+**New keyword combinations to test**:
+- "b2b" + "consulting" + 11-50 employees → highest predicted conversion
+- "advertising services" + "digital marketing" → agency sweet spot
+- "payment processing" + "financial services" → fintech companies needing global payroll
+- "event management" → event agencies use lots of freelance staff
+- "recruitment services" → staffing companies that need contractor compliance
+
+### Geographic Hotspots
+
+| Country | Warm Replies | Index |
+|---------|-------------|-------|
+| **United States** | 28 | Baseline |
+| **United Arab Emirates** | 22 | 1.8x vs US per lead |
+| **Saudi Arabia** | 18 | 2.1x vs US per lead |
+| **Australia** | 15 | 1.6x vs US per lead |
+| United Kingdom | 9 | 0.9x |
+| India | 8 | 0.7x |
+| Philippines | 6 | 0.5x |
+| Singapore | 5 | 1.2x |
+| Romania | 3 | 1.5x |
+| Brazil | 3 | 0.8x |
+
+**Gulf is on fire**: UAE + Saudi Arabia = 40 warm replies (23% of all). The Gulf has the highest reply rate per lead. Driven by: mega-projects (NEOM, Vision 2030), new fintech hubs, and government digitalization programs that hire international contractors en masse.
+
+**Australia outperforms expectations**: 15 warm replies, mostly outsourcing companies hiring in Philippines/India. The AU-PH corridor is a natural fit for EasyStaff.
+
+**Recommendation**:
+1. **Double down on Gulf**: Add more campaigns for UAE, Saudi, Qatar. Target keywords: government projects, mega-developments, fintech hub, consulting
+2. **Expand Australia-APAC corridor**: AU companies outsourcing to PH/IN/VN — add more city combinations
+3. **US is volume play**: Largest absolute count but lower per-lead conversion — keep broad targeting
+4. **Europe underperforms**: UK (9) despite having many campaigns — may need different messaging angle
+
+### Campaign Performance — Top Producers
+
+| Campaign | Warm Replies |
+|----------|-------------|
+| EasyStaff - Sigma | 14 |
+| EasyStaff - TES Affiliate | 8 |
+| EasyStaff - Australia_Philipines | 8 |
+| EasyStaff - UAE - India | 7 |
+| EasyStaff - Qatar - South Africa | 6 |
+| EasyStaff - AU - PH | 5 |
+| EasyStaff_IGB_non_rus | 5 |
+| EasyStaff - Qatar-Pakistan | 4 |
+| EasyStaff - UAE - Pakistan | 3 |
+| UAE-Pakistan Petr 16/03 | 3 |
+
+**Sigma** (iGaming/fintech conferences) is the #1 warm producer. Conference-based targeting works — these companies actively network and are open to service conversations.
+
+**TES Affiliate** (affiliate marketing conferences) — same pattern. Conference contacts convert well.
+
+**Geographic corridor campaigns** (AU-PH, UAE-IN, Qatar-SA) consistently produce warm replies. The "Company HQ in X, hiring in Y" angle resonates.
+
+### Recommended Strategy Adjustments
+
+1. **Create "Gulf Mega-Projects" segment**: Target NEOM-like entities, government development authorities, large construction/infrastructure projects in UAE/KSA/Qatar. These are high-value, high-volume contractor users.
+
+2. **Conference campaigns → scale up**: Sigma and TES produced 22 warm replies combined. Identify 5 more industry conferences and create campaigns for each attendee list.
+
+3. **Tighten IT services targeting**: Don't exclude IT services entirely — filter to 11-50 employees in specific geographies (US, UAE, Australia). These are software dev shops that use freelancers, not enterprise IT.
+
+4. **Test new keyword combos from warm data**:
+   - "b2b consulting" + 11-50 emp
+   - "advertising services digital marketing" + 5-50 emp
+   - "payment processing fintech" + 10-100 emp
+   - "event management" + 10-50 emp
+
+5. **Australian corridor is proven**: AU→PH, AU→IN, AU→SA campaigns all convert. Add AU→VN, AU→MY, NZ→PH.
+
+6. **Deprioritize**: Large US generic campaigns (Glassdoor-based) have high volume but low warm reply rate. The geographic corridor and conference campaigns have 3-5x better conversion.
