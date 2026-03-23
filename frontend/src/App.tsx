@@ -1,31 +1,45 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { HomePage } from './pages/HomePage';
-import { DataSearchPage } from './pages/DataSearchPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { DatasetsPage } from './pages/DatasetsPage';
-import { TemplatesPage } from './pages/TemplatesPage';
-import { SettingsPage } from './pages/SettingsPage';
-import KnowledgeBasePage from './pages/KnowledgeBasePage';
-import { AllProspectsPage } from './pages/AllProspectsPage';
-import { RepliesPage } from './pages/RepliesPage';
-import PromptDebugPage from './pages/PromptDebugPage';
-import { ContactsPage } from './pages/ContactsPage';
-import { ContactDetailPage } from './pages/ContactDetailPage';
-import { TasksPage } from './pages/TasksPage';
-import { KnowledgePage } from './pages/KnowledgePage';
-import { SearchResultsPage } from './pages/SearchResultsPage';
-import { PipelinePage } from './pages/PipelinePage';
-import { ProjectsPage } from './pages/ProjectsPage';
-import { ProjectPage } from './pages/ProjectPage';
-import { ProjectKnowledgePage } from './pages/ProjectKnowledgePage';
-import { ProjectChatPage } from './pages/ProjectChatPage';
-import { QueryDashboardPage } from './pages/QueryDashboardPage';
-import { OperatorActionsPage } from './pages/OperatorActionsPage';
-import { GodPanelPage } from './pages/GodPanelPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
+
+// ---------------------------------------------------------------------------
+// Lazy-loaded pages — each becomes its own chunk, loaded on first navigation.
+// Named exports use .then(m => ({ default: m.X })) adapter for React.lazy().
+// ---------------------------------------------------------------------------
+const DataSearchPage = lazy(() => import('./pages/DataSearchPage').then(m => ({ default: m.DataSearchPage })));
+const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const DatasetsPage = lazy(() => import('./pages/DatasetsPage').then(m => ({ default: m.DatasetsPage })));
+const TemplatesPage = lazy(() => import('./pages/TemplatesPage').then(m => ({ default: m.TemplatesPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const KnowledgeBasePage = lazy(() => import('./pages/KnowledgeBasePage'));
+const AllProspectsPage = lazy(() => import('./pages/AllProspectsPage').then(m => ({ default: m.AllProspectsPage })));
+const RepliesPage = lazy(() => import('./pages/RepliesPage').then(m => ({ default: m.RepliesPage })));
+const PromptDebugPage = lazy(() => import('./pages/PromptDebugPage'));
+const ContactsPage = lazy(() => import('./pages/ContactsPage').then(m => ({ default: m.ContactsPage })));
+const ContactDetailPage = lazy(() => import('./pages/ContactDetailPage').then(m => ({ default: m.ContactDetailPage })));
+const TasksPage = lazy(() => import('./pages/TasksPage').then(m => ({ default: m.TasksPage })));
+const KnowledgePage = lazy(() => import('./pages/KnowledgePage').then(m => ({ default: m.KnowledgePage })));
+const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage').then(m => ({ default: m.SearchResultsPage })));
+const PipelinePage = lazy(() => import('./pages/PipelinePage').then(m => ({ default: m.PipelinePage })));
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then(m => ({ default: m.ProjectsPage })));
+const ProjectPage = lazy(() => import('./pages/ProjectPage').then(m => ({ default: m.ProjectPage })));
+const ProjectKnowledgePage = lazy(() => import('./pages/ProjectKnowledgePage').then(m => ({ default: m.ProjectKnowledgePage })));
+const ProjectChatPage = lazy(() => import('./pages/ProjectChatPage').then(m => ({ default: m.ProjectChatPage })));
+const QueryDashboardPage = lazy(() => import('./pages/QueryDashboardPage').then(m => ({ default: m.QueryDashboardPage })));
+const OperatorActionsPage = lazy(() => import('./pages/OperatorActionsPage').then(m => ({ default: m.OperatorActionsPage })));
+const GodPanelPage = lazy(() => import('./pages/GodPanelPage').then(m => ({ default: m.GodPanelPage })));
+
+// Minimal loading spinner — shown while a lazy chunk downloads
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin opacity-40" />
+    </div>
+  );
+}
 
 // Component to initialize toast function for API client
 function ToastInitializer() {
@@ -42,14 +56,15 @@ function App() {
     <ToastProvider>
     <ToastInitializer />
     <BrowserRouter>
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Data Search - the new homepage */}
         <Route path="/" element={<Layout><DataSearchPage /></Layout>} />
         <Route path="/data-search" element={<Layout><DataSearchPage /></Layout>} />
-        
+
         {/* Companies page - formerly the homepage */}
         <Route path="/companies" element={<HomePage />} />
-        
+
         {/* Company-scoped routes */}
         <Route path="/company/:companyId/*" element={
           <Layout>
@@ -64,7 +79,7 @@ function App() {
             </Routes>
           </Layout>
         } />
-        
+
         {/* Redirect standalone /replies to unified /tasks/replies */}
         <Route path="/replies" element={<Navigate to="/tasks/replies" replace />} />
 
@@ -84,7 +99,7 @@ function App() {
             <SettingsPage />
           </Layout>
         } />
-        
+
         {/* Tasks page — route-based tabs */}
         <Route path="/tasks" element={<Navigate to="/tasks/replies" replace />} />
         <Route path="/tasks/:tab" element={
@@ -117,10 +132,10 @@ function App() {
             <GodPanelPage />
           </Layout>
         } />
-        
+
         {/* Dashboard page */}
         <Route path="/dashboard" element={<DashboardPage />} />
-        
+
         {/* Search Results */}
         <Route path="/search-results" element={
           <Layout>
@@ -185,11 +200,12 @@ function App() {
             <ContactsPage />
           </Layout>
         } />
-        
+
         {/* Legacy routes - redirect to home */}
         <Route path="/prospects" element={<Navigate to="/" replace />} />
         <Route path="/knowledge-base" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
     </ToastProvider>
     </ErrorBoundary>

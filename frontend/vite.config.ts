@@ -23,6 +23,22 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Target modern browsers only — drops legacy polyfills
+    target: 'es2020',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core framework — cached across all pages
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // ag-grid — only loaded by ContactsPage, PipelinePage, QueryDashboardPage, AllProspectsPage
+          'vendor-ag-grid': ['ag-grid-community', 'ag-grid-react'],
+          // Markdown — only loaded by chat pages
+          'vendor-markdown': ['react-markdown', 'remark-gfm'],
+        },
+      },
+    },
+  },
   test: {
     environment: 'happy-dom',
     setupFiles: ['./src/test/setup.ts'],
