@@ -835,3 +835,61 @@ Based on actual conversations that led to meetings:
 | Companies locked into competitor | Won't switch | Grandave Capital "already has platform" |
 | Solo consultants (1 person, no team) | No contractors to pay | Multiple 1-person leads didn't progress |
 | Conference leads as cold outreach proxy | Different funnel | Conferences work but not replicable at scale |
+
+---
+
+## Growth Hack #1 (2026-03-24): "Deel Review Mining" — Target Dissatisfied Competitor Customers
+
+**Insight**: Every qualified lead already uses a competitor. The fastest path to 10K targets isn't finding new companies — it's finding companies already UNHAPPY with their current provider.
+
+**The hack**: Mine public Deel/Remote/Papaya Global reviews on G2, Capterra, TrustRadius. Companies that left 1-3 star reviews are actively dissatisfied. Cross-reference reviewer companies with Apollo to get contact data.
+
+**Pipeline setup**:
+1. Scrape G2 review pages for Deel, Remote.com, Papaya Global, Oyster HR (public data, no login needed)
+2. Extract company names from reviewer profiles (G2 shows company + title)
+3. Batch-search these companies in Apollo API: `POST /mixed_companies/search` with company name
+4. Filter: 5-200 employees, has international presence
+5. Enrich contacts: 1 credit/person via `POST /people/bulk_match`
+
+**Apollo cost**: ~500 credits for search + ~2,000 for people enrichment of ~1,000 dissatisfied competitor customers.
+
+**Why this works**: IGT Glass Hardware said "Deel $45/mo+$5, want cheaper." MedTrainer said "ADP took 8 months." George Ladkany asked "How do you compare with DEEL?" — the pain is REAL and SPECIFIC. Companies leaving bad reviews are pre-qualified.
+
+**Outreach angle**: "I noticed [COMPANY] recently evaluated international payroll solutions. We help companies like yours cut contractor payout fees to under 1% — interested in a quick comparison?"
+
+---
+
+## Growth Hack #2 (2026-03-24): "Job Board Intent Signal" — Catch Companies WHILE They're Hiring Internationally
+
+**Insight from scheduling data**: The 33 companies that scheduled calls aren't just "companies with international teams" — they're companies ACTIVELY EXPANDING internationally RIGHT NOW. Timing is everything.
+
+**The hack**: Monitor job boards (LinkedIn Jobs API, Indeed, Glassdoor) for companies posting remote jobs in target corridors (US→LatAm, UAE→PK/IN, AU→PH). A company posting "Remote — Philippines" or "Contractor — Mexico" THIS WEEK has an immediate need.
+
+**Pipeline setup**:
+1. Use existing Puppeteer infrastructure to scrape LinkedIn Jobs with filters:
+   - Location: "Remote" or specific countries (Mexico, Philippines, Pakistan, India, Colombia)
+   - Posted: last 7 days
+   - Company HQ: US, UAE, Australia
+2. Extract company names + domains
+3. Apollo org enrichment: `POST /organizations/enrich` with domain (1 credit/domain)
+4. Apollo people search for hiring managers: `POST /mixed_people/search` (1 credit/page)
+5. Push to SmartLead campaign with time-sensitive messaging
+
+**Apollo cost**: ~100 credits/week for org enrichment + ~200 for people = ~300 credits/week. At 50 companies/week = ~2,600 targets/year for ~15,600 credits.
+
+**Why this is different**: Current strategy targets companies based on STATIC attributes (industry, size, location). This targets companies based on DYNAMIC intent — they're hiring NOW. The MedTrainer deal happened because Karla was actively hiring in Mexico when we emailed.
+
+**Outreach angle**: "I saw [COMPANY] is hiring a [ROLE] in [COUNTRY]. We help companies like yours handle contractor compliance and payouts in [COUNTRY] for under 1% — want me to send the fee structure?"
+
+**Apollo search for this segment**:
+```
+POST /mixed_people/search
+{
+  "person_titles": ["Head of HR", "VP People", "COO", "CFO", "Founder"],
+  "organization_locations": ["United States"],
+  "organization_num_employees_ranges": ["5,100"],
+  "q_keywords": "hiring remote OR international contractors OR offshore team",
+  "per_page": 25
+}
+```
+This finds decision-makers at companies that self-describe with remote/international hiring keywords — a proxy for active international hiring intent.
