@@ -190,7 +190,7 @@ async function searchPeople(page, params) {
         console.log(`[${ts()}] Page ${pageNum}/${Math.ceil(totalEntries / 25)}: +${people.length} people (total: ${allPeople.length})`);
       }
 
-      if (people.length < 25) break;
+      if (people.length === 0) break;
       if (pageNum >= (result.pagination?.total_pages || Infinity)) break;
 
       await sleep(800 + Math.random() * 500);
