@@ -501,7 +501,9 @@ Categories:
 - interested: The person shows ANY positive signal — wants to learn more, requests materials,
   says "send it", "yes", "ok", "давайте", "отправьте", "присылайте", or uses positive emojis
   (👍, 🤝, ✅, etc). Short affirmative replies = interested. When in doubt, classify as interested.
-- meeting_request: The person wants to schedule a call or meeting
+- meeting_request: The person wants to schedule a call or meeting, OR shares their availability,
+  timezone, schedule, or location to coordinate timing (e.g. "I'm free Thursday", "back in office Monday",
+  "on Singapore time next week"). Any message that implies willingness to meet = meeting_request.
 - not_interested: The person EXPLICITLY declines or says no. Includes polite declines
   like "no difficulties", "all good thanks", "not needed", "пока проблем нет",
   "сложностей нет", "нет необходимости", "нас всё устраивает", "спасибо, не надо".
