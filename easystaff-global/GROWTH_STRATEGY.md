@@ -608,3 +608,165 @@ The single most actionable insight from qualified data: **every qualified lead a
 - Search for "companies actively hiring internationally" (job boards, LinkedIn hiring posts)
 - Search for "Deel customers" (Deel reviews, comparison sites, communities)
 - Search for companies with employees in multiple countries (Apollo location filter)
+
+---
+
+## DEFINITIVE: Scheduling + Qualified — Apollo Label Reverse Engineering (2026-03-24)
+
+**Two datasets combined:**
+1. **33 scheduling leads** from SmartLead/GetSales (shared times, calendly, specific days)
+2. **12 qualified leads** from Google Sheet (meetings held, EasyStaff confirmed as targets)
+
+### Scheduling Leads — Apollo Profile (33 leads, 29 enriched)
+
+| Apollo Industry | Count | Share |
+|----------------|-------|-------|
+| **Outsourcing/Offshoring** | **5** | **17%** |
+| **Information Technology & Services** | **5** | **17%** |
+| **Management Consulting** | **3** | **10%** |
+| **Media Production** | **3** | **10%** |
+| Real Estate | 2 | 7% |
+| Financial Services | 2 | 7% |
+| Others (9 industries) | 9 | 31% |
+
+| Country | Scheduling Leads |
+|---------|-----------------|
+| **United Arab Emirates** | **12 (41%)** |
+| **Australia** | **6 (21%)** |
+| United States | 3 (10%) |
+| Singapore | 2 (7%) |
+| Others | 6 (21%) |
+
+| Company Size | Count |
+|-------------|-------|
+| 1-10 | 10 (34%) |
+| **11-50** | **13 (45%)** |
+| 51-200 | 5 (17%) |
+| 200+ | 1 (3%) |
+
+**Median employee count: 15. Average: 29.**
+
+### Qualified Leads — Apollo Profile (12 leads, 4 enriched, rest too small for Apollo)
+
+| Corridor | Qualified Count | Key Companies |
+|----------|----------------|---------------|
+| **US → LatAm/PH** | **5** | MedTrainer (390 emp), SAM Labs (40), H2O Allegiant (3), Huckleberry (1), IGT Glass |
+| **UAE → Pakistan** | **3** | Zopreneurs (19 emp), Zambeel (53), AR Associates |
+| **EU → intl** | **2** | Lotter Media (DE→RU, SIGNED), ComingOut (LT→intl) |
+| **SA → Qatar** | **1** | Gig Engineer (11 emp) |
+| **Conference** | **1** | doingbusiness.live |
+
+**8 of 12 qualified leads are NOT in Apollo** — they're small companies (1-40 emp) that Apollo doesn't have good coverage for. This means: Apollo API is useful for FINDING companies but the best-converting ones are often too small for Apollo's database.
+
+### Top Apollo Keywords Across ALL Scheduling + Qualified Leads
+
+| Keyword | Frequency | What It Tells Us |
+|---------|-----------|------------------|
+| **b2b** | 16 | Service businesses, not consumer |
+| **virtual assistant** | 5 | Already using remote workers |
+| **outsourcing & offshoring consulting** | 5 | Core EasyStaff ICP |
+| **video editing** | 5 | Creative agencies outsourcing |
+| **regulatory compliance** | 5 | Companies that CARE about compliance = our value prop |
+| **management consulting** | 4 | Consultancies with distributed teams |
+| **logistics & supply chain** | 4 | Gulf logistics companies |
+| **e-commerce** | 6 | D2C brands with remote teams |
+| **broadcast media production** | 3 | Media companies with intl freelancers |
+
+### Combined Insight: TWO DISTINCT WINNING PROFILES
+
+**Profile A: "US Small Company, Multi-Country Pain" (Qualified #1)**
+- HQ: United States
+- Size: 1-50 employees
+- Corridor: US → LatAm (MX, CO, AR) AND/OR PH
+- Apollo industries: IT services, consulting, healthcare tech, real estate tech
+- Pain: Already paying contractors (Deel/ADP/Quickbooks), wants cheaper + better compliance
+- **Why they close**: Already have the problem. Comparing vendors. Price-sensitive.
+- Apollo search: US + 1-100 emp + keywords "outsourcing", "remote team", "contractors", "virtual assistant"
+
+**Profile B: "UAE Mid-Size, South Asia Workforce" (Scheduling #1)**
+- HQ: Dubai, Abu Dhabi
+- Size: 3-60 employees
+- Corridor: UAE → Pakistan, India
+- Apollo industries: management consulting, media production, fintech, logistics, education
+- Pain: Need structured payroll for PK/IN freelancers, many are new businesses setting up
+- **Why they schedule**: Active need, building teams now, responsive culture.
+- Apollo search: UAE + 3-200 emp + keywords "consulting", "outsourcing", "media production", "logistics"
+
+**Profile C: "Australian Outsourcer" (Scheduling #2)**
+- HQ: Sydney, Melbourne
+- Size: 10-30 employees
+- Corridor: AU → Philippines
+- Apollo industries: outsourcing/offshoring, virtual staffing, BPO
+- Pain: Managing PH team payroll and compliance
+- **Why they schedule**: Established corridor, clear pain, budget authority.
+- Apollo search: Australia + 5-100 emp + keywords "outsourcing", "virtual assistant", "BPO"
+
+### EXACT Apollo API Search Parameters for 10K Targets
+
+**Search 1: US multi-country companies (Phase 1, highest qualified rate)**
+```
+Endpoint: POST /mixed_companies/search
+Filters:
+  person_locations: ["United States"]
+  organization_num_employees_ranges: ["1,50", "51,100"]
+  q_keywords: "outsourcing OR remote team OR virtual assistant OR offshore OR contractors"
+  per_page: 25
+Pages needed: ~200 pages = ~200 credits
+Expected: ~5,000 raw companies → ~1,750 targets (35% rate)
+Enrichment: 1,750 × 1 credit = 1,750 credits
+TOTAL: ~1,950 credits
+```
+
+**Search 2: UAE service companies (Phase 1, highest scheduling rate)**
+```
+Filters:
+  organization_locations: ["United Arab Emirates"]
+  organization_num_employees_ranges: ["1,50", "51,200"]
+  q_keywords: "consulting OR outsourcing OR media OR logistics OR fintech"
+  per_page: 25
+Pages: ~120 = ~120 credits
+Expected: ~3,000 raw → ~1,200 targets (40% rate, Gulf converts well)
+Enrichment: 1,200 credits
+TOTAL: ~1,320 credits
+```
+
+**Search 3: Australian outsourcers (Phase 2)**
+```
+Filters:
+  organization_locations: ["Australia"]
+  organization_num_employees_ranges: ["5,100"]
+  q_keywords: "outsourcing OR virtual assistant OR BPO OR offshore"
+  per_page: 25
+Pages: ~80 = ~80 credits
+Expected: ~2,000 raw → ~800 targets
+Enrichment: 800 credits
+TOTAL: ~880 credits
+```
+
+**Search 4: Backfill — US specific corridors (Phase 2)**
+```
+Filters:
+  person_locations: ["United States"]
+  organization_num_employees_ranges: ["1,100"]
+  q_keywords: "healthcare compliance OR real estate technology OR saas payroll OR hr tech"
+  (targeting MedTrainer/IGT-like companies)
+Pages: ~100 = ~100 credits
+Expected: ~2,500 raw → ~900 targets
+Enrichment: 900 credits
+TOTAL: ~1,000 credits
+```
+
+### Total Apollo Budget for 10K Targets
+
+| Phase | Segment | Credits | Expected Targets |
+|-------|---------|---------|-----------------|
+| 1 | US multi-country | 1,950 | 1,750 |
+| 1 | UAE service companies | 1,320 | 1,200 |
+| 2 | Australian outsourcers | 880 | 800 |
+| 2 | US specific corridors | 1,000 | 900 |
+| 3 | Additional geos (SG, QA, SA) | 1,500 | 1,000 |
+| **Total** | | **6,650** | **5,650 targets** |
+| + People enrichment (2 contacts/target) | | **~11,300** | **~11,300 contacts** |
+| **Grand total** | | **~17,950 credits** | **5,650 companies, 11,300 contacts** |
+
+To reach 10K targets: repeat Searches 1-4 with additional keyword variations + add EU + add Saudi Arabia. Estimated total: **~25,000-30,000 Apollo credits.**
