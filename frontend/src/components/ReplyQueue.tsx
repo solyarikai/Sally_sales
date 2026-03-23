@@ -1529,7 +1529,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                       {/* Actions */}
                       <div
                         className="px-4 pb-3 pt-2 flex items-center gap-1.5"
-                        style={{ position: 'sticky', bottom: 0, zIndex: 10, background: t.cardBg, borderTop: `1px solid ${t.divider}` }}
+                        style={{ position: 'sticky', bottom: 0, zIndex: 10, background: t.cardBg, borderTop: `1px solid ${t.divider}`, paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
                       >
                         {mode === 'followups' ? (
                           <>
