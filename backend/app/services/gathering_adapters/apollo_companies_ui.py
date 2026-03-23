@@ -30,6 +30,7 @@ class ApolloCompaniesUIFilters(BaseModel):
     organization_num_employees_ranges: List[str] = Field(
         default_factory=lambda: ["11,50", "51,200"]
     )
+    organization_latest_funding_stage_cd: List[str] = Field(default_factory=list, description="Funding stages e.g. 'seed', 'series_a', 'series_b'")
     sort_by_field: str = "recommendations_score"
     max_pages: int = Field(default=50, ge=1, le=500)
     resume: bool = False
@@ -93,6 +94,10 @@ class ApolloCompaniesUIAdapter(GatheringAdapter):
         # Add size ranges
         for size in validated.organization_num_employees_ranges:
             args.extend(["--sizes", size])
+
+        # Add funding stages
+        if validated.organization_latest_funding_stage_cd:
+            args.extend(["--funding-stages", ",".join(validated.organization_latest_funding_stage_cd)])
 
         # Max pages
         args.extend(["--max-pages", str(validated.max_pages)])

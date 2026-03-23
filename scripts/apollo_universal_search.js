@@ -36,6 +36,7 @@ function parseArgs() {
     locations: [],
     keywords: [],
     sizes: ['11,50', '51,200'],
+    fundingStages: [],
     maxPages: 50,
     outputDir: path.join(__dirname, '..', 'gathering-data'),
     outputFile: null,
@@ -71,6 +72,9 @@ function parseArgs() {
     } else if (arg === '--config' && next) {
       config.configFile = next;
       i++;
+    } else if (arg === '--funding-stages' && next) {
+      config.fundingStages.push(...next.split(',').map(k => k.trim()));
+      i++;
     } else if (arg === '--resume') {
       config.resume = true;
     }
@@ -82,6 +86,7 @@ function parseArgs() {
     if (fileConfig.locations) config.locations = fileConfig.locations;
     if (fileConfig.keywords) config.keywords = fileConfig.keywords;
     if (fileConfig.sizes) config.sizes = fileConfig.sizes;
+    if (fileConfig.fundingStages) config.fundingStages = fileConfig.fundingStages;
     if (fileConfig.maxPages) config.maxPages = fileConfig.maxPages;
   }
 
@@ -124,6 +129,12 @@ function buildUrl(params) {
 
   if (params.industryTagId) {
     parts.push(`organizationIndustryTagIds[]=${params.industryTagId}`);
+  }
+
+  if (params.fundingStages) {
+    for (const stage of params.fundingStages) {
+      parts.push(`organizationLatestFundingStageCD[]=${encodeURIComponent(stage)}`);
+    }
   }
 
   parts.push('sortAscending=false');
@@ -415,6 +426,7 @@ async function runSearch(config) {
         locations: config.locations,
         sizes: search.sizes,
         keyword: search.keyword,
+        fundingStages: config.fundingStages,
       });
 
       await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
