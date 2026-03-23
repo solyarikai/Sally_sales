@@ -362,6 +362,82 @@ async def _send_meeting_notification(
     return sent
 
 
+async def _find_project_for_invitee(session, invitee_email: str, host_email: str, projects: list) -> tuple:
+    """Find the right project for a Calendly invitee.
+
+    Strategy: contact-first (cross-project), then host-based fallback.
+    Returns: (project, contact_id, contact_info) or (None, None, None).
+    """
+    from app.models.contact import Contact
+
+    contact_id = None
+    contact_info = None
+    target_project = None
+
+    # 1. Contact-first: find invitee across ALL projects
+    if invitee_email:
+        result = await session.execute(
+            select(Contact).where(
+                Contact.email == invitee_email.lower(),
+                Contact.deleted_at.is_(None)
+            )
+        )
+        contacts = result.scalars().all()
+
+        if contacts:
+            # Pick best: most recent activity
+            def _activity_key(c):
+                return c.last_reply_at or c.updated_at or c.created_at or datetime.min
+
+            winner = max(contacts, key=_activity_key)
+            contact_id = winner.id
+            contact_info = {
+                "company_name": winner.company_name,
+                "job_title": winner.job_title,
+                "segment": winner.segment,
+                "source": winner.source,
+            }
+
+            # Find project object
+            for p in projects:
+                if p.id == winner.project_id:
+                    target_project = p
+                    break
+
+            if not target_project:
+                # Project not in calendly-configured list, load it
+                from app.models.contact import Project
+                target_project = await session.get(Project, winner.project_id)
+
+            if target_project:
+                logger.info(
+                    f"[CALENDLY SYNC] Matched {invitee_email} to project "
+                    f"'{target_project.name}' (contact {contact_id})"
+                )
+
+    # 2. Fallback: host-based matching
+    if not target_project and host_email:
+        for p in projects:
+            config = p.calendly_config or {}
+            for member in config.get("members", []):
+                member_id = member.get("id", "").lower()
+                if host_email.lower() in member_id or member_id in host_email.lower():
+                    target_project = p
+                    break
+            if target_project:
+                break
+
+        # Last resort: first project
+        if not target_project and projects:
+            target_project = projects[0]
+            logger.warning(
+                f"[CALENDLY SYNC] No match for {invitee_email} / host {host_email}, "
+                f"falling back to '{target_project.name}'"
+            )
+
+    return target_project, contact_id, contact_info
+
+
 async def sync_calendly_events_for_project(
     project_id: int, project_name: str, config: dict, session
 ) -> dict:
@@ -369,13 +445,13 @@ async def sync_calendly_events_for_project(
 
     Fetches events for the past 7 days and next 30 days.
     Creates new Meeting records for events not yet in DB.
-    Updates contact status to meeting_booked if contact found.
+    Uses contact-first matching to assign events to the correct project.
 
     Returns: {"synced": int, "skipped": int, "errors": list}
     """
     from datetime import timezone
     from app.models.meeting import Meeting
-    from app.models.contact import Contact
+    from app.models.contact import Contact, Project
     from sqlalchemy import select
 
     members = config.get("members", [])
@@ -390,6 +466,15 @@ async def sync_calendly_events_for_project(
     synced = 0
     skipped = 0
     errors = []
+
+    # Load all calendly-configured projects for cross-project matching
+    all_projects_result = await session.execute(
+        select(Project).where(
+            Project.calendly_config.isnot(None),
+            Project.deleted_at.is_(None)
+        )
+    )
+    all_projects = all_projects_result.scalars().all()
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -488,35 +573,39 @@ async def sync_calendly_events_for_project(
 
                 event_type_name = event.get("name", "Meeting")
 
-                # Find contact by email
-                contact_id = None
-                contact_info = None
-                if invitee_email:
-                    contact_result = await session.execute(
-                        select(Contact).where(
-                            Contact.email == invitee_email,
-                            Contact.project_id == project_id,
-                            Contact.deleted_at.is_(None)
-                        ).limit(1)
-                    )
-                    contact = contact_result.scalar()
-                    if contact:
-                        contact_id = contact.id
-                        contact_info = {
-                            "company_name": contact.company_name,
-                            "job_title": contact.job_title,
-                            "segment": contact.segment,
-                            "source": contact.source,
-                        }
-                        # Update contact status
-                        if contact.status not in ('qualified', 'meeting_held', 'meeting_booked'):
-                            contact.status = 'meeting_booked'
-                            logger.info(f"[CALENDLY SYNC] Updated contact {contact_id} to meeting_booked")
+                # Find correct project via contact-first matching
+                target_project, contact_id, contact_info = await _find_project_for_invitee(
+                    session, invitee_email, host_email, all_projects
+                )
 
-                # Create meeting (use string values for status/outcome since DB uses varchar)
+                if not target_project:
+                    logger.warning(f"[CALENDLY SYNC] No project for {invitee_email}, skipping")
+                    errors.append(f"No project for {invitee_email}")
+                    continue
+
+                actual_project_id = target_project.id
+
+                # Update contact status
+                if contact_id:
+                    contact = await session.get(Contact, contact_id)
+                    if contact and contact.status not in ('qualified', 'meeting_held', 'meeting_booked'):
+                        contact.status = 'meeting_booked'
+                        logger.info(f"[CALENDLY SYNC] Updated contact {contact_id} to meeting_booked")
+
+                # Get campaign from contact's platform_state
+                campaign_name = None
+                if contact_id:
+                    contact_obj = await session.get(Contact, contact_id)
+                    if contact_obj and contact_obj.platform_state:
+                        sl_state = contact_obj.platform_state.get("smartlead", {})
+                        campaigns = sl_state.get("campaigns", [])
+                        if campaigns:
+                            campaign_name = campaigns[0] if isinstance(campaigns[0], str) else campaigns[0].get("name")
+
+                # Create meeting with correct project
                 meeting = Meeting(
                     company_id=1,
-                    project_id=project_id,
+                    project_id=actual_project_id,
                     contact_id=contact_id,
                     calendly_event_uri=event_uri,
                     calendly_invitee_uri=invitee_uri,
@@ -534,15 +623,19 @@ async def sync_calendly_events_for_project(
                     status="scheduled",
                     channel=contact_info.get("source") if contact_info else None,
                     segment=contact_info.get("segment") if contact_info else None,
+                    campaign_name=campaign_name,
                 )
                 session.add(meeting)
                 synced += 1
-                logger.info(f"[CALENDLY SYNC] Created meeting for {invitee_name} ({invitee_email})")
+                logger.info(
+                    f"[CALENDLY SYNC] Created meeting for {invitee_name} ({invitee_email}) "
+                    f"in project '{target_project.name}'"
+                )
 
                 # Send TG notification
                 try:
                     await _send_meeting_notification(
-                        meeting, project_name, project_id,
+                        meeting, target_project.name, actual_project_id,
                         contact_info or {}, session
                     )
                 except Exception as e:
@@ -561,6 +654,9 @@ async def sync_all_calendly_projects() -> dict:
     """Sync Calendly events for all projects with calendly_config.
 
     Called by scheduler every 5 minutes.
+    Single-pass: fetches org events ONCE, assigns each to the correct project
+    via contact-first matching (cross-project).
+
     Returns: {"total_synced": int, "projects_processed": int}
     """
     from app.db import async_session_maker
@@ -579,19 +675,38 @@ async def sync_all_calendly_projects() -> dict:
         )
         projects = result.scalars().all()
 
+        if not projects:
+            return {"total_synced": 0, "projects_processed": 0}
+
+        # Pick first available token — all share the same Calendly org
+        token = None
+        first_project = None
         for project in projects:
             config = project.calendly_config or {}
-            if not config.get("members"):
-                continue
+            for m in config.get("members", []):
+                if m.get("pat_token"):
+                    token = m["pat_token"]
+                    first_project = project
+                    break
+            if token:
+                break
 
-            sync_result = await sync_calendly_events_for_project(
-                project.id, project.name, config, session
+        if not token:
+            return {"total_synced": 0, "projects_processed": 0}
+
+        # Single sync call — contact-first matching handles cross-project routing
+        sync_result = await sync_calendly_events_for_project(
+            first_project.id, first_project.name,
+            first_project.calendly_config, session
+        )
+        total_synced = sync_result["synced"]
+        projects_processed = len(projects)
+
+        if sync_result["synced"] > 0:
+            logger.info(
+                f"[CALENDLY SYNC] Single-pass sync: {sync_result['synced']} new, "
+                f"{sync_result['skipped']} skipped"
             )
-            total_synced += sync_result["synced"]
-            projects_processed += 1
-
-            if sync_result["synced"] > 0:
-                logger.info(f"[CALENDLY SYNC] {project.name}: synced {sync_result['synced']}, skipped {sync_result['skipped']}")
 
     return {"total_synced": total_synced, "projects_processed": projects_processed}
 

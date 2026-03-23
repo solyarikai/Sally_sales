@@ -22,13 +22,73 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
+async def _build_project_dict(session, project) -> dict:
+    """Build project info dict with telegram subscribers."""
+    from app.models.reply import TelegramSubscription
+
+    subs_result = await session.execute(
+        select(TelegramSubscription).where(
+            TelegramSubscription.project_id == project.id
+        )
+    )
+    subscribers = [s.chat_id for s in subs_result.scalars().all() if s.chat_id]
+
+    return {
+        "id": project.id,
+        "name": project.name,
+        "company_id": project.company_id,
+        "telegram_chat_id": project.telegram_chat_id,
+        "telegram_subscribers": subscribers,
+    }
+
+
+async def find_project_by_invitee_email(email: str) -> Optional[dict]:
+    """Find project by looking up invitee email in contacts table (cross-project).
+
+    Priority: contact with most recent conversation activity wins.
+    Returns dict with project info + pre-found contact_id, or None.
+    """
+    if not email:
+        return None
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Contact).where(
+                Contact.email == email.lower(),
+                Contact.deleted_at.is_(None)
+            )
+        )
+        contacts = result.scalars().all()
+
+        if not contacts:
+            return None
+
+        # Pick best contact: most recent activity
+        def _activity_key(c):
+            return c.last_reply_at or c.updated_at or c.created_at or datetime.min
+
+        winner = max(contacts, key=_activity_key)
+
+        # Load project
+        project = await session.get(Project, winner.project_id)
+        if not project or project.deleted_at:
+            return None
+
+        proj_dict = await _build_project_dict(session, project)
+        proj_dict["contact_id"] = winner.id
+        logger.info(
+            f"[CALENDLY] Matched {email} to project '{project.name}' "
+            f"(contact {winner.id}) via contact lookup"
+        )
+        return proj_dict
+
+
 async def find_project_by_calendly_user(host_email: str) -> Optional[dict]:
     """Find project that has this Calendly user in calendly_config.members.
 
     Returns dict with project info including telegram_subscribers or None.
+    Fallback when invitee email is not found in contacts.
     """
-    from app.models.reply import TelegramSubscription
-
     async with async_session_maker() as session:
         result = await session.execute(
             select(Project).where(
@@ -38,22 +98,6 @@ async def find_project_by_calendly_user(host_email: str) -> Optional[dict]:
         )
         projects = result.scalars().all()
 
-        # Load all telegram subscriptions
-        subs_result = await session.execute(select(TelegramSubscription))
-        all_subs = subs_result.scalars().all()
-        subs_by_project: dict[int, list[str]] = {}
-        for s in all_subs:
-            subs_by_project.setdefault(s.project_id, []).append(s.chat_id)
-
-        def build_project_dict(project):
-            return {
-                "id": project.id,
-                "name": project.name,
-                "company_id": project.company_id,
-                "telegram_chat_id": project.telegram_chat_id,
-                "telegram_subscribers": subs_by_project.get(project.id, []),
-            }
-
         for project in projects:
             config = project.calendly_config or {}
             members = config.get("members", [])
@@ -61,11 +105,15 @@ async def find_project_by_calendly_user(host_email: str) -> Optional[dict]:
                 # Check if host email matches member's email or ID
                 member_id = member.get("id", "").lower()
                 if host_email.lower() in member_id or member_id in host_email.lower():
-                    return build_project_dict(project)
+                    return await _build_project_dict(session, project)
 
         # Fallback: return first project with calendly_config
         for project in projects:
-            return build_project_dict(project)
+            logger.warning(
+                f"[CALENDLY] No member match for host {host_email}, "
+                f"falling back to project '{project.name}'"
+            )
+            return await _build_project_dict(session, project)
 
     return None
 
@@ -134,6 +182,84 @@ async def find_contact_with_history(email: str, project_id: int) -> Optional[dic
         }
 
 
+FREE_EMAIL_DOMAINS = {
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "mail.ru",
+    "icloud.com", "yandex.ru", "protonmail.com", "live.com", "me.com",
+    "aol.com", "zoho.com", "inbox.ru", "bk.ru", "list.ru", "yandex.com",
+    "rambler.ru", "ukr.net", "gmx.com", "fastmail.com",
+}
+
+
+async def find_similar_contacts(email: str, name: str) -> list[dict]:
+    """Find possible CRM matches for an unknown Calendly invitee.
+
+    Strategy (in priority order):
+      1. Same corporate email domain → most likely the same company,
+         different person who forwarded the Calendly link internally
+      2. Last name match (more unique than first name) among contacts
+         with recent activity → might be the same person with a different email
+
+    Returns up to 5 candidates with project/campaign info.
+    """
+    from sqlalchemy import func
+
+    candidates = []
+    seen_ids = set()
+
+    async with async_session_maker() as session:
+        # 1. Domain match — highest signal (skip free email providers)
+        domain = email.split("@")[-1].lower() if "@" in email else ""
+        if domain and domain not in FREE_EMAIL_DOMAINS:
+            result = await session.execute(
+                select(Contact).where(
+                    Contact.domain == domain,
+                    Contact.deleted_at.is_(None)
+                ).order_by(Contact.last_reply_at.desc().nullslast()).limit(5)
+            )
+            for c in result.scalars().all():
+                if c.id not in seen_ids:
+                    seen_ids.add(c.id)
+                    candidates.append(c)
+
+        # 2. Last name match — only if we have a last name (2+ word name)
+        #    More unique than first name, less noise
+        parts = name.strip().split() if name and name.strip() else []
+        last_name = parts[-1] if len(parts) >= 2 else ""
+        if last_name and len(last_name) >= 3:
+            result = await session.execute(
+                select(Contact).where(
+                    func.lower(Contact.last_name) == last_name.lower(),
+                    Contact.deleted_at.is_(None)
+                ).order_by(Contact.last_reply_at.desc().nullslast()).limit(5)
+            )
+            for c in result.scalars().all():
+                if c.id not in seen_ids:
+                    seen_ids.add(c.id)
+                    candidates.append(c)
+
+        # Enrich with project names
+        results = []
+        for c in candidates[:5]:
+            proj = await session.get(Project, c.project_id)
+            campaign_name = None
+            if c.platform_state:
+                sl = c.platform_state.get("smartlead", {})
+                camps = sl.get("campaigns", [])
+                if camps:
+                    campaign_name = camps[0] if isinstance(camps[0], str) else camps[0].get("name")
+
+            results.append({
+                "name": f"{c.first_name or ''} {c.last_name or ''}".strip(),
+                "email": c.email,
+                "company": c.company_name or "",
+                "project": proj.name if proj else "?",
+                "campaign": campaign_name or "",
+                "source": c.source or "",
+            })
+
+        return results
+
+
 async def notify_meeting_booked(meeting: Meeting, project: dict, contact_info: Optional[dict] = None) -> bool:
     """Send Telegram notification about new meeting booking.
 
@@ -145,20 +271,22 @@ async def notify_meeting_booked(meeting: Meeting, project: dict, contact_info: O
     """
     from app.core.config import settings as cfg
     from html import escape
+    from zoneinfo import ZoneInfo
 
     project_name = project.get("name", "Unknown")
 
-    # Format datetime
+    # Format datetime in Moscow timezone
+    MSK = ZoneInfo("Europe/Moscow")
     dt = meeting.scheduled_at
     if dt.tzinfo:
-        time_str = dt.strftime("%d.%m.%Y %H:%M")
+        dt_msk = dt.astimezone(MSK)
     else:
-        time_str = dt.strftime("%d.%m.%Y %H:%M") + " UTC"
+        dt_msk = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(MSK)
+    time_str = dt_msk.strftime("%d.%m.%Y %H:%M") + " МСК"
 
     # Build message — prefer CRM data over Calendly if available
     name = escape(meeting.invitee_name or "Unknown")
     email = escape(meeting.invitee_email or "")
-    event_type = escape(meeting.event_type_name or "Meeting")
     host = escape(meeting.host_name or "")
 
     # Company/title: prefer CRM, fallback to Calendly
@@ -171,8 +299,16 @@ async def notify_meeting_booked(meeting: Meeting, project: dict, contact_info: O
         company = escape(meeting.invitee_company or "")
         title = escape(meeting.invitee_title or "")
 
-    company_line = f"\n<b>Company:</b> {company}" if company else ""
-    title_line = f"\n<b>Title:</b> {title}" if title else ""
+    # Website: extract domain from email (if corporate)
+    email_raw = meeting.invitee_email or ""
+    email_domain = email_raw.split("@")[-1].lower() if "@" in email_raw else ""
+    website = ""
+    if email_domain and email_domain not in FREE_EMAIL_DOMAINS:
+        website = email_domain
+
+    company_line = f"\n<b>Компания:</b> {company}" if company else ""
+    title_line = f"\n<b>Должность:</b> {title}" if title else ""
+    website_line = f"\n<b>Сайт:</b> {escape(website)}" if website else ""
     host_line = f"\n<b>Host:</b> {host}" if host else ""
 
     # Questions from Calendly form
@@ -183,14 +319,13 @@ async def notify_meeting_booked(meeting: Meeting, project: dict, contact_info: O
             q_preview += "..."
         questions_line = f"\n\n<b>Notes:</b>\n<i>{escape(q_preview)}</i>"
 
-    message = f"""📅 <b>New Meeting Booked!</b>
+    message = f"""📅 <b>Новый звонок забукан!</b>
 
-<b>Lead:</b> {name}
-<b>Email:</b> {email}{company_line}{title_line}
+<b>Кто:</b> {name}
+<b>Email:</b> {email}{company_line}{title_line}{website_line}
 
-<b>Event:</b> {event_type}
-<b>Time:</b> {time_str}{host_line}
-<b>Project:</b> {project_name}"""
+<b>Когда:</b> {time_str}{host_line}
+<b>Проект:</b> {project_name}"""
 
     # Add CRM enrichment section if contact found
     if contact_info:
@@ -239,6 +374,32 @@ async def notify_meeting_booked(meeting: Meeting, project: dict, contact_info: O
 
         if crm_lines:
             message += "\n\n── <b>From CRM</b> ──\n" + "\n".join(crm_lines)
+
+    else:
+        # Contact NOT found — warn operator and search for similar
+        message += "\n\n⚠️ <b>Не найден в CRM</b>"
+
+        try:
+            similar = await find_similar_contacts(
+                meeting.invitee_email or "",
+                meeting.invitee_name or ""
+            )
+            if similar:
+                message += "\n\n🔍 <b>Похожие контакты:</b>"
+                for s in similar:
+                    line = f"• {escape(s['name'])}"
+                    if s["company"]:
+                        line += f" — {escape(s['company'])}"
+                    line += f" ({escape(s['email'])})"
+                    if s["project"]:
+                        line += f"\n  📁 {escape(s['project'])}"
+                    if s["campaign"]:
+                        line += f" | 📧 {escape(s['campaign'])}"
+                    message += f"\n{line}"
+            else:
+                message += "\nПохожих контактов не найдено"
+        except Exception as e:
+            logger.warning(f"[CALENDLY] Similar contacts search failed: {e}")
 
     # Add Calendly form answers
     message += questions_line
@@ -336,18 +497,23 @@ async def process_invitee_created(payload: dict) -> dict:
         host_name = user.get("name", "")
         host_email = user.get("email", "")
 
-    # Find project by host
-    project = await find_project_by_calendly_user(host_email)
+    # Find project: contact-first, then fallback to host-based
+    project = await find_project_by_invitee_email(invitee_email)
+    pre_matched_contact_id = project.get("contact_id") if project else None
+
     if not project:
-        logger.warning(f"[CALENDLY] No project found for host {host_email}")
+        project = await find_project_by_calendly_user(host_email)
+
+    if not project:
+        logger.warning(f"[CALENDLY] No project found for {invitee_email} / host {host_email}")
         return {"status": "no_project", "event_uri": event_uri}
 
     project_id = project["id"]
     company_id = project["company_id"] or 1  # fallback to default company
 
-    # Find contact with CRM history
+    # Find contact with CRM history (use pre-matched project_id for correct lookup)
     contact_info = await find_contact_with_history(invitee_email, project_id)
-    contact_id = contact_info["id"] if contact_info else None
+    contact_id = contact_info["id"] if contact_info else pre_matched_contact_id
 
     # Enrich meeting data from CRM if Calendly didn't have it
     if contact_info:
