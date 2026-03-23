@@ -1078,10 +1078,23 @@ class CompanySearchService:
         # Use custom system prompt if provided (gathering pipeline v2 via negativa)
         # Otherwise fall back to the legacy scoring rubric
         if custom_system_prompt:
-            system_prompt = custom_system_prompt
+            system_prompt = f"""{custom_system_prompt}
+
+Analyze the company website below and determine if it matches the description above.
+
+Respond ONLY with valid JSON in this exact format (no markdown, no text outside JSON):
+{{
+  "is_target": true,
+  "confidence": 0.0,
+  "segment": "SEGMENT_NAME or NOT_A_MATCH",
+  "reasoning": "1-2 sentence explanation"
+}}
+
+Rules:
+- confidence: 0.8+ clear match, 0.5-0.79 likely match, below 0.5 not a match
+- is_target: true only if confidence >= 0.6
+- segment: short CAPS_LOCKED label describing the company type, or NOT_A_MATCH"""
             prompt = f"""{knowledge_context}{website_context}"""
-            # For custom prompts, the target_segments IS the system prompt
-            # so we don't need to inject it again
         else:
             pass  # Fall through to legacy prompt below
 
