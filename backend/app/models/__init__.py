@@ -49,6 +49,9 @@ from .project_report import (
     ProjectReport, ProjectPlan, ProjectProgressItem,
     ProjectReportSubscription, ReportRole, ProgressStatus,
 )
+from .campaign_intelligence import (
+    CampaignSnapshot, CampaignPattern, CampaignIntelligenceRun, GeneratedSequence,
+)
 
 __all__ = [
     # User & Multi-tenancy
@@ -113,4 +116,6 @@ __all__ = [
     # TAM Gathering
     "GatheringRun", "CompanySourceLink", "CompanyScrape",
     "GatheringPrompt", "AnalysisRun", "AnalysisResult", "ApprovalGate",
+    # Campaign Intelligence (GOD_SEQUENCE)
+    "CampaignSnapshot", "CampaignPattern", "CampaignIntelligenceRun", "GeneratedSequence",
 ]

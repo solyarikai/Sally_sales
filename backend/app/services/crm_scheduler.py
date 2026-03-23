@@ -90,6 +90,7 @@ class CRMScheduler:
         self._gtm_analytics_task: Optional[asyncio.Task] = None
         self._project_report_reminder_task: Optional[asyncio.Task] = None
         self._calendly_sync_task: Optional[asyncio.Task] = None
+        self._campaign_intelligence_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
 
         # Per-task tracking: last_run, interval_seconds, next_run
@@ -107,6 +108,7 @@ class CRMScheduler:
             "gtm_analytics": {"last_run": None, "interval": 43200, "label": "GTM analytics (2x daily)"},
             "project_report_reminder": {"last_run": None, "interval": 60, "label": "Project report reminders"},
             "calendly_sync": {"last_run": None, "interval": 300, "label": "Calendly sync"},
+            "campaign_intelligence": {"last_run": None, "interval": 86400, "label": "Campaign intelligence (daily)"},
         }
         self._last_sync: Optional[datetime] = None
         self._last_reply_check: Optional[datetime] = None
@@ -167,7 +169,8 @@ class CRMScheduler:
             self._followup_task, self._gtm_analytics_task,
             self._telegram_poll_task, self._sheet_sync_task,
             self._cleanup_task, self._project_report_reminder_task,
-            self._calendly_sync_task, self._watchdog_task
+            self._calendly_sync_task, self._campaign_intelligence_task,
+            self._watchdog_task
         ]
         for task in all_tasks:
             if task:
@@ -195,6 +198,7 @@ class CRMScheduler:
             ("_gtm_analytics_task", self._run_gtm_analytics_loop, "GTM analytics"),
             ("_project_report_reminder_task", self._run_project_report_reminder_loop, "Project report reminder"),
             ("_calendly_sync_task", self._run_calendly_sync_loop, "Calendly sync"),
+            ("_campaign_intelligence_task", self._run_campaign_intelligence_loop, "Campaign intelligence"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -1848,6 +1852,27 @@ ANALYSIS FOCUS — answer with EVIDENCE:
             except Exception as e:
                 logger.error(f"[CALENDLY] Sync error: {e}")
             await asyncio.sleep(300)  # 5 minutes
+
+    # ===== Campaign Intelligence (GOD_SEQUENCE — daily) =====
+
+    async def _run_campaign_intelligence_loop(self):
+        """Score campaigns, snapshot top performers, extract patterns weekly.
+
+        Daily: score + snapshot (cheap DB + SmartLead reads).
+        Weekly: AI pattern extraction (~$0.20).
+        """
+        await asyncio.sleep(300)  # Let other services initialize first
+        interval = 86400  # 24 hours
+
+        while self._running:
+            try:
+                from app.services.campaign_intelligence_service import run_campaign_intelligence_cycle
+                await run_campaign_intelligence_cycle(company_id=self.company_id)
+                self._mark_task_run("campaign_intelligence")
+                logger.info("[GOD_SEQUENCE] Daily intelligence cycle complete")
+            except Exception as e:
+                logger.error(f"[GOD_SEQUENCE] Intelligence cycle error: {e}")
+            await asyncio.sleep(interval)
 
 
 # ===== Global scheduler instance =====

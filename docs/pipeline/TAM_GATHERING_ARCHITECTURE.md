@@ -21,8 +21,8 @@ A reusable system that remembers **everything** about TAM gathering:
 ## Pipeline Flow — Strict Linear, No Skipping
 
 ```
-GATHER+DEDUP → BLACKLIST → ★ CP1 → PRE-FILTER → SCRAPE → ANALYZE → ★ CP2 → VERIFY → ★ CP3 → PUSH
-     auto          auto     STOP       auto        auto      auto     STOP    blocked   STOP   blocked
+GATHER+DEDUP → BLACKLIST → ★ CP1 → PRE-FILTER → SCRAPE → ANALYZE → ★ CP2 → VERIFY → ★ CP3 → GOD_SEQ → PUSH
+     auto          auto     STOP       auto        auto      auto     STOP    blocked   STOP    auto    blocked
                           confirms                                   gate in DB         gate in DB
                           project +
                           scope
@@ -58,7 +58,8 @@ This survives crashes, session reloads, server restarts — the state is in the 
 | — | **★ CHECKPOINT 2** | — | **STOP** | **Operator reviews target list.** Must see: every company marked as target, its confidence score, reasoning, segment. Operator can accept, reject individual companies, override verdicts. Only after operator confirms the target list does the pipeline proceed. This is where the operator ensures the AI didn't hallucinate. **No credits are spent until this is approved.** |
 | 8 | **VERIFY** | $$$ | **BLOCKED** | FindyMail email verification. **This is the expensive step.** Only runs on operator-approved targets. |
 | — | **★ CHECKPOINT 3** | — | **STOP** | **Operator approves FindyMail spend.** Must see: how many emails to verify, estimated cost, which companies. Operator can remove companies before verification. |
-| 9 | **PUSH** | $0 | **BLOCKED** | SmartLead/GetSales campaign creation + lead upload. Only after verification. Separate approval. |
+| 9 | **GOD_SEQUENCE** | ~$0.08 | auto | Generate optimized campaign sequence from learned patterns + project ICP. Operator reviews before push. See `docs/GOD_SEQUENCE/ARCHITECTURE.md`. |
+| 10 | **PUSH** | $0 | **BLOCKED** | SmartLead/GetSales campaign creation with GOD_SEQUENCE output + lead upload. Only after verification. Separate approval. |
 
 ### What "new" and "duplicate" mean at each phase
 
@@ -1199,6 +1200,173 @@ class OutputAdapter(ABC):
 ```
 
 Already partially exists: `clay_service.export_to_google_sheets()`, `pipeline_service.promote_to_crm()`, SmartLead push. Just need to formalize as adapters.
+
+---
+
+## Real-World Example: EasyStaff Global (Project 9)
+
+This pipeline was used to gather, analyze, and verify 7,900+ target companies across 20+ cities.
+The pipeline produced 8 new SmartLead campaigns (regional splits: US, UK, Gulf, India, APAC, Australia, LatAm-Africa, plus variants).
+EasyStaff Global has ~170 campaigns total — most were created before this pipeline existed, via manual processes.
+
+### Step-by-Step: How It Actually Worked
+
+```
+STEP 1: GATHER from Apollo (Puppeteer emulator — free)
+   │   Apply keyword + city + size filters to Apollo Companies UI
+   │   ~80 keywords × 20 cities = 50+ gathering runs
+   │   Each run's filters STORED in gathering_runs.filters (JSONB)
+   │   → Tracks which keywords produce the best targets later
+   │
+   v
+STEP 2: DEDUP + BLACKLIST
+   │   Domain normalization → company_source_links (multi-source bridge)
+   │   Check against 170 existing EasyStaff campaigns → reject overlaps
+   │   ★ CHECKPOINT 1: operator confirms project scope
+   │
+   v
+STEP 3: SCRAPE websites (httpx + Apify proxy — free)
+   │   50 concurrent connections, streaming per-company commits
+   │   Crash-safe: on_result callback saves each company individually
+   │
+   v
+STEP 4: PRE-FILTER algorithmically (no AI — deterministic)
+   │   Remove: website unreachable, offline industries (restaurant, hotel,
+   │   construction), junk domains (.gov, .edu), empty/parked sites
+   │   ~40-60% rejection rate — cheap, fast, no false negatives
+   │
+   v
+STEP 5: ANALYZE by GPT-4o-mini
+   │   AI classifies each company: is_target? confidence? segment? reasoning?
+   │   Uses ICP prompt specific to this project
+   │   Cost: ~$0.01-0.05 per batch of 500 companies
+   │
+   v
+STEP 6: VERIFY by Opus (Claude)
+   │   16 parallel Opus agents review ALL GPT targets
+   │   Each agent gets ~260 companies, checks GPT's verdict
+   │   Identifies false positives: SaaS products, solo consultants,
+   │   wrong geography, government entities, game studios building own IP
+   │
+   v
+STEP 7: ADJUST PROMPT → repeat Steps 5-6 until ≥90% accuracy
+   │   This is the critical loop. 8 prompt iterations for EasyStaff:
+   │
+   │   V1: 0%  — complex scoring rubric, wrong segments entirely
+   │   V2: 76% — via negativa approach, CAPS_LOCKED segments
+   │   V3: 93% (small sample) — geography filter, solo consultant exclusion
+   │   V4: 83% (full Opus review) — strict location, investment exclusion
+   │   V5: 86% — entity type patterns, gov exclusion, country name detection
+   │   V6: 88% — interior design, company formation, fake site detection
+   │   V7: 93.6% (645/689 verified) — refined SERVICE vs PRODUCT distinction
+   │   V8: 95.1% (2,645/2,782 verified) — final SERVICE business focus ✓
+   │
+   │   Loop exits when Opus verification shows ≥90% accuracy.
+   │   Each iteration: Opus finds FP patterns → add exclusions to prompt → re-analyze → re-verify
+   │
+   v
+STEP 8: PEOPLE SEARCH (Apollo People emulator — free, or API — 1 credit/company)
+   │   Find up to 3 decision-makers per verified target company
+   │   Filters: founder, c_suite, vp, director seniority
+   │   Apollo People UI scrapes contact data from Apollo's UI
+   │   Result: ~1.4 contacts per company average
+   │
+   v
+STEP 9: FINDYMAIL email verification ($0.01/email)
+   │   For contacts where Apollo doesn't provide verified emails
+   │   ★ CHECKPOINT 3: operator approves spend
+   │   438 contacts verified in one 88-min batch
+   │
+   v
+STEP 10: GOD_SEQUENCE — generate campaign sequence (Gemini 2.5 Pro)
+   │   System loads:
+   │   - Proven patterns from campaign_patterns table (11+ patterns)
+   │   - Project's ICP, outreach strategy, sender identity
+   │   - Top-performing reference sequence (highest quality_score)
+   │   AI generates 5-step sequence applying all patterns:
+   │   - Step 1: subject + 4-paragraph arc + {{city}} proof
+   │   - Step 2: competitor displacement + bullet points
+   │   - Step 3: transparent pricing + video offer
+   │   - Step 4: channel switch + "Sent from iPhone"
+   │   - Step 5: empathy close
+   │   Operator reviews and approves before pushing
+   │   Cost: ~$0.08 per generation
+   │   Full docs: docs/GOD_SEQUENCE/ARCHITECTURE.md
+   │
+   v
+STEP 11: SMARTLEAD campaign creation + lead upload
+       Create campaign in SmartLead (DRAFT state)
+       Set sequence from GOD_SEQUENCE output (or manual override)
+       Upload leads with custom fields: city, segment, sender_name
+       Add 12 sender email accounts
+       Personalization: {{first_name}}, {{city}}, {{Sender Name}}
+       Activate campaign → outreach begins
+
+       8 regional campaigns created via this pipeline:
+       "Petr ES US", "Petr ES UK", "Petr ES Gulf",
+       "Petr ES India", "Petr ES APAC", "Petr ES Australia",
+       "Petr ES LatAm-Africa", + variants
+```
+
+### The Prompt Iteration Loop (Steps 5-7) Is The Core
+
+This is what separates good gathering from bad. The pipeline is not "run GPT once and push."
+It's a closed loop:
+
+```
+  ┌──────────────────────────────────────────┐
+  │                                          │
+  v                                          │
+GPT-4o-mini analyzes ──► Opus verifies ──► <90%? ──YES──► Adjust prompt
+  │                         │                              (add exclusions
+  │                         │                               from FP patterns)
+  │                         v
+  │                      ≥90%? ──YES──► DONE, proceed to people search
+  │
+  └── Uses project-specific ICP prompt
+      stored in gathering_prompts table
+      with effectiveness tracking (target_rate, usage_count)
+```
+
+**What Opus catches that GPT misses:**
+- Game studios building own IP (not doing client work)
+- Management/strategy consulting (uses employees, not freelancers)
+- SaaS products (not service businesses)
+- Solo consultants / fractional CxOs (1-person operations)
+- Wrong geography (Indian "Pvt Ltd" entities, Oman, Lebanon)
+- Government subsidiaries
+- Investment/VC firms
+
+### Keyword Effectiveness Tracking
+
+Each gathering run stores its filters. After analysis, `target_rate` is computed per run.
+This lets us rank keywords by ROI:
+
+| Tier | Target Rate | Keywords |
+|------|------------|----------|
+| **Tier 1** (35-45%) | Best | staffing agency, design agency, marketing agency |
+| **Tier 2** (26-35%) | Good | outsourcing company, digital agency, creative agency |
+| **Tier 3** (14-23%) | Low | software development, consulting firm, IT services |
+| **DO NOT USE** (<5%) | Waste | fintech, saas, blockchain, crypto |
+
+This data lives in `gathering_runs.target_rate` and informs future runs:
+```sql
+SELECT source_subtype, AVG(target_rate) FROM gathering_runs
+WHERE project_id = 9 AND status = 'completed'
+GROUP BY source_subtype ORDER BY avg DESC;
+```
+
+### Key Learnings
+
+1. **Puppeteer > API for gathering** — Apollo emulator is free, API costs credits. Used API only for the 10K credits blitz to cover more keywords faster.
+
+2. **The prompt iteration loop is essential** — V1 had 0% accuracy, V8 reached 95.1%. Eight iterations, each driven by Opus false-positive analysis. There is no shortcut.
+
+3. **Keyword effectiveness varies 10x** — "staffing agency" hits 45% target rate, "fintech" hits <5%. Track `target_rate` per run to avoid wasting time on bad keywords.
+
+4. **Streaming scrape is essential** — Old batch scrape lost all progress on crash. New streaming approach commits per-company via `on_result` callback. 50 concurrent connections, ~344 companies/min.
+
+5. **People search fills the gap** — Apollo Companies gives domains, but not contacts. A separate People search step finds 1-3 decision-makers per company. FindyMail only needed for emails Apollo can't verify.
 
 ---
 
