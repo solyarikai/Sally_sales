@@ -484,3 +484,127 @@ Prioritized approach (by conversion data):
    - "outsourcing/offshoring" + Australia + 10-100 emp → AU BPO companies
    - "media production" + UAE/KSA + 5-50 emp → Gulf media agencies
    - "professional training" + Gulf + 20-100 emp → training companies with international trainers
+
+---
+
+## QUALIFIED Lead Analysis — Who Actually Discussed & Scheduled (2026-03-24)
+
+**This is the ONLY analysis that matters.** Not warm replies. Not "interested." Only leads who:
+1. Had a real meeting (confirmed by EasyStaff team in shared sheet)
+2. Discussed specific pain points (pricing, compliance, current provider comparison)
+3. Actually scheduled calls (shared times, calendly, specific days)
+
+### Source: EasyStaff <> Sally Shared Google Sheet ("Leads" tab)
+
+**Meetings Held — QUALIFIED (Засчитываем = counted):**
+
+| Lead | Company | HQ | Hypothesis/Campaign | Pain Point |
+|------|---------|-----|---------------------|------------|
+| Cinzia Donato | Hera Biotech (9 emp) | USA | US-Mexico | Biotech, interest for future, pinging in Jan |
+| Juan Pablo Rivero | H2O Allegiant (3 emp) | USA | US-Mexico | People in MX, PK, PH, USA — wants legal compliance, messy setup, uses Upwork |
+| Alexander Booth | Huckleberry (1 emp) | USA | US-Mexico | Payroll to PH & LatAm contractors, asked for scheduling link |
+| Ramon Elias | SAM Labs (40 emp) | US/UK | US-LatAm | CEO approved, contract edits done, signing |
+| Karla Sanchez Guerrero | MedTrainer (390 emp) | USA | US-MX Glassdoor | Used ADP before, current provider took 8 months on one issue |
+| Denis Oleinik | ComingOut | Lithuania | Easy List WW_Ru | LGBT org, onboarding, testing payments |
+| Johannes Lotter | Lotter Media | Germany | Easy List WW_ENG | **Signed contract, doing first payments** — royalties DE→RU/BY |
+| Morim Perez | IGT Glass Hardware | USA | ES-US-COL | Uses Deel ($45/mo + $5), wants cheaper. Freelancers in DO, AR, CO |
+| Diksha Mulani | Zopreneurs | UAE | UAE-Pakistan | Asked about freelancer salaries to Pakistan |
+| Muhammad Asim Akram | Zambeel | UAE | UAE-Pakistan | CFO, scheduled call Wed 13:30 UAE time |
+| Kirshen Naidoo | Gig Engineer | South Africa | Websummit | Partnership exploration, Calendly link shared |
+| Martins Lielbardis | doingbusiness.live | Latvia | ICE conference | Booked from alternate email |
+
+**Meetings Held — NOT COUNTED (Не засчитываем):**
+
+| Lead | Company | Why Not Counted |
+|------|---------|-----------------|
+| Adan Garay | Grandave Capital | Already has platform, didn't want to switch |
+| Gosia Furmanik | Fena | UK only |
+| Subhan Huseynov | DQ Pursuit | Hires inside USA only, came to meeting out of politeness |
+| Daniel Nenning | Sales4Future | Websummit contact, didn't convert |
+| Philipp Quaderer | SPM | Websummit, semiconductors |
+| Laura Gonzalez | GetVocal.ai | Websummit, didn't progress |
+
+### What The Qualified Leads Tell Us
+
+**Pattern 1: US companies paying LatAm/PH contractors = #1 qualified segment**
+- H2O Allegiant: MX, PK, PH, USA — messy, wants compliance
+- Huckleberry: PH & LatAm payroll
+- SAM Labs: LatAm team, CEO signed
+- MedTrainer: Mexico employees, frustrated with ADP
+- IGT Glass Hardware: DO, AR, CO freelancers, uses Deel at $45+$5/mo
+
+**5 out of 8 qualified leads are US→LatAm/PH.** This is the proven corridor. Not Gulf.
+
+**Pattern 2: They already use a competitor and want cheaper/better**
+- IGT Glass Hardware: on Deel at $45/mo, wants cheaper
+- Tony Zheng (OperationsArmy): paying $19/contractor/mo, wants lower
+- MedTrainer: used ADP, provider took 8 months for one issue
+- George Ladkany (Propertyse): "How do you compare with DEEL?"
+- Norberto Riccitelli: "Testing DolarApp Business, was on Deel"
+
+**5+ leads explicitly mention competitors (Deel, ADP, Quickbooks, Gusto).** The qualified leads are NOT discovery — they ALREADY pay contractors internationally and want a better deal.
+
+**Pattern 3: Company size for qualified = 1-50 employees**
+- All qualified leads except MedTrainer (390) are 1-50 emp
+- SAM Labs (40), Hera Biotech (9), H2O Allegiant (3), Huckleberry (1)
+- Sweet spot confirmed: small companies where $45/mo/contractor is painful
+
+**Pattern 4: Gulf produced meetings but NOT qualified (yet)**
+- Zambeel (UAE→Pakistan): CFO scheduled, pending
+- AR Associates (UAE→Pakistan): meeting held, pending decision
+- Gulf leads discuss but qualification pending — pipeline is building
+
+### REVISED Growth Strategy Based on Qualified Data
+
+**Previous strategy said "Gulf is #1 priority" — WRONG for qualified.**
+Gulf produces warm replies and scheduling, but US→LatAm produces QUALIFIED DEALS.
+
+| Segment | Warm Replies | Scheduled | Qualified (signed/discussing) | Priority |
+|---------|-------------|-----------|------------------------------|----------|
+| **US → LatAm/PH** | Medium | Medium | **HIGH (5/8)** | **#1** |
+| **UAE → PK/IN** | High | High | Medium (2, pending) | **#2** |
+| **AU → PH** | High | High | Low (0 confirmed) | **#3** |
+| **Conference** | Very High | Very High | Medium | Separate track |
+
+### Apollo API Search Parameters for 10K More Targets
+
+Based on qualified lead profiles, here's what to search in Apollo:
+
+**Segment 1: US → LatAm (highest qualified rate)**
+- Location: United States
+- Keywords: "outsourcing", "remote team", "contractors", "staffing", "BPO", "virtual assistant"
+- Employees: 5-100
+- Industries: IT services, consulting, marketing, healthcare (MedTrainer profile)
+- Estimated: 5,000+ companies, ~2,000 pages = ~2,000 credits search + ~5,000 enrichment = **~7,000 credits**
+
+**Segment 2: UAE → South Asia (pipeline building)**
+- Location: United Arab Emirates, Saudi Arabia, Qatar
+- Keywords: "outsourcing", "consulting", "project management", "staffing"
+- Employees: 5-200
+- Industries: management consulting, IT services, media, construction
+- Estimated: 3,000+ companies, ~1,200 pages = ~1,200 credits search + ~3,000 enrichment = **~4,200 credits**
+
+**Segment 3: AU → APAC (proven warm, needs qualification)**
+- Location: Australia, New Zealand
+- Keywords: "outsourcing", "BPO", "virtual staffing", "offshore"
+- Employees: 5-100
+- Estimated: 2,000+ companies = **~2,800 credits**
+
+**Total for 10K targets: ~14,000 Apollo credits**
+**Phase 1 (US→LatAm, highest ROI): ~7,000 credits for ~5,000 targets**
+
+### Key Insight: Target Competitor Users, Not Greenfield
+
+The single most actionable insight from qualified data: **every qualified lead already pays international contractors.** They use Deel, ADP, Quickbooks, Gusto, DolarApp, or direct bank transfers. They're not exploring — they're SWITCHING.
+
+**Implications for outreach messaging:**
+- Don't pitch "do you use freelancers?" (they already do)
+- Pitch "we're cheaper than Deel" with specific pricing comparison
+- Lead with the pain point: fees, compliance risk, slow support
+- The ask is comparison, not education
+
+**Implications for targeting:**
+- Don't search for "companies that might use freelancers"
+- Search for "companies actively hiring internationally" (job boards, LinkedIn hiring posts)
+- Search for "Deel customers" (Deel reviews, comparison sites, communities)
+- Search for companies with employees in multiple countries (Apollo location filter)
