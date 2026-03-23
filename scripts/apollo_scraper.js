@@ -179,7 +179,7 @@ async function main() {
 
   const browser = await puppeteer.launch({
     headless: 'new',
-    executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
+    executablePath: process.env.CHROME_PATH || '/usr/bin/chromium',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1440,900',
            '--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage',
            '--disable-gpu'],
