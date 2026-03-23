@@ -112,6 +112,25 @@ async function searchPeople(page, params) {
   }, params);
 }
 
+async function searchCompanies(page, params) {
+  return page.evaluate(async (searchParams) => {
+    try {
+      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      const csrfToken = csrfMeta ? csrfMeta.content : '';
+      const res = await fetch('https://app.apollo.io/api/v1/mixed_companies/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Csrf-Token': csrfToken },
+        credentials: 'include',
+        body: JSON.stringify(searchParams),
+      });
+      if (!res.ok) return { error: `HTTP ${res.status}`, status: res.status };
+      return await res.json();
+    } catch (e) {
+      return { error: e.message };
+    }
+  }, params);
+}
+
 (async () => {
   const browser = await puppeteer.launch({
     headless: true,
@@ -207,6 +226,63 @@ async function searchPeople(page, params) {
       if (pageNum >= (result.pagination?.total_pages || Infinity)) break;
 
       await sleep(800 + Math.random() * 500);
+    }
+
+    // Enrich with company funding data via Companies API
+    const domains = [...new Set(allPeople.map(p => p.company_domain).filter(Boolean))];
+    console.log(`[${ts()}] Enriching ${domains.length} companies with funding data...`);
+    const orgData = {}; // domain -> { funding_stage, employees, country, ... }
+
+    // Batch domains — search by domain keywords in batches
+    for (let i = 0; i < domains.length; i += 25) {
+      const batch = domains.slice(i, i + 25);
+      const result = await searchCompanies(page, {
+        q_organization_domains: batch.join('\n'),
+        page: 1,
+        per_page: 25,
+        display_mode: 'explorer_mode',
+        context: 'companies-index-page',
+        finder_version: 2,
+      });
+      if (!result.error) {
+        for (const acc of (result.accounts || [])) {
+          const d = (acc.domain || acc.primary_domain || '').toLowerCase().replace(/^www\./, '');
+          if (d) {
+            orgData[d] = {
+              funding_stage: acc.latest_funding_stage || '',
+              total_funding: acc.total_funding || null,
+              latest_funding_amount: acc.latest_funding_amount || null,
+              employees: acc.estimated_num_employees || null,
+              country: acc.country || '',
+              industry: (acc.industries || []).join(', '),
+            };
+          }
+        }
+      }
+      if (i % 100 === 0 && i > 0) {
+        console.log(`[${ts()}]   Enriched ${i}/${domains.length} domains (${Object.keys(orgData).length} found)`);
+      }
+      await sleep(500 + Math.random() * 300);
+    }
+    console.log(`[${ts()}] Enriched ${Object.keys(orgData).length}/${domains.length} companies with funding data`);
+
+    // Merge enrichment into people
+    for (const p of allPeople) {
+      const d = (p.company_domain || '').toLowerCase().replace(/^www\./, '');
+      const org = orgData[d];
+      if (org) {
+        p.company_funding_stage = org.funding_stage || p.company_funding_stage;
+        p.company_total_funding = org.total_funding || p.company_total_funding;
+        p.company_latest_funding_amount = org.latest_funding_amount || p.company_latest_funding_amount;
+        p.company_employees = org.employees || p.company_employees;
+        p.company_country = org.country || p.company_country;
+        if (!p.company_industry && org.industry) p.company_industry = org.industry;
+      }
+    }
+
+    // Clean email placeholder
+    for (const p of allPeople) {
+      if (p.email && p.email.includes('not_unlocked')) p.email = '';
     }
 
     // Dedup by linkedin_url or name+company
