@@ -228,43 +228,54 @@ async function searchCompanies(page, params) {
       await sleep(800 + Math.random() * 500);
     }
 
-    // Enrich with company funding data via Companies API
+    // Enrich with company funding data via organization/enrich API
     const domains = [...new Set(allPeople.map(p => p.company_domain).filter(Boolean))];
-    console.log(`[${ts()}] Enriching ${domains.length} companies with funding data...`);
+    console.log(`[${ts()}] Enriching ${domains.length} companies with funding data (org/enrich)...`);
     const orgData = {}; // domain -> { funding_stage, employees, country, ... }
 
-    // Batch domains — search by domain keywords in batches
-    for (let i = 0; i < domains.length; i += 25) {
-      const batch = domains.slice(i, i + 25);
-      const result = await searchCompanies(page, {
-        q_organization_domains: batch.join('\n'),
-        page: 1,
-        per_page: 25,
-        display_mode: 'explorer_mode',
-        context: 'companies-index-page',
-        finder_version: 2,
-      });
-      if (!result.error) {
-        for (const acc of (result.accounts || [])) {
-          const d = (acc.domain || acc.primary_domain || '').toLowerCase().replace(/^www\./, '');
-          if (d) {
-            orgData[d] = {
-              funding_stage: acc.latest_funding_stage || '',
-              total_funding: acc.total_funding || null,
-              latest_funding_amount: acc.latest_funding_amount || null,
-              employees: acc.estimated_num_employees || null,
-              country: acc.country || '',
-              industry: (acc.industries || []).join(', '),
-            };
-          }
+    for (let i = 0; i < domains.length; i++) {
+      const domain = domains[i];
+      const result = await page.evaluate(async (d) => {
+        try {
+          const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+          const csrfToken = csrfMeta ? csrfMeta.content : '';
+          const res = await fetch(`https://app.apollo.io/api/v1/organizations/enrich?domain=${encodeURIComponent(d)}`, {
+            method: 'GET',
+            headers: { 'X-Csrf-Token': csrfToken },
+            credentials: 'include',
+          });
+          if (!res.ok) return { error: res.status };
+          return await res.json();
+        } catch (e) {
+          return { error: e.message };
         }
+      }, domain);
+
+      if (!result.error && result.organization) {
+        const org = result.organization;
+        orgData[domain] = {
+          funding_stage: org.latest_funding_stage || '',
+          total_funding: org.total_funding || null,
+          total_funding_printed: org.total_funding_printed || '',
+          latest_funding_date: org.latest_funding_round_date || '',
+          employees: org.estimated_num_employees || null,
+          country: org.country || '',
+          industry: org.industry || '',
+          funding_events: org.funding_events || [],
+        };
       }
-      if (i % 100 === 0 && i > 0) {
-        console.log(`[${ts()}]   Enriched ${i}/${domains.length} domains (${Object.keys(orgData).length} found)`);
+
+      if ((i + 1) % 50 === 0) {
+        const enriched = Object.keys(orgData).length;
+        const withFunding = Object.values(orgData).filter(o => o.funding_stage).length;
+        console.log(`[${ts()}]   ${i + 1}/${domains.length} done (${enriched} found, ${withFunding} with funding)`);
       }
-      await sleep(500 + Math.random() * 300);
+      // Rate limit
+      await sleep(200 + Math.random() * 200);
     }
-    console.log(`[${ts()}] Enriched ${Object.keys(orgData).length}/${domains.length} companies with funding data`);
+    const enrichedCount = Object.keys(orgData).length;
+    const withFundingCount = Object.values(orgData).filter(o => o.funding_stage).length;
+    console.log(`[${ts()}] Enriched ${enrichedCount}/${domains.length} companies (${withFundingCount} with funding stage)`);
 
     // Merge enrichment into people
     for (const p of allPeople) {
@@ -273,7 +284,9 @@ async function searchCompanies(page, params) {
       if (org) {
         p.company_funding_stage = org.funding_stage || p.company_funding_stage;
         p.company_total_funding = org.total_funding || p.company_total_funding;
-        p.company_latest_funding_amount = org.latest_funding_amount || p.company_latest_funding_amount;
+        p.company_total_funding_printed = org.total_funding_printed || '';
+        p.company_latest_funding_date = org.latest_funding_date || '';
+        p.company_latest_funding_amount = null;
         p.company_employees = org.employees || p.company_employees;
         p.company_country = org.country || p.company_country;
         if (!p.company_industry && org.industry) p.company_industry = org.industry;
