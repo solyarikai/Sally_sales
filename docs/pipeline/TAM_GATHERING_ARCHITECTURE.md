@@ -58,8 +58,8 @@ This survives crashes, session reloads, server restarts — the state is in the 
 | — | **★ CHECKPOINT 2** | — | **STOP** | **Operator reviews target list.** Must see: every company marked as target, its confidence score, reasoning, segment. Operator can accept, reject individual companies, override verdicts. Only after operator confirms the target list does the pipeline proceed. This is where the operator ensures the AI didn't hallucinate. **No credits are spent until this is approved.** |
 | 8 | **VERIFY** | $$$ | **BLOCKED** | FindyMail email verification. **This is the expensive step.** Only runs on operator-approved targets. |
 | — | **★ CHECKPOINT 3** | — | **STOP** | **Operator approves FindyMail spend.** Must see: how many emails to verify, estimated cost, which companies. Operator can remove companies before verification. |
-| 9 | **GOD_SEQUENCE** | ~$0.08 | auto | Generate optimized campaign sequence from learned patterns + project ICP. Operator reviews before push. See `docs/GOD_SEQUENCE/ARCHITECTURE.md`. |
-| 10 | **PUSH** | $0 | **BLOCKED** | SmartLead/GetSales campaign creation with GOD_SEQUENCE output + lead upload. Only after verification. Separate approval. |
+| 9 | **GOD_SEQUENCE** | ~$0.08 | auto | Generate 5-step sequence from 3-level knowledge: universal patterns + business knowledge (same sender_company) + project ICP. Operator reviews draft before push. `POST /generate-sequence/` → `POST /approve/` |
+| 10 | **PUSH** | $0 | **BLOCKED** | `POST /generated/{id}/push/` creates SmartLead campaign (DRAFT) with GOD_SEQUENCE output. Operator adds leads + activates. |
 
 ### What "new" and "duplicate" mean at each phase
 
@@ -1279,33 +1279,61 @@ STEP 9: FINDYMAIL email verification ($0.01/email)
    │
    v
 STEP 10: GOD_SEQUENCE — generate campaign sequence (Gemini 2.5 Pro)
-   │   System loads:
-   │   - Proven patterns from campaign_patterns table (11+ patterns)
-   │   - Project's ICP, outreach strategy, sender identity
-   │   - Top-performing reference sequence (highest quality_score)
-   │   AI generates 5-step sequence applying all patterns:
-   │   - Step 1: subject + 4-paragraph arc + {{city}} proof
-   │   - Step 2: competitor displacement + bullet points
-   │   - Step 3: transparent pricing + video offer
-   │   - Step 4: channel switch + "Sent from iPhone"
-   │   - Step 5: empathy close
-   │   Operator reviews and approves before pushing
+   │
+   │   System assembles knowledge from 3 levels into one Gemini prompt:
+   │
+   │   LEVEL 1 — UNIVERSAL (campaign_patterns WHERE scope_level='universal')
+   │     Cold email mechanics that apply to ALL projects:
+   │     Subject: {{first_name}} – [pain point question]
+   │     Timing: Day 0/3/4/7/7 (Steps 2+4 tied at 31% warm replies each)
+   │     Tone: casual-professional, no hype words
+   │     Body: 4-paragraph arc (Hook → Value → Proof → CTA)
+   │     CTA: offer value ("calculate cost benefit?"), don't ask for time
+   │     Flow: Value → Competition → Price → Channel → Empathy
+   │
+   │   LEVEL 2 — BUSINESS (campaign_patterns WHERE business_key=sender_company)
+   │     Product knowledge shared across projects of SAME business:
+   │     Grouped by Project.sender_company (e.g. "easystaff.io" = projects 9+40)
+   │     Competitors, pricing, displacement stories, proof points
+   │     + ProjectKnowledge (outreach/gtm) from sibling projects
+   │
+   │   LEVEL 3 — PROJECT (campaign_patterns WHERE project_id=THIS + ProjectKnowledge)
+   │     This project's ICP, market, language, sender identity
+   │     Target segments, industries, geographic personalization
+   │
+   │   All 3 levels → ~3,000 token prompt → Gemini 2.5 Pro → 5-step sequence
+   │
+   │   API calls:
+   │     POST /api/campaign-intelligence/generate-sequence/
+   │       {"project_id": 9, "campaign_name": "Petr ES Manchester"}
+   │     → returns GeneratedSequence (status=draft) with 5 steps + rationale
+   │
+   │     POST /api/campaign-intelligence/generated/{id}/approve/
+   │     → marks as approved, ready to push
+   │
    │   Cost: ~$0.08 per generation
    │   Full docs: docs/GOD_SEQUENCE/ARCHITECTURE.md
+   │   Knowledge contents: docs/GOD_SEQUENCE/KNOWLEDGE_BASE_SNAPSHOT.md
    │
    v
 STEP 11: SMARTLEAD campaign creation + lead upload
-       Create campaign in SmartLead (DRAFT state)
-       Set sequence from GOD_SEQUENCE output (or manual override)
-       Upload leads with custom fields: city, segment, sender_name
-       Add 12 sender email accounts
-       Personalization: {{first_name}}, {{city}}, {{Sender Name}}
-       Activate campaign → outreach begins
-
-       8 regional campaigns created via this pipeline:
-       "Petr ES US", "Petr ES UK", "Petr ES Gulf",
-       "Petr ES India", "Petr ES APAC", "Petr ES Australia",
-       "Petr ES LatAm-Africa", + variants
+   │
+   │   API call:
+   │     POST /api/campaign-intelligence/generated/{id}/push/
+   │     → Creates SmartLead campaign (DRAFT state)
+   │     → Sets the GOD_SEQUENCE-generated 5-step sequence
+   │     → Registers campaign in DB with resolution_method="god_sequence"
+   │
+   │   Then manually (operator or separate script):
+   │     Upload leads with custom fields: city, segment, sender_name
+   │     Add sender email accounts (12 per campaign typical)
+   │     Personalization variables: {{first_name}}, {{city}}, {{Sender Name}}
+   │     Activate campaign → outreach begins
+   │
+   │   8 regional campaigns created via this pipeline:
+   │   "Petr ES US", "Petr ES UK", "Petr ES Gulf",
+   │   "Petr ES India", "Petr ES APAC", "Petr ES Australia",
+   │   "Petr ES LatAm-Africa", + variants
 ```
 
 ### The Prompt Iteration Loop (Steps 5-7) Is The Core
