@@ -501,6 +501,8 @@ Categories:
 - interested: The person shows ANY positive signal — wants to learn more, requests materials,
   says "send it", "yes", "ok", "давайте", "отправьте", "присылайте", or uses positive emojis
   (👍, 🤝, ✅, etc). Short affirmative replies = interested. When in doubt, classify as interested.
+  IMPORTANT: If the person shares their OWN contact info (Telegram handle, WhatsApp, phone number)
+  to continue the conversation on a different channel — that is "interested", NOT "wrong_person".
 - meeting_request: The person wants to schedule a call or meeting, OR shares their availability,
   timezone, schedule, or location to coordinate timing (e.g. "I'm free Thursday", "back in office Monday",
   "on Singapore time next week"). Any message that implies willingness to meet = meeting_request.
@@ -509,7 +511,9 @@ Categories:
   "сложностей нет", "нет необходимости", "нас всё устраивает", "спасибо, не надо".
   Key rule: short polite replies that acknowledge your message but express no need = not_interested.
 - out_of_office: Auto-reply or out of office message
-- wrong_person: Not the right contact, suggests someone else
+- wrong_person: Not the right contact, suggests someone else. ONLY use when they explicitly say
+  they're the wrong person or redirect to a colleague. If they share THEIR OWN Telegram/WhatsApp/phone
+  to continue chatting — that is "interested", not "wrong_person".
 - unsubscribe: Wants to opt out or stop receiving emails
 - question: Has specific questions before deciding
 - other: Doesn't fit any other category. Use ONLY when the message is truly ambiguous or irrelevant.

@@ -197,6 +197,15 @@ def classify_reply(reply_text: str, category: str, campaign_name: str, channel: 
     # ═══════════════════════════════════════════════════════════════
 
     if category == "wrong_person":
+        # Rescue: sharing own contact info (Telegram/WhatsApp/phone) = interested, not wrong_person
+        contact_sharing = ["напиши в тг", "написать в тг", "напишите в тг", "сможете написать в тг",
+                           "write me on telegram", "reach me on telegram", "my telegram",
+                           "мой телеграм", "мой тг", "telegram @", "тг @", "в телеграм",
+                           "write me on whatsapp", "my whatsapp", "whatsapp me",
+                           "напишите в whatsapp", "напишите в ватсап", "в ватсап",
+                           "позвоните мне", "call me at", "my phone", "мой номер"]
+        if any(p in text_lower for p in contact_sharing):
+            return _result("interested_vague", 4, detect_offer(text, campaign_name), campaign_name, channel, raw_text)
         return _result("wrong_person_forward", 0, "general", campaign_name, channel, raw_text)
 
     if category == "unsubscribe":
