@@ -1366,11 +1366,12 @@ class CRMSyncService:
                 existing.project_id = campaign_project_id
             if not existing.domain and email and '@' in email:
                 existing.domain = email.split('@')[1].lower()
-            # Upgrade placeholder email with real email from Smartlead
-            if email and existing.email and any(
-                p in existing.email for p in ("@linkedin.placeholder", "@getsales.local", "@placeholder.local")
+            # Upgrade placeholder/NULL email with real email from Smartlead
+            if email and (
+                not existing.email
+                or any(p in existing.email for p in ("@linkedin.placeholder", "@getsales.local", "@placeholder.local"))
             ):
-                logger.info(f"[SYNC] Upgrading placeholder email {existing.email} -> {email}")
+                logger.info(f"[SYNC] Upgrading email {existing.email} -> {email}")
                 existing.email = email
                 if '@' in email:
                     existing.domain = email.split('@')[1].lower()
@@ -1637,9 +1638,8 @@ class CRMSyncService:
                 })
             campaign_data = campaign_data or None
 
-            # Use a more descriptive placeholder email with getsales_id for traceability
-            # This makes it clear this is a LinkedIn-only contact and aids debugging
-            actual_email = email or f"gs_{getsales_id or linkedin}@linkedin.placeholder"
+            # LinkedIn-only contacts may have no email — store None instead of placeholder
+            actual_email = email or None
             contact = Contact(
                 company_id=company_id,
                 project_id=campaign_project_id,

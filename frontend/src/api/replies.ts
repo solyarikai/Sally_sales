@@ -127,7 +127,7 @@ export interface ProcessedReply {
   campaign_name: string | null;
   source: string | null;
   channel: string | null;
-  lead_email: string;
+  lead_email: string | null;
   lead_first_name: string | null;
   lead_last_name: string | null;
   lead_company: string | null;
@@ -329,6 +329,7 @@ export async function getReplies(params: {
   source?: string;
   is_qualified?: boolean;
   lead_email?: string;
+  reply_id?: number;
   group_by_contact?: boolean;
   needs_followup?: boolean;
   received_since?: string;

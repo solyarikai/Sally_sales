@@ -102,6 +102,7 @@ export interface ReplyQueueProps {
   isDark: boolean;
   campaignNames?: string;
   initialSearch?: string;
+  replyId?: string;
   mode?: 'replies' | 'followups';
   onCountsChange?: (categoryCounts: Record<string, number>, total: number) => void;
 }
@@ -138,7 +139,7 @@ const VALID_CATEGORIES = new Set<string>([
   ...ARCHIVE_CATEGORY_FILTERS.map(f => f.key),
 ]);
 
-export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'replies', onCountsChange }: ReplyQueueProps) {
+export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode = 'replies', onCountsChange }: ReplyQueueProps) {
   const { currentProject } = useAppStore();
   const t = themeColors(isDark);
   const navigate = useNavigate();
@@ -157,7 +158,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
   // Read category from URL ?category=interested, default to meeting_request
   const urlCategory = searchParams.get('category');
   const [categoryFilter, setCategoryFilterState] = useState(
-    initialSearch ? '__all__' : (urlCategory && VALID_CATEGORIES.has(urlCategory) ? urlCategory : 'meeting_request')
+    (initialSearch || replyId) ? '__all__' : (urlCategory && VALID_CATEGORIES.has(urlCategory) ? urlCategory : 'meeting_request')
   );
   // Sync category to URL when it changes
   const setCategoryFilter = useCallback((key: string) => {
@@ -183,10 +184,12 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
       return next;
     }, { replace: true });
   }, [setSearchParams]);
-  // When opened via Telegram link (?lead=...), use server-side lead_email filter
+  // When opened via Telegram link (?lead=... or ?reply_id=...), use server-side filter
   // and skip needs_reply/category/group_by_contact so the reply is always visible.
   // Clears when user changes search or switches category tab.
-  const isDeepLink = Boolean(initialSearch) && search === initialSearch && categoryFilter === '__all__';
+  const isDeepLinkByEmail = Boolean(initialSearch) && search === initialSearch && categoryFilter === '__all__';
+  const isDeepLinkById = Boolean(replyId);
+  const isDeepLink = isDeepLinkByEmail || isDeepLinkById;
 
   const [allCounts, setAllCounts] = useState<Record<string, number>>({});
   const isArchiveMode = ARCHIVE_KEYS.has(categoryFilter);
@@ -446,7 +449,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
         campaign_names: campaignNames,
         needs_reply: mode === 'followups' ? undefined : useNeedsReply,
         needs_followup: mode === 'followups' ? true : undefined,
-        lead_email: isDeepLink ? initialSearch : undefined,
+        lead_email: isDeepLinkByEmail ? initialSearch : undefined,
+        reply_id: isDeepLinkById ? Number(replyId) : undefined,
         category: mode === 'followups' ? undefined : useCategory,
         inbox: (!isDeepLink && mode !== 'followups' && isInboxMode) ? true : undefined,
         group_by_contact: true,
@@ -497,13 +501,13 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
     if (!replies.length) return;
     const needInfo = replies.filter(r => !(r.id in contactInfoMap));
     if (!needInfo.length) return;
-    const emails = [...new Set(needInfo.map(r => r.lead_email).filter(Boolean))];
+    const emails = [...new Set(needInfo.map(r => r.lead_email).filter((e): e is string => Boolean(e)))];
     if (!emails.length) return;
     repliesApi.getContactInfoBatch(emails).then(byEmail => {
       setContactInfoMap(prev => {
         const next = { ...prev };
         for (const r of needInfo) {
-          if (!(r.id in next) && byEmail[r.lead_email]) {
+          if (!(r.id in next) && r.lead_email && byEmail[r.lead_email]) {
             next[r.id] = byEmail[r.lead_email];
           }
         }
@@ -1001,7 +1005,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
         ) : (
           <div className="max-w-5xl mx-auto py-3 px-4 space-y-2.5">
             {filteredReplies.map(reply => {
-              const leadName = [reply.lead_first_name, reply.lead_last_name].filter(Boolean).join(' ') || reply.lead_email;
+              const leadName = [reply.lead_first_name, reply.lead_last_name].filter(Boolean).join(' ') || reply.lead_email || 'Unknown';
               const isEditing = reply.id in editingDrafts;
               const isSending = sendingIds.has(reply.id);
               const isThreadOpen = expandedThreads.has(reply.id);
@@ -1158,7 +1162,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, mode = 'repli
                               onClick={e => {
                                 e.stopPropagation();
                                 const url = new URL(window.location.href);
-                                url.searchParams.set('lead', reply.lead_email);
+                                url.searchParams.set('reply_id', String(reply.id));
+                                url.searchParams.delete('lead');
                                 url.searchParams.delete('category');
                                 const link = url.toString();
                                 (navigator.clipboard?.writeText(link) ?? Promise.reject()).catch(() => fallbackCopy(link));

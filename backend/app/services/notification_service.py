@@ -941,12 +941,8 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     project_param = ""
     if project:
         project_param = f"&project={quote(project['name'].lower().replace(' ', '-'))}"
-    if reply.lead_email:
-        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(reply.lead_email)}{project_param}"
-    elif project_param:
-        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?{project_param.lstrip('&')}"
-    else:
-        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies"
+    # Deep link by reply_id — works for all contacts including LinkedIn-only (no email)
+    replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?reply_id={reply.id}{project_param}"
 
     project_line = f"\n<b>Project:</b> {project['name']}" if project else ""
 
@@ -998,9 +994,9 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
     # Build full (default) message — always sent to admin
     indicator = _category_indicator(category)
     label = _category_label(category)
+    _from_line = f"\n<b>From:</b> {reply.lead_email}" if reply.lead_email else ""
     full_message = f"""{indicator} 📧 <b>{label}</b>
-
-<b>From:</b> {reply.lead_email}
+{_from_line}
 <b>Subject:</b> {_subj}
 <b>Company:</b> {_company}
 <b>Campaign:</b> {_campaign}{project_line}{inbox_line_email}{time_line}
@@ -1019,7 +1015,7 @@ async def notify_reply_needs_attention(reply, category: str, campaign_name: str 
         indicator = _category_indicator(category)
         label = _category_label(category)
         parts = [f"📧 Email · {indicator} <b>{label}</b>"]
-        if "email" not in hide_fields:
+        if "email" not in hide_fields and reply.lead_email:
             parts.append(f"<b>{reply.lead_email}</b>")
         if "company" not in hide_fields:
             parts.append(f"Company: {_company}")
@@ -1070,6 +1066,7 @@ async def notify_linkedin_reply(
     sender_name: str = None,
     category: str = None,
     sender_profile_uuid: str = None,
+    reply_id: int = None,
 ) -> bool:
     """Send Telegram notification for LinkedIn replies with per-project routing.
 
@@ -1120,9 +1117,9 @@ async def notify_linkedin_reply(
     project_param = ""
     if project:
         project_param = f"&project={quote(project['name'].lower().replace(' ', '-'))}"
-    # Include lead email in URL for direct linking — use ANY email (even placeholder) for filtering
-    if contact_email and "@" in contact_email:
-        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?lead={quote(contact_email)}{project_param}"
+    # Deep link by reply_id — works for all contacts including LinkedIn-only (no email)
+    if reply_id:
+        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?reply_id={reply_id}{project_param}"
     elif project_param:
         replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?{project_param.lstrip('&')}"
     else:

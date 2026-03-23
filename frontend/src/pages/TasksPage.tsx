@@ -53,16 +53,20 @@ export function TasksPage() {
     if (!urlSynced.current) return;
     const currentParam = searchParams.get('project');
     const leadParam = searchParams.get('lead');
+    const replyIdParam = searchParams.get('reply_id');
     const expectedSlug = currentProject
       ? currentProject.name.toLowerCase().replace(/\s+/g, '-')
       : null;
 
-    const leadSuffix = leadParam ? `&lead=${encodeURIComponent(leadParam)}` : '';
+    // Build deep-link suffix: prefer reply_id over lead
+    const deepLinkSuffix = replyIdParam
+      ? `&reply_id=${encodeURIComponent(replyIdParam)}`
+      : (leadParam ? `&lead=${encodeURIComponent(leadParam)}` : '');
 
     if (expectedSlug && currentParam !== expectedSlug) {
-      navigate(`/tasks/${activeTab}?project=${expectedSlug}${leadSuffix}`, { replace: true });
+      navigate(`/tasks/${activeTab}?project=${expectedSlug}${deepLinkSuffix}`, { replace: true });
     } else if (!expectedSlug && currentParam) {
-      navigate(`/tasks/${activeTab}${leadSuffix ? `?${leadSuffix.slice(1)}` : ''}`, { replace: true });
+      navigate(`/tasks/${activeTab}${deepLinkSuffix ? `?${deepLinkSuffix.slice(1)}` : ''}`, { replace: true });
     }
   }, [currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -164,7 +168,7 @@ export function TasksPage() {
       {/* Tab content — all panels stay mounted so counters persist across tab switches */}
       <div className="flex-1 min-h-0 relative">
         <div className={`absolute inset-0 ${activeTab === 'replies' ? '' : 'invisible pointer-events-none'}`}>
-          <ReplyQueue isDark={isDark} mode="replies" onCountsChange={handleRepliesCounts} initialSearch={searchParams.get('lead') || undefined} />
+          <ReplyQueue isDark={isDark} mode="replies" onCountsChange={handleRepliesCounts} initialSearch={searchParams.get('lead') || undefined} replyId={searchParams.get('reply_id') || undefined} />
         </div>
         <div className={`absolute inset-0 ${activeTab === 'followups' ? '' : 'invisible pointer-events-none'}`}>
           <ReplyQueue isDark={isDark} mode="followups" onCountsChange={handleFollowupsCounts} />

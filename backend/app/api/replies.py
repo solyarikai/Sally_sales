@@ -802,6 +802,7 @@ async def list_replies(
     source: Optional[str] = Query(None, description="Filter by source: smartlead, getsales"),
     is_qualified: Optional[bool] = Query(None, description="Filter by qualified status (operator-vetted warm leads)"),
     lead_email: Optional[str] = Query(None, description="Filter by lead email (exact match)"),
+    reply_id: Optional[int] = Query(None, description="Filter by reply ID (exact match, for deep linking)"),
     group_by_contact: bool = Query(False, description="Dedup by lead_email, one card per unique contact"),
     received_since: Optional[str] = Query("1w", description="Time window: 1w, 1m, all"),
     page: int = Query(1, ge=1),
@@ -816,11 +817,34 @@ async def list_replies(
     """
     from sqlalchemy import case, or_, and_
 
+    # --- Deep link by reply_id: resolve to contact identity, show all their replies ---
+    _deep_reply = None
+    if reply_id and not lead_email:
+        _deep_result = await session.execute(
+            select(ProcessedReply).where(ProcessedReply.id == reply_id)
+        )
+        _deep_reply = _deep_result.scalar_one_or_none()
+        if _deep_reply:
+            if _deep_reply.lead_email:
+                lead_email = _deep_reply.lead_email
+            # Override received_since to show all history for deep links
+            received_since = "all"
+
     # --- Build reusable filter conditions ---
     conditions = []
 
     if lead_email:
         conditions.append(ProcessedReply.lead_email == lead_email)
+    elif reply_id and _deep_reply:
+        # LinkedIn-only contact — filter by getsales_lead_uuid to show all their replies
+        if _deep_reply.getsales_lead_uuid:
+            conditions.append(ProcessedReply.getsales_lead_uuid == _deep_reply.getsales_lead_uuid)
+        else:
+            # Fallback: just show this one reply
+            conditions.append(ProcessedReply.id == reply_id)
+    elif reply_id:
+        # Reply not found — filter by ID anyway (will return empty)
+        conditions.append(ProcessedReply.id == reply_id)
 
     if automation_id:
         conditions.append(ProcessedReply.automation_id == automation_id)
@@ -923,11 +947,12 @@ async def list_replies(
             )
         )
         # Exclude if contact sent a newer inbound message (they replied — no follow-up needed)
+        # Use COALESCE so LinkedIn-only contacts (NULL lead_email) are matched by getsales_lead_uuid
         fu_newer_inbound = aliased(ProcessedReply)
         conditions.append(
             ~exists(
                 select(fu_newer_inbound.id).where(
-                    fu_newer_inbound.lead_email == ProcessedReply.lead_email,
+                    func.coalesce(fu_newer_inbound.lead_email, fu_newer_inbound.getsales_lead_uuid) == func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid),
                     fu_newer_inbound.received_at > ProcessedReply.approved_at,
                     fu_newer_inbound.parent_reply_id.is_(None),
                     fu_newer_inbound.id != ProcessedReply.id,
@@ -958,17 +983,20 @@ async def list_replies(
         else_=4,
     )
 
-    if group_by_contact:
-        # --- DEDUP MODE: one row per unique lead_email ---
-        # PostgreSQL DISTINCT ON (lead_email): picks one row per email based on ORDER BY.
-        # SQLAlchemy: select(...).distinct(col) => SELECT DISTINCT ON (col) ...
+    # Contact identity expression: use email if available, fall back to getsales_lead_uuid
+    _contact_ident = func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid)
 
-        # Subquery: pick one reply ID per lead_email (newest first, then best category as tiebreaker)
+    if group_by_contact:
+        # --- DEDUP MODE: one row per unique contact ---
+        # Uses COALESCE(lead_email, getsales_lead_uuid) so LinkedIn-only contacts are properly grouped.
+        # PostgreSQL DISTINCT ON: picks one row per identity based on ORDER BY.
+
+        # Subquery: pick one reply ID per contact identity (newest first, then best category as tiebreaker)
         dedup_sub = (
-            select(ProcessedReply.lead_email.label("_dedup_email"), ProcessedReply.id.label("id"))
-            .distinct(ProcessedReply.lead_email)
+            select(_contact_ident.label("_dedup_ident"), ProcessedReply.id.label("id"))
+            .distinct(_contact_ident)
             .where(*conditions)
-            .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at), category_priority)
+            .order_by(_contact_ident, desc(ProcessedReply.received_at), category_priority)
         ).subquery()
 
         # Total unique contacts
@@ -988,21 +1016,21 @@ async def list_replies(
         result = await session.execute(query)
         replies = result.scalars().all()
 
-        # Compute contact_campaign_count: distinct campaigns per email
+        # Compute contact_campaign_count: distinct campaigns per contact identity
         # Uses base_conditions (project + needs_reply filters) to match what the campaign dropdown shows
-        page_emails = list({r.lead_email for r in replies})
+        page_idents = list({r.lead_email or r.getsales_lead_uuid for r in replies})
         campaign_count_map: dict = {}
-        if page_emails:
+        if page_idents:
             count_q = (
                 select(
-                    ProcessedReply.lead_email,
+                    _contact_ident.label("_ident"),
                     func.count(func.distinct(ProcessedReply.campaign_name)),
                 )
                 .where(
-                    ProcessedReply.lead_email.in_(page_emails),
+                    _contact_ident.in_(page_idents),
                     *base_conditions,
                 )
-                .group_by(ProcessedReply.lead_email)
+                .group_by(_contact_ident)
             )
             count_result = await session.execute(count_q)
             campaign_count_map = {row[0]: row[1] for row in count_result.all()}
@@ -1027,7 +1055,8 @@ async def list_replies(
         reply_responses = []
         for r in replies:
             resp = ProcessedReplyResponse.model_validate(r)
-            resp.contact_campaign_count = campaign_count_map.get(r.lead_email, 1)
+            _ident = r.lead_email or r.getsales_lead_uuid
+            resp.contact_campaign_count = campaign_count_map.get(_ident, 1)
             resp.sender_name = _extract_sender_name(r)
             if r.id in fu_draft_map:
                 resp.followup_draft = fu_draft_map[r.id]
@@ -1037,10 +1066,10 @@ async def list_replies(
         category_counts: dict = {}
         try:
             cat_sub = (
-                select(ProcessedReply.lead_email.label("_dedup_email"), ProcessedReply.category.label("category"))
-                .distinct(ProcessedReply.lead_email)
+                select(_contact_ident.label("_dedup_ident"), ProcessedReply.category.label("category"))
+                .distinct(_contact_ident)
                 .where(*base_conditions)
-                .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at), category_priority)
+                .order_by(_contact_ident, desc(ProcessedReply.received_at), category_priority)
             ).subquery()
             cat_q = (
                 select(cat_sub.c.category, func.count())
@@ -1098,7 +1127,9 @@ async def list_replies(
             if names:
                 cat_conditions.append(func.lower(ProcessedReply.campaign_name).in_(names))
         cat_q = (
-            select(ProcessedReply.category, func.count(func.distinct(ProcessedReply.lead_email)))
+            select(ProcessedReply.category, func.count(func.distinct(
+                func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid)
+            )))
             .where(*cat_conditions)
             .group_by(ProcessedReply.category)
         )
@@ -1118,6 +1149,7 @@ async def list_replies(
     # Batch-load contact info for all replies on this page
     from app.models.contact import Contact
     page_emails = list({r.lead_email.lower() for r in replies if r.lead_email})
+    page_gs_uuids = list({r.getsales_lead_uuid for r in replies if r.getsales_lead_uuid and not r.lead_email})
     contact_map: dict = {}
     if page_emails:
         contact_result = await session.execute(
@@ -1126,7 +1158,17 @@ async def list_replies(
             )
         )
         for c in contact_result.scalars().all():
-            contact_map[c.email.lower()] = _build_contact_info(c)
+            if c.email:
+                contact_map[c.email.lower()] = _build_contact_info(c)
+    if page_gs_uuids:
+        gs_contact_result = await session.execute(
+            select(Contact).where(
+                and_(Contact.getsales_id.in_(page_gs_uuids), Contact.deleted_at.is_(None))
+            )
+        )
+        for c in gs_contact_result.scalars().all():
+            if c.getsales_id:
+                contact_map[f"gs:{c.getsales_id}"] = _build_contact_info(c)
 
     # Batch-load pre-generated follow-up drafts for followup tab
     fu_draft_map: dict = {}
@@ -1149,7 +1191,12 @@ async def list_replies(
     for r in replies:
         resp = ProcessedReplyResponse.model_validate(r)
         resp.sender_name = _extract_sender_name(r)
-        resp.contact_info = contact_map.get(r.lead_email.lower()) if r.lead_email else None
+        if r.lead_email:
+            resp.contact_info = contact_map.get(r.lead_email.lower())
+        elif r.getsales_lead_uuid:
+            resp.contact_info = contact_map.get(f"gs:{r.getsales_lead_uuid}")
+        else:
+            resp.contact_info = None
         if r.id in fu_draft_map:
             resp.followup_draft = fu_draft_map[r.id]
         reply_responses.append(resp)
@@ -1203,10 +1250,11 @@ async def get_reply_counts(
             )
         ))
         # Exclude if contact sent a newer inbound message
+        # Use COALESCE so LinkedIn-only contacts (NULL lead_email) are matched by getsales_lead_uuid
         fu_newer_inbound = aliased(ProcessedReply)
         base.append(~exists(
             select(fu_newer_inbound.id).where(
-                fu_newer_inbound.lead_email == ProcessedReply.lead_email,
+                func.coalesce(fu_newer_inbound.lead_email, fu_newer_inbound.getsales_lead_uuid) == func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid),
                 fu_newer_inbound.received_at > ProcessedReply.approved_at,
                 fu_newer_inbound.parent_reply_id.is_(None),
                 fu_newer_inbound.id != ProcessedReply.id,
@@ -1253,14 +1301,15 @@ async def get_reply_counts(
         (ProcessedReply.category == "other", 3),
         else_=4,
     )
+    _counts_ident = func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid)
     dedup_sub = (
         select(
-            ProcessedReply.lead_email.label("_email"),
+            _counts_ident.label("_ident"),
             ProcessedReply.category.label("category"),
         )
-        .distinct(ProcessedReply.lead_email)
+        .distinct(_counts_ident)
         .where(*base)
-        .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at), cat_priority)
+        .order_by(_counts_ident, desc(ProcessedReply.received_at), cat_priority)
     ).subquery()
 
     cat_q = (
@@ -1285,7 +1334,9 @@ async def get_reply_counts(
         names = [n.strip().lower() for n in campaign_names.split(",") if n.strip()]
         if names:
             qualified_conds.append(func.lower(ProcessedReply.campaign_name).in_(names))
-    qualified_q = select(func.count(func.distinct(ProcessedReply.lead_email))).where(*qualified_conds)
+    qualified_q = select(func.count(func.distinct(
+        func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid)
+    ))).where(*qualified_conds)
     qualified_r = await session.execute(qualified_q)
     qualified_count = qualified_r.scalar() or 0
 
@@ -1323,15 +1374,21 @@ async def get_contact_campaigns(
     project_id: Optional[int] = Query(None, description="Filter by project's campaign_filters"),
     session: AsyncSession = Depends(get_session)
 ):
-    """Get all campaign replies for a specific contact email.
+    """Get all campaign replies for a specific contact email or getsales UUID.
 
-    Returns all ProcessedReply records for this email within the project filter,
+    Returns all ProcessedReply records for this contact within the project filter,
     sorted by received_at DESC (most recent first). Used by the frontend campaign
     selector to switch between campaigns for a deduped contact.
+
+    The lead_email path param can also be a getsales_lead_uuid for LinkedIn-only contacts.
     """
     from sqlalchemy import or_
 
-    conditions = [ProcessedReply.lead_email == lead_email]
+    # Support both email and getsales_lead_uuid lookup
+    if "@" in lead_email:
+        conditions = [ProcessedReply.lead_email == lead_email]
+    else:
+        conditions = [ProcessedReply.getsales_lead_uuid == lead_email]
 
     # needs_reply conditions (only show actionable replies)
     conditions.append(or_(
@@ -2016,10 +2073,7 @@ async def get_reply_conversation(
     if not reply:
         raise HTTPException(status_code=404, detail="Reply not found")
 
-    if not reply.lead_email:
-        return {"messages": []}
-
-    # Find contact by email
+    # Find contact by email or getsales_lead_uuid
     contact = None
     if reply.lead_email:
         contact_result = await session.execute(
@@ -2031,6 +2085,19 @@ async def get_reply_conversation(
             )
         )
         contact = contact_result.scalar_one_or_none()
+    elif reply.getsales_lead_uuid:
+        contact_result = await session.execute(
+            select(Contact).where(
+                and_(
+                    Contact.getsales_id == reply.getsales_lead_uuid,
+                    Contact.deleted_at.is_(None),
+                )
+            )
+        )
+        contact = contact_result.scalar_one_or_none()
+
+    if not reply.lead_email and not reply.getsales_lead_uuid:
+        return {"messages": [], "contact_id": None, "approval_status": reply.approval_status, "contact_info": None, "auto_dismissed": False}
 
     contact_id = contact.id if contact else None
 
@@ -2231,15 +2298,22 @@ async def get_reply_full_history(
     reply = result.scalar_one_or_none()
     if not reply:
         raise HTTPException(status_code=404, detail="Reply not found")
-    if not reply.lead_email:
+    if not reply.lead_email and not reply.getsales_lead_uuid:
         return {"campaigns": [], "activities": [], "approval_status": reply.approval_status}
 
     # 1. Find ALL replies for this lead (cheap DB query — no API calls)
-    all_replies_result = await session.execute(
-        select(ProcessedReply).where(
-            func.lower(ProcessedReply.lead_email) == reply.lead_email.lower()
-        ).order_by(desc(ProcessedReply.received_at))
-    )
+    if reply.lead_email:
+        all_replies_result = await session.execute(
+            select(ProcessedReply).where(
+                func.lower(ProcessedReply.lead_email) == reply.lead_email.lower()
+            ).order_by(desc(ProcessedReply.received_at))
+        )
+    else:
+        all_replies_result = await session.execute(
+            select(ProcessedReply).where(
+                ProcessedReply.getsales_lead_uuid == reply.getsales_lead_uuid
+            ).order_by(desc(ProcessedReply.received_at))
+        )
     all_replies = all_replies_result.scalars().all()
 
     # 2. Build campaign summary from ProcessedReply records (pure DB, instant)
@@ -2270,12 +2344,20 @@ async def get_reply_full_history(
 
     # Load contact early for reuse later
     contact_for_campaigns = None
-    contact_result_early = await session.execute(
-        select(Contact).where(
-            and_(func.lower(Contact.email) == reply.lead_email.lower(), Contact.deleted_at.is_(None))
+    if reply.lead_email:
+        contact_result_early = await session.execute(
+            select(Contact).where(
+                and_(func.lower(Contact.email) == reply.lead_email.lower(), Contact.deleted_at.is_(None))
+            )
         )
-    )
-    contact_for_campaigns = contact_result_early.scalar_one_or_none()
+        contact_for_campaigns = contact_result_early.scalar_one_or_none()
+    elif reply.getsales_lead_uuid:
+        contact_result_early = await session.execute(
+            select(Contact).where(
+                and_(Contact.getsales_id == reply.getsales_lead_uuid, Contact.deleted_at.is_(None))
+            )
+        )
+        contact_for_campaigns = contact_result_early.scalar_one_or_none()
 
     # Pin the reply's own campaign first, then sort rest by recency
     reply_campaign_key = f"{reply.channel or 'email'}::{reply.campaign_name or ''}"
@@ -3066,13 +3148,22 @@ async def approve_and_send_reply(
         contact = None
         try:
             from app.models.contact import Contact as _C, ContactActivity
-            _cr = await db.execute(
-                select(_C).where(
-                    func.lower(_C.email) == reply.lead_email.lower(),
-                    _C.deleted_at.is_(None),
+            if reply.lead_email:
+                _cr = await db.execute(
+                    select(_C).where(
+                        func.lower(_C.email) == reply.lead_email.lower(),
+                        _C.deleted_at.is_(None),
+                    )
                 )
-            )
-            contact = _cr.scalar_one_or_none()
+                contact = _cr.scalar_one_or_none()
+            if not contact and reply.getsales_lead_uuid:
+                _cr = await db.execute(
+                    select(_C).where(
+                        _C.getsales_id == reply.getsales_lead_uuid,
+                        _C.deleted_at.is_(None),
+                    )
+                )
+                contact = _cr.scalar_one_or_none()
             if contact:
                 outbound = ContactActivity(
                     contact_id=contact.id,

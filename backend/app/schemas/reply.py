@@ -133,7 +133,7 @@ class ProcessedReplyBase(BaseModel):
     campaign_name: Optional[str] = None
     source: Optional[str] = None
     channel: Optional[str] = None
-    lead_email: str
+    lead_email: Optional[str] = None
     lead_first_name: Optional[str] = None
     lead_last_name: Optional[str] = None
     lead_company: Optional[str] = None
@@ -238,7 +238,7 @@ class ContactCampaignEntry(BaseModel):
 
 class ContactCampaignsResponse(BaseModel):
     """All campaigns for a single contact."""
-    lead_email: str
+    lead_email: Optional[str] = None
     campaigns: List[ContactCampaignEntry]
     total: int
 
