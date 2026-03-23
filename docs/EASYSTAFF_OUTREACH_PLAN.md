@@ -199,7 +199,7 @@ Score = origin(40%) + role(20%) + survived_filters(20%) + outsourcing_signal(10%
 | Google Sheet write | 5 seconds | $0 |
 
 All results cached in `/scripts/data/`. Re-scoring with new weights/rules = 17 seconds, no API calls.
-
+but 
 ---
 
 ## Capacity Plan
