@@ -59,7 +59,8 @@ watchdog>=3.0.0
 
 # Telegram MTProto (for last seen checker + DM inbox)
 Telethon>=1.36.0
-TGConvertor>=0.1.4
+TGConvertor[tdata]>=0.1.4
+opentele>=1.15.1
 
 # Testing
 pytest>=8.0.0
