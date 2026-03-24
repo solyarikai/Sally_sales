@@ -49,18 +49,61 @@
 | software house | 14.5% |
 | cloud consulting | 14.4% |
 
-### DO NOT USE (< 5% target rate — waste of credits)
-| Keyword | Target Rate | Why |
-|---------|------------|-----|
-| IT services | 5.1% | Enterprise IT, not freelancer-based |
-| software development | 4.8% | Product companies, not agencies |
-| consulting firm | 3.7% | Management consulting, uses employees |
-| tech startup | 3.1% | SaaS/product companies |
-| SaaS | 3.0% | Product companies |
-| cybersecurity | 2.1% | Hardware/product, not services |
-| game studio | 1.6% | Own IP studios, not client work |
-| fintech | 1.2% | Product companies |
-| AI company | 0% | All product companies |
+### Low Agency Target Rate (< 5% for agency prompt — BUT now target segments)
+| Keyword | Agency Rate | New Segment | Action |
+|---------|------------|-------------|--------|
+| IT services | 5.1% | TECH_PRODUCT | **NOW GATHER** with V12 prompt |
+| software development | 4.8% | TECH_PRODUCT | **NOW GATHER** |
+| SaaS | 3.0% | TECH_PRODUCT | **NOW GATHER** — 33% of qualified leads |
+| fintech | 1.2% | TECH_PRODUCT | **NOW GATHER** — Amaiz, FirstByt qualified |
+| game studio | 1.6% | GAMING | **NOW GATHER** — Tactile Games $75M qualified |
+| AI company | 0% | TECH_PRODUCT | **NOW GATHER** |
+| consulting firm | 3.7% | AGENCY | Already covered |
+| tech startup | 3.1% | TECH_PRODUCT | **NOW GATHER** |
+| cybersecurity | 2.1% | Skip | Genuine low-value segment |
+
+**Key insight**: These keywords had low target rates because the OLD prompt (V7) only accepted agencies. With V12 prompt (accepts tech/SaaS/gaming), these keywords become HIGH value. "SaaS" goes from 3% → ~30%+ target rate.
+
+---
+
+## NEW: Segment Expansion (from qualified lead reverse-engineering, Mar 24)
+
+Pipeline validation showed the current prompt (V7) only catches agencies (22% of qualified leads).
+V12 prompt catches all 4 target segments. Existing 7,919 targets are 100% agencies.
+
+### Priority Segments to Gather
+
+**P1: Tech/SaaS/Fintech Product Companies (33% of qualified leads)**
+Currently: 0 targets gathered in this segment.
+Apollo filters:
+- Industries: `information technology & services`, `computer software`, `financial services`, `banking`, `internet`
+- Keywords: `b2b`, `saas`, `software development`, `fintech`, `edtech`, `enterprise software`
+- Size: 5-500 employees
+- Top cities: San Francisco, New York, London, Berlin, Tel Aviv, Bangalore, Singapore
+- Estimated yield: 10,000-20,000 targets per city cluster
+
+**P2: Gaming/iGaming (15% of qualified leads, highest revenue per lead)**
+Currently: 0 targets. Tactile Games alone = $75M revenue.
+Apollo filters:
+- Industries: `computer games`, `gambling & casinos`
+- Keywords: `mobile games`, `igaming`, `casino`, `game development`, `esports`, `f2p`
+- Size: 5-1000 employees
+- Top cities: Copenhagen, Stockholm, Helsinki, Malta, London, LA, Montreal, Kyiv
+- Estimated yield: 3,000-8,000 targets globally
+
+**P3: Agencies/Consulting (15% — already well-covered)**
+Currently: 7,919 targets. Expand to new cities only.
+
+**P4: Media/Creative (7%)**
+Currently: minimal. Gather alongside P1/P2.
+Apollo filters: `media production`, `video production`, `broadcast media`, `animation`
+
+### Execution Order
+1. Run P1 (Tech/SaaS) + P2 (Gaming) Apollo searches in top 10 cities each
+2. Scrape + analyze with V12 prompt (catches all 4 segments)
+3. Opus verification → iterate until ≥85%
+4. People search + FindyMail → new SmartLead campaigns
+5. Continue P3 expansion (agency deep pagination in new cities)
 
 ---
 
