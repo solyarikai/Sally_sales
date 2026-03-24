@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Wifi, WifiOff, Trash2, Send, Loader2, MessageCircle, User, AlertCircle } from 'lucide-react';
+import { Upload, Wifi, WifiOff, Trash2, Loader2, MessageCircle, User, AlertCircle } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import * as tgApi from '../api/telegram';
@@ -14,7 +14,6 @@ export function TelegramInboxPage() {
   const [dialogs, setDialogs] = useState<TelegramDialog[]>([]);
   const [selectedDialog, setSelectedDialog] = useState<TelegramDialog | null>(null);
   const [messages, setMessages] = useState<TelegramMessage[]>([]);
-  const [messageText, setMessageText] = useState('');
 
   const [loading, setLoading] = useState({ accounts: false, dialogs: false, messages: false, sending: false, uploading: false });
   const [error, setError] = useState<string | null>(null);
@@ -100,20 +99,6 @@ export function TelegramInboxPage() {
     }
     setLoading(l => ({ ...l, uploading: false }));
     if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  // ── Send message ───────────────────────────────────────────────
-  const handleSend = async () => {
-    if (!selectedAccount || !selectedDialog || !messageText.trim()) return;
-    setLoading(l => ({ ...l, sending: true }));
-    try {
-      await tgApi.sendMessage(selectedAccount.id, selectedDialog.peer_id, messageText.trim());
-      setMessageText('');
-      await loadMessages(selectedAccount.id, selectedDialog.peer_id);
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Send failed');
-    }
-    setLoading(l => ({ ...l, sending: false }));
   };
 
   // ── Account actions ────────────────────────────────────────────
