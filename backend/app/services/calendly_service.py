@@ -369,6 +369,7 @@ async def _find_project_for_invitee(session, invitee_email: str, host_email: str
     Returns: (project, contact_id, contact_info) or (None, None, None).
     """
     from app.models.contact import Contact
+    from sqlalchemy import select
 
     contact_id = None
     contact_info = None
