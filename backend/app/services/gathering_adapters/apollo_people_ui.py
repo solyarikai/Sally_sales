@@ -147,6 +147,10 @@ class ApolloPeopleUIAdapter(GatheringAdapter):
                 if Path(output_file).exists():
                     with open(output_file) as f:
                         batch_people = json.load(f)
+                    # When batch has exactly 1 domain, attribute it to every person
+                    if len(batch_domains) == 1:
+                        for p in batch_people:
+                            p["domain"] = batch_domains[0]
                     all_people.extend(batch_people)
                     logger.info(f"Batch {batch_idx + 1}/{len(batches)}: {len(batch_people)} people")
 
@@ -175,18 +179,21 @@ class ApolloPeopleUIAdapter(GatheringAdapter):
                 unique_people.append(p)
 
         # Convert people to company records for the pipeline
+        # Key by domain when available (batch_size=1), else by company name
         domain_map = {}
         for person in unique_people:
+            domain = person.get("domain", "")
             company = person.get("company", "")
-            if company and company not in domain_map:
-                domain_map[company] = {
-                    "domain": "",
-                    "name": company,
+            key = domain or company
+            if key and key not in domain_map:
+                domain_map[key] = {
+                    "domain": domain,
+                    "name": company or domain,
                     "people_found": [],
                     "raw_apollo": {},
                 }
-            if company:
-                domain_map[company]["people_found"].append(person)
+            if key:
+                domain_map[key]["people_found"].append(person)
 
         companies = list(domain_map.values())
 
