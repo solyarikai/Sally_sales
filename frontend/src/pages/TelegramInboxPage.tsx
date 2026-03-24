@@ -338,24 +338,11 @@ export function TelegramInboxPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input */}
-              <div className="px-4 py-3 border-t flex gap-2" style={{ borderColor: t.divider }}>
-                <input
-                  value={messageText}
-                  onChange={e => setMessageText(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                  placeholder="Type a message..."
-                  className="flex-1 px-3 py-2 rounded text-sm border outline-none"
-                  style={{ background: isDark ? '#1a1a1a' : '#fff', borderColor: t.divider, color: t.text1 }}
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={loading.sending || !messageText.trim()}
-                  className="px-3 py-2 rounded flex items-center gap-1 text-sm font-medium transition-colors disabled:opacity-50"
-                  style={{ background: t.btnPrimaryBg, color: '#fff' }}
-                >
-                  {loading.sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                </button>
+              {/* Input — READ ONLY mode for now */}
+              <div className="px-4 py-3 border-t flex items-center gap-2" style={{ borderColor: t.divider }}>
+                <div className="flex-1 px-3 py-2 rounded text-xs" style={{ background: isDark ? '#1a1a1a' : '#f9fafb', color: t.text4 }}>
+                  Read-only mode — sending disabled
+                </div>
               </div>
             </>
           ) : (
