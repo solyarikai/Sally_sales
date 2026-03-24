@@ -32,11 +32,12 @@ export interface TelegramMessage {
   sender_name: string;
 }
 
-export async function uploadTdata(file: File): Promise<TelegramDMAccount> {
+export async function uploadTdata(file: File): Promise<TelegramDMAccount[]> {
   const form = new FormData();
   form.append('file', file);
   const res = await api.post('/telegram-dm/accounts/upload-tdata/', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,  // tdata parsing can take time for multi-account archives
   });
   return res.data;
 }

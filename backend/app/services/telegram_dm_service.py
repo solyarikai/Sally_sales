@@ -39,11 +39,11 @@ class TelegramDMService:
 
     # ── Account Import ──────────────────────────────────────────────
 
-    async def import_from_tdata(self, archive_path: str) -> dict:
-        """Import a Telegram account from a tdata archive (ZIP or RAR).
+    async def import_from_tdata(self, archive_path: str) -> list[dict]:
+        """Import Telegram accounts from a tdata archive (ZIP or RAR).
 
-        Returns dict with account info (telegram_user_id, username, first_name, etc.)
-        and the string_session for DB storage.
+        Returns list of dicts with account info + string_session for each account.
+        Multi-account tdata (up to 100 accounts) is fully supported.
         """
         tmpdir = tempfile.mkdtemp(prefix="tdata_")
         try:
@@ -67,7 +67,6 @@ class TelegramDMService:
             if (tdata_path / "tdata").is_dir():
                 tdata_path = tdata_path / "tdata"
             elif not (tdata_path / "key_datas").exists():
-                # Search one level deep
                 for child in tdata_path.iterdir():
                     if child.is_dir() and (child / "key_datas").exists():
                         tdata_path = child
@@ -77,34 +76,110 @@ class TelegramDMService:
                         break
 
             if not (tdata_path / "key_datas").exists():
-                raise ValueError(f"No valid tdata found in archive. Expected key_datas file in {tdata_path}")
+                raise ValueError(f"No valid tdata found in archive. Expected key_datas file.")
 
-            # Convert tdata → StringSession
-            from TGConvertor import SessionManager
-            session = SessionManager.from_tdata_folder(tdata_path)
-            string_session = session.to_telethon_string()
+            # Parse tdata with opentele (patched for multi-account + recursion fix)
+            accounts_data = self._parse_tdata_all_accounts(str(tdata_path))
 
-            # Connect and get account info
-            client = TelegramClient(StringSession(string_session), self.api_id, self.api_hash)
-            await client.connect()
+            # Connect each account and get user info
+            results = []
+            for acc_data in accounts_data:
+                try:
+                    client = TelegramClient(
+                        StringSession(acc_data["string_session"]),
+                        self.api_id, self.api_hash,
+                    )
+                    await client.connect()
+                    if await client.is_user_authorized():
+                        me = await client.get_me()
+                        results.append({
+                            "telegram_user_id": me.id,
+                            "username": me.username,
+                            "first_name": me.first_name,
+                            "last_name": me.last_name,
+                            "phone": me.phone,
+                            "string_session": acc_data["string_session"],
+                        })
+                        logger.info(f"tdata import: account @{me.username} ({me.phone}) OK")
+                    else:
+                        logger.warning(f"tdata import: account dc={acc_data['dc_id']} not authorized")
+                    await client.disconnect()
+                except Exception as e:
+                    logger.warning(f"tdata import: account dc={acc_data['dc_id']} failed: {e}")
 
-            if not await client.is_user_authorized():
-                await client.disconnect()
-                raise ValueError("tdata session is not authorized. The account may have been logged out.")
+            if not results:
+                raise ValueError("No authorized accounts found in tdata archive.")
 
-            me = await client.get_me()
-            await client.disconnect()
-
-            return {
-                "telegram_user_id": me.id,
-                "username": me.username,
-                "first_name": me.first_name,
-                "last_name": me.last_name,
-                "phone": me.phone,
-                "string_session": string_session,
-            }
+            return results
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+    @staticmethod
+    def _parse_tdata_all_accounts(tdata_path: str) -> list[dict]:
+        """Parse ALL accounts from tdata using opentele with patches for:
+        1. Infinite recursion bug in api setter
+        2. kMaxAccounts=3 limit (Kotatogram supports 100)
+        """
+        import sys
+        import struct
+        import base64
+        import ipaddress
+
+        old_limit = sys.getrecursionlimit()
+        sys.setrecursionlimit(10000)
+        try:
+            import opentele.td.tdesktop as td_mod
+            import opentele.td.account as acc_mod
+
+            # Patch 1: break infinite recursion in api property
+            _setting = False
+            def _safe_td_api_set(self, value):
+                nonlocal _setting
+                if _setting:
+                    return
+                _setting = True
+                try:
+                    for acc in self.accounts:
+                        acc._api = value
+                finally:
+                    _setting = False
+
+            td_mod.TDesktop.api = td_mod.TDesktop.api.setter(_safe_td_api_set)
+            acc_mod.Account.api = acc_mod.Account.api.setter(lambda self, v: setattr(self, "_api", v))
+
+            # Patch 2: raise account limit from 3 to 100
+            td_mod.TDesktop.kMaxAccounts = 100
+
+            from opentele.td import TDesktop
+
+            td = TDesktop(tdata_path)
+            if not td.isLoaded():
+                raise ValueError("Failed to load tdata")
+
+            # DC server addresses for Telethon StringSession
+            DC_ADDRS = {
+                1: "149.154.175.53", 2: "149.154.167.51",
+                3: "149.154.175.100", 4: "149.154.167.91",
+                5: "91.108.56.130",
+            }
+
+            results = []
+            for acc in td.accounts:
+                dc_id = acc.MainDcId
+                auth_key = bytes(acc.authKey.key)
+                if len(auth_key) != 256:
+                    continue
+
+                # Build Telethon StringSession manually
+                ip_bytes = ipaddress.ip_address(DC_ADDRS[dc_id]).packed
+                data = struct.pack(">B4sH", dc_id, ip_bytes, 443) + auth_key
+                ss = "1" + base64.urlsafe_b64encode(data).decode()
+
+                results.append({"dc_id": dc_id, "string_session": ss})
+
+            return results
+        finally:
+            sys.setrecursionlimit(old_limit)
 
     # ── Connection Lifecycle ────────────────────────────────────────
 

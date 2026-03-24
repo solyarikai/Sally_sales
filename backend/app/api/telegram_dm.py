@@ -49,74 +49,79 @@ class UpdateAccountRequest(BaseModel):
 
 # ── Account Management ──────────────────────────────────────────────
 
-@router.post("/accounts/upload-tdata/", response_model=AccountResponse)
+@router.post("/accounts/upload-tdata/", response_model=list[AccountResponse])
 async def upload_tdata(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
 ):
-    """Import a Telegram account from a tdata ZIP archive."""
+    """Import Telegram accounts from a tdata archive (ZIP or RAR).
+
+    Supports multi-account tdata (up to 100 accounts per archive).
+    Returns list of all imported accounts.
+    """
     if not file.filename:
         raise HTTPException(400, "Upload a ZIP or RAR file containing the tdata folder")
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if ext not in ("zip", "rar"):
         raise HTTPException(400, "Upload a ZIP or RAR file containing the tdata folder")
 
-    # Save uploaded file to temp
     tmp = tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False)
     try:
         content = await file.read()
         tmp.write(content)
         tmp.close()
 
-        # Import
-        info = await telegram_dm_service.import_from_tdata(tmp.name)
+        # Import all accounts from tdata
+        accounts_info = await telegram_dm_service.import_from_tdata(tmp.name)
 
-        # Check if account already exists
-        existing = await session.execute(
-            select(TelegramDMAccount).where(
-                TelegramDMAccount.telegram_user_id == info["telegram_user_id"]
+        results = []
+        for info in accounts_info:
+            # Check if account already exists
+            existing = await session.execute(
+                select(TelegramDMAccount).where(
+                    TelegramDMAccount.telegram_user_id == info["telegram_user_id"]
+                )
             )
-        )
-        account = existing.scalar_one_or_none()
+            account = existing.scalar_one_or_none()
 
-        if account:
-            # Update existing account with new session
-            account.string_session = info["string_session"]
-            account.username = info["username"]
-            account.first_name = info["first_name"]
-            account.last_name = info["last_name"]
-            account.phone = info["phone"]
-            account.auth_status = "active"
-            account.last_error = None
-        else:
-            account = TelegramDMAccount(
-                telegram_user_id=info["telegram_user_id"],
-                username=info["username"],
-                first_name=info["first_name"],
-                last_name=info["last_name"],
-                phone=info["phone"],
-                string_session=info["string_session"],
-                auth_status="active",
-                company_id=1,
+            if account:
+                account.string_session = info["string_session"]
+                account.username = info["username"]
+                account.first_name = info["first_name"]
+                account.last_name = info["last_name"]
+                account.phone = info["phone"]
+                account.auth_status = "active"
+                account.last_error = None
+            else:
+                account = TelegramDMAccount(
+                    telegram_user_id=info["telegram_user_id"],
+                    username=info["username"],
+                    first_name=info["first_name"],
+                    last_name=info["last_name"],
+                    phone=info["phone"],
+                    string_session=info["string_session"],
+                    auth_status="active",
+                    company_id=1,
+                )
+                session.add(account)
+
+            await session.flush()
+
+            # Connect
+            ok = await telegram_dm_service.connect_account(
+                account.id, info["string_session"]
             )
-            session.add(account)
+            account.is_connected = ok
+            account.last_connected_at = datetime.now(timezone.utc) if ok else None
+            results.append(account)
 
-        await session.flush()
-
-        # Connect
-        ok = await telegram_dm_service.connect_account(
-            account.id, info["string_session"]
-        )
-        account.is_connected = ok
-        account.last_connected_at = datetime.now(timezone.utc) if ok else None
         await session.commit()
-
-        return _account_to_response(account)
+        return [_account_to_response(acc) for acc in results]
 
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
-        logger.error(f"tdata import failed: {e}")
+        logger.error(f"tdata import failed: {e}", exc_info=True)
         raise HTTPException(500, f"Import failed: {e}")
     finally:
         os.unlink(tmp.name)

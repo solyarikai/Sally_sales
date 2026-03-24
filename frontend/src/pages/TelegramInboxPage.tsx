@@ -91,9 +91,10 @@ export function TelegramInboxPage() {
     setLoading(l => ({ ...l, uploading: true }));
     setError(null);
     try {
-      const acc = await tgApi.uploadTdata(file);
-      setAccounts(prev => [acc, ...prev.filter(a => a.id !== acc.id)]);
-      setSelectedAccount(acc);
+      const imported = await tgApi.uploadTdata(file);
+      const importedIds = new Set(imported.map(a => a.id));
+      setAccounts(prev => [...imported, ...prev.filter(a => !importedIds.has(a.id))]);
+      if (imported.length > 0) setSelectedAccount(imported[0]);
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Upload failed');
     }
