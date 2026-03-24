@@ -1,12 +1,10 @@
 # Lead Identity Model — Email-Optional Architecture
 
-## Problem
+## Rule: No Fake Emails. Ever.
 
-LinkedIn leads from GetSales have no email address. The system previously created fake placeholder emails (`gs_{uuid}@linkedin.placeholder`) which:
-- Broke Telegram deep links
-- Confused operators seeing ugly placeholder strings
-- Created technical debt across every system that touches `lead_email`
-- Made it impossible to properly identify leads across platforms
+`lead_email` is either a real validated email or NULL. Period.
+
+LinkedIn leads have no email — that's fine. The system handles NULL emails natively via `getsales_lead_uuid`. **NEVER create placeholder/fake emails.** They were tried once, broke everything, and were permanently purged.
 
 ## Design: Dual-Key Identity
 
@@ -59,11 +57,12 @@ Every `ProcessedReply` has a stable integer `id`. Telegram notification links an
 - LinkedIn leads without email (GetSales)
 - Leads with both email and LinkedIn
 
-### Backward Compatibility
+### Deep Link Params
 
-Old `?lead=email` links still work. The frontend checks both params:
-1. `?reply_id=` — preferred, fetches specific reply then shows all from that contact
-2. `?lead=` — legacy, filters by email (only works for email leads)
+1. `?reply_id=` — the ONLY correct way. Works for all leads (email, LinkedIn, both).
+2. `?lead=` — legacy, only works for leads with real email. Dead for LinkedIn-only leads.
+
+**Placeholder emails (`gs_*@linkedin.placeholder`) are permanently gone.** Migration `j1_remove_placeholder_emails` converted them all to NULL. They were fake, broke everything, and no longer exist in the DB. All `lead_email` values are real validated emails or NULL.
 
 ## API Changes
 
@@ -109,7 +108,7 @@ Dedup by (lead_email, hash)     Dedup by (getsales_lead_uuid, hash)
 
 ## Rules
 
-1. **NEVER create placeholder emails.** If a lead has no email, `lead_email` is NULL.
+1. **`lead_email` is a real email or NULL.** No placeholders, no fakes, no `@linkedin.placeholder`. Ever.
 2. **ALWAYS use `reply_id` for deep links.** Not email, not UUID. `reply_id` is universal.
 3. **ALWAYS use COALESCE for grouping.** `COALESCE(lead_email, getsales_lead_uuid)` is the grouping key.
 4. **Contact lookup fallback.** When `lead_email` is NULL, look up by `getsales_lead_uuid` → `Contact.getsales_id`.
