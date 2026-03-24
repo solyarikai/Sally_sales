@@ -1042,10 +1042,10 @@ class CompanySearchService:
 
         Returns: {is_target, confidence, reasoning, company_info, scores}
         """
-        # OpenAI primary (fast), Gemini disabled for now (slow)
-        gemini_key = None  # settings.GEMINI_API_KEY — disabled, too slow
+        # OpenAI primary, Gemini fallback when OpenAI quota exhausted
+        gemini_key = settings.GEMINI_API_KEY if hasattr(settings, 'GEMINI_API_KEY') else None
         openai_key = settings.OPENAI_API_KEY
-        if not openai_key:
+        if not openai_key and not gemini_key:
             return {"is_target": False, "confidence": 0, "reasoning": "No AI API key configured",
                     "company_info": {}, "scores": {}}
 
