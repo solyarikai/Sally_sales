@@ -51,11 +51,11 @@ class TelegramDMService:
             if archive_path.lower().endswith(".rar"):
                 try:
                     subprocess.run(
-                        ["unrar", "x", "-o+", archive_path, tmpdir + "/"],
+                        ["unar", "-o", tmpdir, "-f", archive_path],
                         check=True, capture_output=True, timeout=60,
                     )
                 except FileNotFoundError:
-                    raise ValueError("unrar not installed on server. Install with: apt-get install unrar")
+                    raise ValueError("unar not installed on server. Install with: apt-get install unar")
                 except subprocess.CalledProcessError as e:
                     raise ValueError(f"Failed to extract RAR: {e.stderr.decode()[:200]}")
             else:
