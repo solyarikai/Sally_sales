@@ -80,7 +80,7 @@ class TelegramDMService:
                 raise ValueError(f"No valid tdata found in archive. Expected key_datas file in {tdata_path}")
 
             # Convert tdata → StringSession
-            from TGConvertor.manager.manager import SessionManager
+            from TGConvertor import SessionManager
             session = SessionManager.from_tdata_folder(tdata_path)
             string_session = session.to_telethon_string()
 
