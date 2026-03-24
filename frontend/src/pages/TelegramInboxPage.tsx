@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Upload, Wifi, WifiOff, Trash2, Send, Loader2, MessageCircle, User, AlertCircle } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
