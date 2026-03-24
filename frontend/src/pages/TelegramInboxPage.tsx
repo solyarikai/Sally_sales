@@ -154,13 +154,13 @@ export function TelegramInboxPage() {
 
   // ── Render ─────────────────────────────────────────────────────
   return (
-    <div className="h-full flex flex-col" style={{ background: t.bgApp, color: t.text }}>
+    <div className="h-full flex flex-col" style={{ background: t.pageBg, color: t.text1 }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: t.border }}>
+      <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: t.divider }}>
         <div className="flex items-center gap-2">
-          <MessageCircle className="w-5 h-5" style={{ color: t.accent }} />
+          <MessageCircle className="w-5 h-5" style={{ color: t.btnPrimaryBg }} />
           <h1 className="text-lg font-semibold">Telegram Inbox</h1>
-          <span className="text-xs px-2 py-0.5 rounded" style={{ background: isDark ? '#1a1a2e' : '#f0f0f0', color: t.textMuted }}>
+          <span className="text-xs px-2 py-0.5 rounded" style={{ background: isDark ? '#1a1a2e' : '#f0f0f0', color: t.text4 }}>
             MVP
           </span>
         </div>
@@ -170,7 +170,7 @@ export function TelegramInboxPage() {
             onClick={() => fileInputRef.current?.click()}
             disabled={loading.uploading}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors"
-            style={{ background: t.accent, color: '#fff' }}
+            style={{ background: t.btnPrimaryBg, color: '#fff' }}
           >
             {loading.uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             Upload tdata
@@ -190,8 +190,8 @@ export function TelegramInboxPage() {
       {/* Three-panel layout */}
       <div className="flex-1 flex min-h-0">
         {/* Left: Accounts */}
-        <div className="w-56 flex-shrink-0 border-r overflow-y-auto" style={{ borderColor: t.border }}>
-          <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide" style={{ color: t.textMuted }}>
+        <div className="w-56 flex-shrink-0 border-r overflow-y-auto" style={{ borderColor: t.divider }}>
+          <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide" style={{ color: t.text4 }}>
             Accounts ({accounts.length})
           </div>
           {accounts.map(acc => (
@@ -200,7 +200,7 @@ export function TelegramInboxPage() {
               onClick={() => setSelectedAccount(acc)}
               className={`px-3 py-2.5 cursor-pointer border-b transition-colors ${selectedAccount?.id === acc.id ? '' : 'hover:opacity-80'}`}
               style={{
-                borderColor: t.border,
+                borderColor: t.divider,
                 background: selectedAccount?.id === acc.id ? (isDark ? '#1a1a2e' : '#f0f4ff') : 'transparent',
               }}
             >
@@ -211,7 +211,7 @@ export function TelegramInboxPage() {
                 </span>
               </div>
               {acc.username && (
-                <div className="text-xs mt-0.5 ml-4" style={{ color: t.textMuted }}>@{acc.username}</div>
+                <div className="text-xs mt-0.5 ml-4" style={{ color: t.text4 }}>@{acc.username}</div>
               )}
               <div className="flex items-center gap-1 mt-1.5 ml-4">
                 {acc.is_connected ? (
@@ -226,26 +226,26 @@ export function TelegramInboxPage() {
                   </button>
                 )}
                 <button onClick={e => { e.stopPropagation(); handleDelete(acc); }}
-                  className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: isDark ? '#1a1a1a' : '#f5f5f5', color: t.textMuted }}>
+                  className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: isDark ? '#1a1a1a' : '#f5f5f5', color: t.text4 }}>
                   <Trash2 className="w-3 h-3 inline" />
                 </button>
               </div>
             </div>
           ))}
           {accounts.length === 0 && !loading.accounts && (
-            <div className="px-3 py-8 text-center text-sm" style={{ color: t.textMuted }}>
+            <div className="px-3 py-8 text-center text-sm" style={{ color: t.text4 }}>
               No accounts yet.<br />Upload a tdata ZIP to start.
             </div>
           )}
         </div>
 
         {/* Middle: Dialogs */}
-        <div className="w-80 flex-shrink-0 border-r overflow-y-auto" style={{ borderColor: t.border }}>
-          <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide" style={{ color: t.textMuted }}>
+        <div className="w-80 flex-shrink-0 border-r overflow-y-auto" style={{ borderColor: t.divider }}>
+          <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide" style={{ color: t.text4 }}>
             Conversations {dialogs.length > 0 && `(${dialogs.length})`}
           </div>
           {loading.dialogs && (
-            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" style={{ color: t.textMuted }} /></div>
+            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text4 }} /></div>
           )}
           {!loading.dialogs && dialogs.map(d => (
             <div
@@ -253,7 +253,7 @@ export function TelegramInboxPage() {
               onClick={() => setSelectedDialog(d)}
               className={`px-3 py-2.5 cursor-pointer border-b transition-colors ${selectedDialog?.peer_id === d.peer_id ? '' : 'hover:opacity-80'}`}
               style={{
-                borderColor: t.border,
+                borderColor: t.divider,
                 background: selectedDialog?.peer_id === d.peer_id ? (isDark ? '#1a1a2e' : '#f0f4ff') : 'transparent',
               }}
             >
@@ -261,34 +261,34 @@ export function TelegramInboxPage() {
                 <span className="text-sm font-medium truncate">{d.peer_name}</span>
                 <div className="flex items-center gap-1.5">
                   {d.unread_count > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: t.accent, color: '#fff' }}>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: t.btnPrimaryBg, color: '#fff' }}>
                       {d.unread_count}
                     </span>
                   )}
                   {d.last_message_at && (
-                    <span className="text-[10px]" style={{ color: t.textMuted }}>
+                    <span className="text-[10px]" style={{ color: t.text4 }}>
                       {formatTime(d.last_message_at)}
                     </span>
                   )}
                 </div>
               </div>
               {d.peer_username && (
-                <div className="text-[11px]" style={{ color: t.textMuted }}>@{d.peer_username}</div>
+                <div className="text-[11px]" style={{ color: t.text4 }}>@{d.peer_username}</div>
               )}
               {d.last_message && (
-                <div className="text-xs mt-0.5 truncate" style={{ color: t.textMuted }}>
+                <div className="text-xs mt-0.5 truncate" style={{ color: t.text4 }}>
                   {d.last_message}
                 </div>
               )}
             </div>
           ))}
           {!loading.dialogs && selectedAccount && !selectedAccount.is_connected && (
-            <div className="px-3 py-8 text-center text-sm" style={{ color: t.textMuted }}>
+            <div className="px-3 py-8 text-center text-sm" style={{ color: t.text4 }}>
               Account disconnected.<br />Connect to see dialogs.
             </div>
           )}
           {!loading.dialogs && selectedAccount?.is_connected && dialogs.length === 0 && (
-            <div className="px-3 py-8 text-center text-sm" style={{ color: t.textMuted }}>
+            <div className="px-3 py-8 text-center text-sm" style={{ color: t.text4 }}>
               No DM conversations found.
             </div>
           )}
@@ -299,18 +299,18 @@ export function TelegramInboxPage() {
           {selectedDialog ? (
             <>
               {/* Conversation header */}
-              <div className="px-4 py-2.5 border-b flex items-center gap-2" style={{ borderColor: t.border }}>
-                <User className="w-4 h-4" style={{ color: t.textMuted }} />
+              <div className="px-4 py-2.5 border-b flex items-center gap-2" style={{ borderColor: t.divider }}>
+                <User className="w-4 h-4" style={{ color: t.text4 }} />
                 <span className="font-medium text-sm">{selectedDialog.peer_name}</span>
                 {selectedDialog.peer_username && (
-                  <span className="text-xs" style={{ color: t.textMuted }}>@{selectedDialog.peer_username}</span>
+                  <span className="text-xs" style={{ color: t.text4 }}>@{selectedDialog.peer_username}</span>
                 )}
               </div>
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
                 {loading.messages && (
-                  <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" style={{ color: t.textMuted }} /></div>
+                  <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text4 }} /></div>
                 )}
                 {messages.map(msg => (
                   <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
@@ -320,15 +320,15 @@ export function TelegramInboxPage() {
                         background: msg.direction === 'outbound'
                           ? (isDark ? '#1a3a5c' : '#dcebff')
                           : (isDark ? '#2a2a2a' : '#f3f4f6'),
-                        color: t.text,
+                        color: t.text1,
                       }}
                     >
-                      <div className="text-[10px] mb-0.5 font-medium" style={{ color: t.textMuted }}>
+                      <div className="text-[10px] mb-0.5 font-medium" style={{ color: t.text4 }}>
                         {msg.sender_name}
                       </div>
                       <div className="whitespace-pre-wrap break-words">{msg.text}</div>
                       {msg.sent_at && (
-                        <div className="text-[10px] mt-1 text-right" style={{ color: t.textMuted }}>
+                        <div className="text-[10px] mt-1 text-right" style={{ color: t.text4 }}>
                           {formatTime(msg.sent_at)}
                         </div>
                       )}
@@ -339,27 +339,27 @@ export function TelegramInboxPage() {
               </div>
 
               {/* Input */}
-              <div className="px-4 py-3 border-t flex gap-2" style={{ borderColor: t.border }}>
+              <div className="px-4 py-3 border-t flex gap-2" style={{ borderColor: t.divider }}>
                 <input
                   value={messageText}
                   onChange={e => setMessageText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                   placeholder="Type a message..."
                   className="flex-1 px-3 py-2 rounded text-sm border outline-none"
-                  style={{ background: isDark ? '#1a1a1a' : '#fff', borderColor: t.border, color: t.text }}
+                  style={{ background: isDark ? '#1a1a1a' : '#fff', borderColor: t.divider, color: t.text1 }}
                 />
                 <button
                   onClick={handleSend}
                   disabled={loading.sending || !messageText.trim()}
                   className="px-3 py-2 rounded flex items-center gap-1 text-sm font-medium transition-colors disabled:opacity-50"
-                  style={{ background: t.accent, color: '#fff' }}
+                  style={{ background: t.btnPrimaryBg, color: '#fff' }}
                 >
                   {loading.sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </button>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center" style={{ color: t.textMuted }}>
+            <div className="flex-1 flex items-center justify-center" style={{ color: t.text4 }}>
               <div className="text-center">
                 <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />
                 <div className="text-sm">Select a conversation</div>
