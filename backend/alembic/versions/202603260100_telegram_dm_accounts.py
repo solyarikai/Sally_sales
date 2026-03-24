@@ -7,7 +7,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "202603260100"
-down_revision = None  # alembic auto-detects
+down_revision = "j1_remove_placeholder_emails"
 
 
 def upgrade():
