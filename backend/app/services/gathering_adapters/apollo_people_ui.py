@@ -30,7 +30,7 @@ class ApolloPeopleUIFilters(BaseModel):
     max_pages: int = Field(default=10, ge=1, le=100)
     city: Optional[str] = None
     organization_domains: List[str] = Field(default_factory=list, description="Company domains to search people for. Batched in groups of 30.")
-    batch_size: int = Field(default=30, ge=5, le=50, description="Number of domains per Apollo search batch")
+    batch_size: int = Field(default=30, ge=1, le=50, description="Number of domains per Apollo search batch. Use 1 for accurate per-domain attribution.")
 
     class Config:
         extra = "allow"
