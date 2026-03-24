@@ -38,6 +38,16 @@ CONTACTS_CACHE = STATE_DIR / "contacts_cache.json"
 APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY", "")
 APOLLO_BASE = "https://api.apollo.io/api/v1"
 
+# ── CSV Naming Convention ─────────────────────────────────────────────────────
+PROJECT_CODE = "OS"
+CSV_OUTPUT_DIR = SOFIA_DIR / "output" / "OnSocial"
+CSV_IMPORT_DIR = CSV_OUTPUT_DIR / "Import"
+CSV_IMPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+def _date_tag() -> str:
+    from datetime import datetime
+    return datetime.now().strftime("%b %d")
+
 # Default target titles (decision-makers for B2B SaaS / agency context)
 DEFAULT_TITLES = [
     "CEO", "CTO", "CMO", "COO", "Founder", "Co-Founder",
