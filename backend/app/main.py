@@ -105,6 +105,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"CRM scheduler start failed: {e}")
 
+    # Start Telegram DM inbox (reconnect saved accounts)
+    try:
+        from app.services.telegram_dm_service import telegram_dm_service
+        await telegram_dm_service.reconnect_all()
+        logger.info("Telegram DM service started")
+    except Exception as e:
+        logger.warning(f"Telegram DM service start failed: {e}")
+
     # Start Sally bot (Telegram client chat monitor)
     sally_task = None
     try:

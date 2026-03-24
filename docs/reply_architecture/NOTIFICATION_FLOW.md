@@ -107,7 +107,7 @@ Note: No "Email:" line for LinkedIn leads without email.
 
 ## Compact Format (Project-Specific)
 
-Projects can opt into compact notifications via `project.config.compact_notifications`:
+Projects can opt into compact notifications via `project.telegram_notification_config`:
 
 ```
 💼 LinkedIn · 🟢 Interested

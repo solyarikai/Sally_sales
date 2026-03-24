@@ -31,6 +31,7 @@ const ProjectChatPage = lazy(() => import('./pages/ProjectChatPage').then(m => (
 const QueryDashboardPage = lazy(() => import('./pages/QueryDashboardPage').then(m => ({ default: m.QueryDashboardPage })));
 const OperatorActionsPage = lazy(() => import('./pages/OperatorActionsPage').then(m => ({ default: m.OperatorActionsPage })));
 const GodPanelPage = lazy(() => import('./pages/GodPanelPage').then(m => ({ default: m.GodPanelPage })));
+const TelegramInboxPage = lazy(() => import('./pages/TelegramInboxPage').then(m => ({ default: m.TelegramInboxPage })));
 
 // Minimal loading spinner — shown while a lazy chunk downloads
 function PageLoader() {
@@ -130,6 +131,13 @@ function App() {
         <Route path="/god-panel" element={
           <Layout>
             <GodPanelPage />
+          </Layout>
+        } />
+
+        {/* Telegram DM Inbox */}
+        <Route path="/telegram-inbox" element={
+          <Layout>
+            <TelegramInboxPage />
           </Layout>
         } />
 

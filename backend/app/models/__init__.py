@@ -33,6 +33,7 @@ from .call_transcript import CallTranscript
 from .campaign_audit_log import CampaignAuditLog
 from .gtm_log import GTMStrategyLog
 from .telegram_chat import TelegramChat, TelegramChatMessage, TelegramChatInsight
+from .telegram_dm import TelegramDMAccount
 from .meeting import Meeting, MeetingStatus, MeetingOutcome
 from .outreach_stats import OutreachStats
 from .reply_analysis import ReplyAnalysis
@@ -100,6 +101,8 @@ __all__ = [
     "GTMStrategyLog",
     # Telegram Chat Monitoring
     "TelegramChat", "TelegramChatMessage", "TelegramChatInsight",
+    # Telegram DM Inbox
+    "TelegramDMAccount",
     # Meetings
     "Meeting", "MeetingStatus", "MeetingOutcome",
     # Outreach Stats
