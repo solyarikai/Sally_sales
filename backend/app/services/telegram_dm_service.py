@@ -6,6 +6,7 @@ Accounts are imported from tdata (Telegram Desktop) archives.
 import asyncio
 import logging
 import shutil
+import subprocess
 import tempfile
 import zipfile
 from datetime import datetime, timezone
@@ -38,17 +39,28 @@ class TelegramDMService:
 
     # ── Account Import ──────────────────────────────────────────────
 
-    async def import_from_tdata(self, zip_path: str) -> dict:
-        """Import a Telegram account from a tdata ZIP archive.
+    async def import_from_tdata(self, archive_path: str) -> dict:
+        """Import a Telegram account from a tdata archive (ZIP or RAR).
 
         Returns dict with account info (telegram_user_id, username, first_name, etc.)
         and the string_session for DB storage.
         """
         tmpdir = tempfile.mkdtemp(prefix="tdata_")
         try:
-            # Extract ZIP
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(tmpdir)
+            # Extract archive (ZIP or RAR)
+            if archive_path.lower().endswith(".rar"):
+                try:
+                    subprocess.run(
+                        ["unrar", "x", "-o+", archive_path, tmpdir + "/"],
+                        check=True, capture_output=True, timeout=60,
+                    )
+                except FileNotFoundError:
+                    raise ValueError("unrar not installed on server. Install with: apt-get install unrar")
+                except subprocess.CalledProcessError as e:
+                    raise ValueError(f"Failed to extract RAR: {e.stderr.decode()[:200]}")
+            else:
+                with zipfile.ZipFile(archive_path, "r") as zf:
+                    zf.extractall(tmpdir)
 
             # Find tdata folder (might be at root or inside a subfolder)
             tdata_path = Path(tmpdir)

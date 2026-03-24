@@ -55,11 +55,14 @@ async def upload_tdata(
     session: AsyncSession = Depends(get_session),
 ):
     """Import a Telegram account from a tdata ZIP archive."""
-    if not file.filename or not file.filename.endswith(".zip"):
-        raise HTTPException(400, "Upload a ZIP file containing the tdata folder")
+    if not file.filename:
+        raise HTTPException(400, "Upload a ZIP or RAR file containing the tdata folder")
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ("zip", "rar"):
+        raise HTTPException(400, "Upload a ZIP or RAR file containing the tdata folder")
 
     # Save uploaded file to temp
-    tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    tmp = tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False)
     try:
         content = await file.read()
         tmp.write(content)
