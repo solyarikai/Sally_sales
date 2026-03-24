@@ -165,7 +165,7 @@ export function TelegramInboxPage() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" accept=".zip" className="hidden" onChange={handleUpload} />
+          <input ref={fileInputRef} type="file" accept=".zip,.rar" className="hidden" onChange={handleUpload} />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={loading.uploading}
