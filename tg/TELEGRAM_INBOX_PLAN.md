@@ -70,7 +70,11 @@ Run all Telethon clients as long-lived daemon tasks inside the backend container
 
 **Tradeoff:** Requires proper process supervision. If container restarts, all clients must reconnect (which they already do via `reconnect_all()` on startup). The polling loop serves as safety net — even with persistent connections, poll every 5 min to catch any missed messages.
 
-**DO NOT LOSE THIS.** After core pipeline ships and is validated, this is the first upgrade.
+**STATUS: IMPLEMENTED** (2026-03-25 02:46 UTC)
+- All 15 accounts have persistent TCP connections to Telegram
+- `@client.on(events.NewMessage(incoming=True))` fires instantly
+- Polling still runs every 3 min as safety net
+- Auto-reconnect on disconnect with 10s backoff
 
 ## Do I need anything besides tdata?
 
