@@ -172,13 +172,10 @@ def _build_project_campaign_filter(project):
 
     # Tier 3: Telegram account match — replies from project's assigned Telegram accounts
     tg_match = None
-    try:
-        from app.models.telegram_dm import TelegramDMAccount
-        tg_match = ProcessedReply.telegram_account_id.in_(
-            select(TelegramDMAccount.id).where(TelegramDMAccount.project_id == project.id)
-        )
-    except Exception:
-        pass
+    from app.models.telegram_dm import TelegramDMAccount
+    tg_match = ProcessedReply.telegram_account_id.in_(
+        select(TelegramDMAccount.id).where(TelegramDMAccount.project_id == project.id)
+    )
 
     parts = [p for p in (explicit_match, prefix_match, tg_match) if p is not None]
     return or_(*parts) if parts else None
