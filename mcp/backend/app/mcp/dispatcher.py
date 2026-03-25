@@ -160,19 +160,67 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         project = await session.get(Project, args["project_id"])
         if not project or project.user_id != user.id:
             raise ValueError("Project not found")
+
+        source_type = args["source_type"]
+        filters = args.get("filters", {})
+
+        # ── Essential filter validation for API sources ──
+        if "api" in source_type or "emulator" in source_type:
+            missing = []
+            if not filters.get("q_organization_keyword_tags") and not filters.get("organization_locations"):
+                missing.append("keywords (q_organization_keyword_tags) OR locations (organization_locations)")
+            if not filters.get("organization_num_employees_ranges"):
+                missing.append("company size range (organization_num_employees_ranges, e.g. ['11,50', '51,200'])")
+            if "api" in source_type and not filters.get("max_pages"):
+                missing.append("max_pages (controls credit spend — each page costs 1 Apollo credit, returns 25 companies)")
+
+            if missing:
+                return {
+                    "error": "missing_essential_filters",
+                    "message": f"Cannot proceed — essential filters missing. Ask the user to specify:\n"
+                               + "\n".join(f"  - {m}" for m in missing),
+                    "hint": "Example: organization_num_employees_ranges: ['11,50'] for 11-50 employees, max_pages: 4 for ~100 companies",
+                }
+
+            # Apply safe defaults
+            if "api" in source_type:
+                filters.setdefault("max_pages", 4)
+                filters.setdefault("per_page", 25)
+
         import hashlib, json as _json
-        filter_hash = hashlib.sha256(_json.dumps(args["filters"], sort_keys=True).encode()).hexdigest()[:16]
+        filter_hash = hashlib.sha256(_json.dumps(filters, sort_keys=True).encode()).hexdigest()[:16]
+
+        # Estimate credits before starting
+        max_pages = filters.get("max_pages", 4)
+        per_page = filters.get("per_page", 25)
+        est_credits = max_pages if "api" in source_type else 0
+        est_companies = max_pages * per_page
+
         run = GatheringRun(
             project_id=project.id, company_id=project.company_id,
-            source_type=args["source_type"], filters=args["filters"],
+            source_type=source_type, filters=filters,
             filter_hash=filter_hash, status="running", current_phase="gather",
             triggered_by=f"mcp:user:{user.id}",
         )
         session.add(run)
         await session.flush()
-        # TODO: Actually call gathering adapter here
-        return {"run_id": run.id, "status": "running", "phase": "gather",
-                "message": f"Gathering started for project '{project.name}' using {args['source_type']}"}
+
+        return {
+            "run_id": run.id,
+            "status": "running",
+            "phase": "gather",
+            "estimated_credits": est_credits,
+            "estimated_companies": est_companies,
+            "filters_applied": {
+                "keywords": filters.get("q_organization_keyword_tags"),
+                "locations": filters.get("organization_locations"),
+                "employee_ranges": filters.get("organization_num_employees_ranges"),
+                "max_pages": filters.get("max_pages"),
+                "funding_stages": filters.get("organization_latest_funding_stage_cd"),
+            },
+            "message": f"Gathering started for '{project.name}' using {source_type}. "
+                       f"~{est_companies} companies, ~{est_credits} credits.",
+        }
 
     if tool_name == "tam_blacklist_check":
         user = await _get_user(token, session)
