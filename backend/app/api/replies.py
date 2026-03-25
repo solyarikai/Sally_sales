@@ -2387,34 +2387,29 @@ async def get_reply_full_history(
         try:
             from app.services.telegram_dm_service import telegram_dm_service
             from app.models.reply import ThreadMessage as TM
+            from sqlalchemy import delete as sa_delete
             msgs = await telegram_dm_service.get_messages(
                 default_reply.telegram_account_id, int(default_reply.telegram_peer_id), limit=50
             )
-            # Delete old thread messages for this reply
-            await session.execute(
-                select(TM).where(TM.reply_id == default_reply.id)
-            )  # just to check
-            from sqlalchemy import delete as sa_delete
-            await session.execute(sa_delete(TM).where(TM.reply_id == default_reply.id))
-            # Insert fresh
-            for i, m in enumerate(msgs):
-                tm = TM(
-                    reply_id=default_reply.id,
-                    direction=m["direction"],
-                    channel="telegram",
-                    subject=None,
-                    body=m["text"],
-                    activity_at=datetime.fromisoformat(m["sent_at"]).replace(tzinfo=None) if m.get("sent_at") else None,
-                    position=i,
-                    source="telegram",
-                )
-                session.add(tm)
-            default_reply.thread_fetched_at = datetime.utcnow()
+            # Use savepoint so failure doesn't kill the main session
+            async with session.begin_nested():
+                await session.execute(sa_delete(TM).where(TM.reply_id == default_reply.id))
+                for i, m in enumerate(msgs):
+                    session.add(TM(
+                        reply_id=default_reply.id,
+                        direction=m["direction"],
+                        channel="telegram",
+                        subject=None,
+                        body=m["text"],
+                        activity_at=datetime.fromisoformat(m["sent_at"]).replace(tzinfo=None) if m.get("sent_at") else None,
+                        position=i,
+                        source="telegram",
+                    ))
+                default_reply.thread_fetched_at = datetime.utcnow()
             await session.commit()
             logger.info(f"full-history: cached {len(msgs)} Telegram messages for reply {default_reply.id}")
         except Exception as e:
-            logger.warning(f"full-history: Telegram thread fetch failed: {e}")
-            await session.rollback()
+            logger.warning(f"full-history: Telegram thread fetch failed (non-fatal): {e}")
 
     # SmartLead: fetch thread via API
     elif default_reply.thread_fetched_at is None and default_reply.campaign_id and (not default_reply.source or default_reply.source == "smartlead"):
