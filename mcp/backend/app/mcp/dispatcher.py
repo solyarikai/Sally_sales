@@ -161,13 +161,12 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         if not project or project.user_id != user.id:
             raise ValueError("Project not found or not yours")
         user.active_project_id = project.id
-        # Get project details for display
-        from app.models.gathering import GatheringRun
+        # Get project details for display (use already-imported models)
         from sqlalchemy import func
+        from app.models.pipeline import DiscoveredCompany
         runs_count = (await session.execute(
             select(func.count(GatheringRun.id)).where(GatheringRun.project_id == project.id)
         )).scalar() or 0
-        from app.models.pipeline import DiscoveredCompany
         companies_count = (await session.execute(
             select(func.count(DiscoveredCompany.id)).where(DiscoveredCompany.project_id == project.id)
         )).scalar() or 0

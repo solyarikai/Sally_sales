@@ -104,7 +104,8 @@ class ApolloService:
             )
             if not data:
                 break
-            orgs = data.get("organizations", [])
+            # Apollo returns companies in "accounts" OR "organizations" depending on endpoint version
+            orgs = data.get("organizations", []) or data.get("accounts", [])
             all_orgs.extend(orgs)
             pagination = data.get("pagination", {})
             total_pages = pagination.get("total_pages", 1)
