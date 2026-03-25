@@ -254,29 +254,32 @@ class TelegramDMService:
                     )
                 )
                 accounts = result.scalars().all()
+                # Copy data while session is open (avoid lazy load after close)
+                account_data = [(acc.id, acc.string_session, acc.proxy_config) for acc in accounts]
 
             connected = 0
-            for acc in accounts:
+            for acc_id, ss, proxy in account_data:
                 try:
-                    ok = await self.connect_account(acc.id, acc.string_session, acc.proxy_config)
+                    ok = await self.connect_account(acc_id, ss, proxy)
                     if ok:
                         connected += 1
-                        # Update DB status
                         async with async_session_maker() as session:
                             from sqlalchemy import update
                             await session.execute(
                                 update(TelegramDMAccount)
-                                .where(TelegramDMAccount.id == acc.id)
+                                .where(TelegramDMAccount.id == acc_id)
                                 .values(is_connected=True, last_connected_at=datetime.utcnow())
                             )
                             await session.commit()
+                    else:
+                        logger.warning(f"Account {acc_id}: connect returned False")
                 except Exception as e:
-                    logger.warning(f"Failed to reconnect account {acc.id}: {e}")
+                    logger.warning(f"Failed to reconnect account {acc_id}: {e}")
                     async with async_session_maker() as session:
                         from sqlalchemy import update
                         await session.execute(
                             update(TelegramDMAccount)
-                            .where(TelegramDMAccount.id == acc.id)
+                            .where(TelegramDMAccount.id == acc_id)
                             .values(
                                 is_connected=False,
                                 last_error=str(e),
@@ -286,7 +289,7 @@ class TelegramDMService:
                         )
                         await session.commit()
 
-            logger.info(f"Telegram DM service: {connected}/{len(accounts)} accounts reconnected")
+            logger.info(f"Telegram DM service: {connected}/{len(account_data)} accounts reconnected")
         except Exception as e:
             logger.error(f"Telegram DM reconnect_all failed: {e}")
 
