@@ -1204,3 +1204,70 @@ async def notify_linkedin_reply(
             logger.info(f"LinkedIn reply sent to {len(sent_chats)} chats for project '{project.get('name')}'")
 
     return admin_sent
+
+
+async def notify_telegram_dm_reply(
+    contact_name: str,
+    contact_username: str = None,
+    message_text: str = "",
+    account_name: str = None,
+    project_id: int = None,
+    category: str = None,
+    reply_id: int = None,
+) -> bool:
+    """Send Telegram notification for Telegram DM replies."""
+    from app.core.config import settings
+    from urllib.parse import quote
+    from html import escape as _html_escape
+
+    project = None
+    if project_id:
+        try:
+            project = await _get_project_by_id(project_id)
+        except Exception:
+            pass
+
+    project_param = ""
+    if project:
+        project_param = f"&project={quote(project['name'].lower().replace(' ', '-'))}"
+
+    if reply_id:
+        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?reply_id={reply_id}{project_param}"
+    elif project_param:
+        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies?{project_param.lstrip('&')}"
+    else:
+        replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies"
+    replies_line = f'\n<a href="{replies_ui_url}">📋 Open in Replies UI</a>'
+
+    raw_text = (message_text or "").strip()
+    msg_lines = raw_text.split("\n")
+    message_preview = "\n".join(l for l in msg_lines[:8] if l.strip())
+    if len(message_preview) > 200:
+        message_preview = message_preview[:200] + "…"
+    message_preview = _html_escape(message_preview)
+
+    username_line = f"\n<b>Telegram:</b> @{contact_username}" if contact_username else ""
+    account_line = f"\n<b>Account:</b> @{account_name}" if account_name else ""
+    project_line = f"\n<b>Project:</b> {project['name']}" if project else ""
+
+    indicator = _category_indicator(category) if category else "✈️"
+    label = _category_label(category) if category else "Telegram DM"
+
+    full_message = f"""{indicator} ✈️ <b>{label}</b>
+
+<b>From:</b> {_html_escape(contact_name)}{username_line}{account_line}{project_line}
+
+<b>Message:</b>
+<code>{message_preview}</code>
+{replies_line}"""
+
+    admin_sent = await send_telegram_notification(full_message.strip(), chat_id=TELEGRAM_CHAT_ID)
+    sent_chats = {TELEGRAM_CHAT_ID}
+
+    if project:
+        for subscriber_chat in project.get("telegram_subscribers", []):
+            if subscriber_chat not in sent_chats:
+                await send_telegram_notification(full_message.strip(), chat_id=subscriber_chat)
+                sent_chats.add(subscriber_chat)
+
+    return admin_sent

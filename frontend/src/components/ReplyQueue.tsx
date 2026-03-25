@@ -647,7 +647,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
         });
       }
       const contactId = result.contact_id;
-      const toastMsg = result.channel === 'linkedin'
+      const toastMsg = result.channel === 'telegram'
+        ? (result.telegram_sent ? 'Sent via Telegram' : (result.send_error ? `Approved (send failed: ${result.send_error})` : 'Approved'))
+        : result.channel === 'linkedin'
         ? (result.getsales_sent ? 'Sent via LinkedIn' : (result.send_error ? `Approved (send failed)` : 'Approved — copy draft to LinkedIn'))
         : 'Reply sent';
       toast(
@@ -742,7 +744,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
       const data = await repliesApi.getFullHistory(reply.id);
       setHistoryData(prev => ({ ...prev, [reply.id]: data }));
       {
-        const replyChannel = reply.channel || (reply.source === 'getsales' ? 'linkedin' : 'email');
+        const replyChannel = reply.channel || (reply.source === 'getsales' ? 'linkedin' : reply.source === 'telegram' ? 'telegram' : 'email');
         const replyCampaign = reply.campaign_name || 'Unknown';
         setSelectedHistoryCampaign(prev => ({
           ...prev,
@@ -1140,7 +1142,8 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
                                 || (history?.inbox_links && Object.values(history.inbox_links)[0])
                                 || null;
                               const isLinkedin = reply.channel === 'linkedin';
-                              const platform = isLinkedin ? 'GetSales' : 'SmartLead';
+                              const isTelegram = reply.channel === 'telegram';
+                              const platform = isTelegram ? 'Telegram' : isLinkedin ? 'GetSales' : 'SmartLead';
                               return inboxUrl ? (
                                 <a
                                   href={inboxUrl}

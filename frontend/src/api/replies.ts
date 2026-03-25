@@ -157,6 +157,9 @@ export interface ProcessedReply {
   // Follow-up tracking
   parent_reply_id: number | null;
   follow_up_number: number | null;
+  // Telegram DM identity
+  telegram_peer_id?: string | null;
+  telegram_account_id?: number | null;
   // Qualified flag — operator-controlled marker for truly warm leads
   is_qualified?: boolean;
   // Operator notes — free-form text for warm lead tracking
@@ -562,6 +565,7 @@ export async function approveAndSendReply(
   contact_id?: number;
   channel?: string;
   getsales_sent?: boolean;
+  telegram_sent?: boolean;
   send_error?: string | null;
 }> {
   // On localhost, always send in test_mode so emails go to pn@getsally.io instead of real leads

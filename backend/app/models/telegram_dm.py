@@ -36,5 +36,8 @@ class TelegramDMAccount(Base):
     # Optional per-account proxy
     proxy_config = Column(JSON, nullable=True)
 
+    # Polling cursor — timestamp of last processed inbound message
+    last_processed_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
