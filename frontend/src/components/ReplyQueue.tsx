@@ -583,7 +583,7 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
           loadReplies(false);
         }
       },
-      { root: scrollRef.current, rootMargin: '200px' }
+      { rootMargin: '400px' }  // null root = viewport; larger margin for earlier trigger
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
