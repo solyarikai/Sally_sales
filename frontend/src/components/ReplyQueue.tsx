@@ -1948,6 +1948,19 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
                             </div>
                           )}
 
+                          {reply.channel === 'telegram' && reply.telegram_peer_username && (
+                            <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: '#0088cc' }}>
+                              <MessageCircle className="w-3 h-3 flex-shrink-0" />
+                              <span>@{reply.telegram_peer_username}</span>
+                            </div>
+                          )}
+
+                          {reply.channel === 'telegram' && reply.telegram_peer_id && (
+                            <div className="mb-1.5 flex items-center gap-1 text-[12px]" style={{ color: t.text4 }}>
+                              <span className="text-[10px]">ID: {reply.telegram_peer_id}</span>
+                            </div>
+                          )}
+
                           {contactInfo?.linkedin_url && (
                             <div className="mb-1.5 flex items-center justify-between">
                               <a

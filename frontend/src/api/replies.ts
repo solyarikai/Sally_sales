@@ -160,6 +160,7 @@ export interface ProcessedReply {
   // Telegram DM identity
   telegram_peer_id?: string | null;
   telegram_account_id?: number | null;
+  telegram_peer_username?: string | null;
   // Qualified flag — operator-controlled marker for truly warm leads
   is_qualified?: boolean;
   // Operator notes — free-form text for warm lead tracking
