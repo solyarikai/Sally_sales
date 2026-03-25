@@ -58,6 +58,7 @@ class GatheringService:
         source_type: str,
         filters: Dict[str, Any],
         triggered_by: str = "mcp",
+        apollo_service=None,
     ) -> GatheringRun:
         """Create a new gathering run and execute the gather phase."""
         filter_json = json.dumps(filters, sort_keys=True)
@@ -78,7 +79,7 @@ class GatheringService:
         await session.flush()
 
         # Execute adapter
-        adapter = self._get_adapter(source_type)
+        adapter = self._get_adapter(source_type, apollo_service=apollo_service)
         if adapter:
             try:
                 results = await adapter.gather(filters)
@@ -139,15 +140,14 @@ class GatheringService:
         self._advance_phase(run, "blacklist")
         return run
 
-    def _get_adapter(self, source_type: str):
+    def _get_adapter(self, source_type: str, apollo_service=None):
         """Get the appropriate gathering adapter."""
         if source_type == "apollo.companies.api":
             from app.services.gathering_adapters.apollo_org_api import ApolloOrgApiAdapter
-            return ApolloOrgApiAdapter()
+            return ApolloOrgApiAdapter(apollo_service=apollo_service)
         elif source_type == "manual.companies.manual":
             from app.services.gathering_adapters.manual import ManualAdapter
             return ManualAdapter()
-        # Add more adapters as needed
         return None
 
     # ── Phase 2: Blacklist Check ──
