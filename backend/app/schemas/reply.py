@@ -205,6 +205,7 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     # Telegram DM identity
     telegram_peer_id: Optional[str] = None
     telegram_account_id: Optional[int] = None
+    telegram_peer_username: Optional[str] = None  # @username of the lead (extracted from raw_webhook_data)
 
     # Pre-generated follow-up draft (child ProcessedReply with pending status)
     followup_draft: Optional[dict] = None

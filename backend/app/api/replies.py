@@ -1067,6 +1067,10 @@ async def list_replies(
             _ident = r.lead_email or r.getsales_lead_uuid
             resp.contact_campaign_count = campaign_count_map.get(_ident, 1)
             resp.sender_name = _extract_sender_name(r)
+            # Extract Telegram peer @username from raw_webhook_data
+            if r.source == "telegram" and r.raw_webhook_data:
+                raw = r.raw_webhook_data if isinstance(r.raw_webhook_data, dict) else {}
+                resp.telegram_peer_username = raw.get("peer_username")
             if r.id in fu_draft_map:
                 resp.followup_draft = fu_draft_map[r.id]
             reply_responses.append(resp)
