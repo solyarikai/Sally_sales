@@ -112,7 +112,7 @@ async def upload_tdata(
                 account.id, info["string_session"]
             )
             account.is_connected = ok
-            account.last_connected_at = datetime.now(timezone.utc) if ok else None
+            account.last_connected_at = datetime.utcnow() if ok else None
             results.append(account)
 
         await session.commit()
@@ -158,13 +158,13 @@ async def connect_account(
         account.auth_status = "error"
         account.is_connected = False
         account.last_error = str(e)
-        account.last_error_at = datetime.now(timezone.utc)
+        account.last_error_at = datetime.utcnow()
         await session.commit()
         raise HTTPException(400, f"Connection failed: {e}")
 
     account.is_connected = ok
     account.auth_status = "active" if ok else "error"
-    account.last_connected_at = datetime.now(timezone.utc) if ok else account.last_connected_at
+    account.last_connected_at = datetime.utcnow() if ok else account.last_connected_at
     await session.commit()
     return _account_to_response(account)
 
