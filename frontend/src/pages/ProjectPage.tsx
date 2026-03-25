@@ -2001,7 +2001,7 @@ function TelegramAccountsSection({ projectId, isDark }: { projectId: number; isD
     setUploading(true);
     setError(null);
     try {
-      const imported = await tgApi.uploadTdata(file, projectId);
+      await tgApi.uploadTdata(file, projectId);
       await loadAccounts();
       await loadArchive();
     } catch (e: any) {
