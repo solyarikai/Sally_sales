@@ -221,3 +221,46 @@ async def crm_companies(
     result = await session.execute(query.limit(500))
     companies = result.scalars().all()
     return [_company_to_dict(c) for c in companies]
+
+
+@router.get("/crm/contacts")
+async def crm_contacts(
+    project_id: int = None,
+    search: str = None,
+    status: str = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """CRM contacts view — people extracted from pipeline."""
+    from app.models.pipeline import ExtractedContact
+    query = select(ExtractedContact).order_by(ExtractedContact.created_at.desc())
+    if project_id:
+        query = query.where(ExtractedContact.project_id == project_id)
+    if search:
+        query = query.where(
+            (ExtractedContact.email.ilike(f"%{search}%")) |
+            (ExtractedContact.first_name.ilike(f"%{search}%")) |
+            (ExtractedContact.last_name.ilike(f"%{search}%"))
+        )
+    result = await session.execute(query.limit(500))
+    contacts = result.scalars().all()
+    return {
+        "contacts": [
+            {
+                "id": c.id,
+                "first_name": c.first_name,
+                "last_name": c.last_name,
+                "email": c.email,
+                "job_title": c.job_title,
+                "linkedin_url": c.linkedin_url,
+                "phone": c.phone,
+                "email_verified": c.email_verified,
+                "email_source": c.email_source,
+                "domain": None,  # TODO: join with discovered_company
+                "company_name": None,
+                "source_data": c.source_data,
+                "created_at": str(c.created_at) if c.created_at else None,
+            }
+            for c in contacts
+        ],
+        "total": len(contacts),
+    }
