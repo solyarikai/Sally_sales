@@ -98,6 +98,80 @@ class ApolloService:
                 return None
         return None
 
+    async def search_people_broad(
+        self,
+        person_titles: Optional[List[str]] = None,
+        organization_keyword_tags: Optional[List[str]] = None,
+        organization_locations: Optional[List[str]] = None,
+        organization_num_employees_ranges: Optional[List[str]] = None,
+        page: int = 1,
+        per_page: int = 100,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Broad people search using /mixed_people/api_search WITHOUT domains.
+        FREE — no credits, no email reveal.
+        Searches by org location + keywords + person titles.
+        Returns up to 100 people per page, max 500 pages (50,000 total).
+        """
+        if not self.api_key:
+            logger.warning("Apollo API key not configured")
+            return None
+
+        payload: Dict[str, Any] = {
+            "page": page,
+            "per_page": min(per_page, 100),
+        }
+        if person_titles:
+            payload["person_titles"] = person_titles
+        if organization_keyword_tags:
+            payload["q_organization_keyword_tags"] = organization_keyword_tags
+        if organization_locations:
+            payload["organization_locations"] = organization_locations
+        if organization_num_employees_ranges:
+            payload["organization_num_employees_ranges"] = organization_num_employees_ranges
+
+        return await self._api_call("POST", "/mixed_people/api_search", payload)
+
+    async def search_people_broad_all_pages(
+        self,
+        person_titles: Optional[List[str]] = None,
+        organization_keyword_tags: Optional[List[str]] = None,
+        organization_locations: Optional[List[str]] = None,
+        organization_num_employees_ranges: Optional[List[str]] = None,
+        max_pages: int = 50,
+        per_page: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Paginated broad people search. Returns flat list of all people dicts.
+        FREE — no credits used.
+        """
+        all_people: List[Dict[str, Any]] = []
+
+        for page in range(1, max_pages + 1):
+            data = await self.search_people_broad(
+                person_titles=person_titles,
+                organization_keyword_tags=organization_keyword_tags,
+                organization_locations=organization_locations,
+                organization_num_employees_ranges=organization_num_employees_ranges,
+                page=page,
+                per_page=per_page,
+            )
+            if not data:
+                logger.warning(f"Apollo broad people search: page {page} returned None, stopping")
+                break
+
+            people = data.get("people", [])
+            if not people:
+                logger.info(f"Apollo broad people search: page {page} empty, done. Total: {len(all_people)}")
+                break
+
+            all_people.extend(people)
+            logger.info(f"Apollo broad people search: page {page}, got {len(people)}, total {len(all_people)}")
+
+            await asyncio.sleep(self.RATE_LIMIT_INTERVAL)
+
+        return all_people
+
     async def search_people_by_domain(
         self,
         domain: str,
