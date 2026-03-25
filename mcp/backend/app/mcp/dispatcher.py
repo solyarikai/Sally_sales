@@ -296,12 +296,21 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         est_credits = max_pages if "api" in source_type else 0
         est_companies = max_pages * per_page
 
+        # Get user's Apollo service for API sources
+        apollo_svc = None
+        if "apollo" in source_type:
+            ctx = UserServiceContext(user.id, session)
+            apollo_svc = await ctx.get_apollo_service()
+            if not apollo_svc.is_configured():
+                raise ValueError("Apollo not connected. Use configure_integration to add your Apollo API key first.")
+
         # Call the real gathering service
         from app.services.gathering_service import GatheringService
         svc = GatheringService()
         run = await svc.start_gathering(
             session, project.id, project.company_id,
             source_type, filters, triggered_by=f"mcp:user:{user.id}",
+            apollo_service=apollo_svc,
         )
 
         return {
