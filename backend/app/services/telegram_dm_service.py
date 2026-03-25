@@ -375,6 +375,133 @@ class TelegramDMService:
             logger.error(f"Account {account_id} send failed: {e}")
             return {"success": False, "error": str(e)}
 
+    # ── Polling for New Messages ───────────────────────────────────
+
+    async def poll_all_accounts(self):
+        """Poll all active accounts for new inbound DMs. Called by scheduler every 3 min."""
+        from app.db.database import async_session_maker
+        from app.models.telegram_dm import TelegramDMAccount
+        from sqlalchemy import select, update
+
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(TelegramDMAccount).where(
+                    TelegramDMAccount.auth_status == "active",
+                    TelegramDMAccount.project_id.isnot(None),
+                    TelegramDMAccount.is_connected == True,
+                )
+            )
+            accounts = result.scalars().all()
+
+        if not accounts:
+            return
+
+        total_new = 0
+        for acc in accounts:
+            if not self.is_connected(acc.id):
+                continue
+            try:
+                count = await self._poll_account(acc)
+                total_new += count
+            except FloodWaitError as e:
+                logger.warning(f"[TELEGRAM] Account {acc.id} FloodWait during poll: {e.seconds}s — skipping")
+            except Exception as e:
+                logger.warning(f"[TELEGRAM] Poll failed for account {acc.id}: {e}")
+
+            # Stagger between accounts to avoid rate limits
+            await asyncio.sleep(2)
+
+        if total_new:
+            logger.info(f"[TELEGRAM] Poll cycle complete: {total_new} new replies from {len(accounts)} accounts")
+
+    async def _poll_account(self, acc) -> int:
+        """Poll one account for new inbound DMs. Returns count of new replies processed."""
+        from app.db.database import async_session_maker
+        from app.models.telegram_dm import TelegramDMAccount
+        from app.services.reply_processor import process_telegram_reply, send_telegram_dm_notification
+        from sqlalchemy import update
+
+        client = self._get_client(acc.id)
+        me = await client.get_me()
+        new_count = 0
+
+        # Fetch dialogs with unread messages
+        async for dialog in client.iter_dialogs(limit=100):
+            try:
+                if not dialog.is_user or not dialog.unread_count:
+                    continue
+                entity = dialog.entity
+                if isinstance(entity, User) and entity.bot:
+                    continue
+
+                # Fetch recent messages (up to unread count, max 20)
+                fetch_limit = min(dialog.unread_count, 20)
+                async for msg in client.iter_messages(dialog.id, limit=fetch_limit):
+                    if msg.sender_id == me.id:
+                        continue  # Skip our own outbound
+                    if not msg.text:
+                        continue  # Skip media-only
+                    if acc.last_processed_at and msg.date and msg.date.replace(tzinfo=None) <= acc.last_processed_at:
+                        break  # Already processed
+
+                    # Process this message
+                    peer_name = f"{getattr(entity, 'first_name', '') or ''} {getattr(entity, 'last_name', '') or ''}".strip() or "Unknown"
+                    peer_username = getattr(entity, "username", None)
+
+                    async with async_session_maker() as session:
+                        try:
+                            pr = await process_telegram_reply(
+                                message_text=msg.text,
+                                peer_id=dialog.id,
+                                peer_name=peer_name,
+                                peer_username=peer_username,
+                                account_id=acc.id,
+                                account_username=acc.username,
+                                project_id=acc.project_id,
+                                message_id=msg.id,
+                                activity_at=msg.date.replace(tzinfo=None) if msg.date else None,
+                                raw_data={
+                                    "message_id": msg.id,
+                                    "peer_id": dialog.id,
+                                    "peer_username": peer_username,
+                                    "account_id": acc.id,
+                                },
+                                session=session,
+                            )
+                            if pr:
+                                await session.commit()
+                                new_count += 1
+
+                                # Send notification after commit
+                                await send_telegram_dm_notification(
+                                    processed_reply=pr,
+                                    peer_name=peer_name,
+                                    peer_username=peer_username,
+                                    account_username=acc.username,
+                                    message_text=msg.text,
+                                    project_id=acc.project_id,
+                                    session=session,
+                                )
+                        except Exception as e:
+                            if "uq_reply_dedup" in str(e):
+                                pass  # Duplicate — expected
+                            else:
+                                logger.warning(f"[TELEGRAM] Failed to process msg {msg.id} from {dialog.id}: {e}")
+            except Exception as dialog_err:
+                logger.debug(f"[TELEGRAM] Skipping dialog {dialog.id}: {dialog_err}")
+                continue
+
+        # Update polling cursor
+        async with async_session_maker() as session:
+            await session.execute(
+                update(TelegramDMAccount)
+                .where(TelegramDMAccount.id == acc.id)
+                .values(last_processed_at=datetime.utcnow())
+            )
+            await session.commit()
+
+        return new_count
+
     # ── Helpers ─────────────────────────────────────────────────────
 
     def _get_client(self, account_id: int) -> TelegramClient:

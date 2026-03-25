@@ -2287,6 +2287,283 @@ async def process_getsales_reply(
     return processed_reply
 
 
+async def process_telegram_reply(
+    message_text: str,
+    peer_id: int,
+    peer_name: str,
+    peer_username: str = None,
+    account_id: int = None,
+    account_username: str = None,
+    project_id: int = None,
+    message_id: int = None,
+    activity_at: datetime = None,
+    raw_data: dict = None,
+    session: AsyncSession = None,
+) -> Optional[ProcessedReply]:
+    """Process a Telegram DM reply: classify, generate draft, create ProcessedReply.
+
+    Follows the same pipeline as process_getsales_reply() but with Telegram-specific
+    identity (telegram_peer_id) and simplified project lookup (direct FK, no campaign matching).
+
+    Returns the created ProcessedReply, or None if skipped.
+    """
+    import hashlib
+    import re as _re
+
+    raw_data = raw_data or {}
+    activity_at = activity_at or datetime.utcnow()
+    _tg_peer_id = str(peer_id)
+
+    # --- Skip emoji-only messages ---
+    _stripped = (message_text or "").strip()
+    _emoji_only = _re.sub(
+        r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF'
+        r'\U00002702-\U000027B0\U000024C2-\U0001F251\U0001F900-\U0001F9FF\U0001FA00-\U0001FA6F'
+        r'\U0001FA70-\U0001FAFF\U00002600-\U000026FF\U0000FE0F\U0000200D\U00000020]+',
+        '', _stripped
+    )
+    if _stripped and not _emoji_only:
+        logger.info(f"[TELEGRAM] Skipping emoji-only message from {_tg_peer_id}")
+        return None
+
+    if not _stripped:
+        logger.info(f"[TELEGRAM] Skipping empty message from {_tg_peer_id}")
+        return None
+
+    # --- Content-based dedup ---
+    body_for_hash = _stripped.lower()[:500]
+    message_hash = hashlib.md5(body_for_hash.encode()).hexdigest()
+
+    # --- Project lookup (direct FK — no campaign matching needed) ---
+    custom_reply_prompt = None
+    proj_sender_name = None
+    proj_sender_position = None
+    proj_sender_company = None
+    project = None
+    _knowledge_entries = []
+
+    if project_id:
+        try:
+            from app.models.contact import Project
+            from app.models.reply import ReplyPromptTemplateModel
+
+            project = (await session.execute(
+                select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
+            )).scalar()
+
+            if project:
+                proj_sender_name = project.sender_name
+                proj_sender_position = project.sender_position
+                proj_sender_company = project.sender_company
+
+                if project.reply_prompt_template_id:
+                    tmpl = (await session.execute(
+                        select(ReplyPromptTemplateModel).where(
+                            ReplyPromptTemplateModel.id == project.reply_prompt_template_id
+                        )
+                    )).scalar()
+                    if tmpl:
+                        custom_reply_prompt = tmpl.prompt_text
+
+                # Load project knowledge
+                from app.models.project_knowledge import ProjectKnowledge
+                knowledge_result = await session.execute(
+                    select(ProjectKnowledge).where(ProjectKnowledge.project_id == project.id)
+                )
+                _knowledge_entries = knowledge_result.scalars().all()
+                logger.info(f"[TELEGRAM] Project '{project.name}': {len(_knowledge_entries)} knowledge entries")
+        except Exception as proj_err:
+            logger.warning(f"[TELEGRAM] Project lookup failed (non-fatal): {proj_err}")
+
+    # --- Classify ---
+    tg_suffix = "This is a Telegram DM, not an email. Classify based on the message content."
+    _classify_prompt = tg_suffix
+    if project and getattr(project, "classification_prompt", None):
+        _classify_prompt = tg_suffix + "\n" + project.classification_prompt
+
+    classification = await classify_reply(
+        subject="Telegram DM",
+        body=message_text,
+        custom_prompt=_classify_prompt,
+    )
+    logger.info(f"[TELEGRAM] Classification: {classification['category']} ({classification['confidence']})")
+
+    # --- Format knowledge + reference examples ---
+    if _knowledge_entries:
+        knowledge_context = _format_knowledge_context(_knowledge_entries, category=classification.get("category"))
+        if custom_reply_prompt:
+            custom_reply_prompt += knowledge_context
+        else:
+            custom_reply_prompt = knowledge_context
+
+    if project:
+        try:
+            ref_examples = await _load_reference_examples(
+                session, project.id, category=classification.get("category"),
+                lead_message=message_text,
+            )
+            if ref_examples:
+                if custom_reply_prompt:
+                    custom_reply_prompt += ref_examples
+                else:
+                    custom_reply_prompt = ref_examples
+        except Exception as ref_err:
+            logger.warning(f"[TELEGRAM] Reference examples loading failed (non-fatal): {ref_err}")
+
+    # --- Calendly slots for meeting/interested ---
+    if project and classification.get("category") in ("meeting_request", "interested"):
+        try:
+            calendly_cfg = project.calendly_config
+            if calendly_cfg and calendly_cfg.get("members"):
+                from app.services.calendly_service import get_slots_with_fallback
+                cal_data = await get_slots_with_fallback(calendly_cfg)
+                if cal_data.get("formatted_for_prompt"):
+                    if custom_reply_prompt:
+                        custom_reply_prompt += "\n\n" + cal_data["formatted_for_prompt"]
+                    else:
+                        custom_reply_prompt = cal_data["formatted_for_prompt"]
+        except Exception as cal_err:
+            logger.warning(f"[TELEGRAM] Calendly injection failed (non-fatal): {cal_err}")
+
+    # --- Generate draft ---
+    tg_draft_suffix = (
+        "This is a Telegram DM, keep reply SHORT (2-3 sentences), "
+        "conversational, no subject line needed. "
+        "Do NOT include any email signature, sign-off block, or contact details at the end — "
+        "this is a Telegram DM, not an email. "
+        "Do NOT use em-dashes (—). Use commas, periods, or simple dashes (-) instead."
+    )
+    combined_prompt = tg_draft_suffix
+    if custom_reply_prompt:
+        combined_prompt = custom_reply_prompt + "\n\n" + tg_draft_suffix
+
+    _first_name = peer_name.split()[0] if peer_name else ""
+    _last_name = " ".join(peer_name.split()[1:]) if peer_name and len(peer_name.split()) > 1 else ""
+
+    draft = await generate_draft_reply(
+        subject="Telegram DM",
+        body=message_text,
+        category=classification["category"],
+        first_name=_first_name,
+        last_name=_last_name,
+        company="",
+        custom_prompt=combined_prompt,
+        sender_name=proj_sender_name,
+        sender_position=proj_sender_position,
+        sender_company=proj_sender_company,
+        channel="telegram",
+    )
+
+    # --- Detect language & translate ---
+    lang_info = await detect_and_translate(message_text)
+    detected_lang = lang_info.get("language")
+    translated_body = lang_info.get("translation")
+    translated_draft = None
+    if detected_lang and detected_lang not in ("en", "ru") and draft.get("body"):
+        draft_lang = await detect_and_translate(draft["body"])
+        if draft_lang.get("translation"):
+            translated_draft = draft_lang["translation"]
+
+    # --- Dedup / create ProcessedReply ---
+    existing_result = await session.execute(
+        select(ProcessedReply).where(
+            ProcessedReply.telegram_peer_id == _tg_peer_id,
+            ProcessedReply.message_hash == message_hash,
+        ).limit(1)
+    )
+    existing_reply = existing_result.scalar()
+
+    if existing_reply:
+        logger.info(f"[TELEGRAM] Duplicate reply (same hash) from peer {_tg_peer_id} — skipping")
+        return existing_reply
+
+    processed_reply = ProcessedReply(
+        source="telegram",
+        channel="telegram",
+        campaign_id=f"tg_{account_id}" if account_id else None,
+        campaign_name=f"Telegram @{account_username}" if account_username else "Telegram DM",
+        lead_email=None,
+        lead_first_name=_first_name or None,
+        lead_last_name=_last_name or None,
+        lead_company=None,
+        email_subject="Telegram DM",
+        email_body=message_text,
+        reply_text=message_text,
+        received_at=activity_at,
+        category=classification["category"],
+        category_confidence=classification["confidence"],
+        classification_reasoning=classification["reasoning"],
+        draft_reply=draft.get("body"),
+        draft_subject=None,
+        draft_generated_at=datetime.utcnow(),
+        detected_language=detected_lang,
+        translated_body=translated_body,
+        translated_draft=translated_draft,
+        raw_webhook_data=raw_data,
+        inbox_link=None,
+        message_hash=message_hash,
+        telegram_peer_id=_tg_peer_id,
+        telegram_account_id=account_id,
+    )
+    session.add(processed_reply)
+    try:
+        await session.flush()
+    except Exception as flush_err:
+        if "uq_reply_dedup" in str(flush_err):
+            logger.info(f"[TELEGRAM] Duplicate reply (race condition) from peer {_tg_peer_id}")
+            raise
+        raise
+    logger.info(f"[TELEGRAM] Created ProcessedReply {processed_reply.id} for peer {_tg_peer_id} (@{peer_username}) category={classification['category']}")
+
+    # NOTE: Telegram notification is NOT sent here — callers must send it
+    # AFTER session.commit() to avoid ghost notifications on rollback.
+    return processed_reply
+
+
+async def send_telegram_dm_notification(
+    processed_reply,
+    peer_name: str,
+    peer_username: str = None,
+    account_username: str = None,
+    message_text: str = "",
+    project_id: int = None,
+    session=None,
+) -> bool:
+    """Send Telegram notification for a Telegram DM reply.
+
+    Must be called AFTER session.commit().
+    """
+    if not processed_reply or processed_reply.telegram_sent_at:
+        return False
+
+    if processed_reply.received_at:
+        age = datetime.utcnow() - processed_reply.received_at
+        if age > timedelta(hours=2):
+            logger.info(f"[TELEGRAM] Skipping notification for old reply ({age}): {processed_reply.id}")
+            return False
+
+    try:
+        from app.services.notification_service import notify_telegram_dm_reply
+        sent = await notify_telegram_dm_reply(
+            contact_name=peer_name or "Unknown",
+            contact_username=peer_username,
+            message_text=message_text,
+            account_name=account_username,
+            project_id=project_id,
+            category=processed_reply.category,
+            reply_id=processed_reply.id,
+        )
+        if sent:
+            processed_reply.telegram_sent_at = datetime.utcnow()
+            if session:
+                await session.commit()
+            logger.info(f"[TELEGRAM] Notification sent for reply {processed_reply.id}")
+        return sent
+    except Exception as e:
+        logger.warning(f"[TELEGRAM] Notification failed (non-fatal): {e}")
+        return False
+
+
 async def send_getsales_notification(
     processed_reply,
     contact,

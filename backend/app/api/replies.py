@@ -170,7 +170,17 @@ def _build_project_campaign_filter(project):
         else:
             prefix_match = prefix_condition
 
-    parts = [p for p in (explicit_match, prefix_match) if p is not None]
+    # Tier 3: Telegram account match — replies from project's assigned Telegram accounts
+    tg_match = None
+    try:
+        from app.models.telegram_dm import TelegramDMAccount
+        tg_match = ProcessedReply.telegram_account_id.in_(
+            select(TelegramDMAccount.id).where(TelegramDMAccount.project_id == project.id)
+        )
+    except Exception:
+        pass
+
+    parts = [p for p in (explicit_match, prefix_match, tg_match) if p is not None]
     return or_(*parts) if parts else None
 
 
@@ -836,9 +846,11 @@ async def list_replies(
     if lead_email:
         conditions.append(ProcessedReply.lead_email == lead_email)
     elif reply_id and _deep_reply:
-        # LinkedIn-only contact — filter by getsales_lead_uuid to show all their replies
+        # No-email contact — filter by platform UUID/ID to show all their replies
         if _deep_reply.getsales_lead_uuid:
             conditions.append(ProcessedReply.getsales_lead_uuid == _deep_reply.getsales_lead_uuid)
+        elif _deep_reply.telegram_peer_id:
+            conditions.append(ProcessedReply.telegram_peer_id == _deep_reply.telegram_peer_id)
         else:
             # Fallback: just show this one reply
             conditions.append(ProcessedReply.id == reply_id)
@@ -952,7 +964,7 @@ async def list_replies(
         conditions.append(
             ~exists(
                 select(fu_newer_inbound.id).where(
-                    func.coalesce(fu_newer_inbound.lead_email, fu_newer_inbound.getsales_lead_uuid) == func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid),
+                    func.coalesce(fu_newer_inbound.lead_email, fu_newer_inbound.getsales_lead_uuid, fu_newer_inbound.telegram_peer_id) == func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid, ProcessedReply.telegram_peer_id),
                     fu_newer_inbound.received_at > ProcessedReply.approved_at,
                     fu_newer_inbound.parent_reply_id.is_(None),
                     fu_newer_inbound.id != ProcessedReply.id,
@@ -984,7 +996,7 @@ async def list_replies(
     )
 
     # Contact identity expression: use email if available, fall back to getsales_lead_uuid
-    _contact_ident = func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid)
+    _contact_ident = func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid, ProcessedReply.telegram_peer_id)
 
     if group_by_contact:
         # --- DEDUP MODE: one row per unique contact ---
@@ -1018,7 +1030,7 @@ async def list_replies(
 
         # Compute contact_campaign_count: distinct campaigns per contact identity
         # Uses base_conditions (project + needs_reply filters) to match what the campaign dropdown shows
-        page_idents = list({r.lead_email or r.getsales_lead_uuid for r in replies})
+        page_idents = list({r.lead_email or r.getsales_lead_uuid or r.telegram_peer_id for r in replies})
         campaign_count_map: dict = {}
         if page_idents:
             count_q = (
@@ -1126,7 +1138,7 @@ async def list_replies(
                 cat_conditions.append(func.lower(ProcessedReply.campaign_name).in_(names))
         cat_q = (
             select(ProcessedReply.category, func.count(func.distinct(
-                func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid)
+                func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid, ProcessedReply.telegram_peer_id)
             )))
             .where(*cat_conditions)
             .group_by(ProcessedReply.category)
@@ -1252,7 +1264,7 @@ async def get_reply_counts(
         fu_newer_inbound = aliased(ProcessedReply)
         base.append(~exists(
             select(fu_newer_inbound.id).where(
-                func.coalesce(fu_newer_inbound.lead_email, fu_newer_inbound.getsales_lead_uuid) == func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid),
+                func.coalesce(fu_newer_inbound.lead_email, fu_newer_inbound.getsales_lead_uuid, fu_newer_inbound.telegram_peer_id) == func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid, ProcessedReply.telegram_peer_id),
                 fu_newer_inbound.received_at > ProcessedReply.approved_at,
                 fu_newer_inbound.parent_reply_id.is_(None),
                 fu_newer_inbound.id != ProcessedReply.id,
@@ -1291,7 +1303,7 @@ async def get_reply_counts(
 
     # Count distinct contacts per category — matches what each tab actually shows.
     # A contact with replies in multiple categories appears on all relevant tabs.
-    _counts_ident = func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid)
+    _counts_ident = func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid, ProcessedReply.telegram_peer_id)
     cat_q = (
         select(ProcessedReply.category, func.count(func.distinct(_counts_ident)))
         .where(*base)
@@ -1316,7 +1328,7 @@ async def get_reply_counts(
         if names:
             qualified_conds.append(func.lower(ProcessedReply.campaign_name).in_(names))
     qualified_q = select(func.count(func.distinct(
-        func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid)
+        func.coalesce(ProcessedReply.lead_email, ProcessedReply.getsales_lead_uuid, ProcessedReply.telegram_peer_id)
     ))).where(*qualified_conds)
     qualified_r = await session.execute(qualified_q)
     qualified_count = qualified_r.scalar() or 0

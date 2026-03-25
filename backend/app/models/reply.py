@@ -156,6 +156,10 @@ class ProcessedReply(Base, TimestampMixin):
     getsales_sender_uuid = Column(String(100), nullable=True, index=True)
     getsales_conversation_uuid = Column(String(100), nullable=True)
 
+    # Telegram DM identifiers — extracted at write time, same pattern as GetSales.
+    telegram_peer_id = Column(String(50), nullable=True, index=True)  # Telegram user ID as string
+    telegram_account_id = Column(Integer, ForeignKey("telegram_dm_accounts.id"), nullable=True)
+
     # Content-based dedup hash — MD5 of normalized reply body.
     # Prevents duplicate ProcessedReply from concurrent webhook + polling
     # while allowing multiple DIFFERENT replies from the same lead.
@@ -180,9 +184,9 @@ class ProcessedReply(Base, TimestampMixin):
         lazy="noload",
     )
 
-    # Dedup index managed by migration g1_channel_agnostic_identity:
-    # UNIQUE ON (COALESCE(lead_email, getsales_lead_uuid), COALESCE(campaign_id, ''), message_hash)
-    # Falls back to getsales_lead_uuid when lead_email is NULL (LinkedIn contacts without email).
+    # Dedup index managed by migration k1_telegram_reply_integration:
+    # UNIQUE ON (COALESCE(lead_email, getsales_lead_uuid, telegram_peer_id), COALESCE(campaign_id, ''), message_hash)
+    # Three-way identity: email (SmartLead) → getsales_uuid (LinkedIn) → telegram_peer_id (Telegram DM).
     __table_args__ = ()
 
     def __repr__(self):

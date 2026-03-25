@@ -199,6 +199,7 @@ class CRMScheduler:
             ("_project_report_reminder_task", self._run_project_report_reminder_loop, "Project report reminder"),
             ("_calendly_sync_task", self._run_calendly_sync_loop, "Calendly sync"),
             ("_campaign_intelligence_task", self._run_campaign_intelligence_loop, "Campaign intelligence"),
+            ("_telegram_dm_inbox_task", self._run_telegram_dm_inbox_loop, "Telegram DM inbox"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -1298,6 +1299,19 @@ ANALYSIS FOCUS — answer with EVIDENCE:
 
                 except Exception as e:
                     logger.error(f"[ReportReminder] Failed for subscription {sub.id}: {e}")
+
+    # ===== Telegram DM Inbox Polling (every 3 min) =====
+
+    async def _run_telegram_dm_inbox_loop(self):
+        """Poll Telegram DM accounts for new inbound messages every 3 minutes."""
+        await asyncio.sleep(30)  # Stagger startup
+        while self._running:
+            try:
+                from app.services.telegram_dm_service import telegram_dm_service
+                await telegram_dm_service.poll_all_accounts()
+            except Exception as e:
+                logger.error(f"[TELEGRAM_DM] Inbox poll error: {e}")
+            await asyncio.sleep(180)
 
     # ===== Telegram Bot Polling (long-poll every 30s) =====
 
