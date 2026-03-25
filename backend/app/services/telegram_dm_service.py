@@ -263,7 +263,7 @@ class TelegramDMService:
                             await session.execute(
                                 update(TelegramDMAccount)
                                 .where(TelegramDMAccount.id == acc.id)
-                                .values(is_connected=True, last_connected_at=datetime.now(timezone.utc))
+                                .values(is_connected=True, last_connected_at=datetime.utcnow())
                             )
                             await session.commit()
                 except Exception as e:
@@ -276,7 +276,7 @@ class TelegramDMService:
                             .values(
                                 is_connected=False,
                                 last_error=str(e),
-                                last_error_at=datetime.now(timezone.utc),
+                                last_error_at=datetime.utcnow(),
                                 auth_status="error" if isinstance(e, (AuthKeyUnregisteredError, SessionRevokedError)) else "disconnected",
                             )
                         )
