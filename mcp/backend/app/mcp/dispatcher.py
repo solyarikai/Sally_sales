@@ -155,6 +155,43 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 for i in result.scalars().all()]
 
     # ── Project tools ──
+    if tool_name == "select_project":
+        user = await _get_user(token, session)
+        project = await session.get(Project, args["project_id"])
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found or not yours")
+        user.active_project_id = project.id
+        # Get project details for display
+        from app.models.gathering import GatheringRun
+        from sqlalchemy import func
+        runs_count = (await session.execute(
+            select(func.count(GatheringRun.id)).where(GatheringRun.project_id == project.id)
+        )).scalar() or 0
+        from app.models.pipeline import DiscoveredCompany
+        companies_count = (await session.execute(
+            select(func.count(DiscoveredCompany.id)).where(DiscoveredCompany.project_id == project.id)
+        )).scalar() or 0
+        campaign_filters = project.campaign_filters or []
+        return {
+            "active_project": {
+                "id": project.id,
+                "name": project.name,
+                "target_segments": project.target_segments,
+                "target_industries": project.target_industries,
+                "sender_name": project.sender_name,
+                "sender_company": project.sender_company,
+            },
+            "stats": {
+                "gathering_runs": runs_count,
+                "discovered_companies": companies_count,
+                "campaign_filters": campaign_filters,
+            },
+            "blacklist_scope": f"Blacklisting checks against {len(campaign_filters)} campaigns assigned to this project. "
+                               f"Companies already in these campaigns will be rejected during CP1.",
+            "message": f"Now working on '{project.name}'. All pipeline operations will use this project's campaigns for blacklisting.",
+            "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
+        }
+
     if tool_name == "create_project":
         user = await _get_user(token, session)
         result = await session.execute(select(Company).limit(1))
@@ -196,7 +233,31 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
     # ── Pipeline tools ──
     if tool_name == "tam_gather":
         user = await _get_user(token, session)
-        project = await session.get(Project, args["project_id"])
+        project_id = args.get("project_id")
+
+        # If no project_id provided, use active project
+        if not project_id and user.active_project_id:
+            project_id = user.active_project_id
+
+        # If still no project, check how many projects user has
+        if not project_id:
+            all_projects = (await session.execute(
+                select(Project).where(Project.user_id == user.id, Project.is_active == True)
+            )).scalars().all()
+            if len(all_projects) == 0:
+                raise ValueError("No projects found. Create a project first with create_project.")
+            elif len(all_projects) == 1:
+                project_id = all_projects[0].id
+                user.active_project_id = project_id
+            else:
+                return {
+                    "error": "project_selection_required",
+                    "message": "You have multiple projects. Which one are you working on? Select one first.",
+                    "projects": [{"id": p.id, "name": p.name, "target_segments": p.target_segments} for p in all_projects],
+                    "hint": "Call select_project with the project_id you want to use.",
+                }
+
+        project = await session.get(Project, project_id)
         if not project or project.user_id != user.id:
             raise ValueError("Project not found")
 
