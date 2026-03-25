@@ -270,32 +270,49 @@ def run(targets: list[dict], titles: list[str], seniorities: list[str],
         return
 
     fieldnames = list(all_contacts[0].keys())
-    with output_csv.open("w", newline="", encoding="utf-8") as f:
+
+    # Use naming convention: OS | Import | Apollo — [SEGMENT or ALL] — [DATE]
+    # Collect unique segments in output
+    segments_in_contacts = sorted(set(c.get("Segment", "") for c in all_contacts if c.get("Segment")))
+    seg_label = segments_in_contacts[0] if len(segments_in_contacts) == 1 else "ALL"
+    date_tag = _date_tag()
+    csv_name = f"{PROJECT_CODE} | Import | Apollo — {seg_label} — {date_tag}.csv"
+    fm_csv_name = f"{PROJECT_CODE} | Import | Apollo — {seg_label} — {date_tag} — for_findymail.csv"
+
+    # If output_csv was overridden via --output, use that path; otherwise use naming convention
+    if output_csv != STATE_DIR / "contacts_from_targets.csv":
+        main_csv = output_csv
+        fm_csv = output_csv.parent / fm_csv_name
+    else:
+        CSV_IMPORT_DIR.mkdir(parents=True, exist_ok=True)
+        main_csv = CSV_IMPORT_DIR / csv_name
+        fm_csv = CSV_IMPORT_DIR / fm_csv_name
+
+    with main_csv.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(all_contacts)
 
-    with_email = sum(1 for c in all_contacts if c.get("Email"))
-    without_email = len(all_contacts) - with_email
+    with_email_count = sum(1 for c in all_contacts if c.get("Email"))
+    without_email_count = len(all_contacts) - with_email_count
     companies_hit = len(set(c["Company Domain"] for c in all_contacts))
 
     print(f"\n=== DONE ===")
     print(f"Companies processed:  {min(max_companies, len(targets))}")
     print(f"Companies with hits:  {companies_hit}")
     print(f"Total contacts:       {len(all_contacts)}")
-    print(f"  With email:         {with_email}")
-    print(f"  Without email:      {without_email} → use findymail_to_smartlead.py")
-    print(f"Output: {output_csv}")
+    print(f"  With email:         {with_email_count}")
+    print(f"  Without email:      {without_email_count} → use findymail_to_smartlead.py")
+    print(f"Output: {main_csv.name}")
 
     # Also write a filtered CSV for Findymail (contacts with LinkedIn URL but no email)
     without_email_contacts = [c for c in all_contacts if not c.get("Email") and c.get("Profile URL")]
     if without_email_contacts:
-        fm_csv = output_csv.parent / (output_csv.stem + " - for_findymail.csv")
         with fm_csv.open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(without_email_contacts)
-        print(f"Findymail input: {fm_csv} ({len(without_email_contacts)} contacts)")
+        print(f"Findymail input: {fm_csv.name} ({len(without_email_contacts)} contacts)")
 
 
 def main():
