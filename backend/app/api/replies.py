@@ -2288,7 +2288,7 @@ async def get_reply_full_history(
     reply = result.scalar_one_or_none()
     if not reply:
         raise HTTPException(status_code=404, detail="Reply not found")
-    if not reply.lead_email and not reply.getsales_lead_uuid:
+    if not reply.lead_email and not reply.getsales_lead_uuid and not reply.telegram_peer_id:
         return {"campaigns": [], "activities": [], "approval_status": reply.approval_status}
 
     # 1. Find ALL replies for this lead (cheap DB query — no API calls)
@@ -2298,10 +2298,16 @@ async def get_reply_full_history(
                 func.lower(ProcessedReply.lead_email) == reply.lead_email.lower()
             ).order_by(desc(ProcessedReply.received_at))
         )
-    else:
+    elif reply.getsales_lead_uuid:
         all_replies_result = await session.execute(
             select(ProcessedReply).where(
                 ProcessedReply.getsales_lead_uuid == reply.getsales_lead_uuid
+            ).order_by(desc(ProcessedReply.received_at))
+        )
+    else:
+        all_replies_result = await session.execute(
+            select(ProcessedReply).where(
+                ProcessedReply.telegram_peer_id == reply.telegram_peer_id
             ).order_by(desc(ProcessedReply.received_at))
         )
     all_replies = all_replies_result.scalars().all()
@@ -2371,7 +2377,45 @@ async def get_reply_full_history(
     # 3. Fetch thread ONLY for the default (most recent) campaign's reply
     default_reply = reply
     activities = []
-    if default_reply.thread_fetched_at is None and default_reply.campaign_id and (not default_reply.source or default_reply.source == "smartlead"):
+
+    # Telegram: fetch thread from Telethon if not cached yet
+    if default_reply.thread_fetched_at is None and default_reply.source == "telegram" and default_reply.telegram_peer_id and default_reply.telegram_account_id:
+        try:
+            from app.services.telegram_dm_service import telegram_dm_service
+            from app.models.reply import ThreadMessage as TM
+            msgs = await telegram_dm_service.get_messages(
+                default_reply.telegram_account_id, int(default_reply.telegram_peer_id), limit=50
+            )
+            # Delete old thread messages for this reply
+            await session.execute(
+                select(TM).where(TM.reply_id == default_reply.id)
+            )  # just to check
+            from sqlalchemy import delete as sa_delete
+            await session.execute(sa_delete(TM).where(TM.reply_id == default_reply.id))
+            # Insert fresh
+            for i, m in enumerate(msgs):
+                tm = TM(
+                    reply_id=default_reply.id,
+                    direction=m["direction"],
+                    channel="telegram",
+                    subject=None,
+                    body=m["text"],
+                    sender_email=None,
+                    sender_name=m.get("sender_name"),
+                    activity_at=datetime.fromisoformat(m["sent_at"]) if m.get("sent_at") else None,
+                    position=i,
+                    source="telegram",
+                )
+                session.add(tm)
+            default_reply.thread_fetched_at = datetime.utcnow()
+            await session.commit()
+            logger.info(f"full-history: cached {len(msgs)} Telegram messages for reply {default_reply.id}")
+        except Exception as e:
+            logger.warning(f"full-history: Telegram thread fetch failed: {e}")
+            await session.rollback()
+
+    # SmartLead: fetch thread via API
+    elif default_reply.thread_fetched_at is None and default_reply.campaign_id and (not default_reply.source or default_reply.source == "smartlead"):
         try:
             ok = await _fetch_and_cache_thread(default_reply, session)
             if ok:
