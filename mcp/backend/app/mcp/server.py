@@ -48,8 +48,11 @@ async def handle_sse(request: Request):
 async def handle_message(request: Request):
     """Handle incoming MCP JSON-RPC messages."""
     session_id = request.query_params.get("session_id")
-    if not session_id or session_id not in _sessions:
-        return JSONResponse({"error": "Invalid session"}, status_code=400)
+    if not session_id:
+        return JSONResponse({"error": "Missing session_id"}, status_code=400)
+    # Auto-create session if it doesn't exist (handles reconnection)
+    if session_id not in _sessions:
+        _sessions[session_id] = {"user": None, "initialized": False}
 
     body = await request.json()
     method = body.get("method", "")
