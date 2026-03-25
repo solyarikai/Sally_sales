@@ -1,227 +1,415 @@
-# Урок 4 — От Apollo до пайплайна: ручной поиск и запуск
+# Урок 4 — Запуск пайплайна для нового проекта
 
-> Уроки 1-3 разобрали как работает `pipeline_onsocial.py` изнутри.
-> Урок 4 — шаг назад: откуда вообще берётся входной файл и как правильно его подготовить.
-
----
-
-## Общая схема
-
-```
-Apollo (Companies search)
-  ↓ экспорт CSV  [name + website — бесплатно]
-  ↓
-pipeline_onsocial.py (шаги 0-8)
-  ↓ scrape + GPT classify
-  ↓
-targets.json → targets_to_contacts.py
-  ↓ Apollo People Search [бесплатно]
-  ↓
-findymail_to_smartlead.py
-  ↓ Findymail email enrich → SmartLead
-```
-
-На этом уроке разбираем **первый шаг** — Apollo и подготовку входного файла.
+> **Для кого:** Sales Engineer, уровень Python: новичок
+> **Контекст:** Уроки 1-3 разобрали как работает pipeline_onsocial.py изнутри. Теперь — как запустить такой же пайплайн для нового проекта с нуля.
+> **Пример:** Притворяемся что OnSocial — новый проект. Данных нет, ничего не настроено. Начинаем с нуля.
+> **Язык гайда:** русский | **Код:** английский
 
 ---
 
-## Ключевое правило: сначала компании, потом люди
+## Часть 0. Что означает "новый проект"
 
-Это не очевидно с первого раза, но экономит кучу денег.
+Когда мы говорим "запустить пайплайн для нового проекта" — это значит три вещи:
 
-В Apollo два типа экспорта:
-- **Companies** — бесплатно. Выгружаешь список компаний с названием и сайтом.
-- **People** — тратит кредиты. Каждый контакт с email стоит кредит.
+1. **Новая папка состояния** — `state/onsocial/` уже занята OnSocial. Для нового проекта нужна своя: `state/newproject/`
+2. **Новый входной файл** — свой список компаний из Apollo (или другого источника)
+3. **Новый classification prompt** — под конкретный ICP нового клиента
 
-Поэтому правильный порядок:
+Всё остальное — архитектура шагов 0-8, JSON state machine, async scraping, CSV export — **переиспользуется без изменений**.
 
-```
-1. Apollo → Companies CSV (бесплатно, 10,000+ компаний)
-2. pipeline_onsocial.py → фильтруем до ~500-1000 целевых (бесплатно + $0.5 GPT)
-3. Apollo → People только по целевым компаниям (кредиты тратим точечно)
-```
-
-Если сделать наоборот — тянуть людей сразу — тратишь кредиты на компании которые всё равно отсеются.
+**Аналогия:** Это как новый прогон на той же фабрике. Конвейер тот же. Меняется только сырьё на входе и критерии отбора на шаге 7.
 
 ---
 
-## Шаг 1 — Настройка фильтров в Apollo
+## Часть 1. Структура папок
 
-Заходишь в **Companies** (не People!) и настраиваешь фильтры.
+Первое что делаем — создаём структуру. Это занимает 2 минуты и избавляет от ошибок в рантайме.
 
-### Что работает хорошо
+### Что нужно создать
 
-**Industry** — надёжный фильтр, Apollo хорошо его соблюдает:
 ```
-Marketing & Advertising, Computer Software, Internet,
-Information Technology, Public Relations
+magnum-opus/
+├── state/
+│   └── onsocial/          ← новая папка состояния
+│       └── runs/          ← история прогонов
+│
+└── sofia/
+    ├── input/
+    │   └── [project]/     ← входные файлы Apollo
+    └── output/
+        └── OnSocial/
+            ├── Leads/
+            ├── Targets/
+            ├── Import/
+            └── Archive/
 ```
 
-**Company Keywords** — ключевые слова в описании компании. Используй "Contain ANY Of":
-```
-influencer marketing, creator platform, UGC platform,
-influencer agency, creator economy, brand partnerships
-```
+### Почему папка состояния отдельная
 
-**# Employees** — надёжный фильтр. Для большинства B2B SaaS:
-```
-10 – 500  (меньше 10 = фрилансер, больше 500 = enterprise)
+Посмотри на строки 37-43 в `pipeline_onsocial.py`:
+
+```python
+STATE_DIR = REPO_DIR / "state" / "onsocial"   # ← привязано к проекту
+WEBSITE_CACHE_DIR = SHARED_CACHE_DIR / "website_cache"  # ← общий для всех
 ```
 
-**Location** — не ставь слишком жёстко. Лучше взять широко, сегментировать потом.
+`STATE_DIR` — уникальна для каждого проекта. Там хранятся `classifications.json`, `targets.json`, `runs/` — всё это специфично для конкретного ICP.
 
-### Что работает плохо — не используй
-
-- **Market Segments** — сильно режет выборку без видимой логики
-- **Buying Intent** — данные ненадёжные
-- **Revenue** — у большинства компаний стоит "0" (нет данных)
-- **Funding / Investment rounds** — Apollo плохо подтягивает эту информацию
-
-### Лайфхак: сохраняй URL фильтров
-
-Apollo сбрасывает фильтры при неосторожном клике. Спасение — скопировать URL после настройки всех фильтров. При вставке URL — все фильтры восстанавливаются.
-
-Ещё нюанс: не кликай на **название** индустрии — кликай на **цифру** ("+45 more"). Иначе слетает весь список.
+`WEBSITE_CACHE_DIR` — общая для всех проектов. Если для OnSocial уже спарсили `grin.co` — при запуске нового проекта этот домен не будет скрейпиться заново. Экономия реальная.
 
 ---
 
-## Шаг 2 — Экспорт компаний
+## Часть 2. Входной файл
 
-После настройки фильтров:
+### Откуда берётся
 
-1. Нажми **Select All** (все страницы, не только текущая)
-2. **Export → Export Companies**
-3. В полях экспорта оставь только: **Company Name + Website**
+Источников может быть несколько — Apollo ручной поиск, Clay Lookalike, Clay TAM export. В этом уроке контекст — **ручной Apollo**. Но для пайплайна источник не важен: на входе всегда JSON с массивом компаний.
 
-Больше ничего не нужно на этом этапе. Пайплайн сам подтянет всё остальное при скрейпинге.
+### Формат который ожидает пайплайн
 
-Сохрани CSV в `sofia/input/[project]/sheet_[region].json` — или конвертируй через скрипт.
+Посмотри на строки 62-68 в `pipeline_onsocial.py`:
 
-> Apollo экспортирует CSV, пайплайн ожидает JSON. Конвертация через `pandas` или встроенный скрипт — 5 строк кода, разберём отдельно.
+```python
+SHEET_FILES = {
+    "us":     INPUT_DIR / "sheet_us.json",
+    "uk_eu":  INPUT_DIR / "sheet_uk_eu.json",
+    "latam":  INPUT_DIR / "sheet_latam.json",
+    "india":  INPUT_DIR / "sheet_india.json",
+    "mixed":  INPUT_DIR / "sheet_mixed.json",
+}
+```
+
+Каждый файл — JSON массив компаний. Минимальные поля которые нужны:
+
+```json
+[
+  {
+    "name": "Grin",
+    "domain": "grin.co",
+    "employees": 150,
+    "industry": "Computer Software"
+  },
+  ...
+]
+```
+
+### Apollo экспортирует CSV — что делать
+
+Apollo даёт CSV, пайплайн ожидает JSON. Конвертация — простой скрипт:
+
+```python
+import csv, json
+from pathlib import Path
+
+def csv_to_sheet_json(csv_path: str, json_path: str):
+    rows = []
+    with open(csv_path, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            rows.append({
+                "name":     row.get("Company", ""),
+                "domain":   row.get("Website", "").replace("https://", "").replace("http://", "").rstrip("/"),
+                "employees": int(row.get("# Employees", 0) or 0),
+                "industry": row.get("Industry", ""),
+            })
+    Path(json_path).write_text(json.dumps(rows, ensure_ascii=False, indent=2))
+    print(f"Converted {len(rows)} companies → {json_path}")
+
+csv_to_sheet_json("apollo_export.csv", "sofia/input/onsocial/sheet_us.json")
+```
 
 ---
 
-## Шаг 3 — Exclusion List (Blacklist)
+## Часть 3. Три вещи которые меняются в скрипте
 
-Перед запуском пайплайна нужно исключить компании которые уже знаем — бывших клиентов, тех кто уже в рассылке, явную "дичь".
+Открываем `pipeline_onsocial.py`. Для нового проекта меняем только три блока.
 
-### Как загрузить exclusion list в Apollo
+### 3.1. PATHS — папки
 
-1. Companies → **Import** → CSV
-2. Загружай **только по домену** (один столбец `website`)
-3. Не добавляй название компании — Apollo может не распознать
+Строки 34-48:
 
-### Важный нюанс про долгосрочные проекты
+```python
+# Было (OnSocial):
+STATE_DIR = REPO_DIR / "state" / "onsocial"
 
-Если проект идёт полгода+ — **не исключай компании целиком**. У них могут появиться новые ЛПР которых ты ещё не контачил. Лучше исключать на уровне людей (по email/LinkedIn).
+# Для нового проекта:
+STATE_DIR = REPO_DIR / "state" / "newproject"
+```
 
-### В нашем пайплайне
+И CSV output:
 
-Exclusion list = `state/onsocial/campaign_blacklist.json`. Пайплайн применяет его на шаге 3 (после дедупа). Пополняется автоматически через `--finalize-rejects` и `sync_blacklist()` в findymail_to_smartlead.
+```python
+# Было:
+PROJECT_CODE = "OS"
+CSV_OUTPUT_DIR = SOFIA_DIR / "output" / "OnSocial"
+
+# Для нового проекта:
+PROJECT_CODE = "NP"   # короткий код проекта
+CSV_OUTPUT_DIR = SOFIA_DIR / "output" / "NewProject"
+```
+
+### 3.2. SHEET_FILES — входные файлы
+
+```python
+# Было:
+SHEET_FILES = {
+    "us":    INPUT_DIR / "sheet_us.json",
+    "uk_eu": INPUT_DIR / "sheet_uk_eu.json",
+    ...
+}
+
+# Для нового проекта (только один регион для начала):
+SHEET_FILES = {
+    "global": INPUT_DIR / "newproject" / "sheet_global.json",
+}
+```
+
+### 3.3. CLASSIFICATION_PROMPT — самое важное
+
+Строки 132-244 в `pipeline_onsocial.py` — это весь промпт для OnSocial. Для нового проекта его нужно написать с нуля под новый ICP.
+
+Структура хорошего промпта (разберём в следующей части).
 
 ---
 
-## Шаг 4 — Запуск пайплайна
+## Часть 4. Classification Prompt
 
-Кладёшь CSV (или JSON) в `sofia/input/` и запускаешь:
+Это самая важная часть. Плохой промпт = плохие таргеты = деньги выброшены на GPT.
+
+### Структура
+
+```python
+CLASSIFICATION_PROMPT = """
+[КОНТЕКСТ ПРОДУКТА]
+Кто мы, что продаём, кому нужно.
+
+[СЕГМЕНТЫ]
+SEGMENT_A: критерии + примеры компаний
+SEGMENT_B: критерии + примеры компаний
+OTHER: все остальные
+
+[ДИСКВАЛИФИКАТОРЫ]
+Жёсткое нет — без GPT сразу OTHER.
+
+[ФОРМАТ ОТВЕТА]
+SEGMENT_NAME | reasoning в одном предложении
+"""
+```
+
+### Как это выглядит в OnSocial (сокращённо)
+
+```python
+# pipeline_onsocial.py, строки 132-244
+CLASSIFICATION_PROMPT = """
+You are classifying companies for OnSocial — influencer marketing platform.
+
+SEGMENTS:
+IM_FIRST_AGENCIES: agencies where influencer marketing is the PRIMARY service
+  Signs: "influencer marketing agency", creator campaigns, UGC production
+  NOT this: full-service agency with IM as one of 10 services
+
+INFLUENCER_PLATFORMS: SaaS/tech platforms for influencer marketing
+  Signs: marketplace, analytics, campaign management software, discovery tool
+
+AFFILIATE_PERFORMANCE: performance marketing with creator/affiliate component
+  Signs: CPA network, affiliate platform with influencer program
+
+OTHER: doesn't fit above categories
+
+Company: {company_name}
+Domain: {domain}
+Website: {website_text}
+
+Respond: SEGMENT_NAME | one sentence reasoning
+"""
+```
+
+### Три типичных ошибки при написании промпта
+
+**Ошибка 1: Широкие критерии — всё попадает в цель**
+```
+❌ "любые маркетинговые агентства"
+✅ "агентства где influencer marketing — основная услуга, не одна из 10"
+```
+
+**Ошибка 2: Нет примеров пограничных случаев**
+```
+❌ не объяснять разницу IM_AGENCY vs FULL_SERVICE_AGENCY
+✅ "Full-service agency that offers IM among 10 other services → OTHER"
+```
+
+**Ошибка 3: Расплывчатый OTHER**
+```
+❌ "другие" (без деталей)
+✅ "OTHER: media publishers, PR firms, brands (not agencies), SEO/PPC shops"
+```
+
+### PROMPT_VERSION — обязательно
+
+Посмотри как это реализовано в `pipeline_onsocial.py` после наших улучшений в Уроке 3:
+
+```python
+PROMPT_VERSION = "v1"   # ← бамп при изменении промпта!
+
+# При запуске скрипт проверяет:
+prompt_file = PROMPT_VERSIONS_DIR / f"{PROMPT_VERSION}.txt"
+if prompt_file.exists():
+    if prompt_file.read_text() != CLASSIFICATION_PROMPT:
+        print("⚠️  WARNING: промпт изменился, но версия та же!")
+```
+
+Если изменил промпт и не бампнул версию — старые результаты в кеше смешаются с новыми. Это тихая ошибка которую очень трудно заметить.
+
+---
+
+## Часть 5. Первый запуск — правильная последовательность
+
+### Шаг 1: Детерминистика без GPT
 
 ```bash
-# Полный прогон
-python sofia/scripts/pipeline_onsocial.py
+# Запускаем только шаги 0-4 — мгновенно, бесплатно
+python sofia/scripts/pipeline_onsocial.py --from-step 0 --step 4
+```
 
-# Только детерминистика (без GPT, мгновенно)
-python sofia/scripts/pipeline_onsocial.py --step 4
+Что происходит:
+- Шаг 0: загружает blacklist
+- Шаг 1: загружает компании из `SHEET_FILES`
+- Шаг 2: дедупликация по домену
+- Шаг 3: применяет blacklist
+- Шаг 4: детерминистические фильтры (размер, индустрия)
 
-# Посмотреть сколько компаний прошло фильтры
-# (из state/onsocial/priority.json + normal.json)
+После этого смотришь сколько компаний прошло:
 
-# Тестовый GPT-прогон на 20 компаниях
+```bash
+python -c "
+import json
+p = json.load(open('state/onsocial/priority.json'))
+n = json.load(open('state/onsocial/normal.json'))
+print(f'Priority: {len(p)}, Normal: {len(n)}, Total: {len(p)+len(n)}')
+"
+```
+
+Если осталось 0 — проблема с форматом входного файла (домены, поля). Исправляй до GPT.
+
+### Шаг 2: Тестовый GPT-прогон на 20 компаниях
+
+```bash
 python sofia/scripts/pipeline_onsocial.py --from-step 6 --limit 20
+```
 
-# Проверить качество классификации визуально
+`--limit 20` останавливает после 20 **таргетов** (не компаний). Это стоит ~$0.01.
+
+### Шаг 3: Валидация качества
+
+```bash
 python sofia/scripts/pipeline_onsocial.py --validate 20
 ```
 
-### Что происходит внутри (быстрый recap)
+Это наш флаг из Урока 3. Выводит 20 случайных таргетов с reasoning и preview сайта. Смотришь глазами — правильно ли GPT классифицировал.
+
+Критерий: если больше 3 из 20 явно неправильные — промпт нужно улучшать.
+
+### Шаг 4: Итерация промпта
 
 ```
-Шаг 0: загрузка blacklist
-Шаг 1: загрузка компаний из input JSON
-Шаг 2: дедупликация по домену
-Шаг 3: применение blacklist
-Шаг 4: детерминистические фильтры (размер, индустрия) — БЕСПЛАТНО
-Шаг 5: DNS check (домен живой?) — БЕСПЛАТНО
-Шаг 6: scrape websites — БЕСПЛАТНО (время ~2-3ч на 1000 компаний)
-Шаг 7: GPT-4o-mini classify — ~$0.0005 за компанию
-Шаг 8: output targets.json + CSV в output/
+Видишь ошибки в --validate
+  → правишь CLASSIFICATION_PROMPT
+    → бампаешь PROMPT_VERSION (v1 → v2)
+      → --force запуск на те же 20
+        → снова --validate
+          → повторяешь пока доволен
+            → полный запуск без --limit
 ```
 
-Общая стоимость на 1000 компаний: ~$0.50
+### Шаг 5: Полный прогон
+
+```bash
+python sofia/scripts/pipeline_onsocial.py --from-step 6
+```
+
+Пайплайн сам возьмёт все компании из priority queue (и normal если priority закончился), скрейпит сайты, прогоняет через GPT, сохраняет в `targets.json`.
 
 ---
 
-## Шаг 5 — Итерация промпта (до полного прогона)
+## Часть 6. После прогона
 
-Перед тем как запускать 10,000 компаний — всегда тест на малой выборке.
-
-Из транскрипта созвона Сони с Амиром — правильный подход:
+### Что получаем
 
 ```
-1. Запустить промпт на 25 компаниях (--limit 25)
-2. --validate 25 → смотришь глазами каждый результат
-3. Открываешь сайты вручную — сверяешь с тем что написал GPT
-4. Таблица: [сайт | как GPT определил | как на самом деле]
-5. Эту таблицу отдаёшь Claude Opus → он улучшает промпт
-6. Бампаешь PROMPT_VERSION (v1 → v2)
-7. --force перезапуск на те же 25
-8. Повторяешь пока доволен → полный прогон
+state/onsocial/
+├── targets.json          ← целевые компании
+├── rejects.json          ← нецелевые (с reasoning)
+├── classifications.json  ← весь кеш GPT
+└── runs/run_001.json     ← метаданные прогона
+
+output/OnSocial/
+├── Targets/
+│   ├── OS | Targets | ALL — Mar 25.csv
+│   ├── OS | Targets | IM_FIRST_AGENCIES — Mar 25.csv
+│   └── OS | Targets | INFLUENCER_PLATFORMS — Mar 25.csv
+└── Archive/
+    └── OS | Archive | Rejects — Mar 25.csv
 ```
 
-Конверсия в реальных прогонах OnSocial: **44%** из priority queue стали targets. Если меньше 30% — скорее всего проблема с фильтрами Apollo (слишком широкие) или с промптом.
+### Следующие шаги
+
+```bash
+# Переносим rejects в blacklist (чтобы не прогонять повторно)
+python sofia/scripts/pipeline_onsocial.py --finalize-rejects
+
+# Ищем контакты в целевых компаниях
+python sofia/scripts/targets_to_contacts.py
+
+# Обогащаем emails и заливаем в SmartLead
+python sofia/scripts/findymail_to_smartlead.py \
+  --input "output/OnSocial/Import/OS | Import | Apollo — ALL — Mar 25.csv" \
+  --campaign-name "c-OnSocial_IMAGENCY #C v1" \
+  --sequence sequences/onsocial_default.json
+```
 
 ---
 
-## Воронка и объёмы
+## Часть 7. Реальные числа для планирования
 
-Реальные числа из OnSocial:
+Из боевых прогонов OnSocial:
 
 ```
-Apollo выгрузка:        41,658 компаний
-После дедупа:           27,270 уникальных
-После blacklist:        27,249 (blacklist мало пересекается с Apollo)
-После детерминистики:   ~26,800
-Priority queue:          2,670 (с сигналами influencer/creator)
-Обработано GPT:          2,230
-Targets:                   981 (44% конверсия)
+Apollo выгрузка:           41,658 компаний
+После дедупа:              27,270 уникальных
+После blacklist:           27,249
+После детерминистики:      ~26,800
+Priority queue:             2,670  ← компании с сигналами
+Обработано GPT:             2,230
+Таргеты:                      981  ← 44% конверсия из priority
+Стоимость:                  $1.05  ← за 2,000 компаний
 ```
 
-Правило для планирования: **конверсия из грязной базы Apollo в готовые контакты ~30%** (1 к 3). Хочешь 1000 таргетов — нужно ~3000 компаний пройти через GPT.
+**Правило для планирования:** хочешь 500 таргетов → нужно ~1,100 компаний пройти через GPT → нужно ~4,000-5,000 компаний в Apollo выгрузке (с учётом детерминистических фильтров).
 
 ---
 
-## Частые ошибки
+## Чеклист для нового проекта
 
-**1. Экспортируешь людей сразу, без фильтрации компаний**
-→ Тратишь кредиты Apollo на нецелевые компании
-
-**2. Слишком широкие ключевые слова в Apollo**
-→ Попадает "дичь", промпт тратит деньги на очевидные reject-компании
-→ Решение: исключай явные несоответствия на уровне Apollo (excluded keywords)
-
-**3. Запускаешь полный прогон без теста на 25**
-→ Если промпт плохой — $50 улетает зря
-→ Решение: всегда --limit 25 → --validate 25 первым
-
-**4. Не сохраняешь URL фильтров Apollo**
-→ Случайный клик — всё сбрасывается, фильтры нужно настраивать заново
-→ Решение: скопируй URL сразу после настройки, сохрани в доке проекта
+```
+[ ] Папка state/[project]/ создана
+[ ] Папка output/[Project]/{Leads,Targets,Import,Archive}/ создана
+[ ] Apollo CSV сконвертирован в JSON (поля: name, domain, employees, industry)
+[ ] JSON файлы в sofia/input/[project]/
+[ ] В скрипте обновлены: STATE_DIR, CSV_OUTPUT_DIR, PROJECT_CODE, SHEET_FILES
+[ ] CLASSIFICATION_PROMPT написан под новый ICP
+[ ] PROMPT_VERSION = "v1"
+[ ] Запуск --step 4 → проверить что компании загрузились
+[ ] Запуск --from-step 6 --limit 20 → тест GPT
+[ ] --validate 20 → проверить качество
+[ ] Итерация промпта если нужно
+[ ] Полный прогон
+[ ] --finalize-rejects
+[ ] CSV в output/ готовы к работе
+```
 
 ---
 
-## Вопрос для следующего урока
+## Вопрос для размышления
 
-Сейчас у нас два способа получить базу компаний: Apollo (ручной) и Clay Lookalike (автоматический). Оба дают CSV/JSON на вход пайплайна.
+Сейчас для нового проекта нужно копировать `pipeline_onsocial.py` и менять три места. Если проектов станет 5 — это 5 копий одного скрипта.
 
-Как думаешь — **в каком случае ты бы выбрал Apollo, а в каком Clay Lookalike?**
-
-*(Подсказка: думай про размер рынка, качество seed-данных, и кто будет это делать — ты или коллега без технического бэкграунда)*
+Как бы ты решил эту проблему? В следующем уроке разберём config-based подход: один `pipeline.py` + отдельный конфиг для каждого проекта.
