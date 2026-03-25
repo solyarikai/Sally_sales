@@ -1,14 +1,14 @@
 """Add reminder tracking columns to meetings table.
 
-Revision ID: k1
-Revises: j1
+Revision ID: k2_meeting_reminders
+Revises: k1_telegram_reply_integration
 Create Date: 2026-03-25
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "k1"
-down_revision = "j1"
+revision = "k2_meeting_reminders"
+down_revision = "k1_telegram_reply_integration"
 branch_labels = None
 depends_on = None
 
