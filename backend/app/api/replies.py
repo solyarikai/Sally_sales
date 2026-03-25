@@ -2400,7 +2400,7 @@ async def get_reply_full_history(
                     channel="telegram",
                     subject=None,
                     body=m["text"],
-                    activity_at=datetime.fromisoformat(m["sent_at"]) if m.get("sent_at") else None,
+                    activity_at=datetime.fromisoformat(m["sent_at"]).replace(tzinfo=None) if m.get("sent_at") else None,
                     position=i,
                     source="telegram",
                 )
