@@ -12,5 +12,5 @@ class MCPUsageLog(Base):
     user_id = Column(Integer, ForeignKey("mcp_users.id", ondelete="CASCADE"), nullable=False, index=True)
     action = Column(String(100), nullable=False)
     tool_name = Column(String(100), nullable=True)
-    metadata = Column(JSONB, nullable=True)
+    extra_data = Column("metadata", JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
