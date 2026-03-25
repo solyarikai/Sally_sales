@@ -467,6 +467,9 @@ export function ProjectPage() {
         </div>
       </div>
 
+      {/* Telegram Accounts Section */}
+      {project && <TelegramAccountsSection projectId={project.id} isDark={isDark} />}
+
       {/* Ownership Rules Editor */}
       {project && <OwnershipRulesEditor
         project={project}
@@ -1953,6 +1956,157 @@ function SDREmailSection({ project, onUpdate, isDark }: { project: Project; onUp
         {saving && <Loader2 className={cn("w-4 h-4 animate-spin", isDark ? "text-[#6e6e6e]" : "text-neutral-400")} />}
         {saved && <Check className="w-4 h-4 text-green-500" />}
       </div>
+    </div>
+  );
+}
+
+
+// ── Telegram Accounts Section ─────────────────────────────────
+import * as tgApi from '../api/telegram';
+import type { TelegramDMAccount } from '../api/telegram';
+import { Upload, Wifi, WifiOff } from 'lucide-react';
+
+function TelegramAccountsSection({ projectId, isDark }: { projectId: number; isDark: boolean }) {
+  const [accounts, setAccounts] = useState<TelegramDMAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    loadAccounts();
+  }, [projectId]);
+
+  const loadAccounts = async () => {
+    setLoading(true);
+    try {
+      const all = await tgApi.getAccounts();
+      setAccounts(all.filter(a => a.project_id === projectId));
+    } catch { /* silent */ }
+    setLoading(false);
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const imported = await tgApi.uploadTdata(file);
+      // Assign all imported accounts to this project
+      for (const acc of imported) {
+        if (acc.project_id !== projectId) {
+          await tgApi.updateAccount(acc.id, { project_id: projectId });
+        }
+      }
+      await loadAccounts();
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Upload failed');
+    }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const handleConnect = async (acc: TelegramDMAccount) => {
+    try {
+      await tgApi.connectAccount(acc.id);
+      await loadAccounts();
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Connect failed');
+    }
+  };
+
+  const handleDisconnect = async (acc: TelegramDMAccount) => {
+    try {
+      await tgApi.disconnectAccount(acc.id);
+      await loadAccounts();
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Disconnect failed');
+    }
+  };
+
+  const handleRemove = async (acc: TelegramDMAccount) => {
+    if (!confirm(`Remove @${acc.username || acc.phone}?`)) return;
+    try {
+      await tgApi.deleteAccount(acc.id);
+      setAccounts(prev => prev.filter(a => a.id !== acc.id));
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Remove failed');
+    }
+  };
+
+  return (
+    <div className={cn("rounded-xl p-5 border", isDark ? "bg-[#252526] border-[#333]" : "bg-white border-neutral-200")}>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className={cn("text-sm font-semibold flex items-center gap-2", isDark ? "text-[#d4d4d4]" : "text-neutral-900")}>
+          <MessageCircle className="w-4 h-4" style={{ color: '#0088cc' }} />
+          Telegram Accounts ({accounts.length})
+        </h2>
+        <div className="flex items-center gap-2">
+          <input ref={fileRef} type="file" accept=".zip,.rar" className="hidden" onChange={handleUpload} />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+              isDark ? "bg-[#0088cc] text-white hover:bg-[#006da3]" : "bg-[#0088cc] text-white hover:bg-[#006da3]"
+            )}
+          >
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+            Upload tdata
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className={cn("text-xs px-3 py-2 rounded-lg mb-3", isDark ? "bg-red-900/30 text-red-300" : "bg-red-50 text-red-600")}>
+          {error}
+          <button onClick={() => setError(null)} className="ml-2 underline">dismiss</button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-4"><Loader2 className={cn("w-4 h-4 animate-spin", isDark ? "text-[#6e6e6e]" : "text-neutral-400")} /></div>
+      ) : accounts.length === 0 ? (
+        <p className={cn("text-sm", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>
+          No Telegram accounts. Upload a tdata archive (ZIP/RAR) to connect accounts.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {accounts.map(acc => (
+            <span
+              key={acc.id}
+              className={cn(
+                "inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg text-sm group border",
+                isDark ? "bg-[#2d2d2d] border-[#3c3c3c]" : "bg-neutral-50 border-neutral-200"
+              )}
+            >
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${acc.is_connected ? 'bg-green-500' : 'bg-red-400'}`} />
+              <span className="text-[10px] font-bold px-1 py-0.5 rounded" style={{ background: '#e8f4fd', color: '#0088cc' }}>TG</span>
+              <span className={cn(isDark ? "text-[#b0b0b0]" : "text-neutral-700")}>
+                {acc.first_name || acc.username || acc.phone}
+              </span>
+              {acc.username && (
+                <span className={cn("text-[11px]", isDark ? "text-[#6e6e6e]" : "text-neutral-400")}>@{acc.username}</span>
+              )}
+              <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                {acc.is_connected ? (
+                  <button onClick={() => handleDisconnect(acc)} className="p-0.5" title="Disconnect">
+                    <WifiOff className="w-3 h-3 text-red-400" />
+                  </button>
+                ) : (
+                  <button onClick={() => handleConnect(acc)} className="p-0.5" title="Connect">
+                    <Wifi className="w-3 h-3 text-green-500" />
+                  </button>
+                )}
+                <button onClick={() => handleRemove(acc)} className="p-0.5" title="Remove">
+                  <Trash2 className={cn("w-3 h-3", isDark ? "text-[#6e6e6e] hover:text-red-400" : "text-neutral-300 hover:text-red-500")} />
+                </button>
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
