@@ -61,6 +61,7 @@ Account-to-project dropdown not in UI yet.
 ### 14. Empty text shows "Upload a tdata ZIP" not "ZIP or RAR"
 Minor copy issue in the empty state text.
 
-### 15. No real-time incoming message detection
-Messages only show on manual load.
-**Plan:** Phase 2 — Telethon event handlers + polling.
+### 15. ~~No real-time incoming message detection~~ RESOLVED (2026-03-25 02:46)
+Implemented persistent Telethon connections with `@client.on(events.NewMessage)`.
+All 15 accounts have TCP sockets to Telegram servers — sub-second delivery.
+Polling every 3 min kept as safety net.
