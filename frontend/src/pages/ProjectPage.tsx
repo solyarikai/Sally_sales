@@ -1964,18 +1964,27 @@ function SDREmailSection({ project, onUpdate, isDark }: { project: Project; onUp
 // ── Telegram Accounts Section ─────────────────────────────────
 import * as tgApi from '../api/telegram';
 import type { TelegramDMAccount } from '../api/telegram';
-import { Upload, Wifi, WifiOff } from 'lucide-react';
+import { Upload, Wifi, WifiOff, Download } from 'lucide-react';
 
 function TelegramAccountsSection({ projectId, isDark }: { projectId: number; isDark: boolean }) {
   const [accounts, setAccounts] = useState<TelegramDMAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [archive, setArchive] = useState<{ exists: boolean; filename?: string; size?: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadAccounts();
+    loadArchive();
   }, [projectId]);
+
+  const loadArchive = async () => {
+    try {
+      const info = await tgApi.checkTdataArchive(projectId);
+      setArchive(info);
+    } catch { setArchive(null); }
+  };
 
   const loadAccounts = async () => {
     setLoading(true);
@@ -1992,14 +2001,9 @@ function TelegramAccountsSection({ projectId, isDark }: { projectId: number; isD
     setUploading(true);
     setError(null);
     try {
-      const imported = await tgApi.uploadTdata(file);
-      // Assign all imported accounts to this project
-      for (const acc of imported) {
-        if (acc.project_id !== projectId) {
-          await tgApi.updateAccount(acc.id, { project_id: projectId });
-        }
-      }
+      const imported = await tgApi.uploadTdata(file, projectId);
       await loadAccounts();
+      await loadArchive();
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Upload failed');
     }
@@ -2043,6 +2047,19 @@ function TelegramAccountsSection({ projectId, isDark }: { projectId: number; isD
           Telegram Accounts ({accounts.length})
         </h2>
         <div className="flex items-center gap-2">
+          {archive?.exists && (
+            <a
+              href={tgApi.getTdataDownloadUrl(projectId)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                isDark ? "bg-[#2d2d2d] text-[#b0b0b0] hover:bg-[#3c3c3c]" : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+              )}
+              title={`Download ${archive.filename} (${Math.round((archive.size || 0) / 1024)}KB)`}
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download tdata
+            </a>
+          )}
           <input ref={fileRef} type="file" accept=".zip,.rar" className="hidden" onChange={handleUpload} />
           <button
             onClick={() => fileRef.current?.click()}
@@ -2053,7 +2070,7 @@ function TelegramAccountsSection({ projectId, isDark }: { projectId: number; isD
             )}
           >
             {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-            Upload tdata
+            {archive?.exists ? 'Re-upload tdata' : 'Upload tdata'}
           </button>
         </div>
       </div>

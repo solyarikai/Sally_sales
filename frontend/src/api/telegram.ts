@@ -32,14 +32,26 @@ export interface TelegramMessage {
   sender_name: string;
 }
 
-export async function uploadTdata(file: File): Promise<TelegramDMAccount[]> {
+export async function uploadTdata(file: File, projectId?: number): Promise<TelegramDMAccount[]> {
   const form = new FormData();
   form.append('file', file);
+  const params = projectId ? { project_id: projectId } : {};
   const res = await api.post('/telegram-dm/accounts/upload-tdata/', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 120000,  // tdata parsing can take time for multi-account archives
+    timeout: 120000,
+    params,
   });
   return res.data;
+}
+
+export async function checkTdataArchive(projectId: number): Promise<{ exists: boolean; filename?: string; size?: number }> {
+  const res = await api.get(`/telegram-dm/projects/${projectId}/tdata-archive/`);
+  return res.data;
+}
+
+export function getTdataDownloadUrl(projectId: number): string {
+  const base = api.defaults.baseURL || '/api';
+  return `${base}/telegram-dm/projects/${projectId}/tdata-archive/download/`;
 }
 
 export async function getAccounts(): Promise<TelegramDMAccount[]> {

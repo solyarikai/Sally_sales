@@ -1,11 +1,14 @@
 """Telegram DM Inbox API — account management, dialogs, messages."""
 import logging
 import os
+import shutil
 import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_session
 from app.models.telegram_dm import TelegramDMAccount
 from app.services.telegram_dm_service import telegram_dm_service
+
+# Persistent storage for tdata archives (survives container restarts via volume)
+TDATA_ARCHIVE_DIR = Path("/app/state/tdata_archives")
+TDATA_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +59,7 @@ class UpdateAccountRequest(BaseModel):
 @router.post("/accounts/upload-tdata/", response_model=list[AccountResponse])
 async def upload_tdata(
     file: UploadFile = File(...),
+    project_id: Optional[int] = Query(None, description="Auto-assign accounts to this project"),
     session: AsyncSession = Depends(get_session),
 ):
     """Import Telegram accounts from a tdata archive (ZIP or RAR).
@@ -74,6 +82,10 @@ async def upload_tdata(
         # Import all accounts from tdata
         accounts_info = await telegram_dm_service.import_from_tdata(tmp.name)
 
+        # Save archive persistently for future download
+        if project_id:
+            _save_project_archive(project_id, tmp.name, ext)
+
         results = []
         for info in accounts_info:
             # Check if account already exists
@@ -92,6 +104,8 @@ async def upload_tdata(
                 account.phone = info["phone"]
                 account.auth_status = "active"
                 account.last_error = None
+                if project_id:
+                    account.project_id = project_id
             else:
                 account = TelegramDMAccount(
                     telegram_user_id=info["telegram_user_id"],
@@ -102,6 +116,7 @@ async def upload_tdata(
                     string_session=info["string_session"],
                     auth_status="active",
                     company_id=1,
+                    project_id=project_id,
                 )
                 session.add(account)
 
@@ -125,6 +140,44 @@ async def upload_tdata(
         raise HTTPException(500, f"Import failed: {e}")
     finally:
         os.unlink(tmp.name)
+
+
+@router.get("/projects/{project_id}/tdata-archive/")
+async def check_tdata_archive(project_id: int):
+    """Check if a tdata archive exists for this project."""
+    archive = _find_project_archive(project_id)
+    if archive:
+        return {"exists": True, "filename": archive.name, "size": archive.stat().st_size}
+    return {"exists": False}
+
+
+@router.get("/projects/{project_id}/tdata-archive/download/")
+async def download_tdata_archive(project_id: int):
+    """Download the stored tdata archive for a project."""
+    archive = _find_project_archive(project_id)
+    if not archive:
+        raise HTTPException(404, "No tdata archive stored for this project")
+    return FileResponse(
+        path=str(archive),
+        filename=archive.name,
+        media_type="application/octet-stream",
+    )
+
+
+def _find_project_archive(project_id: int) -> Optional[Path]:
+    """Find stored tdata archive for a project."""
+    for ext in ("rar", "zip"):
+        path = TDATA_ARCHIVE_DIR / f"project_{project_id}.{ext}"
+        if path.exists():
+            return path
+    return None
+
+
+def _save_project_archive(project_id: int, source_path: str, ext: str):
+    """Save uploaded archive persistently for future download."""
+    dest = TDATA_ARCHIVE_DIR / f"project_{project_id}.{ext}"
+    shutil.copy2(source_path, str(dest))
+    logger.info(f"Saved tdata archive for project {project_id}: {dest}")
 
 
 @router.get("/accounts/", response_model=list[AccountResponse])
