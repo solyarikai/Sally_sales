@@ -42,18 +42,29 @@ class ApolloOrgApiAdapter(BaseGatheringAdapter):
 
         results = []
         for org in orgs:
-            domain = org.get("primary_domain") or org.get("website_url", "")
+            # Apollo returns "primary_domain" in organizations, "domain" in accounts
+            domain = org.get("primary_domain") or org.get("domain") or org.get("website_url", "")
             if not domain:
                 continue
+            # Clean domain
+            domain = domain.strip().lower()
+            if domain.startswith("http"):
+                from urllib.parse import urlparse
+                domain = urlparse(domain).hostname or domain
+            if domain.startswith("www."):
+                domain = domain[4:]
+
             results.append({
                 "domain": domain,
                 "name": org.get("name"),
                 "industry": org.get("industry"),
                 "employee_count": org.get("estimated_num_employees"),
+                "employee_range": org.get("organization_num_employees_ranges"),
                 "country": org.get("country"),
                 "city": org.get("city"),
-                "description": org.get("short_description"),
-                "linkedin_url": org.get("linkedin_url"),
+                "description": org.get("short_description") or org.get("sanitized_organization_name_unanalyzed"),
+                "linkedin_url": org.get("linkedin_url") or org.get("organization_linkedin_url"),
+                "website_url": org.get("website_url"),
                 "source_data": org,
             })
 
