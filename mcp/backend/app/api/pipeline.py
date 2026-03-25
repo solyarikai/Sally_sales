@@ -105,6 +105,7 @@ async def get_run_status(
         "status": run.status,
         "current_phase": run.current_phase,
         "source_type": run.source_type,
+        "filters": run.filters,
         "project_name": project.name if project else "Unknown",
         "new_companies": run.new_companies_count,
         "duplicates": run.duplicate_count,
@@ -142,17 +143,28 @@ async def get_run_companies(
         .order_by(DiscoveredCompany.domain)
     )
     companies = result.scalars().all()
-    return [
-        {
-            "id": c.id, "domain": c.domain, "name": c.name,
-            "industry": c.industry, "employee_count": c.employee_count,
-            "country": c.country, "city": c.city,
-            "is_blacklisted": c.is_blacklisted, "is_target": c.is_target,
-            "analysis_confidence": c.analysis_confidence,
-            "analysis_segment": c.analysis_segment,
-        }
-        for c in companies
-    ]
+    return [_company_to_dict(c) for c in companies]
+
+
+def _company_to_dict(c):
+    return {
+        "id": c.id, "domain": c.domain, "name": c.name,
+        "industry": c.industry, "employee_count": c.employee_count,
+        "employee_range": c.employee_range,
+        "country": c.country, "city": c.city,
+        "description": c.description, "linkedin_url": c.linkedin_url,
+        "is_blacklisted": c.is_blacklisted,
+        "blacklist_reason": c.blacklist_reason,
+        "is_pre_filtered": c.is_pre_filtered,
+        "pre_filter_reason": c.pre_filter_reason,
+        "is_target": c.is_target,
+        "analysis_confidence": c.analysis_confidence,
+        "analysis_segment": c.analysis_segment,
+        "analysis_reasoning": c.analysis_reasoning,
+        "is_enriched": c.is_enriched,
+        "enrichment_source": c.enrichment_source,
+        "source_data": c.source_data,
+    }
 
 
 @router.get("/sequences/{seq_id}")
@@ -191,3 +203,21 @@ async def list_runs(
          "created_at": str(r.created_at)}
         for r in runs
     ]
+
+
+# ── CRM: all companies across all pipelines ──
+
+@router.get("/crm/companies")
+async def crm_companies(
+    project_id: int = None,
+    is_target: bool = None,
+    session: AsyncSession = Depends(get_session),
+):
+    query = select(DiscoveredCompany).order_by(DiscoveredCompany.domain)
+    if project_id:
+        query = query.where(DiscoveredCompany.project_id == project_id)
+    if is_target is not None:
+        query = query.where(DiscoveredCompany.is_target == is_target)
+    result = await session.execute(query.limit(500))
+    companies = result.scalars().all()
+    return [_company_to_dict(c) for c in companies]
