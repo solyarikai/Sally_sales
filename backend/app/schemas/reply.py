@@ -202,6 +202,10 @@ class ProcessedReplyResponse(ProcessedReplyBase):
     # Operator notes — free-form text for warm lead tracking
     operator_notes: Optional[str] = None
 
+    # Telegram DM identity
+    telegram_peer_id: Optional[str] = None
+    telegram_account_id: Optional[int] = None
+
     # Pre-generated follow-up draft (child ProcessedReply with pending status)
     followup_draft: Optional[dict] = None
 
