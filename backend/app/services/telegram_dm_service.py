@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from telethon import TelegramClient
+from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.tl.types import User, InputPeerUser
 from telethon.errors import (
@@ -210,6 +210,10 @@ class TelegramDMService:
 
                 self._clients[account_id] = client
                 me = await client.get_me()
+
+                # Register real-time event handler for incoming DMs
+                self._register_event_handler(client, account_id)
+
                 logger.info(f"Telegram DM account {account_id} connected as @{me.username} ({me.first_name})")
                 return True
 
@@ -375,7 +379,137 @@ class TelegramDMService:
             logger.error(f"Account {account_id} send failed: {e}")
             return {"success": False, "error": str(e)}
 
-    # ── Polling for New Messages ───────────────────────────────────
+    # ── Real-time Event Handlers (persistent connection) ──────────
+
+    def _register_event_handler(self, client: TelegramClient, account_id: int):
+        """Register Telethon event handler for real-time DM detection.
+
+        This fires instantly when the account receives a new private message.
+        The handler processes the message through the full pipeline (classify → draft → notify).
+        Polling still runs as a safety net for missed events.
+        """
+        @client.on(events.NewMessage(incoming=True))
+        async def _on_new_dm(event):
+            try:
+                # Only private DMs — skip groups, channels, bots
+                if not event.is_private:
+                    return
+                if not event.raw_text:
+                    return  # skip media-only
+
+                sender = await event.get_sender()
+                if not sender or not isinstance(sender, User):
+                    return
+                if sender.bot:
+                    return
+
+                # Get account info from DB
+                from app.db.database import async_session_maker
+                from app.models.telegram_dm import TelegramDMAccount
+                from sqlalchemy import select
+
+                async with async_session_maker() as session:
+                    acc = (await session.execute(
+                        select(TelegramDMAccount).where(TelegramDMAccount.id == account_id)
+                    )).scalar()
+
+                if not acc or not acc.project_id:
+                    return  # Not assigned to a project
+
+                peer_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip() or "Unknown"
+                peer_username = sender.username
+
+                logger.info(f"[TELEGRAM] Real-time DM from {peer_name} (@{peer_username}) → account {account_id} (@{acc.username})")
+
+                from app.db.database import async_session_maker
+                from app.services.reply_processor import process_telegram_reply, send_telegram_dm_notification
+
+                async with async_session_maker() as session:
+                    try:
+                        pr = await process_telegram_reply(
+                            message_text=event.raw_text,
+                            peer_id=sender.id,
+                            peer_name=peer_name,
+                            peer_username=peer_username,
+                            account_id=acc.id,
+                            account_username=acc.username,
+                            project_id=acc.project_id,
+                            message_id=event.id,
+                            activity_at=event.date.replace(tzinfo=None) if event.date else None,
+                            raw_data={
+                                "message_id": event.id,
+                                "peer_id": sender.id,
+                                "peer_username": peer_username,
+                                "account_id": acc.id,
+                                "_source": "realtime",
+                            },
+                            session=session,
+                        )
+                        if pr:
+                            await session.commit()
+                            logger.info(f"[TELEGRAM] Real-time: created ProcessedReply {pr.id} for @{peer_username}")
+
+                            # Send notification after commit
+                            await send_telegram_dm_notification(
+                                processed_reply=pr,
+                                peer_name=peer_name,
+                                peer_username=peer_username,
+                                account_username=acc.username,
+                                message_text=event.raw_text,
+                                project_id=acc.project_id,
+                                session=session,
+                            )
+                    except Exception as e:
+                        if "uq_reply_dedup" in str(e):
+                            pass  # Duplicate — polling already caught it
+                        else:
+                            logger.error(f"[TELEGRAM] Real-time processing failed: {e}")
+
+            except Exception as e:
+                logger.error(f"[TELEGRAM] Event handler error for account {account_id}: {e}")
+
+    async def start_listening(self):
+        """Start persistent Telethon connections for all connected clients.
+
+        Each client's run_until_disconnected() maintains a TCP socket to Telegram servers.
+        The server pushes new message updates in real-time (sub-second delivery).
+        Polling still runs as a safety net every 3 min.
+        """
+        tasks = []
+        for account_id, client in self._clients.items():
+            if client.is_connected():
+                task = asyncio.create_task(
+                    self._run_client_listener(account_id, client),
+                    name=f"tg_dm_listener_{account_id}",
+                )
+                tasks.append(task)
+        if tasks:
+            logger.info(f"[TELEGRAM] Started {len(tasks)} persistent listeners")
+        self._listener_tasks = tasks
+
+    async def _run_client_listener(self, account_id: int, client: TelegramClient):
+        """Keep one client's persistent connection alive. Auto-reconnects on disconnect."""
+        while True:
+            try:
+                logger.info(f"[TELEGRAM] Listener started for account {account_id}")
+                await client.run_until_disconnected()
+                logger.warning(f"[TELEGRAM] Listener disconnected for account {account_id}")
+            except Exception as e:
+                logger.error(f"[TELEGRAM] Listener error for account {account_id}: {e}")
+            # Wait before reconnect attempt
+            await asyncio.sleep(10)
+            if not self._clients.get(account_id):
+                break  # Account was removed
+            try:
+                client = self._clients[account_id]
+                if not client.is_connected():
+                    await client.connect()
+                    logger.info(f"[TELEGRAM] Listener reconnected for account {account_id}")
+            except Exception as e:
+                logger.error(f"[TELEGRAM] Reconnect failed for account {account_id}: {e}")
+                await asyncio.sleep(30)
+
+    # ── Polling for New Messages (safety net) ───────────────────
 
     async def poll_all_accounts(self):
         """Poll all active accounts for new inbound DMs. Called by scheduler every 3 min."""
