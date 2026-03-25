@@ -235,19 +235,20 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         est_credits = max_pages if "api" in source_type else 0
         est_companies = max_pages * per_page
 
-        run = GatheringRun(
-            project_id=project.id, company_id=project.company_id,
-            source_type=source_type, filters=filters,
-            filter_hash=filter_hash, status="running", current_phase="gather",
-            triggered_by=f"mcp:user:{user.id}",
+        # Call the real gathering service
+        from app.services.gathering_service import GatheringService
+        svc = GatheringService()
+        run = await svc.start_gathering(
+            session, project.id, project.company_id,
+            source_type, filters, triggered_by=f"mcp:user:{user.id}",
         )
-        session.add(run)
-        await session.flush()
 
         return {
             "run_id": run.id,
-            "status": "running",
-            "phase": "gather",
+            "status": run.status,
+            "phase": run.current_phase,
+            "new_companies": run.new_companies_count,
+            "duplicates": run.duplicate_count,
             "estimated_credits": est_credits,
             "estimated_companies": est_companies,
             "filters_applied": {
@@ -257,8 +258,9 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 "max_pages": filters.get("max_pages"),
                 "funding_stages": filters.get("organization_latest_funding_stage_cd"),
             },
-            "message": f"Gathering started for '{project.name}' using {source_type}. "
-                       f"~{est_companies} companies, ~{est_credits} credits.",
+            "message": f"Gathering complete for '{project.name}'. "
+                       f"{run.new_companies_count} new, {run.duplicate_count} duplicates.",
+            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
         }
 
     if tool_name == "tam_blacklist_check":
@@ -266,16 +268,17 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         run = await session.get(GatheringRun, args["run_id"])
         if not run:
             raise ValueError("Run not found")
-        # Create CP1 gate
-        gate = ApprovalGate(
-            project_id=run.project_id, gathering_run_id=run.id,
-            gate_type="checkpoint_1", gate_label="Project scope + blacklist review",
-            scope={"project_id": run.project_id, "run_id": run.id, "passed": 0, "rejected": 0},
-        )
-        session.add(gate)
-        run.current_phase = "awaiting_scope_ok"
-        await session.flush()
-        return {"gate_id": gate.id, "type": "checkpoint_1", "message": "Checkpoint 1 created. Review and approve."}
+        from app.services.gathering_service import GatheringService
+        svc = GatheringService()
+        gate = await svc.blacklist_check(session, run)
+        return {
+            "gate_id": gate.id, "type": "checkpoint_1",
+            "scope": gate.scope,
+            "message": "CHECKPOINT 1: Review project scope and blacklist results. Approve to continue.",
+            "_links": {
+                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+            },
+        }
 
     if tool_name == "tam_approve_checkpoint":
         user = await _get_user(token, session)
@@ -304,47 +307,70 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         run = await session.get(GatheringRun, args["run_id"])
         if not run:
             raise ValueError("Run not found")
-        run.current_phase = "scrape"
-        return {"status": "pre_filter_complete", "run_id": run.id}
+        from app.services.gathering_service import GatheringService
+        svc = GatheringService()
+        result = await svc.pre_filter(session, run)
+        return {
+            "status": "pre_filter_complete", "run_id": run.id,
+            "passed": result["passed"], "filtered": result["filtered"],
+            "message": f"Pre-filter done: {result['passed']} passed, {result['filtered']} removed.",
+            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+        }
 
     if tool_name == "tam_scrape":
         user = await _get_user(token, session)
         run = await session.get(GatheringRun, args["run_id"])
         if not run:
             raise ValueError("Run not found")
-        run.current_phase = "analyze"
-        return {"status": "scrape_complete", "run_id": run.id, "message": "Website scraping complete"}
+        from app.services.gathering_service import GatheringService
+        from app.services.scraper_service import ScraperService
+        svc = GatheringService()
+        scraper = ScraperService()
+        result = await svc.scrape(session, run, scraper_service=scraper)
+        return {
+            "status": "scrape_complete", "run_id": run.id,
+            "scraped": result["scraped"], "errors": result["errors"], "total": result["total"],
+            "message": f"Scraped {result['scraped']}/{result['total']} websites ({result['errors']} errors).",
+            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+        }
 
     if tool_name == "tam_analyze":
         user = await _get_user(token, session)
         run = await session.get(GatheringRun, args["run_id"])
         if not run:
             raise ValueError("Run not found")
-        # Create CP2 gate
-        gate = ApprovalGate(
-            project_id=run.project_id, gathering_run_id=run.id,
-            gate_type="checkpoint_2", gate_label="Target list review",
-            scope={"run_id": run.id, "targets_found": 0, "auto_refine": args.get("auto_refine", False)},
+        from app.services.gathering_service import GatheringService
+        svc = GatheringService()
+        gate = await svc.analyze(
+            session, run,
+            prompt_text=args.get("prompt_text"),
+            auto_refine=args.get("auto_refine", False),
+            target_accuracy=args.get("target_accuracy", 0.9),
         )
-        session.add(gate)
-        run.current_phase = "awaiting_targets_ok"
-        await session.flush()
-        return {"gate_id": gate.id, "type": "checkpoint_2", "message": "Analysis complete. Review targets."}
+        return {
+            "gate_id": gate.id, "type": "checkpoint_2",
+            "scope": gate.scope,
+            "message": "CHECKPOINT 2: Review target list. Approve to proceed to verification.",
+            "_links": {
+                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+                "targets": f"http://46.62.210.24:3000/pipeline/{run.id}/targets",
+            },
+        }
 
     if tool_name == "tam_prepare_verification":
         user = await _get_user(token, session)
         run = await session.get(GatheringRun, args["run_id"])
         if not run:
             raise ValueError("Run not found")
-        gate = ApprovalGate(
-            project_id=run.project_id, gathering_run_id=run.id,
-            gate_type="checkpoint_3", gate_label="FindyMail cost approval",
-            scope={"run_id": run.id, "estimated_cost_usd": 0.25, "emails_to_verify": 25},
-        )
-        session.add(gate)
-        run.current_phase = "awaiting_verify_ok"
-        await session.flush()
-        return {"gate_id": gate.id, "type": "checkpoint_3", "estimated_cost": "$0.25"}
+        from app.services.gathering_service import GatheringService
+        svc = GatheringService()
+        gate = await svc.prepare_verification(session, run)
+        return {
+            "gate_id": gate.id, "type": "checkpoint_3",
+            "scope": gate.scope,
+            "message": f"CHECKPOINT 3: FindyMail will cost ~${gate.scope.get('estimated_cost_usd', 0)}. Approve to spend credits.",
+            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+        }
 
     if tool_name == "tam_run_verification":
         user = await _get_user(token, session)
@@ -404,23 +430,27 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         project = await session.get(Project, args["project_id"])
         if not project:
             raise ValueError("Project not found")
-        seq = GeneratedSequence(
-            project_id=project.id, company_id=project.company_id,
-            campaign_name=args.get("campaign_name", f"{project.name} - Generated"),
-            sequence_steps=[
-                {"step": 1, "day": 0, "subject": "Quick question about {{company}}", "body": "Hi {{first_name}},\n\nI noticed {{company}} is growing..."},
-                {"step": 2, "day": 3, "subject": "Re: Quick question about {{company}}", "body": "Hi {{first_name}},\n\nJust following up..."},
-                {"step": 3, "day": 4, "subject": "{{company}} + {{sender_company}}", "body": "Hi {{first_name}},\n\nCompanies like {{company}}..."},
-                {"step": 4, "day": 7, "subject": "One more thought for {{company}}", "body": "Hi {{first_name}},\n\nI know you're busy..."},
-                {"step": 5, "day": 7, "subject": "Should I close the loop?", "body": "Hi {{first_name}},\n\nI don't want to be a pest..."},
-            ],
-            sequence_step_count=5,
-            status="draft",
-            model_used="placeholder",
+        from app.services.campaign_intelligence import CampaignIntelligenceService
+        ci_svc = CampaignIntelligenceService()
+        seq = await ci_svc.generate_sequence(
+            session, project.id,
+            campaign_name=args.get("campaign_name"),
+            instructions=args.get("instructions"),
         )
-        session.add(seq)
-        await session.flush()
-        return {"sequence_id": seq.id, "steps": 5, "status": "draft"}
+        # Show sequence preview
+        steps_preview = []
+        for s in seq.sequence_steps:
+            steps_preview.append(f"Step {s['step']} (Day {s['day']}): {s['subject']}")
+        return {
+            "sequence_id": seq.id,
+            "campaign_name": seq.campaign_name,
+            "steps": seq.sequence_step_count,
+            "status": "draft",
+            "rationale": seq.rationale,
+            "preview": steps_preview,
+            "message": f"Generated 5-step sequence '{seq.campaign_name}'. Review and approve, or request changes.",
+            "_links": {"sequence": f"http://46.62.210.24:3000/campaigns/{seq.id}"},
+        }
 
     if tool_name == "god_approve_sequence":
         user = await _get_user(token, session)
@@ -444,16 +474,20 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         svc = await ctx.get_smartlead_service()
         if not svc.is_configured():
             raise ValueError("SmartLead not connected. Use configure_integration first.")
-        campaign = await svc.create_campaign(seq.campaign_name or "MCP Generated")
-        if not campaign:
-            raise ValueError("Failed to create SmartLead campaign")
-        campaign_id = campaign.get("id")
-        await svc.set_campaign_sequences(campaign_id, seq.sequence_steps)
-        from datetime import datetime
-        seq.pushed_at = datetime.utcnow()
-        seq.status = "pushed"
-        return {"pushed": True, "smartlead_campaign_id": campaign_id,
-                "url": f"https://app.smartlead.ai/app/email-campaigns-v2/{campaign_id}/analytics"}
+        from app.services.campaign_intelligence import CampaignIntelligenceService
+        ci_svc = CampaignIntelligenceService()
+        result = await ci_svc.push_to_smartlead(session, seq.id, svc)
+        smartlead_url = result["url"]
+        return {
+            "pushed": True,
+            "smartlead_campaign_id": result["smartlead_campaign_id"],
+            "status": "DRAFT — never auto-activates",
+            "message": f"Campaign '{seq.campaign_name}' created as DRAFT in SmartLead. Review in SmartLead, add leads, then activate manually.",
+            "_links": {
+                "smartlead": smartlead_url,
+                "sequence": f"http://46.62.210.24:3000/campaigns/{seq.id}",
+            },
+        }
 
     if tool_name in ("god_score_campaigns", "god_extract_patterns"):
         user = await _get_user(token, session)
@@ -471,7 +505,15 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         pending = gates.scalars().all()
         return {
             "run_id": run.id, "status": run.status, "phase": run.current_phase,
-            "pending_gates": [{"gate_id": g.id, "type": g.gate_type} for g in pending],
+            "new_companies": run.new_companies_count,
+            "duplicates": run.duplicate_count,
+            "rejected": run.rejected_count,
+            "credits_used": run.credits_used,
+            "pending_gates": [{"gate_id": g.id, "type": g.gate_type, "scope": g.scope} for g in pending],
+            "_links": {
+                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+                "targets": f"http://46.62.210.24:3000/pipeline/{run.id}/targets",
+            },
         }
 
     if tool_name == "run_full_pipeline":
