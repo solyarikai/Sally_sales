@@ -623,34 +623,21 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
       const edited = editingDrafts[reply.id];
       const editedDraft = edited ? { draft_reply: edited.reply, draft_subject: edited.subject } : undefined;
       const result = await repliesApi.approveAndSendReply(reply.id, editedDraft);
-      const sentContent = edited ? edited.reply : (reply.draft_reply || '');
-      if (sentContent && historyData[reply.id]) {
-        setHistoryData(prev => {
-          const existing = prev[reply.id];
-          if (!existing) return prev;
-          return {
-            ...prev,
-            [reply.id]: {
-              ...existing,
-              activities: [
-                ...existing.activities,
-                {
-                  direction: 'outbound' as const,
-                  content: sentContent,
-                  timestamp: new Date().toISOString(),
-                  channel: (reply.channel || 'email') as 'email' | 'linkedin',
-                  campaign: reply.campaign_name || 'Unknown',
-                },
-              ],
-            },
-          };
-        });
-      }
       const contactId = result.contact_id;
+
+      // If send failed (GetSales/Telegram API error), show persistent error — do NOT remove card
+      if (result.send_error || result.status === 'send_failed') {
+        toast.error(
+          `Send failed — try again or send manually in ${result.channel === 'linkedin' ? 'GetSales' : result.channel === 'telegram' ? 'Telegram' : 'SmartLead'}`,
+          { style: toastErr, duration: 10000 }
+        );
+        return; // card stays in queue
+      }
+
       const toastMsg = result.channel === 'telegram'
-        ? (result.telegram_sent ? 'Sent via Telegram' : (result.send_error ? `Approved (send failed: ${result.send_error})` : 'Approved'))
+        ? (result.telegram_sent ? 'Sent via Telegram' : 'Approved')
         : result.channel === 'linkedin'
-        ? (result.getsales_sent ? 'Sent via LinkedIn' : (result.send_error ? `Approved (send failed)` : 'Approved — copy draft to LinkedIn'))
+        ? (result.getsales_sent ? 'Sent via LinkedIn' : 'Approved — copy draft to LinkedIn')
         : 'Reply sent';
       toast(
         (tInstance) => (
@@ -676,10 +663,34 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
         ),
         { style: toastOk, duration: 6000 }
       );
+      // Add outbound message to local history (only after confirming send succeeded)
+      const sentContent = edited ? edited.reply : (reply.draft_reply || '');
+      if (sentContent && historyData[reply.id]) {
+        setHistoryData(prev => {
+          const existing = prev[reply.id];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [reply.id]: {
+              ...existing,
+              activities: [
+                ...existing.activities,
+                {
+                  direction: 'outbound' as const,
+                  content: sentContent,
+                  timestamp: new Date().toISOString(),
+                  channel: (reply.channel || 'email') as 'email' | 'linkedin',
+                  campaign: reply.campaign_name || 'Unknown',
+                },
+              ],
+            },
+          };
+        });
+      }
       optimisticRemoveReply(reply);
       setEditingDrafts(prev => { const d = { ...prev }; delete d[reply.id]; return d; });
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to send', { style: toastErr });
+      toast.error(err.response?.data?.detail || 'Failed to send — check connection and try again', { style: toastErr, duration: 10000 });
     } finally {
       setSendingIds(prev => { const s = new Set(prev); s.delete(reply.id); return s; });
     }
