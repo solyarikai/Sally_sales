@@ -200,6 +200,7 @@ class CRMScheduler:
             ("_calendly_sync_task", self._run_calendly_sync_loop, "Calendly sync"),
             ("_campaign_intelligence_task", self._run_campaign_intelligence_loop, "Campaign intelligence"),
             ("_telegram_dm_inbox_task", self._run_telegram_dm_inbox_loop, "Telegram DM inbox"),
+            ("_meeting_reminder_task", self._run_meeting_reminder_loop, "Meeting reminders"),
         ]
         for attr, coro_fn, name in task_configs:
             existing = getattr(self, attr, None)
@@ -1872,6 +1873,28 @@ ANALYSIS FOCUS — answer with EVIDENCE:
                     logger.info(f"[CALENDLY] Synced {result['total_synced']} meetings from {result['projects_processed']} projects")
             except Exception as e:
                 logger.error(f"[CALENDLY] Sync error: {e}")
+            await asyncio.sleep(300)  # 5 minutes
+
+    # ===== Meeting Reminders (24h + 2h before meeting) =====
+
+    async def _run_meeting_reminder_loop(self):
+        """Send meeting reminders 24h and 2h before scheduled meetings.
+
+        Currently scoped to Mifort (project_id=21).
+        Checks every 5 minutes for meetings that need reminders.
+        """
+        from app.services.meeting_reminder_service import process_meeting_reminders
+
+        await asyncio.sleep(90)  # Initial delay — let other services start
+
+        while self._running:
+            try:
+                sent = await process_meeting_reminders()
+                self._mark_task_run("meeting_reminders")
+                if sent > 0:
+                    logger.info(f"[REMINDER] Cycle complete: {sent} reminders sent")
+            except Exception as e:
+                logger.error(f"[REMINDER] Error in reminder loop: {e}")
             await asyncio.sleep(300)  # 5 minutes
 
     # ===== Campaign Intelligence (GOD_SEQUENCE — daily) =====

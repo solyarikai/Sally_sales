@@ -83,6 +83,10 @@ class Meeting(Base):
     # Questions/answers from Calendly form
     invitee_questions = Column(Text, nullable=True)  # JSON or text dump of Q&A
 
+    # Reminder tracking
+    reminder_24h_sent_at = Column(DateTime(timezone=True), nullable=True)
+    reminder_2h_sent_at = Column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
