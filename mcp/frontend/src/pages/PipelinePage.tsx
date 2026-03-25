@@ -4,192 +4,223 @@ import { useParams } from 'react-router-dom'
 const API = '/api'
 
 const PHASES = [
-  { key: 'gather', label: 'Gather + Dedup', icon: '1' },
-  { key: 'blacklist', label: 'Blacklist Check', icon: '2' },
-  { key: 'awaiting_scope_ok', label: 'CP1: Scope Review', icon: '!' },
-  { key: 'pre_filter', label: 'Pre-Filter', icon: '3' },
-  { key: 'scrape', label: 'Website Scraping', icon: '4' },
-  { key: 'analyze', label: 'AI Analysis', icon: '5' },
-  { key: 'awaiting_targets_ok', label: 'CP2: Target Review', icon: '!' },
-  { key: 'prepare_verification', label: 'Prepare Verification', icon: '6' },
-  { key: 'awaiting_verify_ok', label: 'CP3: Cost Approval', icon: '!' },
-  { key: 'verified', label: 'Verified', icon: '7' },
-  { key: 'completed', label: 'Completed', icon: '8' },
+  { key: 'gather', label: 'Gather + Dedup' },
+  { key: 'blacklist', label: 'Blacklist' },
+  { key: 'awaiting_scope_ok', label: 'CP1: Scope' },
+  { key: 'pre_filter', label: 'Pre-Filter' },
+  { key: 'scrape', label: 'Scrape' },
+  { key: 'analyze', label: 'Analysis' },
+  { key: 'awaiting_targets_ok', label: 'CP2: Targets' },
+  { key: 'prepare_verification', label: 'Verification' },
+  { key: 'awaiting_verify_ok', label: 'CP3: Cost' },
+  { key: 'verified', label: 'Done' },
 ]
 
 export default function PipelinePage() {
   const { runId } = useParams()
   const [run, setRun] = useState<any>(null)
   const [companies, setCompanies] = useState<any[]>([])
-  const [error, setError] = useState('')
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
-  const loadRun = async () => {
+  const load = async () => {
     if (!runId) return
-    try {
-      const res = await fetch(`${API}/pipeline/runs/${runId}`)
-      if (!res.ok) { setError(`Error ${res.status}: ${res.statusText}`); return }
-      const data = await res.json()
-      setRun(data)
-      setError('')
-    } catch (e: any) {
-      setError(e.message)
-    }
+    const [r1, r2] = await Promise.all([
+      fetch(`${API}/pipeline/runs/${runId}`).then(r => r.ok ? r.json() : null),
+      fetch(`${API}/pipeline/runs/${runId}/companies`).then(r => r.ok ? r.json() : []),
+    ])
+    if (r1) setRun(r1)
+    if (r2) setCompanies(r2)
   }
 
-  const loadCompanies = async () => {
-    if (!runId) return
-    try {
-      const res = await fetch(`${API}/pipeline/runs/${runId}/companies`)
-      if (res.ok) setCompanies(await res.json())
-    } catch {}
-  }
+  useEffect(() => { load() }, [runId])
+  useEffect(() => { const t = setInterval(load, 15000); return () => clearInterval(t) }, [runId])
 
-  useEffect(() => { loadRun(); loadCompanies() }, [runId])
-  useEffect(() => { const t = setInterval(loadRun, 10000); return () => clearInterval(t) }, [runId])
+  const toggle = (id: number) => setExpanded(prev => {
+    const n = new Set(prev)
+    n.has(id) ? n.delete(id) : n.add(id)
+    return n
+  })
 
   const currentIdx = run ? PHASES.findIndex(p => p.key === run.current_phase) : -1
-  const pendingGates = run?.gates?.filter((g: any) => g.status === 'pending') || []
-  const approvedGates = run?.gates?.filter((g: any) => g.status === 'approved') || []
+  const filters = run ? (typeof run.filters === 'object' ? run.filters : {}) : {}
+
+  if (!run) return <div className="p-6" style={{ color: 'var(--text-muted)' }}>Loading run #{runId}...</div>
 
   return (
-    <div className="max-w-5xl mx-auto p-6 md:p-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-6xl mx-auto p-6 space-y-5">
+
+      {/* Run header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Pipeline Run #{runId}</h2>
-          {run && <div className="text-sm text-gray-400 mt-1">Project: {run.project_name} | Source: {run.source_type}</div>}
+          <div className="text-[11px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Pipeline Run #{runId}</div>
+          <h2 className="text-[15px] font-medium mt-0.5">{run.project_name}</h2>
+          <div className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>
+            {run.source_type} &middot; {run.status} &middot; {run.created_at ? new Date(run.created_at).toLocaleString() : ''}
+          </div>
         </div>
-        <button className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 rounded" onClick={() => { loadRun(); loadCompanies() }}>Refresh</button>
+        <button onClick={load} className="px-2.5 py-1 rounded text-[12px]" style={{ background: 'var(--active-bg)', color: 'var(--text-secondary)' }}>refresh</button>
       </div>
 
-      {error && <div className="bg-red-900/30 border border-red-700 rounded p-3 mb-6 text-red-300 text-sm">{error}</div>}
+      {/* Phase bar — horizontal */}
+      <div className="flex gap-0.5 overflow-x-auto py-1">
+        {PHASES.map((p, i) => (
+          <div key={p.key} className={`px-2.5 py-1.5 rounded text-[11px] font-medium whitespace-nowrap transition-colors ${
+            i < currentIdx ? 'text-[--success]' : i === currentIdx ? 'text-white' : ''
+          }`} style={{
+            background: i === currentIdx ? (p.key.startsWith('awaiting') ? 'var(--warning)' : 'var(--info)') : i < currentIdx ? 'transparent' : 'var(--bg-card)',
+            color: i < currentIdx ? 'var(--success)' : i === currentIdx ? 'white' : 'var(--text-muted)',
+            border: `1px solid ${i === currentIdx ? 'transparent' : 'var(--border)'}`,
+          }}>
+            {i < currentIdx ? '✓ ' : ''}{p.label}
+          </div>
+        ))}
+      </div>
 
-      {!run ? (
-        <div className="text-gray-500">Loading...</div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Phase stepper */}
-          <div className="lg:col-span-1">
-            <div className="bg-gray-900 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Phases</h3>
-              <div className="space-y-0.5">
-                {PHASES.map((phase, idx) => {
-                  const done = idx < currentIdx
-                  const active = idx === currentIdx
-                  const isCheckpoint = phase.icon === '!'
-                  return (
-                    <div key={phase.key} className={`flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors
-                      ${active ? 'bg-blue-900/60 text-blue-200 font-medium' : ''}
-                      ${done ? 'text-green-400' : ''}
-                      ${!done && !active ? 'text-gray-600' : ''}
-                      ${isCheckpoint && active ? 'bg-yellow-900/40 text-yellow-300' : ''}
-                    `}>
-                      <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold
-                        ${done ? 'bg-green-900 text-green-300' : ''}
-                        ${active ? (isCheckpoint ? 'bg-yellow-800 text-yellow-200' : 'bg-blue-800 text-blue-200') : ''}
-                        ${!done && !active ? 'bg-gray-800 text-gray-600' : ''}
-                      `}>
-                        {done ? '✓' : phase.icon}
+      {/* Stats row */}
+      <div className="flex gap-4 text-[13px]">
+        {[
+          { l: 'companies', v: run.total_companies, c: '--text' },
+          { l: 'new', v: run.new_companies, c: '--success' },
+          { l: 'rejected', v: run.rejected, c: '--danger' },
+          { l: 'scraped', v: `${run.scraped_ok}/${(run.scraped_ok||0)+(run.scraped_errors||0)}`, c: '--info' },
+          { l: 'credits', v: run.credits_used || 0, c: '--text-muted' },
+        ].map(s => (
+          <div key={s.l}>
+            <span style={{ color: `var(${s.c})`, fontWeight: 600 }}>{s.v || 0}</span>
+            <span className="ml-1" style={{ color: 'var(--text-muted)' }}>{s.l}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Checkpoints */}
+      {run.gates?.filter((g: any) => g.status === 'pending').map((g: any) => (
+        <div key={g.gate_id} className="rounded p-4 border-2" style={{ borderColor: 'var(--warning)', background: 'color-mix(in srgb, var(--warning) 10%, var(--bg))' }}>
+          <div className="text-[13px] font-medium" style={{ color: 'var(--warning)' }}>Awaiting: {g.label}</div>
+          {g.scope && <pre className="text-[11px] mt-2 p-2 rounded overflow-x-auto" style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>{JSON.stringify(g.scope, null, 2)}</pre>}
+          <div className="text-[11px] mt-2" style={{ color: 'var(--text-muted)' }}>Approve via MCP client: tam_approve_checkpoint(gate_id={g.gate_id})</div>
+        </div>
+      ))}
+
+      {/* Apollo filters applied */}
+      {run.filters && (
+        <div className="rounded p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+          <div className="text-[11px] uppercase tracking-wider font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Filters Applied</div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(run.filters || {}).map(([k, v]: [string, any]) => (
+              v && <div key={k} className="text-[12px] px-2 py-0.5 rounded" style={{ background: 'var(--active-bg)' }}>
+                <span style={{ color: 'var(--text-muted)' }}>{k.replace(/organization_|q_organization_/g, '')}:</span>{' '}
+                <span style={{ color: 'var(--text)' }}>{Array.isArray(v) ? v.join(', ') : String(v)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Companies table with expandable rows */}
+      <div>
+        <div className="text-[11px] uppercase tracking-wider font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
+          Companies ({companies.length})
+        </div>
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+              <th className="pb-2 pr-3 w-5"></th>
+              <th className="pb-2 pr-3">Domain</th>
+              <th className="pb-2 pr-3">Name</th>
+              <th className="pb-2 pr-3">Industry</th>
+              <th className="pb-2 pr-3">Size</th>
+              <th className="pb-2 pr-3">Country</th>
+              <th className="pb-2 pr-3">Confidence</th>
+              <th className="pb-2">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {companies.map((c: any) => (
+              <>
+                <tr key={c.id} className="border-t cursor-pointer hover:opacity-80" style={{ borderColor: 'var(--border)' }} onClick={() => toggle(c.id)}>
+                  <td className="py-2 pr-3 text-[11px]" style={{ color: 'var(--text-muted)' }}>{expanded.has(c.id) ? '▼' : '▶'}</td>
+                  <td className="py-2 pr-3" style={{ color: 'var(--text-link)' }}>{c.domain}</td>
+                  <td className="py-2 pr-3">{c.name || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                  <td className="py-2 pr-3" style={{ color: 'var(--text-secondary)' }}>{c.industry || '—'}</td>
+                  <td className="py-2 pr-3" style={{ color: 'var(--text-secondary)' }}>{c.employee_count || '—'}</td>
+                  <td className="py-2 pr-3" style={{ color: 'var(--text-secondary)' }}>{c.country || '—'}</td>
+                  <td className="py-2 pr-3">
+                    {c.analysis_confidence != null ? (
+                      <span style={{ color: c.analysis_confidence > 0.7 ? 'var(--success)' : c.analysis_confidence > 0.4 ? 'var(--warning)' : 'var(--danger)' }}>
+                        {(c.analysis_confidence * 100).toFixed(0)}%
                       </span>
-                      <span>{phase.label}</span>
-                    </div>
-                  )
-                })}
-              </div>
+                    ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                  </td>
+                  <td className="py-2">
+                    {c.is_blacklisted ? <span style={{ color: 'var(--danger)' }}>blacklisted</span> :
+                     c.is_target === true ? <span style={{ color: 'var(--success)' }}>target</span> :
+                     c.is_target === false ? <span style={{ color: 'var(--text-muted)' }}>rejected</span> :
+                     <span style={{ color: 'var(--text-muted)' }}>pending</span>}
+                  </td>
+                </tr>
+                {expanded.has(c.id) && (
+                  <tr key={`${c.id}-detail`}>
+                    <td colSpan={8} className="pb-3">
+                      <div className="rounded p-3 ml-8 space-y-2 text-[12px]" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                        {/* Company details */}
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                          <div><span style={{ color: 'var(--text-muted)' }}>Domain:</span> {c.domain}</div>
+                          <div><span style={{ color: 'var(--text-muted)' }}>Name:</span> {c.name || 'N/A (manual source — no Apollo data)'}</div>
+                          <div><span style={{ color: 'var(--text-muted)' }}>Industry:</span> {c.industry || 'N/A'}</div>
+                          <div><span style={{ color: 'var(--text-muted)' }}>Employees:</span> {c.employee_count || 'N/A'}</div>
+                          <div><span style={{ color: 'var(--text-muted)' }}>Country:</span> {c.country || 'N/A'}</div>
+                          <div><span style={{ color: 'var(--text-muted)' }}>City:</span> {c.city || 'N/A'}</div>
+                        </div>
+
+                        {/* Why empty? */}
+                        {!c.name && !c.industry && (
+                          <div className="p-2 rounded text-[11px]" style={{ background: 'var(--bg)', color: 'var(--warning)' }}>
+                            Fields empty because this company was added via <b>manual source</b> (domain list only). Use <b>Apollo API</b> source to get full company data (name, industry, size, country, description).
+                          </div>
+                        )}
+
+                        {/* Analysis */}
+                        {c.analysis_segment && (
+                          <div>
+                            <div className="text-[11px] uppercase tracking-wider font-medium mb-1" style={{ color: 'var(--text-muted)' }}>GPT Analysis</div>
+                            <div><span style={{ color: 'var(--text-muted)' }}>Segment:</span> {c.analysis_segment}</div>
+                            <div><span style={{ color: 'var(--text-muted)' }}>Confidence:</span> {c.analysis_confidence ? `${(c.analysis_confidence * 100).toFixed(1)}%` : 'N/A'}</div>
+                          </div>
+                        )}
+
+                        {c.analysis_reasoning && (
+                          <div>
+                            <div className="text-[11px] uppercase tracking-wider font-medium mb-1" style={{ color: 'var(--text-muted)' }}>GPT Reasoning</div>
+                            <div style={{ color: 'var(--text-secondary)' }}>{c.analysis_reasoning}</div>
+                          </div>
+                        )}
+
+                        {/* Blacklist reason */}
+                        {c.is_blacklisted && c.blacklist_reason && (
+                          <div style={{ color: 'var(--danger)' }}>Blacklist reason: {c.blacklist_reason}</div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </>
+            ))}
+          </tbody>
+        </table>
+        {companies.length === 0 && <div className="py-4 text-center" style={{ color: 'var(--text-muted)' }}>No companies in this run yet.</div>}
+      </div>
+
+      {/* Approved gates log */}
+      {run.gates?.filter((g: any) => g.status === 'approved').length > 0 && (
+        <div>
+          <div className="text-[11px] uppercase tracking-wider font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Checkpoint History</div>
+          {run.gates.filter((g: any) => g.status === 'approved').map((g: any) => (
+            <div key={g.gate_id} className="flex items-center gap-2 text-[12px] py-1">
+              <span style={{ color: 'var(--success)' }}>✓</span>
+              <span>{g.label}</span>
+              <span style={{ color: 'var(--text-muted)' }}>{g.decided_at ? new Date(g.decided_at).toLocaleString() : ''}</span>
             </div>
-          </div>
-
-          {/* Right: Details */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { label: 'Companies', value: run.total_companies, color: 'text-white' },
-                { label: 'New', value: run.new_companies, color: 'text-green-400' },
-                { label: 'Rejected', value: run.rejected, color: 'text-red-400' },
-                { label: 'Scraped', value: `${run.scraped_ok}/${run.scraped_ok + run.scraped_errors}`, color: 'text-blue-400' },
-              ].map(s => (
-                <div key={s.label} className="bg-gray-900 rounded-lg p-3">
-                  <div className="text-xs text-gray-500 uppercase">{s.label}</div>
-                  <div className={`text-2xl font-bold ${s.color}`}>{s.value || 0}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Pending checkpoints */}
-            {pendingGates.length > 0 && (
-              <div className="border-2 border-yellow-700 bg-yellow-900/20 rounded-lg p-4">
-                <h3 className="font-bold text-yellow-300 mb-3 text-lg">Awaiting Approval</h3>
-                {pendingGates.map((g: any) => (
-                  <div key={g.gate_id} className="mb-3">
-                    <div className="text-sm font-medium text-yellow-200">{g.label} (Gate #{g.gate_id})</div>
-                    {g.scope && (
-                      <pre className="text-xs text-gray-400 mt-1 bg-gray-900 rounded p-2 overflow-x-auto">
-                        {JSON.stringify(g.scope, null, 2)}
-                      </pre>
-                    )}
-                  </div>
-                ))}
-                <div className="text-xs text-gray-500 mt-2">Approve via MCP client or API</div>
-              </div>
-            )}
-
-            {/* Approved checkpoints */}
-            {approvedGates.length > 0 && (
-              <div className="bg-gray-900 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-gray-400 mb-2 uppercase tracking-wider">Approved Checkpoints</h3>
-                {approvedGates.map((g: any) => (
-                  <div key={g.gate_id} className="flex items-center gap-2 text-sm text-green-400 py-1">
-                    <span>✓</span>
-                    <span>{g.label}</span>
-                    {g.decided_at && <span className="text-gray-600 text-xs">({new Date(g.decided_at).toLocaleString()})</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Companies table */}
-            {companies.length > 0 && (
-              <div className="bg-gray-900 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">
-                  Companies ({companies.length})
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-500 text-xs uppercase">
-                        <th className="pb-2 pr-3">Domain</th>
-                        <th className="pb-2 pr-3">Name</th>
-                        <th className="pb-2 pr-3">Industry</th>
-                        <th className="pb-2 pr-3">Size</th>
-                        <th className="pb-2">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {companies.map((c: any) => (
-                        <tr key={c.id} className="border-t border-gray-800">
-                          <td className="py-2 pr-3 text-blue-400">{c.domain}</td>
-                          <td className="py-2 pr-3">{c.name || '-'}</td>
-                          <td className="py-2 pr-3 text-gray-500">{c.industry || '-'}</td>
-                          <td className="py-2 pr-3 text-gray-500">{c.employee_count || '-'}</td>
-                          <td className="py-2">
-                            {c.is_blacklisted ? <span className="text-red-400">Blacklisted</span> :
-                             c.is_target === true ? <span className="text-green-400">Target</span> :
-                             c.is_target === false ? <span className="text-gray-500">Rejected</span> :
-                             <span className="text-gray-600">Pending</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Run info */}
-            <div className="text-xs text-gray-600">
-              Status: {run.status} | Phase: {run.current_phase} | Credits: {run.credits_used || 0} | Created: {run.created_at ? new Date(run.created_at).toLocaleString() : '-'}
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </div>
