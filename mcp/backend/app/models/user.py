@@ -12,6 +12,7 @@ class MCPUser(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=False)
     is_active = Column(Boolean, server_default="true")
+    active_project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL", use_alter=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

@@ -32,7 +32,26 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
 
-    # ── Project (3) ──
+    # ── Project (4) ──
+    {
+        "name": "select_project",
+        "description": """Set your active working project. CRITICAL: You MUST call this before any pipeline operation if the user has multiple projects. This determines which project's campaigns are used for blacklisting.
+
+When a user first connects or says something like 'gather companies' without specifying a project, you MUST:
+1. Call list_projects to see their projects
+2. If multiple projects exist, ASK which one they want to work on
+3. Call select_project to set it
+4. Show them the project's campaigns and blacklist scope
+
+The response shows: project name, ICP, active campaigns, and which companies are already contacted.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer", "description": "Project to set as active"},
+            },
+            "required": ["project_id"],
+        },
+    },
     {
         "name": "create_project",
         "description": "Create a new sales project with ICP definition and sender identity.",
