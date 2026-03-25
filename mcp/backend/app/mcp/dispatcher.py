@@ -27,16 +27,55 @@ async def _get_user(token: Optional[str], session) -> MCPUser:
 
 
 async def dispatch_tool(tool_name: str, args: dict, token: Optional[str], request: Request) -> Any:
-    """Route a tool call to the appropriate service method."""
+    """Route a tool call to the appropriate service method. Logs every call."""
+    import time as _time
+    start = _time.monotonic()
 
     async with async_session_maker() as session:
         try:
             result = await _dispatch(tool_name, args, token, session)
+            latency = int((_time.monotonic() - start) * 1000)
+
+            # Log usage
+            try:
+                from app.models.usage import MCPUsageLog
+                from app.auth.middleware import verify_token
+                user = await verify_token(session, token) if token else None
+                session.add(MCPUsageLog(
+                    user_id=user.id if user else 0,
+                    action="tool_call",
+                    tool_name=tool_name,
+                    extra_data={"args": _safe_truncate(args), "latency_ms": latency},
+                ))
+            except Exception:
+                pass  # Don't fail the tool call because logging failed
+
             await session.commit()
             return result
-        except Exception:
-            await session.rollback()
+        except Exception as e:
+            # Log error
+            try:
+                from app.models.usage import MCPUsageLog
+                session.add(MCPUsageLog(
+                    user_id=0, action="tool_error", tool_name=tool_name,
+                    extra_data={"args": _safe_truncate(args), "error": str(e)[:500]},
+                ))
+                await session.commit()
+            except Exception:
+                await session.rollback()
             raise
+
+
+def _safe_truncate(obj, max_len=5000) -> dict:
+    """Truncate large values in args for logging."""
+    import json
+    try:
+        s = json.dumps(obj, default=str)
+        if len(s) > max_len:
+            return {"_truncated": s[:max_len]}
+        return obj
+    except Exception:
+        return {"_error": "could not serialize"}
 
 
 async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -> Any:
