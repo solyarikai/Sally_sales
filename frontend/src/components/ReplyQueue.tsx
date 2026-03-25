@@ -445,8 +445,10 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
       const useCategory = isDeepLink || isInboxMode ? undefined :
         (isAllMode ? undefined : (categoryFilter as ReplyCategory) || undefined);
       const response = await repliesApi.getReplies({
-        project_id: currentProject?.id,
-        campaign_names: campaignNames,
+        // When deep-linking by reply_id, skip project_id filter — reply_id is unique
+        // and the project context may not have synced from URL yet (race condition)
+        project_id: isDeepLinkById ? undefined : currentProject?.id,
+        campaign_names: isDeepLinkById ? undefined : campaignNames,
         needs_reply: mode === 'followups' ? undefined : useNeedsReply,
         needs_followup: mode === 'followups' ? true : undefined,
         lead_email: isDeepLinkByEmail ? initialSearch : undefined,
