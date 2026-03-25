@@ -167,6 +167,9 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
       const next = new URLSearchParams(prev);
       if (key && key !== '__all__') next.set('category', key);
       else next.delete('category');
+      // Clear deep-link params when user clicks a tab — they're navigating away
+      next.delete('reply_id');
+      next.delete('lead');
       return next;
     }, { replace: true });
   }, [setSearchParams]);
