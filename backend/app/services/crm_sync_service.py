@@ -903,25 +903,36 @@ class GetSalesClient:
             API response dict with message details
         """
         last_err = None
-        for attempt in range(3):
+        # Use shorter timeout for send (20s) vs default 60s for reads.
+        # With 2 retries: worst case ~44s, well within nginx 120s proxy_read_timeout.
+        send_timeout = httpx.Timeout(20.0, connect=10.0)
+        for attempt in range(2):
             try:
-                return await self._post("/flows/api/linkedin-messages", {
-                    "sender_profile_uuid": sender_profile_uuid,
-                    "lead_uuid": lead_uuid,
-                    "text": text,
-                })
+                await self._rate_limit()
+                resp = await self.client.post(
+                    f"{self.BASE_URL}/flows/api/linkedin-messages",
+                    headers=self._headers(),
+                    json={
+                        "sender_profile_uuid": sender_profile_uuid,
+                        "lead_uuid": lead_uuid,
+                        "text": text,
+                    },
+                    timeout=send_timeout,
+                )
+                resp.raise_for_status()
+                return resp.json()
             except httpx.HTTPStatusError as e:
-                if e.response.status_code in (429, 500, 502, 503, 504) and attempt < 2:
-                    wait = (attempt + 1) * 2  # 2s, 4s
-                    logger.warning(f"[GETSALES] Send retry {attempt + 1}/3 after {e.response.status_code}, waiting {wait}s")
+                if e.response.status_code in (429, 500, 502, 503, 504) and attempt < 1:
+                    wait = 3
+                    logger.warning(f"[GETSALES] Send retry {attempt + 1}/2 after {e.response.status_code}, waiting {wait}s")
                     await asyncio.sleep(wait)
                     last_err = e
                     continue
                 raise
             except (httpx.TimeoutException, httpx.ConnectError) as e:
-                if attempt < 2:
-                    wait = (attempt + 1) * 2
-                    logger.warning(f"[GETSALES] Send retry {attempt + 1}/3 after {type(e).__name__}, waiting {wait}s")
+                if attempt < 1:
+                    wait = 3
+                    logger.warning(f"[GETSALES] Send retry {attempt + 1}/2 after {type(e).__name__}, waiting {wait}s")
                     await asyncio.sleep(wait)
                     last_err = e
                     continue
