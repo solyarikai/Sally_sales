@@ -1077,7 +1077,14 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
                                 <Building2 className="w-3 h-3" />{reply.lead_company}
                               </span>
                             )}
-                            {reply.channel === 'linkedin' ? (
+                            {reply.channel === 'telegram' ? (
+                              <span
+                                className="text-[11px] px-1.5 py-0.5 rounded font-medium"
+                                style={{ background: '#e8f4fd', color: '#0088cc' }}
+                              >
+                                Telegram
+                              </span>
+                            ) : reply.channel === 'linkedin' ? (
                               <span
                                 className="text-[11px] px-1.5 py-0.5 rounded font-medium"
                                 style={{ background: '#e7f0fe', color: '#0a66c2' }}
