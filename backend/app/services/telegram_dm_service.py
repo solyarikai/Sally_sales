@@ -549,7 +549,13 @@ class TelegramDMService:
             logger.info(f"[TELEGRAM] Poll cycle complete: {total_new} new replies from {len(accounts)} accounts")
 
     async def _poll_account(self, acc) -> int:
-        """Poll one account for new inbound DMs. Returns count of new replies processed."""
+        """Poll one account for inbound DMs that need reply.
+
+        Business logic (same as SmartLead/GetSales):
+        - If the LAST message in a conversation is INBOUND → the lead needs a reply
+        - Process ONLY the last inbound message (not the entire history)
+        - Dedup via message_hash prevents duplicates across poll cycles
+        """
         from app.db.database import async_session_maker
         from app.models.telegram_dm import TelegramDMAccount
         from app.services.reply_processor import process_telegram_reply, send_telegram_dm_notification
@@ -559,68 +565,70 @@ class TelegramDMService:
         me = await client.get_me()
         new_count = 0
 
-        # Fetch dialogs with unread messages
         async for dialog in client.iter_dialogs(limit=100):
             try:
-                if not dialog.is_user or not dialog.unread_count:
+                if not dialog.is_user:
                     continue
                 entity = dialog.entity
                 if isinstance(entity, User) and entity.bot:
                     continue
 
-                # Fetch recent messages (up to unread count, max 20)
-                fetch_limit = min(dialog.unread_count, 20)
-                async for msg in client.iter_messages(dialog.id, limit=fetch_limit):
-                    if msg.sender_id == me.id:
-                        continue  # Skip our own outbound
-                    if not msg.text:
-                        continue  # Skip media-only
-                    if acc.last_processed_at and msg.date and msg.date.replace(tzinfo=None) <= acc.last_processed_at:
-                        break  # Already processed
+                # Check if last message is inbound (lead needs reply)
+                last_msg = dialog.message
+                if not last_msg or not last_msg.text:
+                    continue
+                if last_msg.sender_id == me.id:
+                    continue  # Last message is ours — no reply needed
 
-                    # Process this message
-                    peer_name = f"{getattr(entity, 'first_name', '') or ''} {getattr(entity, 'last_name', '') or ''}".strip() or "Unknown"
-                    peer_username = getattr(entity, "username", None)
+                # Skip if we already processed this exact message (dedup via hash)
+                # The message_hash in ProcessedReply handles this, but skip old messages too
+                if acc.last_processed_at and last_msg.date:
+                    msg_date = last_msg.date.replace(tzinfo=None) if last_msg.date.tzinfo else last_msg.date
+                    if msg_date <= acc.last_processed_at:
+                        continue  # Already processed in a previous cycle
 
-                    async with async_session_maker() as session:
-                        try:
-                            pr = await process_telegram_reply(
-                                message_text=msg.text,
-                                peer_id=dialog.id,
+                peer_name = f"{getattr(entity, 'first_name', '') or ''} {getattr(entity, 'last_name', '') or ''}".strip() or "Unknown"
+                peer_username = getattr(entity, "username", None)
+
+                async with async_session_maker() as session:
+                    try:
+                        pr = await process_telegram_reply(
+                            message_text=last_msg.text,
+                            peer_id=dialog.id,
+                            peer_name=peer_name,
+                            peer_username=peer_username,
+                            account_id=acc.id,
+                            account_username=acc.username,
+                            project_id=acc.project_id,
+                            message_id=last_msg.id,
+                            activity_at=last_msg.date.replace(tzinfo=None) if last_msg.date else None,
+                            raw_data={
+                                "message_id": last_msg.id,
+                                "peer_id": dialog.id,
+                                "peer_username": peer_username,
+                                "account_id": acc.id,
+                                "_source": "polling",
+                            },
+                            session=session,
+                        )
+                        if pr:
+                            await session.commit()
+                            new_count += 1
+
+                            await send_telegram_dm_notification(
+                                processed_reply=pr,
                                 peer_name=peer_name,
                                 peer_username=peer_username,
-                                account_id=acc.id,
                                 account_username=acc.username,
+                                message_text=last_msg.text,
                                 project_id=acc.project_id,
-                                message_id=msg.id,
-                                activity_at=msg.date.replace(tzinfo=None) if msg.date else None,
-                                raw_data={
-                                    "message_id": msg.id,
-                                    "peer_id": dialog.id,
-                                    "peer_username": peer_username,
-                                    "account_id": acc.id,
-                                },
                                 session=session,
                             )
-                            if pr:
-                                await session.commit()
-                                new_count += 1
-
-                                # Send notification after commit
-                                await send_telegram_dm_notification(
-                                    processed_reply=pr,
-                                    peer_name=peer_name,
-                                    peer_username=peer_username,
-                                    account_username=acc.username,
-                                    message_text=msg.text,
-                                    project_id=acc.project_id,
-                                    session=session,
-                                )
-                        except Exception as e:
-                            if "uq_reply_dedup" in str(e):
-                                pass  # Duplicate — expected
-                            else:
-                                logger.warning(f"[TELEGRAM] Failed to process msg {msg.id} from {dialog.id}: {e}")
+                    except Exception as e:
+                        if "uq_reply_dedup" in str(e):
+                            pass  # Duplicate — expected
+                        else:
+                            logger.warning(f"[TELEGRAM] Failed to process msg {last_msg.id} from {dialog.id}: {e}")
             except Exception as dialog_err:
                 logger.debug(f"[TELEGRAM] Skipping dialog {dialog.id}: {dialog_err}")
                 continue
