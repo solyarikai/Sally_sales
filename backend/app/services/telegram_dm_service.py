@@ -342,8 +342,19 @@ class TelegramDMService:
         me = await client.get_me()
         messages = []
 
+        # Resolve peer entity — StringSession has no entity cache, so try InputPeerUser first
         try:
-            async for msg in client.iter_messages(peer_id, limit=limit):
+            entity = await client.get_input_entity(peer_id)
+        except Exception:
+            # Fallback: load dialogs to populate entity cache, then retry
+            try:
+                await client.get_dialogs(limit=100)
+                entity = await client.get_input_entity(peer_id)
+            except Exception:
+                entity = InputPeerUser(peer_id, 0)  # Last resort: use raw ID with access_hash=0
+
+        try:
+            async for msg in client.iter_messages(entity, limit=limit):
                 if not msg.text:
                     continue
                 messages.append({
