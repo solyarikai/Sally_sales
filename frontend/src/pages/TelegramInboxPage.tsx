@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Wifi, WifiOff, Trash2, Loader2, MessageCircle, User, AlertCircle } from 'lucide-react';
+import { Upload, Wifi, WifiOff, Trash2, Send, Loader2, MessageCircle, User, AlertCircle } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import * as tgApi from '../api/telegram';
@@ -14,6 +14,8 @@ export function TelegramInboxPage() {
   const [dialogs, setDialogs] = useState<TelegramDialog[]>([]);
   const [selectedDialog, setSelectedDialog] = useState<TelegramDialog | null>(null);
   const [messages, setMessages] = useState<TelegramMessage[]>([]);
+  const [messageText, setMessageText] = useState('');
+  const [sending, setSending] = useState(false);
 
   const [loading, setLoading] = useState({ accounts: false, dialogs: false, messages: false, sending: false, uploading: false });
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +113,19 @@ export function TelegramInboxPage() {
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Connect failed');
     }
+  };
+
+  const handleSend = async () => {
+    if (!selectedAccount || !selectedDialog || !messageText.trim()) return;
+    setSending(true);
+    try {
+      await tgApi.sendMessage(selectedAccount.id, selectedDialog.peer_id, messageText.trim());
+      setMessageText('');
+      await loadMessages(selectedAccount.id, selectedDialog.peer_id);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Send failed');
+    }
+    setSending(false);
   };
 
   const handleDisconnect = async (acc: TelegramDMAccount) => {
@@ -324,11 +339,24 @@ export function TelegramInboxPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input — READ ONLY mode for now */}
-              <div className="px-4 py-3 border-t flex items-center gap-2" style={{ borderColor: t.divider }}>
-                <div className="flex-1 px-3 py-2 rounded text-xs" style={{ background: isDark ? '#1a1a1a' : '#f9fafb', color: t.text4 }}>
-                  Read-only mode — sending disabled
-                </div>
+              {/* Input */}
+              <div className="px-4 py-3 border-t flex gap-2" style={{ borderColor: t.divider }}>
+                <input
+                  value={messageText}
+                  onChange={e => setMessageText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                  placeholder="Type a message..."
+                  className="flex-1 px-3 py-2 rounded text-sm border outline-none"
+                  style={{ background: isDark ? '#1a1a1a' : '#fff', borderColor: t.divider, color: t.text1 }}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={sending || !messageText.trim()}
+                  className="px-3 py-2 rounded flex items-center gap-1 text-sm font-medium transition-colors disabled:opacity-50"
+                  style={{ background: t.btnPrimaryBg, color: t.btnPrimaryText }}
+                >
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </button>
               </div>
             </>
           ) : (
