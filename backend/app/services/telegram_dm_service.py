@@ -294,28 +294,41 @@ class TelegramDMService:
         dialogs = []
 
         try:
-            async for dialog in client.iter_dialogs(limit=limit):
-                # Only private chats (DMs), skip groups/channels/bots
-                if not dialog.is_user:
-                    continue
-                entity = dialog.entity
-                if isinstance(entity, User) and entity.bot:
-                    continue
+            async for dialog in client.iter_dialogs(limit=limit * 2):
+                try:
+                    # Only private chats (DMs), skip groups/channels/bots
+                    if not dialog.is_user:
+                        continue
+                    entity = dialog.entity
+                    if isinstance(entity, User) and entity.bot:
+                        continue
 
-                dialogs.append({
-                    "peer_id": dialog.id,
-                    "peer_name": dialog.name or "Unknown",
-                    "peer_username": getattr(entity, "username", None),
-                    "last_message": dialog.message.text if dialog.message else None,
-                    "last_message_at": dialog.message.date.isoformat() if dialog.message and dialog.message.date else None,
-                    "unread_count": dialog.unread_count,
-                })
+                    dialogs.append({
+                        "peer_id": dialog.id,
+                        "peer_name": dialog.name or "Unknown",
+                        "peer_username": getattr(entity, "username", None),
+                        "last_message": dialog.message.text if dialog.message else None,
+                        "last_message_at": dialog.message.date.isoformat() if dialog.message and dialog.message.date else None,
+                        "unread_count": dialog.unread_count,
+                    })
+                    if len(dialogs) >= limit:
+                        break
+                except Exception as e:
+                    # Skip dialogs with unresolvable peers (deleted users, etc.)
+                    logger.debug(f"Account {account_id}: skipping dialog: {e}")
+                    continue
         except FloodWaitError as e:
             logger.warning(f"Account {account_id} FloodWait on dialogs: {e.seconds}s")
             if e.seconds < 60:
                 await asyncio.sleep(e.seconds + 1)
                 return await self.get_dialogs(account_id, limit)
             raise
+        except Exception as e:
+            # Catch entity resolution errors at the iterator level
+            if "Could not find the input entity" in str(e):
+                logger.warning(f"Account {account_id}: entity resolution error, returning {len(dialogs)} dialogs collected so far")
+            else:
+                raise
 
         return dialogs
 
