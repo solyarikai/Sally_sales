@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import { useState, useEffect, createContext, useContext, useRef } from 'react'
 import SetupPage from './pages/SetupPage'
 import PipelinePage from './pages/PipelinePage'
-import CRMPage from './pages/CRMPage'
+import CRMPage from './pages/ContactsPage'
 import ProjectsPage from './pages/ProjectsPage'
 import RepliesPage from './pages/RepliesPage'
 import PromptsPage from './pages/PromptsPage'
