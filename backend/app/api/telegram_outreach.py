@@ -16,7 +16,7 @@ from app.models.telegram_outreach import (
     TgProxyGroup, TgProxy,
     TgCampaign, TgCampaignAccount,
     TgRecipient, TgSequence, TgSequenceStep, TgStepVariant, TgOutreachMessage,
-    TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgRecipientStatus,
+    TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgRecipientStatus, TgMessageStatus,
 )
 from app.schemas.telegram_outreach import (
     TgProxyGroupCreate, TgProxyGroupUpdate, TgProxyGroupResponse,
@@ -1447,6 +1447,7 @@ async def list_campaigns(session: AsyncSession = Depends(get_session)):
             delay_between_sends_max=c.delay_between_sends_max,
             delay_randomness_percent=c.delay_randomness_percent,
             spamblock_errors_to_skip=c.spamblock_errors_to_skip,
+            tags=c.tags or [],
             messages_sent_today=c.messages_sent_today,
             total_messages_sent=c.total_messages_sent,
             total_recipients=c.total_recipients,
@@ -1465,6 +1466,7 @@ async def create_campaign(data: TgCampaignCreate, session: AsyncSession = Depend
         delay_between_sends_max=data.delay_between_sends_max,
         delay_randomness_percent=data.delay_randomness_percent,
         spamblock_errors_to_skip=data.spamblock_errors_to_skip,
+        tags=data.tags or [],
     )
     session.add(campaign)
     await session.flush()
@@ -1482,6 +1484,7 @@ async def create_campaign(data: TgCampaignCreate, session: AsyncSession = Depend
         delay_between_sends_max=campaign.delay_between_sends_max,
         delay_randomness_percent=campaign.delay_randomness_percent,
         spamblock_errors_to_skip=campaign.spamblock_errors_to_skip,
+        tags=campaign.tags or [],
         accounts_count=0, created_at=campaign.created_at, updated_at=campaign.updated_at,
     )
 
@@ -1506,6 +1509,7 @@ async def update_campaign(campaign_id: int, data: TgCampaignUpdate, session: Asy
         delay_between_sends_max=campaign.delay_between_sends_max,
         delay_randomness_percent=campaign.delay_randomness_percent,
         spamblock_errors_to_skip=campaign.spamblock_errors_to_skip,
+        tags=campaign.tags or [],
         messages_sent_today=campaign.messages_sent_today,
         total_messages_sent=campaign.total_messages_sent,
         total_recipients=campaign.total_recipients,
@@ -3056,3 +3060,320 @@ async def worker_stop():
 async def worker_reset_counters():
     await sending_worker.reset_daily_counters()
     return {"ok": True, "message": "Daily counters reset"}
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# INBOX — Threads, Messages, Replies, Tags (Phase 6)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@router.patch("/campaigns/{campaign_id}/tags")
+async def update_campaign_tags(
+    campaign_id: int,
+    tags: list[str],
+    session: AsyncSession = Depends(get_session),
+):
+    """Update tags on a campaign (full replace)."""
+    campaign = await session.get(TgCampaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+    campaign.tags = tags
+    await session.flush()
+    return {"ok": True, "tags": campaign.tags}
+
+
+@router.get("/inbox/threads")
+async def list_inbox_threads(
+    campaign_id: Optional[int] = None,
+    account_id: Optional[int] = None,
+    campaign_tag: Optional[str] = None,
+    tag: Optional[str] = None,  # recipient inbox_tag filter
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+):
+    """List inbox threads — recipients who replied, grouped by recipient with latest reply info."""
+
+    # Subquery: per-recipient reply stats (latest reply time + count)
+    reply_stats_sq = (
+        select(
+            TgIncomingReply.recipient_id,
+            func.max(TgIncomingReply.received_at).label("last_reply_at"),
+            func.count(TgIncomingReply.id).label("reply_count"),
+        )
+        .group_by(TgIncomingReply.recipient_id)
+        .subquery("reply_stats")
+    )
+
+    # Main query: recipients joined with campaign + account + reply stats
+    query = (
+        select(
+            TgRecipient,
+            TgCampaign.name.label("campaign_name"),
+            TgCampaign.tags.label("campaign_tags"),
+            TgAccount.id.label("account_id"),
+            TgAccount.phone.label("account_phone"),
+            TgAccount.username.label("account_username"),
+            reply_stats_sq.c.last_reply_at,
+            reply_stats_sq.c.reply_count,
+        )
+        .join(TgCampaign, TgRecipient.campaign_id == TgCampaign.id)
+        .outerjoin(TgAccount, TgRecipient.assigned_account_id == TgAccount.id)
+        .join(reply_stats_sq, TgRecipient.id == reply_stats_sq.c.recipient_id)
+        .where(TgRecipient.status == TgRecipientStatus.REPLIED)
+    )
+
+    count_query = (
+        select(func.count(TgRecipient.id))
+        .join(TgCampaign, TgRecipient.campaign_id == TgCampaign.id)
+        .outerjoin(TgAccount, TgRecipient.assigned_account_id == TgAccount.id)
+        .join(reply_stats_sq, TgRecipient.id == reply_stats_sq.c.recipient_id)
+        .where(TgRecipient.status == TgRecipientStatus.REPLIED)
+    )
+
+    # Filters
+    if campaign_id is not None:
+        query = query.where(TgRecipient.campaign_id == campaign_id)
+        count_query = count_query.where(TgRecipient.campaign_id == campaign_id)
+
+    if account_id is not None:
+        query = query.where(TgRecipient.assigned_account_id == account_id)
+        count_query = count_query.where(TgRecipient.assigned_account_id == account_id)
+
+    if campaign_tag is not None:
+        # JSONB array contains check
+        tag_filter = TgCampaign.tags.op("@>")(f'["{campaign_tag}"]')
+        query = query.where(tag_filter)
+        count_query = count_query.where(tag_filter)
+
+    if tag is not None:
+        if tag == "":
+            query = query.where(TgRecipient.inbox_tag.is_(None))
+            count_query = count_query.where(TgRecipient.inbox_tag.is_(None))
+        else:
+            query = query.where(TgRecipient.inbox_tag == tag)
+            count_query = count_query.where(TgRecipient.inbox_tag == tag)
+
+    total = (await session.execute(count_query)).scalar() or 0
+
+    query = query.order_by(desc(reply_stats_sq.c.last_reply_at))
+    query = query.offset((page - 1) * page_size).limit(page_size)
+
+    result = await session.execute(query)
+    rows = result.all()
+
+    # For each row, fetch the actual latest reply text
+    items = []
+    for row in rows:
+        recip = row[0]  # TgRecipient
+        campaign_name = row.campaign_name
+        campaign_tags = row.campaign_tags or []
+        acct_id = row.account_id
+        account_phone = row.account_phone
+        account_username = row.account_username
+        last_reply_at = row.last_reply_at
+        reply_count = row.reply_count or 0
+
+        # Fetch the latest reply text
+        last_reply_q = await session.execute(
+            select(TgIncomingReply.message_text)
+            .where(
+                TgIncomingReply.recipient_id == recip.id,
+                TgIncomingReply.received_at == last_reply_at,
+            )
+            .limit(1)
+        )
+        last_reply_text = last_reply_q.scalar() or ""
+
+        items.append({
+            "recipient_id": recip.id,
+            "recipient_username": recip.username,
+            "first_name": recip.first_name,
+            "company_name": recip.company_name,
+            "campaign_id": recip.campaign_id,
+            "campaign_name": campaign_name,
+            "campaign_tags": campaign_tags,
+            "account_id": acct_id,
+            "account_phone": account_phone,
+            "account_username": account_username,
+            "last_message_text": last_reply_text[:200],
+            "last_message_at": last_reply_at.isoformat() if last_reply_at else None,
+            "reply_count": reply_count,
+            "tag": recip.inbox_tag,
+        })
+
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/inbox/threads/{recipient_id}/messages")
+async def get_thread_messages(
+    recipient_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+):
+    """Get all messages for a recipient thread — outbound + inbound merged by time."""
+    recipient = await session.get(TgRecipient, recipient_id)
+    if not recipient:
+        raise HTTPException(404, "Recipient not found")
+
+    # Load campaign name
+    campaign = await session.get(TgCampaign, recipient.campaign_id)
+    campaign_name = campaign.name if campaign else None
+
+    # Load account phone
+    account_phone = None
+    if recipient.assigned_account_id:
+        acct = await session.get(TgAccount, recipient.assigned_account_id)
+        account_phone = acct.phone if acct else None
+
+    # Outbound messages
+    out_result = await session.execute(
+        select(TgOutreachMessage)
+        .where(TgOutreachMessage.recipient_id == recipient_id)
+        .options(joinedload(TgOutreachMessage.account))
+        .order_by(TgOutreachMessage.sent_at)
+    )
+    outbound = []
+    for m in out_result.scalars().unique().all():
+        outbound.append({
+            "id": m.id,
+            "direction": "outbound",
+            "text": m.rendered_text,
+            "timestamp": m.sent_at.isoformat() if m.sent_at else None,
+            "account_id": m.account_id,
+            "account_phone": m.account.phone if m.account else None,
+            "status": m.status.value if m.status else None,
+        })
+
+    # Inbound replies
+    in_result = await session.execute(
+        select(TgIncomingReply)
+        .where(TgIncomingReply.recipient_id == recipient_id)
+        .options(joinedload(TgIncomingReply.account))
+        .order_by(TgIncomingReply.received_at)
+    )
+    inbound = []
+    for r in in_result.scalars().unique().all():
+        inbound.append({
+            "id": r.id,
+            "direction": "inbound",
+            "text": r.message_text,
+            "timestamp": r.received_at.isoformat() if r.received_at else None,
+            "account_id": r.account_id,
+            "account_phone": r.account.phone if r.account else None,
+            "status": None,
+        })
+
+    # Merge and sort by timestamp, then apply limit
+    messages = sorted(outbound + inbound, key=lambda x: x.get("timestamp") or "")
+    messages = messages[-limit:]  # keep the most recent N messages
+
+    return {
+        "recipient_id": recipient.id,
+        "username": recipient.username,
+        "first_name": recipient.first_name,
+        "campaign_id": recipient.campaign_id,
+        "campaign_name": campaign_name,
+        "account_phone": account_phone,
+        "tag": recipient.inbox_tag,
+        "messages": messages,
+    }
+
+
+@router.post("/inbox/threads/{recipient_id}/send")
+async def send_inbox_reply(
+    recipient_id: int,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Send a reply to a recipient from their assigned account (or last-used account)."""
+    text = body.get("text", "").strip()
+    if not text:
+        raise HTTPException(400, "Message text is required")
+
+    recipient = await session.get(TgRecipient, recipient_id)
+    if not recipient:
+        raise HTTPException(404, "Recipient not found")
+
+    # Determine which account to send from
+    account_id = recipient.assigned_account_id
+    if not account_id:
+        # Fallback: find the account that sent the last message to this recipient
+        last_msg_q = await session.execute(
+            select(TgOutreachMessage.account_id)
+            .where(TgOutreachMessage.recipient_id == recipient_id)
+            .order_by(desc(TgOutreachMessage.sent_at))
+            .limit(1)
+        )
+        account_id = last_msg_q.scalar()
+
+    if not account_id:
+        raise HTTPException(400, "No account found for this recipient (no assigned account and no previous messages)")
+
+    account, proxy = await _get_account_with_proxy(account_id, session)
+
+    if account.status != TgAccountStatus.ACTIVE:
+        raise HTTPException(400, f"Account {account.phone} is not active (status: {account.status.value})")
+
+    if not telegram_engine.session_file_exists(account.phone):
+        raise HTTPException(400, f"No session file for account {account.phone}")
+
+    kwargs = _account_connect_kwargs(account, proxy)
+    try:
+        await telegram_engine.connect(account.id, **kwargs)
+        result = await telegram_engine.send_message(
+            account.id,
+            recipient.username,
+            text,
+        )
+
+        if result.get("status") == "ok":
+            # Log the outbound message (step_id=None, variant_id=None for manual sends)
+            msg = TgOutreachMessage(
+                campaign_id=recipient.campaign_id,
+                recipient_id=recipient.id,
+                account_id=account.id,
+                step_id=None,
+                variant_id=None,
+                rendered_text=text,
+                status=TgMessageStatus.SENT,
+            )
+            session.add(msg)
+            await session.flush()
+
+        await telegram_engine.disconnect(account.id)
+        return {"ok": result.get("status") == "ok", "detail": result}
+
+    except Exception as e:
+        try:
+            await telegram_engine.disconnect(account.id)
+        except Exception:
+            pass
+        raise HTTPException(500, f"Failed to send reply: {e}")
+
+
+@router.patch("/inbox/threads/{recipient_id}/tag")
+async def tag_inbox_thread(
+    recipient_id: int,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Set inbox tag on a recipient. Valid: interested, info_requested, not_interested, or empty to clear."""
+    tag = body.get("tag", "")
+    valid_tags = {"interested", "info_requested", "not_interested", ""}
+    if tag not in valid_tags:
+        raise HTTPException(400, f"Invalid tag. Must be one of: {', '.join(valid_tags)}")
+
+    recipient = await session.get(TgRecipient, recipient_id)
+    if not recipient:
+        raise HTTPException(404, "Recipient not found")
+
+    recipient.inbox_tag = tag if tag else None
+    # Also store in custom_variables for backward compat
+    if recipient.custom_variables is None:
+        recipient.custom_variables = {}
+    cv = dict(recipient.custom_variables)
+    cv["inbox_tag"] = tag if tag else None
+    recipient.custom_variables = cv
+    await session.flush()
+    return {"ok": True}

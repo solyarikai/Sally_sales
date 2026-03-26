@@ -212,6 +212,9 @@ class TgCampaign(Base, TimestampMixin):
     silent = Column(Boolean, nullable=False, default=False)
     delete_dialog_after = Column(Boolean, nullable=False, default=False)
 
+    # Tags for organization (project names, etc.)
+    tags = Column(JSONB, nullable=False, default=list)
+
     # Counters
     messages_sent_today = Column(Integer, nullable=False, default=0)
     total_messages_sent = Column(Integer, nullable=False, default=0)
@@ -263,6 +266,9 @@ class TgRecipient(Base, TimestampMixin):
     assigned_account_id = Column(Integer, ForeignKey("tg_accounts.id", ondelete="SET NULL"), nullable=True)
     next_message_at = Column(DateTime, nullable=True, index=True)
     last_message_sent_at = Column(DateTime, nullable=True)
+
+    # Inbox tag for reply classification
+    inbox_tag = Column(String(50), nullable=True)  # interested, info_requested, not_interested
 
     # Relationships
     campaign = relationship("TgCampaign", back_populates="recipients")

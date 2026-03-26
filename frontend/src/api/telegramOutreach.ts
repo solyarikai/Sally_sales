@@ -517,4 +517,20 @@ export const telegramOutreachApi = {
 
   resetDailyCounters: async () =>
     (await api.post(`${BASE}/worker/reset-daily-counters`)).data,
+
+  // Inbox
+  listInboxThreads: async (params: { campaign_id?: number; account_id?: number; campaign_tag?: string; tag?: string; page?: number; page_size?: number }) =>
+    (await api.get(`${BASE}/inbox/threads`, { params })).data,
+
+  getThreadMessages: async (recipientId: number, limit: number = 50) =>
+    (await api.get(`${BASE}/inbox/threads/${recipientId}/messages`, { params: { limit } })).data,
+
+  sendInboxReply: async (recipientId: number, text: string) =>
+    (await api.post(`${BASE}/inbox/threads/${recipientId}/send`, { text })).data,
+
+  tagInboxThread: async (recipientId: number, tag: string) =>
+    (await api.patch(`${BASE}/inbox/threads/${recipientId}/tag`, { tag })).data,
+
+  updateCampaignTags: async (campaignId: number, tags: string[]) =>
+    (await api.patch(`${BASE}/campaigns/${campaignId}/tags`, tags)).data,
 };
