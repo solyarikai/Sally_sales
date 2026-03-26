@@ -430,11 +430,16 @@ export function ContactsPage() {
     loadCampaigns();
   }, []);
 
+  const statsRequestRef = useRef(0);
   const loadStats = async (projectId?: number | null) => {
+    const requestId = ++statsRequestRef.current;
     try {
       const pid = projectId !== undefined ? projectId : activeProject?.id;
       const data = await contactsApi.getStats(pid);
-      setStats(data);
+      // Only update if this is still the latest request (prevents race condition)
+      if (requestId === statsRequestRef.current) {
+        setStats(data);
+      }
     } catch (err) {
       console.error('Failed to load stats:', err);
     }
