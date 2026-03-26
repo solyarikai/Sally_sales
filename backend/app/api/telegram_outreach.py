@@ -17,6 +17,7 @@ from app.models.telegram_outreach import (
     TgCampaign, TgCampaignAccount,
     TgRecipient, TgSequence, TgSequenceStep, TgStepVariant, TgOutreachMessage,
     TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgRecipientStatus, TgMessageStatus,
+    TgInboxDialog,
 )
 from app.schemas.telegram_outreach import (
     TgProxyGroupCreate, TgProxyGroupUpdate, TgProxyGroupResponse,
@@ -3377,3 +3378,241 @@ async def tag_inbox_thread(
     recipient.custom_variables = cv
     await session.flush()
     return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# UNIFIED INBOX — Dialog-based (TgInboxDialog cache)
+# ═══════════════════════════════════════════════════════════════════════
+
+from datetime import datetime
+from app.services.inbox_sync_service import inbox_sync_service
+
+
+@router.get("/inbox/dialogs")
+async def list_inbox_dialogs(
+    account_id: Optional[int] = None,
+    campaign_id: Optional[int] = None,
+    campaign_tag: Optional[str] = None,
+    tag: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+):
+    """List cached dialogs. At least one filter (account_id or campaign_id or campaign_tag) required."""
+    if not account_id and not campaign_id and not campaign_tag:
+        raise HTTPException(400, "Select at least one filter: account, campaign, or campaign tag")
+
+    query = select(TgInboxDialog).order_by(TgInboxDialog.last_message_at.desc().nullslast())
+    count_q = select(func.count(TgInboxDialog.id))
+
+    if account_id:
+        query = query.where(TgInboxDialog.account_id == account_id)
+        count_q = count_q.where(TgInboxDialog.account_id == account_id)
+    if campaign_id:
+        query = query.where(TgInboxDialog.campaign_id == campaign_id)
+        count_q = count_q.where(TgInboxDialog.campaign_id == campaign_id)
+    if campaign_tag:
+        # Join with TgCampaign to filter by tag
+        query = query.join(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(
+            TgCampaign.tags.op("@>")(f'["{campaign_tag}"]')
+        )
+        count_q = count_q.join(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(
+            TgCampaign.tags.op("@>")(f'["{campaign_tag}"]')
+        )
+    if tag:
+        query = query.where(TgInboxDialog.inbox_tag == tag)
+        count_q = count_q.where(TgInboxDialog.inbox_tag == tag)
+    if search:
+        like = f"%{search}%"
+        query = query.where(
+            (TgInboxDialog.peer_name.ilike(like)) | (TgInboxDialog.peer_username.ilike(like))
+        )
+        count_q = count_q.where(
+            (TgInboxDialog.peer_name.ilike(like)) | (TgInboxDialog.peer_username.ilike(like))
+        )
+
+    total = (await session.execute(count_q)).scalar() or 0
+    query = query.offset((page - 1) * page_size).limit(page_size)
+    result = await session.execute(query)
+    dialogs = result.scalars().all()
+
+    # Get account info for each dialog
+    account_cache = {}
+    items = []
+    for d in dialogs:
+        if d.account_id not in account_cache:
+            acc = await session.get(TgAccount, d.account_id)
+            account_cache[d.account_id] = acc
+        acc = account_cache[d.account_id]
+
+        items.append({
+            "id": d.id,
+            "account_id": d.account_id,
+            "account_phone": acc.phone if acc else None,
+            "account_name": f"{acc.first_name or ''} {acc.last_name or ''}".strip() if acc else None,
+            "peer_id": d.peer_id,
+            "peer_name": d.peer_name or "Unknown",
+            "peer_username": d.peer_username,
+            "last_message_text": d.last_message_text,
+            "last_message_at": d.last_message_at.isoformat() if d.last_message_at else None,
+            "last_message_outbound": d.last_message_outbound,
+            "unread_count": d.unread_count,
+            "campaign_id": d.campaign_id,
+            "tag": d.inbox_tag,
+        })
+
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/inbox/dialogs/{dialog_id}/messages")
+async def get_dialog_messages(
+    dialog_id: int,
+    limit: int = Query(30, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+):
+    """Fetch real messages from Telegram for a dialog."""
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if not dialog:
+        raise HTTPException(404, "Dialog not found")
+
+    account = await session.get(TgAccount, dialog.account_id)
+    if not account:
+        raise HTTPException(404, "Account not found")
+
+    # Build connect kwargs
+    proxy = None
+    if account.assigned_proxy_id:
+        from app.models.telegram_outreach import TgProxy
+        proxy = await session.get(TgProxy, account.assigned_proxy_id)
+
+    kwargs = {"phone": account.phone, "api_id": account.api_id, "api_hash": account.api_hash}
+    if proxy:
+        kwargs["proxy"] = (proxy.protocol if proxy.protocol != "mtproto" else "socks5", proxy.host, proxy.port, True, proxy.username, proxy.password)
+
+    try:
+        await telegram_engine.connect(dialog.account_id, **kwargs)
+        client = telegram_engine.get_client(dialog.account_id)
+        me = await client.get_me()
+
+        from telethon.tl.types import InputPeerUser
+        try:
+            entity = await client.get_input_entity(dialog.peer_id)
+        except:
+            try:
+                await client.get_dialogs(limit=100)
+                entity = await client.get_input_entity(dialog.peer_id)
+            except:
+                entity = InputPeerUser(dialog.peer_id, 0)
+
+        messages = []
+        async for msg in client.iter_messages(entity, limit=limit):
+            if not msg.text:
+                continue
+            messages.append({
+                "id": msg.id,
+                "direction": "outbound" if msg.sender_id == me.id else "inbound",
+                "text": msg.text,
+                "timestamp": msg.date.isoformat() if msg.date else None,
+            })
+
+        messages.reverse()  # chronological order
+        await telegram_engine.disconnect(dialog.account_id)
+
+        return {
+            "messages": messages,
+            "peer_name": dialog.peer_name,
+            "peer_username": dialog.peer_username,
+            "account_phone": account.phone,
+            "campaign_id": dialog.campaign_id,
+            "tag": dialog.inbox_tag,
+        }
+    except Exception as e:
+        try:
+            await telegram_engine.disconnect(dialog.account_id)
+        except:
+            pass
+        raise HTTPException(500, f"Failed to fetch messages: {str(e)[:100]}")
+
+
+@router.post("/inbox/dialogs/{dialog_id}/send")
+async def send_dialog_message(
+    dialog_id: int,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Send a message in a dialog via the dialog's account."""
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400, "Message text required")
+
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if not dialog:
+        raise HTTPException(404, "Dialog not found")
+
+    account = await session.get(TgAccount, dialog.account_id)
+    if not account or account.status != TgAccountStatus.ACTIVE:
+        raise HTTPException(400, "Account not active")
+
+    proxy = None
+    if account.assigned_proxy_id:
+        from app.models.telegram_outreach import TgProxy
+        proxy = await session.get(TgProxy, account.assigned_proxy_id)
+
+    kwargs = {"phone": account.phone, "api_id": account.api_id, "api_hash": account.api_hash}
+    if proxy:
+        kwargs["proxy"] = (proxy.protocol if proxy.protocol != "mtproto" else "socks5", proxy.host, proxy.port, True, proxy.username, proxy.password)
+
+    try:
+        await telegram_engine.connect(dialog.account_id, **kwargs)
+        result = await telegram_engine.send_message(dialog.account_id, str(dialog.peer_id), text)
+        await telegram_engine.disconnect(dialog.account_id)
+
+        if result.get("status") == "sent":
+            # Update dialog cache
+            dialog.last_message_text = text[:500]
+            dialog.last_message_at = datetime.utcnow()
+            dialog.last_message_outbound = True
+            await session.commit()
+
+        return result
+    except Exception as e:
+        try:
+            await telegram_engine.disconnect(dialog.account_id)
+        except:
+            pass
+        raise HTTPException(500, f"Send failed: {str(e)[:100]}")
+
+
+@router.patch("/inbox/dialogs/{dialog_id}/tag")
+async def tag_dialog(
+    dialog_id: int,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Tag an inbox dialog."""
+    tag = body.get("tag", "")
+    if tag and tag not in ("interested", "info_requested", "not_interested"):
+        raise HTTPException(400, "Invalid tag")
+
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if not dialog:
+        raise HTTPException(404, "Dialog not found")
+
+    dialog.inbox_tag = tag or None
+    await session.commit()
+    return {"ok": True}
+
+
+@router.post("/inbox/sync")
+async def trigger_inbox_sync(
+    account_id: Optional[int] = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """Trigger inbox sync for one account or all active accounts."""
+    if account_id:
+        count = await inbox_sync_service.sync_account(account_id, session)
+        return {"ok": True, "synced": count}
+    else:
+        count = await inbox_sync_service.sync_all()
+        return {"ok": True, "synced": count}

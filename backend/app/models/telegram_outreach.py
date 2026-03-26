@@ -7,7 +7,7 @@ message sequences (follow-up chains), recipients, and sent message logs.
 import enum
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, DateTime, Text, Boolean, Float,
+    Column, Integer, BigInteger, String, DateTime, Text, Boolean, Float,
     ForeignKey, Index, Enum as SQLEnum, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -411,6 +411,32 @@ class TgConversation(Base):
     campaign = relationship("TgCampaign")
     recipient = relationship("TgRecipient")
     account = relationship("TgAccount")
+
+
+class TgInboxDialog(Base):
+    """Cached Telegram dialog for unified inbox."""
+    __tablename__ = "tg_inbox_dialogs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    account_id = Column(Integer, ForeignKey("tg_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    peer_id = Column(BigInteger, nullable=False)  # Telegram user ID
+    peer_name = Column(String(200), nullable=True)  # first_name + last_name
+    peer_username = Column(String(100), nullable=True)
+    peer_photo_small = Column(String(500), nullable=True)  # cached photo URL/path
+    last_message_text = Column(Text, nullable=True)
+    last_message_at = Column(DateTime, nullable=True)
+    last_message_outbound = Column(Boolean, nullable=True)  # True if last msg is ours
+    unread_count = Column(Integer, nullable=False, default=0)
+    campaign_id = Column(Integer, ForeignKey("tg_campaigns.id", ondelete="SET NULL"), nullable=True)
+    inbox_tag = Column(String(50), nullable=True)  # interested/info_requested/not_interested
+    synced_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_tg_inbox_dialogs_account_peer", "account_id", "peer_id", unique=True),
+    )
+
+    account = relationship("TgAccount")
+    campaign = relationship("TgCampaign")
 
 
 class TgContactStatus(str, enum.Enum):

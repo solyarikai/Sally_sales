@@ -39,7 +39,7 @@ from .telegram_outreach import (
     TgCampaign, TgCampaignAccount, TgRecipient,
     TgSequence, TgSequenceStep, TgStepVariant,
     TgOutreachMessage, TgIncomingReply, TgAutoReplyConfig,
-    TgConversation, TgContact,
+    TgConversation, TgInboxDialog, TgContact,
 )
 from .meeting import Meeting, MeetingStatus, MeetingOutcome
 from .outreach_stats import OutreachStats
@@ -110,6 +110,8 @@ __all__ = [
     "TelegramChat", "TelegramChatMessage", "TelegramChatInsight",
     # Telegram DM Inbox
     "TelegramDMAccount",
+    # Telegram Inbox Dialogs
+    "TgInboxDialog",
     # Meetings
     "Meeting", "MeetingStatus", "MeetingOutcome",
     # Outreach Stats

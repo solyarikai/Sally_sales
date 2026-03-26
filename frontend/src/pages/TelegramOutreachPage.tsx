@@ -4,7 +4,7 @@ import {
   Users, Send, Shield, Plus, Search, Trash2,
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RotateCw, RefreshCw,
-  MessageCircle,
+  MessageCircle, Info,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
@@ -574,8 +574,14 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
   useEffect(() => { loadCampaigns(); }, [loadCampaigns]);
 
   const handleCreate = async () => {
+    const name = prompt('Campaign name:', 'New Campaign');
+    if (!name) return;
+    const tagsInput = prompt('Tags (comma-separated, optional):');
+    const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(Boolean) : [];
     try {
-      await telegramOutreachApi.createCampaign({ name: 'New Campaign' });
+      const data: Record<string, any> = { name };
+      if (tags.length > 0) data.tags = tags;
+      await telegramOutreachApi.createCampaign(data);
       toast('Campaign created', 'success');
       loadCampaigns();
     } catch {
@@ -673,6 +679,7 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
               <tr style={{ background: '#F8F8F6' }}>
                 <th style={thStyle({ textAlign: 'left', padding: '10px 16px' })}>Name</th>
                 <th style={thStyle()}>Status</th>
+                <th style={thStyle()}>Tags</th>
                 <th style={thStyle({ minWidth: 100 })}>Progress</th>
                 <th style={thStyle({ textAlign: 'right' })}>Sent</th>
                 <th style={thStyle({ textAlign: 'right' })}>Today</th>
@@ -694,6 +701,24 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
                     <span className="truncate block">{c.name}</span>
                   </td>
                   <td style={{ padding: '12px 12px' }}>{statusBadge(c.status)}</td>
+                  <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {((c as any).tags || []).map((tag: string) => (
+                        <span key={tag} className="px-2 py-0.5 rounded-full text-[11px] font-medium"
+                          style={{ background: A.blueBg, color: A.blue }}>{tag}</span>
+                      ))}
+                      <button onClick={(e) => {
+                        e.stopPropagation();
+                        const input = prompt('Tags (comma-separated):', ((c as any).tags || []).join(', '));
+                        if (input !== null) {
+                          const tags = input.split(',').map((t: string) => t.trim()).filter(Boolean);
+                          telegramOutreachApi.updateCampaignTags(c.id, tags).then(() => loadCampaigns());
+                        }
+                      }} className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-[#F0F0ED]" style={{ color: A.text3 }}>
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </td>
                   <td style={{ padding: '12px 12px', minWidth: 100 }}>{progressBar(c)}</td>
                   <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{c.total_messages_sent}</td>
                   <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{c.messages_sent_today}</td>
@@ -2453,28 +2478,44 @@ const TAG_COLORS: Record<string, { bg: string; text: string; border: string }> =
   not_interested:  { bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
 };
 
+function DialogAvatar({ name, peerId }: { name: string; peerId: number }) {
+  const initials = name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+  const hue = (peerId || 0) % 360;
+  return (
+    <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold"
+         style={{ backgroundColor: `hsl(${hue}, 45%, 55%)` }}>
+      {initials}
+    </div>
+  );
+}
+
 function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
-  const [threads, setThreads] = useState<any[]>([]);
-  const [selectedThread, setSelectedThread] = useState<any>(null);
+  const [dialogs, setDialogs] = useState<any[]>([]);
+  const [selectedDialog, setSelectedDialog] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
-  const [filterCampaign, setFilterCampaign] = useState('');
-  const [filterAccount, setFilterAccount] = useState('');
-  const [filterTag, setFilterTag] = useState('');
+  const [filterAccount, setFilterAccount] = useState<string>('');
+  const [filterCampaign, setFilterCampaign] = useState<string>('');
+  const [filterTag, setFilterTag] = useState<string>('');
+  const [search, setSearch] = useState('');
+  const [applied, setApplied] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [showCrmInfo, setShowCrmInfo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load campaigns & accounts on mount
+  // Load campaigns & accounts on mount (but NOT dialogs — wait for Apply)
   useEffect(() => {
     (async () => {
       try {
         const [cRes, aRes] = await Promise.all([
           telegramOutreachApi.listCampaigns(),
-          telegramOutreachApi.listAccounts({ page_size: 500 }),
+          telegramOutreachApi.listAccounts({ page_size: 200 }),
         ]);
         setCampaigns(cRes.items || []);
         setAccounts(aRes.items || []);
@@ -2482,44 +2523,60 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     })();
   }, []);
 
-  // Load threads (on mount + filter change + auto-refresh every 10s)
-  const loadThreads = useCallback(async () => {
+  // Apply handler — loads dialogs
+  const handleApply = useCallback(async () => {
+    if (!filterAccount && !filterCampaign) {
+      toast('Select at least one filter (account or campaign)', 'error');
+      return;
+    }
+    setApplied(true);
+    setLoading(true);
     try {
-      const params: any = {};
-      if (filterCampaign) params.campaign_id = Number(filterCampaign);
+      const params: any = { page: 1, page_size: 100 };
       if (filterAccount) params.account_id = Number(filterAccount);
+      if (filterCampaign) params.campaign_id = Number(filterCampaign);
       if (filterTag) params.tag = filterTag;
-      params.page_size = 100;
-      const data = await telegramOutreachApi.listInboxThreads(params);
-      setThreads(data.items || data || []);
+      const data = await telegramOutreachApi.listInboxDialogs(params);
+      setDialogs(data.items || data || []);
     } catch {
-      // silently fail on auto-refresh
+      toast('Failed to load conversations', 'error');
     } finally {
       setLoading(false);
     }
-  }, [filterCampaign, filterAccount, filterTag]);
+  }, [filterAccount, filterCampaign, filterTag, toast]);
 
-  useEffect(() => {
-    setLoading(true);
-    loadThreads();
-    const iv = setInterval(loadThreads, 10000);
-    return () => clearInterval(iv);
-  }, [loadThreads]);
+  // Sync handler
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const aid = filterAccount ? Number(filterAccount) : undefined;
+      await telegramOutreachApi.triggerInboxSync(aid);
+      toast('Sync triggered', 'success');
+      if (applied) handleApply();
+    } catch {
+      toast('Sync failed', 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
-  // Load messages when thread selected
+  // Load messages when dialog selected
   useEffect(() => {
-    if (!selectedThread) { setMessages([]); return; }
+    if (!selectedDialog) { setMessages([]); return; }
     let cancelled = false;
+    setLoadingMessages(true);
     (async () => {
       try {
-        const data = await telegramOutreachApi.getThreadMessages(selectedThread.recipient_id, 50);
+        const data = await telegramOutreachApi.getDialogMessages(selectedDialog.id, 30);
         if (!cancelled) setMessages(data.messages || data || []);
       } catch {
         if (!cancelled) setMessages([]);
+      } finally {
+        if (!cancelled) setLoadingMessages(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedThread]);
+  }, [selectedDialog]);
 
   // Auto-scroll to bottom when messages load
   useEffect(() => {
@@ -2528,12 +2585,12 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
 
   // Send handler
   const handleSend = async () => {
-    if (!selectedThread || !messageText.trim() || sending) return;
+    if (!selectedDialog || !messageText.trim() || sending) return;
     setSending(true);
     try {
-      await telegramOutreachApi.sendInboxReply(selectedThread.recipient_id, messageText.trim());
+      await telegramOutreachApi.sendDialogMessage(selectedDialog.id, messageText.trim());
       setMessageText('');
-      const data = await telegramOutreachApi.getThreadMessages(selectedThread.recipient_id, 50);
+      const data = await telegramOutreachApi.getDialogMessages(selectedDialog.id, 30);
       setMessages(data.messages || data || []);
       inputRef.current?.focus();
     } catch (e: any) {
@@ -2545,84 +2602,144 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
 
   // Tag handler
   const handleTag = async (tag: string) => {
-    if (!selectedThread) return;
+    if (!selectedDialog) return;
     try {
-      await telegramOutreachApi.tagInboxThread(selectedThread.recipient_id, tag);
-      setSelectedThread((prev: any) => prev ? { ...prev, tag } : prev);
-      setThreads(prev => prev.map(t =>
-        t.recipient_id === selectedThread.recipient_id ? { ...t, tag } : t
+      await telegramOutreachApi.tagDialog(selectedDialog.id, tag);
+      setSelectedDialog((prev: any) => prev ? { ...prev, tag } : prev);
+      setDialogs(prev => prev.map(d =>
+        d.id === selectedDialog.id ? { ...d, tag } : d
       ));
       toast(`Tagged as ${tag.replace('_', ' ')}`, 'success');
     } catch (e: any) {
-      toast(e?.response?.data?.detail || 'Failed to tag thread', 'error');
+      toast(e?.response?.data?.detail || 'Failed to tag', 'error');
     }
   };
+
+  // Local search filter
+  const filteredDialogs = search.trim()
+    ? dialogs.filter(d => {
+        const q = search.toLowerCase();
+        return (d.peer_name || '').toLowerCase().includes(q)
+          || (d.peer_username || '').toLowerCase().includes(q)
+          || (d.name || '').toLowerCase().includes(q)
+          || (d.username || '').toLowerCase().includes(q);
+      })
+    : dialogs;
 
   const selectCls = `h-8 rounded-lg border text-xs px-2 outline-none appearance-none cursor-pointer`;
 
   return (
     <div className="flex rounded-xl overflow-hidden" style={{ background: A.surface, border: `1px solid ${A.border}`, height: 'calc(100vh - 220px)', minHeight: 500 }}>
-      {/* ── Left panel: Thread list ── */}
+      {/* ── Left panel: Dialog list ── */}
       <div className="flex flex-col" style={{ width: 320, borderRight: `1px solid ${A.border}` }}>
+        {/* Search */}
+        <div className="px-3 pt-3 pb-1">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: A.text3 }} />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name or username..."
+              className="w-full h-8 pl-8 pr-3 rounded-lg border text-xs outline-none"
+              style={{ borderColor: A.border, color: A.text1, background: '#F9FAFB' }}
+            />
+          </div>
+        </div>
+
         {/* Filters */}
         <div className="p-3 flex flex-col gap-2" style={{ borderBottom: `1px solid ${A.border}` }}>
           <div className="flex gap-2">
-            <select
-              value={filterCampaign}
-              onChange={e => setFilterCampaign(e.target.value)}
-              className={selectCls}
-              style={{ flex: 1, borderColor: A.border, color: filterCampaign ? A.text1 : A.text3, background: A.surface }}
-            >
-              <option value="">All Campaigns</option>
-              {campaigns.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
             <select
               value={filterAccount}
               onChange={e => setFilterAccount(e.target.value)}
               className={selectCls}
               style={{ flex: 1, borderColor: A.border, color: filterAccount ? A.text1 : A.text3, background: A.surface }}
             >
-              <option value="">All Accounts</option>
+              <option value="">Account</option>
               {accounts.map((a: any) => (
                 <option key={a.id} value={a.id}>{a.phone}{a.username ? ` @${a.username}` : ''}</option>
               ))}
             </select>
+            <select
+              value={filterCampaign}
+              onChange={e => setFilterCampaign(e.target.value)}
+              className={selectCls}
+              style={{ flex: 1, borderColor: A.border, color: filterCampaign ? A.text1 : A.text3, background: A.surface }}
+            >
+              <option value="">Campaign</option>
+              {campaigns.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </div>
-          <select
-            value={filterTag}
-            onChange={e => setFilterTag(e.target.value)}
-            className={selectCls}
-            style={{ borderColor: A.border, color: filterTag ? A.text1 : A.text3, background: A.surface }}
-          >
-            <option value="">All Tags</option>
-            <option value="interested">Interested</option>
-            <option value="info_requested">Info Requested</option>
-            <option value="not_interested">Not Interested</option>
-          </select>
+          <div className="flex gap-2">
+            <select
+              value={filterTag}
+              onChange={e => setFilterTag(e.target.value)}
+              className={selectCls}
+              style={{ flex: 1, borderColor: A.border, color: filterTag ? A.text1 : A.text3, background: A.surface }}
+            >
+              <option value="">Tag</option>
+              <option value="interested">Interested</option>
+              <option value="info_requested">Info Requested</option>
+              <option value="not_interested">Not Interested</option>
+            </select>
+            <button
+              onClick={handleApply}
+              disabled={loading}
+              className="h-8 px-4 rounded-lg text-xs font-semibold text-white transition-colors"
+              style={{ background: A.blue, cursor: loading ? 'wait' : 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background = A.blueHover; }}
+              onMouseLeave={e => { e.currentTarget.style.background = A.blue; }}
+            >
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Apply'}
+            </button>
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              title="Sync from Telegram"
+              className="h-8 w-8 rounded-lg flex items-center justify-center border transition-colors"
+              style={{ borderColor: A.border, background: A.surface, cursor: syncing ? 'wait' : 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = A.surface; }}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} style={{ color: A.text2 }} />
+            </button>
+          </div>
         </div>
 
-        {/* Thread list */}
+        {/* Dialog list */}
         <div className="flex-1 overflow-y-auto">
-          {loading ? (
+          {!applied ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 px-6">
+              <Filter className="w-7 h-7" style={{ color: A.text3 }} />
+              <span className="text-xs text-center" style={{ color: A.text3, lineHeight: '1.5' }}>
+                Select account or campaign to load conversations
+              </span>
+            </div>
+          ) : loading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="w-5 h-5 animate-spin" style={{ color: A.text3 }} />
             </div>
-          ) : threads.length === 0 ? (
+          ) : filteredDialogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1">
               <MessageCircle className="w-6 h-6" style={{ color: A.text3 }} />
-              <span className="text-xs" style={{ color: A.text3 }}>No conversations</span>
+              <span className="text-xs" style={{ color: A.text3 }}>
+                {search.trim() ? 'No matches' : 'No conversations'}
+              </span>
             </div>
           ) : (
-            threads.map((thread: any) => {
-              const isSelected = selectedThread?.recipient_id === thread.recipient_id;
-              const tagInfo = thread.tag ? TAG_COLORS[thread.tag] : null;
+            filteredDialogs.map((dialog: any) => {
+              const isSelected = selectedDialog?.id === dialog.id;
+              const dName = dialog.peer_name || dialog.name || dialog.peer_username || dialog.username || '';
+              const dUsername = dialog.peer_username || dialog.username || '';
+              const tagInfo = dialog.tag ? TAG_COLORS[dialog.tag] : null;
               return (
                 <div
-                  key={thread.recipient_id}
-                  onClick={() => setSelectedThread(thread)}
-                  className="px-3 py-2.5 cursor-pointer transition-colors"
+                  key={dialog.id}
+                  onClick={() => setSelectedDialog(dialog)}
+                  className="px-3 py-2.5 cursor-pointer transition-colors flex gap-2.5 items-start"
                   style={{
                     background: isSelected ? A.blueBg : 'transparent',
                     borderBottom: `1px solid ${A.border}`,
@@ -2630,32 +2747,43 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#F9FAFB'; }}
                   onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold truncate" style={{ color: A.text1 }}>
-                      {thread.username || thread.first_name || `ID ${thread.recipient_id}`}
-                    </span>
-                    <span className="text-[10px] flex-shrink-0" style={{ color: A.text3 }}>
-                      {formatRelativeTime(thread.last_message_at)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-xs truncate flex-1" style={{ color: A.text2, lineHeight: '1.4' }}>
-                      {thread.last_message_preview || 'No messages'}
-                    </p>
-                    {tagInfo && (
-                      <span
-                        className="text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0"
-                        style={{ background: tagInfo.bg, color: tagInfo.text, border: `1px solid ${tagInfo.border}` }}
-                      >
-                        {thread.tag.replace('_', ' ')}
+                  <DialogAvatar name={dName} peerId={dialog.peer_id || dialog.id || 0} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold truncate" style={{ color: A.text1 }}>
+                        {dName || `Dialog ${dialog.id}`}
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {dialog.unread_count > 0 && (
+                          <span className="w-2 h-2 rounded-full" style={{ background: A.blue }} />
+                        )}
+                        <span className="text-[10px]" style={{ color: A.text3 }}>
+                          {formatRelativeTime(dialog.last_message_at || dialog.updated_at)}
+                        </span>
+                      </div>
+                    </div>
+                    {dUsername && (
+                      <span className="text-[11px] block truncate" style={{ color: A.text3 }}>@{dUsername}</span>
+                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-xs truncate flex-1" style={{ color: A.text2, lineHeight: '1.4' }}>
+                        {dialog.last_message_preview || dialog.last_message || 'No messages'}
+                      </p>
+                      {tagInfo && (
+                        <span
+                          className="text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: tagInfo.bg, color: tagInfo.text, border: `1px solid ${tagInfo.border}` }}
+                        >
+                          {dialog.tag.replace('_', ' ')}
+                        </span>
+                      )}
+                    </div>
+                    {dialog.campaign_name && (
+                      <span className="text-[10px] mt-0.5 block" style={{ color: A.text3 }}>
+                        {dialog.campaign_name}
                       </span>
                     )}
                   </div>
-                  {thread.campaign_name && (
-                    <span className="text-[10px] mt-0.5 block" style={{ color: A.text3 }}>
-                      {thread.campaign_name}
-                    </span>
-                  )}
                 </div>
               );
             })
@@ -2665,133 +2793,251 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
 
       {/* ── Right panel: Chat view ── */}
       <div className="flex-1 flex flex-col" style={{ minWidth: 0 }}>
-        {!selectedThread ? (
+        {!selectedDialog ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <MessageCircle className="w-10 h-10 mx-auto mb-2" style={{ color: A.text3 }} />
-              <p className="text-sm" style={{ color: A.text3 }}>Select a conversation</p>
+              <p className="text-sm" style={{ color: A.text3 }}>
+                {applied ? 'Select a conversation' : 'Apply filters to load conversations'}
+              </p>
             </div>
           </div>
         ) : (
           <>
             {/* Chat header */}
             <div className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: `1px solid ${A.border}` }}>
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold" style={{ background: A.blueBg, color: A.blue }}>
-                {(selectedThread.username || selectedThread.first_name || '?')[0].toUpperCase()}
-              </div>
+              <DialogAvatar
+                name={selectedDialog.peer_name || selectedDialog.name || selectedDialog.peer_username || ''}
+                peerId={selectedDialog.peer_id || selectedDialog.id || 0}
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate" style={{ color: A.text1 }}>
-                  {selectedThread.username || selectedThread.first_name || `ID ${selectedThread.recipient_id}`}
+                  {selectedDialog.peer_name || selectedDialog.name || `Dialog ${selectedDialog.id}`}
                 </p>
                 <p className="text-[11px] truncate" style={{ color: A.text3 }}>
-                  {[selectedThread.campaign_name, selectedThread.account_phone].filter(Boolean).join(' \u00B7 ')}
+                  {[
+                    selectedDialog.peer_username || selectedDialog.username ? `@${selectedDialog.peer_username || selectedDialog.username}` : null,
+                    selectedDialog.campaign_name,
+                    selectedDialog.account_phone,
+                  ].filter(Boolean).join(' \u00B7 ')}
                 </p>
               </div>
-              {selectedThread.tag && TAG_COLORS[selectedThread.tag] && (
+              {selectedDialog.tag && TAG_COLORS[selectedDialog.tag] && (
                 <span
                   className="text-[11px] font-medium px-2 py-0.5 rounded-full"
                   style={{
-                    background: TAG_COLORS[selectedThread.tag].bg,
-                    color: TAG_COLORS[selectedThread.tag].text,
-                    border: `1px solid ${TAG_COLORS[selectedThread.tag].border}`,
+                    background: TAG_COLORS[selectedDialog.tag].bg,
+                    color: TAG_COLORS[selectedDialog.tag].text,
+                    border: `1px solid ${TAG_COLORS[selectedDialog.tag].border}`,
                   }}
                 >
-                  {selectedThread.tag.replace('_', ' ')}
+                  {selectedDialog.tag.replace('_', ' ')}
                 </span>
               )}
+              <button
+                onClick={() => setShowCrmInfo(!showCrmInfo)}
+                title="Contact info"
+                className="w-8 h-8 rounded-lg flex items-center justify-center border transition-colors"
+                style={{
+                  borderColor: showCrmInfo ? A.blue : A.border,
+                  background: showCrmInfo ? A.blueBg : 'transparent',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={e => { if (!showCrmInfo) e.currentTarget.style.background = '#F3F4F6'; }}
+                onMouseLeave={e => { if (!showCrmInfo) e.currentTarget.style.background = showCrmInfo ? A.blueBg : 'transparent'; }}
+              >
+                <Info className="w-4 h-4" style={{ color: showCrmInfo ? A.blue : A.text3 }} />
+              </button>
             </div>
 
-            {/* Messages area */}
-            <div className="flex-1 overflow-y-auto px-4 py-3" style={{ background: '#F9FAFB' }}>
-              {messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <span className="text-xs" style={{ color: A.text3 }}>No messages yet</span>
+            {/* Main content area (messages + optional CRM sidebar) */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* Messages column */}
+              <div className="flex-1 flex flex-col" style={{ minWidth: 0 }}>
+                {/* Messages area */}
+                <div className="flex-1 overflow-y-auto px-4 py-3" style={{ background: '#F9FAFB' }}>
+                  {loadingMessages ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Loader2 className="w-5 h-5 animate-spin" style={{ color: A.text3 }} />
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <span className="text-xs" style={{ color: A.text3 }}>No messages yet</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {messages.map((msg: any, idx: number) => {
+                        const isOutbound = msg.direction === 'outbound' || msg.direction === 'sent' || msg.is_outbound;
+                        return (
+                          <div key={msg.id || idx} className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+                            <div
+                              className="max-w-[75%] px-3 py-2 text-sm"
+                              style={{
+                                background: isOutbound ? A.blueBg : '#F3F4F6',
+                                color: A.text1,
+                                borderRadius: isOutbound
+                                  ? '16px 16px 4px 16px'
+                                  : '16px 16px 16px 4px',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.45' }}>{msg.text || msg.rendered_text || msg.message_text || ''}</p>
+                              <p className="text-[10px] mt-1 text-right" style={{ color: A.text3 }}>
+                                {msg.sent_at || msg.received_at || msg.created_at
+                                  ? new Date(msg.sent_at || msg.received_at || msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                  : ''}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {messages.map((msg: any, idx: number) => {
-                    const isOutbound = msg.direction === 'outbound' || msg.direction === 'sent' || msg.is_outbound;
+
+                {/* Tag buttons */}
+                <div className="px-4 py-2 flex gap-2" style={{ borderTop: `1px solid ${A.border}` }}>
+                  {([
+                    { key: 'interested', label: 'Interested', bg: '#ECFDF5', text: '#0D9488', border: '#99F6E4' },
+                    { key: 'info_requested', label: 'Info Requested', bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' },
+                    { key: 'not_interested', label: 'Not Interested', bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
+                  ] as const).map(t => {
+                    const isActive = selectedDialog.tag === t.key;
                     return (
-                      <div key={msg.id || idx} className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
-                        <div
-                          className="max-w-[75%] px-3 py-2 text-sm"
-                          style={{
-                            background: isOutbound ? A.blueBg : '#F3F4F6',
-                            color: A.text1,
-                            borderRadius: isOutbound
-                              ? '16px 16px 4px 16px'
-                              : '16px 16px 16px 4px',
-                            wordBreak: 'break-word',
-                          }}
-                        >
-                          <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.45' }}>{msg.text || msg.rendered_text || msg.message_text || ''}</p>
-                          <p className="text-[10px] mt-1 text-right" style={{ color: A.text3 }}>
-                            {msg.sent_at || msg.received_at || msg.created_at
-                              ? new Date(msg.sent_at || msg.received_at || msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                              : ''}
-                          </p>
-                        </div>
-                      </div>
+                      <button
+                        key={t.key}
+                        onClick={() => handleTag(t.key)}
+                        className="text-[11px] font-medium px-3 py-1 rounded-full transition-all"
+                        style={{
+                          background: isActive ? t.bg : 'transparent',
+                          color: isActive ? t.text : A.text3,
+                          border: `1px solid ${isActive ? t.border : A.border}`,
+                        }}
+                        onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = t.bg; e.currentTarget.style.color = t.text; e.currentTarget.style.borderColor = t.border; } }}
+                        onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = A.text3; e.currentTarget.style.borderColor = A.border; } }}
+                      >
+                        {t.label}
+                      </button>
                     );
                   })}
-                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Input row */}
+                <div className="px-4 py-3 flex gap-2 items-center" style={{ borderTop: `1px solid ${A.border}` }}>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={messageText}
+                    onChange={e => setMessageText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                    placeholder="Type a message..."
+                    className="flex-1 h-9 px-3 rounded-lg border text-sm outline-none"
+                    style={{ borderColor: A.border, color: A.text1, background: '#F9FAFB' }}
+                    disabled={sending}
+                  />
+                  <button
+                    onClick={handleSend}
+                    disabled={sending || !messageText.trim()}
+                    className="h-9 w-9 rounded-lg flex items-center justify-center transition-colors"
+                    style={{
+                      background: messageText.trim() ? A.blue : '#E5E7EB',
+                      cursor: messageText.trim() ? 'pointer' : 'default',
+                    }}
+                  >
+                    {sending
+                      ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+                      : <Send className="w-4 h-4 text-white" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* CRM Info sidebar */}
+              {showCrmInfo && (
+                <div className="flex flex-col overflow-y-auto" style={{ width: 280, borderLeft: `1px solid ${A.border}`, background: A.surface }}>
+                  <div className="p-4 flex flex-col gap-4">
+                    {/* Contact header */}
+                    <div className="flex flex-col items-center gap-2 pb-3" style={{ borderBottom: `1px solid ${A.border}` }}>
+                      <DialogAvatar
+                        name={selectedDialog.peer_name || selectedDialog.name || ''}
+                        peerId={selectedDialog.peer_id || selectedDialog.id || 0}
+                      />
+                      <div className="text-center">
+                        <p className="text-sm font-semibold" style={{ color: A.text1 }}>
+                          {selectedDialog.peer_name || selectedDialog.name || 'Unknown'}
+                        </p>
+                        {(selectedDialog.peer_username || selectedDialog.username) && (
+                          <p className="text-xs" style={{ color: A.text3 }}>@{selectedDialog.peer_username || selectedDialog.username}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Status</p>
+                      <p className="text-xs" style={{ color: A.text1 }}>{selectedDialog.crm_status || selectedDialog.status || 'N/A'}</p>
+                    </div>
+
+                    {/* Company */}
+                    {(selectedDialog.company_name || selectedDialog.company) && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Company</p>
+                        <p className="text-xs" style={{ color: A.text1 }}>{selectedDialog.company_name || selectedDialog.company}</p>
+                      </div>
+                    )}
+
+                    {/* Tag */}
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Tag</p>
+                      {selectedDialog.tag && TAG_COLORS[selectedDialog.tag] ? (
+                        <span
+                          className="text-[11px] font-medium px-2 py-0.5 rounded-full inline-block"
+                          style={{
+                            background: TAG_COLORS[selectedDialog.tag].bg,
+                            color: TAG_COLORS[selectedDialog.tag].text,
+                            border: `1px solid ${TAG_COLORS[selectedDialog.tag].border}`,
+                          }}
+                        >
+                          {selectedDialog.tag.replace('_', ' ')}
+                        </span>
+                      ) : (
+                        <span className="text-xs" style={{ color: A.text3 }}>None</span>
+                      )}
+                    </div>
+
+                    {/* Campaign */}
+                    {selectedDialog.campaign_name && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Campaign</p>
+                        <p className="text-xs" style={{ color: A.text1 }}>{selectedDialog.campaign_name}</p>
+                      </div>
+                    )}
+
+                    {/* Message counts */}
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Messages</p>
+                      <div className="flex gap-4">
+                        <div>
+                          <span className="text-lg font-semibold" style={{ color: A.text1 }}>{selectedDialog.inbound_count ?? selectedDialog.messages_received ?? '?'}</span>
+                          <span className="text-[10px] ml-1" style={{ color: A.text3 }}>in</span>
+                        </div>
+                        <div>
+                          <span className="text-lg font-semibold" style={{ color: A.text1 }}>{selectedDialog.outbound_count ?? selectedDialog.messages_sent ?? '?'}</span>
+                          <span className="text-[10px] ml-1" style={{ color: A.text3 }}>out</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    {selectedDialog.notes && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Notes</p>
+                        <p className="text-xs whitespace-pre-wrap" style={{ color: A.text2, lineHeight: '1.5' }}>{selectedDialog.notes}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
-
-            {/* Tag buttons */}
-            <div className="px-4 py-2 flex gap-2" style={{ borderTop: `1px solid ${A.border}` }}>
-              {([
-                { key: 'interested', label: 'Interested', bg: '#ECFDF5', text: '#0D9488', border: '#99F6E4' },
-                { key: 'info_requested', label: 'Info Requested', bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' },
-                { key: 'not_interested', label: 'Not Interested', bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
-              ] as const).map(t => {
-                const isActive = selectedThread.tag === t.key;
-                return (
-                  <button
-                    key={t.key}
-                    onClick={() => handleTag(t.key)}
-                    className="text-[11px] font-medium px-3 py-1 rounded-full transition-all"
-                    style={{
-                      background: isActive ? t.bg : 'transparent',
-                      color: isActive ? t.text : A.text3,
-                      border: `1px solid ${isActive ? t.border : A.border}`,
-                    }}
-                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = t.bg; e.currentTarget.style.color = t.text; e.currentTarget.style.borderColor = t.border; } }}
-                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = A.text3; e.currentTarget.style.borderColor = A.border; } }}
-                  >
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Input row */}
-            <div className="px-4 py-3 flex gap-2 items-center" style={{ borderTop: `1px solid ${A.border}` }}>
-              <input
-                ref={inputRef}
-                type="text"
-                value={messageText}
-                onChange={e => setMessageText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder="Type a message..."
-                className="flex-1 h-9 px-3 rounded-lg border text-sm outline-none"
-                style={{ borderColor: A.border, color: A.text1, background: '#F9FAFB' }}
-                disabled={sending}
-              />
-              <button
-                onClick={handleSend}
-                disabled={sending || !messageText.trim()}
-                className="h-9 w-9 rounded-lg flex items-center justify-center transition-colors"
-                style={{
-                  background: messageText.trim() ? A.blue : '#E5E7EB',
-                  cursor: messageText.trim() ? 'pointer' : 'default',
-                }}
-              >
-                {sending
-                  ? <Loader2 className="w-4 h-4 text-white animate-spin" />
-                  : <Send className="w-4 h-4 text-white" />}
-              </button>
             </div>
           </>
         )}

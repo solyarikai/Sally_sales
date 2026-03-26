@@ -518,7 +518,7 @@ export const telegramOutreachApi = {
   resetDailyCounters: async () =>
     (await api.post(`${BASE}/worker/reset-daily-counters`)).data,
 
-  // Inbox
+  // Inbox (legacy thread-based)
   listInboxThreads: async (params: { campaign_id?: number; account_id?: number; campaign_tag?: string; tag?: string; page?: number; page_size?: number }) =>
     (await api.get(`${BASE}/inbox/threads`, { params })).data,
 
@@ -530,6 +530,22 @@ export const telegramOutreachApi = {
 
   tagInboxThread: async (recipientId: number, tag: string) =>
     (await api.patch(`${BASE}/inbox/threads/${recipientId}/tag`, { tag })).data,
+
+  // New inbox endpoints (dialog-based)
+  listInboxDialogs: async (params: { account_id?: number; campaign_id?: number; campaign_tag?: string; tag?: string; search?: string; page?: number; page_size?: number }) =>
+    (await api.get(`${BASE}/inbox/dialogs`, { params })).data,
+
+  getDialogMessages: async (dialogId: number, limit: number = 30) =>
+    (await api.get(`${BASE}/inbox/dialogs/${dialogId}/messages`, { params: { limit } })).data,
+
+  sendDialogMessage: async (dialogId: number, text: string) =>
+    (await api.post(`${BASE}/inbox/dialogs/${dialogId}/send`, { text })).data,
+
+  tagDialog: async (dialogId: number, tag: string) =>
+    (await api.patch(`${BASE}/inbox/dialogs/${dialogId}/tag`, { tag })).data,
+
+  triggerInboxSync: async (accountId?: number) =>
+    (await api.post(`${BASE}/inbox/sync`, null, { params: accountId ? { account_id: accountId } : {} })).data,
 
   updateCampaignTags: async (campaignId: number, tags: string[]) =>
     (await api.patch(`${BASE}/campaigns/${campaignId}/tags`, tags)).data,
