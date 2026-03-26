@@ -14,17 +14,44 @@ const STATUS_COLORS: Record<string,string> = {
   verifying: 'var(--info)', verified: 'var(--success)',
 }
 
-// ── Column filter component ──
-function ColFilter({ value, onChange, options, placeholder = 'Filter...' }: { value: string; onChange: (v: string) => void; options?: string[]; placeholder?: string }) {
-  if (options) {
-    return (
-      <select value={value} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '2px 4px', fontSize: 11, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', outline: 'none' }}>
-        <option value="">All</option>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-    )
-  }
-  return <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ width: '100%', padding: '2px 4px', fontSize: 11, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', outline: 'none' }} />
+// ── Column header with hidden filter (click ▼ to show) ──
+function ColHeader({ col, sortCol, sortDir, toggleSort, filterValue, onFilter, options }: any) {
+  const [showFilter, setShowFilter] = useState(false)
+  const hasFilter = !!filterValue
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showFilter) return
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setShowFilter(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [showFilter])
+
+  return (
+    <th style={{ position: 'relative', paddingBottom: 6, userSelect: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span onClick={() => toggleSort(col.key)} style={{ cursor: 'pointer', fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, color: sortCol === col.key ? 'var(--text)' : 'var(--text-muted)' }}>
+          {col.label}{sortCol === col.key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+        </span>
+        <span onClick={e => { e.stopPropagation(); setShowFilter(!showFilter) }} style={{ cursor: 'pointer', fontSize: 9, color: hasFilter ? 'var(--info)' : 'var(--text-muted)', opacity: hasFilter ? 1 : 0.5 }}>▼</span>
+      </div>
+      {showFilter && (
+        <div ref={ref} style={{ position: 'absolute', top: '100%', left: 0, zIndex: 40, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: 6, minWidth: 160, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+          {options ? (
+            <select value={filterValue} onChange={e => onFilter(e.target.value)} autoFocus style={{ width: '100%', padding: '4px 6px', fontSize: 12, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', outline: 'none' }}>
+              <option value="">All</option>
+              {options.map((o: string) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          ) : (
+            <input value={filterValue} onChange={e => onFilter(e.target.value)} placeholder={`Filter ${col.label}...`} autoFocus
+              style={{ width: '100%', padding: '4px 6px', fontSize: 12, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', outline: 'none' }}
+              onKeyDown={e => { if (e.key === 'Escape') setShowFilter(false) }}
+            />
+          )}
+          {filterValue && <button onClick={() => { onFilter(''); setShowFilter(false) }} style={{ marginTop: 4, width: '100%', padding: '3px', fontSize: 11, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>Clear</button>}
+        </div>
+      )}
+    </th>
+  )
 }
 
 // ── Company detail modal ──
@@ -314,25 +341,18 @@ export default function PipelinePage() {
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 1100 }}>
           <thead>
-            {/* Column headers */}
             <tr style={{ textAlign: 'left' }}>
               {columns.map(col => (
-                <th key={col.key} onClick={() => toggleSort(col.key)} style={{ paddingBottom: 4, cursor: 'pointer', fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, color: sortCol === col.key ? 'var(--text)' : 'var(--text-muted)', userSelect: 'none' }}>
-                  {col.label} {sortCol === col.key ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-              ))}
-            </tr>
-            {/* Column filters */}
-            <tr>
-              {columns.map(col => (
-                <th key={col.key} style={{ paddingBottom: 6 }}>
-                  <ColFilter
-                    value={filters[col.key] || ''}
-                    onChange={v => setFilter(col.key, v)}
-                    options={col.filterType === 'dropdown' ? uniqueVals(col.key) : undefined}
-                    placeholder={col.label}
-                  />
-                </th>
+                <ColHeader
+                  key={col.key}
+                  col={col}
+                  sortCol={sortCol}
+                  sortDir={sortDir}
+                  toggleSort={toggleSort}
+                  filterValue={filters[col.key] || ''}
+                  onFilter={(v: string) => setFilter(col.key, v)}
+                  options={col.filterType === 'dropdown' ? uniqueVals(col.key) : undefined}
+                />
               ))}
             </tr>
           </thead>
