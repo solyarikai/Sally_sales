@@ -817,7 +817,9 @@ async def bulk_randomize_names(
         account.last_name = last
         account.username = username
         updated.append({"id": aid, "first_name": first, "last_name": last, "username": username})
-    return {"ok": True, "count": len(updated), "updated": updated}
+    await session.flush()
+    synced = await _auto_sync_accounts([u["id"] for u in updated], session)
+    return {"ok": True, "count": len(updated), "synced": synced, "updated": updated}
 
 
 @router.post("/accounts/bulk-set-photo")
@@ -864,6 +866,34 @@ async def bulk_set_photo(
     return {"ok": True, "count": updated, "photos_uploaded": len(photo_contents)}
 
 
+async def _auto_sync_accounts(account_ids: list[int], session: AsyncSession):
+    """Auto-sync profile to Telegram for given accounts. Silently skips failures."""
+    import logging
+    log = logging.getLogger(__name__)
+    synced = 0
+    for aid in account_ids:
+        account = await session.get(TgAccount, aid)
+        if not account or not account.api_id or not account.api_hash:
+            continue
+        if not telegram_engine.session_file_exists(account.phone):
+            continue
+        try:
+            kwargs = _account_connect_kwargs(account)
+            await telegram_engine.connect(aid, **kwargs)
+            await telegram_engine.update_profile(
+                aid,
+                first_name=account.first_name or "",
+                last_name=account.last_name or "",
+                about=account.bio or "",
+                username=account.username or None,
+            )
+            await telegram_engine.disconnect(aid)
+            synced += 1
+        except Exception as e:
+            log.warning(f"Auto-sync failed for {account.phone}: {e}")
+    return synced
+
+
 @router.post("/accounts/bulk-sync-profile")
 async def bulk_sync_profile(data: TgBulkAccountIds, session: AsyncSession = Depends(get_session)):
     """Sync profile (name, bio, username) to Telegram for selected accounts."""
@@ -895,12 +925,14 @@ async def bulk_sync_profile(data: TgBulkAccountIds, session: AsyncSession = Depe
 @router.post("/accounts/bulk-set-bio")
 async def bulk_set_bio(data: TgBulkAccountIds, bio: str = Query(...),
                         session: AsyncSession = Depends(get_session)):
-    """Set bio for multiple accounts."""
+    """Set bio for multiple accounts + auto-sync to Telegram."""
     for aid in data.account_ids:
         account = await session.get(TgAccount, aid)
         if account:
             account.bio = bio
-    return {"ok": True, "count": len(data.account_ids)}
+    await session.flush()
+    synced = await _auto_sync_accounts(data.account_ids, session)
+    return {"ok": True, "count": len(data.account_ids), "synced": synced}
 
 
 @router.post("/accounts/bulk-set-2fa")
