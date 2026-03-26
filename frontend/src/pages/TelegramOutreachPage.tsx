@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Users, Send, Shield, Plus, Search, RefreshCw, Trash2,
-  Globe, Loader2, Play, Pause,
-  X, Upload, FileJson, Edit3, ChevronDown, BookOpen,
+  Users, Send, Shield, Plus, Search, Trash2,
+  Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
+  X, Upload, FileJson, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RotateCw,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
@@ -27,14 +27,66 @@ function countryFlag(code: string): string {
   );
 }
 
+// ── Design tokens ─────────────────────────────────────────────────────
+
+const A = {
+  blue: '#4F6BF0', blueHover: '#4360D9', blueBg: '#EEF1FE',
+  teal: '#0D9488', tealBg: '#ECFDF5',
+  rose: '#E05D6F', roseBg: '#FFF1F2',
+  bg: '#FAFAF8', surface: '#FFFFFF', border: '#E8E6E3',
+  text1: '#1A1A1A', text2: '#6B6B6B', text3: '#9CA3AF',
+};
+
+// ── Custom Checkbox ──────────────────────────────────────────────────
+
+function Tick({ checked, indeterminate, onChange, className }: {
+  checked: boolean; indeterminate?: boolean; onChange: () => void; className?: string;
+}) {
+  return (
+    <button onClick={e => { e.stopPropagation(); onChange(); }}
+      className={cn('w-[18px] h-[18px] rounded-[4px] border flex items-center justify-center transition-all',
+        checked || indeterminate
+          ? `bg-[${A.blue}] border-[${A.blue}]`
+          : 'bg-white border-[#D1D5DB] dark:bg-gray-800 dark:border-gray-600 hover:border-[#9CA3AF]',
+        className
+      )}
+      style={checked || indeterminate ? { background: A.blue, borderColor: A.blue } : undefined}
+    >
+      {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+      {indeterminate && !checked && <Minus className="w-3 h-3 text-white" strokeWidth={3} />}
+    </button>
+  );
+}
+
+// ── Sortable Header ──────────────────────────────────────────────────
+
+function SortHead({ label, column, current, dir, onSort, className }: {
+  label: string; column: string; current: string | null; dir: 'asc' | 'desc';
+  onSort: (col: string) => void; className?: string;
+}) {
+  const active = current === column;
+  return (
+    <th className={cn('text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider cursor-pointer select-none group', className)}
+        style={{ color: active ? A.text1 : A.text3 }}
+        onClick={() => onSort(column)}>
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {active
+          ? (dir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)
+          : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-40 transition-opacity" />}
+      </span>
+    </th>
+  );
+}
+
 // ── Status badges ─────────────────────────────────────────────────────
 
 const ACCOUNT_STATUS_COLORS: Record<string, string> = {
-  active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  paused: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  spamblocked: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  dead: 'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-400',
-  frozen: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  active: `bg-[${A.tealBg}] text-[${A.teal}]`,
+  paused: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
+  spamblocked: `bg-[${A.roseBg}] text-[${A.rose}]`,
+  dead: 'bg-gray-100 text-gray-500 dark:bg-gray-700/30 dark:text-gray-400',
+  frozen: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
 };
 
 const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
@@ -157,6 +209,11 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showFilters, setShowFilters] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const addMenuRef = useRef<HTMLDivElement>(null);
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -180,153 +237,193 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
   }, [page, search, statusFilter, toast]);
 
   const loadTags = useCallback(async () => {
-    try {
-      setTags(await telegramOutreachApi.listTags());
-    } catch { /* ignore */ }
+    try { setTags(await telegramOutreachApi.listTags()); } catch { /* ignore */ }
   }, []);
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
   useEffect(() => { loadTags(); }, [loadTags]);
 
+  // Close add menu on click outside
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) setShowAddMenu(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
   const toggleSelect = (id: number) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   };
-
   const toggleAll = () => {
-    if (selectedIds.size === accounts.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(accounts.map(a => a.id)));
-    }
+    setSelectedIds(selectedIds.size === accounts.length ? new Set() : new Set(accounts.map(a => a.id)));
   };
 
-  // Delete is handled via BulkActionsBar and EditAccountModal
+  const handleSort = (col: string) => {
+    if (sortCol === col) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortCol(null); setSortDir('asc'); }
+    } else { setSortCol(col); setSortDir('asc'); }
+  };
+
+  const sorted = [...accounts].sort((a, b) => {
+    if (!sortCol) return 0;
+    const m = sortDir === 'asc' ? 1 : -1;
+    const get = (acc: TgAccount) => {
+      switch (sortCol) {
+        case 'name': return [acc.first_name, acc.last_name].filter(Boolean).join(' ').toLowerCase();
+        case 'phone': return acc.phone;
+        case 'username': return acc.username || '';
+        case 'status': return acc.status;
+        case 'age': return acc.session_created_at || '';
+        case 'sent': return acc.messages_sent_today;
+        default: return '';
+      }
+    };
+    const va = get(a), vb = get(b);
+    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * m;
+    return String(va).localeCompare(String(vb)) * m;
+  });
 
   const totalPages = Math.ceil(total / 50);
-
-  // Stats
   const activeCount = accounts.filter(a => a.status === 'active').length;
   const spamCount = accounts.filter(a => a.status === 'spamblocked').length;
-  const sentToday = accounts.reduce((s, a) => s + a.messages_sent_today, 0);
+  const isAllSelected = selectedIds.size === accounts.length && accounts.length > 0;
+  const isPartial = selectedIds.size > 0 && selectedIds.size < accounts.length;
 
   return (
-    <div className="space-y-4">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: 'All Accounts', value: total, color: 'text-indigo-600 dark:text-indigo-400' },
-          { label: 'Active', value: activeCount, color: 'text-green-600 dark:text-green-400' },
-          { label: 'Spamblocked', value: spamCount, color: 'text-red-500 dark:text-red-400' },
-          { label: 'Sent Today', value: sentToday, color: 'text-blue-600 dark:text-blue-400' },
-        ].map(s => (
-          <div key={s.label} className={cn('rounded-lg border px-4 py-3', t.cardBorder)}>
-            <div className={cn('text-2xl font-bold', s.color)}>{s.value}</div>
-            <div className={cn('text-xs', t.text3)}>{s.label}</div>
-          </div>
-        ))}
+    <div className="space-y-3">
+      {/* Toolbar — stats + search + actions in one row */}
+      <div className="flex items-center gap-3">
+        {/* Inline stats */}
+        <div className="flex items-center gap-4 text-[13px]">
+          <span style={{ color: A.text1 }}><b>{total}</b> <span style={{ color: A.text3 }}>accounts</span></span>
+          <span className="w-px h-4" style={{ background: A.border }} />
+          <span style={{ color: A.teal }}><b>{activeCount}</b> active</span>
+          {spamCount > 0 && <>
+            <span className="w-px h-4" style={{ background: A.border }} />
+            <span style={{ color: A.rose }}><b>{spamCount}</b> spam</span>
+          </>}
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Filter toggle */}
+        <button onClick={() => setShowFilters(!showFilters)}
+          className={cn('p-2 rounded-lg border transition-colors', showFilters || statusFilter ? 'border-[#4F6BF0]/40 bg-[#EEF1FE]' : 'border-[#E8E6E3] hover:bg-[#F5F5F0]')}
+          style={showFilters || statusFilter ? { color: A.blue } : { color: A.text3 }}>
+          <Filter className="w-4 h-4" />
+        </button>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: A.text3 }} />
+          <input type="text" placeholder="Search..." value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            className="pl-8 pr-3 py-[7px] rounded-lg border text-[13px] w-52 outline-none focus:border-[#4F6BF0]/50 transition-colors"
+            style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
+        </div>
+
+        {/* Add dropdown */}
+        <div className="relative" ref={addMenuRef}>
+          <button onClick={() => setShowAddMenu(!showAddMenu)}
+            className="flex items-center gap-1.5 px-3.5 py-[7px] rounded-lg text-[13px] font-medium text-white transition-colors"
+            style={{ background: A.blue }}>
+            <Plus className="w-4 h-4" /> Add <ChevronDown className="w-3.5 h-3.5 ml-0.5 opacity-70" />
+          </button>
+          {showAddMenu && (
+            <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border shadow-lg z-50 py-1"
+              style={{ background: A.surface, borderColor: A.border }}>
+              <button onClick={() => { setShowAddMenu(false); setShowAddModal(true); }}
+                className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
+                style={{ color: A.text1 }}>
+                <Plus className="w-3.5 h-3.5 inline mr-2 opacity-50" />Single Account
+              </button>
+              <button onClick={() => { setShowAddMenu(false); setShowImportModal(true); }}
+                className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
+                style={{ color: A.text1 }}>
+                <Upload className="w-3.5 h-3.5 inline mr-2 opacity-50" />Bulk Import
+              </button>
+              <div className="border-t my-1" style={{ borderColor: A.border }} />
+              <a href={telegramOutreachApi.exportAccountsURL()}
+                className="block px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
+                style={{ color: A.text2 }}>
+                <Download className="w-3.5 h-3.5 inline mr-2 opacity-50" />Export CSV
+              </a>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
-          <Plus className="w-4 h-4" /> Add
-        </button>
-        <button onClick={() => setShowImportModal(true)}
-                className={cn('flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder, t.text1)}>
-          <FileJson className="w-4 h-4" /> Import
-        </button>
-        <a href={telegramOutreachApi.exportAccountsURL()}
-           className={cn('flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder, t.text1)}>
-          Export CSV
-        </a>
-        <button onClick={loadAccounts}
-                className={cn('p-2 rounded-lg border hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder)}>
-          <RefreshCw className={cn('w-4 h-4', t.text3)} />
-        </button>
-        <button onClick={toggleAll}
-                className={cn('flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder, t.text3)}>
-          {selectedIds.size === accounts.length && accounts.length > 0 ? 'Deselect All' : 'Select All'}
-        </button>
-
-        {/* Quick filters */}
-        <div className="flex items-center gap-1 ml-2">
+      {/* Filter bar (collapsible) */}
+      {showFilters && (
+        <div className="flex items-center gap-1.5 pl-1">
           {[
-            { key: '', label: 'All', count: total },
-            { key: 'active', label: 'Active', count: activeCount },
-            { key: 'spamblocked', label: 'Spam', count: spamCount },
-            { key: 'dead', label: 'Dead', count: accounts.filter(a => a.status === 'dead').length },
+            { key: '', label: 'All' },
+            { key: 'active', label: 'Active' },
+            { key: 'spamblocked', label: 'Spamblocked' },
+            { key: 'paused', label: 'Paused' },
+            { key: 'dead', label: 'Dead' },
+            { key: 'frozen', label: 'Frozen' },
           ].map(f => (
             <button key={f.key}
-                    onClick={() => { setStatusFilter(f.key); setPage(1); }}
-                    className={cn('px-2.5 py-1 rounded-lg text-xs font-medium transition-colors',
-                      statusFilter === f.key
-                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
-                        : cn(t.text3, 'hover:bg-gray-100 dark:hover:bg-gray-800'))}>
-              {f.label} <span className="opacity-60">{f.count}</span>
+              onClick={() => { setStatusFilter(f.key); setPage(1); }}
+              className="px-3 py-1 rounded-full text-[12px] font-medium transition-all"
+              style={{
+                background: statusFilter === f.key ? A.blueBg : 'transparent',
+                color: statusFilter === f.key ? A.blue : A.text3,
+                border: `1px solid ${statusFilter === f.key ? A.blue + '30' : A.border}`,
+              }}>
+              {f.label}
             </button>
           ))}
+          {statusFilter && (
+            <button onClick={() => { setStatusFilter(''); setPage(1); }}
+              className="ml-1 text-[11px] underline" style={{ color: A.text3 }}>Clear</button>
+          )}
         </div>
+      )}
 
-        <div className="ml-auto">
-          <div className="relative">
-            <Search className={cn('absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5', t.text3)} />
-            <input type="text" placeholder="Search..." value={search}
-                   onChange={e => { setSearch(e.target.value); setPage(1); }}
-                   className={cn('pl-8 pr-3 py-1.5 rounded-lg border text-xs w-48', t.cardBorder, t.cardBg, t.text1)} />
-          </div>
-        </div>
-      </div>
-
-      {/* Bulk Actions Bar — sticky bottom */}
+      {/* Bulk actions bar (inline, not fixed) */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 px-6 py-2 shadow-lg" style={{ background: 'inherit' }}>
-          <BulkActionsBar
-            selectedIds={selectedIds}
-            t={t}
-            toast={toast}
-            onDone={() => { setSelectedIds(new Set()); loadAccounts(); }}
-          />
-        </div>
+        <BulkActionsBar
+          selectedIds={selectedIds}
+          t={t}
+          toast={toast}
+          onDone={() => { setSelectedIds(new Set()); loadAccounts(); }}
+        />
       )}
 
       {/* Table */}
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className={cn('w-8 h-8 animate-spin', t.text3)} />
+        <div className="flex justify-center py-20">
+          <Loader2 className="w-6 h-6 animate-spin" style={{ color: A.text3 }} />
         </div>
       ) : accounts.length === 0 ? (
-        <div className={cn('text-center py-16 rounded-lg border', t.cardBorder)}>
-          <Users className={cn('w-12 h-12 mx-auto mb-3', t.text3)} />
-          <p className={cn('text-sm', t.text3)}>No accounts yet</p>
+        <div className="text-center py-20 rounded-xl border" style={{ borderColor: A.border }}>
+          <Users className="w-10 h-10 mx-auto mb-3" style={{ color: A.text3 }} />
+          <p className="text-[13px]" style={{ color: A.text3 }}>No accounts yet</p>
         </div>
       ) : (
-        <div className={cn('rounded-lg border overflow-hidden', t.cardBorder)}>
-          <table className="w-full text-sm">
-            <thead className={cn('border-b', t.cardBorder, isDark ? 'bg-gray-800/50' : 'bg-gray-50')}>
-              <tr>
-                <th className="w-10 px-3 py-2.5">
-                  <input type="checkbox" checked={selectedIds.size === accounts.length && accounts.length > 0}
-                         onChange={toggleAll} className="rounded" />
+        <div className="rounded-xl border overflow-hidden" style={{ borderColor: A.border, background: A.surface }}>
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr style={{ background: isDark ? '#2a2a2a' : A.bg, borderBottom: `1px solid ${A.border}` }}>
+                <th className="w-12 px-3 py-3">
+                  <Tick checked={isAllSelected} indeterminate={isPartial} onChange={toggleAll} />
                 </th>
-                <th className={cn('w-8 text-center px-1 py-2.5 text-xs font-medium', t.text3)}>#</th>
-                <th className="w-10 px-1 py-2.5" />
-                <th className={cn('text-left px-3 py-2.5 text-xs font-medium', t.text3)}>Phone</th>
-                <th className={cn('text-center px-1 py-2.5 text-xs font-medium', t.text3)}>Geo</th>
-                <th className={cn('text-left px-3 py-2.5 text-xs font-medium', t.text3)}>Username</th>
-                <th className={cn('text-left px-3 py-2.5 text-xs font-medium', t.text3)}>Status</th>
-                <th className={cn('text-left px-2 py-2.5 text-xs font-medium', t.text3)}>Age</th>
-                <th className={cn('text-left px-2 py-2.5 text-xs font-medium', t.text3)}>Sent</th>
-                <th className={cn('text-left px-3 py-2.5 text-xs font-medium', t.text3)}>Name</th>
-                <th className="w-8 px-1 py-2.5" />
+                <th className="w-8 text-center px-1 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: A.text3 }}>#</th>
+                <SortHead label="Name" column="name" current={sortCol} dir={sortDir} onSort={handleSort} className="min-w-[160px]" />
+                <SortHead label="Phone" column="phone" current={sortCol} dir={sortDir} onSort={handleSort} />
+                <th className="text-center px-2 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: A.text3 }}>Geo</th>
+                <SortHead label="Username" column="username" current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHead label="Status" column="status" current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHead label="Age" column="age" current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHead label="Sent" column="sent" current={sortCol} dir={sortDir} onSort={handleSort} />
+                <th className="w-10 px-1 py-3" />
               </tr>
             </thead>
             <tbody>
-              {accounts.map((acc, idx) => {
+              {sorted.map((acc, idx) => {
+                const name = [acc.first_name, acc.last_name].filter(Boolean).join(' ');
                 const initials = (acc.first_name?.[0] || '') + (acc.last_name?.[0] || '') || acc.phone.slice(-2);
                 const hue = (parseInt(acc.phone.slice(-4), 10) || 0) % 360;
                 const isSelected = selectedIds.has(acc.id);
@@ -334,61 +431,70 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                 return (
                   <tr key={acc.id}
                       onClick={() => setEditingAccount(acc)}
-                      className={cn('border-b cursor-pointer transition-colors',
-                        t.cardBorder,
-                        isSelected ? 'bg-indigo-50/60 dark:bg-indigo-900/15' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50')}>
-                    <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={isSelected}
-                             onChange={() => toggleSelect(acc.id)} className="rounded" />
+                      className="cursor-pointer transition-colors"
+                      style={{
+                        borderBottom: `1px solid ${A.border}`,
+                        background: isSelected ? A.blueBg : undefined,
+                      }}
+                      onMouseEnter={e => { if (!isSelected) (e.currentTarget.style.background = isDark ? '#2a2a2a' : '#F8F8F5'); }}
+                      onMouseLeave={e => { if (!isSelected) (e.currentTarget.style.background = ''); }}>
+                    <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                      <Tick checked={isSelected} onChange={() => toggleSelect(acc.id)} />
                     </td>
-                    <td className={cn('text-center px-1 py-2 text-xs', t.text3)}>{(page - 1) * 50 + idx + 1}</td>
-                    <td className="px-1 py-2">
-                      <div className="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden"
-                           style={{ backgroundColor: `hsl(${hue}, 55%, 50%)` }}>
-                        <img src={`/api/telegram-outreach/accounts/${acc.id}/avatar`}
-                             alt=""
-                             className="w-full h-full object-cover"
-                             onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                        <span className="w-full h-full flex items-center justify-center text-white text-xs font-bold">
-                          {initials.toUpperCase()}
+                    <td className="text-center px-1 py-2.5 text-[12px] tabular-nums" style={{ color: A.text3 }}>
+                      {(page - 1) * 50 + idx + 1}
+                    </td>
+                    {/* Name + Avatar combined */}
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden"
+                             style={{ backgroundColor: `hsl(${hue}, 45%, 60%)` }}>
+                          <img src={`/api/telegram-outreach/accounts/${acc.id}/avatar`} alt=""
+                               className="w-full h-full object-cover"
+                               onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                          <span className="w-full h-full flex items-center justify-center text-white text-[11px] font-semibold">
+                            {initials.toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="truncate font-medium text-[13px]" style={{ color: A.text1, maxWidth: 140 }}>
+                          {name || <span style={{ color: A.text3 }}>No name</span>}
                         </span>
                       </div>
                     </td>
-                    <td className={cn('px-3 py-2 font-mono text-xs cursor-pointer hover:text-indigo-600', t.text1)}
-                        onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(acc.phone); }}
+                    <td className="px-3 py-2.5 font-mono text-[12px] whitespace-nowrap cursor-pointer"
+                        style={{ color: A.text2 }}
+                        onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(acc.phone); toast('Copied', 'info'); }}
                         title="Click to copy">{acc.phone}</td>
-                    <td className="px-1 py-2 text-center" title={acc.country_code || ''}>
-                      {acc.country_code ? countryFlag(acc.country_code) : <span className={cn('text-xs', t.text3)}>--</span>}
+                    <td className="px-2 py-2.5 text-center text-[15px]" title={acc.country_code || ''}>
+                      {acc.country_code ? countryFlag(acc.country_code) : <span className="text-[12px]" style={{ color: A.text3 }}>--</span>}
                     </td>
-                    <td className={cn('px-3 py-2 text-xs', t.text1)}>
-                      {acc.username ? <span>@{acc.username}</span> : <span className={t.text3}>--</span>}
+                    <td className="px-3 py-2.5 text-[12px] truncate" style={{ color: A.text2, maxWidth: 120 }}>
+                      {acc.username ? `@${acc.username}` : <span style={{ color: A.text3 }}>--</span>}
                     </td>
-                    <td className="px-3 py-2">
-                      <StatusBadge status={acc.status} colorMap={ACCOUNT_STATUS_COLORS} />
-                      {acc.spamblock_type !== 'none' && (
-                        <span className="ml-1 px-1 py-0.5 rounded text-[10px] bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400">
-                          {acc.spamblock_type}
-                        </span>
-                      )}
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <StatusBadge status={acc.status} colorMap={ACCOUNT_STATUS_COLORS} />
+                        {acc.spamblock_type !== 'none' && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: A.roseBg, color: A.rose }}>
+                            {acc.spamblock_type}
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className={cn('px-2 py-2 text-[10px]', t.text3)}>
+                    <td className="px-2 py-2.5 text-[12px] whitespace-nowrap" style={{ color: A.text3 }}>
                       {acc.session_created_at ? (() => {
                         const days = Math.floor((Date.now() - new Date(acc.session_created_at).getTime()) / 86400000);
-                        return days >= 30 ? `${Math.floor(days/30)}m ${days%30}d` : `${days}d`;
+                        return days >= 30 ? `${Math.floor(days / 30)}m ${days % 30}d` : `${days}d`;
                       })() : '--'}
                     </td>
-                    <td className={cn('px-2 py-2 font-mono text-xs', t.text1)}>
-                      <span className={atLimit ? 'text-red-500 font-semibold' : ''}>{acc.messages_sent_today}</span>
-                      <span className={t.text3}>/{acc.daily_message_limit}</span>
+                    <td className="px-2 py-2.5 font-mono text-[12px] whitespace-nowrap tabular-nums">
+                      <span style={{ color: atLimit ? A.rose : A.text1, fontWeight: atLimit ? 600 : 400 }}>{acc.messages_sent_today}</span>
+                      <span style={{ color: A.text3 }}>/{acc.daily_message_limit}</span>
                     </td>
-                    <td className={cn('px-3 py-2 text-xs', t.text1)}>
-                      {[acc.first_name, acc.last_name].filter(Boolean).join(' ') || <span className={t.text3}>--</span>}
-                    </td>
-                    {/* Tags removed for cleaner layout — visible in Edit modal */}
-                    <td className="px-1 py-2" onClick={e => e.stopPropagation()}>
+                    <td className="px-1 py-2.5" onClick={e => e.stopPropagation()}>
                       <button onClick={() => setEditingAccount(acc)}
-                              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
-                        <Edit3 className="w-3.5 h-3.5 text-gray-400" />
+                        className="p-1.5 rounded-md transition-colors hover:bg-[#F0F0ED]">
+                        <Edit3 className="w-3.5 h-3.5" style={{ color: A.text3 }} />
                       </button>
                     </td>
                   </tr>
@@ -401,30 +507,26 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <span className={cn('text-sm', t.text3)}>{total} accounts</span>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-[13px]" style={{ color: A.text3 }}>{total} total</span>
+          <div className="flex items-center gap-1">
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-                    className={cn('px-3 py-1.5 rounded border text-sm', t.cardBorder, page <= 1 && 'opacity-50')}>
-              Prev
-            </button>
-            <span className={cn('text-sm', t.text1)}>Page {page} / {totalPages}</span>
+              className="px-3 py-1.5 rounded-lg border text-[13px] font-medium transition-colors disabled:opacity-30"
+              style={{ borderColor: A.border, color: A.text1 }}>Prev</button>
+            <span className="px-3 py-1.5 text-[13px] tabular-nums" style={{ color: A.text2 }}>{page}/{totalPages}</span>
             <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-                    className={cn('px-3 py-1.5 rounded border text-sm', t.cardBorder, page >= totalPages && 'opacity-50')}>
-              Next
-            </button>
+              className="px-3 py-1.5 rounded-lg border text-[13px] font-medium transition-colors disabled:opacity-30"
+              style={{ borderColor: A.border, color: A.text1 }}>Next</button>
           </div>
         </div>
       )}
 
-      {/* Add Account Modal */}
+      {/* Modals */}
       {showAddModal && (
         <AddAccountModal t={t} toast={toast} isDark={isDark}
                          onClose={() => setShowAddModal(false)}
                          onSaved={() => { setShowAddModal(false); loadAccounts(); }} />
       )}
-
-      {/* Edit Account Modal */}
       {editingAccount && (
         <EditAccountModal t={t} toast={toast} isDark={isDark}
                           account={editingAccount}
@@ -892,25 +994,28 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
     finally { setLoading(false); }
   };
 
-  const btnCls = cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50', t.cardBorder, t.text1);
-  const inputCls = cn('px-2 py-1 rounded border text-xs', t.cardBorder, t.cardBg, t.text1);
+  const btnCls = 'flex items-center gap-1.5 px-2.5 py-[5px] rounded-md border text-[12px] font-medium transition-colors disabled:opacity-40';
+  const btnStyle = { borderColor: A.border, color: A.text1, background: A.surface };
+  const inputCls = 'px-2 py-1 rounded-md border text-[12px] outline-none focus:border-[#4F6BF0]/50';
+  const inputStyle = { borderColor: A.border, background: A.surface, color: A.text1 };
 
   return (
-    <div className={cn('rounded-xl border p-3 space-y-2', t.cardBorder, isDark ? 'bg-gray-800/40' : 'bg-indigo-50/50')}>
+    <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: A.blue + '25', background: A.blueBg }}>
       {/* Main buttons row */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className={cn('text-xs font-bold mr-1', t.text1)}>{selectedIds.size} selected</span>
-        <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
+        <span className="text-[12px] font-semibold mr-1" style={{ color: A.blue }}>{selectedIds.size} selected</span>
+        <button onClick={onDone} className="text-[11px] underline mr-1" style={{ color: A.text3 }}>Deselect</button>
+        <div className="w-px h-4" style={{ background: A.border }} />
 
         {/* Profile */}
-        <button onClick={() => setActivePanel(activePanel === 'names' ? null : 'names')} className={btnCls}>
-          <Users className="w-3 h-3" /> Randomize Names
+        <button onClick={() => setActivePanel(activePanel === 'names' ? null : 'names')} className={btnCls} style={btnStyle}>
+          <Users className="w-3 h-3" /> Names
         </button>
-        <button onClick={() => setActivePanel(activePanel === 'bio' ? null : 'bio')} className={btnCls}>
-          Set Bio
+        <button onClick={() => setActivePanel(activePanel === 'bio' ? null : 'bio')} className={btnCls} style={btnStyle}>
+          Bio
         </button>
-        <button onClick={() => photoInputRef.current?.click()} disabled={loading} className={btnCls}>
-          Set Photo
+        <button onClick={() => photoInputRef.current?.click()} disabled={loading} className={btnCls} style={btnStyle}>
+          Photo
         </button>
         <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden"
                onChange={async e => {
@@ -928,47 +1033,46 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
 
         {/* Technical */}
         <button onClick={() => run('Device randomized', () => telegramOutreachApi.bulkRandomizeDevice(ids))}
-                disabled={loading} className={btnCls}>
-          <RefreshCw className="w-3 h-3" /> Randomize Device
+                disabled={loading} className={btnCls} style={btnStyle}>
+          <RotateCw className="w-3 h-3" /> Device
         </button>
-        <button onClick={() => setActivePanel(activePanel === 'limit' ? null : 'limit')} className={btnCls}>
-          Set Limit
+        <button onClick={() => setActivePanel(activePanel === 'limit' ? null : 'limit')} className={btnCls} style={btnStyle}>
+          Limit
         </button>
-        <button onClick={() => setActivePanel(activePanel === 'lang' ? null : 'lang')} className={btnCls}>
-          Set Language
+        <button onClick={() => setActivePanel(activePanel === 'lang' ? null : 'lang')} className={btnCls} style={btnStyle}>
+          Lang
         </button>
-        <button onClick={() => setActivePanel(activePanel === '2fa' ? null : '2fa')} className={btnCls}>
-          Set 2FA
+        <button onClick={() => setActivePanel(activePanel === '2fa' ? null : '2fa')} className={btnCls} style={btnStyle}>
+          2FA
         </button>
-
-        {/* Proxy */}
-        <button onClick={() => setActivePanel(activePanel === 'proxy' ? null : 'proxy')} className={btnCls}>
-          <Shield className="w-3 h-3" /> Assign Proxy
+        <button onClick={() => setActivePanel(activePanel === 'proxy' ? null : 'proxy')} className={btnCls} style={btnStyle}>
+          <Shield className="w-3 h-3" /> Proxy
         </button>
-
-        {/* Sync + Check */}
-        {/* Sync to TG removed — auto-syncs on name/bio/photo changes */}
-        <button onClick={() => setActivePanel(activePanel === 'privacy' ? null : 'privacy')} className={btnCls}>
+        <button onClick={() => setActivePanel(activePanel === 'privacy' ? null : 'privacy')} className={btnCls} style={btnStyle}>
           Privacy
         </button>
-        <button onClick={() => run('Re-authorized', () => telegramOutreachApi.bulkReauthorize(ids))}
-                disabled={loading} className={btnCls}>Re-Auth</button>
-        <button onClick={() => run('Sessions revoked', () => telegramOutreachApi.bulkRevokeSessions(ids))}
-                disabled={loading} className={btnCls}>Revoke Sessions</button>
-        <button onClick={() => run('Cleaned', () => telegramOutreachApi.bulkClean(ids, { delete_dialogs: true, delete_contacts: true }))}
-                disabled={loading} className={btnCls}>Clean</button>
+
+        <div className="w-px h-4" style={{ background: A.border }} />
+
+        {/* Checks */}
         <button onClick={() => run('Alive check done', () => telegramOutreachApi.bulkCheckAlive(ids))}
-                disabled={loading} className={btnCls} title="Quick check: connect + authorized. Safe to run often.">
-          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
-          Alive?
+                disabled={loading} className={btnCls} style={{ ...btnStyle, color: A.teal, borderColor: A.teal + '40' }}
+                title="Quick alive check. Safe to run often.">
+          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />} Alive?
         </button>
         <button onClick={() => run('Spamblock checked', () => telegramOutreachApi.bulkCheck(ids))}
-                disabled={loading} className={cn(btnCls, 'text-amber-600 dark:text-amber-400')} title="Full spamblock check via @SpamBot. Don't run too often.">
-          <Shield className="w-3 h-3" />
-          Spam?
+                disabled={loading} className={btnCls} style={{ ...btnStyle, color: '#D97706', borderColor: '#D9770640' }}
+                title="Full spamblock check. Don't run too often.">
+          <Shield className="w-3 h-3" /> Spam?
         </button>
+        <button onClick={() => run('Re-authorized', () => telegramOutreachApi.bulkReauthorize(ids))}
+                disabled={loading} className={btnCls} style={btnStyle}>Re-Auth</button>
+        <button onClick={() => run('Sessions revoked', () => telegramOutreachApi.bulkRevokeSessions(ids))}
+                disabled={loading} className={btnCls} style={btnStyle}>Revoke</button>
+        <button onClick={() => run('Cleaned', () => telegramOutreachApi.bulkClean(ids, { delete_dialogs: true, delete_contacts: true }))}
+                disabled={loading} className={btnCls} style={btnStyle}>Clean</button>
 
-        {/* Delete */}
+        {/* Delete — far right */}
         <div className="ml-auto">
           <button onClick={async () => {
                     if (!confirm(`Delete ${ids.length} accounts?`)) return;
@@ -977,7 +1081,8 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                           toast(`${ids.length} deleted`, 'success'); onDone();
                     } catch { toast('Delete failed', 'error'); } finally { setLoading(false); }
                   }} disabled={loading}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50">
+                  className="flex items-center gap-1.5 px-2.5 py-[5px] rounded-md text-[12px] font-medium transition-colors disabled:opacity-40"
+                  style={{ background: A.roseBg, color: A.rose }}>
             <Trash2 className="w-3 h-3" /> Delete
           </button>
         </div>
@@ -996,7 +1101,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
             <option value="female_ru">Female (Russian)</option>
           </select>
           <button onClick={() => run('Names randomized', () => telegramOutreachApi.bulkRandomizeNames(ids, nameCategory))}
-                  disabled={loading} className="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium">
+                  disabled={loading} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>
             {loading ? 'Working...' : `Apply to ${ids.length}`}
           </button>
         </div>
@@ -1006,7 +1111,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
           <span className={cn('text-xs', t.text3)}>Daily limit:</span>
           <input type="number" value={limitValue} onChange={e => setLimitValue(e.target.value)} className={cn(inputCls, 'w-20')} />
           <button onClick={() => run('Limit set', () => telegramOutreachApi.bulkSetLimit(ids, Number(limitValue)))}
-                  disabled={loading} className="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium">Apply</button>
+                  disabled={loading} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>Apply</button>
         </div>
       )}
       {activePanel === 'bio' && (
@@ -1015,7 +1120,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
           <input type="text" value={bioValue} onChange={e => setBioValue(e.target.value)}
                  placeholder="BDM at Company" className={cn(inputCls, 'flex-1')} />
           <button onClick={() => run('Bio set', () => telegramOutreachApi.bulkSetBio(ids, bioValue))}
-                  disabled={loading || !bioValue} className="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium">Apply</button>
+                  disabled={loading || !bioValue} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>Apply</button>
         </div>
       )}
       {activePanel === '2fa' && (
@@ -1024,7 +1129,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
           <input type="text" value={twoFaValue} onChange={e => setTwoFaValue(e.target.value)}
                  className={cn(inputCls, 'w-40')} />
           <button onClick={() => run('2FA set', () => telegramOutreachApi.bulkSet2FA(ids, twoFaValue))}
-                  disabled={loading || !twoFaValue} className="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium">Apply</button>
+                  disabled={loading || !twoFaValue} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>Apply</button>
         </div>
       )}
       {activePanel === 'lang' && (
@@ -1037,7 +1142,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
             {['en-US','pt-PT','es-ES','de-DE','fr-FR','it-IT','nl-NL','ru-RU'].map(l => <option key={l}>{l}</option>)}
           </select>
           <button onClick={() => run('Language set', () => telegramOutreachApi.bulkUpdateParams(ids, { lang_code: langCode, system_lang_code: sysLangCode }))}
-                  disabled={loading} className="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium">Apply</button>
+                  disabled={loading} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>Apply</button>
         </div>
       )}
       {activePanel === 'proxy' && (
@@ -1048,7 +1153,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
             {proxyGroups.map(g => <option key={g.id} value={g.id}>{g.name} ({g.proxies_count})</option>)}
           </select>
           <button onClick={() => { if (!proxyGroupId) return; run('Proxy assigned', () => telegramOutreachApi.bulkAssignProxy(ids, proxyGroupId as number)); }}
-                  disabled={loading || !proxyGroupId} className="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium">Apply</button>
+                  disabled={loading || !proxyGroupId} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>Apply</button>
         </div>
       )}
       {activePanel === 'privacy' && (
