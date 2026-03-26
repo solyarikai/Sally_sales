@@ -1184,10 +1184,17 @@ class CRMSyncService:
                         session, company_id, lead, campaign_project_id=camp.project_id
                     )
                     stats[result] += 1
-                except Exception:
+                except Exception as e:
+                    await session.rollback()
+                    if "UniqueViolation" in str(type(e).__name__) or "IntegrityError" in str(type(e)):
+                        logger.warning(f"[SL-SYNC] Duplicate skipped: {row.get('email', '?')} in campaign {camp.name}")
                     stats["skipped"] += 1
 
-            await session.commit()
+            try:
+                await session.commit()
+            except Exception as commit_err:
+                logger.warning(f"[SL-SYNC] Commit failed for campaign {camp.name}: {commit_err}")
+                await session.rollback()
 
             total = stats["created"] + stats["updated"] + stats["skipped"]
             if (idx + 1) % 50 == 0 or idx < 3:
