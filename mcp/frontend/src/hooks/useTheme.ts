@@ -3,9 +3,10 @@ import { create } from 'zustand'
 type ThemeMode = 'dark' | 'light'
 
 function getInitial(): ThemeMode {
-  if (typeof window === 'undefined') return 'dark'
+  if (typeof window === 'undefined') return 'light'
   const stored = localStorage.getItem('mcp-theme')
-  return stored === 'light' ? 'light' : 'dark'
+  if (stored === 'dark') return 'dark'
+  return 'light'  // Default to light theme (matches main app)
 }
 
 function apply(mode: ThemeMode) {
