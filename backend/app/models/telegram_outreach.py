@@ -140,6 +140,7 @@ class TgAccount(Base, TimestampMixin):
     # Auth
     two_fa_password = Column(String(255), nullable=True)
     session_file = Column(String(500), nullable=True)
+    string_session = Column(Text, nullable=True)  # Telethon StringSession for inbox
 
     # Proxy
     proxy_group_id = Column(Integer, ForeignKey("tg_proxy_groups.id", ondelete="SET NULL"), nullable=True, index=True)

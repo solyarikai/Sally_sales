@@ -7,18 +7,70 @@ import asyncio
 import logging
 import os
 import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from telethon import TelegramClient, errors, functions, types
-from telethon.sessions import SQLiteSession
+from telethon.sessions import SQLiteSession, StringSession
 
 logger = logging.getLogger(__name__)
 
 # Session files stored inside the backend container
 SESSIONS_DIR = Path(os.environ.get("TG_SESSIONS_DIR", "/app/tg_sessions"))
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+async def session_file_to_string_session(
+    session_bytes: bytes, api_id: int, api_hash: str
+) -> tuple[str, Optional[dict]]:
+    """Convert a .session file (bytes) to a Telethon StringSession string.
+
+    Returns (string_session, user_info) where user_info is a dict with
+    telegram_user_id, username, first_name, last_name — or None if
+    the client can't connect / isn't authorized.
+    """
+    tmp = tempfile.NamedTemporaryFile(suffix=".session", delete=False)
+    tmp.write(session_bytes)
+    tmp.close()
+
+    # Telethon auto-appends .session, so the session name must NOT include it
+    session_path = tmp.name.replace(".session", "")
+    os.rename(tmp.name, session_path + ".session")
+
+    user_info = None
+    try:
+        client = TelegramClient(session_path, api_id, api_hash)
+        await client.connect()
+
+        # Export as StringSession
+        string_session = StringSession.save(client.session)
+
+        # Try to grab user info if the session is authorized
+        try:
+            if await client.is_user_authorized():
+                me = await client.get_me()
+                if me:
+                    user_info = {
+                        "telegram_user_id": me.id,
+                        "username": me.username,
+                        "first_name": me.first_name,
+                        "last_name": me.last_name,
+                    }
+        except Exception as e:
+            logger.warning(f"Could not get_me() during StringSession extraction: {e}")
+
+        await client.disconnect()
+        return string_session, user_info
+    except Exception as e:
+        logger.error(f"Failed to extract StringSession: {e}")
+        raise
+    finally:
+        try:
+            os.unlink(session_path + ".session")
+        except OSError:
+            pass
 
 
 class PendingAuth:

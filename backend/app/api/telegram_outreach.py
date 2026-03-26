@@ -4,6 +4,7 @@ Telegram Outreach API router.
 Manages Telegram accounts, proxy groups, outreach campaigns,
 message sequences, and recipients.
 """
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy import select, func, desc, asc
@@ -19,6 +20,9 @@ from app.models.telegram_outreach import (
     TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgRecipientStatus, TgMessageStatus,
     TgInboxDialog,
 )
+from app.models.telegram_dm import TelegramDMAccount
+
+logger = logging.getLogger(__name__)
 from app.schemas.telegram_outreach import (
     TgProxyGroupCreate, TgProxyGroupUpdate, TgProxyGroupResponse,
     TgProxyCreate, TgProxyBulkCreate, TgProxyResponse,
@@ -36,6 +40,90 @@ from app.schemas.telegram_outreach import (
 )
 
 router = APIRouter(prefix="/telegram-outreach", tags=["Telegram Outreach"])
+
+
+async def _extract_and_save_string_session(
+    session_bytes: bytes,
+    phone: str,
+    api_id: int,
+    api_hash: str,
+    tg_account: "TgAccount",
+    db: AsyncSession,
+) -> Optional[str]:
+    """Extract StringSession from .session bytes, save to TgAccount and TelegramDMAccount.
+
+    Returns the string_session string on success, None on failure.
+    This is best-effort: if extraction fails, the import still succeeds.
+    """
+    try:
+        string_session, user_info = await session_file_to_string_session(
+            session_bytes, api_id, api_hash
+        )
+    except Exception as e:
+        logger.warning(f"StringSession extraction failed for {phone}: {e}")
+        return None
+
+    # Save to TgAccount
+    tg_account.string_session = string_session
+
+    # Determine user info: prefer live data from Telethon, fall back to TgAccount fields
+    tg_user_id = None
+    username = tg_account.username
+    first_name = tg_account.first_name
+    last_name = tg_account.last_name
+
+    if user_info:
+        tg_user_id = user_info.get("telegram_user_id")
+        username = user_info.get("username") or username
+        first_name = user_info.get("first_name") or first_name
+        last_name = user_info.get("last_name") or last_name
+
+        # Also update TgAccount with live data if it was missing
+        if tg_user_id and not tg_account.telegram_user_id:
+            tg_account.telegram_user_id = tg_user_id
+        if user_info.get("username") and not tg_account.username:
+            tg_account.username = user_info["username"]
+        if user_info.get("first_name") and not tg_account.first_name:
+            tg_account.first_name = user_info["first_name"]
+        if user_info.get("last_name") and not tg_account.last_name:
+            tg_account.last_name = user_info["last_name"]
+
+    # Create or update TelegramDMAccount
+    existing_dm = None
+    if phone:
+        result = await db.execute(
+            select(TelegramDMAccount).where(TelegramDMAccount.phone == phone)
+        )
+        existing_dm = result.scalar()
+
+    if existing_dm:
+        existing_dm.string_session = string_session
+        existing_dm.auth_status = "active"
+        if tg_user_id:
+            existing_dm.telegram_user_id = tg_user_id
+        if username:
+            existing_dm.username = username
+        if first_name:
+            existing_dm.first_name = first_name
+        if last_name:
+            existing_dm.last_name = last_name
+        logger.info(f"Updated TelegramDMAccount for {phone} with StringSession")
+    else:
+        dm_account = TelegramDMAccount(
+            phone=phone,
+            telegram_user_id=tg_user_id,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            string_session=string_session,
+            auth_status="active",
+            company_id=1,
+            is_connected=False,
+        )
+        db.add(dm_account)
+        logger.info(f"Created TelegramDMAccount for {phone} with StringSession")
+
+    return string_session
 
 
 def _estimate_registration_date(tg_user_id: Optional[int]) -> Optional[str]:
@@ -1268,6 +1356,7 @@ async def import_account_bundle(
     added = 0
     skipped = 0
     sessions_saved = 0
+    string_sessions_created = 0
     errors = []
 
     for pair in pairs:
@@ -1287,6 +1376,18 @@ async def import_account_bundle(
                 save_session_file(phone, pair["session_bytes"])
                 existing_acc.session_file = phone
                 sessions_saved += 1
+
+                # Extract StringSession and create/update TelegramDMAccount
+                api_id = existing_acc.api_id or json_data.get("app_id")
+                api_hash = existing_acc.api_hash or json_data.get("app_hash")
+                if api_id and api_hash:
+                    ss = await _extract_and_save_string_session(
+                        pair["session_bytes"], phone, api_id, api_hash,
+                        existing_acc, session,
+                    )
+                    if ss:
+                        string_sessions_created += 1
+
             skipped += 1
             continue
 
@@ -1326,10 +1427,21 @@ async def import_account_bundle(
         )
         session.add(account)
 
-        # Save session file
+        # Save session file + extract StringSession
         if pair["has_session"]:
             save_session_file(phone, pair["session_bytes"])
             sessions_saved += 1
+
+            # Extract StringSession and create TelegramDMAccount
+            api_id = json_data.get("app_id")
+            api_hash = json_data.get("app_hash")
+            if api_id and api_hash:
+                ss = await _extract_and_save_string_session(
+                    pair["session_bytes"], phone, api_id, api_hash,
+                    account, session,
+                )
+                if ss:
+                    string_sessions_created += 1
 
         added += 1
 
@@ -1340,6 +1452,7 @@ async def import_account_bundle(
         "added": added,
         "skipped": skipped,
         "sessions_saved": sessions_saved,
+        "string_sessions_created": string_sessions_created,
         "total_files": len(all_files),
         "pairs_found": len(pairs),
         "errors": errors,
@@ -1961,7 +2074,7 @@ async def list_campaign_messages(
 
 from app.models.telegram_outreach import TgIncomingReply
 from app.schemas.telegram_outreach import TgIncomingReplyResponse, TgIncomingReplyListResponse
-from app.services.telegram_engine import telegram_engine, TelegramEngine
+from app.services.telegram_engine import telegram_engine, TelegramEngine, session_file_to_string_session
 
 
 async def _get_account_with_proxy(account_id: int, session: AsyncSession) -> tuple:
@@ -2031,7 +2144,17 @@ async def upload_session(account_id: int, file: UploadFile = File(...),
     content = await file.read()
     await telegram_engine.save_uploaded_session(account.phone, content)
     account.session_file = account.phone
-    return {"ok": True, "session_file": account.phone}
+
+    # Extract StringSession and create/update TelegramDMAccount
+    string_session_ok = False
+    if account.api_id and account.api_hash:
+        ss = await _extract_and_save_string_session(
+            content, account.phone, account.api_id, account.api_hash,
+            account, session,
+        )
+        string_session_ok = ss is not None
+
+    return {"ok": True, "session_file": account.phone, "string_session_created": string_session_ok}
 
 
 # ── Auth flow ─────────────────────────────────────────────────────────
