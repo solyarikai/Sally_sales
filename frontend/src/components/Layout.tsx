@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen, Activity, Shield, Brain } from 'lucide-react';
+import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen, Activity, Shield, Brain, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -58,6 +58,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/actions', icon: Activity, label: 'Actions', global: true },
     { path: '/knowledge/intelligence', icon: Brain, label: 'Intelligence', global: true },
     { path: '/god-panel', icon: Shield, label: 'God Panel', global: true, badge: true },
+    { path: '/telegram-outreach', icon: Send, label: 'TG Outreach', global: true },
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },
     { path: '/settings', icon: Settings, label: 'Settings', global: true },
   ];
