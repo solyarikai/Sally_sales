@@ -56,18 +56,28 @@ class MCPApp:
 
     async def __call__(self, scope, receive, send):
         path = scope.get("path", "")
+        logger.info(f"MCPApp: path={path}, type={scope.get('type')}")
 
-        if path == "/sse" or path == "/mcp/sse":
-            async with sse_transport.connect_sse(scope, receive, send) as streams:
-                await mcp_server.run(
-                    streams[0], streams[1], mcp_server.create_initialization_options()
-                )
-        elif path == "/messages" or path == "/mcp/messages":
-            await sse_transport.handle_post_message(scope, receive, send)
-        else:
-            # 404
-            await send({"type": "http.response.start", "status": 404, "headers": []})
-            await send({"type": "http.response.body", "body": b"Not found"})
+        if scope["type"] in ("http", "websocket"):
+            if "/sse" in path:
+                async with sse_transport.connect_sse(scope, receive, send) as streams:
+                    await mcp_server.run(
+                        streams[0], streams[1], mcp_server.create_initialization_options()
+                    )
+            elif "/messages" in path:
+                await sse_transport.handle_post_message(scope, receive, send)
+            else:
+                await send({"type": "http.response.start", "status": 404, "headers": []})
+                await send({"type": "http.response.body", "body": b"Not found"})
+        elif scope["type"] == "lifespan":
+            # Handle lifespan events
+            while True:
+                message = await receive()
+                if message["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif message["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
 
 
 app.mount("/mcp", MCPApp())
