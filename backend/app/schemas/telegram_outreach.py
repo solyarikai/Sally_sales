@@ -171,7 +171,7 @@ class TgCampaignBase(BaseModel):
 
 
 class TgCampaignCreate(TgCampaignBase):
-    pass
+    tags: Optional[list[str]] = None
 
 
 class TgCampaignUpdate(BaseModel):
@@ -187,11 +187,13 @@ class TgCampaignUpdate(BaseModel):
     link_preview: Optional[bool] = None
     silent: Optional[bool] = None
     delete_dialog_after: Optional[bool] = None
+    tags: Optional[list[str]] = None
 
 
 class TgCampaignResponse(TgCampaignBase):
     id: int
     status: str = "draft"
+    tags: list[str] = []
     messages_sent_today: int = 0
     total_messages_sent: int = 0
     total_recipients: int = 0

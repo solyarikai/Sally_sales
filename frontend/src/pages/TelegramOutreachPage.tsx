@@ -4,6 +4,7 @@ import {
   Users, Send, Shield, Plus, Search, Trash2,
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RotateCw, RefreshCw,
+  MessageCircle,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
@@ -14,7 +15,7 @@ import type {
   TgAccount, TgAccountTag, TgProxyGroup, TgProxy, TgCampaign,
 } from '../api/telegramOutreach';
 
-type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'info';
+type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'inbox' | 'info';
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -140,6 +141,7 @@ export function TelegramOutreachPage() {
     { key: 'proxies', label: 'Proxies', icon: Shield },
     { key: 'parser', label: 'Parser', icon: Search },
     { key: 'crm', label: 'CRM', icon: Users },
+    { key: 'inbox', label: 'Inbox', icon: MessageCircle },
     { key: 'info', label: 'Info', icon: BookOpen },
   ];
 
@@ -191,6 +193,7 @@ export function TelegramOutreachPage() {
         {tab === 'proxies' && <ProxiesTab t={t} toast={toast} />}
         {tab === 'parser' && <ParserTab t={t} toast={toast} />}
         {tab === 'crm' && <CrmTab t={t} toast={toast} />}
+        {tab === 'inbox' && <InboxTab toast={toast} />}
         {tab === 'info' && <InfoTab t={t} />}
       </div>
     </div>
@@ -2415,6 +2418,383 @@ function InfoTab({ t }: { t: any }) {
           <li className={liCls}>CRM-контакт обновляется: total_replies_received + 1, last_reply_at</li>
           <li className={liCls}>AI AutoReply (Gemini) может отвечать автоматически если настроен</li>
         </ul>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Inbox Tab
+// ══════════════════════════════════════════════════════════════════════
+
+function formatRelativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  if (diffMs < 0) return 'just now';
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h`;
+  const d = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'yesterday';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+const TAG_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  interested:      { bg: '#ECFDF5', text: '#0D9488', border: '#99F6E4' },
+  info_requested:  { bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' },
+  not_interested:  { bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
+};
+
+function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const [threads, setThreads] = useState<any[]>([]);
+  const [selectedThread, setSelectedThread] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messageText, setMessageText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [filterCampaign, setFilterCampaign] = useState('');
+  const [filterAccount, setFilterAccount] = useState('');
+  const [filterTag, setFilterTag] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load campaigns & accounts on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const [cRes, aRes] = await Promise.all([
+          telegramOutreachApi.listCampaigns(),
+          telegramOutreachApi.listAccounts({ page_size: 500 }),
+        ]);
+        setCampaigns(cRes.items || []);
+        setAccounts(aRes.items || []);
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  // Load threads (on mount + filter change + auto-refresh every 10s)
+  const loadThreads = useCallback(async () => {
+    try {
+      const params: any = {};
+      if (filterCampaign) params.campaign_id = Number(filterCampaign);
+      if (filterAccount) params.account_id = Number(filterAccount);
+      if (filterTag) params.tag = filterTag;
+      params.page_size = 100;
+      const data = await telegramOutreachApi.listInboxThreads(params);
+      setThreads(data.items || data || []);
+    } catch {
+      // silently fail on auto-refresh
+    } finally {
+      setLoading(false);
+    }
+  }, [filterCampaign, filterAccount, filterTag]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadThreads();
+    const iv = setInterval(loadThreads, 10000);
+    return () => clearInterval(iv);
+  }, [loadThreads]);
+
+  // Load messages when thread selected
+  useEffect(() => {
+    if (!selectedThread) { setMessages([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await telegramOutreachApi.getThreadMessages(selectedThread.recipient_id, 50);
+        if (!cancelled) setMessages(data.messages || data || []);
+      } catch {
+        if (!cancelled) setMessages([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedThread]);
+
+  // Auto-scroll to bottom when messages load
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Send handler
+  const handleSend = async () => {
+    if (!selectedThread || !messageText.trim() || sending) return;
+    setSending(true);
+    try {
+      await telegramOutreachApi.sendInboxReply(selectedThread.recipient_id, messageText.trim());
+      setMessageText('');
+      const data = await telegramOutreachApi.getThreadMessages(selectedThread.recipient_id, 50);
+      setMessages(data.messages || data || []);
+      inputRef.current?.focus();
+    } catch (e: any) {
+      toast(e?.response?.data?.detail || 'Failed to send message', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Tag handler
+  const handleTag = async (tag: string) => {
+    if (!selectedThread) return;
+    try {
+      await telegramOutreachApi.tagInboxThread(selectedThread.recipient_id, tag);
+      setSelectedThread((prev: any) => prev ? { ...prev, tag } : prev);
+      setThreads(prev => prev.map(t =>
+        t.recipient_id === selectedThread.recipient_id ? { ...t, tag } : t
+      ));
+      toast(`Tagged as ${tag.replace('_', ' ')}`, 'success');
+    } catch (e: any) {
+      toast(e?.response?.data?.detail || 'Failed to tag thread', 'error');
+    }
+  };
+
+  const selectCls = `h-8 rounded-lg border text-xs px-2 outline-none appearance-none cursor-pointer`;
+
+  return (
+    <div className="flex rounded-xl overflow-hidden" style={{ background: A.surface, border: `1px solid ${A.border}`, height: 'calc(100vh - 220px)', minHeight: 500 }}>
+      {/* ── Left panel: Thread list ── */}
+      <div className="flex flex-col" style={{ width: 320, borderRight: `1px solid ${A.border}` }}>
+        {/* Filters */}
+        <div className="p-3 flex flex-col gap-2" style={{ borderBottom: `1px solid ${A.border}` }}>
+          <div className="flex gap-2">
+            <select
+              value={filterCampaign}
+              onChange={e => setFilterCampaign(e.target.value)}
+              className={selectCls}
+              style={{ flex: 1, borderColor: A.border, color: filterCampaign ? A.text1 : A.text3, background: A.surface }}
+            >
+              <option value="">All Campaigns</option>
+              {campaigns.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <select
+              value={filterAccount}
+              onChange={e => setFilterAccount(e.target.value)}
+              className={selectCls}
+              style={{ flex: 1, borderColor: A.border, color: filterAccount ? A.text1 : A.text3, background: A.surface }}
+            >
+              <option value="">All Accounts</option>
+              {accounts.map((a: any) => (
+                <option key={a.id} value={a.id}>{a.phone}{a.username ? ` @${a.username}` : ''}</option>
+              ))}
+            </select>
+          </div>
+          <select
+            value={filterTag}
+            onChange={e => setFilterTag(e.target.value)}
+            className={selectCls}
+            style={{ borderColor: A.border, color: filterTag ? A.text1 : A.text3, background: A.surface }}
+          >
+            <option value="">All Tags</option>
+            <option value="interested">Interested</option>
+            <option value="info_requested">Info Requested</option>
+            <option value="not_interested">Not Interested</option>
+          </select>
+        </div>
+
+        {/* Thread list */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="w-5 h-5 animate-spin" style={{ color: A.text3 }} />
+            </div>
+          ) : threads.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-32 gap-1">
+              <MessageCircle className="w-6 h-6" style={{ color: A.text3 }} />
+              <span className="text-xs" style={{ color: A.text3 }}>No conversations</span>
+            </div>
+          ) : (
+            threads.map((thread: any) => {
+              const isSelected = selectedThread?.recipient_id === thread.recipient_id;
+              const tagInfo = thread.tag ? TAG_COLORS[thread.tag] : null;
+              return (
+                <div
+                  key={thread.recipient_id}
+                  onClick={() => setSelectedThread(thread)}
+                  className="px-3 py-2.5 cursor-pointer transition-colors"
+                  style={{
+                    background: isSelected ? A.blueBg : 'transparent',
+                    borderBottom: `1px solid ${A.border}`,
+                  }}
+                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#F9FAFB'; }}
+                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold truncate" style={{ color: A.text1 }}>
+                      {thread.username || thread.first_name || `ID ${thread.recipient_id}`}
+                    </span>
+                    <span className="text-[10px] flex-shrink-0" style={{ color: A.text3 }}>
+                      {formatRelativeTime(thread.last_message_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs truncate flex-1" style={{ color: A.text2, lineHeight: '1.4' }}>
+                      {thread.last_message_preview || 'No messages'}
+                    </p>
+                    {tagInfo && (
+                      <span
+                        className="text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0"
+                        style={{ background: tagInfo.bg, color: tagInfo.text, border: `1px solid ${tagInfo.border}` }}
+                      >
+                        {thread.tag.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
+                  {thread.campaign_name && (
+                    <span className="text-[10px] mt-0.5 block" style={{ color: A.text3 }}>
+                      {thread.campaign_name}
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* ── Right panel: Chat view ── */}
+      <div className="flex-1 flex flex-col" style={{ minWidth: 0 }}>
+        {!selectedThread ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <MessageCircle className="w-10 h-10 mx-auto mb-2" style={{ color: A.text3 }} />
+              <p className="text-sm" style={{ color: A.text3 }}>Select a conversation</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Chat header */}
+            <div className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: `1px solid ${A.border}` }}>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold" style={{ background: A.blueBg, color: A.blue }}>
+                {(selectedThread.username || selectedThread.first_name || '?')[0].toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate" style={{ color: A.text1 }}>
+                  {selectedThread.username || selectedThread.first_name || `ID ${selectedThread.recipient_id}`}
+                </p>
+                <p className="text-[11px] truncate" style={{ color: A.text3 }}>
+                  {[selectedThread.campaign_name, selectedThread.account_phone].filter(Boolean).join(' \u00B7 ')}
+                </p>
+              </div>
+              {selectedThread.tag && TAG_COLORS[selectedThread.tag] && (
+                <span
+                  className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+                  style={{
+                    background: TAG_COLORS[selectedThread.tag].bg,
+                    color: TAG_COLORS[selectedThread.tag].text,
+                    border: `1px solid ${TAG_COLORS[selectedThread.tag].border}`,
+                  }}
+                >
+                  {selectedThread.tag.replace('_', ' ')}
+                </span>
+              )}
+            </div>
+
+            {/* Messages area */}
+            <div className="flex-1 overflow-y-auto px-4 py-3" style={{ background: '#F9FAFB' }}>
+              {messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <span className="text-xs" style={{ color: A.text3 }}>No messages yet</span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {messages.map((msg: any, idx: number) => {
+                    const isOutbound = msg.direction === 'outbound' || msg.direction === 'sent' || msg.is_outbound;
+                    return (
+                      <div key={msg.id || idx} className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          className="max-w-[75%] px-3 py-2 text-sm"
+                          style={{
+                            background: isOutbound ? A.blueBg : '#F3F4F6',
+                            color: A.text1,
+                            borderRadius: isOutbound
+                              ? '16px 16px 4px 16px'
+                              : '16px 16px 16px 4px',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.45' }}>{msg.text || msg.rendered_text || msg.message_text || ''}</p>
+                          <p className="text-[10px] mt-1 text-right" style={{ color: A.text3 }}>
+                            {msg.sent_at || msg.received_at || msg.created_at
+                              ? new Date(msg.sent_at || msg.received_at || msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                              : ''}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </div>
+
+            {/* Tag buttons */}
+            <div className="px-4 py-2 flex gap-2" style={{ borderTop: `1px solid ${A.border}` }}>
+              {([
+                { key: 'interested', label: 'Interested', bg: '#ECFDF5', text: '#0D9488', border: '#99F6E4' },
+                { key: 'info_requested', label: 'Info Requested', bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' },
+                { key: 'not_interested', label: 'Not Interested', bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
+              ] as const).map(t => {
+                const isActive = selectedThread.tag === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => handleTag(t.key)}
+                    className="text-[11px] font-medium px-3 py-1 rounded-full transition-all"
+                    style={{
+                      background: isActive ? t.bg : 'transparent',
+                      color: isActive ? t.text : A.text3,
+                      border: `1px solid ${isActive ? t.border : A.border}`,
+                    }}
+                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = t.bg; e.currentTarget.style.color = t.text; e.currentTarget.style.borderColor = t.border; } }}
+                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = A.text3; e.currentTarget.style.borderColor = A.border; } }}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Input row */}
+            <div className="px-4 py-3 flex gap-2 items-center" style={{ borderTop: `1px solid ${A.border}` }}>
+              <input
+                ref={inputRef}
+                type="text"
+                value={messageText}
+                onChange={e => setMessageText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder="Type a message..."
+                className="flex-1 h-9 px-3 rounded-lg border text-sm outline-none"
+                style={{ borderColor: A.border, color: A.text1, background: '#F9FAFB' }}
+                disabled={sending}
+              />
+              <button
+                onClick={handleSend}
+                disabled={sending || !messageText.trim()}
+                className="h-9 w-9 rounded-lg flex items-center justify-center transition-colors"
+                style={{
+                  background: messageText.trim() ? A.blue : '#E5E7EB',
+                  cursor: messageText.trim() ? 'pointer' : 'default',
+                }}
+              >
+                {sending
+                  ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+                  : <Send className="w-4 h-4 text-white" />}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
