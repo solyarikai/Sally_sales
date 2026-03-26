@@ -27,7 +27,7 @@ export const contactsApi = {
     return { statuses: ['new', 'pending'] as string[], sources: ['smartlead_import', 'pipeline'] as string[], segments: [] as string[], geos: [] as string[], projects: [] as Array<{id: number, name: string}> }
   },
 
-  async listProjectNames() {
+  async listProjectNames(_opts?: any) {
     const token = localStorage.getItem('mcp_token') || ''
     const res = await fetch('/api/pipeline/projects', { headers: { 'X-MCP-Token': token } })
     if (!res.ok) return []
@@ -39,7 +39,6 @@ export const contactsApi = {
   async exportCsv(_filters: any) { return new Blob() },
   async exportGoogleSheet(_filters: any): Promise<any> { return { rows: 0, url: '' } },
   async deleteMany(_ids: number[]) { return {} },
-  async pushToSmartlead(_ids: number[], _name: string, _opts: any) { return {} },
   async importCsv(_file: File, _opts?: any): Promise<ImportResult> { return { success: true, imported: 0, errors: [] } },
   async enrichCsv(_file: File, _opts?: any): Promise<EnrichResult> { return { success: true, enriched: 0 } },
   async generateReply(_id: number) { return { has_reply: false } },
