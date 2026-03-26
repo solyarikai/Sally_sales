@@ -1,16 +1,22 @@
 # Shared Code Strategy — One Codebase, Two Apps
 
-## Problem
+## ABSOLUTE RULE: DATA ISOLATION
 
-Two apps exist:
-1. **Main product** (`backend/` + `frontend/`) — current LeadGen platform on `:80/:8001`
-2. **MCP system** (`mcp/backend/` + `mcp/frontend/`) — new MCP-powered platform on `:3000/:8002`
+**The two apps NEVER share data. NEVER proxy to each other's API. NEVER read from each other's database.**
 
-Both have **separate databases** (correct — total isolation). But currently they have **duplicated code** — models, services, and UI components copied and adapted. Fixing a bug in one doesn't fix it in the other.
+- Main app DB: `leadgen-postgres:5432/leadgen` — MAIN APP ONLY
+- MCP app DB: `mcp-postgres:5433/mcp_leadgen` — MCP APP ONLY
+- MCP nginx: ALL routes go to `mcp-backend:8000` ONLY. ZERO routes to `leadgen-backend`.
+- MCP docker-compose: NO connection to main app's Docker network.
+
+**If a user gathers contacts through MCP pipeline, those contacts live ONLY in MCP DB.**
+**If a user has contacts in the main app, those are INVISIBLE to MCP.**
+**The two systems are completely independent. Breaking this rule is FORBIDDEN.**
 
 ## Goal
 
-**Fix once, apply everywhere.** Shared code at the package level, separate apps that import from it.
+**Reuse LOGIC (code), never DATA.** Same Python services, same React components — different databases.
+Fix a bug in shared code → fixed in both apps. But the data flows are completely separate.
 
 ---
 
