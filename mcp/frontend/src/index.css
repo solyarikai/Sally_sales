@@ -41,20 +41,14 @@ html, body, #root {
   margin: 0;
 }
 
-/* AG Grid h-full needs every ancestor to have explicit height.
-   Force all divs between content area and the AG Grid to inherit height. */
+/* AG Grid needs explicit height chain from root to grid container */
 .mcp-content-area,
 .mcp-content-area > *,
 .mcp-content-area > * > *,
 .mcp-content-area > * > * > * {
   height: 100% !important;
-  overflow: hidden;
 }
-/* But allow scrolling within the grid itself */
-.ag-body-viewport {
-  overflow: auto !important;
-  height: auto !important;
-}
+/* Don't force height on elements deeper than 3 levels (AG Grid manages its own) */
 
 body {
   background: var(--bg);
