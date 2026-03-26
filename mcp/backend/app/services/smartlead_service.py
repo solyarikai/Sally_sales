@@ -1,9 +1,36 @@
-"""SmartLead Service — adapted for MCP. Only campaign creation (DRAFT) + sequence push."""
+"""SmartLead Service — full campaign lifecycle for MCP."""
 import logging
 from typing import Any, Dict, List, Optional
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# Country → IANA timezone mapping (business hours 9-18)
+COUNTRY_TIMEZONES = {
+    "united states": "America/New_York", "us": "America/New_York",
+    "united kingdom": "Europe/London", "uk": "Europe/London",
+    "germany": "Europe/Berlin", "austria": "Europe/Vienna", "switzerland": "Europe/Zurich",
+    "france": "Europe/Paris", "spain": "Europe/Madrid", "italy": "Europe/Rome",
+    "netherlands": "Europe/Amsterdam", "belgium": "Europe/Brussels",
+    "india": "Asia/Kolkata", "australia": "Australia/Sydney",
+    "united arab emirates": "Asia/Dubai", "uae": "Asia/Dubai",
+    "south africa": "Africa/Johannesburg", "nigeria": "Africa/Lagos",
+    "brazil": "America/Sao_Paulo", "mexico": "America/Mexico_City",
+    "canada": "America/Toronto", "japan": "Asia/Tokyo",
+    "singapore": "Asia/Singapore", "philippines": "Asia/Manila",
+    "russia": "Europe/Moscow", "israel": "Asia/Jerusalem",
+    "turkey": "Europe/Istanbul", "saudi arabia": "Asia/Riyadh",
+    "qatar": "Asia/Qatar", "kuwait": "Asia/Kuwait",
+    "poland": "Europe/Warsaw", "czech republic": "Europe/Prague",
+    "romania": "Europe/Bucharest", "ukraine": "Europe/Kyiv",
+}
+
+
+def get_timezone_for_country(country: str) -> str:
+    """Get IANA timezone for a country. Defaults to UTC."""
+    if not country:
+        return "UTC"
+    return COUNTRY_TIMEZONES.get(country.lower().strip(), "UTC")
 
 
 class SmartLeadService:
@@ -28,12 +55,14 @@ class SmartLeadService:
             async with httpx.AsyncClient(timeout=30) as client:
                 if method == "POST":
                     resp = await client.post(f"{self.base_url}{endpoint}", json=json_data, params=p)
+                elif method == "PATCH":
+                    resp = await client.patch(f"{self.base_url}{endpoint}", json=json_data, params=p)
                 else:
                     resp = await client.get(f"{self.base_url}{endpoint}", params=p)
                 resp.raise_for_status()
                 return resp.json()
         except Exception as e:
-            logger.error(f"SmartLead {endpoint}: {e}")
+            logger.error(f"SmartLead {method} {endpoint}: {e}")
             return None
 
     async def test_connection(self) -> bool:
@@ -46,20 +75,65 @@ class SmartLeadService:
         data = await self._api_call("GET", "/campaigns")
         return data if isinstance(data, list) else []
 
+    # ── Campaign Creation ──
+
     async def create_campaign(self, name: str) -> Optional[Dict[str, Any]]:
-        """Create a DRAFT campaign — NEVER activates or adds leads."""
+        """Create a DRAFT campaign."""
         return await self._api_call("POST", "/campaigns/create", {"name": name})
 
     async def set_campaign_sequences(self, campaign_id: int, sequences: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """Set email sequence steps on a campaign."""
-        return await self._api_call("POST", f"/campaigns/{campaign_id}/sequences", {"sequences": sequences})
+        """Set email sequence steps."""
+        # Format sequences for SmartLead API
+        formatted = []
+        for i, step in enumerate(sequences):
+            formatted.append({
+                "seq_number": step.get("step", i + 1),
+                "seq_delay_details": {"delay_in_days": step.get("day", i * 3)},
+                "subject": step.get("subject", ""),
+                "email_body": step.get("body", ""),
+            })
+        return await self._api_call("POST", f"/campaigns/{campaign_id}/sequences", {"sequences": formatted})
 
-    async def get_campaign_sequences(self, campaign_id: int) -> Optional[List[Dict[str, Any]]]:
-        data = await self._api_call("GET", f"/campaigns/{campaign_id}/sequences")
-        return data if isinstance(data, list) else None
+    async def set_campaign_schedule(self, campaign_id: int, timezone: str, start_hour: str = "09:00", end_hour: str = "18:00") -> Optional[Dict[str, Any]]:
+        """Set campaign sending schedule — 9-6 business hours in target timezone."""
+        return await self._api_call("POST", f"/campaigns/{campaign_id}/schedule", {
+            "timezone": timezone,
+            "days_of_the_week": [1, 2, 3, 4, 5],  # Mon-Fri only
+            "start_hour": start_hour,
+            "end_hour": end_hour,
+            "min_time_btw_emails": 3,
+            "max_new_leads_per_day": 100,
+        })
+
+    async def set_campaign_settings(self, campaign_id: int) -> Optional[Dict[str, Any]]:
+        """Set campaign delivery settings — matching production campaigns."""
+        return await self._api_call("POST", f"/campaigns/{campaign_id}/settings", {
+            "track_settings": ["DONT_TRACK_EMAIL_OPEN", "DONT_TRACK_LINK_CLICK"],
+            "stop_lead_settings": "REPLY_TO_AN_EMAIL",
+            "send_as_plain_text": True,
+            "follow_up_percentage": 40,
+        })
+
+    async def set_campaign_email_accounts(self, campaign_id: int, account_ids: List[int]) -> Optional[Dict[str, Any]]:
+        """Assign email sending accounts to campaign."""
+        return await self._api_call("POST", f"/campaigns/{campaign_id}/email-accounts", {
+            "email_account_ids": account_ids,
+        })
+
+    async def get_email_accounts(self) -> List[Dict[str, Any]]:
+        """Get all email accounts."""
+        data = await self._api_call("GET", "/email-accounts")
+        return data if isinstance(data, list) else []
+
+    async def get_campaign_email_accounts(self, campaign_id: int) -> List[Dict[str, Any]]:
+        """Get email accounts assigned to a specific campaign."""
+        data = await self._api_call("GET", f"/campaigns/{campaign_id}/email-accounts")
+        return data if isinstance(data, list) else []
+
+    # ── Leads ──
 
     async def export_campaign_leads(self, campaign_id: int) -> List[Dict[str, Any]]:
-        """Export ALL leads from a campaign as CSV. Returns list of lead dicts."""
+        """Export ALL leads from a campaign as CSV."""
         try:
             async with httpx.AsyncClient(timeout=60) as client:
                 resp = await client.get(
@@ -67,16 +141,11 @@ class SmartLeadService:
                     params={"api_key": self.api_key},
                 )
                 if resp.status_code != 200:
-                    logger.error(f"SmartLead export {campaign_id}: HTTP {resp.status_code}")
                     return []
-
-                # Parse CSV response
-                import csv
-                import io
+                import csv, io
                 text = resp.text
                 if not text.strip():
                     return []
-
                 reader = csv.DictReader(io.StringIO(text))
                 leads = []
                 for row in reader:
@@ -95,3 +164,7 @@ class SmartLeadService:
         except Exception as e:
             logger.error(f"SmartLead export {campaign_id} failed: {e}")
             return []
+
+    async def get_campaign_sequences(self, campaign_id: int) -> Optional[List[Dict[str, Any]]]:
+        data = await self._api_call("GET", f"/campaigns/{campaign_id}/sequences")
+        return data if isinstance(data, list) else None
