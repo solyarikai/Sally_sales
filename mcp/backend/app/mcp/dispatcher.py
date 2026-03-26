@@ -263,35 +263,33 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         source_type = args["source_type"]
         filters = args.get("filters", {})
 
+        # ── Auto-calculate pages from target_count BEFORE validation ──
+        if "api" in source_type:
+            target_count = args.get("target_count") or filters.pop("target_count", None)
+            if target_count and not filters.get("max_pages"):
+                per_page = filters.get("per_page", 25)
+                companies_needed = int(int(target_count) / 0.3)
+                filters["max_pages"] = max(1, (companies_needed + per_page - 1) // per_page)
+
         # ── Essential filter validation for API sources ──
         if "api" in source_type or "emulator" in source_type:
             missing = []
             if not filters.get("q_organization_keyword_tags") and not filters.get("organization_locations"):
                 missing.append("keywords (q_organization_keyword_tags) OR locations (organization_locations)")
             if not filters.get("organization_num_employees_ranges"):
-                missing.append("company size range (organization_num_employees_ranges, e.g. ['11,50', '51,200'])")
+                missing.append("company size range (e.g. ['51,200'] for 50-200 employees)")
             if "api" in source_type and not filters.get("max_pages"):
-                missing.append("max_pages (controls credit spend — each page costs 1 Apollo credit, returns 25 companies)")
+                missing.append("max_pages OR target_count (how many target companies do you want?)")
 
             if missing:
                 return {
                     "error": "missing_essential_filters",
-                    "message": f"Cannot proceed — essential filters missing. Ask the user to specify:\n"
-                               + "\n".join(f"  - {m}" for m in missing),
-                    "hint": "Example: organization_num_employees_ranges: ['11,50'] for 11-50 employees, max_pages: 4 for ~100 companies",
+                    "message": f"Cannot proceed — I need more info:\n" + "\n".join(f"  - {m}" for m in missing),
+                    "hint": "You can say 'I want 10 target companies' and I'll calculate the rest.",
                 }
 
-            # Apply safe defaults
-            if "api" in source_type:
-                filters.setdefault("per_page", 25)
-                # If user specified target_count, auto-calculate pages
-                target_count = args.get("target_count") or filters.pop("target_count", None)
-                if target_count and not filters.get("max_pages"):
-                    # ~30% target rate, so need target_count / 0.3 companies
-                    companies_needed = int(target_count / 0.3)
-                    per_page = filters.get("per_page", 25)
-                    filters["max_pages"] = max(1, (companies_needed + per_page - 1) // per_page)
-                filters.setdefault("max_pages", 4)
+            filters.setdefault("per_page", 25)
+            filters.setdefault("max_pages", 4)
 
         import hashlib, json as _json
         filter_hash = hashlib.sha256(_json.dumps(filters, sort_keys=True).encode()).hexdigest()[:16]
