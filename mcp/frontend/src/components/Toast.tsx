@@ -1,8 +1,9 @@
-// Stub toast
 export function useToast() {
   return {
-    toast: (msg: string, type?: string) => console.log(`[toast:${type}] ${msg}`),
-    success: (msg: string) => console.log(`[success] ${msg}`),
-    error: (msg: string) => console.error(`[error] ${msg}`),
+    toast: (...args: any[]) => console.log('[toast]', ...args),
+    success: (...args: any[]) => console.log('[success]', ...args),
+    error: (...args: any[]) => console.error('[error]', ...args),
+    warning: (...args: any[]) => console.warn('[warning]', ...args),
+    info: (...args: any[]) => console.info('[info]', ...args),
   }
 }
