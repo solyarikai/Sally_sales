@@ -412,7 +412,9 @@ def _company_to_dict(c, scrape=None, truncate_reasoning=False, contacts_count=0)
 
     result = {
         "id": c.id, "domain": c.domain, "name": c.name,
-        "industry": c.industry, "employee_count": c.employee_count,
+        "industry": c.industry,
+        "employee_count": c.employee_count,
+        "employee_count_note": "Apollo contacts (not actual headcount)" if c.employee_count and c.employee_count < 50 else None,
         "employee_range": c.employee_range,
         "country": c.country, "city": c.city,
         "description": c.description, "linkedin_url": c.linkedin_url,

@@ -129,12 +129,24 @@ Track every error encountered so they don't repeat.
 
 ---
 
-## Priority Fix Order
+## Issue Status
 
-1. **#6 GPT analysis** — without this, pipeline produces no targets. CRITICAL.
-2. **#10 Target-based UX** — users think in targets, not pages
-3. **#12 AI sequence generation** — template sequences are a bad first impression
-4. **#7 Employee count** — misleading data
+| # | Issue | Status |
+|---|-------|--------|
+| #6 | GPT analysis not running | **FIXED** — GPT-4o-mini now analyzes each company. 36/100 targets found in test. |
+| #10 | Users think in pages not targets | **FIXED** — `target_count=5` auto-calculates `max_pages=1` |
+| #13 | SSE absolute URL | **FIXED** |
+| #7 | Employee count wrong | OPEN — Apollo search doesn't return real employee count |
+| #12 | Campaign sequence is template | OPEN — needs Gemini integration |
+| #11 | Scrape errors 16% | ACCEPTED — normal for web scraping |
+| #8 | Test campaigns have 0 leads | ACCEPTED — production campaigns have real leads |
+| #9 | Duplicate companies | ACCEPTED — dedup by domain works correctly |
+| #14 | Apollo censored names (Cla*****) | **FIXED** — names derived from domain |
+
+## Remaining Priority
+
+1. **#12 AI sequence generation** — wire Gemini 2.5 Pro for personalized sequences
+2. **#7 Employee count** — need Apollo enrichment for targets (1 credit each)
 
 ---
 
