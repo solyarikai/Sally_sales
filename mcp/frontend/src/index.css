@@ -41,11 +41,11 @@ html, body, #root {
   margin: 0;
 }
 
-/* ContactsPage uses h-full (height:100%). For this to work, EVERY ancestor
-   up to <html> must have explicit height. The content area is set via inline style.
-   React Router adds a wrapper div that breaks the chain. Force it: */
-.mcp-content-area > div {
-  height: 100%;
+/* ContactsPage chain: .mcp-content-area → .h-full.flex-col → .flex-1 → .ag-theme.h-full
+   Every div in this chain needs explicit height (not just flex-derived). */
+.mcp-content-area > div,
+.mcp-content-area .flex-1 {
+  height: 100% !important;
 }
 
 body {
