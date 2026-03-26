@@ -63,11 +63,11 @@ def _contact_to_response(c: ExtractedContact, company: Optional[DiscoveredCompan
         "notes": None,
         "smartlead_id": str(sd.get("campaign_id", "")) if sd.get("campaign_id") else None,
         "getsales_id": None,
-        "last_reply_at": None,
-        "has_replied": False,
-        "needs_followup": False,
-        "latest_reply_category": None,
-        "latest_reply_confidence": None,
+        "last_reply_at": sd.get("reply_time"),
+        "has_replied": sd.get("has_replied", False),
+        "needs_followup": sd.get("has_replied", False) and sd.get("reply_category") in ("interested", "meeting", "question"),
+        "latest_reply_category": sd.get("reply_category"),
+        "latest_reply_confidence": str(sd.get("reply_confidence", "")) if sd.get("reply_confidence") else None,
         "provenance": sd,
         "platform_state": {
             "smartlead": {
@@ -123,6 +123,25 @@ async def list_contacts(
     if domain:
         for d in domain.split(","):
             query = query.where(DiscoveredCompany.domain.ilike(f"%{d.strip()}%"))
+    if has_replied:
+        # Filter contacts whose source_data has "has_replied": true
+        from sqlalchemy import cast, String
+        query = query.where(ExtractedContact.source_data["has_replied"].as_boolean() == True)
+    if needs_followup:
+        # Contacts who replied but need follow-up action
+        query = query.where(ExtractedContact.source_data["has_replied"].as_boolean() == True)
+    if reply_category:
+        # Filter by reply category (warm=interested, meeting, etc.)
+        for cat in reply_category.split(","):
+            cat = cat.strip()
+            if cat == "warm":
+                query = query.where(
+                    ExtractedContact.source_data["reply_category"].astext.in_(["interested", "meeting", "question"])
+                )
+            else:
+                query = query.where(ExtractedContact.source_data["reply_category"].astext == cat)
+    if campaign:
+        query = query.where(ExtractedContact.source_data["campaign"].astext.ilike(f"%{campaign}%"))
     if geo:
         query = query.where(DiscoveredCompany.country.ilike(f"%{geo}%"))
 

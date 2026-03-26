@@ -168,3 +168,18 @@ class SmartLeadService:
     async def get_campaign_sequences(self, campaign_id: int) -> Optional[List[Dict[str, Any]]]:
         data = await self._api_call("GET", f"/campaigns/{campaign_id}/sequences")
         return data if isinstance(data, list) else None
+
+    async def get_campaign_leads_with_status(self, campaign_id: int, status: str = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """Get leads from a campaign, optionally filtered by status."""
+        params = {"limit": limit, "offset": offset}
+        if status:
+            params["lead_status"] = status
+        data = await self._api_call("GET", f"/campaigns/{campaign_id}/leads", params=params)
+        if not data:
+            return []
+        return data if isinstance(data, list) else data.get("data", data.get("leads", []))
+
+    async def get_lead_message_history(self, campaign_id: int, email: str) -> List[Dict[str, Any]]:
+        """Get full message thread for one lead."""
+        data = await self._api_call("GET", f"/campaigns/{campaign_id}/leads/{email}/message-history")
+        return data if isinstance(data, list) else []
