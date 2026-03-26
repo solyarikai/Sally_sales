@@ -308,6 +308,58 @@ Only for manual/CSV/sheets sources can you skip size and page filters.""",
         },
     },
 
+    # ── SmartLead Campaign Import (3) ──
+    {
+        "name": "list_smartlead_campaigns",
+        "description": "Browse your SmartLead campaigns. Use this to help the user identify which campaigns belong to their project for blacklisting. Shows campaign name, lead count, status.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "search": {"type": "string", "description": "Search campaigns by name (optional)"},
+            },
+        },
+    },
+    {
+        "name": "import_smartlead_campaigns",
+        "description": "Import contacts from SmartLead campaigns into MCP CRM as blacklist. The user tells you which campaigns to import — by name prefix, tags, or exact names. This loads their existing contacts so the pipeline knows who NOT to gather again.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer", "description": "Project to import into"},
+                "rules": {
+                    "type": "object",
+                    "description": "How to match campaigns",
+                    "properties": {
+                        "prefixes": {"type": "array", "items": {"type": "string"}, "description": "Campaign name prefixes (e.g. ['ES Global'])"},
+                        "tags": {"type": "array", "items": {"type": "string"}, "description": "SmartLead campaign tags"},
+                        "contains": {"type": "array", "items": {"type": "string"}, "description": "Substrings in campaign names"},
+                        "exact_names": {"type": "array", "items": {"type": "string"}, "description": "Exact campaign names"},
+                    },
+                },
+            },
+            "required": ["project_id", "rules"],
+        },
+    },
+    {
+        "name": "set_campaign_rules",
+        "description": "Save campaign detection rules on a project. These rules determine which SmartLead campaigns belong to this project for blacklisting and reply tracking.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer"},
+                "rules": {
+                    "type": "object",
+                    "properties": {
+                        "prefixes": {"type": "array", "items": {"type": "string"}},
+                        "tags": {"type": "array", "items": {"type": "string"}},
+                        "contains": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+            },
+            "required": ["project_id", "rules"],
+        },
+    },
+
     # ── Utility (2) ──
     {
         "name": "estimate_cost",

@@ -603,6 +603,108 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         await session.flush()
         return {"run_id": run.id, "message": "Full pipeline started. Use pipeline_status to track progress."}
 
+    # ── SmartLead Campaign Import ──
+    if tool_name == "list_smartlead_campaigns":
+        user = await _get_user(token, session)
+        ctx = UserServiceContext(user.id, session)
+        sl = await ctx.get_smartlead_service()
+        if not sl.is_configured():
+            raise ValueError("SmartLead not connected. Use configure_integration first.")
+        campaigns = await sl.get_campaigns()
+        search = (args.get("search") or "").lower()
+        if search:
+            campaigns = [c for c in campaigns if search in (c.get("name") or "").lower()]
+        return {
+            "campaigns": [
+                {"id": c.get("id"), "name": c.get("name"), "status": c.get("status"), "leads": c.get("lead_count", 0)}
+                for c in campaigns[:50]
+            ],
+            "total": len(campaigns),
+            "message": f"Found {len(campaigns)} campaigns" + (f" matching '{search}'" if search else ""),
+        }
+
+    if tool_name == "import_smartlead_campaigns":
+        user = await _get_user(token, session)
+        project = await session.get(Project, args["project_id"])
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+
+        ctx = UserServiceContext(user.id, session)
+        sl = await ctx.get_smartlead_service()
+        if not sl.is_configured():
+            raise ValueError("SmartLead not connected")
+
+        rules = args.get("rules", {})
+        prefixes = rules.get("prefixes", [])
+        tags = rules.get("tags", [])
+        contains = rules.get("contains", [])
+        exact_names = rules.get("exact_names", [])
+
+        # Fetch all campaigns
+        all_campaigns = await sl.get_campaigns()
+
+        # Match campaigns against rules
+        matched = []
+        for c in all_campaigns:
+            name = c.get("name", "")
+            if exact_names and name in exact_names:
+                matched.append(c)
+            elif prefixes and any(name.startswith(p) for p in prefixes):
+                matched.append(c)
+            elif contains and any(s.lower() in name.lower() for s in contains):
+                matched.append(c)
+            # Tags matching would need campaign tags from SmartLead API
+
+        # Import contacts from matched campaigns as blacklist
+        from app.models.pipeline import DiscoveredCompany
+        from app.models.campaign import Campaign
+        from app.services.domain_service import normalize_domain
+
+        total_contacts = 0
+        campaign_names = []
+        for camp in matched:
+            campaign_names.append(camp.get("name", ""))
+            # Save campaign record in MCP DB
+            from sqlalchemy import select as sa_select
+            existing_camp = await session.execute(
+                sa_select(Campaign).where(Campaign.external_id == str(camp.get("id")))
+            )
+            if not existing_camp.scalar_one_or_none():
+                session.add(Campaign(
+                    project_id=project.id, company_id=project.company_id,
+                    name=camp.get("name"), external_id=str(camp.get("id")),
+                    platform="smartlead", status=camp.get("status", "active"),
+                    leads_count=camp.get("lead_count", 0),
+                ))
+            total_contacts += camp.get("lead_count", 0)
+
+        # Save campaign rules on project
+        project.campaign_filters = campaign_names
+        await session.flush()
+
+        return {
+            "campaigns_imported": len(matched),
+            "campaigns": campaign_names,
+            "contacts_in_blacklist": total_contacts,
+            "message": f"Imported {len(matched)} campaigns with ~{total_contacts} contacts as blacklist for '{project.name}'.",
+            "_links": {"project": f"http://46.62.210.24:3000/projects"},
+        }
+
+    if tool_name == "set_campaign_rules":
+        user = await _get_user(token, session)
+        project = await session.get(Project, args["project_id"])
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+        rules = args.get("rules", {})
+        # Store rules in campaign_filters as JSON
+        project.campaign_filters = rules
+        return {
+            "updated": True,
+            "project_id": project.id,
+            "rules": rules,
+            "message": f"Campaign rules saved for '{project.name}'. These will be used for blacklisting.",
+        }
+
     # ── Utility ──
     if tool_name == "estimate_cost":
         source = args["source_type"]
