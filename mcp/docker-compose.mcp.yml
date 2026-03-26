@@ -63,8 +63,8 @@ services:
 
   mcp-frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../
+      dockerfile: mcp/frontend/Dockerfile
     container_name: mcp-frontend
     ports:
       - "3000:80"
