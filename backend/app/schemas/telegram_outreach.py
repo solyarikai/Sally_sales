@@ -359,6 +359,7 @@ class TgTeleRaptorAccount(BaseModel):
     stats_spam_count: Optional[int] = 0
     last_connect_date: Optional[str] = None
     tgid: Optional[int] = None
+    register_time: Optional[str] = None  # ISO date if available from export
 
     model_config = {"extra": "ignore"}
 

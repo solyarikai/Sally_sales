@@ -37,6 +37,69 @@ from app.schemas.telegram_outreach import (
 router = APIRouter(prefix="/telegram-outreach", tags=["Telegram Outreach"])
 
 
+def _estimate_registration_date(tg_user_id: Optional[int]) -> Optional[str]:
+    """Estimate Telegram account registration date from user_id.
+
+    Telegram user IDs are roughly sequential. Known anchor points:
+    - ID ~10M: ~2013-10
+    - ID ~100M: ~2015-07
+    - ID ~500M: ~2018-01
+    - ID ~1B: ~2020-06
+    - ID ~1.5B: ~2021-06
+    - ID ~2B: ~2022-03
+    - ID ~5B: ~2022-12
+    - ID ~6B: ~2023-06
+    - ID ~7B: ~2024-06
+    - ID ~8B: ~2025-06
+    """
+    if not tg_user_id or tg_user_id <= 0:
+        return None
+    from datetime import datetime as dt
+    anchors = [
+        (10_000_000,    dt(2013, 10, 1)),
+        (100_000_000,   dt(2015, 7, 1)),
+        (500_000_000,   dt(2018, 1, 1)),
+        (1_000_000_000, dt(2020, 6, 1)),
+        (1_500_000_000, dt(2021, 6, 1)),
+        (2_000_000_000, dt(2022, 3, 1)),
+        (5_000_000_000, dt(2022, 12, 1)),
+        (6_000_000_000, dt(2023, 6, 1)),
+        (7_000_000_000, dt(2024, 6, 1)),
+        (8_000_000_000, dt(2025, 6, 1)),
+    ]
+    uid = tg_user_id
+    if uid <= anchors[0][0]:
+        return anchors[0][1].isoformat()
+    if uid >= anchors[-1][0]:
+        return anchors[-1][1].isoformat()
+    for i in range(len(anchors) - 1):
+        id1, d1 = anchors[i]
+        id2, d2 = anchors[i + 1]
+        if id1 <= uid <= id2:
+            ratio = (uid - id1) / (id2 - id1)
+            est = dt.fromtimestamp(d1.timestamp() + ratio * (d2.timestamp() - d1.timestamp()))
+            return est.isoformat()
+    return None
+
+
+def _parse_session_date(register_time: Optional[str], tgid: Optional[int] = None):
+    """Get account registration date from register_time string or estimate from tgid."""
+    from datetime import datetime as dt
+    if register_time:
+        try:
+            return dt.fromisoformat(register_time).replace(tzinfo=None)
+        except (ValueError, TypeError):
+            pass
+    if tgid:
+        est = _estimate_registration_date(tgid)
+        if est:
+            try:
+                return dt.fromisoformat(est)
+            except (ValueError, TypeError):
+                pass
+    return None
+
+
 def _detect_country(phone: str) -> Optional[str]:
     """Detect country code from phone number using phonenumbers lib."""
     try:
@@ -423,7 +486,8 @@ async def list_accounts(
             if acc.country_code:
                 dirty = True
         if not acc.session_created_at:
-            acc.session_created_at = acc.last_connected_at or acc.created_at
+            est = _parse_session_date(None, acc.telegram_user_id)
+            acc.session_created_at = est or acc.last_connected_at or acc.created_at
             if acc.session_created_at:
                 dirty = True
     if dirty:
@@ -1104,7 +1168,8 @@ async def import_teleraptor_accounts(data: TgTeleRaptorImportRequest,
             total_messages_sent=raw.stats_spam_count or 0,
             last_connected_at=last_connected,
             country_code=_detect_country(phone),
-            session_created_at=last_connected or func.now(),
+            telegram_user_id=raw.tgid,
+            session_created_at=_parse_session_date(raw.register_time, raw.tgid) or last_connected or func.now(),
         )
         session.add(account)
         added += 1
