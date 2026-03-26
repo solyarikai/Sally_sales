@@ -240,13 +240,15 @@ async def project_list(session: AsyncSession = Depends(get_session)):
 
 @router.get("/campaigns")
 async def list_campaigns(session: AsyncSession = Depends(get_session)):
-    """Campaign list for CRM filters."""
+    """Campaign list for CRM filters — wrapped in {campaigns:[]} as main app expects."""
     result = await session.execute(select(Campaign).order_by(Campaign.name))
     campaigns = result.scalars().all()
-    return [
-        {"id": str(c.id), "name": c.name, "source": c.platform, "message_count": c.leads_count or 0}
-        for c in campaigns
-    ]
+    return {
+        "campaigns": [
+            {"id": str(c.id), "name": c.name, "source": c.platform, "message_count": c.leads_count or 0}
+            for c in campaigns
+        ]
+    }
 
 
 @router.get("/{contact_id}")
