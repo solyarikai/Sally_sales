@@ -18,6 +18,7 @@ class ClayCompaniesFilters(BaseModel):
     sizes: List[str] = Field(default_factory=list, description="e.g. ['1-10', '11-50']")
     types: List[str] = Field(default_factory=list)
     country_names: List[str] = Field(default_factory=list)
+    states: List[str] = Field(default_factory=list, description="States/regions within a country, e.g. ['Arkansas', 'Texas']")
     country_names_exclude: List[str] = Field(default_factory=list)
     annual_revenues: List[str] = Field(default_factory=list)
     description_keywords: List[str] = Field(default_factory=list)
@@ -77,6 +78,8 @@ class ClayCompaniesAdapter(GatheringAdapter):
                     direct_filters["types"] = validated.types
                 if validated.country_names:
                     direct_filters["country_names"] = validated.country_names
+                if validated.states:
+                    direct_filters["states"] = validated.states
                 if validated.country_names_exclude:
                     direct_filters["country_names_exclude"] = validated.country_names_exclude
                 if validated.annual_revenues:
@@ -96,6 +99,8 @@ class ClayCompaniesAdapter(GatheringAdapter):
                     icp_parts.append(f"Industries: {', '.join(validated.industries)}")
                 if validated.country_names:
                     icp_parts.append(f"Countries: {', '.join(validated.country_names)}")
+                if validated.states:
+                    icp_parts.append(f"States: {', '.join(validated.states)}")
                 if validated.sizes:
                     icp_parts.append(f"Sizes: {', '.join(validated.sizes)}")
                 icp_text = ". ".join(icp_parts) if icp_parts else "General companies"

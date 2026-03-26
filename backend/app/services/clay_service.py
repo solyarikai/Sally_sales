@@ -55,6 +55,7 @@ async def map_icp_to_clay_filters(icp_text: str) -> Dict[str, Any]:
         "sizes": "Company size ranges, e.g. ['1-10', '11-50', '51-200']",
         "types": "Company types, e.g. ['Privately held']",
         "country_names": "Countries to include",
+        "states": "States/regions within a country, e.g. ['Arkansas', 'Texas']. Requires country_names.",
         "country_names_exclude": "Countries to exclude",
         "annual_revenues": "Revenue ranges",
         "description_keywords": "Keywords in company description",
