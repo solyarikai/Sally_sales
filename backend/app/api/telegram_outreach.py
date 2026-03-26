@@ -478,28 +478,23 @@ async def list_accounts(
     result = await session.execute(query)
     accounts = result.scalars().unique().all()
 
-    # Backfill missing country_code; reset fake session_created_at
+    # Backfill missing country_code and session_created_at (from tgid only)
     dirty = False
     for acc in accounts:
         if not acc.country_code and acc.phone:
             acc.country_code = _detect_country(acc.phone)
             if acc.country_code:
                 dirty = True
-        # Only set session_created_at from tgid estimation — never from created_at
         if acc.telegram_user_id and not acc.session_created_at:
             est = _parse_session_date(None, acc.telegram_user_id)
             if est:
                 acc.session_created_at = est
                 dirty = True
-        # Clear fake dates (set to created_at by mistake)
-        if acc.session_created_at and not acc.telegram_user_id:
-            if acc.session_created_at == acc.created_at or (
-                acc.created_at and abs((acc.session_created_at - acc.created_at.replace(tzinfo=None)).total_seconds()) < 86400
-            ):
-                acc.session_created_at = None
-                dirty = True
     if dirty:
-        await session.commit()
+        try:
+            await session.commit()
+        except Exception:
+            await session.rollback()
 
     items = []
     for acc in accounts:
