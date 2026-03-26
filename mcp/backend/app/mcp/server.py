@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 # Create MCP server instance
 mcp_server = Server("mcp-leadgen")
 
-# SSE transport
-sse_transport = SseServerTransport("/mcp/messages")
+# SSE transport — path is relative to mount point (/mcp), so just /messages
+sse_transport = SseServerTransport("/messages")
 
 
 @mcp_server.list_tools()
