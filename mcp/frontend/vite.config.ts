@@ -9,16 +9,19 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
-      // MCP overrides — intercept ALL relative import depths
-      // ../api/client (1 level) and ../../api/client (2 levels)
+      // MCP overrides — intercept main app's relative imports at any depth
+      // API client (MCP auth instead of X-Company-ID)
       { find: /\.\.\/api\/client/, replacement: path.join(mcpSrc, 'api/client') },
-      { find: /\.\.\/api$/, replacement: path.join(mcpSrc, 'api/index') },
-      { find: /\.\.\/\.\.\/api$/, replacement: path.join(mcpSrc, 'api/index') },
-      // Store override
+      { find: /\.\.\/\.\.\/api\/client/, replacement: path.join(mcpSrc, 'api/client') },
+      { find: /^\.\.\/api$/, replacement: path.join(mcpSrc, 'api/index') },
+      { find: /^\.\.\/\.\.\/api$/, replacement: path.join(mcpSrc, 'api/index') },
+      // Store (MCP Zustand store)
       { find: /\.\.\/store\/appStore/, replacement: path.join(mcpSrc, 'store/appStore') },
       { find: /\.\.\/\.\.\/store\/appStore/, replacement: path.join(mcpSrc, 'store/appStore') },
-      // Theme override — CRITICAL: filter components use ../../hooks/useTheme
-      { find: /hooks\/useTheme/, replacement: path.join(mcpSrc, 'hooks/useTheme') },
+      // Theme (MCP theme with mcp-theme localStorage key)
+      // MUST match ../hooks/useTheme AND ../../hooks/useTheme (filter components are 2 levels deep)
+      { find: /^\.\.\/hooks\/useTheme$/, replacement: path.join(mcpSrc, 'hooks/useTheme') },
+      { find: /^\.\.\/\.\.\/hooks\/useTheme$/, replacement: path.join(mcpSrc, 'hooks/useTheme') },
 
       // @main alias — point to main app source for component reuse
       { find: '@main', replacement: mainApp },
