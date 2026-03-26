@@ -533,13 +533,12 @@ async def list_contacts(
         for proj in proj_result.scalars().all():
             project_names[proj.id] = proj.name
     
-    # Enrich with latest reply category (project-scoped to avoid cross-project leakage)
+    # Enrich with latest reply category
     contact_emails = [c.email for c in contacts if c.email]
     reply_cat_map: dict[str, tuple[str | None, str | None]] = {}
     if contact_emails:
         from app.models.reply import ProcessedReply
-        from app.models.campaign import Campaign
-        reply_query = (
+        latest_reply_sub = (
             select(
                 ProcessedReply.lead_email,
                 ProcessedReply.category,
@@ -547,29 +546,8 @@ async def list_contacts(
             )
             .distinct(ProcessedReply.lead_email)
             .where(ProcessedReply.lead_email.in_(contact_emails))
-        )
-        # If filtering by project, only show replies from that project's campaigns
-        if project_id:
-            # Collect all campaign external_ids for this project
-            camp_ids_result = await session.execute(
-                select(Campaign.external_id).where(
-                    Campaign.project_id == project_id,
-                    Campaign.external_id.isnot(None),
-                    Campaign.external_id != "",
-                )
-            )
-            project_campaign_ids = [r[0] for r in camp_ids_result.all()]
-            if project_campaign_ids:
-                reply_query = reply_query.where(
-                    ProcessedReply.campaign_id.in_(project_campaign_ids)
-                )
-            else:
-                # No campaigns — skip enrichment entirely
-                project_campaign_ids = None
-        reply_query = reply_query.order_by(
-            ProcessedReply.lead_email, desc(ProcessedReply.received_at)
-        )
-        latest_reply_sub = reply_query.subquery()
+            .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at))
+        ).subquery()
         cat_result = await session.execute(select(latest_reply_sub))
         for row in cat_result.all():
             reply_cat_map[row[0]] = (row[1], row[2])
@@ -584,7 +562,6 @@ async def list_contacts(
         if cat_info:
             response.latest_reply_category = cat_info[0]
             response.latest_reply_confidence = cat_info[1]
-        # has_replied stays based on last_reply_at (global) — reply_category is project-scoped
         contact_responses.append(response)
     
     total_pages = (total + page_size - 1) // page_size
