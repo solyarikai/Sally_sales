@@ -102,7 +102,7 @@ export default function App() {
                 <button onClick={() => setDark(d => !d)} style={{ padding: '4px 8px', borderRadius: 4, fontSize: 12, border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--text-muted)' }}>{dark ? '☀' : '☾'}</button>
               </div>
             </header>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{ flex: 1, overflow: 'hidden', height: 'calc(100vh - 48px)' }}>
               <Routes>
                 <Route path="/" element={<PipelineRunsPage />} />
                 <Route path="/setup" element={<SetupPage />} />
