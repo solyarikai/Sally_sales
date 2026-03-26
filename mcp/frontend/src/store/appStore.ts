@@ -1,7 +1,6 @@
-// Stub app store — main app uses Zustand but we don't need full store for MCP
-export function useAppStore() {
+export function useAppStore(): any {
   return {
-    activeProject: null,
-    setActiveProject: () => {},
+    activeProject: null as any,
+    setActiveProject: (_p: any) => {},
   }
 }
