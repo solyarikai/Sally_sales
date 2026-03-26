@@ -957,10 +957,15 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                 disabled={loading} className={btnCls}>Revoke Sessions</button>
         <button onClick={() => run('Cleaned', () => telegramOutreachApi.bulkClean(ids, { delete_dialogs: true, delete_contacts: true }))}
                 disabled={loading} className={btnCls}>Clean</button>
-        <button onClick={() => run('Checked', () => telegramOutreachApi.bulkCheck(ids))}
-                disabled={loading} className={btnCls}>
+        <button onClick={() => run('Alive check done', () => telegramOutreachApi.bulkCheckAlive(ids))}
+                disabled={loading} className={btnCls} title="Quick check: connect + authorized. Safe to run often.">
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
-          Check
+          Alive?
+        </button>
+        <button onClick={() => run('Spamblock checked', () => telegramOutreachApi.bulkCheck(ids))}
+                disabled={loading} className={cn(btnCls, 'text-amber-600 dark:text-amber-400')} title="Full spamblock check via @SpamBot. Don't run too often.">
+          <Shield className="w-3 h-3" />
+          Spam?
         </button>
 
         {/* Delete */}
@@ -1980,12 +1985,13 @@ function InfoTab({ t }: { t: any }) {
           <li className={liCls}><b>Set Language</b> — язык и системный язык аккаунта (для маскировки гео)</li>
           <li className={liCls}><b>Set 2FA</b> — установка пароля двухфакторной аутентификации</li>
           <li className={liCls}><b>Assign Proxy</b> — привязка к группе прокси (round-robin внутри группы)</li>
-          <li className={liCls}><b>Sync to TG</b> — синхронизация профиля в Telegram (имя, био, фото)</li>
+          <li className={liCls}><b>Авто-синк</b> — при изменении имени, био, фото — автоматически синхронизируется в Telegram</li>
           <li className={liCls}><b>Privacy</b> — настройки приватности (last online, phone, photo, messages)</li>
           <li className={liCls}><b>Re-Auth</b> — повторная авторизация сессии</li>
           <li className={liCls}><b>Revoke Sessions</b> — отзыв всех других сессий аккаунта</li>
           <li className={liCls}><b>Clean</b> — очистка диалогов и контактов аккаунта</li>
-          <li className={liCls}><b>Check</b> — проверка на спамблок (через Telethon, результат: none/temporary/permanent)</li>
+          <li className={liCls}><b>Alive?</b> — быстрая проверка что аккаунт живой (connect + authorized). Безопасно запускать часто. Также подтягивает telegram_user_id и возраст аккаунта</li>
+          <li className={liCls}><b>Spam?</b> — полная проверка на спамблок через @SpamBot. НЕ запускать часто — вызывает подозрения у Telegram</li>
           <li className={liCls}><b>Delete</b> — удаление выбранных аккаунтов из системы</li>
         </ul>
 

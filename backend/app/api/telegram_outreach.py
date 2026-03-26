@@ -2126,6 +2126,18 @@ async def bulk_check_live(data: TgBulkAccountIds, session: AsyncSession = Depend
                 account.status = TgAccountStatus.SPAMBLOCKED if spamblock != TgSpamblockType.NONE else TgAccountStatus.ACTIVE
                 account.last_checked_at = func.now()
                 account.last_connected_at = func.now()
+                # Fetch telegram_user_id if missing
+                if not account.telegram_user_id:
+                    try:
+                        client = telegram_engine.get_client(aid)
+                        me = await client.get_me()
+                        if me:
+                            account.telegram_user_id = me.id
+                            est = _parse_session_date(None, me.id)
+                            if est:
+                                account.session_created_at = est
+                    except Exception:
+                        pass
             elif check.get("connected") and not check.get("authorized"):
                 account.status = TgAccountStatus.DEAD
                 account.last_checked_at = func.now()
@@ -2138,6 +2150,50 @@ async def bulk_check_live(data: TgBulkAccountIds, session: AsyncSession = Depend
             results.append({"account_id": aid, "error": str(e)})
 
     return {"results": results}
+
+
+@router.post("/accounts/bulk-check-alive")
+async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depends(get_session)):
+    """Quick alive check — only connect + is_authorized. No spamblock check (safe to run often).
+    Also fetches telegram_user_id and estimates account age if missing."""
+    results = []
+    for aid in data.account_ids:
+        try:
+            account, proxy = await _get_account_with_proxy(aid, session)
+            if not telegram_engine.session_file_exists(account.phone):
+                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "no_session"})
+                continue
+
+            kwargs = _account_connect_kwargs(account, proxy)
+            await telegram_engine.connect(aid, **kwargs)
+            client = telegram_engine.get_client(aid)
+            authorized = await client.is_user_authorized()
+
+            if authorized:
+                account.status = TgAccountStatus.ACTIVE if account.spamblock_type == TgSpamblockType.NONE else account.status
+                account.last_connected_at = func.now()
+                # Fetch tgid + estimate age
+                if not account.telegram_user_id:
+                    try:
+                        me = await client.get_me()
+                        if me:
+                            account.telegram_user_id = me.id
+                            est = _parse_session_date(None, me.id)
+                            if est:
+                                account.session_created_at = est
+                    except Exception:
+                        pass
+                results.append({"account_id": aid, "phone": account.phone, "alive": True})
+            else:
+                account.status = TgAccountStatus.DEAD
+                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "not_authorized"})
+
+            await telegram_engine.disconnect(aid)
+        except Exception as e:
+            results.append({"account_id": aid, "error": str(e)[:80]})
+
+    alive_count = sum(1 for r in results if r.get("alive"))
+    return {"total": len(results), "alive": alive_count, "results": results}
 
 
 # ── Profile update ────────────────────────────────────────────────────
