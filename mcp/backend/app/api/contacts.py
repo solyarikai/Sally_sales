@@ -22,13 +22,31 @@ router = APIRouter(prefix="/contacts", tags=["contacts"])
 
 def _contact_to_response(c: ExtractedContact, company: Optional[DiscoveredCompany] = None, project_name: str = None) -> dict:
     """Convert ExtractedContact to main app's Contact response shape."""
+    sd = c.source_data or {}
+
+    # Build campaigns list from source_data (stored during SmartLead import)
+    campaigns = []
+    if sd.get("campaign"):
+        campaigns.append({
+            "id": str(sd.get("campaign_id", "")),
+            "name": sd["campaign"],
+            "source": "smartlead",
+        })
+
+    # Domain from company or email
+    domain = None
+    if company and company.domain:
+        domain = company.domain
+    elif c.email and "@" in c.email:
+        domain = c.email.split("@")[1]
+
     return {
         "id": c.id,
         "email": c.email,
         "first_name": c.first_name,
         "last_name": c.last_name,
-        "company_name": company.name if company else None,
-        "domain": company.domain if company else (c.email.split("@")[1] if c.email and "@" in c.email else None),
+        "company_name": sd.get("company_name") or (company.name if company else None),
+        "domain": domain,
         "job_title": c.job_title,
         "segment": None,
         "suitable_for": [],
@@ -36,23 +54,27 @@ def _contact_to_response(c: ExtractedContact, company: Optional[DiscoveredCompan
         "project_id": c.project_id,
         "project_name": project_name,
         "source": c.email_source or "pipeline",
-        "source_id": None,
+        "source_id": str(sd.get("campaign_id", "")) if sd.get("campaign_id") else None,
         "status": "new",
         "status_external": None,
         "phone": c.phone,
         "linkedin_url": c.linkedin_url,
         "location": f"{company.city}, {company.country}" if company and company.city else (company.country if company else None),
         "notes": None,
-        "smartlead_id": None,
+        "smartlead_id": str(sd.get("campaign_id", "")) if sd.get("campaign_id") else None,
         "getsales_id": None,
         "last_reply_at": None,
         "has_replied": False,
         "needs_followup": False,
         "latest_reply_category": None,
         "latest_reply_confidence": None,
-        "provenance": c.source_data,
-        "platform_state": {},
-        "campaigns": [],
+        "provenance": sd,
+        "platform_state": {
+            "smartlead": {
+                "campaigns": [{"id": str(sd.get("campaign_id", "")), "name": sd["campaign"]}] if sd.get("campaign") else [],
+            },
+        } if sd.get("campaign") else {},
+        "campaigns": campaigns,
         "created_at": str(c.created_at) if c.created_at else None,
         "updated_at": str(c.created_at) if c.created_at else None,
     }

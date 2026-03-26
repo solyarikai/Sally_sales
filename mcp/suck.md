@@ -170,11 +170,15 @@ Track every error encountered so they don't repeat.
 - **Status**: FIXED
 - **Prevention**: MCP SDK tool handlers can't access HTTP. Store context externally.
 
-## Remaining Priority
+### 22. CRM Campaign column empty for imported contacts
+- **Error**: Contacts imported from SmartLead show empty Campaign column
+- **Cause**: `_contact_to_response()` returned `"campaigns": []` hardcoded. The campaign info IS stored in `source_data.campaign` but never mapped to the `campaigns` response field.
+- **Impact**: HIGH — user can't see which campaign a contact came from
+- **Fix**: Read `source_data.campaign` and `source_data.campaign_id`, build proper `campaigns` list + `platform_state.smartlead.campaigns`. Also store `company_name` during import.
+- **Status**: FIXED
+- **Prevention**: EVERY field in the API response must be populated from actual data. Never hardcode empty arrays/nulls when the data exists in source_data. The source_data IS the data — map it to the response contract.
 
-1. **#16 CRM reuse** — install AG Grid, copy main app CRM component, adapt API
-2. **#15 Deep links** — read URL params (will be fixed by #16 since main app CRM has URL-synced state)
-3. **#12 AI sequence generation** — wire Gemini for personalized sequences
+## Remaining Priority
 4. **#7 Employee count** — Apollo enrichment for targets
 
 ---
