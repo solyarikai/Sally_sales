@@ -111,7 +111,7 @@ also ensure in seuqence subject either company names or person first names ALL N
 
 
 
-
+Test MCP flow again yourself via MCP. So imagine that the user, when you ask a user about, hey, what are your campaigns in Smartly or Get Sales? And you, and users say, hey, my campaigns are all campaigns that include bitter in their name. So measure how long it will take you to get to load all the contacts from these campaigns blacklist. I want to measure this, it's important for UX. Write measurements to performance MD. There will be all performance metrics and so on. And also questions like, which leads need follow-ups, which replies are warm? Provide, while answering these such questions, you should provide the link also to CRM. In CRM, if you copy CRM from the main application, there are columns like reply type and reply type is, yeah, so status replied and reply type is something like including warm replies. So, yeah, analyze it, how better to use and make sure CRM is a component reused from the main, the previous main system and test it all yourself, test in browser CRM view until done.
 
 ----------
    backlog
