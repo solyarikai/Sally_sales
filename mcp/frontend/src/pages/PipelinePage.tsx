@@ -169,6 +169,8 @@ export default function PipelinePage() {
   const { runId } = useParams()
   const [run, setRun] = useState<any>(null)
   const [companies, setCompanies] = useState<any[]>([])
+  const [hasTargets, setHasTargets] = useState(false)
+  const [totalContacts, setTotalContacts] = useState(0)
   const [iterations, setIterations] = useState<any[]>([])
   const [selectedIteration, setSelectedIteration] = useState<string>('all')
   const [iterDropOpen, setIterDropOpen] = useState(false)
@@ -192,11 +194,17 @@ export default function PipelinePage() {
     setLoading(true)
     const [r1, r2, r3] = await Promise.all([
       runId ? fetch(`${API}/pipeline/runs/${runId}`).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
-      fetch(`${API}/pipeline/runs/${runId || ''}/companies`).then(r => r.ok ? r.json() : []),
+      fetch(`${API}/pipeline/runs/${runId || ''}/companies`).then(r => r.ok ? r.json() : null),
       fetch(`${API}/pipeline/iterations`).then(r => r.ok ? r.json() : []),
     ])
     if (r1) setRun(r1)
-    setCompanies(r2)
+    if (r2 && r2.companies) {
+      setCompanies(r2.companies)
+      setHasTargets(r2.has_targets || false)
+      setTotalContacts(r2.total_contacts || 0)
+    } else if (Array.isArray(r2)) {
+      setCompanies(r2)
+    }
     setIterations(r3)
     setLoading(false)
   }
@@ -244,18 +252,19 @@ export default function PipelinePage() {
   const currentStageIdx = run ? STAGES.indexOf(run.current_phase) : -1
   const isGathering = run?.status === 'running' && run?.current_phase === 'gather'
 
-  // Column definitions
+  // Column definitions — contacts column appears only when targets exist
   const columns = [
-    { key: 'domain', label: 'Domain', flex: 1.5, filterType: 'text' as const },
-    { key: 'name', label: 'Name', flex: 1.5, filterType: 'text' as const },
-    { key: 'industry', label: 'Industry', flex: 1, filterType: 'dropdown' as const },
-    { key: 'keywords', label: 'Keywords', flex: 1, filterType: 'text' as const },
-    { key: 'employee_count', label: 'Size', flex: 0.5, filterType: 'text' as const },
-    { key: 'country', label: 'Country', flex: 0.8, filterType: 'dropdown' as const },
-    { key: 'city', label: 'City', flex: 0.8, filterType: 'text' as const },
-    { key: 'scrape_status', label: 'Scraped', flex: 0.6, filterType: 'dropdown' as const },
-    { key: 'analysis_short', label: 'Analysis', flex: 1.5, filterType: 'text' as const },
-    { key: 'status', label: 'Status', flex: 0.7, filterType: 'dropdown' as const },
+    { key: 'domain', label: 'Domain', filterType: 'text' as const },
+    { key: 'name', label: 'Name', filterType: 'text' as const },
+    { key: 'industry', label: 'Industry', filterType: 'dropdown' as const },
+    { key: 'keywords', label: 'Keywords', filterType: 'text' as const },
+    { key: 'employee_count', label: 'Size', filterType: 'text' as const },
+    { key: 'country', label: 'Country', filterType: 'dropdown' as const },
+    { key: 'city', label: 'City', filterType: 'text' as const },
+    { key: 'scrape_text_preview', label: 'Scraped', filterType: 'text' as const },
+    { key: 'analysis_reasoning', label: 'Analysis', filterType: 'text' as const },
+    { key: 'status', label: 'Status', filterType: 'dropdown' as const },
+    ...(hasTargets ? [{ key: 'contacts_status', label: 'People', filterType: 'dropdown' as const }] : []),
   ]
 
   if (!run && loading) return <div style={{ padding: 24, color: 'var(--text-muted)' }}>Loading...</div>
@@ -299,6 +308,13 @@ export default function PipelinePage() {
 
         {/* Prompts link */}
         {runId && <Link to={`/pipeline/${runId}/prompts`} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)', textDecoration: 'none' }}>Prompts</Link>}
+
+        {/* View in CRM — appears when contacts found */}
+        {totalContacts > 0 && runId && (
+          <Link to={`/crm?pipeline=${runId}`} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: 'var(--success)', color: 'white', textDecoration: 'none', fontWeight: 500 }}>
+            View {totalContacts} people in CRM
+          </Link>
+        )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <button onClick={() => setShowFilters(!showFilters)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showFilters ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Apollo Filters</button>

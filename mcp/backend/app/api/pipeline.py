@@ -153,7 +153,41 @@ async def get_run_companies(
     )
     result = await session.execute(stmt)
     rows = result.all()
-    return [_company_to_dict(c, scrape=s, truncate_reasoning=True) for c, s in rows]
+
+    # Count contacts per company
+    from app.models.pipeline import ExtractedContact
+    contact_counts: dict = {}
+    cc_result = await session.execute(
+        select(ExtractedContact.discovered_company_id, sa_func.count(ExtractedContact.id))
+        .where(ExtractedContact.project_id == run.project_id)
+        .group_by(ExtractedContact.discovered_company_id)
+    )
+    for dc_id, cnt in cc_result.all():
+        contact_counts[dc_id] = cnt
+
+    # Check if any targets exist (to signal frontend to show contacts column)
+    has_targets = any(c.is_target for c, _ in rows)
+
+    companies = [_company_to_dict(c, scrape=s, truncate_reasoning=True, contacts_count=contact_counts.get(c.id, 0)) for c, s in rows]
+    return {
+        "companies": companies,
+        "has_targets": has_targets,
+        "total_contacts": sum(contact_counts.values()),
+    }
+
+
+@router.get("/companies/{company_id}")
+async def get_company_detail(
+    company_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Full detail for a single company — includes full scrape text, full reasoning, raw source_data."""
+    company = await session.get(DiscoveredCompany, company_id)
+    if not company:
+        raise HTTPException(404, "Company not found")
+
+    # Also keep the run-scoped version
+    return await _get_company_detail(company, session)
 
 
 @router.get("/runs/{run_id}/companies/{company_id}")
@@ -162,7 +196,7 @@ async def get_run_company_detail(
     company_id: int,
     session: AsyncSession = Depends(get_session),
 ):
-    """Full detail for a single company — includes full scrape text, full reasoning, raw source_data."""
+    """Full detail for a single company scoped to a run."""
     run = await session.get(GatheringRun, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
@@ -171,11 +205,16 @@ async def get_run_company_detail(
     if not company or company.project_id != run.project_id:
         raise HTTPException(404, "Company not found in this run's project")
 
+    return await _get_company_detail(company, session)
+
+
+async def _get_company_detail(company, session):
+    """Full company detail with scrape text and raw source data."""
     # Get current scrape
     scrape_result = await session.execute(
         select(CompanyScrape)
         .where(
-            CompanyScrape.discovered_company_id == company_id,
+            CompanyScrape.discovered_company_id == company.id,
             CompanyScrape.is_current == True,
         )
         .limit(1)
@@ -307,29 +346,39 @@ def _compute_company_status(c, scrape=None):
     return "gathered"
 
 
-# SIC code prefixes → human labels
+# SIC codes → human labels (4-digit for precision, 2-digit as fallback)
 _SIC = {
-    "73": "IT Services", "72": "Computer Services", "48": "Communications",
+    "7371": "Computer Programming", "7372": "Software", "7374": "Data Processing",
+    "7375": "Computer Facilities Management", "7376": "Computer Maintenance",
+    "7378": "Computer Maintenance", "7379": "Computer Services",
+    "7361": "Staffing & Recruiting", "7363": "Staffing & Recruiting",
+    "73": "IT & Business Services", "72": "Computer Services", "48": "Communications",
     "36": "Electronics", "35": "Industrial Equipment", "38": "Instruments",
     "50": "Wholesale", "59": "Retail", "60": "Banking", "61": "Credit",
     "62": "Securities", "63": "Insurance", "65": "Real Estate",
     "80": "Healthcare", "82": "Education", "87": "Engineering & Management",
     "27": "Publishing", "49": "Utilities", "15": "Construction",
-    "20": "Food Processing", "28": "Chemicals", "37": "Transportation Equipment",
 }
 
-# NAICS code prefixes → human labels
+# NAICS codes → human labels (5-digit for precision, 3-digit as fallback)
 _NAICS = {
-    "511": "Software Publishing", "518": "Data & Hosting", "519": "Web & Search",
+    "54151": "Computer Systems Design", "54161": "Management Consulting",
+    "54171": "Scientific R&D", "54131": "Architectural Services",
+    "54111": "Legal Services", "54121": "Accounting",
+    "51121": "Software Publishing", "51913": "Internet Publishing",
+    "51821": "Data Processing & Hosting", "51911": "News Syndicates",
+    "54169": "Management & Technical Consulting",
+    "51611": "Internet Publishing", "51711": "Wired Telecom",
+    "54181": "Advertising", "56132": "Staffing & Recruiting",
+    "511": "Software & Publishing", "518": "Data & Hosting", "519": "Web & Search",
     "541": "Professional Services", "561": "Business Support", "517": "Telecom",
     "522": "Banking", "523": "Securities", "524": "Insurance", "531": "Real Estate",
     "611": "Education", "621": "Healthcare", "512": "Media", "334": "Electronics",
-    "336": "Transportation Mfg", "325": "Chemicals", "423": "Wholesale Tech",
-    "454": "E-Commerce", "236": "Construction", "333": "Machinery",
+    "454": "E-Commerce",
 }
 
 
-def _company_to_dict(c, scrape=None, truncate_reasoning=False):
+def _company_to_dict(c, scrape=None, truncate_reasoning=False, contacts_count=0):
     sd = c.source_data or {}
 
     # Build apollo_url if apollo_id present
@@ -396,6 +445,9 @@ def _company_to_dict(c, scrape=None, truncate_reasoning=False):
         "analysis_segment": c.analysis_segment,
         "is_enriched": c.is_enriched,
         "enrichment_source": c.enrichment_source,
+        # Contacts/people status
+        "contacts_count": contacts_count,
+        "contacts_status": "found" if contacts_count > 0 else ("gathering" if c.is_enriched else None),
         "source_data": sd,
     }
     return result
@@ -460,41 +512,69 @@ async def crm_companies(
 @router.get("/crm/contacts")
 async def crm_contacts(
     project_id: int = None,
+    pipeline: int = None,
     search: str = None,
-    status: str = None,
     session: AsyncSession = Depends(get_session),
 ):
-    """CRM contacts view — people extracted from pipeline."""
+    """CRM contacts view — people extracted from pipeline. Filter by pipeline run ID."""
     from app.models.pipeline import ExtractedContact
-    query = select(ExtractedContact).order_by(ExtractedContact.created_at.desc())
+
+    # JOIN with DiscoveredCompany to get company info + pipeline run link
+    stmt = (
+        select(ExtractedContact, DiscoveredCompany)
+        .outerjoin(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
+        .order_by(ExtractedContact.created_at.desc())
+    )
+
     if project_id:
-        query = query.where(ExtractedContact.project_id == project_id)
+        stmt = stmt.where(ExtractedContact.project_id == project_id)
+
+    if pipeline:
+        # Filter to contacts whose company was gathered in this pipeline run
+        stmt = stmt.where(
+            DiscoveredCompany.id.in_(
+                select(CompanySourceLink.discovered_company_id)
+                .where(CompanySourceLink.gathering_run_id == pipeline)
+            )
+        )
+
     if search:
-        query = query.where(
+        stmt = stmt.where(
             (ExtractedContact.email.ilike(f"%{search}%")) |
             (ExtractedContact.first_name.ilike(f"%{search}%")) |
             (ExtractedContact.last_name.ilike(f"%{search}%"))
         )
-    result = await session.execute(query.limit(500))
-    contacts = result.scalars().all()
-    return {
-        "contacts": [
-            {
-                "id": c.id,
-                "first_name": c.first_name,
-                "last_name": c.last_name,
-                "email": c.email,
-                "job_title": c.job_title,
-                "linkedin_url": c.linkedin_url,
-                "phone": c.phone,
-                "email_verified": c.email_verified,
-                "email_source": c.email_source,
-                "domain": None,  # TODO: join with discovered_company
-                "company_name": None,
-                "source_data": c.source_data,
-                "created_at": str(c.created_at) if c.created_at else None,
-            }
-            for c in contacts
-        ],
-        "total": len(contacts),
-    }
+
+    result = await session.execute(stmt.limit(500))
+    rows = result.all()
+
+    contacts = []
+    for contact, company in rows:
+        # Find pipeline run IDs for this company
+        run_ids = []
+        if company:
+            links = await session.execute(
+                select(CompanySourceLink.gathering_run_id)
+                .where(CompanySourceLink.discovered_company_id == company.id)
+            )
+            run_ids = [r[0] for r in links.all()]
+
+        contacts.append({
+            "id": contact.id,
+            "first_name": contact.first_name,
+            "last_name": contact.last_name,
+            "email": contact.email,
+            "job_title": contact.job_title,
+            "linkedin_url": contact.linkedin_url,
+            "phone": contact.phone,
+            "email_verified": contact.email_verified,
+            "email_source": contact.email_source,
+            "domain": company.domain if company else None,
+            "company_name": company.name if company else None,
+            "industry": company.industry if company else None,
+            "country": company.country if company else None,
+            "pipeline_run_ids": run_ids,
+            "created_at": str(contact.created_at) if contact.created_at else None,
+        })
+
+    return {"contacts": contacts, "total": len(contacts)}

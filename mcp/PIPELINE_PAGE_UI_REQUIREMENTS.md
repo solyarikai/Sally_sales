@@ -116,6 +116,42 @@ Status is a **single column** showing the current pipeline state of each company
 
 No separate "target true/false" column. Status tells the full story.
 
+### Contacts/People Column (appears dynamically)
+
+This column is **hidden by default** and only appears when at least one company has status `target` or beyond (meaning GPT analysis ran and classified it as a target).
+
+| Contacts Status | Color | Meaning |
+|----------------|-------|---------|
+| — | hidden | Company not yet a target, no people to find |
+| `gathering` | blue | People enrichment in progress (Apollo/FindyMail) |
+| `found (N)` | green | N contacts found for this company |
+| `none` | gray | Enrichment ran but no contacts found |
+
+### "View in CRM" Button (top-right)
+
+Appears in the top bar (next to "Apollo Filters" and "Prompt History") once any contacts/people are found.
+
+- **Link format**: `/crm?pipeline={runId}`
+- Opens CRM page pre-filtered to show only contacts from this pipeline run
+- The `pipeline` column in CRM is **visible** when this filter is active (hidden by default)
+- User can remove the pipeline filter in CRM → column stays visible, shows all contacts
+
+### CRM: Pipeline Column
+
+The CRM page gets a new column: **Pipeline**
+- Shows which pipeline run(s) gathered this contact
+- Format: `#8` or `#8, #12` (if found in multiple runs)
+- **Hidden by default** — not visible when user opens CRM from nav
+- **Visible when URL has `?pipeline=X`** — auto-shown when navigating from pipeline page
+- Column visibility persists in localStorage (same as other hidden columns)
+- Filter: dropdown of pipeline run IDs
+
+This creates the flow:
+1. User runs pipeline → companies gathered → GPT marks targets → contacts enriched
+2. Pipeline page shows "View in CRM" button
+3. Click → CRM opens with `?pipeline=8` → pipeline column visible, filtered to run #8
+4. User can remove filter → sees all CRM contacts, pipeline column stays visible
+
 ---
 
 ## Company Detail Modal (on row click)
