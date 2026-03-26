@@ -550,9 +550,22 @@ async def list_contacts(
         )
         # If filtering by project, only show replies from that project's campaigns
         if project_id:
-            reply_query = reply_query.join(
-                Campaign, Campaign.external_id == ProcessedReply.campaign_id
-            ).where(Campaign.project_id == project_id)
+            # Collect all campaign external_ids for this project
+            camp_ids_result = await session.execute(
+                select(Campaign.external_id).where(
+                    Campaign.project_id == project_id,
+                    Campaign.external_id.isnot(None),
+                    Campaign.external_id != "",
+                )
+            )
+            project_campaign_ids = [r[0] for r in camp_ids_result.all()]
+            if project_campaign_ids:
+                reply_query = reply_query.where(
+                    ProcessedReply.campaign_id.in_(project_campaign_ids)
+                )
+            else:
+                # No campaigns — skip enrichment entirely
+                project_campaign_ids = None
         reply_query = reply_query.order_by(
             ProcessedReply.lead_email, desc(ProcessedReply.received_at)
         )
@@ -571,9 +584,7 @@ async def list_contacts(
         if cat_info:
             response.latest_reply_category = cat_info[0]
             response.latest_reply_confidence = cat_info[1]
-        # When filtering by project, override has_replied based on project-scoped replies
-        if project_id and not cat_info:
-            response.has_replied = False
+        # has_replied stays based on last_reply_at (global) — reply_category is project-scoped
         contact_responses.append(response)
     
     total_pages = (total + page_size - 1) // page_size
