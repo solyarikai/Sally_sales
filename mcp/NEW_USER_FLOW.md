@@ -105,18 +105,29 @@ Navigate to `http://46.62.210.24:3000`
 ## Via Claude Code CLI
 
 ```bash
-# Add MCP server
+# 1. Add MCP server (one-time setup)
 claude mcp add leadgen --transport sse http://46.62.210.24:8002/mcp/sse
 
-# Start conversation
+# 2. Create a project directory with CLAUDE.md (tells Claude to use MCP tools)
+mkdir ~/my-leadgen && cd ~/my-leadgen
+cat > CLAUDE.md << 'EOF'
+# LeadGen Operator
+You are a lead generation assistant. Use the **leadgen** MCP tools for everything.
+Never write code. Always ask before gathering: keywords, locations, company size, max pages.
+Share UI links: http://46.62.210.24:3000/pipeline/{runId}
+EOF
+
+# 3. Start Claude Code from this directory
 claude
 
-# In conversation:
+# 4. Just talk naturally:
 > Set up my account as Petr, pn@getsally.io
 > Connect SmartLead with key eaa086b6-...
 > Create project "EasyStaff Global - DACH" targeting SaaS in Germany
 > Find SaaS companies in Germany, 50-200 employees, 4 pages max
 ```
+
+The CLAUDE.md file makes Claude automatically route all gathering/campaign tasks through MCP tools. No need to mention "MCP" or tool names — just describe what you want.
 
 ---
 
