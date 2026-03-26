@@ -96,12 +96,7 @@ const ACCOUNT_STATUS_COLORS: Record<string, string> = {
   frozen: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
 };
 
-const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-400',
-  active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  paused: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  completed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-};
+// Campaign status colors now handled inline in CampaignsTab
 
 function StatusBadge({ status, colorMap }: { status: string; colorMap: Record<string, string> }) {
   return (
@@ -556,7 +551,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
 // Campaigns Tab
 // ══════════════════════════════════════════════════════════════════════
 
-function CampaignsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) { void _t;
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<TgCampaign[]>([]);
   const [loading, setLoading] = useState(true);
