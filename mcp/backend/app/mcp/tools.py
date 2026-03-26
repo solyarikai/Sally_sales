@@ -308,6 +308,40 @@ Only for manual/CSV/sheets sources can you skip size and page filters.""",
         },
     },
 
+    # ── CRM Queries (2) ──
+    {
+        "name": "query_contacts",
+        "description": """Search contacts in CRM with filters. Use this to answer questions like:
+- "Which leads need follow-ups?" → query_contacts with needs_followup=true
+- "Which replies are warm?" → query_contacts with reply_category=interested
+- "Show me contacts from Petr's campaigns" → query_contacts with search or pipeline filter
+- "How many contacts do we have?" → query_contacts with no filters
+
+Returns contacts + a CRM link with filters applied so the user can view them in the browser.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer"},
+                "search": {"type": "string", "description": "Search by email, name, company"},
+                "has_replied": {"type": "boolean", "description": "Only contacts who replied"},
+                "needs_followup": {"type": "boolean", "description": "Contacts needing follow-up"},
+                "reply_category": {"type": "string", "description": "Filter by reply type: interested, meeting_request, question, not_interested, out_of_office, wrong_person"},
+                "pipeline_run_id": {"type": "integer", "description": "Contacts from a specific pipeline run"},
+                "limit": {"type": "integer", "description": "Max results (default 20)"},
+            },
+        },
+    },
+    {
+        "name": "crm_stats",
+        "description": "Get CRM statistics: total contacts, by status, by source, by project. Use this for overview questions like 'how many contacts do I have?'",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer"},
+            },
+        },
+    },
+
     # ── SmartLead Campaign Import (3) ──
     {
         "name": "list_smartlead_campaigns",
