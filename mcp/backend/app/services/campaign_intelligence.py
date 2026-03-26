@@ -119,39 +119,14 @@ class CampaignIntelligenceService:
             context_parts.append(f"Additional instructions: {instructions}")
 
         generation_prompt = "\n".join(context_parts)
-
-        # Generate sequence steps
-        # TODO: Replace with actual Gemini API call
         name = campaign_name or f"{project.name} - Generated"
-        sender_company = project.sender_company or "our company"
 
-        steps = [
-            {
-                "step": 1, "day": DEFAULT_TIMING[0],
-                "subject": f"Quick question about {{{{company}}}}",
-                "body": f"Hi {{{{first_name}}}},\n\nI noticed {{{{company}}}} is expanding — we help companies like yours with {sender_company}.\n\nWould it make sense to chat for 15 min this week?\n\nBest,\n{project.sender_name or 'Team'}",
-            },
-            {
-                "step": 2, "day": DEFAULT_TIMING[1],
-                "subject": f"Re: Quick question about {{{{company}}}}",
-                "body": f"Hi {{{{first_name}}}},\n\nJust following up on my note. Companies similar to {{{{company}}}} typically see results within the first month.\n\nHappy to share specifics — does Thursday or Friday work?\n\nBest,\n{project.sender_name or 'Team'}",
-            },
-            {
-                "step": 3, "day": DEFAULT_TIMING[2],
-                "subject": f"{{{{company}}}} + {sender_company}",
-                "body": f"Hi {{{{first_name}}}},\n\nOne more thought — I put together a quick overview of how {sender_company} could help {{{{company}}}} specifically.\n\nWorth a look?\n\nBest,\n{project.sender_name or 'Team'}",
-            },
-            {
-                "step": 4, "day": DEFAULT_TIMING[3],
-                "subject": "One more thought for {{company}}",
-                "body": f"Hi {{{{first_name}}}},\n\nI know you're busy — completely understand. I'll keep this brief:\n\nWe've helped companies in your space reduce costs by 30-40%. If that's interesting, I'd love 15 min.\n\nIf not, no worries at all.\n\nBest,\n{project.sender_name or 'Team'}",
-            },
-            {
-                "step": 5, "day": DEFAULT_TIMING[4],
-                "subject": "Should I close the loop?",
-                "body": f"Hi {{{{first_name}}}},\n\nI don't want to be a pest — this will be my last note.\n\nIf timing isn't right, I totally get it. But if there's even a small chance this could be useful for {{{{company}}}}, I'd love to connect.\n\nEither way, wishing you a great quarter.\n\nBest,\n{project.sender_name or 'Team'}",
-            },
-        ]
+        # Generate sequence with AI (GPT-4o-mini) or fall back to template
+        steps = await self._generate_steps_ai(project, generation_prompt, instructions)
+        if not steps:
+            steps = self._generate_steps_template(project)
+
+        model = "gpt-4o-mini" if isinstance(steps, list) and len(steps) > 0 and "AI-generated" in str(steps[0].get("body", "")[:1]) == False else "template_v1"
 
         seq = GeneratedSequence(
             project_id=project_id,
@@ -161,14 +136,82 @@ class CampaignIntelligenceService:
             patterns_used=[p["id"] for p in patterns[:10]],
             sequence_steps=steps,
             sequence_step_count=len(steps),
-            rationale="Generated using project ICP + campaign patterns. Timing: Day 0/3/4/7/7.",
+            rationale="Generated using project ICP + GPT-4o-mini. Timing: Day 0/3/4/7/7.",
             status="draft",
-            model_used="template_v1",  # Will be replaced with actual Gemini call
+            model_used="gpt-4o-mini",
         )
         session.add(seq)
         await session.flush()
 
         return seq
+
+    async def _generate_steps_ai(self, project, context: str, instructions: Optional[str] = None) -> Optional[list]:
+        """Generate sequence steps with GPT-4o-mini."""
+        try:
+            from app.config import settings
+            openai_key = self._openai_key or settings.OPENAI_API_KEY
+            if not openai_key:
+                return None
+
+            import httpx, json
+
+            sender = project.sender_name or "Team"
+            company = project.sender_company or "our company"
+
+            prompt = f"""Generate a 5-step cold email sequence for B2B outreach.
+
+Context:
+{context}
+{f'Instructions: {instructions}' if instructions else ''}
+
+Sender: {sender} from {company}
+
+Requirements:
+- 5 steps on days 0, 3, 4, 7, 7
+- Use {{{{first_name}}}} and {{{{company}}}} as merge tags (double curly braces)
+- Step 1: opening email, short, personal
+- Step 2: follow-up, add value
+- Step 3: different angle or social proof
+- Step 4: brief, respect their time
+- Step 5: breakup email, last chance
+- Each subject must be under 60 chars, human-readable, no asterisks or special chars
+- Sign off as {sender}
+
+Return ONLY a JSON array of 5 objects: {{"step": N, "day": N, "subject": "...", "body": "..."}}"""
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                    json={"model": "gpt-4o-mini", "messages": [
+                        {"role": "system", "content": "You write cold email sequences. Return ONLY valid JSON array."},
+                        {"role": "user", "content": prompt},
+                    ], "max_tokens": 2000, "temperature": 0.7},
+                )
+                data = resp.json()
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                # Parse JSON
+                clean = content.strip()
+                if clean.startswith("```"):
+                    clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
+                steps = json.loads(clean)
+                if isinstance(steps, list) and len(steps) >= 3:
+                    return steps
+        except Exception as e:
+            logger.error(f"AI sequence generation failed: {e}")
+        return None
+
+    def _generate_steps_template(self, project) -> list:
+        """Fallback template sequence."""
+        sender = project.sender_name or "Team"
+        company = project.sender_company or "our company"
+        return [
+            {"step": 1, "day": 0, "subject": "Quick question about {{company}}", "body": f"Hi {{{{first_name}}}},\n\nI noticed {{{{company}}}} is expanding — we help companies like yours with {company}.\n\nWould it make sense to chat for 15 min this week?\n\nBest,\n{sender}"},
+            {"step": 2, "day": 3, "subject": "Re: Quick question about {{company}}", "body": f"Hi {{{{first_name}}}},\n\nJust following up. Companies similar to {{{{company}}}} typically see results within the first month.\n\nHappy to share specifics — does Thursday or Friday work?\n\nBest,\n{sender}"},
+            {"step": 3, "day": 4, "subject": "{{company}} + " + company, "body": f"Hi {{{{first_name}}}},\n\nOne more thought — I put together a quick overview of how {company} could help {{{{company}}}} specifically.\n\nWorth a look?\n\nBest,\n{sender}"},
+            {"step": 4, "day": 7, "subject": "One more thought for {{company}}", "body": f"Hi {{{{first_name}}}},\n\nI know you're busy. We've helped companies in your space reduce costs by 30-40%. If that's interesting, I'd love 15 min.\n\nIf not, no worries at all.\n\nBest,\n{sender}"},
+            {"step": 5, "day": 7, "subject": "Should I close the loop?", "body": f"Hi {{{{first_name}}}},\n\nThis will be my last note. If timing isn't right, I totally get it.\n\nBut if there's even a small chance this could be useful for {{{{company}}}}, I'd love to connect.\n\nBest,\n{sender}"},
+        ]
 
     async def push_to_smartlead(
         self,
