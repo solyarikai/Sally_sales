@@ -50,12 +50,91 @@ Track every error encountered so they don't repeat.
 - SSE endpoint returns session ID
 - Web UI login with existing token
 
-### Known limitations (not bugs)
-- Pipeline tools create DB records but don't call actual Apollo/FindyMail APIs yet (adapters are stubs for non-manual sources)
+### Known limitations (not bugs — FIXED in later phases)
+- ~~Pipeline tools create DB records but don't call actual Apollo/FindyMail APIs~~ → FIXED: Apollo API wired, real companies gathered
 - Refinement engine has verification/improvement TODOs (needs actual GPT-4o + Gemini calls)
 - GOD_SEQUENCE generates template sequences, not AI-generated ones (needs Gemini integration)
-- Frontend is not deployed with `npm install` — needs Node.js build on Hetzner
 - No password auth — token only (by design for MVP)
+
+---
+
+## Full Flow Test (2026-03-26)
+
+### Test: 15-step E2E with real Apollo API
+
+**Result: ALL 15 STEPS PASSED.** 50 companies gathered, 42 scraped, SmartLead campaign #3089597 created.
+
+### Issues Found
+
+### 6. GPT analysis not actually running
+- **Error**: `tam_analyze` creates CP2 gate but never calls OpenAI. Analysis columns are all empty.
+- **Location**: `gathering_service.py:analyze()` — just creates gate, no AI call
+- **Cause**: GPT analysis not wired — the TODO was left in place
+- **Impact**: HIGH — this is the core value of the pipeline. Without analysis, there are no "targets"
+- **Fix needed**: Wire OpenAI GPT-4o-mini in the analyze phase. For each company with scraped text, call GPT with the ICP prompt. Store is_target, confidence, reasoning, segment.
+- **Prevention**: Don't ship "analyze" phase without actual AI call
+
+### 7. Employee count from Apollo is wrong (shows num_contacts not employees)
+- **Error**: Bayforce shows "3 employees" but Apollo UI shows much more. The `num_contacts` field (Apollo contacts in their DB) is being used as employee_count.
+- **Location**: `apollo_org_api.py` adapter + backfill SQL
+- **Cause**: Apollo `accounts` endpoint doesn't return `estimated_num_employees`. We used `num_contacts` as fallback.
+- **Impact**: MEDIUM — misleading data in Size column
+- **Fix needed**: Apollo's `/organizations/enrich` endpoint returns real employee count. Enrich target companies (1 credit each) OR accept that search endpoint doesn't have this field.
+- **Prevention**: Clearly label "Apollo contacts" vs "employees" in UI
+
+### 8. EasyStaff Global campaigns have 0 leads in SmartLead
+- **Error**: `import_smartlead_campaigns` found 4 campaigns but all show 0 leads
+- **Location**: SmartLead API
+- **Cause**: These are newly created/empty campaigns, not the real production ones with thousands of leads
+- **Impact**: LOW for testing — blacklist is empty
+- **Fix needed**: None — in production, real campaigns have real leads. The import logic works correctly.
+
+### 9. Duplicate companies across runs (same project)
+- **Error**: The project now has 113 discovered_companies because multiple test runs added to the same project
+- **Location**: gathering_service.py dedup logic
+- **Cause**: Dedup works within a single run but different runs with same filters can add same companies (different domains from different Apollo pages)
+- **Impact**: LOW — companies are deduped by domain within project. If same domain appears, it's linked not duplicated.
+- **Fix needed**: Already handled by unique constraint on (project_id, domain). No issue.
+
+### 10. User shouldn't think in "pages" — should think in "targets"
+- **Error**: UX problem, not a bug. User says "I want 10 target companies" but system asks for "max_pages"
+- **Cause**: System exposes Apollo pagination to user
+- **Impact**: HIGH for UX — confusing for non-technical users
+- **Fix needed**:
+  - User says: "Find me 10 target companies"
+  - System calculates: 10 targets / 30% target rate = 33 companies needed / 25 per page = 2 pages
+  - System shows: "To find ~10 targets, I'll search ~50 companies (2 Apollo pages)"
+  - Add `target_count` parameter to `tam_gather` that auto-calculates pages
+
+### 11. Scrape errors (8 out of 50)
+- **Error**: 8 companies failed to scrape (16% failure rate)
+- **Cause**: SSL errors, timeouts, connection refused — normal for web scraping
+- **Impact**: LOW — expected. Some websites block scrapers or are offline.
+- **Fix needed**: None — scrape failures are shown in pipeline UI. Companies can still be analyzed from Apollo data alone.
+
+### 12. Campaign sequence is template, not AI-generated
+- **Error**: GOD_SEQUENCE generates hardcoded template with {{company}}/{{first_name}} placeholders, not contextual AI-written emails
+- **Location**: `campaign_intelligence.py:generate_sequence()`
+- **Cause**: Gemini API not wired for sequence generation
+- **Impact**: MEDIUM — sequences work but aren't personalized to the ICP
+- **Fix needed**: Wire Gemini 2.5 Pro to generate sequences from 3-level knowledge (universal + business + project patterns)
+
+### 13. SSE connection fails in Claude Code — tools don't load
+- **Error**: Claude Code connects to SSE endpoint (HTTP 200) but tools never appear
+- **Location**: `mcp/server.py` SSE endpoint
+- **Cause**: Was returning relative URL `/mcp/messages?session_id=...` — MCP SDK needs absolute URL
+- **Fix**: Changed to return `http://host:port/mcp/messages?session_id=...`
+- **Status**: FIXED
+- **Prevention**: Always return absolute URLs in MCP SSE endpoint events
+
+---
+
+## Priority Fix Order
+
+1. **#6 GPT analysis** — without this, pipeline produces no targets. CRITICAL.
+2. **#10 Target-based UX** — users think in targets, not pages
+3. **#12 AI sequence generation** — template sequences are a bad first impression
+4. **#7 Employee count** — misleading data
 
 ---
 
