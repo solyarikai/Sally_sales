@@ -593,14 +593,12 @@ export function ContactsPage() {
     {
       field: 'email',
       headerName: 'Email',
-      filter: 'agTextColumnFilter',
       sortable: true,
       flex: 1.5,
       minWidth: 160,
     },
     {
       headerName: 'Name',
-      filter: 'agTextColumnFilter',
       sortable: true,
       flex: 1,
       minWidth: 120,
@@ -612,7 +610,6 @@ export function ContactsPage() {
     {
       field: 'company_name',
       headerName: 'Company',
-      filter: 'agTextColumnFilter',
       sortable: true,
       flex: 1,
       minWidth: 110,
@@ -620,7 +617,6 @@ export function ContactsPage() {
     {
       field: 'job_title',
       headerName: 'Title',
-      filter: 'agTextColumnFilter',
       sortable: true,
       flex: 1,
       minWidth: 100,
@@ -700,7 +696,6 @@ export function ContactsPage() {
     {
       field: 'location',
       headerName: 'Location',
-      filter: 'agTextColumnFilter',
       sortable: true,
       width: 110,
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
@@ -708,7 +703,6 @@ export function ContactsPage() {
     {
       field: 'domain',
       headerName: 'Website',
-      filter: 'agTextColumnFilter',
       sortable: true,
       width: 140,
       cellRenderer: (params: { value: string }) => {
@@ -726,7 +720,6 @@ export function ContactsPage() {
     {
       field: 'linkedin_url',
       headerName: 'LinkedIn',
-      filter: 'agTextColumnFilter',
       sortable: false,
       minWidth: 180,
       flex: 1,
@@ -757,7 +750,6 @@ export function ContactsPage() {
     {
       field: 'project_name',
       headerName: 'Project',
-      filter: 'agTextColumnFilter',
       sortable: true,
       width: 110,
       valueFormatter: (params: ValueFormatterParams) => params.value || '-',
@@ -782,9 +774,7 @@ export function ContactsPage() {
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
     suppressMovable: false,
-    filter: 'agTextColumnFilter',
-    floatingFilter: false,
-    filterParams: { debounceMs: 300 },
+    filter: false,
     cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), []);
 
