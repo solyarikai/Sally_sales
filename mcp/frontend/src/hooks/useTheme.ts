@@ -1,20 +1,42 @@
-import { useState, useEffect } from 'react'
+import { create } from 'zustand'
 
-export function useTheme() {
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('mcp-theme') !== 'light')
+type ThemeMode = 'dark' | 'light'
 
-  const toggle = () => {
-    setIsDark(d => {
-      const next = !d
-      localStorage.setItem('mcp-theme', next ? 'dark' : 'light')
-      document.documentElement.classList.toggle('dark', next)
-      return next
-    })
-  }
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDark)
-  }, [])
-
-  return { isDark, toggle, setMode: (mode: 'dark' | 'light') => setIsDark(mode === 'dark') }
+function getInitial(): ThemeMode {
+  if (typeof window === 'undefined') return 'dark'
+  const stored = localStorage.getItem('mcp-theme')
+  return stored === 'light' ? 'light' : 'dark'
 }
+
+function apply(mode: ThemeMode) {
+  if (mode === 'dark') {
+    document.documentElement.classList.add('dark')
+  } else {
+    document.documentElement.classList.remove('dark')
+  }
+  localStorage.setItem('mcp-theme', mode)
+}
+
+export const useTheme = create<{
+  mode: ThemeMode
+  isDark: boolean
+  toggle: () => void
+  setMode: (m: ThemeMode) => void
+}>((set, get) => {
+  const initial = getInitial()
+  if (typeof window !== 'undefined') apply(initial)
+
+  return {
+    mode: initial,
+    isDark: initial === 'dark',
+    toggle: () => {
+      const next: ThemeMode = get().mode === 'dark' ? 'light' : 'dark'
+      apply(next)
+      set({ mode: next, isDark: next === 'dark' })
+    },
+    setMode: (m: ThemeMode) => {
+      apply(m)
+      set({ mode: m, isDark: m === 'dark' })
+    },
+  }
+})

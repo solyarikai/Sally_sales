@@ -14,6 +14,7 @@ export default defineConfig({
       { find: /^\.\.\/api\/client$/, replacement: path.join(mcpSrc, 'api/client') },
       { find: /^\.\.\/api$/, replacement: path.join(mcpSrc, 'api/index') },
       { find: /^\.\.\/store\/appStore$/, replacement: path.join(mcpSrc, 'store/appStore') },
+      { find: /^\.\.\/hooks\/useTheme$/, replacement: path.join(mcpSrc, 'hooks/useTheme') },
 
       // @main alias — point to main app source for component reuse
       { find: '@main', replacement: mainApp },
