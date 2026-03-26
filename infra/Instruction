@@ -1,0 +1,40 @@
+Созданиче почтовой инфраструктуры происходит в несколько этапов.
+1. Покупка доменов на Namecheap. Данные для входа:
+Логин: decaster3 
+Пароль: wP#DSVN-8X/yF&6
+Доменные имена собираются по принципу client + field (например, клиент - inxy (Seamless crypto and stablecoin payments for your business aPoland-authorized & Canada-registered platform providing secure solutions to accept, send, and manage crypto currencies effortlessly), в таком случае доменными именами выступают inxycrypto.com, inxypayments.com и т.д.)
+2. Подключение доменов к Google Workspace.
+Добавить домен -> ввести доменное имя -> скопировать host и value -> создать txt-record на домене в Namecheap
+3. Создание MX, spf, Dmarc, emailtracking, redirect записей.
+MX: custom MX, host: @ value: SMTP.GOOGLE.COM Priority: 1
+SPF: Txt-record, host: @, value: v=spf1 include:_spf.google.com ~all
+Dmarc: Txt-record, host: _dmarc, value: v=DMARC1; p=reject; rua=mailto:dmarc-reports@domainname.com; ruf=mailto:dmarc-reports@domainname.com; sp=reject; adkim=s; fo=1;  
+Emailtracking: cname-record, host: emailtracking, value: open.sleadtrack.com
+Redirect-record: URL-Redirect record, host: @, value: website URL
+DKIM Record: txt-record, host: google._domainkey, value: from Google Workspace (Gmail settings -> Authentificate email -> Generate DKIM key - Turn on authentification)
+3. Создание почтовых ящиках на доменах:
+На каждом домене создается 2 почтовых ящика: name@domain.com и name.s@domain.com (например, для Serge Kuznetsov: serge@inxy.com и serge.k@inxy.com)
+На ящики ставится аватарка и задается один пароль для всех ящиков одного клиента.
+На вкладке security каждого пользователя нужно включить двухфакторную аутентификацию и скопировать backup codes
+4. Перенос данных для входа в аккаунты в таблицу
+Перенос осуществляется по шаблону, далее приведен список колонок:
+Name (Serge Kuznetsov)
+Email (serge@inxy.com)
+Password (Пароль для всех ящиков одного клиента)
+Backup codes (Коды для двухфакторной аутентификации)
+5. Подключение почтовых ящиков к smartlead и прогрев:
+Логин: services@getsally.io
+Пароль: yLBuCn%P&&TJ8aM<1
+Email accounts -> Connect mailbox -> Smartlead Infrastructure -> Google oAuth -> Fill in email account -> Fill in password -> Accept -> Continue
+Warmup: Mailbox settings -> Enable Warmup -> Total number of warm up emails per day: 40 -> Bulk Update Daily Rampup on -> Reply Rate: 35% -> Bulk update Auto-adjust warmup/sending ratio on
+Mailbox settings -> General -> Messages per day: 50
+Для настройки email tracking: Mailbox settings -> General -> Use a custom tracking domain on -> http://emailtracking.domain.com (пример: http://emailtracking.inxycrypto.com)
+6. Подключение и спам-тесты в Instantly
+Процесс подключения ящиков к Instantly аналогичен процессу подключения к smartlead
+Для спам-тестов: в Instantly -> Inbox Placement -> Add New -> Client Name (пример: inxy) -> One time -> From Instantly -> Continue -> Save
+Если какой-то клиент не заводит ящики впервые, а расширяет их количество, то ящики добавляются в настройках уже существующего спам-теста
+Спам-тесты запускаются два раза в неделю: в понедельник и четверг в 10:00 по московскому времени.
+Если по результатам спам-теста какой-то ящик показывает доставляемость ниже 80% нужно выполнить следующие действия:
+1) Отправить такие ящики списком в slack в чат проекта
+2) Удалить или выделить цветом ящик в таблице из 4 пункта
+3) Удалить ящик из google workspace

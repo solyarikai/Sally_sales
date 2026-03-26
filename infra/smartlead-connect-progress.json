@@ -1,0 +1,205 @@
+{
+  "connected": [],
+  "failed": [
+    {
+      "email": "rinat@cronaengine.com",
+      "error": "Google OAuth provider card not found"
+    },
+    {
+      "email": "petr@crona-engine.com",
+      "error": "Google OAuth provider card not found"
+    },
+    {
+      "email": "rinat@crona-engine.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@cronasuite.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@cronasuite.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@crona-suite.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@crona-suite.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@cronainsights.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@cronainsights.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@crona-insights.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@crona-insights.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@cronametrics.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@cronametrics.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@crona-metrics.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@crona-metrics.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@cronaoutreach.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@cronaoutreach.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@crona-outreach.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@crona-outreach.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@cronaintel.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@cronaintel.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@crona-intel.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@crona-intel.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@cronapulse.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@cronapulse.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@crona-pulse.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@crona-pulse.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@cronafunnel.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@cronafunnel.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@crona-funnel.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "rinat@crona-funnel.com",
+      "error": "Cannot read properties of null (reading 'bringToFront')"
+    },
+    {
+      "email": "petr@cronascout.com",
+      "error": "Execution context was destroyed, most likely because of a navigation."
+    },
+    {
+      "email": "rinat@cronascout.com",
+      "error": "net::ERR_ABORTED at https://app.smartlead.ai/app/email-accounts"
+    },
+    {
+      "email": "petr@crona-scout.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "rinat@crona-scout.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "petr@cronacore.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "rinat@cronacore.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "petr@crona-core.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "rinat@crona-core.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "petr@cronadrive.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "rinat@cronadrive.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "petr@crona-drive.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "rinat@crona-drive.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "petr@cronaboost.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "rinat@cronaboost.com",
+      "error": "Attempted to use detached Frame 'CD1CE31BA2406C83633C0F0F111D96AD'."
+    },
+    {
+      "email": "petr@cronaplatform.com",
+      "error": "Google OAuth popup not found after 35s"
+    },
+    {
+      "email": "rinat@cronaplatform.com",
+      "error": "Google OAuth popup not found after 35s"
+    },
+    {
+      "email": "petr@crona-platform.com",
+      "error": "Google OAuth popup not found after 35s"
+    },
+    {
+      "email": "rinat@crona-platform.com",
+      "error": "Google OAuth popup not found after 35s"
+    },
+    {
+      "email": "petr@cronaengine.com",
+      "error": "Google OAuth popup not found after 35s"
+    }
+  ]
+}
