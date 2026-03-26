@@ -9,7 +9,7 @@ Server URL: `http://46.62.210.24:8002/mcp/sse`
 ## Claude Code (CLI)
 
 ```bash
-claude mcp add leadgen --transport sse --url http://46.62.210.24:8002/mcp/sse
+claude mcp add leadgen --transport sse http://46.62.210.24:8002/mcp/sse
 ```
 
 Or manually edit `~/.claude/settings.json`:

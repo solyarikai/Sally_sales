@@ -106,7 +106,7 @@ Navigate to `http://46.62.210.24:3000`
 
 ```bash
 # Add MCP server
-claude mcp add leadgen --transport sse --url http://46.62.210.24:8002/mcp/sse
+claude mcp add leadgen --transport sse http://46.62.210.24:8002/mcp/sse
 
 # Start conversation
 claude
