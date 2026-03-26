@@ -32,8 +32,8 @@ class InboxSyncService:
         if not account.string_session:
             logger.debug(f"Inbox sync: account {account_id} ({account.phone}) has no string_session")
             return 0
-        if account.auth_status != "active":
-            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) auth_status={account.auth_status}, skipping")
+        if account.auth_status == "error":
+            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) auth_status=error, skipping")
             return 0
 
         # Check if already connected — avoid disconnect at the end if so
@@ -143,7 +143,7 @@ class InboxSyncService:
             result = await session.execute(
                 select(TelegramDMAccount.id).where(
                     TelegramDMAccount.string_session.isnot(None),
-                    TelegramDMAccount.auth_status == "active",
+                    TelegramDMAccount.auth_status != "error",
                 )
             )
             account_ids = [r[0] for r in result.all()]
