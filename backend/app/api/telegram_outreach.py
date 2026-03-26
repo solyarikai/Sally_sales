@@ -3386,6 +3386,20 @@ async def tag_inbox_thread(
 
 from datetime import datetime
 from app.services.inbox_sync_service import inbox_sync_service
+from app.services.telegram_dm_service import telegram_dm_service
+from app.models.telegram_dm import TelegramDMAccount
+
+
+@router.get("/inbox/accounts")
+async def list_inbox_accounts(session: AsyncSession = Depends(get_session)):
+    """List telegram_dm_accounts available for inbox."""
+    result = await session.execute(
+        select(TelegramDMAccount).where(
+            TelegramDMAccount.string_session.isnot(None)
+        ).order_by(TelegramDMAccount.id)
+    )
+    accounts = result.scalars().all()
+    return [{"id": a.id, "phone": a.phone, "username": a.username, "first_name": a.first_name, "is_connected": a.is_connected, "auth_status": a.auth_status} for a in accounts]
 
 
 @router.get("/inbox/dialogs")
@@ -3437,12 +3451,12 @@ async def list_inbox_dialogs(
     result = await session.execute(query)
     dialogs = result.scalars().all()
 
-    # Get account info for each dialog
+    # Get account info from telegram_dm_accounts for each dialog
     account_cache = {}
     items = []
     for d in dialogs:
         if d.account_id not in account_cache:
-            acc = await session.get(TgAccount, d.account_id)
+            acc = await session.get(TelegramDMAccount, d.account_id)
             account_cache[d.account_id] = acc
         acc = account_cache[d.account_id]
 
@@ -3450,6 +3464,7 @@ async def list_inbox_dialogs(
             "id": d.id,
             "account_id": d.account_id,
             "account_phone": acc.phone if acc else None,
+            "account_username": acc.username if acc else None,
             "account_name": f"{acc.first_name or ''} {acc.last_name or ''}".strip() if acc else None,
             "peer_id": d.peer_id,
             "peer_name": d.peer_name or "Unknown",
@@ -3471,65 +3486,55 @@ async def get_dialog_messages(
     limit: int = Query(30, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
 ):
-    """Fetch real messages from Telegram for a dialog."""
+    """Fetch real messages from Telegram for a dialog via telegram_dm_service."""
     dialog = await session.get(TgInboxDialog, dialog_id)
     if not dialog:
         raise HTTPException(404, "Dialog not found")
 
-    account = await session.get(TgAccount, dialog.account_id)
+    account = await session.get(TelegramDMAccount, dialog.account_id)
     if not account:
-        raise HTTPException(404, "Account not found")
+        raise HTTPException(404, "Account not found in telegram_dm_accounts")
+    if not account.string_session:
+        raise HTTPException(400, "Account has no string_session")
 
-    # Build connect kwargs
-    proxy = None
-    if account.assigned_proxy_id:
-        from app.models.telegram_outreach import TgProxy
-        proxy = await session.get(TgProxy, account.assigned_proxy_id)
-
-    kwargs = {"phone": account.phone, "api_id": account.api_id, "api_hash": account.api_hash}
-    if proxy:
-        kwargs["proxy"] = (proxy.protocol if proxy.protocol != "mtproto" else "socks5", proxy.host, proxy.port, True, proxy.username, proxy.password)
+    # Check if already connected — avoid disconnect at the end if so
+    already_connected = telegram_dm_service.is_connected(dialog.account_id)
 
     try:
-        await telegram_engine.connect(dialog.account_id, **kwargs)
-        client = telegram_engine.get_client(dialog.account_id)
-        me = await client.get_me()
+        if not already_connected:
+            ok = await telegram_dm_service.connect_account(dialog.account_id, account.string_session, account.proxy_config)
+            if not ok:
+                raise HTTPException(500, "Failed to connect account")
 
-        from telethon.tl.types import InputPeerUser
-        try:
-            entity = await client.get_input_entity(dialog.peer_id)
-        except:
-            try:
-                await client.get_dialogs(limit=100)
-                entity = await client.get_input_entity(dialog.peer_id)
-            except:
-                entity = InputPeerUser(dialog.peer_id, 0)
+        messages = await telegram_dm_service.get_messages(dialog.account_id, dialog.peer_id, limit=limit)
 
-        messages = []
-        async for msg in client.iter_messages(entity, limit=limit):
-            if not msg.text:
-                continue
-            messages.append({
-                "id": msg.id,
-                "direction": "outbound" if msg.sender_id == me.id else "inbound",
-                "text": msg.text,
-                "timestamp": msg.date.isoformat() if msg.date else None,
+        # Map field names to match existing frontend expectations
+        formatted = []
+        for m in messages:
+            formatted.append({
+                "id": m["id"],
+                "direction": m["direction"],
+                "text": m["text"],
+                "timestamp": m.get("sent_at"),
             })
 
-        messages.reverse()  # chronological order
-        await telegram_engine.disconnect(dialog.account_id)
+        if not already_connected:
+            await telegram_dm_service.disconnect_account(dialog.account_id)
 
         return {
-            "messages": messages,
+            "messages": formatted,
             "peer_name": dialog.peer_name,
             "peer_username": dialog.peer_username,
             "account_phone": account.phone,
             "campaign_id": dialog.campaign_id,
             "tag": dialog.inbox_tag,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         try:
-            await telegram_engine.disconnect(dialog.account_id)
+            if not already_connected:
+                await telegram_dm_service.disconnect_account(dialog.account_id)
         except:
             pass
         raise HTTPException(500, f"Failed to fetch messages: {str(e)[:100]}")
@@ -3541,7 +3546,7 @@ async def send_dialog_message(
     body: dict,
     session: AsyncSession = Depends(get_session),
 ):
-    """Send a message in a dialog via the dialog's account."""
+    """Send a message in a dialog via telegram_dm_service."""
     text = (body.get("text") or "").strip()
     if not text:
         raise HTTPException(400, "Message text required")
@@ -3550,25 +3555,27 @@ async def send_dialog_message(
     if not dialog:
         raise HTTPException(404, "Dialog not found")
 
-    account = await session.get(TgAccount, dialog.account_id)
-    if not account or account.status != TgAccountStatus.ACTIVE:
+    account = await session.get(TelegramDMAccount, dialog.account_id)
+    if not account or account.auth_status != "active":
         raise HTTPException(400, "Account not active")
+    if not account.string_session:
+        raise HTTPException(400, "Account has no string_session")
 
-    proxy = None
-    if account.assigned_proxy_id:
-        from app.models.telegram_outreach import TgProxy
-        proxy = await session.get(TgProxy, account.assigned_proxy_id)
-
-    kwargs = {"phone": account.phone, "api_id": account.api_id, "api_hash": account.api_hash}
-    if proxy:
-        kwargs["proxy"] = (proxy.protocol if proxy.protocol != "mtproto" else "socks5", proxy.host, proxy.port, True, proxy.username, proxy.password)
+    # Check if already connected — avoid disconnect at the end if so
+    already_connected = telegram_dm_service.is_connected(dialog.account_id)
 
     try:
-        await telegram_engine.connect(dialog.account_id, **kwargs)
-        result = await telegram_engine.send_message(dialog.account_id, str(dialog.peer_id), text)
-        await telegram_engine.disconnect(dialog.account_id)
+        if not already_connected:
+            ok = await telegram_dm_service.connect_account(dialog.account_id, account.string_session, account.proxy_config)
+            if not ok:
+                raise HTTPException(500, "Failed to connect account")
 
-        if result.get("status") == "sent":
+        result = await telegram_dm_service.send_message(dialog.account_id, dialog.peer_id, text)
+
+        if not already_connected:
+            await telegram_dm_service.disconnect_account(dialog.account_id)
+
+        if result.get("success"):
             # Update dialog cache
             dialog.last_message_text = text[:500]
             dialog.last_message_at = datetime.utcnow()
@@ -3576,9 +3583,12 @@ async def send_dialog_message(
             await session.commit()
 
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         try:
-            await telegram_engine.disconnect(dialog.account_id)
+            if not already_connected:
+                await telegram_dm_service.disconnect_account(dialog.account_id)
         except:
             pass
         raise HTTPException(500, f"Send failed: {str(e)[:100]}")
@@ -3609,7 +3619,7 @@ async def trigger_inbox_sync(
     account_id: Optional[int] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    """Trigger inbox sync for one account or all active accounts."""
+    """Trigger inbox sync for one telegram_dm_account or all active DM accounts."""
     if account_id:
         count = await inbox_sync_service.sync_account(account_id, session)
         return {"ok": True, "synced": count}
