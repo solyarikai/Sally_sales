@@ -544,6 +544,49 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         seq.reviewed_at = datetime.utcnow()
         return {"approved": True, "sequence_id": seq.id}
 
+    if tool_name == "list_email_accounts":
+        user = await _get_user(token, session)
+        ctx = UserServiceContext(user.id, session)
+        svc = await ctx.get_smartlead_service()
+        if not svc.is_configured():
+            raise ValueError("SmartLead not connected")
+
+        campaign_id = args.get("campaign_id")
+        if campaign_id:
+            # Get accounts from specific campaign
+            accounts = await svc.get_campaign_email_accounts(campaign_id)
+        else:
+            # Get all accounts, then show which campaigns use them
+            accounts = await svc.get_email_accounts()
+
+        # Also get accounts from user's imported campaigns (for reuse suggestion)
+        from app.models.campaign import Campaign
+        user_campaigns = (await session.execute(
+            select(Campaign).where(Campaign.project_id.in_(
+                select(Project.id).where(Project.user_id == user.id)
+            )).limit(5)
+        )).scalars().all()
+
+        campaign_accounts = {}
+        for camp in user_campaigns:
+            if camp.external_id:
+                camp_accts = await svc.get_campaign_email_accounts(int(camp.external_id))
+                for a in camp_accts:
+                    aid = a.get("id")
+                    if aid:
+                        if aid not in campaign_accounts:
+                            campaign_accounts[aid] = {"id": aid, "email": a.get("from_email") or a.get("email", ""), "campaigns": []}
+                        campaign_accounts[aid]["campaigns"].append(camp.name)
+
+        return {
+            "accounts": [
+                {"id": a.get("id"), "email": a.get("from_email") or a.get("email", ""), "name": a.get("from_name", "")}
+                for a in (accounts or [])[:20]
+            ],
+            "used_in_your_campaigns": list(campaign_accounts.values()),
+            "message": "Select email account IDs to use for the new campaign. Accounts already used in your campaigns are shown.",
+        }
+
     if tool_name == "god_push_to_smartlead":
         user = await _get_user(token, session)
         seq = await session.get(GeneratedSequence, args["sequence_id"])
@@ -554,20 +597,75 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         ctx = UserServiceContext(user.id, session)
         svc = await ctx.get_smartlead_service()
         if not svc.is_configured():
-            raise ValueError("SmartLead not connected. Use configure_integration first.")
-        from app.services.campaign_intelligence import CampaignIntelligenceService
-        ci_svc = CampaignIntelligenceService()
-        result = await ci_svc.push_to_smartlead(session, seq.id, svc)
-        smartlead_url = result["url"]
+            raise ValueError("SmartLead not connected")
+
+        # 1. Create campaign
+        campaign_data = await svc.create_campaign(seq.campaign_name or "MCP Generated")
+        if not campaign_data:
+            raise ValueError("Failed to create SmartLead campaign")
+        campaign_id = campaign_data.get("id")
+
+        # 2. Set sequences
+        await svc.set_campaign_sequences(campaign_id, seq.sequence_steps)
+
+        # 3. Set production settings (no tracking, plain text, stop on reply)
+        await svc.set_campaign_settings(campaign_id)
+
+        # 4. Set schedule (9-6 in target timezone)
+        target_country = args.get("target_country", "")
+        if not target_country:
+            # Try to get from project's gathering filters
+            project = await session.get(Project, seq.project_id)
+            if project and project.target_segments:
+                # Extract country from ICP if possible
+                for country in ["United States", "Germany", "United Kingdom", "India", "Australia"]:
+                    if country.lower() in (project.target_segments or "").lower():
+                        target_country = country
+                        break
+        from app.services.smartlead_service import get_timezone_for_country
+        timezone = get_timezone_for_country(target_country)
+        await svc.set_campaign_schedule(campaign_id, timezone)
+
+        # 5. Assign email accounts (if provided)
+        email_account_ids = args.get("email_account_ids", [])
+        if email_account_ids:
+            await svc.set_campaign_email_accounts(campaign_id, email_account_ids)
+
+        # 6. Save to DB
+        from app.models.campaign import Campaign
+        from datetime import datetime
+        campaign = Campaign(
+            project_id=seq.project_id, company_id=seq.company_id,
+            name=seq.campaign_name, external_id=str(campaign_id),
+            platform="smartlead", status="draft",
+        )
+        session.add(campaign)
+        seq.pushed_at = datetime.utcnow()
+        seq.status = "pushed"
+        seq.pushed_campaign_id = campaign.id
+        await session.flush()
+
+        smartlead_url = f"https://app.smartlead.ai/app/email-campaigns-v2/{campaign_id}/analytics"
+
         return {
             "pushed": True,
-            "smartlead_campaign_id": result["smartlead_campaign_id"],
-            "status": "DRAFT — never auto-activates",
-            "message": f"Campaign '{seq.campaign_name}' created as DRAFT in SmartLead. Review in SmartLead, add leads, then activate manually.",
-            "_links": {
-                "smartlead": smartlead_url,
-                "sequence": f"http://46.62.210.24:3000/campaigns/{seq.id}",
+            "smartlead_campaign_id": campaign_id,
+            "status": "DRAFT",
+            "settings": {
+                "timezone": timezone,
+                "schedule": "Mon-Fri 09:00-18:00",
+                "plain_text": True,
+                "tracking": "disabled (no open/click tracking)",
+                "stop_on": "reply",
+                "follow_up_rate": "40%",
+                "max_daily": 100,
+                "email_accounts": len(email_account_ids),
             },
+            "message": f"Campaign '{seq.campaign_name}' created as DRAFT with production settings.\n"
+                       f"Schedule: Mon-Fri 9:00-18:00 {timezone}\n"
+                       f"Email accounts: {len(email_account_ids)} assigned\n"
+                       f"Next: add leads in SmartLead, then activate.",
+            "_links": {"smartlead": smartlead_url},
         }
 
     if tool_name in ("god_score_campaigns", "god_extract_patterns"):

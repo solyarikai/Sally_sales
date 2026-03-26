@@ -274,11 +274,42 @@ Only for manual/CSV/sheets sources can you skip size and page filters.""",
     },
     {
         "name": "god_push_to_smartlead",
-        "description": "Push an approved sequence to SmartLead as a DRAFT campaign. Never activates or adds leads.",
+        "description": """Push an approved sequence to SmartLead as a DRAFT campaign with FULL configuration.
+
+BEFORE calling this, you MUST ask the user:
+1. "Which email accounts should I use?" — call list_email_accounts first to show options
+2. The schedule will be set to 9:00-18:00 Mon-Fri in the TARGET country's timezone (from the gathering geo filter)
+
+The campaign is created with production settings:
+- Plain text emails (no HTML)
+- No open/click tracking (deliverability)
+- Stop on reply
+- 40% follow-up rate
+- 3 min between emails
+- 100 max new leads/day
+- Mon-Fri 9:00-18:00 in target timezone
+
+Campaign is ALWAYS DRAFT — never activated, never adds leads.""",
         "inputSchema": {
             "type": "object",
-            "properties": {"sequence_id": {"type": "integer"}},
+            "properties": {
+                "sequence_id": {"type": "integer"},
+                "email_account_ids": {"type": "array", "items": {"type": "integer"}, "description": "SmartLead email account IDs to use. Get from list_email_accounts."},
+                "target_country": {"type": "string", "description": "Country for timezone (from gathering geo filter). E.g. 'United States', 'Germany'"},
+            },
             "required": ["sequence_id"],
+        },
+    },
+    {
+        "name": "list_email_accounts",
+        "description": """List SmartLead email accounts available for campaigns. Shows accounts used in the user's existing campaigns (from blacklist import) so they can reuse the same sending accounts.
+
+Call this BEFORE god_push_to_smartlead to let the user choose which accounts to use.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {"type": "integer", "description": "Optional: show accounts from a specific campaign"},
+            },
         },
     },
 
