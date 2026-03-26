@@ -342,17 +342,17 @@ export default function PipelinePage() {
                 <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-link)' }}>{c.domain}</td>
                 <td style={{ padding: '7px 8px 7px 0' }}>{c.name || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                 <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)' }}>{c.industry || '—'}</td>
-                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)', fontSize: 11 }}>{c.keywords || '—'}</td>
+                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)', fontSize: 11 }}>{Array.isArray(c.keywords) ? c.keywords.join(', ') : (c.keywords || '—')}</td>
                 <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)' }}>{c.employee_count || '—'}</td>
                 <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)' }}>{c.country || '—'}</td>
                 <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)' }}>{c.city || '—'}</td>
-                <td style={{ padding: '7px 8px 7px 0' }}>
-                  {c.scrape_status === 'success' ? <span style={{ color: 'var(--success)' }}>{c.scrape_text_size ? `${(c.scrape_text_size/1024).toFixed(0)}KB` : '✓'}</span> :
-                   c.scrape_status === 'error' ? <span style={{ color: 'var(--danger)' }}>err</span> :
-                   c.scrape_status === 'scraping' ? <span style={{ color: 'var(--info)' }}>...</span> :
+                <td style={{ padding: '7px 8px 7px 0', fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.scrape_text_preview ? <span style={{ color: 'var(--text-secondary)' }} title={c.scrape_text_preview}>{c.scrape_text_preview.slice(0, 60)}...</span> :
+                   c.scrape_status === 'success' ? <span style={{ color: 'var(--success)' }}>✓ scraped</span> :
+                   c.scrape_status === 'error' ? <span style={{ color: 'var(--danger)' }}>error</span> :
                    <span style={{ color: 'var(--text-muted)' }}>—</span>}
                 </td>
-                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.analysis_short || '—'}</td>
+                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.analysis_reasoning || c.analysis_short || '—'}</td>
                 <td style={{ padding: '7px 0' }}>
                   <span style={{ color: STATUS_COLORS[c.status] || 'var(--text-muted)', fontWeight: c.status === 'target' || c.status === 'verified' ? 600 : 400 }}>{c.status}</span>
                 </td>

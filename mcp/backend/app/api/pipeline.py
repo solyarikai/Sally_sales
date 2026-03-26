@@ -316,10 +316,22 @@ def _company_to_dict(c, scrape=None, truncate_reasoning=False):
     if apollo_id:
         apollo_url = f"https://app.apollo.io/#/organizations/{apollo_id}"
 
-    # Keywords from source_data (Apollo keyword tags)
+    # Keywords: Apollo accounts don't have keyword tags. Derive from SIC/NAICS codes + industry.
     keywords = sd.get("keywords") or sd.get("tags") or sd.get("keyword_tags") or []
     if isinstance(keywords, str):
         keywords = [k.strip() for k in keywords.split(",") if k.strip()]
+    if not keywords:
+        # Build from SIC/NAICS + industry
+        parts = []
+        sic = sd.get("sic_codes") or []
+        naics = sd.get("naics_codes") or []
+        if sic:
+            parts.append(f"SIC:{','.join(str(s) for s in sic)}")
+        if naics:
+            parts.append(f"NAICS:{','.join(str(n) for n in naics)}")
+        if c.industry:
+            parts.append(c.industry)
+        keywords = ", ".join(parts) if parts else ""
 
     reasoning = c.analysis_reasoning
     if truncate_reasoning and reasoning and len(reasoning) > 100:
@@ -347,6 +359,7 @@ def _company_to_dict(c, scrape=None, truncate_reasoning=False):
         # Scrape info (from JOIN)
         "scrape_status": scrape.scrape_status if scrape else None,
         "scrape_text_size": scrape.text_size_bytes if scrape else None,
+        "scrape_text_preview": (scrape.clean_text[:150] + "...") if scrape and scrape.clean_text and len(scrape.clean_text) > 150 else (scrape.clean_text if scrape else None),
         # Analysis
         "analysis_reasoning": reasoning,
         # Pipeline state
