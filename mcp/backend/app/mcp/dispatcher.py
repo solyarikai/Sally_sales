@@ -940,17 +940,30 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         project.campaign_filters = campaign_names
         await session.flush()
 
+        # START BACKGROUND REPLY ANALYSIS — runs in parallel, doesn't block
+        campaign_id_map = {camp.get("id"): camp.get("name", "") for camp in matched}
+        matched_ids = [camp.get("id") for camp in matched if camp.get("id")]
+        try:
+            from app.services.reply_analysis_service import start_reply_analysis_background
+            start_reply_analysis_background(sl, matched_ids, campaign_id_map, project.id)
+            reply_analysis_status = f"Reply analysis started in background for {len(matched_ids)} campaigns."
+        except Exception as e:
+            reply_analysis_status = f"Reply analysis failed to start: {e}"
+
         return {
             "campaigns_imported": len(matched),
             "campaigns": campaign_details,
             "contacts_downloaded": total_contacts,
             "unique_domains_blacklisted": len(total_domains),
+            "reply_analysis": reply_analysis_status,
             "message": f"Downloaded {total_contacts} contacts from {len(matched)} campaigns. "
                        f"{len(total_domains)} unique domains added to blacklist. "
-                       f"Any new gathering will skip these domains.",
+                       f"Reply analysis running in background — will classify warm/meeting/interested replies. "
+                       f"Ask 'which replies are warm?' after a minute.",
             "_links": {
                 "crm": f"http://46.62.210.24:3000/crm",
-                "project": f"http://46.62.210.24:3000/projects",
+                "crm_warm": f"http://46.62.210.24:3000/crm?reply_category=interested",
+                "crm_meetings": f"http://46.62.210.24:3000/crm?reply_category=meeting",
             },
         }
 
