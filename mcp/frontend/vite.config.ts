@@ -9,12 +9,16 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
-      // MCP overrides — these take priority over @main
-      // When main app components import '../api/client', resolve to MCP's client (with MCP auth)
-      { find: /^\.\.\/api\/client$/, replacement: path.join(mcpSrc, 'api/client') },
-      { find: /^\.\.\/api$/, replacement: path.join(mcpSrc, 'api/index') },
-      { find: /^\.\.\/store\/appStore$/, replacement: path.join(mcpSrc, 'store/appStore') },
-      { find: /^\.\.\/hooks\/useTheme$/, replacement: path.join(mcpSrc, 'hooks/useTheme') },
+      // MCP overrides — intercept ALL relative import depths
+      // ../api/client (1 level) and ../../api/client (2 levels)
+      { find: /\.\.\/api\/client/, replacement: path.join(mcpSrc, 'api/client') },
+      { find: /\.\.\/api$/, replacement: path.join(mcpSrc, 'api/index') },
+      { find: /\.\.\/\.\.\/api$/, replacement: path.join(mcpSrc, 'api/index') },
+      // Store override
+      { find: /\.\.\/store\/appStore/, replacement: path.join(mcpSrc, 'store/appStore') },
+      { find: /\.\.\/\.\.\/store\/appStore/, replacement: path.join(mcpSrc, 'store/appStore') },
+      // Theme override — CRITICAL: filter components use ../../hooks/useTheme
+      { find: /hooks\/useTheme/, replacement: path.join(mcpSrc, 'hooks/useTheme') },
 
       // @main alias — point to main app source for component reuse
       { find: '@main', replacement: mainApp },
