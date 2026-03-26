@@ -4,7 +4,7 @@ import {
   Users, Send, Shield, Plus, Search, Trash2,
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RotateCw, RefreshCw,
-  MessageCircle, Info,
+  MessageCircle, Info, FileText,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
@@ -2506,8 +2506,30 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const [applied, setApplied] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [showCrmInfo, setShowCrmInfo] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const templateRef = useRef<HTMLDivElement>(null);
+
+  const REPLY_TEMPLATES = [
+    { label: 'Greeting', text: 'Hi! Thanks for your response. How can I help?' },
+    { label: 'Meeting', text: 'Would you be available for a quick call this week?' },
+    { label: 'Info', text: "Sure, I'll send you more details shortly." },
+    { label: 'Follow up', text: 'Just following up on my previous message. Any thoughts?' },
+    { label: 'Not interested', text: 'No problem, thanks for letting me know!' },
+  ];
+
+  // Close templates popup on outside click
+  useEffect(() => {
+    if (!showTemplates) return;
+    const handler = (e: MouseEvent) => {
+      if (templateRef.current && !templateRef.current.contains(e.target as Node)) {
+        setShowTemplates(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showTemplates]);
 
   // Load campaigns & accounts on mount (but NOT dialogs — wait for Apply)
   useEffect(() => {
@@ -2525,8 +2547,8 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
 
   // Apply handler — loads dialogs
   const handleApply = useCallback(async () => {
-    if (!filterAccount && !filterCampaign) {
-      toast('Select at least one filter (account or campaign)', 'error');
+    if (!filterAccount && !filterCampaign && !filterTag) {
+      toast('Select at least one filter (account, campaign, or tag)', 'error');
       return;
     }
     setApplied(true);
@@ -2550,9 +2572,10 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     setSyncing(true);
     try {
       const aid = filterAccount ? Number(filterAccount) : undefined;
-      await telegramOutreachApi.triggerInboxSync(aid);
-      toast('Sync triggered', 'success');
-      if (applied) handleApply();
+      const res = await telegramOutreachApi.triggerInboxSync(aid);
+      const count = res?.synced_count ?? res?.count ?? res?.dialogs_synced ?? null;
+      toast(count != null ? `Synced ${count} dialogs` : 'Sync complete', 'success');
+      if (applied) await handleApply();
     } catch {
       toast('Sync failed', 'error');
     } finally {
@@ -2631,7 +2654,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   return (
     <div className="flex rounded-xl overflow-hidden" style={{ background: A.surface, border: `1px solid ${A.border}`, height: 'calc(100vh - 220px)', minHeight: 500 }}>
       {/* ── Left panel: Dialog list ── */}
-      <div className="flex flex-col" style={{ width: 320, borderRight: `1px solid ${A.border}` }}>
+      <div className="flex flex-col" style={{ width: 320, flexShrink: 0, overflow: 'hidden', borderRight: `1px solid ${A.border}` }}>
         {/* Search */}
         <div className="px-3 pt-3 pb-1">
           <div className="relative">
@@ -2648,37 +2671,38 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
         </div>
 
         {/* Filters */}
-        <div className="p-3 flex flex-col gap-2" style={{ borderBottom: `1px solid ${A.border}` }}>
-          <div className="flex gap-2">
-            <select
-              value={filterAccount}
-              onChange={e => setFilterAccount(e.target.value)}
-              className={selectCls}
-              style={{ flex: 1, borderColor: A.border, color: filterAccount ? A.text1 : A.text3, background: A.surface }}
-            >
-              <option value="">Account</option>
-              {accounts.map((a: any) => (
-                <option key={a.id} value={a.id}>{a.phone}{a.username ? ` @${a.username}` : ''}</option>
-              ))}
-            </select>
-            <select
-              value={filterCampaign}
-              onChange={e => setFilterCampaign(e.target.value)}
-              className={selectCls}
-              style={{ flex: 1, borderColor: A.border, color: filterCampaign ? A.text1 : A.text3, background: A.surface }}
-            >
-              <option value="">Campaign</option>
-              {campaigns.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex gap-2">
+        <div className="px-3 pb-3 flex flex-col gap-1.5" style={{ borderBottom: `1px solid ${A.border}` }}>
+          {/* Row 1: Account dropdown */}
+          <select
+            value={filterAccount}
+            onChange={e => setFilterAccount(e.target.value)}
+            className={cn(selectCls, 'w-full truncate')}
+            style={{ borderColor: A.border, color: filterAccount ? A.text1 : A.text3, background: A.surface }}
+          >
+            <option value="">Account</option>
+            {accounts.map((a: any) => (
+              <option key={a.id} value={a.id}>{a.phone}{a.username ? ` @${a.username}` : ''}</option>
+            ))}
+          </select>
+          {/* Row 2: Campaign dropdown */}
+          <select
+            value={filterCampaign}
+            onChange={e => setFilterCampaign(e.target.value)}
+            className={cn(selectCls, 'w-full truncate')}
+            style={{ borderColor: A.border, color: filterCampaign ? A.text1 : A.text3, background: A.surface }}
+          >
+            <option value="">Campaign</option>
+            {campaigns.map((c: any) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          {/* Row 3: Tag + Apply + Sync */}
+          <div className="flex gap-1.5">
             <select
               value={filterTag}
               onChange={e => setFilterTag(e.target.value)}
-              className={selectCls}
-              style={{ flex: 1, borderColor: A.border, color: filterTag ? A.text1 : A.text3, background: A.surface }}
+              className={cn(selectCls, 'flex-1 min-w-0 truncate')}
+              style={{ borderColor: A.border, color: filterTag ? A.text1 : A.text3, background: A.surface }}
             >
               <option value="">Tag</option>
               <option value="interested">Interested</option>
@@ -2688,7 +2712,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
             <button
               onClick={handleApply}
               disabled={loading}
-              className="h-8 px-4 rounded-lg text-xs font-semibold text-white transition-colors"
+              className="h-8 px-3 rounded-lg text-xs font-semibold text-white transition-colors flex-shrink-0"
               style={{ background: A.blue, cursor: loading ? 'wait' : 'pointer' }}
               onMouseEnter={e => { e.currentTarget.style.background = A.blueHover; }}
               onMouseLeave={e => { e.currentTarget.style.background = A.blue; }}
@@ -2699,12 +2723,14 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
               onClick={handleSync}
               disabled={syncing}
               title="Sync from Telegram"
-              className="h-8 w-8 rounded-lg flex items-center justify-center border transition-colors"
+              className="h-8 w-8 rounded-lg flex items-center justify-center border transition-colors flex-shrink-0"
               style={{ borderColor: A.border, background: A.surface, cursor: syncing ? 'wait' : 'pointer' }}
               onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
               onMouseLeave={e => { e.currentTarget.style.background = A.surface; }}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} style={{ color: A.text2 }} />
+              {syncing
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: A.text2 }} />
+                : <RefreshCw className="w-3.5 h-3.5" style={{ color: A.text2 }} />}
             </button>
           </div>
         </div>
@@ -2715,7 +2741,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
             <div className="flex flex-col items-center justify-center h-full gap-2 px-6">
               <Filter className="w-7 h-7" style={{ color: A.text3 }} />
               <span className="text-xs text-center" style={{ color: A.text3, lineHeight: '1.5' }}>
-                Select account or campaign to load conversations
+                Select account, campaign, or tag to load conversations
               </span>
             </div>
           ) : loading ? (
@@ -2924,7 +2950,60 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 </div>
 
                 {/* Input row */}
-                <div className="px-4 py-3 flex gap-2 items-center" style={{ borderTop: `1px solid ${A.border}` }}>
+                <div className="relative px-4 py-3 flex gap-2 items-center" style={{ borderTop: `1px solid ${A.border}` }}>
+                  {/* Templates popup */}
+                  {showTemplates && (
+                    <div
+                      ref={templateRef}
+                      className="absolute left-4 right-4 rounded-xl shadow-lg border overflow-hidden"
+                      style={{
+                        bottom: '100%',
+                        marginBottom: 4,
+                        background: A.surface,
+                        borderColor: A.border,
+                        zIndex: 20,
+                      }}
+                    >
+                      <div className="px-3 py-2 flex items-center gap-1.5" style={{ borderBottom: `1px solid ${A.border}`, background: '#F9FAFB' }}>
+                        <FileText className="w-3.5 h-3.5" style={{ color: A.text3 }} />
+                        <span className="text-[11px] font-semibold" style={{ color: A.text2 }}>Quick replies</span>
+                      </div>
+                      <div className="p-1.5 flex flex-col gap-0.5">
+                        {REPLY_TEMPLATES.map((tpl) => (
+                          <button
+                            key={tpl.label}
+                            onClick={() => {
+                              setMessageText(tpl.text);
+                              setShowTemplates(false);
+                              inputRef.current?.focus();
+                            }}
+                            className="text-left px-2.5 py-2 rounded-lg text-xs transition-colors"
+                            style={{ color: A.text1 }}
+                            onMouseEnter={e => { e.currentTarget.style.background = A.blueBg; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            <span className="font-semibold" style={{ color: A.blue }}>{tpl.label}</span>
+                            <span className="block mt-0.5" style={{ color: A.text2, lineHeight: '1.4' }}>{tpl.text}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Templates toggle button */}
+                  <button
+                    onClick={() => setShowTemplates(v => !v)}
+                    title="Quick reply templates"
+                    className="h-9 w-9 rounded-lg flex items-center justify-center border transition-colors flex-shrink-0"
+                    style={{
+                      borderColor: showTemplates ? A.blue : A.border,
+                      background: showTemplates ? A.blueBg : 'transparent',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={e => { if (!showTemplates) e.currentTarget.style.background = '#F3F4F6'; }}
+                    onMouseLeave={e => { if (!showTemplates) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <BookOpen className="w-4 h-4" style={{ color: showTemplates ? A.blue : A.text3 }} />
+                  </button>
                   <input
                     ref={inputRef}
                     type="text"
@@ -2939,7 +3018,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   <button
                     onClick={handleSend}
                     disabled={sending || !messageText.trim()}
-                    className="h-9 w-9 rounded-lg flex items-center justify-center transition-colors"
+                    className="h-9 w-9 rounded-lg flex items-center justify-center transition-colors flex-shrink-0"
                     style={{
                       background: messageText.trim() ? A.blue : '#E5E7EB',
                       cursor: messageText.trim() ? 'pointer' : 'default',
