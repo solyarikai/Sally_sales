@@ -41,6 +41,11 @@ html, body, #root {
   margin: 0;
 }
 
+/* AG Grid h-full needs every parent to have explicit height, not just flex-derived */
+.mcp-content-area > * {
+  height: 100%;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
