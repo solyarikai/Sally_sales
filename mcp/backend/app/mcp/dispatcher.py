@@ -283,13 +283,19 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
             # Apply safe defaults
             if "api" in source_type:
-                filters.setdefault("max_pages", 4)
                 filters.setdefault("per_page", 25)
+                # If user specified target_count, auto-calculate pages
+                target_count = args.get("target_count") or filters.pop("target_count", None)
+                if target_count and not filters.get("max_pages"):
+                    # ~30% target rate, so need target_count / 0.3 companies
+                    companies_needed = int(target_count / 0.3)
+                    per_page = filters.get("per_page", 25)
+                    filters["max_pages"] = max(1, (companies_needed + per_page - 1) // per_page)
+                filters.setdefault("max_pages", 4)
 
         import hashlib, json as _json
         filter_hash = hashlib.sha256(_json.dumps(filters, sort_keys=True).encode()).hexdigest()[:16]
 
-        # Estimate credits before starting
         max_pages = filters.get("max_pages", 4)
         per_page = filters.get("per_page", 25)
         est_credits = max_pages if "api" in source_type else 0
@@ -408,6 +414,13 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         run = await session.get(GatheringRun, args["run_id"])
         if not run:
             raise ValueError("Run not found")
+        # Get OpenAI key for GPT analysis
+        ctx = UserServiceContext(user.id, session)
+        openai_key = await ctx.get_key("openai")
+        if not openai_key:
+            # Fallback to env
+            from app.config import settings
+            openai_key = settings.OPENAI_API_KEY
         from app.services.gathering_service import GatheringService
         svc = GatheringService()
         gate = await svc.analyze(
@@ -415,6 +428,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             prompt_text=args.get("prompt_text"),
             auto_refine=args.get("auto_refine", False),
             target_accuracy=args.get("target_accuracy", 0.9),
+            openai_key=openai_key,
         )
         return {
             "gate_id": gate.id, "type": "checkpoint_2",

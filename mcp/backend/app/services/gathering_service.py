@@ -286,12 +286,81 @@ class GatheringService:
         prompt_text: Optional[str] = None,
         auto_refine: bool = False,
         target_accuracy: float = 0.9,
+        openai_key: Optional[str] = None,
     ) -> ApprovalGate:
-        """AI analysis to identify target companies. Creates CP2 gate."""
+        """AI analysis with GPT-4o-mini to identify target companies."""
         self._check_phase(run, "analyze")
 
-        # TODO: Wire in actual AI analysis via OpenAI/Gemini
-        # For now, create the CP2 gate
+        # Get companies with scraped text
+        from app.models.gathering import CompanyScrape
+        result = await session.execute(
+            select(DiscoveredCompany, CompanyScrape)
+            .outerjoin(CompanyScrape, (CompanyScrape.discovered_company_id == DiscoveredCompany.id) & (CompanyScrape.is_current == True))
+            .where(
+                DiscoveredCompany.project_id == run.project_id,
+                DiscoveredCompany.is_blacklisted == False,
+                DiscoveredCompany.is_pre_filtered == False,
+            )
+        )
+        rows = result.all()
+
+        targets_found = 0
+        total_analyzed = 0
+
+        # Build ICP prompt
+        icp_prompt = prompt_text or "Analyze if this company matches the target ICP."
+
+        # Analyze each company with GPT-4o-mini
+        if openai_key:
+            import httpx
+            for dc, scrape in rows:
+                company_text = f"Company: {dc.name or dc.domain}\nDomain: {dc.domain}\nIndustry: {dc.industry or 'Unknown'}\nCountry: {dc.country or 'Unknown'}\nEmployees: {dc.employee_count or 'Unknown'}"
+                if scrape and scrape.clean_text:
+                    company_text += f"\nWebsite content:\n{scrape.clean_text[:3000]}"
+
+                try:
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        resp = await client.post(
+                            "https://api.openai.com/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                            json={
+                                "model": "gpt-4o-mini",
+                                "messages": [
+                                    {"role": "system", "content": f"You analyze companies against an ICP (Ideal Customer Profile). Respond ONLY with valid JSON: {{\"is_target\": true/false, \"confidence\": 0.0-1.0, \"segment\": \"brief category\", \"reasoning\": \"1-2 sentence explanation\"}}"},
+                                    {"role": "user", "content": f"ICP: {icp_prompt}\n\n{company_text}\n\nIs this company a target? JSON only:"},
+                                ],
+                                "max_tokens": 200,
+                                "temperature": 0.1,
+                            },
+                        )
+                        data = resp.json()
+                        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+                        # Parse GPT response
+                        import json as _json
+                        try:
+                            # Strip markdown code blocks if present
+                            clean = content.strip()
+                            if clean.startswith("```"):
+                                clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
+                            parsed = _json.loads(clean)
+                            dc.is_target = parsed.get("is_target", False)
+                            dc.analysis_confidence = parsed.get("confidence", 0.5)
+                            dc.analysis_segment = parsed.get("segment", "")
+                            dc.analysis_reasoning = parsed.get("reasoning", "")
+                            total_analyzed += 1
+                            if dc.is_target:
+                                targets_found += 1
+                        except _json.JSONDecodeError:
+                            dc.analysis_reasoning = f"GPT response parse error: {content[:200]}"
+                            total_analyzed += 1
+
+                except Exception as e:
+                    logger.error(f"GPT analysis failed for {dc.domain}: {e}")
+                    dc.analysis_reasoning = f"Analysis error: {str(e)[:100]}"
+                    total_analyzed += 1
+        else:
+            logger.warning("No OpenAI key — skipping GPT analysis")
 
         gate = ApprovalGate(
             project_id=run.project_id,
@@ -300,14 +369,15 @@ class GatheringService:
             gate_label="Target list review",
             scope={
                 "run_id": run.id,
-                "targets_found": 0,
-                "total_analyzed": 0,
+                "targets_found": targets_found,
+                "total_analyzed": total_analyzed,
+                "target_rate": f"{targets_found/total_analyzed*100:.0f}%" if total_analyzed > 0 else "0%",
                 "auto_refine": auto_refine,
-                "target_accuracy": target_accuracy,
                 "prompt_text": prompt_text[:200] if prompt_text else None,
             },
         )
         session.add(gate)
+        run.target_rate = targets_found / total_analyzed if total_analyzed > 0 else 0
         self._advance_phase(run, "awaiting_targets_ok")
         await session.flush()
         return gate

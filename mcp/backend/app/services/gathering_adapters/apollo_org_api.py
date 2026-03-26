@@ -52,9 +52,23 @@ class ApolloOrgApiAdapter(BaseGatheringAdapter):
             if domain.startswith("www."):
                 domain = domain[4:]
 
-            results.append(_extract_company(org, domain))
+            company = _extract_company(org, domain)
+            # Fix Apollo name censoring (Cla*****, RE Par*****)
+            if company["name"] and "*" in company["name"]:
+                company["name"] = _clean_name(company["name"], domain)
+            results.append(company)
 
         return results
+
+
+def _clean_name(name: str, domain: str) -> str:
+    """Fix Apollo censored names. If name has *, derive from domain."""
+    if not name or "*" not in name:
+        return name
+    # Use domain to build a clean name: "clarifai.com" → "Clarifai"
+    base = domain.split(".")[0]
+    # Title case, handle hyphens
+    return base.replace("-", " ").title()
 
 
 def _extract_company(org: Dict, domain: str) -> Dict[str, Any]:
