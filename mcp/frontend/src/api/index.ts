@@ -2,8 +2,8 @@ import { api } from './client'
 export { api }
 export type { Contact, ContactListResponse, ContactStats, FilterOptions, Project, AISDRProject } from './contacts'
 
-export type ImportResult = { success: boolean; imported: number; errors: string[]; skipped?: number; not_found?: number }
-export type EnrichResult = { success: boolean; enriched: number; skipped?: number; not_found?: number; errors?: string[] }
+export type ImportResult = { success: boolean; imported: number; errors: string[]; skipped?: number; not_found?: number; created?: number; sample_created?: any[]; [key: string]: any }
+export type EnrichResult = { success: boolean; enriched: number; skipped?: number; not_found?: number; errors?: string[]; [key: string]: any }
 
 export const contactsApi = {
   async list(params: Record<string, any> = {}) {
@@ -41,7 +41,7 @@ export const contactsApi = {
   async deleteMany(_ids: number[]) { return {} },
   async pushToSmartlead(_ids: number[], _name: string, _opts: any) { return {} },
   async importCsv(_file: File, _projectId: number): Promise<ImportResult> { return { success: true, imported: 0, errors: [] } },
-  async enrichCsv(_file: File): Promise<EnrichResult> { return { success: true, enriched: 0 } },
+  async enrichCsv(_file: File, _opts?: any): Promise<EnrichResult> { return { success: true, enriched: 0 } },
   async generateReply(_id: number) { return { has_reply: false } },
   async crmSpotlightGTM(_projectId: number, _question: string, _filters: any) { return {} },
   async getProject(_id: number) { return {} },
