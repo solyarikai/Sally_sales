@@ -48,23 +48,29 @@ app.include_router(setup_router, prefix="/api")
 app.include_router(pipeline_router, prefix="/api")
 
 # ── MCP SSE (official SDK) ──
-# The MCP SDK's SseServerTransport needs raw ASGI handlers.
-# We mount them directly using Starlette Mount which preserves ASGI signatures.
 from app.mcp.server import sse_transport, mcp_server
 
 
-async def _sse_handler(scope, receive, send):
-    async with sse_transport.connect_sse(scope, receive, send) as streams:
-        await mcp_server.run(
-            streams[0], streams[1], mcp_server.create_initialization_options()
-        )
+class MCPApp:
+    """Raw ASGI app that routes /mcp/sse and /mcp/messages without Starlette wrapping."""
+
+    async def __call__(self, scope, receive, send):
+        path = scope.get("path", "")
+
+        if path == "/sse" or path == "/mcp/sse":
+            async with sse_transport.connect_sse(scope, receive, send) as streams:
+                await mcp_server.run(
+                    streams[0], streams[1], mcp_server.create_initialization_options()
+                )
+        elif path == "/messages" or path == "/mcp/messages":
+            await sse_transport.handle_post_message(scope, receive, send)
+        else:
+            # 404
+            await send({"type": "http.response.start", "status": 404, "headers": []})
+            await send({"type": "http.response.body", "body": b"Not found"})
 
 
-# Mount as raw ASGI — bypasses Starlette's Request wrapping
-app.mount("/mcp", app=Mount("", routes=[
-    Route("/sse", _sse_handler),
-    Route("/messages", sse_transport.handle_post_message, methods=["POST"]),
-]))
+app.mount("/mcp", MCPApp())
 
 
 @app.get("/")
