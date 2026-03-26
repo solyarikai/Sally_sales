@@ -44,6 +44,21 @@ def _detect_country(phone: str) -> Optional[str]:
         p = phonenumbers.parse(f"+{phone.lstrip('+')}")
         return phonenumbers.region_code_for_number(p) or None
     except Exception:
+        # Fallback: common prefixes
+        ph = phone.lstrip('+')
+        _PREFIX_MAP = [
+            ('7', 'RU'), ('380', 'UA'), ('375', 'BY'), ('371', 'LV'), ('370', 'LT'), ('372', 'EE'),
+            ('1', 'US'), ('44', 'GB'), ('49', 'DE'), ('33', 'FR'), ('34', 'ES'), ('39', 'IT'),
+            ('351', 'PT'), ('55', 'BR'), ('90', 'TR'), ('91', 'IN'), ('86', 'CN'), ('81', 'JP'),
+            ('82', 'KR'), ('971', 'AE'), ('966', 'SA'), ('48', 'PL'), ('31', 'NL'), ('46', 'SE'),
+            ('47', 'NO'), ('45', 'DK'), ('358', 'FI'), ('41', 'CH'), ('43', 'AT'), ('36', 'HU'),
+            ('420', 'CZ'), ('40', 'RO'), ('359', 'BG'), ('385', 'HR'), ('381', 'RS'),
+            ('994', 'AZ'), ('995', 'GE'), ('374', 'AM'), ('998', 'UZ'), ('996', 'KG'), ('992', 'TJ'),
+            ('993', 'TM'), ('7700', 'KZ'), ('77', 'KZ'),
+        ]
+        for prefix, code in sorted(_PREFIX_MAP, key=lambda x: -len(x[0])):
+            if ph.startswith(prefix):
+                return code
         return None
 
 
@@ -400,6 +415,20 @@ async def list_accounts(
     result = await session.execute(query)
     accounts = result.scalars().unique().all()
 
+    # Backfill missing country_code and session_created_at
+    dirty = False
+    for acc in accounts:
+        if not acc.country_code and acc.phone:
+            acc.country_code = _detect_country(acc.phone)
+            if acc.country_code:
+                dirty = True
+        if not acc.session_created_at:
+            acc.session_created_at = acc.last_connected_at or acc.created_at
+            if acc.session_created_at:
+                dirty = True
+    if dirty:
+        await session.commit()
+
     items = []
     for acc in accounts:
         # Count campaigns
@@ -422,6 +451,8 @@ async def list_accounts(
             assigned_proxy_id=acc.assigned_proxy_id,
             tags=[TgAccountTagResponse.model_validate(t) for t in acc.tags],
             campaigns_count=camp_count_q.scalar() or 0,
+            country_code=acc.country_code,
+            session_created_at=acc.session_created_at,
             last_connected_at=acc.last_connected_at,
             last_checked_at=acc.last_checked_at,
             created_at=acc.created_at, updated_at=acc.updated_at,
@@ -446,6 +477,7 @@ async def create_account(data: TgAccountCreate, session: AsyncSession = Depends(
         system_lang_code=data.system_lang_code, two_fa_password=data.two_fa_password,
         session_file=data.session_file_name,
         country_code=_detect_country(data.phone),
+        session_created_at=func.now(),
     )
     session.add(account)
     await session.flush()
@@ -1072,6 +1104,7 @@ async def import_teleraptor_accounts(data: TgTeleRaptorImportRequest,
             total_messages_sent=raw.stats_spam_count or 0,
             last_connected_at=last_connected,
             country_code=_detect_country(phone),
+            session_created_at=last_connected or func.now(),
         )
         session.add(account)
         added += 1
@@ -1188,6 +1221,7 @@ async def import_account_bundle(
             total_messages_sent=json_data.get("stats_spam_count", 0) or 0,
             last_connected_at=last_connected,
             country_code=_detect_country(phone),
+            session_created_at=last_connected or func.now(),
         )
         session.add(account)
 
