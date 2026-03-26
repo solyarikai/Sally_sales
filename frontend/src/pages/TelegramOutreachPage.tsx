@@ -1344,10 +1344,11 @@ function AddAccountModal({ t, toast, isDark, onClose, onSaved }: {
 // Edit Account Modal
 // ══════════════════════════════════════════════════════════════════════
 
-function EditAccountModal({ t, toast, isDark, account, onClose, onSaved, onDeleted }: {
+function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onSaved, onDeleted }: {
   t: any; toast: any; isDark: boolean; account: TgAccount;
   onClose: () => void; onSaved: () => void; onDeleted: () => void;
 }) {
+  void _t; void _isDark;
   const [form, setForm] = useState({
     username: account.username || '',
     first_name: account.first_name || '',
