@@ -57,3 +57,41 @@ class SmartLeadService:
     async def get_campaign_sequences(self, campaign_id: int) -> Optional[List[Dict[str, Any]]]:
         data = await self._api_call("GET", f"/campaigns/{campaign_id}/sequences")
         return data if isinstance(data, list) else None
+
+    async def export_campaign_leads(self, campaign_id: int) -> List[Dict[str, Any]]:
+        """Export ALL leads from a campaign as CSV. Returns list of lead dicts."""
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                resp = await client.get(
+                    f"{self.base_url}/campaigns/{campaign_id}/leads-export",
+                    params={"api_key": self.api_key},
+                )
+                if resp.status_code != 200:
+                    logger.error(f"SmartLead export {campaign_id}: HTTP {resp.status_code}")
+                    return []
+
+                # Parse CSV response
+                import csv
+                import io
+                text = resp.text
+                if not text.strip():
+                    return []
+
+                reader = csv.DictReader(io.StringIO(text))
+                leads = []
+                for row in reader:
+                    email = row.get("email", "").strip()
+                    if not email:
+                        continue
+                    domain = email.split("@")[1] if "@" in email else ""
+                    leads.append({
+                        "email": email,
+                        "first_name": row.get("first_name", ""),
+                        "last_name": row.get("last_name", ""),
+                        "company_name": row.get("company_name", ""),
+                        "domain": domain,
+                    })
+                return leads
+        except Exception as e:
+            logger.error(f"SmartLead export {campaign_id} failed: {e}")
+            return []

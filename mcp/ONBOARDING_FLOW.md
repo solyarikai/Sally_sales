@@ -146,24 +146,26 @@ New MCP tools needed:
 
 #### `import_smartlead_campaigns`
 ```
-Input: { rules: { prefixes: ["ES Global"], tags: ["easystaff"], contains: [] } }
+Input: { project_id: 1, rules: { contains: ["Petr"] } }
 ```
-1. Fetch ALL campaigns from SmartLead API (`get_campaigns`)
-2. Match against rules (same logic as main app's `campaign_ownership_rules`)
-3. For each matched campaign:
-   - Fetch contacts via SmartLead CSV export
-   - Load contacts into MCP CRM (`extracted_contacts` table)
-   - Store campaign in MCP `campaigns` table
-4. Save rules on the project's `campaign_filters` field
-5. Return:
-   ```json
-   {
-     "campaigns_found": 3,
-     "campaigns": ["ES Global DACH v2", "ES Global UK Tech", "ES Global LI DACH"],
-     "contacts_loaded": 4200,
-     "message": "Loaded 4,200 contacts from 3 campaigns. These are your blacklist."
-   }
-   ```
+
+**CRITICAL: This tool DOWNLOADS actual contacts from SmartLead, not just campaign names.**
+
+Flow:
+1. Fetch ALL campaigns from SmartLead API
+2. Match against rules (prefix/contains/exact)
+3. **For each matched campaign:**
+   - **Call `/campaigns/{id}/leads-export`** → CSV with ALL leads
+   - Parse: email, first_name, last_name, company_name
+   - Extract domain from email (e.g. `john@acme.com` → `acme.com`)
+   - **Save each contact** in `extracted_contacts` (visible in CRM)
+   - **Create blacklisted DiscoveredCompany** for each domain (`is_blacklisted=True`)
+4. Save campaign names on project
+
+**After import, `tam_blacklist_check` uses these domains:**
+- New Apollo companies → check domain against blacklisted domains
+- Match → rejected ("existing_campaign_contact")
+- This prevents gathering companies the user already contacts
 
 #### `list_smartlead_campaigns`
 ```

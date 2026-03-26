@@ -167,12 +167,30 @@ class GatheringService:
         )
         companies = result.scalars().all()
 
+        # Build blacklist domains from ALREADY BLACKLISTED companies in this project
+        # (imported from SmartLead campaigns via import_smartlead_campaigns)
+        blacklist_result = await session.execute(
+            select(DiscoveredCompany.domain).where(
+                DiscoveredCompany.project_id == run.project_id,
+                DiscoveredCompany.is_blacklisted == True,
+            )
+        )
+        blacklisted_domains = {row[0] for row in blacklist_result.all()}
+
         passed = 0
         rejected = 0
         for dc in companies:
+            if dc.is_blacklisted:
+                # Already blacklisted (e.g. imported from campaigns)
+                rejected += 1
+                continue
             if matches_trash_pattern(dc.domain):
                 dc.is_blacklisted = True
                 dc.blacklist_reason = "trash_domain"
+                rejected += 1
+            elif dc.domain in blacklisted_domains:
+                dc.is_blacklisted = True
+                dc.blacklist_reason = "existing_campaign_contact"
                 rejected += 1
             else:
                 passed += 1
