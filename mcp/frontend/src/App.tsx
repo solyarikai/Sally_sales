@@ -63,12 +63,12 @@ function ProjectSelector() {
   )
 }
 
+import { useTheme as useThemeStore } from './hooks/useTheme'
+
 export default function App() {
-  const [dark, setDark] = useState(() => localStorage.getItem('mcp-theme') !== 'light')
+  const { isDark: dark, toggle: toggleTheme } = useThemeStore()
   const [project, setPS] = useState<any>(null)
   const [projects, setProjects] = useState<any[]>([])
-
-  useEffect(() => { document.documentElement.classList.toggle('dark', dark); localStorage.setItem('mcp-theme', dark ? 'dark' : 'light') }, [dark])
 
   const loadProjects = () => {
     const t = getToken(); if (!t) return
@@ -80,7 +80,7 @@ export default function App() {
   useEffect(() => { const s = localStorage.getItem('mcp-project'); if (s && projects.length) { const f = projects.find((p: any) => p.id === +s); if (f) setPS(f) } }, [projects])
 
   return (
-    <ThemeCtx.Provider value={{ dark, toggle: () => setDark(d => !d) }}>
+    <ThemeCtx.Provider value={{ dark, toggle: toggleTheme }}>
       <ToastProvider>
       <ProjectCtx.Provider value={{ project, projects, setProject, reload: loadProjects }}>
         <BrowserRouter>
@@ -99,7 +99,7 @@ export default function App() {
                 <NavLink to="/setup">Setup</NavLink>
               </nav>
               <div style={{ marginLeft: 'auto' }}>
-                <button onClick={() => setDark(d => !d)} style={{ padding: '4px 8px', borderRadius: 4, fontSize: 12, border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--text-muted)' }}>{dark ? '☀' : '☾'}</button>
+                <button onClick={toggleTheme} style={{ padding: '4px 8px', borderRadius: 4, fontSize: 12, border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--text-muted)' }}>{dark ? '☀' : '☾'}</button>
               </div>
             </header>
             <div className="mcp-content-area" style={{ flex: 1, overflow: 'hidden', height: 'calc(100vh - 48px)' }}>
