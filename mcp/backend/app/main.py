@@ -65,6 +65,26 @@ class MCPApp:
                         streams[0], streams[1], mcp_server.create_initialization_options()
                     )
             elif "/messages" in path:
+                # Extract auth token from HTTP headers and store for tool calls
+                from app.mcp.server import _session_tokens
+                headers = dict(scope.get("headers", []))
+                auth = headers.get(b"authorization", b"").decode()
+                mcp_token = headers.get(b"x-mcp-token", b"").decode()
+                token = ""
+                if auth.startswith("Bearer "):
+                    token = auth[7:]
+                elif mcp_token:
+                    token = mcp_token
+                if token:
+                    # Extract session_id from query string
+                    qs = scope.get("query_string", b"").decode()
+                    for part in qs.split("&"):
+                        if part.startswith("session_id="):
+                            sid = part.split("=", 1)[1]
+                            _session_tokens[sid] = token
+                            break
+                    # Also store as "latest" for fallback
+                    _session_tokens["_latest"] = token
                 await sse_transport.handle_post_message(scope, receive, send)
             else:
                 await send({"type": "http.response.start", "status": 404, "headers": []})

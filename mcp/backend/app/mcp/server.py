@@ -18,6 +18,9 @@ mcp_server = Server("mcp-leadgen")
 # SSE transport — path is relative to mount point (/mcp), so just /messages
 sse_transport = SseServerTransport("/messages")
 
+# Token store: session_id → auth token (extracted from HTTP headers on POST)
+_session_tokens: dict[str, str] = {}
+
 
 @mcp_server.list_tools()
 async def list_tools() -> list[Tool]:
@@ -33,7 +36,14 @@ async def list_tools() -> list[Tool]:
 
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    # Token from arguments (explicit) or from session store (extracted from HTTP headers)
     token = arguments.pop("_token", None)
+    if not token:
+        # Find any stored session token
+        for sid, t in _session_tokens.items():
+            if t:
+                token = t
+                break
     try:
         result = await dispatch_tool(name, arguments, token, None)
         return [TextContent(type="text", text=json.dumps(result, default=str))]
