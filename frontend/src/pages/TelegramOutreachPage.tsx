@@ -379,12 +379,13 @@ function InfoPanel({ isDark, t }: { isDark: boolean; t: ReturnType<typeof themeC
 function Section({
   title,
   children,
+  isDark,
   t,
   icon: Icon,
 }: {
   title: string;
   children: React.ReactNode;
-  isDark?: boolean;
+  isDark: boolean;
   t: ReturnType<typeof themeColors>;
   icon?: typeof MessageCircle;
 }) {
