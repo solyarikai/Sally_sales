@@ -6,14 +6,23 @@ import { Check, Search } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 
 const STATUSES = [
-  { key: 'new',             label: 'New',             dot: 'bg-gray-400',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
-  { key: 'replied',         label: 'Replied',         dot: 'bg-blue-500',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
-  { key: 'warm',            label: 'Warm',            dot: 'bg-amber-500',   colors: 'bg-amber-100 text-amber-700 border-amber-300' },
-  { key: 'calendly_sent',   label: 'Calendly Sent',   dot: 'bg-orange-400',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
-  { key: 'meeting_booked',  label: 'Meeting Booked',  dot: 'bg-orange-500',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
-  { key: 'meeting_held',    label: 'Meeting Held',    dot: 'bg-green-500',   colors: 'bg-green-100 text-green-700 border-green-300' },
-  { key: 'qualified',       label: 'Qualified',       dot: 'bg-emerald-500', colors: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
-  { key: 'not_qualified',   label: 'Not Qualified',   dot: 'bg-gray-600',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
+  { key: 'new',                 label: 'New',                 dot: 'bg-gray-400',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
+  { key: 'sent',                label: 'Sent',                dot: 'bg-gray-500',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
+  { key: 'replied',             label: 'Replied',             dot: 'bg-blue-500',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
+  { key: 'interested',          label: 'Interested',          dot: 'bg-blue-500',    colors: 'bg-blue-100 text-blue-700 border-blue-300' },
+  { key: 'not_interested',      label: 'Not Interested',      dot: 'bg-red-500',     colors: 'bg-red-100 text-red-700 border-red-300' },
+  { key: 'ooo',                 label: 'Out of Office',       dot: 'bg-yellow-400',  colors: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
+  { key: 'unsubscribed',        label: 'Unsubscribed',        dot: 'bg-red-400',     colors: 'bg-red-100 text-red-700 border-red-300' },
+  { key: 'warm',                label: 'Warm',                dot: 'bg-amber-500',   colors: 'bg-amber-100 text-amber-700 border-amber-300' },
+  { key: 'calendly_sent',       label: 'Calendly Sent',       dot: 'bg-orange-400',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
+  { key: 'negotiating_meeting', label: 'Negotiating Meeting', dot: 'bg-orange-500',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
+  { key: 'meeting_booked',      label: 'Meeting Booked',      dot: 'bg-orange-500',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
+  { key: 'scheduled',           label: 'Scheduled',           dot: 'bg-orange-500',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
+  { key: 'meeting_held',        label: 'Meeting Held',        dot: 'bg-green-500',   colors: 'bg-green-100 text-green-700 border-green-300' },
+  { key: 'meeting_no_show',     label: 'Meeting No Show',     dot: 'bg-red-500',     colors: 'bg-red-100 text-red-700 border-red-300' },
+  { key: 'meeting_rescheduled', label: 'Meeting Rescheduled', dot: 'bg-amber-400',   colors: 'bg-amber-100 text-amber-700 border-amber-300' },
+  { key: 'qualified',           label: 'Qualified',           dot: 'bg-emerald-500', colors: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+  { key: 'not_qualified',       label: 'Not Qualified',       dot: 'bg-gray-600',    colors: 'bg-gray-100 text-gray-600 border-gray-300' },
 ] as const;
 
 export const StatusColumnFilter = forwardRef((_props: IFilterParams, ref) => {

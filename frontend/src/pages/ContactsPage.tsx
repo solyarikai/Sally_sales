@@ -36,14 +36,23 @@ import { useAppStore } from '../store/appStore';
 
 // Status configuration — sales funnel
 const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
-  new:            { dot: '#9ca3af', label: 'New' },
-  replied:        { dot: '#3b82f6', label: 'Replied' },
-  warm:           { dot: '#f59e0b', label: 'Warm' },
-  calendly_sent:  { dot: '#fb923c', label: 'Calendly Sent' },
-  meeting_booked: { dot: '#f97316', label: 'Meeting Booked' },
-  meeting_held:   { dot: '#22c55e', label: 'Meeting Held' },
-  qualified:      { dot: '#10b981', label: 'Qualified' },
-  not_qualified:  { dot: '#4b5563', label: 'Not Qualified' },
+  new:                 { dot: '#9ca3af', label: 'New' },
+  sent:                { dot: '#6b7280', label: 'Sent' },
+  replied:             { dot: '#3b82f6', label: 'Replied' },
+  interested:          { dot: '#3b82f6', label: 'Interested' },
+  not_interested:      { dot: '#ef4444', label: 'Not Interested' },
+  ooo:                 { dot: '#fbbf24', label: 'Out of Office' },
+  unsubscribed:        { dot: '#f87171', label: 'Unsubscribed' },
+  warm:                { dot: '#f59e0b', label: 'Warm' },
+  calendly_sent:       { dot: '#fb923c', label: 'Calendly Sent' },
+  negotiating_meeting: { dot: '#f97316', label: 'Negotiating Meeting' },
+  meeting_booked:      { dot: '#f97316', label: 'Meeting Booked' },
+  scheduled:           { dot: '#f97316', label: 'Scheduled' },
+  meeting_held:        { dot: '#22c55e', label: 'Meeting Held' },
+  meeting_no_show:     { dot: '#ef4444', label: 'Meeting No Show' },
+  meeting_rescheduled: { dot: '#f59e0b', label: 'Meeting Rescheduled' },
+  qualified:           { dot: '#10b981', label: 'Qualified' },
+  not_qualified:       { dot: '#4b5563', label: 'Not Qualified' },
 };
 
 // Reply Type configuration — reply intent
