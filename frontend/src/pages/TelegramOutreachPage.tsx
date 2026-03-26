@@ -18,12 +18,19 @@ type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'info';
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-/** Convert ISO 3166-1 alpha-2 country code to emoji flag. "RU" → 🇷🇺 */
-function countryFlag(code: string): string {
-  const upper = code.toUpperCase();
-  if (upper.length !== 2) return code;
-  return String.fromCodePoint(
-    ...Array.from(upper).map(c => 0x1F1E6 + c.charCodeAt(0) - 65)
+/** Country flag as small image (emoji flags don't render on Windows). Uses flagcdn.com SVGs. */
+function CountryFlag({ code }: { code: string }) {
+  const lower = code.toLowerCase();
+  return (
+    <img
+      src={`https://flagcdn.com/w40/${lower}.png`}
+      srcSet={`https://flagcdn.com/w80/${lower}.png 2x`}
+      alt={code}
+      title={code}
+      className="inline-block"
+      style={{ width: 20, height: 14, objectFit: 'cover', borderRadius: 2 }}
+      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.nextSibling as HTMLElement)?.style.removeProperty('display'); }}
+    />
   );
 }
 
@@ -407,18 +414,18 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
           <table className="w-full text-[13px]">
             <thead>
               <tr style={{ background: '#F8F8F6', borderBottom: '1px solid ' + A.border }}>
-                <th className="w-12 px-3 py-3">
+                <th className="w-10 px-3 py-3">
                   <Tick checked={isAllSelected} indeterminate={isPartial} onChange={toggleAll} />
                 </th>
                 <th className="w-8 text-center px-1 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: A.text3 }}>#</th>
-                <SortHead label="Name" column="name" current={sortCol} dir={sortDir} onSort={handleSort} className="min-w-[160px]" />
-                <SortHead label="Phone" column="phone" current={sortCol} dir={sortDir} onSort={handleSort} />
-                <th className="text-center px-2 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: A.text3 }}>Geo</th>
-                <SortHead label="Username" column="username" current={sortCol} dir={sortDir} onSort={handleSort} />
-                <SortHead label="Status" column="status" current={sortCol} dir={sortDir} onSort={handleSort} />
-                <SortHead label="Age" column="age" current={sortCol} dir={sortDir} onSort={handleSort} />
-                <SortHead label="Sent" column="sent" current={sortCol} dir={sortDir} onSort={handleSort} />
-                <th className="w-10 px-1 py-3" />
+                <SortHead label="Name" column="name" current={sortCol} dir={sortDir} onSort={handleSort} className="w-[200px]" />
+                <SortHead label="Phone" column="phone" current={sortCol} dir={sortDir} onSort={handleSort} className="w-[140px]" />
+                <th className="w-[50px] text-center px-1 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: A.text3 }}>Geo</th>
+                <SortHead label="Username" column="username" current={sortCol} dir={sortDir} onSort={handleSort} className="w-[180px]" />
+                <SortHead label="Status" column="status" current={sortCol} dir={sortDir} onSort={handleSort} className="w-[90px]" />
+                <SortHead label="Age" column="age" current={sortCol} dir={sortDir} onSort={handleSort} className="w-[70px]" />
+                <SortHead label="Sent" column="sent" current={sortCol} dir={sortDir} onSort={handleSort} className="w-[70px]" />
+                <th className="w-8 px-1 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -444,10 +451,10 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                     <td className="text-center px-1 py-2.5 text-[12px] tabular-nums" style={{ color: A.text3 }}>
                       {(page - 1) * 50 + idx + 1}
                     </td>
-                    {/* Name + Avatar combined */}
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden"
+                    {/* Name + Avatar */}
+                    <td className="px-2 py-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-full flex-shrink-0 overflow-hidden text-[10px]"
                              style={{ backgroundColor: `hsl(${hue}, 45%, 60%)` }}>
                           <img src={`/api/telegram-outreach/accounts/${acc.id}/avatar`} alt=""
                                className="w-full h-full object-cover"
@@ -456,17 +463,17 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                             {initials.toUpperCase()}
                           </span>
                         </div>
-                        <span className="truncate font-medium text-[13px]" style={{ color: A.text1, maxWidth: 140 }}>
+                        <span className="truncate font-medium text-[13px]" style={{ color: A.text1 }}>
                           {name || <span style={{ color: A.text3 }}>No name</span>}
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 font-mono text-[12px] whitespace-nowrap cursor-pointer"
+                    <td className="px-2 py-2.5 font-mono text-[12px] whitespace-nowrap cursor-pointer"
                         style={{ color: A.text2 }}
                         onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(acc.phone); toast('Copied', 'info'); }}
                         title="Click to copy">{acc.phone}</td>
-                    <td className="px-2 py-2.5 text-center text-[15px]" title={acc.country_code || ''}>
-                      {acc.country_code ? countryFlag(acc.country_code) : <span className="text-[12px]" style={{ color: A.text3 }}>--</span>}
+                    <td className="px-1 py-2.5 text-center" title={acc.country_code || ''}>
+                      {acc.country_code ? <CountryFlag code={acc.country_code} /> : <span className="text-[12px]" style={{ color: A.text3 }}>--</span>}
                     </td>
                     <td className="px-3 py-2.5 text-[12px] truncate" style={{ color: A.text2, maxWidth: 120 }}>
                       {acc.username ? `@${acc.username}` : <span style={{ color: A.text3 }}>--</span>}
