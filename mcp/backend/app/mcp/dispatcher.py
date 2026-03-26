@@ -805,13 +805,17 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     )
                     if not existing_contact.scalar_one_or_none():
                         session.add(ExtractedContact(
-                            discovered_company_id=None,  # Not linked to a pipeline company
+                            discovered_company_id=None,
                             project_id=project.id,
                             first_name=lead.get("first_name"),
                             last_name=lead.get("last_name"),
                             email=email,
                             email_source="smartlead_import",
-                            source_data={"campaign": camp_name, "campaign_id": camp_id},
+                            source_data={
+                                "campaign": camp_name,
+                                "campaign_id": camp_id,
+                                "company_name": lead.get("company_name"),
+                            },
                         ))
 
             # Create DiscoveredCompany records for each domain (for blacklisting)
