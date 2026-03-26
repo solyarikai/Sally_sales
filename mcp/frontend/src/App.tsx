@@ -5,6 +5,7 @@ import PipelinePage from './pages/PipelinePage'
 import CRMPage from './pages/CRMPage'
 import ProjectsPage from './pages/ProjectsPage'
 import RepliesPage from './pages/RepliesPage'
+import PromptsPage from './pages/PromptsPage'
 
 // Theme
 const ThemeCtx = createContext({ dark: true, toggle: () => {} })
@@ -104,6 +105,7 @@ export default function App() {
               <Route path="/setup" element={<SetupPage />} />
               <Route path="/pipeline" element={<PipelineRunsPage />} />
               <Route path="/pipeline/:runId" element={<PipelinePage />} />
+              <Route path="/pipeline/:runId/prompts" element={<PromptsPage />} />
               <Route path="/crm" element={<CRMPage />} />
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/replies" element={<RepliesPage />} />
