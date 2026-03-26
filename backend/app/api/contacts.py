@@ -533,12 +533,13 @@ async def list_contacts(
         for proj in proj_result.scalars().all():
             project_names[proj.id] = proj.name
     
-    # Enrich with latest reply category
+    # Enrich with latest reply category (project-scoped to avoid cross-project leakage)
     contact_emails = [c.email for c in contacts if c.email]
     reply_cat_map: dict[str, tuple[str | None, str | None]] = {}
     if contact_emails:
         from app.models.reply import ProcessedReply
-        latest_reply_sub = (
+        from app.models.campaign import Campaign
+        reply_query = (
             select(
                 ProcessedReply.lead_email,
                 ProcessedReply.category,
@@ -546,8 +547,16 @@ async def list_contacts(
             )
             .distinct(ProcessedReply.lead_email)
             .where(ProcessedReply.lead_email.in_(contact_emails))
-            .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at))
-        ).subquery()
+        )
+        # If filtering by project, only show replies from that project's campaigns
+        if project_id:
+            reply_query = reply_query.join(
+                Campaign, Campaign.external_id == ProcessedReply.campaign_id
+            ).where(Campaign.project_id == project_id)
+        reply_query = reply_query.order_by(
+            ProcessedReply.lead_email, desc(ProcessedReply.received_at)
+        )
+        latest_reply_sub = reply_query.subquery()
         cat_result = await session.execute(select(latest_reply_sub))
         for row in cat_result.all():
             reply_cat_map[row[0]] = (row[1], row[2])
@@ -562,6 +571,9 @@ async def list_contacts(
         if cat_info:
             response.latest_reply_category = cat_info[0]
             response.latest_reply_confidence = cat_info[1]
+        # When filtering by project, override has_replied based on project-scoped replies
+        if project_id and not cat_info:
+            response.has_replied = False
         contact_responses.append(response)
     
     total_pages = (total + page_size - 1) // page_size
