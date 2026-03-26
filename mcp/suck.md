@@ -143,10 +143,45 @@ Track every error encountered so they don't repeat.
 | #9 | Duplicate companies | ACCEPTED — dedup by domain works correctly |
 | #14 | Apollo censored names (Cla*****) | **FIXED** — names derived from domain |
 
+### 15. CRM deep links don't work — URL params ignored
+- **Error**: URL `?project_id=3&search=dileep` shows ALL 500 contacts, not filtered
+- **Location**: `mcp/frontend/src/pages/CRMPage.tsx`
+- **Cause**: CRM page doesn't read URL search params at all. `useState('')` for search, never reads from `useSearchParams()`
+- **Impact**: CRITICAL — MCP tool returns CRM link but clicking it shows wrong data
+- **Fix needed**: Read URL params on mount, apply as initial filter state
+- **Prevention**: Every page that accepts deep link params MUST read them on mount
+
+### 16. CRM is NOT reused from main app — built from scratch instead
+- **Error**: MCP CRM is a garbage basic table. Main app CRM has AG Grid, 15+ columns, ContactDetailModal with conversation tab, reply type colors, status dropdowns, keyboard shortcuts, CRM Spotlight, export CSV, column visibility toggle
+- **Location**: `mcp/frontend/src/pages/CRMPage.tsx` (200 lines of garbage) vs `frontend/src/pages/ContactsPage.tsx` (1800 lines of production CRM)
+- **Cause**: Tried to "build something quick" instead of reusing. Repeated this mistake MULTIPLE times despite user asking 5+ times
+- **Impact**: CRITICAL — user sees a toy CRM instead of the production-grade one they built
+- **Fix needed**:
+  1. Install AG Grid in MCP frontend (`ag-grid-community`, `ag-grid-react`)
+  2. Copy `ContactsPage.tsx` + `ContactDetailModal.tsx` + `CRMSpotlight.tsx` from main app
+  3. Adapt API calls from `/api/contacts` to `/api/pipeline/crm/contacts`
+  4. Make MCP backend CRM API compatible with main app's API contract
+- **Prevention**: When user says "REUSE" — COPY the actual component, don't rebuild. Install dependencies.
+
+### 17. MCP SSE protocol — custom implementation didn't work, had to rewrite with official SDK
+- **Error**: Custom JSON-RPC SSE handler didn't comply with MCP protocol. Claude Code couldn't connect.
+- **Fix**: Rewrote using `mcp.server.Server` + `mcp.server.sse.SseServerTransport`. Raw ASGI mount.
+- **Status**: FIXED
+- **Lesson**: NEVER build custom protocol implementations. Use the official SDK.
+
+### 18. Auth token not accessible in MCP SDK tool handler
+- **Error**: `@mcp_server.call_tool()` handler gets `(name, arguments)` — no HTTP context, no headers
+- **Cause**: MCP SDK abstracts away HTTP transport from tool handlers
+- **Fix**: Extract token from HTTP headers in raw ASGI handler, store in `_session_tokens` dict, tool handler reads from it
+- **Status**: FIXED
+- **Prevention**: MCP SDK tool handlers can't access HTTP. Store context externally.
+
 ## Remaining Priority
 
-1. **#12 AI sequence generation** — wire Gemini 2.5 Pro for personalized sequences
-2. **#7 Employee count** — need Apollo enrichment for targets (1 credit each)
+1. **#16 CRM reuse** — install AG Grid, copy main app CRM component, adapt API
+2. **#15 Deep links** — read URL params (will be fixed by #16 since main app CRM has URL-synced state)
+3. **#12 AI sequence generation** — wire Gemini for personalized sequences
+4. **#7 Employee count** — Apollo enrichment for targets
 
 ---
 
