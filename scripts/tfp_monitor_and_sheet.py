@@ -25,6 +25,12 @@ ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
 # ── Config ────────────────────────────────────────────────────────────────────
+# Inside Docker container, backend code lives at /app/app/
+# On host (dev), it lives at ROOT/backend/app/
+_GSS_CANDIDATES = [
+    ROOT / "backend" / "app" / "services" / "google_sheets_service.py",
+    Path("/app/app/services/google_sheets_service.py"),
+]
 PROJECT_ID = 13
 BASE_URL = "http://localhost:8000"
 API_HEADERS = {"X-Company-ID": "1"}
@@ -58,7 +64,10 @@ SHEET_HEADERS = [
 ]
 
 # ── Load Google Sheets service ─────────────────────────────────────────────────
-_gss_path = ROOT / "backend" / "app" / "services" / "google_sheets_service.py"
+_gss_path = next((p for p in _GSS_CANDIDATES if p.exists()), None)
+if not _gss_path:
+    print("ERROR: google_sheets_service.py not found in any candidate path")
+    sys.exit(1)
 _spec = importlib.util.spec_from_file_location("gss", str(_gss_path))
 _gss_mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_gss_mod)
@@ -66,7 +75,9 @@ gss = _gss_mod.google_sheets_service
 gss._initialize()
 
 # ── DB connection ──────────────────────────────────────────────────────────────
-DB_URL = os.environ.get("DATABASE_URL", "postgresql://leadgen:leadgen@localhost:5432/leadgen")
+_raw_db_url = os.environ.get("DATABASE_URL", "postgresql://leadgen:leadgen_secret@postgres:5432/leadgen")
+# Strip async driver prefix (psycopg2 needs plain postgresql://)
+DB_URL = _raw_db_url.replace("+asyncpg", "")
 
 
 def get_db():
@@ -102,12 +113,8 @@ def create_sheet(state):
         print("ERROR: Could not create Google Sheet")
         sys.exit(1)
 
-    sheet_id = result["id"] if isinstance(result, dict) else result
-    # Try getting URL
-    try:
-        sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}"
-    except Exception:
-        sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}"
+    sheet_id = result["sheet_id"]
+    sheet_url = result.get("sheet_url", f"https://docs.google.com/spreadsheets/d/{sheet_id}")
 
     # Rename Sheet1 to "Targets" and write headers
     try:
@@ -224,25 +231,45 @@ def get_new_targets(conn, already_written_ids):
         return cur.fetchall()
 
 
-def trigger_analyze(run_id, state):
+def has_running_analysis(conn, run_id):
+    """Check if there's already an active analysis run for this gathering run."""
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT COUNT(*) as cnt FROM analysis_runs
+            WHERE scope_filter->>'gathering_run_id' = %s AND status = 'running'
+        """, (str(run_id),))
+        return cur.fetchone()["cnt"] > 0
+
+
+def trigger_analyze(run_id, state, conn):
     """Call the analyze API for a run that just finished scraping."""
     if run_id in state["analyze_triggered"]:
         return False
+    # Don't trigger if an analysis is already running
+    if has_running_analysis(conn, run_id):
+        print(f"  Analysis already running for run {run_id}, skipping trigger")
+        state["analyze_triggered"].append(run_id)
+        save_progress(state)
+        return False
     print(f"  Triggering analyze for run {run_id} ({RUNS[run_id]})...")
     try:
+        # Fire-and-forget: very short connect timeout, no read timeout
         resp = requests.post(
             f"{BASE_URL}/api/pipeline/gathering/runs/{run_id}/analyze",
             params={"prompt_text": ICP_PROMPT, "model": "gpt-4o-mini"},
             headers=API_HEADERS,
-            timeout=10
+            timeout=(5, 1)  # 5s connect, 1s read — we don't wait for completion
         )
-        if resp.status_code == 200:
-            state["analyze_triggered"].append(run_id)
-            save_progress(state)
-            print(f"  ✓ Analyze started for run {run_id} ({RUNS[run_id]})")
-            return True
-        else:
-            print(f"  ✗ Analyze failed for run {run_id}: {resp.status_code} {resp.text[:200]}")
+        state["analyze_triggered"].append(run_id)
+        save_progress(state)
+        print(f"  ✓ Analyze triggered for run {run_id} ({RUNS[run_id]})")
+        return True
+    except requests.exceptions.ReadTimeout:
+        # Expected — analysis is running in background
+        state["analyze_triggered"].append(run_id)
+        save_progress(state)
+        print(f"  ✓ Analyze triggered (running) for run {run_id} ({RUNS[run_id]})")
+        return True
     except Exception as e:
         print(f"  ✗ Analyze trigger error for run {run_id}: {e}")
     return False
@@ -292,7 +319,7 @@ def main():
 
             # If scraping just finished and analyze not yet triggered
             if phase == "scraped" and run_id not in state["analyze_triggered"]:
-                trigger_analyze(run_id, state)
+                trigger_analyze(run_id, state, conn)
 
         # ── 2. Collect new targets ───────────────────────────────────────────
         new_targets = get_new_targets(conn, list(written_ids))
@@ -348,10 +375,15 @@ def main():
 
         # ── 6. Check if all done ─────────────────────────────────────────────
         done_phases = {"awaiting_targets_ok", "completed", "pushed"}
-        all_done = all(
-            phases.get(rid, {}).get("current_phase") in done_phases
-            for rid in RUNS
-        )
+        def is_run_done(rid):
+            info = phases.get(rid, {})
+            if info.get("current_phase") in done_phases:
+                return True
+            # "scraped" + all companies analyzed = effectively done
+            if info.get("current_phase") == "scraped":
+                return info.get("analyzed", 0) >= info.get("total", 1)
+            return False
+        all_done = all(is_run_done(rid) for rid in RUNS)
         if all_done:
             # Write remaining pending rows
             if pending_rows:
