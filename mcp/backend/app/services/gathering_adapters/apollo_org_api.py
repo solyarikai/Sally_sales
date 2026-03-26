@@ -42,11 +42,9 @@ class ApolloOrgApiAdapter(BaseGatheringAdapter):
 
         results = []
         for org in orgs:
-            # Apollo returns "primary_domain" in organizations, "domain" in accounts
             domain = org.get("primary_domain") or org.get("domain") or org.get("website_url", "")
             if not domain:
                 continue
-            # Clean domain
             domain = domain.strip().lower()
             if domain.startswith("http"):
                 from urllib.parse import urlparse
@@ -54,18 +52,101 @@ class ApolloOrgApiAdapter(BaseGatheringAdapter):
             if domain.startswith("www."):
                 domain = domain[4:]
 
-            results.append({
-                "domain": domain,
-                "name": org.get("name"),
-                "industry": org.get("industry"),
-                "employee_count": org.get("estimated_num_employees"),
-                "employee_range": org.get("organization_num_employees_ranges"),
-                "country": org.get("country"),
-                "city": org.get("city"),
-                "description": org.get("short_description") or org.get("sanitized_organization_name_unanalyzed"),
-                "linkedin_url": org.get("linkedin_url") or org.get("organization_linkedin_url"),
-                "website_url": org.get("website_url"),
-                "source_data": org,
-            })
+            results.append(_extract_company(org, domain))
 
         return results
+
+
+def _extract_company(org: Dict, domain: str) -> Dict[str, Any]:
+    """Extract company data from Apollo org/account response — handles both field formats."""
+
+    # Industry: try multiple field names
+    industry = (
+        org.get("industry")
+        or org.get("organization_industry")
+        or _guess_industry_from_keywords(org)
+    )
+
+    # Employee count: accounts use different field names
+    employee_count = (
+        org.get("estimated_num_employees")
+        or org.get("organization_num_employees")
+        or org.get("num_contacts")  # fallback: at least shows something
+    )
+
+    # Employee range
+    employee_range = org.get("organization_num_employees_ranges")
+
+    # Revenue
+    revenue = org.get("organization_revenue_printed") or org.get("annual_revenue_printed")
+    revenue_raw = org.get("organization_revenue") or org.get("annual_revenue")
+
+    # City: accounts use organization_city
+    city = org.get("city") or org.get("organization_city")
+    state = org.get("state") or org.get("organization_state")
+    country = org.get("country") or org.get("organization_country")
+
+    # LinkedIn
+    linkedin = org.get("linkedin_url") or org.get("organization_linkedin_url")
+
+    # Description
+    description = org.get("short_description") or org.get("seo_description")
+
+    # Founded
+    founded_year = org.get("founded_year")
+
+    # Build enriched source_data summary for UI
+    return {
+        "domain": domain,
+        "name": org.get("name"),
+        "industry": industry,
+        "employee_count": employee_count,
+        "employee_range": employee_range,
+        "country": country,
+        "city": f"{city}, {state}" if city and state else (city or state),
+        "description": description,
+        "linkedin_url": linkedin,
+        "website_url": org.get("website_url"),
+        "source_data": {
+            # Store ALL useful fields (not the full 70-field blob)
+            "apollo_id": org.get("id") or org.get("organization_id"),
+            "name": org.get("name"),
+            "domain": domain,
+            "industry": industry,
+            "employee_count": employee_count,
+            "employee_range": employee_range,
+            "revenue": revenue,
+            "revenue_raw": revenue_raw,
+            "founded_year": founded_year,
+            "country": country,
+            "city": city,
+            "state": state,
+            "linkedin_url": linkedin,
+            "website_url": org.get("website_url"),
+            "phone": org.get("phone") or org.get("primary_phone"),
+            "num_contacts_in_apollo": org.get("num_contacts"),
+            "sic_codes": org.get("sic_codes"),
+            "naics_codes": org.get("naics_codes"),
+            "languages": org.get("languages"),
+            "alexa_ranking": org.get("alexa_ranking"),
+            "headcount_6m_growth": org.get("organization_headcount_six_month_growth"),
+            "headcount_12m_growth": org.get("organization_headcount_twelve_month_growth"),
+        },
+    }
+
+
+def _guess_industry_from_keywords(org: Dict) -> str:
+    """Guess industry from SIC/NAICS codes or name when field is missing."""
+    sic = org.get("sic_codes") or []
+    naics = org.get("naics_codes") or []
+    if sic or naics:
+        # Common SIC code prefixes
+        codes = sic + naics
+        code_str = " ".join(str(c) for c in codes)
+        if any(str(c).startswith("73") for c in codes):
+            return "Information Technology"
+        if any(str(c).startswith("54") for c in naics):
+            return "Professional Services"
+        if any(str(c).startswith("51") for c in naics):
+            return "Information Technology"
+    return ""

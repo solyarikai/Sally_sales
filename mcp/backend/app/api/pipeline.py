@@ -147,12 +147,23 @@ async def get_run_companies(
 
 
 def _company_to_dict(c):
+    sd = c.source_data or {}
     return {
         "id": c.id, "domain": c.domain, "name": c.name,
         "industry": c.industry, "employee_count": c.employee_count,
         "employee_range": c.employee_range,
         "country": c.country, "city": c.city,
         "description": c.description, "linkedin_url": c.linkedin_url,
+        # Apollo enrichment fields from source_data
+        "revenue": sd.get("revenue") or sd.get("organization_revenue_printed"),
+        "revenue_raw": sd.get("revenue_raw") or sd.get("organization_revenue"),
+        "founded_year": sd.get("founded_year"),
+        "phone": sd.get("phone") or sd.get("primary_phone"),
+        "headcount_growth_6m": sd.get("headcount_6m_growth") or sd.get("organization_headcount_six_month_growth"),
+        "headcount_growth_12m": sd.get("headcount_12m_growth") or sd.get("organization_headcount_twelve_month_growth"),
+        "num_contacts_apollo": sd.get("num_contacts_in_apollo") or sd.get("num_contacts"),
+        "website_url": c.website_url if hasattr(c, 'website_url') else sd.get("website_url"),
+        # Pipeline state
         "is_blacklisted": c.is_blacklisted,
         "blacklist_reason": c.blacklist_reason,
         "is_pre_filtered": c.is_pre_filtered,
@@ -163,7 +174,7 @@ def _company_to_dict(c):
         "analysis_reasoning": c.analysis_reasoning,
         "is_enriched": c.is_enriched,
         "enrichment_source": c.enrichment_source,
-        "source_data": c.source_data,
+        "source_data": sd,
     }
 
 

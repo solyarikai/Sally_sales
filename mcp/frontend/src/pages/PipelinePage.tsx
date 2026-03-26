@@ -160,44 +160,36 @@ export default function PipelinePage() {
                 </tr>
                 {expanded.has(c.id) && (
                   <tr key={`${c.id}-detail`}>
-                    <td colSpan={8} className="pb-3">
-                      <div className="rounded p-3 ml-8 space-y-2 text-[12px]" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                        {/* Company details */}
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                          <div><span style={{ color: 'var(--text-muted)' }}>Domain:</span> {c.domain}</div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>Name:</span> {c.name || 'N/A (manual source — no Apollo data)'}</div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>Industry:</span> {c.industry || 'N/A'}</div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>Employees:</span> {c.employee_count || 'N/A'}</div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>Country:</span> {c.country || 'N/A'}</div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>City:</span> {c.city || 'N/A'}</div>
+                    <td colSpan={8} style={{ paddingBottom: 12 }}>
+                      <div style={{ marginLeft: 32, padding: 16, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px 24px' }}>
+                          {[
+                            ['Domain', c.domain], ['Name', c.name], ['Industry', c.industry],
+                            ['Employees', c.employee_count], ['Revenue', c.revenue], ['Founded', c.founded_year],
+                            ['Country', c.country], ['City', c.city], ['Phone', c.phone],
+                          ].map(([l, v]) => v ? <div key={l}><span style={{ color: 'var(--text-muted)' }}>{l}:</span> {v}</div> : null)}
+                          {c.linkedin_url && <div><span style={{ color: 'var(--text-muted)' }}>LinkedIn:</span> <a href={c.linkedin_url} target="_blank" style={{ color: 'var(--text-link)' }}>Profile</a></div>}
                         </div>
-
-                        {/* Why empty? */}
+                        {c.description && <div style={{ color: 'var(--text-secondary)' }}>{c.description}</div>}
                         {!c.name && !c.industry && (
-                          <div className="p-2 rounded text-[11px]" style={{ background: 'var(--bg)', color: 'var(--warning)' }}>
-                            Fields empty because this company was added via <b>manual source</b> (domain list only). Use <b>Apollo API</b> source to get full company data (name, industry, size, country, description).
+                          <div style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--bg)', color: 'var(--warning)', fontSize: 11 }}>
+                            Manual source — use Apollo API for full data.
                           </div>
                         )}
-
-                        {/* Analysis */}
-                        {c.analysis_segment && (
-                          <div>
-                            <div className="text-[11px] uppercase tracking-wider font-medium mb-1" style={{ color: 'var(--text-muted)' }}>GPT Analysis</div>
-                            <div><span style={{ color: 'var(--text-muted)' }}>Segment:</span> {c.analysis_segment}</div>
-                            <div><span style={{ color: 'var(--text-muted)' }}>Confidence:</span> {c.analysis_confidence ? `${(c.analysis_confidence * 100).toFixed(1)}%` : 'N/A'}</div>
+                        {(c.analysis_reasoning || c.analysis_segment) && (
+                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                            <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', marginBottom: 4 }}>GPT Analysis</div>
+                            {c.analysis_segment && <div><span style={{ color: 'var(--text-muted)' }}>Segment:</span> {c.analysis_segment}</div>}
+                            {c.analysis_confidence != null && <div><span style={{ color: 'var(--text-muted)' }}>Confidence:</span> <span style={{ color: c.analysis_confidence > 0.7 ? 'var(--success)' : 'var(--warning)' }}>{(c.analysis_confidence*100).toFixed(0)}%</span></div>}
+                            {c.analysis_reasoning && <div style={{ color: 'var(--text-secondary)', marginTop: 4 }}>{c.analysis_reasoning}</div>}
                           </div>
                         )}
-
-                        {c.analysis_reasoning && (
-                          <div>
-                            <div className="text-[11px] uppercase tracking-wider font-medium mb-1" style={{ color: 'var(--text-muted)' }}>GPT Reasoning</div>
-                            <div style={{ color: 'var(--text-secondary)' }}>{c.analysis_reasoning}</div>
-                          </div>
-                        )}
-
-                        {/* Blacklist reason */}
-                        {c.is_blacklisted && c.blacklist_reason && (
-                          <div style={{ color: 'var(--danger)' }}>Blacklist reason: {c.blacklist_reason}</div>
+                        {c.is_blacklisted && <div style={{ color: 'var(--danger)' }}>Blacklisted: {c.blacklist_reason}</div>}
+                        {c.source_data && Object.keys(c.source_data).length > 0 && (
+                          <details>
+                            <summary style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}>Raw Apollo data</summary>
+                            <pre style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, padding: 8, borderRadius: 4, background: 'var(--bg)', overflow: 'auto', maxHeight: 200 }}>{JSON.stringify(c.source_data, null, 2)}</pre>
+                          </details>
                         )}
                       </div>
                     </td>

@@ -239,41 +239,66 @@ function ContactRow({ c, tab, expanded, onToggle }: { c: any; tab: string; expan
 }
 
 function CompanyDetail({ c }: { c: any }) {
+  const F = ({ label, value, link }: { label: string; value: any; link?: boolean }) => (
+    value ? (
+      <div style={{ display: 'flex', gap: 4 }}>
+        <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>{label}:</span>
+        {link ? <a href={String(value)} target="_blank" style={{ color: 'var(--text-link)' }}>{String(value).replace(/https?:\/\/(www\.)?/, '').split('/')[0]}</a> : <span>{String(value)}</span>}
+      </div>
+    ) : null
+  )
+
   return (
     <tr>
       <td colSpan={8} style={{ paddingBottom: 12 }}>
-        <div style={{ marginLeft: 32, padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 24px' }}>
-            <div><span style={{ color: 'var(--text-muted)' }}>Domain:</span> {c.domain}</div>
-            <div><span style={{ color: 'var(--text-muted)' }}>Name:</span> {c.name || 'N/A'}</div>
-            <div><span style={{ color: 'var(--text-muted)' }}>Industry:</span> {c.industry || 'N/A'}</div>
-            <div><span style={{ color: 'var(--text-muted)' }}>Employees:</span> {c.employee_count || 'N/A'}{c.employee_range ? ` (${c.employee_range})` : ''}</div>
-            <div><span style={{ color: 'var(--text-muted)' }}>Country:</span> {c.country || 'N/A'}</div>
-            <div><span style={{ color: 'var(--text-muted)' }}>City:</span> {c.city || 'N/A'}</div>
-            {c.linkedin_url && <div><span style={{ color: 'var(--text-muted)' }}>LinkedIn:</span> <a href={c.linkedin_url} target="_blank" style={{ color: 'var(--text-link)' }}>Profile</a></div>}
-            {c.description && <div style={{ gridColumn: '1 / -1' }}><span style={{ color: 'var(--text-muted)' }}>Description:</span> {c.description}</div>}
+        <div style={{ marginLeft: 32, padding: 16, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+          {/* Company info grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px 24px' }}>
+            <F label="Domain" value={c.domain} />
+            <F label="Name" value={c.name} />
+            <F label="Industry" value={c.industry} />
+            <F label="Employees" value={c.employee_count} />
+            <F label="Revenue" value={c.revenue} />
+            <F label="Founded" value={c.founded_year} />
+            <F label="Country" value={c.country} />
+            <F label="City" value={c.city} />
+            <F label="Phone" value={c.phone} />
+            <F label="LinkedIn" value={c.linkedin_url} link />
+            <F label="Website" value={c.website_url || `https://${c.domain}`} link />
+            <F label="Apollo contacts" value={c.num_contacts_apollo} />
+            <F label="6m growth" value={c.headcount_growth_6m ? `${c.headcount_growth_6m}%` : null} />
+            <F label="12m growth" value={c.headcount_growth_12m ? `${c.headcount_growth_12m}%` : null} />
           </div>
+
+          {c.description && (
+            <div style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }}>{c.description}</div>
+          )}
 
           {!c.name && !c.industry && (
             <div style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--bg)', color: 'var(--warning)', fontSize: 11 }}>
-              Fields empty — company was added via <b>manual source</b> (domain list only). Use <b>Apollo API</b> source to get full company data.
+              Fields empty — added via <b>manual source</b>. Use <b>Apollo API</b> for full data.
             </div>
           )}
 
-          {c.analysis_reasoning && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', marginBottom: 4 }}>GPT Analysis</div>
-              <div><span style={{ color: 'var(--text-muted)' }}>Segment:</span> {c.analysis_segment || 'N/A'}</div>
-              <div><span style={{ color: 'var(--text-muted)' }}>Confidence:</span> {c.analysis_confidence ? `${(c.analysis_confidence * 100).toFixed(1)}%` : 'N/A'}</div>
-              <div style={{ color: 'var(--text-secondary)', marginTop: 4 }}>{c.analysis_reasoning}</div>
+          {/* GPT Analysis section */}
+          {(c.analysis_reasoning || c.analysis_segment) && (
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', marginBottom: 6 }}>GPT Analysis</div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 4 }}>
+                {c.analysis_segment && <div><span style={{ color: 'var(--text-muted)' }}>Segment:</span> <span style={{ fontWeight: 500 }}>{c.analysis_segment}</span></div>}
+                {c.analysis_confidence != null && <div><span style={{ color: 'var(--text-muted)' }}>Confidence:</span> <span style={{ fontWeight: 500, color: c.analysis_confidence > 0.7 ? 'var(--success)' : c.analysis_confidence > 0.4 ? 'var(--warning)' : 'var(--danger)' }}>{(c.analysis_confidence * 100).toFixed(0)}%</span></div>}
+              </div>
+              {c.analysis_reasoning && <div style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }}>{c.analysis_reasoning}</div>}
             </div>
           )}
 
           {c.is_blacklisted && <div style={{ color: 'var(--danger)' }}>Blacklisted: {c.blacklist_reason || 'matched existing campaign'}</div>}
 
+          {/* Raw Apollo data */}
           {c.source_data && Object.keys(c.source_data).length > 0 && (
             <details>
-              <summary style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}>Raw source data</summary>
+              <summary style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}>Raw Apollo data ({Object.keys(c.source_data).length} fields)</summary>
               <pre style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, padding: 8, borderRadius: 4, background: 'var(--bg)', overflow: 'auto', maxHeight: 200 }}>
                 {JSON.stringify(c.source_data, null, 2)}
               </pre>
