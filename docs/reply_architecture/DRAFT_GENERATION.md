@@ -12,8 +12,26 @@ generate_draft()
 3. Load thread history (SmartLead API or GetSales API)
 4. Build DRAFT_REPLY_PROMPT
 5. Call Gemini 2.5 Pro (fallback: GPT-4o-mini)
-6. Store draft_reply, draft_subject, draft_generated_at
+6. _sanitize_draft(): strip placeholders, markdown, ALL dashes except hyphens
+7. Store draft_reply, draft_subject, draft_generated_at
 ```
+
+## Post-Processing: `_sanitize_draft()`
+
+ALL AI-generated drafts pass through `_sanitize_draft()` before storage. This is MANDATORY — no exceptions.
+
+**Dash elimination (operator feedback from Agnia):**
+- Em-dash `—` (U+2014) → replaced with `, ` (comma)
+- En-dash `–` (U+2013) → replaced with ` - ` (hyphen)
+- All other Unicode dashes (‒ ⸺ ⸻ ― etc.) → replaced with `-`
+- ONLY short hyphens (`-`) are allowed in final drafts
+
+**Also stripped:**
+- Placeholder brackets: `[Your Name]`, `[Ваше имя]`, `{company}` etc.
+- Markdown formatting: `**bold**`, `*italic*`, `###` headers, bullet markers
+- Double spaces collapsed
+
+**Location:** `reply_processor.py:_sanitize_draft()` — called after EVERY AI model response (Gemini, GPT-4o-mini).
 
 ## Model Selection
 
