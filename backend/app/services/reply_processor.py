@@ -1561,7 +1561,7 @@ async def process_reply_webhook(
                     last_name=last_name or None,
                     company_name=payload.get("company_name") or None,
                     source="smartlead",
-                    status="replied",
+                    status="sent",  # will be classified by status_machine below
                     last_reply_at=datetime.utcnow(),
                 )
                 session.add(contact)

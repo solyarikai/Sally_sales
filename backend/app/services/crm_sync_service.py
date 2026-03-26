@@ -1395,7 +1395,16 @@ class CRMSyncService:
                     existing.domain = email.split('@')[1].lower()
             if has_replied and not existing.last_reply_at:
                 existing.mark_replied("email")
-                existing.status = "replied"
+                # Don't blindly set status="replied" — use status_machine
+                # The reply_processor will set the proper status when it classifies the reply.
+                # Here we only advance from pre-reply statuses to "interested" (default optimistic)
+                # if the contact hasn't been classified yet.
+                from app.services.status_machine import transition_status, normalize_status
+                current_norm = normalize_status(existing.status)
+                if current_norm in ("to_be_sent", "sent"):
+                    new_st, ok, _ = transition_status(existing.status, "interested")
+                    if ok:
+                        existing.status = new_st
             if "smartlead" not in (existing.source or ""):
                 if existing.source:
                     existing.source = f"{existing.source}+smartlead"
@@ -1464,7 +1473,7 @@ class CRMSyncService:
                 source="smartlead",
                 smartlead_id=smartlead_id,
                 last_reply_at=datetime.utcnow() if has_replied else None,
-                status="replied" if has_replied else "lead",
+                status="sent" if not has_replied else "interested",  # reply_processor will classify properly
             )
             session.add(contact)
             contact.update_platform_status("smartlead", smartlead_status)
