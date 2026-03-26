@@ -2,10 +2,11 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import { useState, useEffect, createContext, useContext, useRef } from 'react'
 import SetupPage from './pages/SetupPage'
 import PipelinePage from './pages/PipelinePage'
-import { ContactsPage as CRMPage } from './pages/ContactsPage'
-import ProjectsPage from './pages/ProjectsPage'
-import RepliesPage from './pages/RepliesPage'
 import PromptsPage from './pages/PromptsPage'
+
+// REUSED from main app via @main alias — fix once, fixed everywhere
+import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
+import { TasksPage } from '@main/pages/TasksPage'
 
 // Theme
 const ThemeCtx = createContext({ dark: true, toggle: () => {} })
@@ -92,8 +93,7 @@ export default function App() {
               <nav style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <NavLink to="/pipeline">Pipeline</NavLink>
                 <NavLink to="/crm">CRM</NavLink>
-                <NavLink to="/projects">Projects</NavLink>
-                <NavLink to="/replies">Tasks</NavLink>
+                <NavLink to="/tasks">Tasks</NavLink>
                 <NavLink to="/setup">Setup</NavLink>
               </nav>
               <div style={{ marginLeft: 'auto' }}>
@@ -107,8 +107,8 @@ export default function App() {
               <Route path="/pipeline/:runId" element={<PipelinePage />} />
               <Route path="/pipeline/:runId/prompts" element={<PromptsPage />} />
               <Route path="/crm" element={<CRMPage />} />
-              <Route path="/projects" element={<ProjectsPage />} />
-              <Route path="/replies" element={<RepliesPage />} />
+              <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/tasks/:tab" element={<TasksPage />} />
             </Routes>
           </div>
         </BrowserRouter>

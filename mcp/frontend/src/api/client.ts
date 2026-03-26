@@ -1,18 +1,40 @@
-const BASE = '/api'
+/**
+ * MCP API client — axios instance, compatible with main app's client.ts
+ * Main app components import { api } from '../api/client' and call api.get(), api.post(), etc.
+ * This file provides the same interface but with MCP-specific auth.
+ */
+import axios from 'axios'
 
-export async function api(path: string, options: RequestInit = {}) {
-  const token = localStorage.getItem('mcp_token') || ''
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
-  }
-  if (token) headers['X-MCP-Token'] = token
-  headers['X-Company-ID'] = '1'
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 
-  const res = await fetch(`${BASE}${path}`, { ...options, headers })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || `HTTP ${res.status}`)
+export const api = axios.create({
+  baseURL: `${API_BASE_URL}/api`,
+  headers: { 'Content-Type': 'application/json' },
+})
+
+// MCP auth: X-MCP-Token from localStorage
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('mcp_token')
+  if (token) config.headers['X-MCP-Token'] = token
+  config.headers['X-Company-ID'] = '1'
+  return config
+})
+
+// Error handling (same pattern as main app)
+api.interceptors.response.use(
+  response => response,
+  error => {
+    let userMessage = 'An unexpected error occurred'
+    if (error.response?.data?.detail) {
+      userMessage = typeof error.response.data.detail === 'string' ? error.response.data.detail : JSON.stringify(error.response.data.detail)
+    } else if (error.response?.data?.message) {
+      userMessage = error.response.data.message
+    }
+    error.userMessage = userMessage
+    console.error('API Error:', { url: error.config?.url, status: error.response?.status, message: userMessage })
+    return Promise.reject(error)
   }
-  return res.json()
-}
+)
+
+export const withCompanyId = (_companyId: number) => ({ headers: { 'X-Company-ID': '1' } })
+export default api
