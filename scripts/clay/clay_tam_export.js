@@ -119,6 +119,7 @@ const CLAY_FILTER_SCHEMA = {
   sizes: { type: 'array', description: 'Company size ranges, e.g. ["1-10", "11-50", "51-200"]' },
   types: { type: 'array', description: 'Company types, e.g. ["Privately held"]' },
   country_names: { type: 'array', description: 'Countries to include, e.g. ["United States", "Germany"]' },
+  states: { type: 'array', description: 'States/regions within a country, e.g. ["Arkansas", "Texas"]. Requires country_names to be set.' },
   country_names_exclude: { type: 'array', description: 'Countries to exclude' },
   annual_revenues: { type: 'array', description: 'Revenue ranges, e.g. ["$1M - $5M", "$5M - $10M"]' },
   description_keywords: { type: 'array', description: 'Keywords that must appear in company description' },
@@ -715,6 +716,104 @@ async function main() {
 
     // Take a debug screenshot after location attempt
     await screenshot(page, 'tam_03a_location_debug');
+  }
+
+  // Step 5b: Apply state/region filter (two-step: country must be selected first)
+  // After selecting a country, Clay shows a sub-region input for states/provinces
+  if (filters.states?.length) {
+    console.log(`\n[5b] Applying state filter: ${filters.states.join(', ')}...`);
+    await humanDelay(1000, 1500);
+
+    // After a country is selected, Clay shows a state/region input below the country input.
+    // Look for it by scanning for new inputs that appeared in the Location section.
+    let stateInput = null;
+
+    // Strategy 1: Look for an input with state-related placeholder
+    stateInput = await page.$('input[placeholder*="California"]')
+      || await page.$('input[placeholder*="state"]')
+      || await page.$('input[placeholder*="State"]')
+      || await page.$('input[placeholder*="region"]')
+      || await page.$('input[placeholder*="Region"]')
+      || await page.$('input[placeholder*="province"]')
+      || await page.$('input[placeholder*="Province"]');
+
+    // Strategy 2: Look for a second input inside the Location section
+    // (the first one is the country input, the second should be states)
+    if (!stateInput) {
+      const stateCoords = await page.evaluate(() => {
+        // Find the Location text node
+        const allEls = [...document.querySelectorAll('*')];
+        let locationEl = null;
+        for (const el of allEls) {
+          if (el.textContent?.trim() === 'Location' && el.children.length === 0 && el.offsetParent !== null) {
+            const rect = el.getBoundingClientRect();
+            if (rect.x < 300) { locationEl = el; break; }
+          }
+        }
+        if (!locationEl) return null;
+
+        const locRect = locationEl.getBoundingClientRect();
+        // Find ALL inputs below Location (within 400px vertical range)
+        const inputs = [...document.querySelectorAll('input')].filter(i => {
+          const r = i.getBoundingClientRect();
+          return i.offsetParent !== null && r.x < 400 && r.y > locRect.y && r.y < locRect.y + 400;
+        });
+
+        // The state/region input is typically the second input in the Location section
+        // Skip inputs that have country-related placeholders (already used)
+        for (const inp of inputs) {
+          const ph = (inp.placeholder || '').toLowerCase();
+          if (ph.includes('united states') || ph.includes('country')) continue;
+          // This should be the state input
+          const rect = inp.getBoundingClientRect();
+          return { x: rect.x + 10, y: rect.y + 10, placeholder: inp.placeholder };
+        }
+        return null;
+      });
+
+      if (stateCoords) {
+        console.log(`    Found state input via Location scan: "${stateCoords.placeholder}" at (${Math.round(stateCoords.x)}, ${Math.round(stateCoords.y)})`);
+        for (const state of filters.states) {
+          await page.mouse.click(stateCoords.x, stateCoords.y);
+          await humanDelay(200, 400);
+          await page.keyboard.type(state, { delay: 25 });
+          await humanDelay(600, 1000);
+          await page.keyboard.press('Enter');
+          await humanDelay(300, 500);
+        }
+        console.log(`    States: ${filters.states.join(', ')}`);
+        stateInput = null; // Already handled
+      }
+    }
+
+    // Strategy 3: Dump all sidebar inputs for debugging
+    if (stateInput === null) {
+      const allInputs = await page.evaluate(() => {
+        return [...document.querySelectorAll('input')].filter(i => {
+          const r = i.getBoundingClientRect();
+          return i.offsetParent !== null && r.x < 400;
+        }).map(i => ({
+          placeholder: i.placeholder,
+          y: Math.round(i.getBoundingClientRect().y),
+          x: Math.round(i.getBoundingClientRect().x),
+        }));
+      });
+      console.log(`    All sidebar inputs after country: ${JSON.stringify(allInputs)}`);
+    }
+
+    if (stateInput && stateInput.click) {
+      for (const state of filters.states) {
+        await stateInput.click();
+        await humanDelay(200, 400);
+        await stateInput.type(state, { delay: 25 + Math.random() * 30 });
+        await humanDelay(600, 1000);
+        await page.keyboard.press('Enter');
+        await humanDelay(300, 500);
+      }
+      console.log(`    States: ${filters.states.join(', ')}`);
+    }
+
+    await screenshot(page, 'tam_03c_states_applied');
   }
 
   await humanDelay(2000, 3000);
