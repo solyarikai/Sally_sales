@@ -2,11 +2,9 @@ import { api } from './client'
 export { api }
 export type { Contact, ContactListResponse, ContactStats, FilterOptions, Project, AISDRProject } from './contacts'
 
-// Re-export types that main app expects
-export type ImportResult = { success: boolean; imported: number; errors: string[] }
-export type EnrichResult = { success: boolean; enriched: number }
+export type ImportResult = { success: boolean; imported: number; errors: string[]; skipped?: number; not_found?: number }
+export type EnrichResult = { success: boolean; enriched: number; skipped?: number; not_found?: number; errors?: string[] }
 
-// contactsApi — adapted for MCP backend
 export const contactsApi = {
   async list(params: Record<string, any> = {}) {
     const qs = new URLSearchParams()
@@ -18,35 +16,34 @@ export const contactsApi = {
 
   async getStats(projectId?: number) {
     const qs = projectId ? `?project_id=${projectId}` : ''
-    // Build stats from CRM endpoint
-    const contacts = await api(`/pipeline/crm/contacts${qs}`)
-    const total = contacts.total || (contacts.contacts || []).length
-    return { total, by_status: {}, by_segment: {}, by_source: {}, by_project: {} }
+    try {
+      const contacts = await api(`/pipeline/crm/contacts${qs}`)
+      const total = contacts.total || (contacts.contacts || []).length
+      return { total, by_status: {} as any, by_segment: {} as any, by_source: {} as any, by_project: {} as any }
+    } catch { return { total: 0, by_status: {}, by_segment: {}, by_source: {}, by_project: {} } }
   },
 
   async getFilterOptions() {
-    return { statuses: ['new', 'pending'], sources: ['smartlead_import', 'pipeline'], segments: [], geos: [], projects: [] }
+    return { statuses: ['new', 'pending'] as string[], sources: ['smartlead_import', 'pipeline'] as string[], segments: [] as string[], geos: [] as string[], projects: [] as Array<{id: number, name: string}> }
   },
 
   async listProjectNames() {
     const token = localStorage.getItem('mcp_token') || ''
     const res = await fetch('/api/pipeline/projects', { headers: { 'X-MCP-Token': token } })
     if (!res.ok) return []
-    const projects = await res.json()
-    return projects.map((p: any) => ({ id: p.id, name: p.name }))
+    return (await res.json()).map((p: any) => ({ id: p.id, name: p.name }))
   },
 
   async listProjects() { return this.listProjectNames() },
-
-  async updateStatus(id: number, status: string) { return {} },
-  async exportCsv(filters: any) { return new Blob() },
-  async exportGoogleSheet(filters: any) { return {} },
-  async deleteMany(ids: number[]) { return {} },
-  async pushToSmartlead(ids: number[], name: string, opts: any) { return {} },
-  async importCsv(file: File, projectId: number) { return { success: true, imported: 0, errors: [] } },
-  async enrichCsv(file: File) { return { success: true, enriched: 0 } },
-  async generateReply(id: number) { return { has_reply: false } },
-  async crmSpotlightGTM(projectId: number, question: string, filters: any) { return {} },
-  async getProject(id: number) { return {} },
+  async updateStatus(_id: number, _status: string) { return {} },
+  async exportCsv(_filters: any) { return new Blob() },
+  async exportGoogleSheet(_filters: any) { return {} },
+  async deleteMany(_ids: number[]) { return {} },
+  async pushToSmartlead(_ids: number[], _name: string, _opts: any) { return {} },
+  async importCsv(_file: File, _projectId: number): Promise<ImportResult> { return { success: true, imported: 0, errors: [] } },
+  async enrichCsv(_file: File): Promise<EnrichResult> { return { success: true, enriched: 0 } },
+  async generateReply(_id: number) { return { has_reply: false } },
+  async crmSpotlightGTM(_projectId: number, _question: string, _filters: any) { return {} },
+  async getProject(_id: number) { return {} },
   async listCampaigns() { return [] },
 }
