@@ -37,7 +37,7 @@ export const contactsApi = {
   async listProjects() { return this.listProjectNames() },
   async updateStatus(_id: number, _status: string) { return {} },
   async exportCsv(_filters: any) { return new Blob() },
-  async exportGoogleSheet(_filters: any) { return {} },
+  async exportGoogleSheet(_filters: any): Promise<any> { return { rows: 0, url: '' } },
   async deleteMany(_ids: number[]) { return {} },
   async pushToSmartlead(_ids: number[], _name: string, _opts: any) { return {} },
   async importCsv(_file: File, _opts?: any): Promise<ImportResult> { return { success: true, imported: 0, errors: [] } },
@@ -61,5 +61,5 @@ export const contactsApi = {
   async createProject(_data: any): Promise<any> { return {} },
   async updateProject(_id: number, _data: any): Promise<any> { return {} },
   async verifyCampaigns(_names: string[]): Promise<any> { return {} },
-  async pushToSmartlead(_ids: number[], _name: string, _opts?: any): Promise<any> { return { leads_added: 0 } },
+  async pushToSmartlead(_ids: number[], _name?: any, _opts?: any): Promise<any> { return { leads_added: 0, campaign_url: '', campaign_name: '' } },
 }
