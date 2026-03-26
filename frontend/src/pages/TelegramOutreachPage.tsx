@@ -2537,10 +2537,10 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
       try {
         const [cRes, aRes] = await Promise.all([
           telegramOutreachApi.listCampaigns(),
-          telegramOutreachApi.listAccounts({ page_size: 200 }),
+          telegramOutreachApi.listInboxAccounts(),
         ]);
         setCampaigns(cRes.items || []);
-        setAccounts(aRes.items || []);
+        setAccounts(aRes || []);
       } catch { /* ignore */ }
     })();
   }, []);

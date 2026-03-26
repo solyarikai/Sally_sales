@@ -1,101 +1,78 @@
-"""Inbox sync service — scans all active TG accounts for dialogs."""
+"""Inbox sync service — scans all active Telegram DM accounts for dialogs.
+
+Uses telegram_dm_accounts (TelegramDMAccount) with StringSession stored in DB,
+instead of tg_accounts with .session files on disk.
+"""
 import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.telegram_outreach import (
-    TgAccount, TgAccountStatus, TgInboxDialog, TgCampaign, TgCampaignAccount,
-    TgRecipient, TgRecipientStatus,
+    TgInboxDialog, TgRecipient,
 )
-from app.services.telegram_engine import telegram_engine
+from app.models.telegram_dm import TelegramDMAccount
+from app.services.telegram_dm_service import telegram_dm_service
 
 logger = logging.getLogger(__name__)
 
 
-def _build_connect_kwargs(account, proxy_row=None) -> dict:
-    """Build kwargs for telegram_engine.connect(), matching _account_connect_kwargs format."""
-    proxy = None
-    if proxy_row:
-        proxy = {
-            "host": proxy_row.host,
-            "port": proxy_row.port,
-            "username": proxy_row.username,
-            "password": proxy_row.password,
-            "protocol": proxy_row.protocol.value if hasattr(proxy_row.protocol, "value") else proxy_row.protocol,
-        }
-    return dict(
-        phone=account.phone,
-        api_id=account.api_id,
-        api_hash=account.api_hash,
-        device_model=account.device_model or "PC 64bit",
-        system_version=account.system_version or "Windows 10",
-        app_version=account.app_version or "6.5.1 x64",
-        lang_code=account.lang_code or "en",
-        system_lang_code=account.system_lang_code or "en-US",
-        proxy=proxy,
-    )
-
-
 class InboxSyncService:
-    """Syncs Telegram dialogs to tg_inbox_dialogs for all active accounts."""
+    """Syncs Telegram dialogs to tg_inbox_dialogs for all active DM accounts."""
 
     async def sync_account(self, account_id: int, session: AsyncSession, limit: int = 30):
-        """Sync dialogs for one account. Called on connect or periodically."""
-        account = await session.get(TgAccount, account_id)
-        if not account or account.status != TgAccountStatus.ACTIVE:
-            logger.debug(f"Inbox sync: account {account_id} skipped (not found or not active)")
+        """Sync dialogs for one telegram_dm_account. Called on connect or periodically."""
+        account = await session.get(TelegramDMAccount, account_id)
+        if not account:
+            logger.debug(f"Inbox sync: account {account_id} not found in telegram_dm_accounts")
             return 0
-        if not account.api_id or not account.api_hash:
-            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) skipped (missing api_id/api_hash)")
+        if not account.string_session:
+            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) has no string_session")
             return 0
-        if not telegram_engine.session_file_exists(account.phone):
-            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) skipped (no session file)")
+        if account.auth_status != "active":
+            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) auth_status={account.auth_status}, skipping")
             return 0
 
-        # Check if already connected — reuse existing client
-        already_connected = False
-        existing = telegram_engine.get_client(account_id)
-        if existing and existing.is_connected():
-            already_connected = True
-            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) already connected, reusing")
+        # Check if already connected — avoid disconnect at the end if so
+        already_connected = telegram_dm_service.is_connected(account_id)
 
         try:
-            # Build connect kwargs the same way as the API endpoints
-            proxy_row = None
-            if account.assigned_proxy_id:
-                from app.models.telegram_outreach import TgProxy
-                proxy_row = await session.get(TgProxy, account.assigned_proxy_id)
+            # Connect via telegram_dm_service
+            if not already_connected:
+                logger.info(f"Inbox sync: connecting account {account_id} ({account.phone})")
+                ok = await telegram_dm_service.connect_account(account_id, account.string_session, account.proxy_config)
+                if not ok:
+                    logger.warning(f"Inbox sync: account {account_id} ({account.phone}) — connect failed")
+                    return 0
+            else:
+                logger.debug(f"Inbox sync: account {account_id} ({account.phone}) already connected, reusing")
 
-            kwargs = _build_connect_kwargs(account, proxy_row)
-            logger.info(f"Inbox sync: connecting account {account_id} ({account.phone}), proxy={'yes' if proxy_row else 'no'}")
-
-            await telegram_engine.connect(account_id, **kwargs)
-            client = telegram_engine.get_client(account_id)
-            if not client:
-                logger.warning(f"Inbox sync: account {account_id} ({account.phone}) — connect returned but no client found")
-                return 0
-            me = await client.get_me()
+            # Get dialogs via telegram_dm_service
+            dialogs_data = await telegram_dm_service.get_dialogs(account_id, limit=limit)
 
             synced = 0
-            from telethon.tl.types import User
-            async for dialog in client.iter_dialogs(limit=limit):
+            for d in dialogs_data:
                 try:
-                    if not dialog.is_user:
-                        continue
-                    entity = dialog.entity
-                    if isinstance(entity, User) and entity.bot:
-                        continue
+                    peer_id = d["peer_id"]
+                    peer_name = d.get("peer_name")
+                    peer_username = d.get("peer_username")
+                    last_text = d.get("last_message")
+                    last_at_str = d.get("last_message_at")
+                    unread_count = d.get("unread_count", 0)
 
-                    peer_name = f"{getattr(entity, 'first_name', '') or ''} {getattr(entity, 'last_name', '') or ''}".strip() or None
-                    peer_username = getattr(entity, "username", None)
-                    last_text = dialog.message.text if dialog.message else None
-                    last_at = dialog.message.date.replace(tzinfo=None) if dialog.message and dialog.message.date else None
-                    last_outbound = dialog.message.out if dialog.message else None
+                    # Parse last_message_at from ISO string
+                    last_at = None
+                    if last_at_str:
+                        try:
+                            last_at = datetime.fromisoformat(last_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                        except (ValueError, AttributeError):
+                            pass
+
+                    # last_message_outbound is not available from get_dialogs — set None
+                    last_outbound = None
 
                     # Try to link to campaign via recipient username
                     campaign_id = None
@@ -110,16 +87,16 @@ class InboxSyncService:
                         if row:
                             campaign_id = row[0]
 
-                    # Upsert
+                    # Upsert into tg_inbox_dialogs
                     stmt = pg_insert(TgInboxDialog).values(
                         account_id=account_id,
-                        peer_id=dialog.id,
+                        peer_id=peer_id,
                         peer_name=peer_name,
                         peer_username=peer_username,
                         last_message_text=last_text[:500] if last_text else None,
                         last_message_at=last_at,
                         last_message_outbound=last_outbound,
-                        unread_count=dialog.unread_count,
+                        unread_count=unread_count,
                         campaign_id=campaign_id,
                         synced_at=datetime.utcnow(),
                     ).on_conflict_do_update(
@@ -130,7 +107,7 @@ class InboxSyncService:
                             "last_message_text": last_text[:500] if last_text else None,
                             "last_message_at": last_at,
                             "last_message_outbound": last_outbound,
-                            "unread_count": dialog.unread_count,
+                            "unread_count": unread_count,
                             "campaign_id": campaign_id,
                             "synced_at": datetime.utcnow(),
                         },
@@ -138,31 +115,35 @@ class InboxSyncService:
                     await session.execute(stmt)
                     synced += 1
                 except Exception as e:
-                    logger.debug(f"Inbox sync: skip dialog {dialog.id}: {e}")
+                    logger.debug(f"Inbox sync: skip dialog peer_id={d.get('peer_id')}: {e}")
                     continue
 
             await session.commit()
+
+            # Only disconnect if we connected it ourselves
             if not already_connected:
-                await telegram_engine.disconnect(account_id)
+                await telegram_dm_service.disconnect_account(account_id)
+
             logger.info(f"Inbox sync: account {account_id} ({account.phone}) — {synced} dialogs synced")
             return synced
         except Exception as e:
             logger.warning(f"Inbox sync failed for account {account_id}: {e}", exc_info=True)
             try:
                 if not already_connected:
-                    await telegram_engine.disconnect(account_id)
+                    await telegram_dm_service.disconnect_account(account_id)
             except Exception:
                 pass
             return 0
 
     async def sync_all(self):
-        """Sync all active accounts. Called periodically by scheduler."""
+        """Sync all active telegram_dm_accounts with string_session. Called periodically by scheduler."""
         from app.db.database import async_session_maker
+
         async with async_session_maker() as session:
             result = await session.execute(
-                select(TgAccount.id).where(
-                    TgAccount.status == TgAccountStatus.ACTIVE,
-                    TgAccount.api_id.isnot(None),
+                select(TelegramDMAccount.id).where(
+                    TelegramDMAccount.string_session.isnot(None),
+                    TelegramDMAccount.auth_status == "active",
                 )
             )
             account_ids = [r[0] for r in result.all()]
