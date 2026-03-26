@@ -47,7 +47,7 @@ function Tick({ checked, indeterminate, onChange, className }: {
       className={cn('w-[18px] h-[18px] rounded-[4px] border flex items-center justify-center transition-all',
         checked || indeterminate
           ? `bg-[${A.blue}] border-[${A.blue}]`
-          : 'bg-white border-[#D1D5DB] dark:bg-gray-800 dark:border-gray-600 hover:border-[#9CA3AF]',
+          : 'bg-white border-[#D1D5DB] hover:border-[#9CA3AF]',
         className
       )}
       style={checked || indeterminate ? { background: A.blue, borderColor: A.blue } : undefined}
@@ -406,7 +406,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
         <div className="rounded-xl border overflow-hidden" style={{ borderColor: A.border, background: A.surface }}>
           <table className="w-full text-[13px]">
             <thead>
-              <tr style={{ background: isDark ? '#2a2a2a' : A.bg, borderBottom: `1px solid ${A.border}` }}>
+              <tr style={{ background: '#F8F8F6', borderBottom: '1px solid ' + A.border }}>
                 <th className="w-12 px-3 py-3">
                   <Tick checked={isAllSelected} indeterminate={isPartial} onChange={toggleAll} />
                 </th>
@@ -1005,16 +1005,30 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
         <button onClick={onDone} className="text-[11px] underline mr-1" style={{ color: A.text3 }}>Deselect</button>
         <div className="w-px h-4" style={{ background: A.border }} />
 
-        {/* Profile */}
-        <button onClick={() => setActivePanel(activePanel === 'names' ? null : 'names')} className={btnCls} style={btnStyle}>
-          <Users className="w-3 h-3" /> Names
-        </button>
-        <button onClick={() => setActivePanel(activePanel === 'bio' ? null : 'bio')} className={btnCls} style={btnStyle}>
-          Bio
-        </button>
-        <button onClick={() => photoInputRef.current?.click()} disabled={loading} className={btnCls} style={btnStyle}>
-          Photo
-        </button>
+        {/* Dropdown: Оформление аккаунта */}
+        <div className="relative">
+          <button onClick={() => setActivePanel(activePanel === 'menu_profile' ? null : 'menu_profile')}
+            className={btnCls} style={btnStyle}>
+            <Users className="w-3 h-3" /> Оформление аккаунта <ChevronDown className="w-3 h-3" />
+          </button>
+          {activePanel === 'menu_profile' && (
+            <div className="absolute top-full left-0 mt-1 w-44 rounded-lg border shadow-lg z-50 py-1"
+              style={{ background: A.surface, borderColor: A.border }}>
+              <button onClick={() => setActivePanel('names')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Names
+              </button>
+              <button onClick={() => setActivePanel('bio')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Bio
+              </button>
+              <button onClick={() => { setActivePanel(null); photoInputRef.current?.click(); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Photo
+              </button>
+              <button onClick={() => { setActivePanel(null); toast('Username — Coming soon', 'info'); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Username
+              </button>
+            </div>
+          )}
+        </div>
         <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden"
                onChange={async e => {
                  const files = e.target.files;
@@ -1029,30 +1043,62 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                  e.target.value = '';
                }} />
 
-        {/* Technical */}
-        <button onClick={() => run('Device randomized', () => telegramOutreachApi.bulkRandomizeDevice(ids))}
-                disabled={loading} className={btnCls} style={btnStyle}>
-          <RotateCw className="w-3 h-3" /> Device
-        </button>
-        <button onClick={() => setActivePanel(activePanel === 'limit' ? null : 'limit')} className={btnCls} style={btnStyle}>
-          Limit
-        </button>
-        <button onClick={() => setActivePanel(activePanel === 'lang' ? null : 'lang')} className={btnCls} style={btnStyle}>
-          Lang
-        </button>
-        <button onClick={() => setActivePanel(activePanel === '2fa' ? null : '2fa')} className={btnCls} style={btnStyle}>
-          2FA
-        </button>
-        <button onClick={() => setActivePanel(activePanel === 'proxy' ? null : 'proxy')} className={btnCls} style={btnStyle}>
-          <Shield className="w-3 h-3" /> Proxy
-        </button>
-        <button onClick={() => setActivePanel(activePanel === 'privacy' ? null : 'privacy')} className={btnCls} style={btnStyle}>
-          Privacy
-        </button>
+        {/* Dropdown: Технические настройки */}
+        <div className="relative">
+          <button onClick={() => setActivePanel(activePanel === 'menu_tech' ? null : 'menu_tech')}
+            className={btnCls} style={btnStyle}>
+            <RotateCw className="w-3 h-3" /> Технические настройки <ChevronDown className="w-3 h-3" />
+          </button>
+          {activePanel === 'menu_tech' && (
+            <div className="absolute top-full left-0 mt-1 w-44 rounded-lg border shadow-lg z-50 py-1"
+              style={{ background: A.surface, borderColor: A.border }}>
+              <button onClick={() => { setActivePanel(null); run('Device randomized', () => telegramOutreachApi.bulkRandomizeDevice(ids)); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Device
+              </button>
+              <button onClick={() => setActivePanel('limit')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Limit
+              </button>
+              <button onClick={() => setActivePanel('lang')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Language
+              </button>
+              <button onClick={() => setActivePanel('2fa')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                2FA
+              </button>
+              <button onClick={() => setActivePanel('proxy')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Proxy
+              </button>
+              <button onClick={() => setActivePanel('privacy')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Privacy
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Dropdown: Session Settings */}
+        <div className="relative">
+          <button onClick={() => setActivePanel(activePanel === 'menu_session' ? null : 'menu_session')}
+            className={btnCls} style={btnStyle}>
+            <RefreshCw className="w-3 h-3" /> Session Settings <ChevronDown className="w-3 h-3" />
+          </button>
+          {activePanel === 'menu_session' && (
+            <div className="absolute top-full left-0 mt-1 w-44 rounded-lg border shadow-lg z-50 py-1"
+              style={{ background: A.surface, borderColor: A.border }}>
+              <button onClick={() => { setActivePanel(null); run('Re-authorized', () => telegramOutreachApi.bulkReauthorize(ids)); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Re-Auth
+              </button>
+              <button onClick={() => { setActivePanel(null); run('Sessions revoked', () => telegramOutreachApi.bulkRevokeSessions(ids)); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Revoke Session
+              </button>
+              <button onClick={() => { setActivePanel(null); run('Cleaned', () => telegramOutreachApi.bulkClean(ids, { delete_dialogs: true, delete_contacts: true })); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
+                Clean Dialogs
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="w-px h-4" style={{ background: A.border }} />
 
-        {/* Checks */}
+        {/* Checks — standalone */}
         <button onClick={() => run('Alive check done', () => telegramOutreachApi.bulkCheckAlive(ids))}
                 disabled={loading} className={btnCls} style={{ ...btnStyle, color: A.teal, borderColor: A.teal + '40' }}
                 title="Quick alive check. Safe to run often.">
@@ -1063,12 +1109,6 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                 title="Full spamblock check. Don't run too often.">
           <Shield className="w-3 h-3" /> Spam?
         </button>
-        <button onClick={() => run('Re-authorized', () => telegramOutreachApi.bulkReauthorize(ids))}
-                disabled={loading} className={btnCls} style={btnStyle}>Re-Auth</button>
-        <button onClick={() => run('Sessions revoked', () => telegramOutreachApi.bulkRevokeSessions(ids))}
-                disabled={loading} className={btnCls} style={btnStyle}>Revoke</button>
-        <button onClick={() => run('Cleaned', () => telegramOutreachApi.bulkClean(ids, { delete_dialogs: true, delete_contacts: true }))}
-                disabled={loading} className={btnCls} style={btnStyle}>Clean</button>
 
         {/* Delete — far right */}
         <div className="ml-auto">
