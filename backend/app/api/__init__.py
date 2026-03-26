@@ -43,6 +43,7 @@ from .project_reports import router as project_reports_router
 from .gathering import router as gathering_router
 from .campaign_intelligence import router as campaign_intelligence_router
 from .telegram_dm import router as telegram_dm_router
+from .telegram_outreach import router as telegram_outreach_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -143,5 +144,8 @@ api_router.include_router(campaign_intelligence_router)
 
 # Telegram DM Inbox
 api_router.include_router(telegram_dm_router)
+
+# Telegram Outreach (campaigns, accounts, proxies)
+api_router.include_router(telegram_outreach_router)
 
 __all__ = ["api_router"]
