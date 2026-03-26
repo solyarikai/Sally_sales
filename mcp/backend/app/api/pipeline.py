@@ -307,6 +307,28 @@ def _compute_company_status(c, scrape=None):
     return "gathered"
 
 
+# SIC code prefixes → human labels
+_SIC = {
+    "73": "IT Services", "72": "Computer Services", "48": "Communications",
+    "36": "Electronics", "35": "Industrial Equipment", "38": "Instruments",
+    "50": "Wholesale", "59": "Retail", "60": "Banking", "61": "Credit",
+    "62": "Securities", "63": "Insurance", "65": "Real Estate",
+    "80": "Healthcare", "82": "Education", "87": "Engineering & Management",
+    "27": "Publishing", "49": "Utilities", "15": "Construction",
+    "20": "Food Processing", "28": "Chemicals", "37": "Transportation Equipment",
+}
+
+# NAICS code prefixes → human labels
+_NAICS = {
+    "511": "Software Publishing", "518": "Data & Hosting", "519": "Web & Search",
+    "541": "Professional Services", "561": "Business Support", "517": "Telecom",
+    "522": "Banking", "523": "Securities", "524": "Insurance", "531": "Real Estate",
+    "611": "Education", "621": "Healthcare", "512": "Media", "334": "Electronics",
+    "336": "Transportation Mfg", "325": "Chemicals", "423": "Wholesale Tech",
+    "454": "E-Commerce", "236": "Construction", "333": "Machinery",
+}
+
+
 def _company_to_dict(c, scrape=None, truncate_reasoning=False):
     sd = c.source_data or {}
 
@@ -316,22 +338,24 @@ def _company_to_dict(c, scrape=None, truncate_reasoning=False):
     if apollo_id:
         apollo_url = f"https://app.apollo.io/#/organizations/{apollo_id}"
 
-    # Keywords: Apollo accounts don't have keyword tags. Derive from SIC/NAICS codes + industry.
+    # Keywords: translate SIC/NAICS codes to human labels
     keywords = sd.get("keywords") or sd.get("tags") or sd.get("keyword_tags") or []
     if isinstance(keywords, str):
         keywords = [k.strip() for k in keywords.split(",") if k.strip()]
     if not keywords:
-        # Build from SIC/NAICS + industry
         parts = []
-        sic = sd.get("sic_codes") or []
-        naics = sd.get("naics_codes") or []
-        if sic:
-            parts.append(f"SIC:{','.join(str(s) for s in sic)}")
-        if naics:
-            parts.append(f"NAICS:{','.join(str(n) for n in naics)}")
-        if c.industry:
-            parts.append(c.industry)
-        keywords = ", ".join(parts) if parts else ""
+        for code in (sd.get("sic_codes") or []):
+            parts.append(_SIC.get(str(code)[:2], str(code)))
+        for code in (sd.get("naics_codes") or []):
+            parts.append(_NAICS.get(str(code)[:3], str(code)))
+        # Deduplicate and remove empties
+        seen = set()
+        keywords = []
+        for p in parts:
+            if p and p not in seen:
+                seen.add(p)
+                keywords.append(p)
+        keywords = ", ".join(keywords) if keywords else ""
 
     reasoning = c.analysis_reasoning
     if truncate_reasoning and reasoning and len(reasoning) > 100:
