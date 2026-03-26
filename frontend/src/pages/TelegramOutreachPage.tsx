@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, Send, Shield, Plus, Search, RefreshCw, Trash2,
   Globe, Loader2, Play, Pause,
-  X, Upload, FileJson, Edit3, ChevronDown,
+  X, Upload, FileJson, Edit3, ChevronDown, BookOpen,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
@@ -14,7 +14,7 @@ import type {
   TgAccount, TgAccountTag, TgProxyGroup, TgProxy, TgCampaign,
 } from '../api/telegramOutreach';
 
-type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm';
+type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'info';
 
 // ── Status badges ─────────────────────────────────────────────────────
 
@@ -75,6 +75,7 @@ export function TelegramOutreachPage() {
     { key: 'proxies', label: 'Proxies', icon: Shield },
     { key: 'parser', label: 'Parser', icon: Search },
     { key: 'crm', label: 'CRM', icon: Users },
+    { key: 'info', label: 'Info', icon: BookOpen },
   ];
 
   return (
@@ -125,6 +126,7 @@ export function TelegramOutreachPage() {
         {tab === 'proxies' && <ProxiesTab t={t} toast={toast} />}
         {tab === 'parser' && <ParserTab t={t} toast={toast} />}
         {tab === 'crm' && <CrmTab t={t} toast={toast} />}
+        {tab === 'info' && <InfoTab t={t} />}
       </div>
     </div>
   );
@@ -1928,6 +1930,196 @@ function ParserTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success'
 // ══════════════════════════════════════════════════════════════════════
 // CRM Tab
 // ══════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════
+// Info Tab
+// ══════════════════════════════════════════════════════════════════════
+
+function InfoTab({ t }: { t: any }) {
+  const { isDark } = useTheme();
+  const sectionCls = cn('rounded-lg border p-5 space-y-3', t.cardBorder, t.cardBg);
+  const h2Cls = cn('text-[15px] font-semibold', t.text1);
+  const h3Cls = cn('text-[13px] font-semibold mt-3', t.text1);
+  const pCls = cn('text-[13px] leading-relaxed', t.text2);
+  const liCls = cn('text-[13px]', t.text2);
+  const codeCls = cn('font-mono text-[12px] px-1.5 py-0.5 rounded', isDark ? 'bg-gray-800 text-blue-400' : 'bg-gray-100 text-blue-700');
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-5">
+      {/* ── Accounts ── */}
+      <div className={sectionCls}>
+        <h2 className={h2Cls}>Accounts</h2>
+        <p className={pCls}>Управление Telegram-аккаунтами для рассылки. Каждый аккаунт = отдельная Telethon-сессия.</p>
+
+        <h3 className={h3Cls}>Кнопки</h3>
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li className={liCls}><b>Add</b> — добавить аккаунт вручную (phone + session string)</li>
+          <li className={liCls}><b>Import</b> — массовый импорт из TeleRaptor JSON (session + proxy + device)</li>
+          <li className={liCls}><b>Export CSV</b> — выгрузка всех аккаунтов в CSV</li>
+          <li className={liCls}><b>Select All</b> — выделить все для bulk-операций</li>
+          <li className={liCls}><b>Фильтры</b> (All / Active / Spam / Dead) — быстрая фильтрация по статусу</li>
+        </ul>
+
+        <h3 className={h3Cls}>Bulk Actions (при выделении аккаунтов)</h3>
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li className={liCls}><b>Randomize Names</b> — случайные имена по категории (мужские/женские, EN/PT/RU)</li>
+          <li className={liCls}><b>Set Bio</b> — массовая установка описания профиля (напр. "BDM at Company")</li>
+          <li className={liCls}><b>Set Photo</b> — загрузка аватарок (распределяются рандомно по аккаунтам)</li>
+          <li className={liCls}><b>Randomize Device</b> — рандомные параметры устройства (model, version, app)</li>
+          <li className={liCls}><b>Set Limit</b> — дневной лимит сообщений на аккаунт</li>
+          <li className={liCls}><b>Set Language</b> — язык и системный язык аккаунта (для маскировки гео)</li>
+          <li className={liCls}><b>Set 2FA</b> — установка пароля двухфакторной аутентификации</li>
+          <li className={liCls}><b>Assign Proxy</b> — привязка к группе прокси (round-robin внутри группы)</li>
+          <li className={liCls}><b>Sync to TG</b> — синхронизация профиля в Telegram (имя, био, фото)</li>
+          <li className={liCls}><b>Privacy</b> — настройки приватности (last online, phone, photo, messages)</li>
+          <li className={liCls}><b>Re-Auth</b> — повторная авторизация сессии</li>
+          <li className={liCls}><b>Revoke Sessions</b> — отзыв всех других сессий аккаунта</li>
+          <li className={liCls}><b>Clean</b> — очистка диалогов и контактов аккаунта</li>
+          <li className={liCls}><b>Check</b> — проверка на спамблок (через Telethon, результат: none/temporary/permanent)</li>
+          <li className={liCls}><b>Delete</b> — удаление выбранных аккаунтов из системы</li>
+        </ul>
+
+        <h3 className={h3Cls}>Статусы аккаунтов</h3>
+        <ul className="space-y-1 list-disc list-inside">
+          <li className={liCls}><span className={codeCls}>active</span> — рабочий, участвует в рассылке</li>
+          <li className={liCls}><span className={codeCls}>paused</span> — на паузе, не отправляет</li>
+          <li className={liCls}><span className={codeCls}>spamblocked</span> — получил спамблок от Telegram (temporary/permanent)</li>
+          <li className={liCls}><span className={codeCls}>dead</span> — аккаунт мертв (забанен, удален)</li>
+          <li className={liCls}><span className={codeCls}>frozen</span> — заморожен (нужна верификация)</li>
+        </ul>
+
+        <h3 className={h3Cls}>Таблица аккаунтов</h3>
+        <p className={pCls}>Аватар, телефон (клик = копировать), гео-флаг, username, статус, возраст сессии, отправлено сегодня/лимит, имя. Клик на строку = модалка редактирования.</p>
+      </div>
+
+      {/* ── Campaigns ── */}
+      <div className={sectionCls}>
+        <h2 className={h2Cls}>Campaigns</h2>
+        <p className={pCls}>Создание и управление рассылочными кампаниями. Кампания = набор аккаунтов + последовательность сообщений + список получателей.</p>
+
+        <h3 className={h3Cls}>Кнопки</h3>
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li className={liCls}><b>New Campaign</b> — создать новую кампанию (имя → переход на страницу настройки)</li>
+          <li className={liCls}><b>Refresh</b> — обновить список кампаний</li>
+        </ul>
+
+        <h3 className={h3Cls}>Карточка кампании</h3>
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li className={liCls}><b>Play / Pause</b> — запуск или пауза рассылки</li>
+          <li className={liCls}><b>Delete</b> — удалить кампанию</li>
+          <li className={liCls}>Отображает: статус, кол-во аккаунтов, получателей, отправлено сегодня / всего</li>
+        </ul>
+
+        <h3 className={h3Cls}>Внутри кампании (Campaign Detail)</h3>
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li className={liCls}><b>Settings</b> — лимит/день, часы отправки, таймзона, задержки между сообщениями, порог спамблоков</li>
+          <li className={liCls}><b>Sequence</b> — цепочка follow-up сообщений с задержками. Каждый шаг может иметь A/B варианты (spintax)</li>
+          <li className={liCls}><b>Recipients</b> — список получателей (@username). Импорт из CSV / textarea. Статусы: pending → in_sequence → replied / completed / failed</li>
+          <li className={liCls}><b>Messages</b> — лог отправленных сообщений с результатами (sent / failed / spamblocked)</li>
+          <li className={liCls}><b>Replies</b> — входящие ответы от получателей</li>
+          <li className={liCls}><b>AutoReply</b> — AI автоответчик (Gemini) для автоматических ответов на входящие</li>
+          <li className={liCls}><b>Preview</b> — предпросмотр рендеринга сообщения с подстановкой переменных</li>
+        </ul>
+
+        <h3 className={h3Cls}>Статусы кампании</h3>
+        <ul className="space-y-1 list-disc list-inside">
+          <li className={liCls}><span className={codeCls}>draft</span> — черновик, не отправляет</li>
+          <li className={liCls}><span className={codeCls}>active</span> — рассылка идет (worker отправляет сообщения)</li>
+          <li className={liCls}><span className={codeCls}>paused</span> — на паузе</li>
+          <li className={liCls}><span className={codeCls}>completed</span> — все получатели обработаны</li>
+        </ul>
+      </div>
+
+      {/* ── Proxies ── */}
+      <div className={sectionCls}>
+        <h2 className={h2Cls}>Proxies</h2>
+        <p className={pCls}>Управление прокси-серверами для маскировки IP аккаунтов. Прокси группируются — аккаунты привязываются к группе.</p>
+
+        <h3 className={h3Cls}>Кнопки</h3>
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li className={liCls}><b>Create Group</b> — создать группу прокси (имя, страна, описание)</li>
+          <li className={liCls}><b>Add Proxy</b> — добавить прокси в группу (host:port, протокол, логин/пароль)</li>
+          <li className={liCls}><b>Bulk Add</b> — массовый импорт прокси (формат: host:port:user:pass, по одному на строку)</li>
+          <li className={liCls}><b>Health Check</b> — проверка работоспособности всех прокси в группе. Мертвые удаляются автоматически</li>
+          <li className={liCls}><b>Delete</b> — удалить прокси или группу</li>
+        </ul>
+
+        <h3 className={h3Cls}>Протоколы</h3>
+        <ul className="space-y-1 list-disc list-inside">
+          <li className={liCls}><span className={codeCls}>socks5</span> — основной, поддерживается Telethon нативно</li>
+          <li className={liCls}><span className={codeCls}>http</span> — HTTP CONNECT proxy</li>
+          <li className={liCls}><span className={codeCls}>mtproto</span> — MTProto proxy (Telegram-native)</li>
+        </ul>
+      </div>
+
+      {/* ── Parser ── */}
+      <div className={sectionCls}>
+        <h2 className={h2Cls}>Parser</h2>
+        <p className={pCls}>Парсинг аудитории из Telegram-чатов и групп для формирования базы получателей.</p>
+
+        <h3 className={h3Cls}>Возможности</h3>
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li className={liCls}><b>Parse Group</b> — парсинг участников из Telegram-группы/чата по ссылке</li>
+          <li className={liCls}><b>Export</b> — экспорт спарсенной аудитории в CSV для импорта в кампании</li>
+          <li className={liCls}><b>Dedup</b> — дедупликация по username (исключение уже контактированных)</li>
+        </ul>
+      </div>
+
+      {/* ── CRM ── */}
+      <div className={sectionCls}>
+        <h2 className={h2Cls}>CRM</h2>
+        <p className={pCls}>Единая база контактов из всех Telegram-кампаний. Контакт создается автоматически при первой отправке сообщения.</p>
+
+        <h3 className={h3Cls}>Pipeline (воронка)</h3>
+        <ul className="space-y-1 list-disc list-inside">
+          <li className={liCls}><span className={codeCls}>cold</span> — новый контакт, еще не написали</li>
+          <li className={liCls}><span className={codeCls}>contacted</span> — сообщение отправлено</li>
+          <li className={liCls}><span className={codeCls}>replied</span> — получен ответ</li>
+          <li className={liCls}><span className={codeCls}>qualified</span> — квалифицирован (подходит под ICP)</li>
+          <li className={liCls}><span className={codeCls}>meeting_set</span> — встреча назначена</li>
+          <li className={liCls}><span className={codeCls}>converted</span> — конвертирован в клиента</li>
+          <li className={liCls}><span className={codeCls}>not_interested</span> — не заинтересован</li>
+        </ul>
+
+        <h3 className={h3Cls}>Функции</h3>
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li className={liCls}><b>Фильтр по статусу</b> — клик на карточку статуса = фильтрация таблицы</li>
+          <li className={liCls}><b>Bulk Status</b> — массовое изменение статуса выбранных контактов</li>
+          <li className={liCls}><b>Карточка контакта</b> — клик по строке: username, имя, компания, статус, история сообщений и ответов</li>
+          <li className={liCls}><b>Sent / Replies</b> — сколько сообщений отправлено и получено ответов</li>
+          <li className={liCls}><b>Campaigns</b> — в каких кампаниях участвовал контакт</li>
+        </ul>
+      </div>
+
+      {/* ── Worker ── */}
+      <div className={sectionCls}>
+        <h2 className={h2Cls}>Sending Worker</h2>
+        <p className={pCls}>Фоновый процесс, который выполняет рассылку. Индикатор статуса в правом верхнем углу (зеленый = работает).</p>
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li className={liCls}>Отправляет сообщения по расписанию кампании (часы, таймзона, задержки)</li>
+          <li className={liCls}>Round-robin по аккаунтам кампании</li>
+          <li className={liCls}>Поддержка spintax: <span className={codeCls}>{'{'}Hi|Hello|Hey{'}'}</span> → рандомный вариант</li>
+          <li className={liCls}>Переменные: <span className={codeCls}>{'{'}first_name{'}'}</span>, <span className={codeCls}>{'{'}username{'}'}</span>, <span className={codeCls}>{'{'}company{'}'}</span></li>
+          <li className={liCls}>Автопауза при спамблоке (пропускает аккаунт, пишет лог)</li>
+          <li className={liCls}>Авто-пересчет отправленных сегодня (daily_message_limit)</li>
+        </ul>
+      </div>
+
+      {/* ── Reply Detection ── */}
+      <div className={sectionCls}>
+        <h2 className={h2Cls}>Reply Detection</h2>
+        <p className={pCls}>Мониторинг входящих ответов от получателей кампаний.</p>
+        <ul className="space-y-1.5 list-disc list-inside">
+          <li className={liCls}>Фоновый процесс проверяет все аккаунты на новые входящие DM</li>
+          <li className={liCls}>Ответы привязываются к получателю и кампании</li>
+          <li className={liCls}>Статус получателя автоматически меняется на <span className={codeCls}>replied</span></li>
+          <li className={liCls}>CRM-контакт обновляется: total_replies_received + 1, last_reply_at</li>
+          <li className={liCls}>AI AutoReply (Gemini) может отвечать автоматически если настроен</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 const CRM_STATUS_COLORS: Record<string, string> = {
   cold: 'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-400',
