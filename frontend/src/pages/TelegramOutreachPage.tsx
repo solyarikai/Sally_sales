@@ -142,20 +142,20 @@ export function TelegramOutreachPage() {
   ];
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" style={{ background: A.bg }}>
       {/* Header */}
-      <div className={cn('border-b px-6 py-4', t.cardBorder)}>
+      <div className="px-6 py-4" style={{ background: A.surface, borderBottom: `1px solid ${A.border}` }}>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className={cn('text-xl font-semibold', t.text1)}>Telegram Outreach</h1>
-            <p className={cn('text-sm mt-1', t.text3)}>
+            <h1 className="text-xl font-semibold" style={{ color: A.text1 }}>Telegram Outreach</h1>
+            <p className="text-sm mt-1" style={{ color: A.text3 }}>
               Manage accounts, campaigns, and proxies for Telegram outreach
             </p>
           </div>
 
           {/* Worker status */}
           <span className={cn('flex items-center gap-1.5 text-xs font-medium',
-            workerRunning ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400')}>
+            workerRunning ? 'text-green-600' : 'text-red-500')}>
             <span className={cn('w-2 h-2 rounded-full',
               workerRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500')} />
             {workerRunning ? 'Worker Active' : 'Worker Offline'}
@@ -168,12 +168,12 @@ export function TelegramOutreachPage() {
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-                tab === key
-                  ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
-                  : cn('hover:bg-gray-100 dark:hover:bg-gray-800', t.text3),
-              )}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              style={tab === key
+                ? { background: A.blueBg, color: A.blue }
+                : { color: A.text3 }}
+              onMouseEnter={e => { if (tab !== key) (e.currentTarget.style.background = '#F3F3F1'); }}
+              onMouseLeave={e => { if (tab !== key) (e.currentTarget.style.background = 'transparent'); }}
             >
               <Icon className="w-4 h-4" />
               {label}
@@ -1373,8 +1373,6 @@ function EditAccountModal({ t, toast, isDark, account, onClose, onSaved, onDelet
   const sessionFileRef = useRef<HTMLInputElement>(null);
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
-  const inputCls = cn('w-full px-3 py-2 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1);
-  const labelCls = cn('block text-xs font-medium mb-1', t.text3);
 
   const handleSave = async () => {
     setSaving(true);
@@ -1405,301 +1403,366 @@ function EditAccountModal({ t, toast, isDark, account, onClose, onSaved, onDelet
     }
   };
 
+  const panelInputCls = 'w-full px-3 py-2 rounded-lg text-sm' +
+    ' border outline-none focus:ring-2 focus:ring-[#4F6BF0]/20 focus:border-[#4F6BF0]';
+  const panelLabelCls = 'block text-xs font-medium mb-1';
+
   return (
-    <ModalBackdrop onClose={onClose}>
-      <div className={cn('w-[560px] rounded-xl border shadow-xl', t.cardBorder, isDark ? 'bg-gray-900' : 'bg-white')}>
-        {/* Header */}
-        <div className={cn('flex items-center justify-between px-6 py-4 border-b', t.cardBorder)}>
+    <div className="fixed inset-0 z-50 flex">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40 transition-opacity" onClick={onClose} />
+      {/* Panel */}
+      <div
+        className="relative ml-auto h-full w-[480px] flex flex-col shadow-2xl overflow-hidden"
+        style={{ background: A.surface, animation: 'slideInRight .2s ease-out' }}
+      >
+        {/* -- Header -- */}
+        <div className="flex items-center justify-between px-6 py-5"
+             style={{ borderBottom: `1px solid ${A.border}` }}>
           <div>
-            <h2 className={cn('text-lg font-semibold', t.text1)}>Edit Account</h2>
-            <p className={cn('text-xs font-mono', t.text3)}>{account.phone}</p>
+            <h2 className="text-lg font-semibold" style={{ color: A.text1 }}>Edit Account</h2>
+            <p className="text-xs font-mono mt-0.5" style={{ color: A.text3 }}>{account.phone}</p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
-            <X className="w-5 h-5 text-gray-400" />
+          <button onClick={onClose}
+                  className="p-1.5 rounded-lg transition-colors hover:bg-[#F3F3F1]">
+            <X className="w-5 h-5" style={{ color: A.text3 }} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-4 space-y-4">
-          {/* Status + Limit */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Status</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="spamblocked">Spamblocked</option>
-                <option value="dead">Dead</option>
-                <option value="frozen">Frozen</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Daily Message Limit</label>
-              <input type="number" value={form.daily_message_limit}
-                     onChange={e => set('daily_message_limit', e.target.value)} className={inputCls} />
-            </div>
-          </div>
+        {/* -- Scrollable body -- */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
 
-          {/* Profile */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>First Name</label>
-              <input value={form.first_name} onChange={e => set('first_name', e.target.value)} className={inputCls} />
+          {/* ---- Section: Profile ---- */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Profile</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={panelLabelCls} style={{ color: A.text3 }}>First Name</label>
+                <input value={form.first_name} onChange={e => set('first_name', e.target.value)}
+                       className={panelInputCls}
+                       style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
+              <div>
+                <label className={panelLabelCls} style={{ color: A.text3 }}>Last Name</label>
+                <input value={form.last_name} onChange={e => set('last_name', e.target.value)}
+                       className={panelInputCls}
+                       style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
+              <div>
+                <label className={panelLabelCls} style={{ color: A.text3 }}>Username</label>
+                <input value={form.username} onChange={e => set('username', e.target.value)}
+                       className={panelInputCls}
+                       style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
+              <div>
+                <label className={panelLabelCls} style={{ color: A.text3 }}>Status</label>
+                <select value={form.status} onChange={e => set('status', e.target.value)}
+                        className={panelInputCls}
+                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }}>
+                  <option value="active">Active</option>
+                  <option value="paused">Paused</option>
+                  <option value="spamblocked">Spamblocked</option>
+                  <option value="dead">Dead</option>
+                  <option value="frozen">Frozen</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className={labelCls}>Last Name</label>
-              <input value={form.last_name} onChange={e => set('last_name', e.target.value)} className={inputCls} />
+            <div className="mt-3">
+              <label className={panelLabelCls} style={{ color: A.text3 }}>Bio</label>
+              <textarea value={form.bio} onChange={e => set('bio', e.target.value)} rows={2}
+                        className={panelInputCls}
+                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
             </div>
-            <div>
-              <label className={labelCls}>Username</label>
-              <input value={form.username} onChange={e => set('username', e.target.value)} className={inputCls} />
-            </div>
-          </div>
+          </section>
 
-          <div>
-            <label className={labelCls}>Bio</label>
-            <textarea value={form.bio} onChange={e => set('bio', e.target.value)} rows={2} className={inputCls} />
-          </div>
-
-          {/* Info block */}
-          <div className={cn('rounded-lg border p-3 grid grid-cols-3 gap-3 text-center', t.cardBorder)}>
-            <div>
-              <div className={cn('text-lg font-bold', t.text1)}>{account.messages_sent_today}</div>
-              <div className={cn('text-xs', t.text3)}>Sent Today</div>
+          {/* ---- Section: Technical ---- */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Technical</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={panelLabelCls} style={{ color: A.text3 }}>Daily Limit</label>
+                <input type="number" value={form.daily_message_limit}
+                       onChange={e => set('daily_message_limit', e.target.value)}
+                       className={panelInputCls}
+                       style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
+              <div>
+                <label className={panelLabelCls} style={{ color: A.text3 }}>Device Model</label>
+                <input value={form.device_model} onChange={e => set('device_model', e.target.value)}
+                       className={panelInputCls}
+                       style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
+              <div>
+                <label className={panelLabelCls} style={{ color: A.text3 }}>System Version</label>
+                <input value={form.system_version} onChange={e => set('system_version', e.target.value)}
+                       className={panelInputCls}
+                       style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
+              <div>
+                <label className={panelLabelCls} style={{ color: A.text3 }}>App Version</label>
+                <input value={form.app_version} onChange={e => set('app_version', e.target.value)}
+                       className={panelInputCls}
+                       style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
+              <div>
+                <label className={panelLabelCls} style={{ color: A.text3 }}>Lang Code</label>
+                <input value={form.lang_code} onChange={e => set('lang_code', e.target.value)}
+                       className={panelInputCls}
+                       style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
+              <div>
+                <label className={panelLabelCls} style={{ color: A.text3 }}>System Lang</label>
+                <input value={form.system_lang_code} onChange={e => set('system_lang_code', e.target.value)}
+                       className={panelInputCls}
+                       style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
             </div>
-            <div>
-              <div className={cn('text-lg font-bold', t.text1)}>{account.total_messages_sent}</div>
-              <div className={cn('text-xs', t.text3)}>Total Sent</div>
+          </section>
+
+          {/* ---- Section: Stats ---- */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Stats</h3>
+            <div className="rounded-lg p-3 grid grid-cols-3 gap-3 text-center"
+                 style={{ background: A.bg, border: `1px solid ${A.border}` }}>
+              <div>
+                <div className="text-lg font-bold" style={{ color: A.text1 }}>{account.messages_sent_today}</div>
+                <div className="text-xs" style={{ color: A.text3 }}>Sent Today</div>
+              </div>
+              <div>
+                <div className="text-lg font-bold" style={{ color: A.text1 }}>{account.total_messages_sent}</div>
+                <div className="text-xs" style={{ color: A.text3 }}>Total Sent</div>
+              </div>
+              <div>
+                <div className="text-lg font-bold" style={{ color: A.text1 }}>{account.campaigns_count}</div>
+                <div className="text-xs" style={{ color: A.text3 }}>Campaigns</div>
+              </div>
             </div>
-            <div>
-              <div className={cn('text-lg font-bold', t.text1)}>{account.campaigns_count}</div>
-              <div className={cn('text-xs', t.text3)}>Campaigns</div>
-            </div>
-          </div>
+          </section>
 
-          {/* Telegram Actions */}
-          <div className={cn('rounded-lg border p-4 space-y-3', t.cardBorder)}>
-            <h4 className={cn('text-xs font-semibold', t.text3)}>Telegram Actions</h4>
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Upload Session */}
-              <button onClick={() => sessionFileRef.current?.click()}
-                      className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder, t.text1)}>
-                <Upload className="w-3 h-3" /> Upload .session
-              </button>
-              <input ref={sessionFileRef} type="file" accept=".session" className="hidden"
-                     onChange={async e => {
-                       const file = e.target.files?.[0];
-                       if (!file) return;
-                       try {
-                         await telegramOutreachApi.uploadSession(account.id, file);
-                         toast('Session uploaded', 'success');
-                       } catch { toast('Failed to upload session', 'error'); }
-                       e.target.value = '';
-                     }} />
+          {/* ---- Section: Actions ---- */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Actions</h3>
+            <div className="rounded-lg p-4 space-y-3"
+                 style={{ background: A.bg, border: `1px solid ${A.border}` }}>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Upload Session */}
+                <button onClick={() => sessionFileRef.current?.click()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[#F3F3F1]"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1 }}>
+                  <Upload className="w-3 h-3" /> Upload .session
+                </button>
+                <input ref={sessionFileRef} type="file" accept=".session" className="hidden"
+                       onChange={async e => {
+                         const file = e.target.files?.[0];
+                         if (!file) return;
+                         try {
+                           await telegramOutreachApi.uploadSession(account.id, file);
+                           toast('Session uploaded', 'success');
+                         } catch { toast('Failed to upload session', 'error'); }
+                         e.target.value = '';
+                       }} />
 
-              {/* Check Account */}
-              <button onClick={async () => {
-                        setChecking(true); setCheckResult(null);
-                        try {
-                          const res = await telegramOutreachApi.checkAccount(account.id);
-                          setCheckResult(res);
-                          toast(res.authorized ? 'Account OK' : 'Account not authorized', res.authorized ? 'success' : 'error');
-                        } catch (e: any) {
-                          toast(e?.response?.data?.detail || 'Check failed', 'error');
-                        } finally { setChecking(false); }
-                      }}
-                      disabled={checking}
-                      className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder, t.text1)}>
-                {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                Check Status
-              </button>
+                {/* Check Account */}
+                <button onClick={async () => {
+                          setChecking(true); setCheckResult(null);
+                          try {
+                            const res = await telegramOutreachApi.checkAccount(account.id);
+                            setCheckResult(res);
+                            toast(res.authorized ? 'Account OK' : 'Account not authorized', res.authorized ? 'success' : 'error');
+                          } catch (e: any) {
+                            toast(e?.response?.data?.detail || 'Check failed', 'error');
+                          } finally { setChecking(false); }
+                        }}
+                        disabled={checking}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[#F3F3F1]"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1 }}>
+                  {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  Check Status
+                </button>
 
-              {/* Auth */}
-              <button onClick={async () => {
-                        setAuthLoading(true);
-                        try {
-                          const res = await telegramOutreachApi.authSendCode(account.id);
-                          if (res.status === 'already_authorized') {
-                            toast('Already authorized', 'success');
-                          } else if (res.status === 'code_sent') {
-                            setAuthStep('code_sent');
-                            toast('Code sent to Telegram', 'info');
+                {/* Auth */}
+                <button onClick={async () => {
+                          setAuthLoading(true);
+                          try {
+                            const res = await telegramOutreachApi.authSendCode(account.id);
+                            if (res.status === 'already_authorized') {
+                              toast('Already authorized', 'success');
+                            } else if (res.status === 'code_sent') {
+                              setAuthStep('code_sent');
+                              toast('Code sent to Telegram', 'info');
+                            }
+                          } catch (e: any) {
+                            toast(e?.response?.data?.detail || 'Failed to send code', 'error');
+                          } finally { setAuthLoading(false); }
+                        }}
+                        disabled={authLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                        style={{ background: A.teal }}>
+                  {authLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
+                  Authorize
+                </button>
+
+                {/* Update Profile on TG */}
+                <button onClick={async () => {
+                          try {
+                            const res = await telegramOutreachApi.updateProfile(account.id, {
+                              first_name: form.first_name || undefined,
+                              last_name: form.last_name || undefined,
+                              about: form.bio || undefined,
+                              username: form.username || undefined,
+                            });
+                            toast(res.username_error ? `Profile updated, but: ${res.username_error}` : 'Profile synced to Telegram', 'success');
+                          } catch (e: any) {
+                            toast(e?.response?.data?.detail || 'Failed to update profile', 'error');
                           }
-                        } catch (e: any) {
-                          toast(e?.response?.data?.detail || 'Failed to send code', 'error');
-                        } finally { setAuthLoading(false); }
-                      }}
-                      disabled={authLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50">
-                {authLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
-                Authorize
-              </button>
-
-              {/* Update Profile on TG */}
-              <button onClick={async () => {
-                        try {
-                          const res = await telegramOutreachApi.updateProfile(account.id, {
-                            first_name: form.first_name || undefined,
-                            last_name: form.last_name || undefined,
-                            about: form.bio || undefined,
-                            username: form.username || undefined,
-                          });
-                          toast(res.username_error ? `Profile updated, but: ${res.username_error}` : 'Profile synced to Telegram', 'success');
-                        } catch (e: any) {
-                          toast(e?.response?.data?.detail || 'Failed to update profile', 'error');
-                        }
-                      }}
-                      className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder, t.text1)}>
-                <Edit3 className="w-3 h-3" /> Sync Profile to TG
-              </button>
-
-              {/* Conversion buttons */}
-              <button onClick={async () => {
-                        try {
-                          await telegramOutreachApi.convertToTdata(account.id);
-                          toast('Converted to TDATA. Download available.', 'success');
-                        } catch (e: any) {
-                          toast(e?.response?.data?.detail || 'Conversion failed', 'error');
-                        }
-                      }}
-                      className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder, t.text1)}>
-                Session → TDATA
-              </button>
-              <button onClick={async () => {
-                        try {
-                          await telegramOutreachApi.convertFromTdata(account.id);
-                          toast('Converted TDATA → Session', 'success');
-                        } catch (e: any) {
-                          toast(e?.response?.data?.detail || 'Conversion failed', 'error');
-                        }
-                      }}
-                      className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder, t.text1)}>
-                TDATA → Session
-              </button>
-              <a href={telegramOutreachApi.downloadTdata(account.id)}
-                 target="_blank" rel="noreferrer"
-                 className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder, t.text1)}>
-                Download TDATA
-              </a>
-            </div>
-
-            {/* Auth code input */}
-            {authStep === 'code_sent' && (
-              <div className="flex items-center gap-2">
-                <input value={authCode} onChange={e => setAuthCode(e.target.value)}
-                       placeholder="Enter code from Telegram"
-                       className={cn('flex-1 px-3 py-1.5 rounded-lg border text-sm font-mono', t.cardBorder, t.cardBg, t.text1)} />
-                <button onClick={async () => {
-                          setAuthLoading(true);
-                          try {
-                            const res = await telegramOutreachApi.authVerifyCode(account.id, authCode);
-                            if (res.status === 'authorized') {
-                              toast('Authorized!', 'success');
-                              setAuthStep('none'); setAuthCode('');
-                            } else if (res.status === '2fa_required') {
-                              setAuthStep('2fa_required');
-                              toast('2FA password required', 'info');
-                            } else {
-                              toast(res.detail || 'Verification failed', 'error');
-                            }
-                          } catch { toast('Verification failed', 'error'); }
-                          finally { setAuthLoading(false); }
                         }}
-                        disabled={authLoading || !authCode}
-                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50">
-                  {authLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Verify'}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[#F3F3F1]"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1 }}>
+                  <Edit3 className="w-3 h-3" /> Sync Profile to TG
                 </button>
-              </div>
-            )}
 
-            {/* 2FA input */}
-            {authStep === '2fa_required' && (
-              <div className="flex items-center gap-2">
-                <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)}
-                       placeholder="Enter 2FA password"
-                       className={cn('flex-1 px-3 py-1.5 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1)} />
+                {/* Conversion buttons */}
                 <button onClick={async () => {
-                          setAuthLoading(true);
                           try {
-                            const res = await telegramOutreachApi.authVerify2FA(account.id, authPassword);
-                            if (res.status === 'authorized') {
-                              toast('Authorized!', 'success');
-                              setAuthStep('none'); setAuthPassword('');
-                            } else {
-                              toast(res.detail || '2FA failed', 'error');
-                            }
-                          } catch { toast('2FA failed', 'error'); }
-                          finally { setAuthLoading(false); }
+                            await telegramOutreachApi.convertToTdata(account.id);
+                            toast('Converted to TDATA. Download available.', 'success');
+                          } catch (e: any) {
+                            toast(e?.response?.data?.detail || 'Conversion failed', 'error');
+                          }
                         }}
-                        disabled={authLoading || !authPassword}
-                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50">
-                  {authLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Verify 2FA'}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[#F3F3F1]"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1 }}>
+                  Session → TDATA
                 </button>
+                <button onClick={async () => {
+                          try {
+                            await telegramOutreachApi.convertFromTdata(account.id);
+                            toast('Converted TDATA → Session', 'success');
+                          } catch (e: any) {
+                            toast(e?.response?.data?.detail || 'Conversion failed', 'error');
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[#F3F3F1]"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1 }}>
+                  TDATA → Session
+                </button>
+                <a href={telegramOutreachApi.downloadTdata(account.id)}
+                   target="_blank" rel="noreferrer"
+                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[#F3F3F1]"
+                   style={{ border: `1px solid ${A.border}`, color: A.text1 }}>
+                  Download TDATA
+                </a>
               </div>
-            )}
 
-            {/* Check result */}
-            {checkResult && (
-              <div className={cn('rounded-lg p-3 text-xs space-y-1', isDark ? 'bg-gray-800' : 'bg-gray-50')}>
-                <div className="flex gap-4">
-                  <span>Connected: <b className={checkResult.connected ? 'text-green-500' : 'text-red-500'}>{checkResult.connected ? 'Yes' : 'No'}</b></span>
-                  <span>Authorized: <b className={checkResult.authorized ? 'text-green-500' : 'text-red-500'}>{checkResult.authorized ? 'Yes' : 'No'}</b></span>
-                  <span>Spamblock: <b className={checkResult.spamblock === 'none' ? 'text-green-500' : 'text-red-500'}>{checkResult.spamblock}</b></span>
+              {/* Auth code input */}
+              {authStep === 'code_sent' && (
+                <div className="flex items-center gap-2">
+                  <input value={authCode} onChange={e => setAuthCode(e.target.value)}
+                         placeholder="Enter code from Telegram"
+                         className="flex-1 px-3 py-1.5 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-[#4F6BF0]/20"
+                         style={{ background: A.surface, border: `1px solid ${A.border}`, color: A.text1 }} />
+                  <button onClick={async () => {
+                            setAuthLoading(true);
+                            try {
+                              const res = await telegramOutreachApi.authVerifyCode(account.id, authCode);
+                              if (res.status === 'authorized') {
+                                toast('Authorized!', 'success');
+                                setAuthStep('none'); setAuthCode('');
+                              } else if (res.status === '2fa_required') {
+                                setAuthStep('2fa_required');
+                                toast('2FA password required', 'info');
+                              } else {
+                                toast(res.detail || 'Verification failed', 'error');
+                              }
+                            } catch { toast('Verification failed', 'error'); }
+                            finally { setAuthLoading(false); }
+                          }}
+                          disabled={authLoading || !authCode}
+                          className="px-3 py-1.5 text-white rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                          style={{ background: A.blue }}>
+                    {authLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Verify'}
+                  </button>
                 </div>
-                {checkResult.error && <p className="text-red-500">Error: {checkResult.error}</p>}
-              </div>
-            )}
-          </div>
+              )}
 
-          {/* Technical */}
-          <details className="group">
-            <summary className={cn('text-xs font-semibold cursor-pointer select-none flex items-center gap-1', t.text3)}>
-              <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" />
-              Technical Settings
-            </summary>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div>
-                <label className={labelCls}>Device Model</label>
-                <input value={form.device_model} onChange={e => set('device_model', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>System Version</label>
-                <input value={form.system_version} onChange={e => set('system_version', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>App Version</label>
-                <input value={form.app_version} onChange={e => set('app_version', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Lang Code</label>
-                <input value={form.lang_code} onChange={e => set('lang_code', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>System Lang Code</label>
-                <input value={form.system_lang_code} onChange={e => set('system_lang_code', e.target.value)} className={inputCls} />
-              </div>
+              {/* 2FA input */}
+              {authStep === '2fa_required' && (
+                <div className="flex items-center gap-2">
+                  <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)}
+                         placeholder="Enter 2FA password"
+                         className="flex-1 px-3 py-1.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#4F6BF0]/20"
+                         style={{ background: A.surface, border: `1px solid ${A.border}`, color: A.text1 }} />
+                  <button onClick={async () => {
+                            setAuthLoading(true);
+                            try {
+                              const res = await telegramOutreachApi.authVerify2FA(account.id, authPassword);
+                              if (res.status === 'authorized') {
+                                toast('Authorized!', 'success');
+                                setAuthStep('none'); setAuthPassword('');
+                              } else {
+                                toast(res.detail || '2FA failed', 'error');
+                              }
+                            } catch { toast('2FA failed', 'error'); }
+                            finally { setAuthLoading(false); }
+                          }}
+                          disabled={authLoading || !authPassword}
+                          className="px-3 py-1.5 text-white rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                          style={{ background: A.blue }}>
+                    {authLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Verify 2FA'}
+                  </button>
+                </div>
+              )}
+
+              {/* Check result */}
+              {checkResult && (
+                <div className="rounded-lg p-3 text-xs space-y-1"
+                     style={{ background: A.bg }}>
+                  <div className="flex gap-4">
+                    <span>Connected: <b className={checkResult.connected ? 'text-green-500' : 'text-red-500'}>{checkResult.connected ? 'Yes' : 'No'}</b></span>
+                    <span>Authorized: <b className={checkResult.authorized ? 'text-green-500' : 'text-red-500'}>{checkResult.authorized ? 'Yes' : 'No'}</b></span>
+                    <span>Spamblock: <b className={checkResult.spamblock === 'none' ? 'text-green-500' : 'text-red-500'}>{checkResult.spamblock}</b></span>
+                  </div>
+                  {checkResult.error && <p className="text-red-500">Error: {checkResult.error}</p>}
+                </div>
+              )}
             </div>
-          </details>
+          </section>
         </div>
 
-        {/* Footer */}
-        <div className={cn('flex items-center justify-between px-6 py-4 border-t', t.cardBorder)}>
+        {/* -- Footer -- */}
+        <div className="flex items-center justify-between px-6 py-4"
+             style={{ borderTop: `1px solid ${A.border}` }}>
           <button onClick={handleDelete}
-                  className="flex items-center gap-1.5 px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm">
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors"
+                  style={{ color: A.rose }}
+                  onMouseEnter={e => (e.currentTarget.style.background = A.roseBg)}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
           <div className="flex items-center gap-3">
             <button onClick={onClose}
-                    className={cn('px-4 py-2 rounded-lg border text-sm', t.cardBorder, t.text1)}>Cancel</button>
+                    className="px-4 py-2 rounded-lg text-sm transition-colors hover:bg-[#F3F3F1]"
+                    style={{ border: `1px solid ${A.border}`, color: A.text1 }}>Cancel</button>
             <button onClick={handleSave} disabled={saving}
-                    className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                    className="flex items-center gap-2 px-5 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+                    style={{ background: A.blue }}
+                    onMouseEnter={e => (e.currentTarget.style.background = A.blueHover)}
+                    onMouseLeave={e => (e.currentTarget.style.background = A.blue)}>
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               Save
             </button>
           </div>
         </div>
       </div>
-    </ModalBackdrop>
+
+      {/* Keyframe for slide-in animation */}
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); }
+          to   { transform: translateX(0); }
+        }
+      `}</style>
+    </div>
   );
 }
 
