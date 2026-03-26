@@ -947,8 +947,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
         </button>
 
         {/* Sync + Check */}
-        <button onClick={() => run('Profile synced', () => telegramOutreachApi.bulkSyncProfile(ids))}
-                disabled={loading} className={btnCls}>Sync to TG</button>
+        {/* Sync to TG removed — auto-syncs on name/bio/photo changes */}
         <button onClick={() => setActivePanel(activePanel === 'privacy' ? null : 'privacy')} className={btnCls}>
           Privacy
         </button>
