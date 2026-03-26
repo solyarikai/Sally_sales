@@ -1,15 +1,11 @@
 """MCP Server — uses official MCP Python SDK for proper protocol compliance."""
 import json
 import logging
-from typing import Any
 
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.types import Tool, TextContent
-from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import Response
-from starlette.routing import Route
 
 from app.mcp.tools import TOOLS
 from app.mcp.dispatcher import dispatch_tool
@@ -19,14 +15,12 @@ logger = logging.getLogger(__name__)
 # Create MCP server instance
 mcp_server = Server("mcp-leadgen")
 
-# SSE transport — path where POST messages arrive
+# SSE transport
 sse_transport = SseServerTransport("/mcp/messages")
 
 
-# ── Register tool list handler ──
 @mcp_server.list_tools()
 async def list_tools() -> list[Tool]:
-    """Return all MCP tools."""
     tools = []
     for t in TOOLS:
         tools.append(Tool(
@@ -37,10 +31,8 @@ async def list_tools() -> list[Tool]:
     return tools
 
 
-# ── Register tool call handler ──
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    """Route tool calls to dispatcher."""
     token = arguments.pop("_token", None)
     try:
         result = await dispatch_tool(name, arguments, token, None)
@@ -50,24 +42,18 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
 
 
-# ── ASGI handlers (raw scope/receive/send for MCP SDK) ──
-
-async def handle_sse(scope, receive, send):
-    """SSE endpoint — raw ASGI handler for MCP SDK."""
-    async with sse_transport.connect_sse(scope, receive, send) as streams:
+async def handle_sse(request: Request):
+    """SSE endpoint — Starlette Request wrapper for MCP SDK."""
+    async with sse_transport.connect_sse(
+        request.scope, request.receive, request._send
+    ) as streams:
         await mcp_server.run(
             streams[0], streams[1], mcp_server.create_initialization_options()
         )
 
 
-async def handle_messages(scope, receive, send):
-    """Message endpoint — raw ASGI handler for MCP SDK."""
-    await sse_transport.handle_post_message(scope, receive, send)
-
-
-def get_mcp_routes():
-    """Return Starlette routes for MCP. Uses raw ASGI handlers."""
-    return [
-        Route("/mcp/sse", endpoint=handle_sse),
-        Route("/mcp/messages", endpoint=handle_messages, methods=["POST"]),
-    ]
+async def handle_messages(request: Request):
+    """Message endpoint — Starlette Request wrapper for MCP SDK."""
+    await sse_transport.handle_post_message(
+        request.scope, request.receive, request._send
+    )
