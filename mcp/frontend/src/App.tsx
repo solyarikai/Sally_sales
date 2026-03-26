@@ -7,6 +7,7 @@ import PromptsPage from './pages/PromptsPage'
 // REUSED from main app via @main alias — fix once, fixed everywhere
 import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
 import { TasksPage } from '@main/pages/TasksPage'
+import { ToastProvider } from '@main/components/Toast'
 
 // Theme
 const ThemeCtx = createContext({ dark: true, toggle: () => {} })
@@ -80,6 +81,7 @@ export default function App() {
 
   return (
     <ThemeCtx.Provider value={{ dark, toggle: () => setDark(d => !d) }}>
+      <ToastProvider>
       <ProjectCtx.Provider value={{ project, projects, setProject, reload: loadProjects }}>
         <BrowserRouter>
           <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
@@ -113,6 +115,7 @@ export default function App() {
           </div>
         </BrowserRouter>
       </ProjectCtx.Provider>
+      </ToastProvider>
     </ThemeCtx.Provider>
   )
 }
