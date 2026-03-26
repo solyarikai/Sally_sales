@@ -17,6 +17,30 @@ from app.services.telegram_engine import telegram_engine
 logger = logging.getLogger(__name__)
 
 
+def _build_connect_kwargs(account, proxy_row=None) -> dict:
+    """Build kwargs for telegram_engine.connect(), matching _account_connect_kwargs format."""
+    proxy = None
+    if proxy_row:
+        proxy = {
+            "host": proxy_row.host,
+            "port": proxy_row.port,
+            "username": proxy_row.username,
+            "password": proxy_row.password,
+            "protocol": proxy_row.protocol.value if hasattr(proxy_row.protocol, "value") else proxy_row.protocol,
+        }
+    return dict(
+        phone=account.phone,
+        api_id=account.api_id,
+        api_hash=account.api_hash,
+        device_model=account.device_model or "PC 64bit",
+        system_version=account.system_version or "Windows 10",
+        app_version=account.app_version or "6.5.1 x64",
+        lang_code=account.lang_code or "en",
+        system_lang_code=account.system_lang_code or "en-US",
+        proxy=proxy,
+    )
+
+
 class InboxSyncService:
     """Syncs Telegram dialogs to tg_inbox_dialogs for all active accounts."""
 
@@ -24,33 +48,37 @@ class InboxSyncService:
         """Sync dialogs for one account. Called on connect or periodically."""
         account = await session.get(TgAccount, account_id)
         if not account or account.status != TgAccountStatus.ACTIVE:
+            logger.debug(f"Inbox sync: account {account_id} skipped (not found or not active)")
             return 0
         if not account.api_id or not account.api_hash:
+            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) skipped (missing api_id/api_hash)")
             return 0
         if not telegram_engine.session_file_exists(account.phone):
+            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) skipped (no session file)")
             return 0
 
+        # Check if already connected — reuse existing client
+        already_connected = False
+        existing = telegram_engine.get_client(account_id)
+        if existing and existing.is_connected():
+            already_connected = True
+            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) already connected, reusing")
+
         try:
-            # Build connect kwargs
-            proxy = None
+            # Build connect kwargs the same way as the API endpoints
+            proxy_row = None
             if account.assigned_proxy_id:
                 from app.models.telegram_outreach import TgProxy
-                proxy = await session.get(TgProxy, account.assigned_proxy_id)
+                proxy_row = await session.get(TgProxy, account.assigned_proxy_id)
 
-            kwargs = {
-                "phone": account.phone,
-                "api_id": account.api_id,
-                "api_hash": account.api_hash,
-            }
-            if proxy:
-                kwargs["proxy"] = (
-                    proxy.protocol if proxy.protocol != "mtproto" else "socks5",
-                    proxy.host, proxy.port, True,
-                    proxy.username, proxy.password,
-                )
+            kwargs = _build_connect_kwargs(account, proxy_row)
+            logger.info(f"Inbox sync: connecting account {account_id} ({account.phone}), proxy={'yes' if proxy_row else 'no'}")
 
             await telegram_engine.connect(account_id, **kwargs)
             client = telegram_engine.get_client(account_id)
+            if not client:
+                logger.warning(f"Inbox sync: account {account_id} ({account.phone}) — connect returned but no client found")
+                return 0
             me = await client.get_me()
 
             synced = 0
@@ -114,14 +142,16 @@ class InboxSyncService:
                     continue
 
             await session.commit()
-            await telegram_engine.disconnect(account_id)
+            if not already_connected:
+                await telegram_engine.disconnect(account_id)
             logger.info(f"Inbox sync: account {account_id} ({account.phone}) — {synced} dialogs synced")
             return synced
         except Exception as e:
-            logger.warning(f"Inbox sync failed for account {account_id}: {e}")
+            logger.warning(f"Inbox sync failed for account {account_id}: {e}", exc_info=True)
             try:
-                await telegram_engine.disconnect(account_id)
-            except:
+                if not already_connected:
+                    await telegram_engine.disconnect(account_id)
+            except Exception:
                 pass
             return 0
 

@@ -3399,9 +3399,9 @@ async def list_inbox_dialogs(
     page_size: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
 ):
-    """List cached dialogs. At least one filter (account_id or campaign_id or campaign_tag) required."""
-    if not account_id and not campaign_id and not campaign_tag:
-        raise HTTPException(400, "Select at least one filter: account, campaign, or campaign tag")
+    """List cached dialogs. At least one filter required."""
+    if not account_id and not campaign_id and not campaign_tag and not tag:
+        raise HTTPException(400, "Select at least one filter: account, campaign, campaign tag, or tag")
 
     query = select(TgInboxDialog).order_by(TgInboxDialog.last_message_at.desc().nullslast())
     count_q = select(func.count(TgInboxDialog.id))
