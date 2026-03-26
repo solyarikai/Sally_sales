@@ -47,6 +47,14 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(setup_router, prefix="/api")
 app.include_router(pipeline_router, prefix="/api")
 
+# Contacts API — compatible with main app's ContactsPage
+from app.api.contacts import router as contacts_router
+app.include_router(contacts_router, prefix="/api")
+
+# Replies API — stubs for TasksPage compatibility
+from app.api.replies import router as replies_router
+app.include_router(replies_router, prefix="/api")
+
 # ── MCP SSE (official SDK) ──
 from app.mcp.server import sse_transport, mcp_server
 
