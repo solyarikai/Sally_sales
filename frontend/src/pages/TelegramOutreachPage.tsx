@@ -739,7 +739,7 @@ function CampaignsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succe
 // Proxies Tab
 // ══════════════════════════════════════════════════════════════════════
 
-function ProxiesTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+function ProxiesTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) { void _t;
   const [groups, setGroups] = useState<TgProxyGroup[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<TgProxyGroup | null>(null);
   const [proxies, setProxies] = useState<TgProxy[]>([]);
@@ -2121,7 +2121,7 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
 // Parser Tab
 // ══════════════════════════════════════════════════════════════════════
 
-function ParserTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+function ParserTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) { void _t;
   const [groupInput, setGroupInput] = useState('');
   const [accountId, setAccountId] = useState<number | ''>('');
   const [accounts, setAccounts] = useState<TgAccount[]>([]);
@@ -2437,7 +2437,7 @@ const CRM_STATUS_COLORS: Record<string, string> = {
 
 const CRM_PIPELINE = ['cold', 'contacted', 'replied', 'qualified', 'meeting_set', 'converted', 'not_interested'];
 
-function CrmTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) { void _t;
   const [contacts, setContacts] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
