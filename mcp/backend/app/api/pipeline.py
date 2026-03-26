@@ -54,12 +54,13 @@ async def create_project(
 
 @router.get("/projects")
 async def list_projects(
-    user: MCPUser = Depends(get_current_user),
+    user: MCPUser = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ):
-    result = await session.execute(
-        select(Project).where(Project.user_id == user.id, Project.is_active == True)
-    )
+    query = select(Project).where(Project.is_active == True)
+    if user:
+        query = query.where(Project.user_id == user.id)
+    result = await session.execute(query)
     return [{"id": p.id, "name": p.name, "target_segments": p.target_segments,
              "sender_name": p.sender_name, "sender_company": p.sender_company} for p in result.scalars().all()]
 
