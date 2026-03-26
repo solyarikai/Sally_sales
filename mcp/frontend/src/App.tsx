@@ -84,7 +84,7 @@ export default function App() {
       <ToastProvider>
       <ProjectCtx.Provider value={{ project, projects, setProject, reload: loadProjects }}>
         <BrowserRouter>
-          <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
+          <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', color: 'var(--text)' }}>
             <header style={{ height: 48, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', background: 'var(--bg-header)' }}>
               <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 16, textDecoration: 'none' }}>
                 <div style={{ width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: dark ? '#d4d4d4' : '#333' }}>
@@ -102,16 +102,18 @@ export default function App() {
                 <button onClick={() => setDark(d => !d)} style={{ padding: '4px 8px', borderRadius: 4, fontSize: 12, border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--text-muted)' }}>{dark ? '☀' : '☾'}</button>
               </div>
             </header>
-            <Routes>
-              <Route path="/" element={<PipelineRunsPage />} />
-              <Route path="/setup" element={<SetupPage />} />
-              <Route path="/pipeline" element={<PipelineRunsPage />} />
-              <Route path="/pipeline/:runId" element={<PipelinePage />} />
-              <Route path="/pipeline/:runId/prompts" element={<PromptsPage />} />
-              <Route path="/crm" element={<CRMPage />} />
-              <Route path="/tasks" element={<TasksPage />} />
-              <Route path="/tasks/:tab" element={<TasksPage />} />
-            </Routes>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <Routes>
+                <Route path="/" element={<PipelineRunsPage />} />
+                <Route path="/setup" element={<SetupPage />} />
+                <Route path="/pipeline" element={<PipelineRunsPage />} />
+                <Route path="/pipeline/:runId" element={<PipelinePage />} />
+                <Route path="/pipeline/:runId/prompts" element={<PromptsPage />} />
+                <Route path="/crm" element={<CRMPage />} />
+                <Route path="/tasks" element={<TasksPage />} />
+                <Route path="/tasks/:tab" element={<TasksPage />} />
+              </Routes>
+            </div>
           </div>
         </BrowserRouter>
       </ProjectCtx.Provider>
