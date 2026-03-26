@@ -84,8 +84,8 @@ export default function App() {
       <ToastProvider>
       <ProjectCtx.Provider value={{ project, projects, setProject, reload: loadProjects }}>
         <BrowserRouter>
-          <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', color: 'var(--text)' }}>
-            <header style={{ height: 48, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', background: 'var(--bg-header)' }}>
+          <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: dark ? '#1e1e1e' : '#f5f5f5', color: dark ? '#d4d4d4' : '#333' }}>
+            <header style={{ height: 48, borderBottom: `1px solid ${dark ? '#333' : '#e0e0e0'}`, display: 'flex', alignItems: 'center', padding: '0 16px', background: dark ? '#252526' : '#ffffff' }}>
               <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 16, textDecoration: 'none' }}>
                 <div style={{ width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: dark ? '#d4d4d4' : '#333' }}>
                   <span style={{ fontWeight: 700, fontSize: 11, color: dark ? '#1e1e1e' : 'white' }}>M</span>
