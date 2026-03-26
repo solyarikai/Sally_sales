@@ -197,11 +197,14 @@ export function ContactsPage() {
     onConfirm: () => void;
   }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
-  // Debounce search
+  // Debounce search + clear AG Grid column filters to avoid client/server conflict
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
       setPage(1);
+      if (search && gridRef.current?.api) {
+        gridRef.current.api.setFilterModel(null);
+      }
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
@@ -774,7 +777,9 @@ export function ContactsPage() {
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
     suppressMovable: false,
-    filter: false,
+    filter: 'agTextColumnFilter',
+    floatingFilter: false,
+    filterParams: { debounceMs: 300 },
     cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), []);
 
