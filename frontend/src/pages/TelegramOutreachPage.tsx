@@ -16,6 +16,17 @@ import type {
 
 type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'info';
 
+// ── Helpers ───────────────────────────────────────────────────────────
+
+/** Convert ISO 3166-1 alpha-2 country code to emoji flag. "RU" → 🇷🇺 */
+function countryFlag(code: string): string {
+  const upper = code.toUpperCase();
+  if (upper.length !== 2) return code;
+  return String.fromCodePoint(
+    ...Array.from(upper).map(c => 0x1F1E6 + c.charCodeAt(0) - 65)
+  );
+}
+
 // ── Status badges ─────────────────────────────────────────────────────
 
 const ACCOUNT_STATUS_COLORS: Record<string, string> = {
@@ -346,8 +357,8 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                     <td className={cn('px-3 py-2 font-mono text-xs cursor-pointer hover:text-indigo-600', t.text1)}
                         onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(acc.phone); }}
                         title="Click to copy">{acc.phone}</td>
-                    <td className="px-1 py-2 text-center text-xs">
-                      {acc.country_code || '--'}
+                    <td className="px-1 py-2 text-center" title={acc.country_code || ''}>
+                      {acc.country_code ? countryFlag(acc.country_code) : <span className={cn('text-xs', t.text3)}>--</span>}
                     </td>
                     <td className={cn('px-3 py-2 text-xs', t.text1)}>
                       {acc.username ? <span>@{acc.username}</span> : <span className={t.text3}>--</span>}
