@@ -10,7 +10,10 @@
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.0.0"
+    "react-router-dom": "^7.0.0",
+    "ag-grid-community": "^35.0.1",
+    "ag-grid-react": "^35.0.1",
+    "lucide-react": "^0.562.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
