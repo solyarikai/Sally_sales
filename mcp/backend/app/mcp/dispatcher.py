@@ -615,6 +615,93 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         await session.flush()
         return {"run_id": run.id, "message": "Full pipeline started. Use pipeline_status to track progress."}
 
+    # ── CRM Queries ──
+    if tool_name == "query_contacts":
+        user = await _get_user(token, session)
+        from app.models.pipeline import ExtractedContact
+
+        query = select(ExtractedContact).order_by(ExtractedContact.created_at.desc())
+
+        project_id = args.get("project_id")
+        if not project_id and user.active_project_id:
+            project_id = user.active_project_id
+        if project_id:
+            query = query.where(ExtractedContact.project_id == project_id)
+
+        search = args.get("search")
+        if search:
+            query = query.where(
+                (ExtractedContact.email.ilike(f"%{search}%")) |
+                (ExtractedContact.first_name.ilike(f"%{search}%")) |
+                (ExtractedContact.last_name.ilike(f"%{search}%"))
+            )
+
+        limit = args.get("limit", 20)
+        query = query.limit(min(limit, 100))
+        result = await session.execute(query)
+        contacts = result.scalars().all()
+
+        # Build CRM deep link
+        crm_params = []
+        if project_id:
+            crm_params.append(f"project_id={project_id}")
+        if search:
+            crm_params.append(f"search={search}")
+        if args.get("has_replied"):
+            crm_params.append("has_replied=true")
+        if args.get("needs_followup"):
+            crm_params.append("needs_followup=true")
+        if args.get("reply_category"):
+            crm_params.append(f"reply_category={args['reply_category']}")
+        if args.get("pipeline_run_id"):
+            crm_params.append(f"pipeline={args['pipeline_run_id']}")
+        crm_link = f"http://46.62.210.24:3000/crm" + ("?" + "&".join(crm_params) if crm_params else "")
+
+        return {
+            "total": len(contacts),
+            "contacts": [
+                {"email": c.email, "name": f"{c.first_name or ''} {c.last_name or ''}".strip() or None, "job_title": c.job_title, "source": c.email_source}
+                for c in contacts
+            ],
+            "message": f"Found {len(contacts)} contacts. View in CRM: {crm_link}",
+            "_links": {"crm": crm_link},
+        }
+
+    if tool_name == "crm_stats":
+        user = await _get_user(token, session)
+        from app.models.pipeline import ExtractedContact, DiscoveredCompany
+        from app.models.campaign import Campaign
+        from sqlalchemy import func as sa_func
+
+        project_id = args.get("project_id") or user.active_project_id
+
+        total_contacts = (await session.execute(
+            select(sa_func.count(ExtractedContact.id)).where(ExtractedContact.project_id == project_id) if project_id else select(sa_func.count(ExtractedContact.id))
+        )).scalar() or 0
+
+        total_companies = (await session.execute(
+            select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.project_id == project_id) if project_id else select(sa_func.count(DiscoveredCompany.id))
+        )).scalar() or 0
+
+        blacklisted = (await session.execute(
+            select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_blacklisted == True, DiscoveredCompany.project_id == project_id) if project_id else select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_blacklisted == True)
+        )).scalar() or 0
+
+        targets = (await session.execute(
+            select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_target == True, DiscoveredCompany.project_id == project_id) if project_id else select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_target == True)
+        )).scalar() or 0
+
+        crm_link = f"http://46.62.210.24:3000/crm" + (f"?project_id={project_id}" if project_id else "")
+
+        return {
+            "total_contacts": total_contacts,
+            "total_companies": total_companies,
+            "blacklisted_domains": blacklisted,
+            "targets": targets,
+            "message": f"{total_contacts} contacts, {total_companies} companies ({targets} targets, {blacklisted} blacklisted).",
+            "_links": {"crm": crm_link},
+        }
+
     # ── SmartLead Campaign Import ──
     if tool_name == "list_smartlead_campaigns":
         user = await _get_user(token, session)
