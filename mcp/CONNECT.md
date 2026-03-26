@@ -2,7 +2,7 @@
 
 Server URL: `http://46.62.210.24:8002/mcp/sse`
 
-26 tools for lead gathering, campaign generation, and pipeline management. See `tools.md` for the full list.
+27 tools for lead gathering, campaign generation, and pipeline management. See `tools.md` for the full list.
 
 ---
 
@@ -12,20 +12,7 @@ Server URL: `http://46.62.210.24:8002/mcp/sse`
 claude mcp add leadgen --transport sse http://46.62.210.24:8002/mcp/sse
 ```
 
-Or manually edit `~/.claude/settings.json`:
-
-```json
-{
-  "mcpServers": {
-    "leadgen": {
-      "type": "sse",
-      "url": "http://46.62.210.24:8002/mcp/sse"
-    }
-  }
-}
-```
-
-Restart Claude Code. Verify with:
+Then restart Claude Code. Verify:
 
 ```bash
 claude mcp list
@@ -48,7 +35,7 @@ Edit the config file:
 }
 ```
 
-Restart Claude Desktop. The toolbox icon should show 26 tools.
+Restart Claude Desktop. The toolbox icon should show 27 tools.
 
 ## Cursor
 
@@ -64,51 +51,66 @@ Same as Claude Code CLI — the extension reads `~/.claude/settings.json`.
 
 ---
 
-## First-Time Setup
+## CLAUDE.md for your project
 
-Once connected, run these in order:
+Create a `CLAUDE.md` in your project directory so Claude Code automatically uses MCP tools:
 
-### 1. Create your account
+```markdown
+# LeadGen Operator
 
-> "Set up my MCP account with email yourname@company.com and name Your Name"
+You are a lead generation assistant. Use the **leadgen** MCP tools for everything.
+Never write code or scripts.
 
-This calls `setup_account` and returns an API token. **Save it** — it's shown once.
+You can: set up accounts, manage projects, gather companies from Apollo,
+run pipeline (blacklist, scrape, analyze), create campaigns, check status.
 
-### 2. Connect your API keys
+Rules:
+- Always ask before gathering: keywords, locations, company size, max pages
+- Always confirm project first
+- Never skip checkpoints — ask user to approve
+- Campaigns are always DRAFT
+- Share UI links: http://46.62.210.24:3000/pipeline/{runId}
+```
 
-> "Connect my SmartLead with key eaa086b6-..."
-> "Connect my Apollo with key ..."
+With this file, you just talk naturally:
+- "Find IT companies in US, 50-200 employees" → calls `tam_gather`
+- "What's my pipeline status?" → calls `pipeline_status`
+- "Create a campaign" → calls `god_generate_sequence`
 
-This calls `configure_integration` for each service. It tests the connection automatically.
-
-### 3. Create a project
-
-> "Create a project called 'My Company - DACH SaaS' targeting Series A-B SaaS in Germany, 50-500 employees, sender Marina from easystaff.io"
-
-### 4. Run the pipeline
-
-> "Gather companies from Apollo for my DACH project — SaaS keywords, Germany, 50-200 employees, max 4 pages"
-
-The pipeline stops at 3 mandatory checkpoints for your approval:
-- **CP1**: Project scope + blacklist review
-- **CP2**: Target list review (after AI analysis)
-- **CP3**: FindyMail cost approval (before spending credits)
+No need to mention "MCP" or tool names.
 
 ---
 
-## Authentication
+## First-Time Setup
 
-All tool calls (except `setup_account`) require your API token. The MCP client passes it automatically via the `Authorization: Bearer` header on the SSE connection.
+Once connected, just talk:
 
-If you need to pass it manually in tool arguments, use `_token`:
+1. **"Set up my account as Marina, marina@easystaff.io"**
+   → Creates account, returns API token. Save it.
 
-```json
-{"name": "list_projects", "arguments": {"_token": "mcp_a1b2c3..."}}
-```
+2. **"Connect SmartLead with key eaa086b6-..."**
+   → Tests connection, shows "47 campaigns found"
+
+3. **"Create a project for EasyStaff targeting US IT companies"**
+   → Creates project with ICP
+
+4. **"Find IT consulting companies in US, 50-200 employees, 4 pages"**
+   → Runs pipeline, stops at checkpoints for your approval
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| Tools not loading after `mcp add` | Restart Claude Code (`exit` then `claude`) |
+| Tools still not loading | Check: `curl http://46.62.210.24:8002/mcp/sse` should return `event: endpoint` |
+| "Invalid session" | Reconnect — SSE session expired |
+| "Missing API token" | Say "set up my account" first |
+| "Integration not connected" | Say "connect my SmartLead with key ..." |
+| Connection refused | Server down — check `curl http://46.62.210.24:8002/api/health` |
 
 ## Running Locally
-
-If you want to run the MCP server on your own machine:
 
 ```bash
 cd mcp
@@ -116,13 +118,3 @@ docker-compose -f docker-compose.mcp.yml up --build -d
 ```
 
 Then use `http://localhost:8002/mcp/sse` instead of the Hetzner URL.
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| No tools showing | Check the URL ends with `/mcp/sse`, restart your client |
-| "Invalid session" | Reconnect — SSE session may have timed out |
-| "Missing API token" | Run `setup_account` first, then pass the token |
-| "Integration not connected" | Run `configure_integration` with your API key |
-| Connection refused | Verify server is running: `curl http://46.62.210.24:8002/api/health` |
