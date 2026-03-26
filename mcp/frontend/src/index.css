@@ -41,14 +41,12 @@ html, body, #root {
   margin: 0;
 }
 
-/* AG Grid needs explicit height chain from root to grid container */
-.mcp-content-area,
-.mcp-content-area > *,
-.mcp-content-area > * > *,
-.mcp-content-area > * > * > * {
-  height: 100% !important;
+/* ContactsPage uses h-full (height:100%). For this to work, EVERY ancestor
+   up to <html> must have explicit height. The content area is set via inline style.
+   React Router adds a wrapper div that breaks the chain. Force it: */
+.mcp-content-area > div {
+  height: 100%;
 }
-/* Don't force height on elements deeper than 3 levels (AG Grid manages its own) */
 
 body {
   background: var(--bg);
