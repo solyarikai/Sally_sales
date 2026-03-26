@@ -494,7 +494,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                         return days >= 30 ? `${Math.floor(days / 30)}m ${days % 30}d` : `${days}d`;
                       })() : '--'}
                     </td>
-                    <td className="px-2 py-2.5 font-mono text-[12px] whitespace-nowrap tabular-nums">
+                    <td className="px-2 py-2.5 text-[12px] whitespace-nowrap tabular-nums">
                       <span style={{ color: atLimit ? A.rose : A.text1, fontWeight: atLimit ? 600 : 400 }}>{acc.messages_sent_today}</span>
                       <span style={{ color: A.text3 }}>/{acc.daily_message_limit}</span>
                     </td>
@@ -610,58 +610,125 @@ function CampaignsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succe
     }
   };
 
+  const statusBadge = (status: string) => {
+    const map: Record<string, { bg: string; color: string; label: string }> = {
+      active: { bg: A.tealBg, color: A.teal, label: 'Active' },
+      paused: { bg: '#FFFBEB', color: '#D97706', label: 'Paused' },
+      draft: { bg: '#F3F4F6', color: '#6B7280', label: 'Draft' },
+      completed: { bg: A.blueBg, color: A.blue, label: 'Completed' },
+    };
+    const s = map[status] || { bg: '#F3F4F6', color: '#6B7280', label: status };
+    return (
+      <span style={{ display: 'inline-block', padding: '2px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 600, lineHeight: '18px', background: s.bg, color: s.color }}>{s.label}</span>
+    );
+  };
+
+  const progressBar = (c: TgCampaign) => {
+    const pct = c.total_recipients > 0 ? Math.min(100, Math.round((c.total_messages_sent / c.total_recipients) * 100)) : 0;
+    const barColor = c.status === 'completed' ? A.blue : A.teal;
+    return (
+      <div>
+        <span style={{ fontSize: 12, color: A.text1, fontWeight: 500 }}>{pct}%</span>
+        <div style={{ marginTop: 4, height: 4, borderRadius: 2, background: A.border, width: '100%' }}>
+          <div style={{ height: 4, borderRadius: 2, background: barColor, width: `${pct}%`, transition: 'width 0.3s' }} />
+        </div>
+      </div>
+    );
+  };
+
+  const thStyle = (extra?: React.CSSProperties): React.CSSProperties => ({
+    textAlign: 'left' as const, padding: '10px 12px', fontSize: 11, fontWeight: 600,
+    textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: A.text3, ...extra,
+  });
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <span className={cn('text-sm', t.text3)}>{campaigns.length} campaigns</span>
-        <button onClick={handleCreate}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+    <div>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <span style={{ fontSize: 14, fontWeight: 500, color: A.text2 }}>
+          {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}
+        </span>
+        <button
+          onClick={handleCreate}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: A.blue, color: '#FFF', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+          onMouseEnter={e => { e.currentTarget.style.background = A.blueHover; }}
+          onMouseLeave={e => { e.currentTarget.style.background = A.blue; }}
+        >
           <Plus className="w-4 h-4" />
           New Campaign
         </button>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className={cn('w-6 h-6 animate-spin', t.text3)} />
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+          <Loader2 className="w-6 h-6 animate-spin" style={{ color: A.text3 }} />
         </div>
       ) : campaigns.length === 0 ? (
-        <div className={cn('text-center py-12 rounded-lg border', t.cardBorder)}>
-          <Send className={cn('w-10 h-10 mx-auto mb-3', t.text3)} />
-          <p className={cn('text-sm', t.text3)}>No campaigns yet. Create your first campaign to start outreach.</p>
+        <div style={{ textAlign: 'center', padding: '48px 0', borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface }}>
+          <Send className="w-10 h-10 mx-auto mb-3" style={{ color: A.text3 }} />
+          <p style={{ fontSize: 13, color: A.text3 }}>No campaigns yet. Create your first campaign to start outreach.</p>
         </div>
       ) : (
-        <div className="grid gap-3">
-          {campaigns.map(c => (
-            <div key={c.id} onClick={() => navigate(`/telegram-outreach/campaign/${c.id}`)}
-                 className={cn('rounded-lg border p-4 flex items-center gap-4 cursor-pointer', t.cardBorder, 'hover:shadow-sm transition-shadow')}>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className={cn('font-medium truncate', t.text1)}>{c.name}</h3>
-                  <StatusBadge status={c.status} colorMap={CAMPAIGN_STATUS_COLORS} />
-                </div>
-                <div className={cn('flex items-center gap-4 mt-1 text-xs', t.text3)}>
-                  <span>{c.total_recipients} recipients</span>
-                  <span>{c.total_messages_sent} sent</span>
-                  <span>{c.accounts_count} accounts</span>
-                  <span>{c.delay_between_sends_min}-{c.delay_between_sends_max}s delay</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button onClick={e => { e.stopPropagation(); handleToggle(c); }}
-                        className={cn('p-2 rounded-lg border hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder)}
-                        title={c.status === 'active' ? 'Pause' : 'Start'}>
-                  {c.status === 'active' ? <Pause className="w-4 h-4 text-yellow-500" /> : <Play className="w-4 h-4 text-green-500" />}
-                </button>
-                <button onClick={e => { e.stopPropagation(); handleDelete(c.id); }}
-                        className={cn('p-2 rounded-lg border hover:bg-red-50 dark:hover:bg-red-900/20', t.cardBorder)}
-                        title="Delete">
-                  <Trash2 className="w-4 h-4 text-red-400" />
-                </button>
-              </div>
-            </div>
-          ))}
+        <div style={{ borderRadius: 10, border: `1px solid ${A.border}`, overflow: 'hidden', background: A.surface }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: '#F8F8F6' }}>
+                <th style={thStyle({ textAlign: 'left', padding: '10px 16px' })}>Name</th>
+                <th style={thStyle()}>Status</th>
+                <th style={thStyle({ minWidth: 100 })}>Progress</th>
+                <th style={thStyle({ textAlign: 'right' })}>Sent</th>
+                <th style={thStyle({ textAlign: 'right' })}>Today</th>
+                <th style={thStyle({ textAlign: 'right' })}>Replies</th>
+                <th style={thStyle({ textAlign: 'right' })}>Accounts</th>
+                <th style={thStyle({ textAlign: 'center' })}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {campaigns.map(c => (
+                <tr
+                  key={c.id}
+                  style={{ borderTop: `1px solid ${A.border}`, cursor: 'pointer' }}
+                  onClick={() => navigate(`/telegram-outreach/campaign/${c.id}`)}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#F8F8F5'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                >
+                  <td style={{ padding: '12px 16px', fontWeight: 500, color: A.text1, maxWidth: 260 }}>
+                    <span className="truncate block">{c.name}</span>
+                  </td>
+                  <td style={{ padding: '12px 12px' }}>{statusBadge(c.status)}</td>
+                  <td style={{ padding: '12px 12px', minWidth: 100 }}>{progressBar(c)}</td>
+                  <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{c.total_messages_sent}</td>
+                  <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{c.messages_sent_today}</td>
+                  <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: A.text3 }}>&mdash;</td>
+                  <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: A.text2, fontVariantNumeric: 'tabular-nums' }}>{c.accounts_count}</td>
+                  <td style={{ padding: '12px 12px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <button
+                        onClick={() => handleToggle(c)}
+                        title={c.status === 'active' ? 'Pause' : 'Start'}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: `1px solid ${A.border}`, background: 'transparent', cursor: 'pointer' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        {c.status === 'active'
+                          ? <Pause className="w-3.5 h-3.5" style={{ color: '#D97706' }} />
+                          : <Play className="w-3.5 h-3.5" style={{ color: A.teal }} />}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        title="Delete"
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: `1px solid ${A.border}`, background: 'transparent', cursor: 'pointer' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = A.roseBg; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" style={{ color: A.rose }} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -683,7 +750,6 @@ function ProxiesTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success
   const [newGroupCountry, setNewGroupCountry] = useState('');
   const [checking, setChecking] = useState(false);
   const [checkResults, setCheckResults] = useState<Record<number, { alive: boolean; latency_ms: number | null; error: string | null }>>({});
-  const { isDark } = useTheme();
 
   const loadGroups = useCallback(async () => {
     setLoading(true);
@@ -768,29 +834,29 @@ function ProxiesTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success
   return (
     <div className="flex gap-6 h-[calc(100vh-240px)]">
       {/* Left: Groups */}
-      <div className={cn('w-72 flex-shrink-0 rounded-lg border flex flex-col', t.cardBorder)}>
-        <div className={cn('px-4 py-3 border-b flex items-center justify-between', t.cardBorder)}>
-          <h3 className={cn('text-sm font-medium', t.text1)}>Proxy Groups</h3>
-          <button onClick={() => setShowAddGroup(true)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded" title="New group">
-            <Plus className={cn('w-4 h-4', t.text3)} />
+      <div className="w-72 flex-shrink-0 rounded-lg border flex flex-col" style={{ borderColor: A.border }}>
+        <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: A.border }}>
+          <h3 className="text-sm font-medium" style={{ color: A.text1 }}>Proxy Groups</h3>
+          <button onClick={() => setShowAddGroup(true)} className="p-1 hover:bg-[#F5F5F0] rounded" title="New group">
+            <Plus className="w-4 h-4" style={{ color: A.text3 }} />
           </button>
         </div>
 
         {showAddGroup && (
-          <div className={cn('px-4 py-3 border-b space-y-2', t.cardBorder)}>
+          <div className="px-4 py-3 border-b space-y-2" style={{ borderColor: A.border }}>
             <input type="text" placeholder="Group name" value={newGroupName}
                    onChange={e => setNewGroupName(e.target.value)}
-                   className={cn('w-full px-3 py-1.5 rounded border text-sm', t.cardBorder, t.cardBg, t.text1)} />
+                   className="w-full px-3 py-1.5 rounded border text-sm" style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
             <input type="text" placeholder="Country (optional)" value={newGroupCountry}
                    onChange={e => setNewGroupCountry(e.target.value)}
-                   className={cn('w-full px-3 py-1.5 rounded border text-sm', t.cardBorder, t.cardBg, t.text1)} />
+                   className="w-full px-3 py-1.5 rounded border text-sm" style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
             <div className="flex gap-2">
               <button onClick={handleCreateGroup}
-                      className="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700">
+                      className="px-3 py-1 text-white rounded text-xs font-medium" style={{ background: A.blue }}>
                 Create
               </button>
               <button onClick={() => setShowAddGroup(false)}
-                      className={cn('px-3 py-1 rounded border text-xs', t.cardBorder, t.text1)}>
+                      className="px-3 py-1 rounded border text-xs" style={{ borderColor: A.border, color: A.text1 }}>
                 Cancel
               </button>
             </div>
@@ -800,29 +866,32 @@ function ProxiesTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success
         <div className="flex-1 overflow-auto">
           {loading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className={cn('w-5 h-5 animate-spin', t.text3)} />
+              <Loader2 className="w-5 h-5 animate-spin" style={{ color: A.text3 }} />
             </div>
           ) : groups.length === 0 ? (
-            <p className={cn('text-center py-8 text-sm', t.text3)}>No groups yet</p>
+            <p className="text-center py-8 text-sm" style={{ color: A.text3 }}>No groups yet</p>
           ) : groups.map(g => (
             <div key={g.id}
                  onClick={() => setSelectedGroup(g)}
                  className={cn(
                    'px-4 py-3 cursor-pointer border-b flex items-center justify-between',
-                   t.cardBorder,
                    selectedGroup?.id === g.id
-                     ? 'bg-indigo-50 dark:bg-indigo-900/20'
-                     : 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
-                 )}>
+                     ? ''
+                     : 'hover:bg-[#F5F5F0]',
+                 )}
+                 style={{
+                   borderColor: A.border,
+                   ...(selectedGroup?.id === g.id ? { background: A.blueBg } : {}),
+                 }}>
               <div>
-                <div className={cn('text-sm font-medium', t.text1)}>{g.name}</div>
-                <div className={cn('text-xs', t.text3)}>
+                <div className="text-sm font-medium" style={{ color: A.text1 }}>{g.name}</div>
+                <div className="text-xs" style={{ color: A.text3 }}>
                   {g.country ? `${g.country} · ` : ''}{g.proxies_count} proxies
                 </div>
               </div>
               <button onClick={e => { e.stopPropagation(); handleDeleteGroup(g.id); }}
-                      className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100">
-                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      className="p-1 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100">
+                <Trash2 className="w-3.5 h-3.5" style={{ color: A.rose }} />
               </button>
             </div>
           ))}
@@ -834,7 +903,7 @@ function ProxiesTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success
         {selectedGroup ? (
           <>
             <div className="flex items-center justify-between">
-              <h3 className={cn('text-sm font-medium', t.text1)}>
+              <h3 className="text-sm font-medium" style={{ color: A.text1 }}>
                 {selectedGroup.name} — {proxies.length} proxies
               </h3>
               <div className="flex items-center gap-2">
@@ -850,7 +919,8 @@ function ProxiesTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success
                           finally { setChecking(false); }
                         }}
                         disabled={checking || proxies.length === 0}
-                        className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50', t.cardBorder, t.text1)}>
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-[#F5F5F0] disabled:opacity-50"
+                        style={{ borderColor: A.border, color: A.text1 }}>
                   {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                   Check All
                 </button>
@@ -868,7 +938,8 @@ function ProxiesTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success
                           finally { setChecking(false); }
                         }}
                         disabled={checking || proxies.length === 0}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50">
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium hover:opacity-80 disabled:opacity-50"
+                        style={{ background: A.roseBg, color: A.rose }}>
                   {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                   Check & Clean
                 </button>
@@ -882,61 +953,63 @@ function ProxiesTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success
                 placeholder="Paste proxies (one per line): ip:port:user:pass or user:pass@ip:port"
                 value={proxyText}
                 onChange={e => setProxyText(e.target.value)}
-                className={cn('flex-1 px-3 py-2 rounded-lg border text-sm font-mono', t.cardBorder, t.cardBg, t.text1)}
+                className="flex-1 px-3 py-2 rounded-lg border text-sm font-mono"
+                style={{ borderColor: A.border, background: A.surface, color: A.text1 }}
               />
               <button onClick={handleAddProxies} disabled={!proxyText.trim()}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 self-end">
+                      className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50 self-end"
+                      style={{ background: A.blue }}>
                 Add
               </button>
             </div>
 
             {/* Proxy list */}
-            <div className={cn('rounded-lg border overflow-hidden flex-1', t.cardBorder)}>
+            <div className="rounded-lg border overflow-hidden flex-1" style={{ borderColor: A.border }}>
               <table className="w-full text-sm">
-                <thead className={cn('border-b', t.cardBorder, isDark ? 'bg-gray-800/50' : 'bg-gray-50')}>
+                <thead className="border-b" style={{ borderColor: A.border, background: '#F9F9F7' }}>
                   <tr>
-                    <th className={cn('text-left px-3 py-2 font-medium', t.text3)}>Host</th>
-                    <th className={cn('text-left px-3 py-2 font-medium', t.text3)}>Port</th>
-                    <th className={cn('text-left px-3 py-2 font-medium', t.text3)}>User</th>
-                    <th className={cn('text-left px-3 py-2 font-medium', t.text3)}>Protocol</th>
-                    <th className={cn('text-left px-3 py-2 font-medium', t.text3)}>Status</th>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: A.text3 }}>Host</th>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: A.text3 }}>Port</th>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: A.text3 }}>User</th>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: A.text3 }}>Protocol</th>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: A.text3 }}>Status</th>
                     <th className="w-10" />
                   </tr>
                 </thead>
                 <tbody>
                   {proxies.length === 0 ? (
-                    <tr><td colSpan={6} className={cn('text-center py-8', t.text3)}>No proxies in this group</td></tr>
+                    <tr><td colSpan={6} className="text-center py-8" style={{ color: A.text3 }}>No proxies in this group</td></tr>
                   ) : proxies.map(p => (
-                    <tr key={p.id} className={cn('border-b', t.cardBorder)}>
-                      <td className={cn('px-3 py-2 font-mono text-xs', t.text1)}>{p.host}</td>
-                      <td className={cn('px-3 py-2 font-mono text-xs', t.text1)}>{p.port}</td>
-                      <td className={cn('px-3 py-2 text-xs', t.text3)}>{p.username || '—'}</td>
-                      <td className={cn('px-3 py-2 text-xs', t.text3)}>{p.protocol}</td>
+                    <tr key={p.id} className="border-b" style={{ borderColor: A.border }}>
+                      <td className="px-3 py-2 font-mono text-xs" style={{ color: A.text1 }}>{p.host}</td>
+                      <td className="px-3 py-2 font-mono text-xs" style={{ color: A.text1 }}>{p.port}</td>
+                      <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>{p.username || '—'}</td>
+                      <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>{p.protocol}</td>
                       <td className="px-3 py-2">
                         {checkResults[p.id] ? (
                           <span className={cn('px-1.5 py-0.5 rounded text-xs',
                             checkResults[p.id].alive
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-600'
                           )}>
                             {checkResults[p.id].alive
                               ? `alive ${checkResults[p.id].latency_ms}ms`
                               : `dead`}
                           </span>
                         ) : (
-                          <span className={cn('px-1.5 py-0.5 rounded text-xs', p.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-600')}>
+                          <span className={cn('px-1.5 py-0.5 rounded text-xs', p.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600')}>
                             {p.is_active ? 'active' : 'inactive'}
                           </span>
                         )}
                         {checkResults[p.id] && !checkResults[p.id].alive && checkResults[p.id].error && (
-                          <span className="ml-1 text-xs text-red-400" title={checkResults[p.id].error!}>
+                          <span className="ml-1 text-xs" style={{ color: A.rose }} title={checkResults[p.id].error!}>
                             ({checkResults[p.id].error!.substring(0, 20)})
                           </span>
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        <button onClick={() => handleDeleteProxy(p.id)} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
-                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        <button onClick={() => handleDeleteProxy(p.id)} className="p-1 hover:bg-red-50 rounded">
+                          <Trash2 className="w-3.5 h-3.5" style={{ color: A.rose }} />
                         </button>
                       </td>
                     </tr>
@@ -946,7 +1019,7 @@ function ProxiesTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success
             </div>
           </>
         ) : (
-          <div className={cn('flex items-center justify-center h-full', t.text3)}>
+          <div className="flex items-center justify-center h-full" style={{ color: A.text3 }}>
             <div className="text-center">
               <Globe className="w-10 h-10 mx-auto mb-3 opacity-50" />
               <p className="text-sm">Select a proxy group or create a new one</p>
@@ -2049,7 +2122,6 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
 // ══════════════════════════════════════════════════════════════════════
 
 function ParserTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
-  const { isDark } = useTheme();
   const [groupInput, setGroupInput] = useState('');
   const [accountId, setAccountId] = useState<number | ''>('');
   const [accounts, setAccounts] = useState<TgAccount[]>([]);
@@ -2083,65 +2155,67 @@ function ParserTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success'
     } catch { toast('Failed', 'error'); }
   };
 
-  const inputCls = cn('px-3 py-2 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1);
+  const inputStyle = { borderColor: A.border, background: A.surface, color: A.text1 };
 
   return (
     <div className="max-w-4xl space-y-4">
-      <div className={cn('rounded-lg border p-5', t.cardBorder)}>
-        <h3 className={cn('text-sm font-semibold mb-4', t.text1)}>Scrape Group Members</h3>
+      <div className="rounded-lg border p-5" style={{ borderColor: A.border }}>
+        <h3 className="text-sm font-semibold mb-4" style={{ color: A.text1 }}>Scrape Group Members</h3>
         <div className="flex gap-3 items-end">
           <div className="flex-1">
-            <label className={cn('block text-xs font-medium mb-1', t.text3)}>Group/Channel</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Group/Channel</label>
             <input value={groupInput} onChange={e => setGroupInput(e.target.value)}
-                   placeholder="@group_username or t.me/group" className={inputCls + ' w-full'} />
+                   placeholder="@group_username or t.me/group" className="px-3 py-2 rounded-lg border text-sm w-full" style={inputStyle} />
           </div>
           <div>
-            <label className={cn('block text-xs font-medium mb-1', t.text3)}>Account</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Account</label>
             <select value={accountId} onChange={e => setAccountId(e.target.value ? Number(e.target.value) : '')}
-                    className={inputCls}>
+                    className="px-3 py-2 rounded-lg border text-sm" style={inputStyle}>
               <option value="">Select...</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.phone} {a.first_name || ''}</option>)}
             </select>
           </div>
           <button onClick={handleScrape} disabled={loading}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                  className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                  style={{ background: A.blue }}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Scrape'}
           </button>
         </div>
       </div>
 
       {members.length > 0 && (
-        <div className={cn('rounded-lg border p-5', t.cardBorder)}>
+        <div className="rounded-lg border p-5" style={{ borderColor: A.border }}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className={cn('text-sm font-semibold', t.text1)}>{members.length} members found</h3>
+            <h3 className="text-sm font-semibold" style={{ color: A.text1 }}>{members.length} members found</h3>
             <div className="flex items-center gap-2">
               <select value={targetCampaignId}
                       onChange={e => setTargetCampaignId(e.target.value ? Number(e.target.value) : '')}
-                      className={inputCls}>
+                      className="px-3 py-2 rounded-lg border text-sm" style={inputStyle}>
                 <option value="">Add to campaign...</option>
                 {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <button onClick={handleAddToCampaign} disabled={!targetCampaignId}
-                      className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+                      className="px-3 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                      style={{ background: A.teal }}>
                 Add All
               </button>
             </div>
           </div>
-          <div className={cn('rounded-lg border overflow-auto max-h-80', t.cardBorder)}>
+          <div className="rounded-lg border overflow-auto max-h-80" style={{ borderColor: A.border }}>
             <table className="w-full text-xs">
-              <thead className={cn('border-b sticky top-0', t.cardBorder, isDark ? 'bg-gray-800' : 'bg-gray-50')}>
+              <thead className="border-b sticky top-0" style={{ borderColor: A.border, background: '#F9F9F7' }}>
                 <tr>
-                  <th className={cn('text-left px-3 py-2 font-medium', t.text3)}>Username</th>
-                  <th className={cn('text-left px-3 py-2 font-medium', t.text3)}>Name</th>
-                  <th className={cn('text-left px-3 py-2 font-medium', t.text3)}>Premium</th>
-                  <th className={cn('text-left px-3 py-2 font-medium', t.text3)}>Photo</th>
+                  <th className="text-left px-3 py-2 font-medium" style={{ color: A.text3 }}>Username</th>
+                  <th className="text-left px-3 py-2 font-medium" style={{ color: A.text3 }}>Name</th>
+                  <th className="text-left px-3 py-2 font-medium" style={{ color: A.text3 }}>Premium</th>
+                  <th className="text-left px-3 py-2 font-medium" style={{ color: A.text3 }}>Photo</th>
                 </tr>
               </thead>
               <tbody>
                 {members.map((m: any, i: number) => (
-                  <tr key={i} className={cn('border-b', t.cardBorder)}>
-                    <td className={cn('px-3 py-1.5 font-mono', t.text1)}>@{m.username}</td>
-                    <td className={cn('px-3 py-1.5', t.text1)}>{[m.first_name, m.last_name].filter(Boolean).join(' ')}</td>
+                  <tr key={i} className="border-b" style={{ borderColor: A.border }}>
+                    <td className="px-3 py-1.5 font-mono" style={{ color: A.text1 }}>@{m.username}</td>
+                    <td className="px-3 py-1.5" style={{ color: A.text1 }}>{[m.first_name, m.last_name].filter(Boolean).join(' ')}</td>
                     <td className="px-3 py-1.5">{m.is_premium ? '⭐' : ''}</td>
                     <td className="px-3 py-1.5">{m.has_photo ? '📷' : ''}</td>
                   </tr>
@@ -2352,19 +2426,18 @@ function InfoTab({ t }: { t: any }) {
 }
 
 const CRM_STATUS_COLORS: Record<string, string> = {
-  cold: 'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-400',
-  contacted: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  replied: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  qualified: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  meeting_set: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
-  converted: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  not_interested: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  cold: 'bg-gray-100 text-gray-700',
+  contacted: 'bg-blue-100 text-blue-700',
+  replied: 'bg-green-100 text-green-700',
+  qualified: 'bg-purple-100 text-purple-700',
+  meeting_set: 'bg-indigo-100 text-indigo-700',
+  converted: 'bg-emerald-100 text-emerald-700',
+  not_interested: 'bg-red-100 text-red-700',
 };
 
 const CRM_PIPELINE = ['cold', 'contacted', 'replied', 'qualified', 'meeting_set', 'converted', 'not_interested'];
 
 function CrmTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
-  const { isDark } = useTheme();
   const [contacts, setContacts] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -2419,10 +2492,11 @@ function CrmTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 
       <div className="grid grid-cols-7 gap-2">
         {CRM_PIPELINE.map(s => (
           <button key={s} onClick={() => { setStatusFilter(statusFilter === s ? '' : s); setPage(1); }}
-                  className={cn('rounded-lg border px-3 py-2 text-center transition-colors', t.cardBorder,
-                    statusFilter === s ? 'ring-2 ring-indigo-500' : '')}>
-            <div className={cn('text-xl font-bold', t.text1)}>{stats[s] || 0}</div>
-            <div className={cn('text-[10px] capitalize', t.text3)}>{s.replace('_', ' ')}</div>
+                  className={cn('rounded-lg border px-3 py-2 text-center transition-colors',
+                    statusFilter === s ? 'ring-2 ring-[#4F6BF0]' : '')}
+                  style={{ borderColor: A.border }}>
+            <div className="text-xl font-bold" style={{ color: A.text1 }}>{stats[s] || 0}</div>
+            <div className="text-[10px] capitalize" style={{ color: A.text3 }}>{s.replace('_', ' ')}</div>
           </button>
         ))}
       </div>
@@ -2430,15 +2504,16 @@ function CrmTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 
       {/* Toolbar */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-md">
-          <Search className={cn('absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5', t.text3)} />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: A.text3 }} />
           <input type="text" placeholder="Search contacts..." value={search}
                  onChange={e => { setSearch(e.target.value); setPage(1); }}
-                 className={cn('pl-8 pr-3 py-1.5 rounded-lg border text-xs w-full', t.cardBorder, t.cardBg, t.text1)} />
+                 className="pl-8 pr-3 py-1.5 rounded-lg border text-xs w-full"
+                 style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
         </div>
-        <span className={cn('text-xs', t.text3)}>{total} contacts</span>
+        <span className="text-xs" style={{ color: A.text3 }}>{total} contacts</span>
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-1 ml-auto">
-            <span className={cn('text-xs', t.text3)}>{selectedIds.size} selected</span>
+            <span className="text-xs" style={{ color: A.text3 }}>{selectedIds.size} selected</span>
             <select onChange={e => {
                       if (!e.target.value) return;
                       telegramOutreachApi.bulkUpdateCrmStatus(Array.from(selectedIds), e.target.value)
@@ -2446,7 +2521,8 @@ function CrmTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 
                         .catch(() => toast('Failed', 'error'));
                       e.target.value = '';
                     }}
-                    className={cn('px-2 py-1 rounded border text-xs', t.cardBorder, t.cardBg, t.text1)}>
+                    className="px-2 py-1 rounded border text-xs"
+                    style={{ borderColor: A.border, background: A.surface, color: A.text1 }}>
               <option value="">Set status...</option>
               {CRM_PIPELINE.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
             </select>
@@ -2456,44 +2532,45 @@ function CrmTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 
 
       {/* Table */}
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className={cn('w-6 h-6 animate-spin', t.text3)} /></div>
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" style={{ color: A.text3 }} /></div>
       ) : contacts.length === 0 ? (
-        <div className={cn('text-center py-12 rounded-lg border', t.cardBorder)}>
-          <Users className={cn('w-10 h-10 mx-auto mb-3', t.text3)} />
-          <p className={cn('text-sm', t.text3)}>No CRM contacts yet. Contacts auto-created when campaigns send messages.</p>
+        <div className="text-center py-12 rounded-lg border" style={{ borderColor: A.border }}>
+          <Users className="w-10 h-10 mx-auto mb-3" style={{ color: A.text3 }} />
+          <p className="text-sm" style={{ color: A.text3 }}>No CRM contacts yet. Contacts auto-created when campaigns send messages.</p>
         </div>
       ) : (
-        <div className={cn('rounded-lg border overflow-hidden', t.cardBorder)}>
+        <div className="rounded-lg border overflow-hidden" style={{ borderColor: A.border }}>
           <table className="w-full text-sm">
-            <thead className={cn('border-b', t.cardBorder, isDark ? 'bg-gray-800/50' : 'bg-gray-50')}>
+            <thead className="border-b" style={{ borderColor: A.border, background: '#F9F9F7' }}>
               <tr>
                 <th className="w-8 px-2 py-2"><input type="checkbox" onChange={e => {
                   setSelectedIds(e.target.checked ? new Set(contacts.map((c: any) => c.id)) : new Set());
                 }} className="rounded" /></th>
-                <th className={cn('text-left px-3 py-2 text-xs font-medium', t.text3)}>Username</th>
-                <th className={cn('text-left px-3 py-2 text-xs font-medium', t.text3)}>Name</th>
-                <th className={cn('text-left px-3 py-2 text-xs font-medium', t.text3)}>Company</th>
-                <th className={cn('text-left px-3 py-2 text-xs font-medium', t.text3)}>Status</th>
-                <th className={cn('text-left px-2 py-2 text-xs font-medium', t.text3)}>Sent</th>
-                <th className={cn('text-left px-2 py-2 text-xs font-medium', t.text3)}>Replies</th>
-                <th className={cn('text-left px-3 py-2 text-xs font-medium', t.text3)}>Campaigns</th>
-                <th className={cn('text-left px-3 py-2 text-xs font-medium', t.text3)}>Last Contact</th>
+                <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: A.text3 }}>Username</th>
+                <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: A.text3 }}>Name</th>
+                <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: A.text3 }}>Company</th>
+                <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: A.text3 }}>Status</th>
+                <th className="text-left px-2 py-2 text-xs font-medium" style={{ color: A.text3 }}>Sent</th>
+                <th className="text-left px-2 py-2 text-xs font-medium" style={{ color: A.text3 }}>Replies</th>
+                <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: A.text3 }}>Campaigns</th>
+                <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: A.text3 }}>Last Contact</th>
               </tr>
             </thead>
             <tbody>
               {contacts.map((c: any) => (
                 <tr key={c.id} onClick={() => openContact(c)}
-                    className={cn('border-b cursor-pointer transition-colors', t.cardBorder,
-                      selectedIds.has(c.id) ? 'bg-indigo-50/60 dark:bg-indigo-900/15' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50')}>
+                    className={cn('border-b cursor-pointer transition-colors',
+                      selectedIds.has(c.id) ? '' : 'hover:bg-[#F5F5F0]')}
+                    style={{ borderColor: A.border, ...(selectedIds.has(c.id) ? { background: A.blueBg } : {}) }}>
                   <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(c.id)}
                            onChange={() => setSelectedIds(prev => {
                              const next = new Set(prev); next.has(c.id) ? next.delete(c.id) : next.add(c.id); return next;
                            })} className="rounded" />
                   </td>
-                  <td className={cn('px-3 py-2 font-mono text-xs', t.text1)}>@{c.username}</td>
-                  <td className={cn('px-3 py-2 text-xs', t.text1)}>{[c.first_name, c.last_name].filter(Boolean).join(' ') || '--'}</td>
-                  <td className={cn('px-3 py-2 text-xs', t.text3)}>{c.company_name || '--'}</td>
+                  <td className="px-3 py-2 font-mono text-xs" style={{ color: A.text1 }}>@{c.username}</td>
+                  <td className="px-3 py-2 text-xs" style={{ color: A.text1 }}>{[c.first_name, c.last_name].filter(Boolean).join(' ') || '--'}</td>
+                  <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>{c.company_name || '--'}</td>
                   <td className="px-3 py-2">
                     <select value={c.status} onClick={e => e.stopPropagation()}
                             onChange={e => updateStatus(c.id, e.target.value)}
@@ -2502,14 +2579,14 @@ function CrmTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 
                       {CRM_PIPELINE.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                     </select>
                   </td>
-                  <td className={cn('px-2 py-2 text-xs font-mono', t.text1)}>{c.total_messages_sent}</td>
-                  <td className={cn('px-2 py-2 text-xs font-mono', c.total_replies_received > 0 ? 'text-green-600' : t.text3)}>
+                  <td className="px-2 py-2 text-xs font-mono" style={{ color: A.text1 }}>{c.total_messages_sent}</td>
+                  <td className="px-2 py-2 text-xs font-mono" style={{ color: c.total_replies_received > 0 ? '#16a34a' : A.text3 }}>
                     {c.total_replies_received}
                   </td>
-                  <td className={cn('px-3 py-2 text-[10px]', t.text3)}>
+                  <td className="px-3 py-2 text-[10px]" style={{ color: A.text3 }}>
                     {(c.campaigns || []).map((camp: any) => camp.name).join(', ').substring(0, 30) || '--'}
                   </td>
-                  <td className={cn('px-3 py-2 text-xs', t.text3)}>
+                  <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>
                     {c.last_contacted_at ? new Date(c.last_contacted_at).toLocaleDateString() : '--'}
                   </td>
                 </tr>
@@ -2521,13 +2598,15 @@ function CrmTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <span className={cn('text-sm', t.text3)}>{total} total</span>
+          <span className="text-sm" style={{ color: A.text3 }}>{total} total</span>
           <div className="flex items-center gap-2">
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-                    className={cn('px-3 py-1.5 rounded border text-sm', t.cardBorder, page <= 1 && 'opacity-50')}>Prev</button>
-            <span className={cn('text-sm', t.text1)}>Page {page}/{totalPages}</span>
+                    className={cn('px-3 py-1.5 rounded border text-sm', page <= 1 && 'opacity-50')}
+                    style={{ borderColor: A.border }}>Prev</button>
+            <span className="text-sm" style={{ color: A.text1 }}>Page {page}/{totalPages}</span>
             <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-                    className={cn('px-3 py-1.5 rounded border text-sm', t.cardBorder, page >= totalPages && 'opacity-50')}>Next</button>
+                    className={cn('px-3 py-1.5 rounded border text-sm', page >= totalPages && 'opacity-50')}
+                    style={{ borderColor: A.border }}>Next</button>
           </div>
         </div>
       )}
@@ -2535,70 +2614,72 @@ function CrmTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 
       {/* Contact Detail Modal */}
       {selectedContact && (
         <ModalBackdrop onClose={() => setSelectedContact(null)}>
-          <div className={cn('w-[600px] rounded-xl border shadow-xl max-h-[80vh] overflow-y-auto', t.cardBorder, isDark ? 'bg-gray-900' : 'bg-white')}>
-            <div className={cn('px-6 py-4 border-b flex items-center justify-between', t.cardBorder)}>
+          <div className="w-[600px] rounded-xl border shadow-xl max-h-[80vh] overflow-y-auto"
+               style={{ borderColor: A.border, background: A.surface }}>
+            <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: A.border }}>
               <div>
-                <h2 className={cn('text-lg font-semibold', t.text1)}>@{selectedContact.username}</h2>
-                <p className={cn('text-xs', t.text3)}>
+                <h2 className="text-lg font-semibold" style={{ color: A.text1 }}>@{selectedContact.username}</h2>
+                <p className="text-xs" style={{ color: A.text3 }}>
                   {[selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' ')}
                   {selectedContact.company_name ? ` - ${selectedContact.company_name}` : ''}
                 </p>
               </div>
-              <button onClick={() => setSelectedContact(null)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
-                <X className="w-5 h-5 text-gray-400" />
+              <button onClick={() => setSelectedContact(null)} className="p-1 hover:bg-[#F5F5F0] rounded">
+                <X className="w-5 h-5" style={{ color: A.text3 }} />
               </button>
             </div>
             <div className="px-6 py-4 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={cn('block text-xs font-medium mb-1', t.text3)}>Status</label>
+                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Status</label>
                   <select value={selectedContact.status}
                           onChange={e => { updateStatus(selectedContact.id, e.target.value); setSelectedContact({...selectedContact, status: e.target.value}); }}
-                          className={cn('w-full px-3 py-2 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1)}>
+                          className="w-full px-3 py-2 rounded-lg border text-sm"
+                          style={{ borderColor: A.border, background: A.surface, color: A.text1 }}>
                     {CRM_PIPELINE.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className={cn('block text-xs font-medium mb-1', t.text3)}>Campaigns</label>
-                  <div className={cn('text-xs pt-2', t.text1)}>
+                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Campaigns</label>
+                  <div className="text-xs pt-2" style={{ color: A.text1 }}>
                     {(selectedContact.campaigns || []).map((c: any) => c.name).join(', ') || 'None'}
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
-                <div className={cn('rounded-lg border p-2', t.cardBorder)}>
-                  <div className={cn('text-lg font-bold', t.text1)}>{selectedContact.total_messages_sent}</div>
-                  <div className={cn('text-[10px]', t.text3)}>Sent</div>
+                <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
+                  <div className="text-lg font-bold" style={{ color: A.text1 }}>{selectedContact.total_messages_sent}</div>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>Sent</div>
                 </div>
-                <div className={cn('rounded-lg border p-2', t.cardBorder)}>
+                <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
                   <div className="text-lg font-bold text-green-600">{selectedContact.total_replies_received}</div>
-                  <div className={cn('text-[10px]', t.text3)}>Replies</div>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>Replies</div>
                 </div>
-                <div className={cn('rounded-lg border p-2', t.cardBorder)}>
-                  <div className={cn('text-lg font-bold', t.text1)}>
+                <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
+                  <div className="text-lg font-bold" style={{ color: A.text1 }}>
                     {selectedContact.last_reply_at ? new Date(selectedContact.last_reply_at).toLocaleDateString() : '--'}
                   </div>
-                  <div className={cn('text-[10px]', t.text3)}>Last Reply</div>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>Last Reply</div>
                 </div>
               </div>
               <div>
-                <h3 className={cn('text-xs font-semibold mb-2', t.text1)}>History</h3>
+                <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>History</h3>
                 {history.length === 0 ? (
-                  <p className={cn('text-xs text-center py-4', t.text3)}>No messages yet</p>
+                  <p className="text-xs text-center py-4" style={{ color: A.text3 }}>No messages yet</p>
                 ) : (
                   <div className="space-y-1.5 max-h-60 overflow-y-auto">
                     {history.map((h: any, i: number) => (
-                      <div key={i} className={cn('rounded px-3 py-2 text-xs',
-                        h.type === 'sent' ? (isDark ? 'bg-gray-800' : 'bg-gray-50') : 'bg-green-50 dark:bg-green-900/20')}>
+                      <div key={i} className="rounded px-3 py-2 text-xs"
+                           style={{ background: h.type === 'sent' ? '#F9F9F7' : A.tealBg }}>
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className={cn('font-medium', h.type === 'sent' ? t.text3 : 'text-green-600')}>
+                          <span className="font-medium" style={{ color: h.type === 'sent' ? A.text3 : A.teal }}>
                             {h.type === 'sent' ? 'Sent' : 'Reply'}
                           </span>
-                          <span className={cn('text-[10px]', t.text3)}>
+                          <span className="text-[10px]" style={{ color: A.text3 }}>
                             {h.time ? new Date(h.time).toLocaleString() : ''}
                           </span>
                         </div>
-                        <p className={t.text1}>{h.text}</p>
+                        <p style={{ color: A.text1 }}>{h.text}</p>
                       </div>
                     ))}
                   </div>
