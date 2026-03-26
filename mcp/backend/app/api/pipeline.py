@@ -1,17 +1,18 @@
 """Pipeline REST API — read-only endpoints for frontend, auth-required for writes."""
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func as sa_func, outerjoin
 
 from app.db import get_session
 from app.models.user import MCPUser
 from app.models.project import Project, Company
-from app.models.gathering import GatheringRun, ApprovalGate, CompanyScrape
+from app.models.gathering import GatheringRun, ApprovalGate, CompanyScrape, CompanySourceLink
 from app.models.pipeline import DiscoveredCompany
 from app.models.campaign import GeneratedSequence, Campaign
+from app.models.usage import MCPUsageLog
 from app.auth.dependencies import get_current_user, get_optional_user
 
 logger = logging.getLogger(__name__)
@@ -138,17 +139,193 @@ async def get_run_companies(
     run = await session.get(GatheringRun, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
-    result = await session.execute(
-        select(DiscoveredCompany).where(DiscoveredCompany.project_id == run.project_id)
+
+    # LEFT JOIN with company_scrapes to get scrape info per company
+    stmt = (
+        select(DiscoveredCompany, CompanyScrape)
+        .outerjoin(
+            CompanyScrape,
+            (CompanyScrape.discovered_company_id == DiscoveredCompany.id)
+            & (CompanyScrape.is_current == True),
+        )
+        .where(DiscoveredCompany.project_id == run.project_id)
         .order_by(DiscoveredCompany.domain)
     )
-    companies = result.scalars().all()
-    return [_company_to_dict(c) for c in companies]
+    result = await session.execute(stmt)
+    rows = result.all()
+    return [_company_to_dict(c, scrape=s, truncate_reasoning=True) for c, s in rows]
 
 
-def _company_to_dict(c):
+@router.get("/runs/{run_id}/companies/{company_id}")
+async def get_run_company_detail(
+    run_id: int,
+    company_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Full detail for a single company — includes full scrape text, full reasoning, raw source_data."""
+    run = await session.get(GatheringRun, run_id)
+    if not run:
+        raise HTTPException(404, "Run not found")
+
+    company = await session.get(DiscoveredCompany, company_id)
+    if not company or company.project_id != run.project_id:
+        raise HTTPException(404, "Company not found in this run's project")
+
+    # Get current scrape
+    scrape_result = await session.execute(
+        select(CompanyScrape)
+        .where(
+            CompanyScrape.discovered_company_id == company_id,
+            CompanyScrape.is_current == True,
+        )
+        .limit(1)
+    )
+    scrape = scrape_result.scalar_one_or_none()
+
+    data = _company_to_dict(company, scrape=scrape, truncate_reasoning=False)
+
+    # Add full detail fields
+    if scrape:
+        data["scrape_text"] = scrape.clean_text
+        data["scrape_error"] = scrape.error_message
+        data["scrape_http_code"] = scrape.http_status_code
+        data["scrape_timestamp"] = str(scrape.scraped_at) if scrape.scraped_at else None
+    else:
+        data["scrape_text"] = None
+        data["scrape_error"] = None
+        data["scrape_http_code"] = None
+        data["scrape_timestamp"] = None
+
+    # Full source_data (already included but explicitly confirm it's not stripped)
+    data["source_data"] = company.source_data or {}
+
+    return data
+
+
+@router.get("/iterations")
+async def list_iterations(
+    project_id: Optional[int] = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    """List all gathering runs (iterations) with target counts for the pipeline page."""
+    query = select(GatheringRun).order_by(GatheringRun.created_at.desc())
+    if project_id is not None:
+        query = query.where(GatheringRun.project_id == project_id)
+    query = query.limit(50)
+
+    result = await session.execute(query)
+    runs = result.scalars().all()
+
+    iterations = []
+    for r in runs:
+        # Count targets for this run's project that were discovered in this run
+        target_count_result = await session.execute(
+            select(sa_func.count(DiscoveredCompany.id))
+            .join(
+                CompanySourceLink,
+                CompanySourceLink.discovered_company_id == DiscoveredCompany.id,
+            )
+            .where(
+                CompanySourceLink.gathering_run_id == r.id,
+                DiscoveredCompany.is_target == True,
+            )
+        )
+        target_count = target_count_result.scalar() or 0
+
+        # Get project name
+        project = await session.get(Project, r.project_id)
+
+        iterations.append({
+            "id": r.id,
+            "source_type": r.source_type,
+            "filters": r.filters,
+            "new_companies_count": r.new_companies_count,
+            "current_phase": r.current_phase,
+            "status": r.status,
+            "target_count": target_count,
+            "project_id": r.project_id,
+            "project_name": project.name if project else "Unknown",
+            "created_at": str(r.created_at) if r.created_at else None,
+        })
+
+    return iterations
+
+
+@router.get("/usage-logs")
+async def get_usage_logs(
+    run_id: Optional[int] = Query(None),
+    limit: int = Query(100, le=500),
+    session: AsyncSession = Depends(get_session),
+):
+    """Return MCP usage logs, optionally filtered by run_id in metadata."""
+    query = select(MCPUsageLog).order_by(MCPUsageLog.created_at.desc())
+
+    if run_id is not None:
+        # Filter logs where extra_data contains the run_id
+        query = query.where(
+            MCPUsageLog.extra_data["run_id"].as_integer() == run_id
+        )
+
+    query = query.limit(limit)
+    result = await session.execute(query)
+    logs = result.scalars().all()
+
+    return [
+        {
+            "id": log.id,
+            "user_id": log.user_id,
+            "action": log.action,
+            "tool_name": log.tool_name,
+            "metadata": log.extra_data,
+            "created_at": str(log.created_at) if log.created_at else None,
+        }
+        for log in logs
+    ]
+
+
+def _compute_company_status(c, scrape=None):
+    """Derive a single status string from the company's pipeline state flags."""
+    if c.is_blacklisted:
+        return "blacklisted"
+    if c.is_pre_filtered:
+        return "filtered"
+    # Check scrape state
+    if scrape:
+        if scrape.scrape_status != "success":
+            return "scrape_failed"
+    # Check analysis state
+    if c.is_target is True:
+        if c.is_enriched:
+            return "verified"
+        return "target"
+    if c.is_target is False:
+        return "rejected"
+    # is_target is None — analysis hasn't run yet
+    if scrape and scrape.scrape_status == "success":
+        return "scraped"
+    # No scrape yet, not blacklisted, not filtered
+    return "gathered"
+
+
+def _company_to_dict(c, scrape=None, truncate_reasoning=False):
     sd = c.source_data or {}
-    return {
+
+    # Build apollo_url if apollo_id present
+    apollo_id = sd.get("apollo_id") or sd.get("organization_id") or sd.get("id")
+    apollo_url = None
+    if apollo_id:
+        apollo_url = f"https://app.apollo.io/#/organizations/{apollo_id}"
+
+    # Keywords from source_data (Apollo keyword tags)
+    keywords = sd.get("keywords") or sd.get("tags") or sd.get("keyword_tags") or []
+    if isinstance(keywords, str):
+        keywords = [k.strip() for k in keywords.split(",") if k.strip()]
+
+    reasoning = c.analysis_reasoning
+    if truncate_reasoning and reasoning and len(reasoning) > 100:
+        reasoning = reasoning[:100] + "..."
+
+    result = {
         "id": c.id, "domain": c.domain, "name": c.name,
         "industry": c.industry, "employee_count": c.employee_count,
         "employee_range": c.employee_range,
@@ -163,6 +340,15 @@ def _company_to_dict(c):
         "headcount_growth_12m": sd.get("headcount_12m_growth") or sd.get("organization_headcount_twelve_month_growth"),
         "num_contacts_apollo": sd.get("num_contacts_in_apollo") or sd.get("num_contacts"),
         "website_url": c.website_url if hasattr(c, 'website_url') else sd.get("website_url"),
+        # New fields for pipeline page
+        "status": _compute_company_status(c, scrape),
+        "keywords": keywords,
+        "apollo_url": apollo_url,
+        # Scrape info (from JOIN)
+        "scrape_status": scrape.scrape_status if scrape else None,
+        "scrape_text_size": scrape.text_size_bytes if scrape else None,
+        # Analysis
+        "analysis_reasoning": reasoning,
         # Pipeline state
         "is_blacklisted": c.is_blacklisted,
         "blacklist_reason": c.blacklist_reason,
@@ -171,11 +357,11 @@ def _company_to_dict(c):
         "is_target": c.is_target,
         "analysis_confidence": c.analysis_confidence,
         "analysis_segment": c.analysis_segment,
-        "analysis_reasoning": c.analysis_reasoning,
         "is_enriched": c.is_enriched,
         "enrichment_source": c.enrichment_source,
         "source_data": sd,
     }
+    return result
 
 
 @router.get("/sequences/{seq_id}")
