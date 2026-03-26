@@ -163,6 +163,7 @@ class TgAccount(Base, TimestampMixin):
     # Geo + Session age
     country_code = Column(String(5), nullable=True)
     session_created_at = Column(DateTime, nullable=True)
+    telegram_user_id = Column(Integer, nullable=True)
 
     # Timestamps
     last_connected_at = Column(DateTime, nullable=True)
