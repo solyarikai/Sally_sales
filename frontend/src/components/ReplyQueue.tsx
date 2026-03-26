@@ -1425,18 +1425,32 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
                         {isEditing ? (
                           <textarea
                             value={editingDrafts[reply.id].reply}
-                            onChange={e => setEditingDrafts(prev => ({
-                              ...prev,
-                              [reply.id]: { ...prev[reply.id], reply: e.target.value },
-                            }))}
+                            onChange={e => {
+                              setEditingDrafts(prev => ({
+                                ...prev,
+                                [reply.id]: { ...prev[reply.id], reply: e.target.value },
+                              }));
+                              // Auto-grow on mobile (native resize doesn't work on touch)
+                              e.target.style.height = 'auto';
+                              e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
                             onKeyDown={e => {
                               if (e.key === 'Escape') { cancelEditing(reply.id); }
                             }}
-                            className="w-full text-[13px] rounded p-2.5 focus:outline-none min-h-[80px] resize-y border"
+                            className="w-full text-[13px] rounded p-2.5 focus:outline-none min-h-[80px] border"
                             style={{
                               background: t.draftBg,
                               borderColor: t.draftBorder,
                               color: t.text1,
+                              resize: 'both',          // desktop: drag handle
+                              overflow: 'auto',         // scrollbar when needed
+                              maxHeight: '80vh',        // prevent infinite growth
+                            }}
+                            ref={el => {
+                              // Auto-size on mount to fit content
+                              if (el && el.scrollHeight > el.clientHeight) {
+                                el.style.height = el.scrollHeight + 'px';
+                              }
                             }}
                             placeholder="Edit your reply..."
                           />
@@ -1477,8 +1491,14 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
                         ) : (
                           <>
                             <div
-                              className="text-[13px] whitespace-pre-wrap leading-relaxed rounded p-2.5"
-                              style={{ background: t.draftBg, color: t.text2 }}
+                              className="text-[13px] whitespace-pre-wrap leading-relaxed rounded p-2.5 overflow-auto"
+                              style={{
+                                background: t.draftBg,
+                                color: t.text2,
+                                resize: 'vertical',     // draggable on desktop
+                                maxHeight: '60vh',       // scrollable when long
+                                minHeight: '40px',
+                              }}
                             >
                               {draftText || '(no draft)'}
                             </div>

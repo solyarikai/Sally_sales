@@ -447,15 +447,24 @@ def _strip_placeholder_brackets(text: str) -> str:
 
 
 def _sanitize_draft(text: str) -> str:
-    """Post-process all AI-generated draft text: strip placeholders, em-dashes, markdown."""
+    """Post-process all AI-generated draft text: strip placeholders, dashes, markdown.
+
+    CRITICAL: Agnia explicitly requested NO long dashes in any drafts.
+    — (em-dash, U+2014) and – (en-dash, U+2013) are BOTH eliminated.
+    Only short hyphens (-) allowed.
+    """
     if not text:
         return text
     text = _strip_placeholder_brackets(text)
     text = _strip_markdown_formatting(text)
-    # Replace em-dashes (—) with simple dashes (-) — operator feedback
-    text = re.sub(r"—", " - ", text)
-    # Collapse double spaces from replacement
+    # Eliminate ALL long dashes — em-dash (—) and en-dash (–) → comma or hyphen
+    text = re.sub(r"\s*—\s*", ", ", text)   # em-dash → comma
+    text = re.sub(r"\s*–\s*", " - ", text)  # en-dash → hyphen
+    # Catch any remaining Unicode dashes (‒ ⸺ ⸻ ― etc.)
+    text = re.sub(r"[\u2012\u2013\u2014\u2015\u2E3A\u2E3B\uFE58\uFE63\uFF0D]", "-", text)
+    # Collapse double spaces and fix comma-space
     text = re.sub(r"  +", " ", text)
+    text = re.sub(r",\s*,", ",", text)  # double commas from replacement
     return text.strip()
 
 
