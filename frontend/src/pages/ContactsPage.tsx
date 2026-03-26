@@ -983,13 +983,9 @@ export function ContactsPage() {
     setActiveProject(project);
     setReplyMode(false);
     setPage(1);
-    // Don't override campaign filters when deep-linked with segment/source filters
-    // (pipeline contacts don't belong to campaigns)
-    if (project?.campaign_filters && project.campaign_filters.length > 0
-        && segmentFilters.length === 0 && sourceFilter !== 'pipeline'
-        && !sourceIdFilter) {
-      setCampaignFilters(project.campaign_filters);
-    }
+    // project_id filter is sufficient — don't auto-set campaign filters
+    // (auto-setting excluded contacts added via calendly, manual import, etc.)
+    setCampaignFilters([]);
   };
 
 
