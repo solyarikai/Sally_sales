@@ -41,9 +41,19 @@ html, body, #root {
   margin: 0;
 }
 
-/* AG Grid h-full needs every parent to have explicit height, not just flex-derived */
-.mcp-content-area > * {
-  height: 100%;
+/* AG Grid h-full needs every ancestor to have explicit height.
+   Force all divs between content area and the AG Grid to inherit height. */
+.mcp-content-area,
+.mcp-content-area > *,
+.mcp-content-area > * > *,
+.mcp-content-area > * > * > * {
+  height: 100% !important;
+  overflow: hidden;
+}
+/* But allow scrolling within the grid itself */
+.ag-body-viewport {
+  overflow: auto !important;
+  height: auto !important;
 }
 
 body {
