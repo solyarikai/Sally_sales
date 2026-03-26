@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.routing import Mount
+from starlette.routing import Mount, Route
 
 from app.config import settings
 from app.db.database import close_db
@@ -28,7 +28,6 @@ app = FastAPI(
 )
 
 # CORS
-origins = [o.strip() for o in settings.CORS_ORIGINS.split(",")]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,11 +47,24 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(setup_router, prefix="/api")
 app.include_router(pipeline_router, prefix="/api")
 
-# ── MCP SSE routes (official SDK) ──
-from app.mcp.server import get_mcp_routes
+# ── MCP SSE (official SDK) ──
+# The MCP SDK's SseServerTransport needs raw ASGI handlers.
+# We mount them directly using Starlette Mount which preserves ASGI signatures.
+from app.mcp.server import sse_transport, mcp_server
 
-for route in get_mcp_routes():
-    app.routes.append(route)
+
+async def _sse_handler(scope, receive, send):
+    async with sse_transport.connect_sse(scope, receive, send) as streams:
+        await mcp_server.run(
+            streams[0], streams[1], mcp_server.create_initialization_options()
+        )
+
+
+# Mount as raw ASGI — bypasses Starlette's Request wrapping
+app.mount("/mcp", app=Mount("", routes=[
+    Route("/sse", _sse_handler),
+    Route("/messages", sse_transport.handle_post_message, methods=["POST"]),
+]))
 
 
 @app.get("/")
