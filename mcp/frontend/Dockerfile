@@ -2,17 +2,18 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy main app source (for @main alias reuse)
-COPY frontend/src /main-app-src
-
-# Copy MCP frontend
+# Copy MCP frontend first (for package.json)
 COPY mcp/frontend/package.json mcp/frontend/package-lock.json* ./
 RUN npm install
 
+# Copy MCP frontend source
 COPY mcp/frontend/ .
 
+# Copy main app source INTO the app tree (so node_modules resolves)
+COPY frontend/src ./main-app-src
+
 # Fix the @main alias to point to copied main app source
-RUN sed -i "s|../../frontend/src|/main-app-src|g" vite.config.ts
+RUN sed -i "s|path.resolve(__dirname, '../../frontend/src')|path.resolve(__dirname, 'main-app-src')|g" vite.config.ts
 
 RUN npm run build
 
