@@ -1,134 +1,77 @@
-"""MCP SSE Server — implements Model Context Protocol over Server-Sent Events."""
+"""MCP Server — uses official MCP Python SDK for proper protocol compliance."""
 import json
 import logging
-import uuid
 from typing import Any
 
+from mcp.server import Server
+from mcp.server.sse import SseServerTransport
+from mcp.types import Tool, TextContent
 from starlette.requests import Request
-from starlette.responses import JSONResponse
-from sse_starlette.sse import EventSourceResponse
+from starlette.routing import Route
 
 from app.mcp.tools import TOOLS
 from app.mcp.dispatcher import dispatch_tool
 
 logger = logging.getLogger(__name__)
 
-# Active SSE sessions
-_sessions: dict[str, dict] = {}
+# Create MCP server instance
+mcp_server = Server("mcp-leadgen")
 
+# SSE transport
+sse_transport = SseServerTransport("/mcp/messages")
+
+
+# ── Register tool list handler ──
+@mcp_server.list_tools()
+async def list_tools() -> list[Tool]:
+    """Return all 30 MCP tools."""
+    tools = []
+    for t in TOOLS:
+        tools.append(Tool(
+            name=t["name"],
+            description=(t.get("description") or "")[:1024],
+            inputSchema=t.get("inputSchema", {"type": "object", "properties": {}}),
+        ))
+    return tools
+
+
+# ── Register tool call handler ──
+@mcp_server.call_tool()
+async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    """Route tool calls to dispatcher."""
+    # Extract auth token from arguments
+    token = arguments.pop("_token", None)
+
+    try:
+        result = await dispatch_tool(name, arguments, token, None)
+        return [TextContent(type="text", text=json.dumps(result, default=str))]
+    except Exception as e:
+        logger.error(f"Tool {name} failed: {e}", exc_info=True)
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+
+# ── Starlette routes for FastAPI integration ──
 
 async def handle_sse(request: Request):
-    """SSE endpoint — client connects here for MCP protocol."""
-    session_id = str(uuid.uuid4())
-    _sessions[session_id] = {"user": None, "initialized": False}
-
-    # Build absolute URL for the messages endpoint
-    scheme = request.headers.get("x-forwarded-proto", "http")
-    host = request.headers.get("host", "localhost:8000")
-    base_url = f"{scheme}://{host}"
-
-    async def event_generator():
-        # Send session endpoint info — MUST be absolute URL for MCP clients
-        yield {
-            "event": "endpoint",
-            "data": f"{base_url}/mcp/messages?session_id={session_id}",
-        }
-
-        # Keep connection alive
-        import asyncio
-        try:
-            while True:
-                if request.is_disconnected:
-                    break
-                await asyncio.sleep(15)
-                yield {"event": "ping", "data": ""}
-        except asyncio.CancelledError:
-            pass
-        finally:
-            _sessions.pop(session_id, None)
-
-    return EventSourceResponse(event_generator())
+    """SSE endpoint — clients connect here."""
+    async with sse_transport.connect_sse(
+        request.scope, request.receive, request._send
+    ) as streams:
+        await mcp_server.run(
+            streams[0], streams[1], mcp_server.create_initialization_options()
+        )
 
 
-async def handle_message(request: Request):
-    """Handle incoming MCP JSON-RPC messages."""
-    session_id = request.query_params.get("session_id")
-    if not session_id:
-        return JSONResponse({"error": "Missing session_id"}, status_code=400)
-    # Auto-create session if it doesn't exist (handles reconnection)
-    if session_id not in _sessions:
-        _sessions[session_id] = {"user": None, "initialized": False}
+async def handle_messages(request: Request):
+    """Message endpoint — receives JSON-RPC from clients."""
+    await sse_transport.handle_post_message(
+        request.scope, request.receive, request._send
+    )
 
-    body = await request.json()
-    method = body.get("method", "")
-    msg_id = body.get("id")
-    params = body.get("params", {})
 
-    logger.info(f"MCP message: method={method}, id={msg_id}")
-
-    if method == "initialize":
-        _sessions[session_id]["initialized"] = True
-        return JSONResponse({
-            "jsonrpc": "2.0",
-            "id": msg_id,
-            "result": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {"listChanged": False},
-                },
-                "serverInfo": {
-                    "name": "mcp-leadgen",
-                    "version": "1.0.0",
-                },
-            },
-        })
-
-    elif method == "notifications/initialized":
-        return JSONResponse({"jsonrpc": "2.0", "id": msg_id, "result": {}})
-
-    elif method == "tools/list":
-        return JSONResponse({
-            "jsonrpc": "2.0",
-            "id": msg_id,
-            "result": {"tools": TOOLS},
-        })
-
-    elif method == "tools/call":
-        tool_name = params.get("name", "")
-        arguments = params.get("arguments", {})
-
-        # Extract auth token from params or session
-        token = arguments.pop("_token", None)
-        if not token:
-            # Try Authorization header
-            auth_header = request.headers.get("Authorization", "")
-            if auth_header.startswith("Bearer "):
-                token = auth_header[7:]
-
-        try:
-            result = await dispatch_tool(tool_name, arguments, token, request)
-            return JSONResponse({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {
-                    "content": [{"type": "text", "text": json.dumps(result, default=str)}],
-                    "isError": False,
-                },
-            })
-        except Exception as e:
-            logger.error(f"Tool {tool_name} failed: {e}", exc_info=True)
-            return JSONResponse({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {
-                    "content": [{"type": "text", "text": json.dumps({"error": str(e)})}],
-                    "isError": True,
-                },
-            })
-
-    else:
-        return JSONResponse({
-            "jsonrpc": "2.0",
-            "id": msg_id,
-            "error": {"code": -32601, "message": f"Unknown method: {method}"},
-        })
+def get_mcp_routes():
+    """Return Starlette routes for MCP endpoints."""
+    return [
+        Route("/mcp/sse", endpoint=handle_sse),
+        Route("/mcp/messages", endpoint=handle_messages, methods=["POST"]),
+    ]

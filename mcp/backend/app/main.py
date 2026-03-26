@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.routing import Mount
 
 from app.config import settings
 from app.db.database import close_db
@@ -30,7 +31,7 @@ app = FastAPI(
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",")]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,11 +48,11 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(setup_router, prefix="/api")
 app.include_router(pipeline_router, prefix="/api")
 
-# ── MCP SSE routes ──
-from app.mcp.server import handle_sse, handle_message
+# ── MCP SSE routes (official SDK) ──
+from app.mcp.server import get_mcp_routes
 
-app.add_api_route("/mcp/sse", handle_sse, methods=["GET"])
-app.add_api_route("/mcp/messages", handle_message, methods=["POST"])
+for route in get_mcp_routes():
+    app.routes.append(route)
 
 
 @app.get("/")
