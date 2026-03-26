@@ -58,7 +58,7 @@ class ExtractedContact(Base):
     __tablename__ = "extracted_contacts"
 
     id = Column(Integer, primary_key=True, index=True)
-    discovered_company_id = Column(Integer, ForeignKey("discovered_companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    discovered_company_id = Column(Integer, ForeignKey("discovered_companies.id", ondelete="CASCADE"), nullable=True, index=True)  # NULL for imported contacts
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
 
     first_name = Column(String(255), nullable=True)

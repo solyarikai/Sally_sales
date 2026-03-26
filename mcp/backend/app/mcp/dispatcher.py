@@ -667,28 +667,85 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 matched.append(c)
             # Tags matching would need campaign tags from SmartLead API
 
-        # Import contacts from matched campaigns as blacklist
-        from app.models.pipeline import DiscoveredCompany
+        # ACTUALLY DOWNLOAD contacts from each campaign → build blacklist
+        from app.models.pipeline import DiscoveredCompany, ExtractedContact
         from app.models.campaign import Campaign
         from app.services.domain_service import normalize_domain
+        import logging as _log
 
         total_contacts = 0
+        total_domains = set()
         campaign_names = []
+        campaign_details = []
+
         for camp in matched:
-            campaign_names.append(camp.get("name", ""))
-            # Save campaign record in MCP DB
-            from sqlalchemy import select as sa_select
+            camp_name = camp.get("name", "")
+            camp_id = camp.get("id")
+            campaign_names.append(camp_name)
+
+            # Save campaign record
             existing_camp = await session.execute(
-                sa_select(Campaign).where(Campaign.external_id == str(camp.get("id")))
+                select(Campaign).where(Campaign.external_id == str(camp_id))
             )
             if not existing_camp.scalar_one_or_none():
                 session.add(Campaign(
                     project_id=project.id, company_id=project.company_id,
-                    name=camp.get("name"), external_id=str(camp.get("id")),
+                    name=camp_name, external_id=str(camp_id),
                     platform="smartlead", status=camp.get("status", "active"),
-                    leads_count=camp.get("lead_count", 0),
                 ))
-            total_contacts += camp.get("lead_count", 0)
+
+            # DOWNLOAD ALL LEADS from this campaign
+            leads = await sl.export_campaign_leads(camp_id)
+            leads_count = len(leads)
+            total_contacts += leads_count
+
+            # Store contacts and extract domains for blacklist
+            domains_in_camp = set()
+            for lead in leads:
+                domain = normalize_domain(lead.get("domain", ""))
+                if domain:
+                    total_domains.add(domain)
+                    domains_in_camp.add(domain)
+
+                # Save as extracted contact in MCP DB
+                email = lead.get("email", "")
+                if email:
+                    existing_contact = await session.execute(
+                        select(ExtractedContact).where(
+                            ExtractedContact.project_id == project.id,
+                            ExtractedContact.email == email,
+                        )
+                    )
+                    if not existing_contact.scalar_one_or_none():
+                        session.add(ExtractedContact(
+                            discovered_company_id=None,  # Not linked to a pipeline company
+                            project_id=project.id,
+                            first_name=lead.get("first_name"),
+                            last_name=lead.get("last_name"),
+                            email=email,
+                            email_source="smartlead_import",
+                            source_data={"campaign": camp_name, "campaign_id": camp_id},
+                        ))
+
+            # Create DiscoveredCompany records for each domain (for blacklisting)
+            for domain in domains_in_camp:
+                existing_dc = await session.execute(
+                    select(DiscoveredCompany).where(
+                        DiscoveredCompany.project_id == project.id,
+                        DiscoveredCompany.domain == domain,
+                    )
+                )
+                if not existing_dc.scalar_one_or_none():
+                    session.add(DiscoveredCompany(
+                        project_id=project.id,
+                        company_id=project.company_id,
+                        domain=domain,
+                        is_blacklisted=True,
+                        blacklist_reason=f"existing_campaign:{camp_name}",
+                    ))
+
+            campaign_details.append({"name": camp_name, "leads": leads_count, "domains": len(domains_in_camp)})
+            _log.getLogger(__name__).info(f"Imported {leads_count} contacts from '{camp_name}' ({len(domains_in_camp)} unique domains)")
 
         # Save campaign rules on project
         project.campaign_filters = campaign_names
@@ -696,10 +753,16 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
         return {
             "campaigns_imported": len(matched),
-            "campaigns": campaign_names,
-            "contacts_in_blacklist": total_contacts,
-            "message": f"Imported {len(matched)} campaigns with ~{total_contacts} contacts as blacklist for '{project.name}'.",
-            "_links": {"project": f"http://46.62.210.24:3000/projects"},
+            "campaigns": campaign_details,
+            "contacts_downloaded": total_contacts,
+            "unique_domains_blacklisted": len(total_domains),
+            "message": f"Downloaded {total_contacts} contacts from {len(matched)} campaigns. "
+                       f"{len(total_domains)} unique domains added to blacklist. "
+                       f"Any new gathering will skip these domains.",
+            "_links": {
+                "crm": f"http://46.62.210.24:3000/crm",
+                "project": f"http://46.62.210.24:3000/projects",
+            },
         }
 
     if tool_name == "set_campaign_rules":
