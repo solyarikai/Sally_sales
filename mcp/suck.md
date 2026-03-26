@@ -152,16 +152,10 @@ Track every error encountered so they don't repeat.
 - **Prevention**: Every page that accepts deep link params MUST read them on mount
 
 ### 16. CRM is NOT reused from main app — built from scratch instead
-- **Error**: MCP CRM is a garbage basic table. Main app CRM has AG Grid, 15+ columns, ContactDetailModal with conversation tab, reply type colors, status dropdowns, keyboard shortcuts, CRM Spotlight, export CSV, column visibility toggle
-- **Location**: `mcp/frontend/src/pages/CRMPage.tsx` (200 lines of garbage) vs `frontend/src/pages/ContactsPage.tsx` (1800 lines of production CRM)
-- **Cause**: Tried to "build something quick" instead of reusing. Repeated this mistake MULTIPLE times despite user asking 5+ times
-- **Impact**: CRITICAL — user sees a toy CRM instead of the production-grade one they built
-- **Fix needed**:
-  1. Install AG Grid in MCP frontend (`ag-grid-community`, `ag-grid-react`)
-  2. Copy `ContactsPage.tsx` + `ContactDetailModal.tsx` + `CRMSpotlight.tsx` from main app
-  3. Adapt API calls from `/api/contacts` to `/api/pipeline/crm/contacts`
-  4. Make MCP backend CRM API compatible with main app's API contract
-- **Prevention**: When user says "REUSE" — COPY the actual component, don't rebuild. Install dependencies.
+- **Status**: **FIXED** — @main Vite alias imports ContactsPage directly from main app
+- **Fix**: Vite alias `@main` → `../../frontend/src`. MCP imports `@main/pages/ContactsPage`.
+  Backend serves `/api/contacts` with same contract. Zustand appStore + ToastProvider added.
+- **Prevention**: NEVER copy components. Use @main alias. Fix once → fixed everywhere.
 
 ### 17. MCP SSE protocol — custom implementation didn't work, had to rewrite with official SDK
 - **Error**: Custom JSON-RPC SSE handler didn't comply with MCP protocol. Claude Code couldn't connect.
