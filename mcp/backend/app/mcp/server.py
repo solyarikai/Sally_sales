@@ -22,11 +22,16 @@ async def handle_sse(request: Request):
     session_id = str(uuid.uuid4())
     _sessions[session_id] = {"user": None, "initialized": False}
 
+    # Build absolute URL for the messages endpoint
+    scheme = request.headers.get("x-forwarded-proto", "http")
+    host = request.headers.get("host", "localhost:8000")
+    base_url = f"{scheme}://{host}"
+
     async def event_generator():
-        # Send session endpoint info
+        # Send session endpoint info — MUST be absolute URL for MCP clients
         yield {
             "event": "endpoint",
-            "data": f"/mcp/messages?session_id={session_id}",
+            "data": f"{base_url}/mcp/messages?session_id={session_id}",
         }
 
         # Keep connection alive
