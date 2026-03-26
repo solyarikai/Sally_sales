@@ -1193,6 +1193,10 @@ export function ContactsPage() {
               ref={gridRef}
               theme={AG_GRID_THEME}
               onRowClicked={(event) => {
+                const target = event.event?.target as HTMLElement | undefined;
+                if (target && (target.tagName === 'SELECT' || target.tagName === 'OPTION' || target.closest?.('select'))) {
+                  return;
+                }
                 if (event.data) {
                   setSelectedContact(event.data);
                   setShowContactModal(true);
