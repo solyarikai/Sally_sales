@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, Send, Shield, Plus, Search, Trash2,
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
-  X, Upload, FileJson, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RotateCw,
+  X, Upload, FileJson, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RotateCw, RefreshCw,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
@@ -963,7 +963,6 @@ function ProxiesTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success
 function BulkActionsBar({ selectedIds, t, toast, onDone }: {
   selectedIds: Set<number>; t: any; toast: any; onDone: () => void;
 }) {
-  const { isDark } = useTheme();
   const [loading, setLoading] = useState(false);
   const [activePanel, setActivePanel] = useState<string | null>(null);
   // Panel values
@@ -996,8 +995,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
 
   const btnCls = 'flex items-center gap-1.5 px-2.5 py-[5px] rounded-md border text-[12px] font-medium transition-colors disabled:opacity-40';
   const btnStyle = { borderColor: A.border, color: A.text1, background: A.surface };
-  const inputCls = 'px-2 py-1 rounded-md border text-[12px] outline-none focus:border-[#4F6BF0]/50';
-  const inputStyle = { borderColor: A.border, background: A.surface, color: A.text1 };
+  const inputCls = cn('px-2 py-1 rounded-md border text-[12px] outline-none focus:border-[#4F6BF0]/50', t.cardBorder, t.cardBg, t.text1);
 
   return (
     <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: A.blue + '25', background: A.blueBg }}>
