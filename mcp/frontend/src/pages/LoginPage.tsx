@@ -84,11 +84,10 @@ export default function LoginPage() {
         </div>
 
         {/* Form */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <form onSubmit={e => { e.preventDefault(); submit() }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             type="email" placeholder="Email" value={email}
             onChange={e => setEmail(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && submit()}
             style={{
               width: '100%', padding: '12px 14px', borderRadius: 8, fontSize: 14,
               border: '1px solid var(--border, #e5e5e5)', background: 'var(--bg, #f9f9f9)',
@@ -98,7 +97,6 @@ export default function LoginPage() {
           <input
             type="password" placeholder="Password" value={password}
             onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && submit()}
             style={{
               width: '100%', padding: '12px 14px', borderRadius: 8, fontSize: 14,
               border: '1px solid var(--border, #e5e5e5)', background: 'var(--bg, #f9f9f9)',
@@ -111,7 +109,7 @@ export default function LoginPage() {
           )}
 
           <button
-            onClick={submit} disabled={loading}
+            type="submit" disabled={loading}
             style={{
               width: '100%', padding: '12px', borderRadius: 8, fontSize: 14, fontWeight: 600,
               background: '#3b82f6', color: 'white', border: 'none', cursor: loading ? 'wait' : 'pointer',
@@ -120,7 +118,7 @@ export default function LoginPage() {
           >
             {loading ? '...' : tab === 'login' ? 'Log In' : 'Create Account'}
           </button>
-        </div>
+        </form>
 
         {/* MCP token link */}
         <div style={{ marginTop: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #999)' }}>
