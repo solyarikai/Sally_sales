@@ -1,0 +1,20 @@
+{
+  "url": "https://easystaff.io/",
+  "company_name": "EasyStaff",
+  "core_offer": "Global platform for payroll, freelance payments, and invoice management",
+  "products": [
+    "EasyStaff Payroll — pay remote teams and freelancers globally with built-in compliance and B2B contracts",
+    "EasyStaff Invoice — freelancers receive payments worldwide without foreign bank accounts",
+    "EasyStaff Connect — hire freelancers, manage projects, task marketplace"
+  ],
+  "target_audience": "Companies that hire and pay freelancers/contractors internationally",
+  "value_proposition": "Pay anyone, anywhere, anytime with compliance handled",
+  "key_metrics": {
+    "freelancers_earned": "€150M",
+    "freelancers_count": "45,000",
+    "businesses_count": "4,500"
+  },
+  "pricing_model": "From 4% per task (visible in UI mockup)",
+  "competitors": ["Deel", "Upwork", "Remote.com"],
+  "NOT": ["staffing agency", "recruitment firm", "fashion company"]
+}
