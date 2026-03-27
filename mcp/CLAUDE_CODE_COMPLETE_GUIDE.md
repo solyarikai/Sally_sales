@@ -27,14 +27,17 @@ claude
 
 ## 3. First Session
 
+**Step 1:** Sign up at http://46.62.210.24:3000/setup → get your `mcp_` token
+
+**Step 2:** In Claude Code:
 ```
-You: Set up my account as Petr, pn@getsally.io
+You: Login with token mcp_250f8ab8a1b753a0...
      Connect SmartLead with key eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5
      Connect Apollo with key 9yIx2mZegixXHeDf6mWVqA
      Connect OpenAI with key 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
 ```
 
-Done. Account + 3 integrations connected. Takes 10 seconds.
+Done. Logged in + 3 integrations connected.
 
 ## 4. Example: Find Companies + Create Campaign
 
