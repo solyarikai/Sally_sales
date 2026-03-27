@@ -4538,12 +4538,12 @@ async def generate_reply_for_contact(
 # Status mapping: CRM status -> Smartlead category ID
 SMARTLEAD_STATUS_MAPPING = {
     "replied": 1,           # Interested (SmartLead category)
-    "scheduled": 77598,     # Meeting Booked
+    "meeting_booked": 77598,# Meeting Booked
     "qualified": 77597,     # Qualified
     "not_qualified": 78987, # Not Qualified
 }
 
-SMARTLEAD_PAUSE_ON_STATUS = {"scheduled", "qualified", "not_qualified", "unsubscribed"}
+SMARTLEAD_PAUSE_ON_STATUS = {"meeting_booked", "qualified", "not_qualified"}
 
 
 class StatusUpdateRequest(BaseModel):

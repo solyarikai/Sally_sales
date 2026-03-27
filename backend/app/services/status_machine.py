@@ -1,20 +1,19 @@
 """
-11-Status Lead Funnel State Machine.
+9-Status Lead Funnel State Machine.
 
 Status = funnel stage (what happened), Reply Type = quality of response (how they replied).
 These are orthogonal: Status tells you WHERE in the process, Reply Type tells you WHAT they said.
 
 Statuses (in funnel order):
-  NEW → SENT → REPLIED → NEGOTIATING_MEETING → CALENDLY_SENT → SCHEDULED →
+  NEW → SENT → REPLIED → CALENDLY_SENT → MEETING_BOOKED →
     MEETING_HELD → QUALIFIED | NOT_QUALIFIED
-    MEETING_NO_SHOW | MEETING_RESCHEDULED → SCHEDULED
-  UNSUBSCRIBED (terminal, global blacklist)
+    MEETING_RESCHEDULED → MEETING_BOOKED
 
 Rules:
   - Forward-only: can't go backwards in the funnel
   - REPLIED = "lead responded" (details in Reply Type column)
-  - Terminal statuses: NOT_QUALIFIED, UNSUBSCRIBED — no transitions out
-  - AI classification maps ALL reply categories to REPLIED (except meeting_request → NEGOTIATING_MEETING)
+  - Terminal statuses: QUALIFIED, NOT_QUALIFIED — no transitions out
+  - AI classification maps ALL reply categories to REPLIED (except meeting_request → CALENDLY_SENT)
 """
 import logging
 from typing import Optional, Tuple
@@ -28,31 +27,25 @@ STATUSES = [
     "new",
     "sent",
     "replied",
-    "unsubscribed",
-    "negotiating_meeting",
     "calendly_sent",
-    "scheduled",
+    "meeting_booked",
     "meeting_held",
-    "meeting_no_show",
     "meeting_rescheduled",
     "qualified",
     "not_qualified",
 ]
 
 # Terminal statuses — no transitions out
-TERMINAL = {"not_qualified", "unsubscribed"}
+TERMINAL = {"qualified", "not_qualified"}
 
 # Funnel rank for forward-only enforcement
 STATUS_RANK = {
     "new": 0,
     "sent": 1,
     "replied": 2,
-    "unsubscribed": 2,
-    "negotiating_meeting": 3,
     "calendly_sent": 3,
-    "scheduled": 4,
+    "meeting_booked": 4,
     "meeting_held": 5,
-    "meeting_no_show": 5,
     "meeting_rescheduled": 5,
     "qualified": 6,
     "not_qualified": 6,
@@ -63,35 +56,29 @@ STATUS_RANK = {
 VALID_TRANSITIONS = {
     "new": {"sent"},
     "sent": {
-        "replied", "unsubscribed",
-        "negotiating_meeting",  # direct if reply is meeting request
+        "replied",
+        "calendly_sent",  # direct if reply is meeting request
     },
-    "replied": {"negotiating_meeting", "unsubscribed"},
-    "negotiating_meeting": {"calendly_sent", "scheduled", "unsubscribed"},
-    "calendly_sent": {"scheduled", "negotiating_meeting", "unsubscribed"},
-    "scheduled": {
-        "meeting_held", "meeting_no_show", "meeting_rescheduled",
-        "unsubscribed",
-    },
-    "meeting_held": {"qualified", "not_qualified", "unsubscribed"},
-    "meeting_no_show": {"scheduled", "unsubscribed"},
-    "meeting_rescheduled": {"scheduled", "unsubscribed"},
+    "replied": {"calendly_sent"},
+    "calendly_sent": {"meeting_booked", "replied"},
+    "meeting_booked": {"meeting_held", "meeting_rescheduled"},
+    "meeting_held": {"qualified", "not_qualified"},
+    "meeting_rescheduled": {"meeting_booked", "calendly_sent"},
     # Terminal — no transitions out
-    "not_qualified": set(),
-    "unsubscribed": set(),
     "qualified": set(),
+    "not_qualified": set(),
 }
 
 # ── AI classification → CRM status mapping ──
 # All reply categories map to "replied" — the detail lives in Reply Type.
-# Exception: meeting_request → negotiating_meeting (they're asking for a call).
+# Exception: meeting_request → calendly_sent (they're asking for a call, we send Calendly).
 
 AI_CATEGORY_TO_STATUS = {
     "interested": "replied",
-    "meeting_request": "negotiating_meeting",
+    "meeting_request": "calendly_sent",
     "not_interested": "replied",
     "out_of_office": "replied",
-    "unsubscribe": "unsubscribed",
+    "unsubscribe": "replied",
     "question": "replied",
     "wrong_person": "replied",
     "other": "replied",
@@ -111,13 +98,17 @@ LEGACY_STATUS_MAP = {
     "ooo": "replied",
     "out_of_office": "replied",
     "wrong_person": "replied",
-    "scheduling": "negotiating_meeting",
-    "meeting_booked": "scheduled",
+    "unsubscribed": "replied",
+    "scheduling": "calendly_sent",
+    "negotiating_meeting": "calendly_sent",
+    "meeting_booked": "meeting_booked",
+    "scheduled": "meeting_booked",
+    "meeting_no_show": "meeting_rescheduled",
 }
 
 
 def normalize_status(status: Optional[str]) -> str:
-    """Map legacy/unknown status to the 11-status system."""
+    """Map legacy/unknown status to the 9-status system."""
     if not status:
         return "new"
     s = status.strip().lower()
@@ -189,7 +180,7 @@ def is_warm(status: str) -> bool:
     """Check if a status indicates a warm/active lead."""
     s = normalize_status(status)
     return s in {
-        "replied", "negotiating_meeting", "scheduled",
+        "replied", "calendly_sent", "meeting_booked",
         "meeting_held", "meeting_rescheduled",
     }
 
@@ -197,8 +188,8 @@ def is_warm(status: str) -> bool:
 def is_meeting_stage(status: str) -> bool:
     """Check if a status is in the meetings zone."""
     return normalize_status(status) in {
-        "negotiating_meeting", "calendly_sent", "scheduled", "meeting_held",
-        "meeting_no_show", "meeting_rescheduled",
+        "calendly_sent", "meeting_booked", "meeting_held",
+        "meeting_rescheduled",
     }
 
 
