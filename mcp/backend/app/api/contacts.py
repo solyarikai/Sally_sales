@@ -433,17 +433,40 @@ async def contact_history(
                     "type": "planned",
                 })
 
-    # Get reply data from source_data (if analyzed)
+    # Build email_history in format @main ContactDetailModal expects:
+    # {type, body, timestamp, direction, channel, campaign}
     email_history = []
     sd = contact.source_data or {}
+    campaign_name = sd.get("reply_campaign") or sd.get("campaign") or (seq.campaign_name if seq else "")
+
+    # Add planned sequence steps as outbound messages
+    from datetime import datetime, timedelta
+    base_time = datetime.utcnow()
+    for step in planned_steps:
+        day_offset = step.get("day", 0)
+        step_time = base_time + timedelta(days=day_offset)
+        email_history.append({
+            "type": "planned",
+            "body": f"<b>Subject:</b> {step.get('subject', '')}<br><br>{step.get('body', '')}",
+            "timestamp": step_time.isoformat(),
+            "direction": "outbound",
+            "channel": "email",
+            "campaign": campaign_name,
+        })
+
+    # Add reply if analyzed
     if sd.get("has_replied"):
         email_history.append({
-            "direction": "inbound",
+            "type": "reply",
             "body": sd.get("reply_text_preview", ""),
-            "category": sd.get("reply_category", ""),
-            "received_at": sd.get("reply_time", ""),
-            "campaign": sd.get("reply_campaign", ""),
+            "timestamp": sd.get("reply_time", datetime.utcnow().isoformat()),
+            "direction": "inbound",
+            "channel": "email",
+            "campaign": sd.get("reply_campaign", campaign_name),
         })
+
+    # Sort by timestamp
+    email_history.sort(key=lambda x: x.get("timestamp", ""))
 
     # SmartLead campaign link
     inbox_links = {}
@@ -454,7 +477,4 @@ async def contact_history(
         "email_history": email_history,
         "linkedin_history": [],
         "inbox_links": inbox_links,
-        "planned_sequence": planned_steps,
-        "sequence_name": seq.campaign_name if seq else None,
-        "sequence_status": seq.status if seq else None,
     }

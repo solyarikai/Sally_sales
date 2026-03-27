@@ -195,11 +195,77 @@ export default function LearningPage() {
         </div>
       )}
 
+      {/* Reply Analysis Summary */}
+      <ReplyAnalysisSection />
+
+      {/* Conversation Log */}
+      <ConversationLogSection />
+
       {sortedTools.length === 0 && filteredRuns.length === 0 && (
         <div className="text-center text-gray-500 py-16">
           No usage data yet. Start using MCP tools to see analytics here.
         </div>
       )}
+    </div>
+  )
+}
+
+function ReplyAnalysisSection() {
+  const [data, setData] = useState<any>(null)
+  useEffect(() => {
+    fetch(`${API}/pipeline/reply-analysis-status`, { headers: headers() })
+      .then(r => r.ok ? r.json() : null)
+      .then(setData)
+      .catch(() => {})
+  }, [])
+  if (!data || !data.total_replied) return null
+  const cats = data.by_category || {}
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Reply Analysis</h2>
+      <div className="grid grid-cols-4 gap-4">
+        <StatCard label="Total Replied" value={data.total_replied || 0} />
+        <StatCard label="Warm Leads" value={data.warm_count || 0} />
+        <StatCard label="OOO Filtered" value={data.ooo_skipped || 0} />
+        <StatCard label="AI Classified" value={data.ai_classified || 0} />
+      </div>
+      {Object.keys(cats).length > 0 && (
+        <div className="border border-gray-700 rounded-lg divide-y divide-gray-700">
+          {Object.entries(cats).sort((a: any, b: any) => b[1] - a[1]).map(([cat, count]: any) => (
+            <div key={cat} className="flex items-center justify-between px-4 py-2">
+              <span className="text-sm">{cat}</span>
+              <span className="text-sm font-medium tabular-nums">{count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ConversationLogSection() {
+  const [convos, setConvos] = useState<any[]>([])
+  useEffect(() => {
+    fetch(`${API}/account/conversations?limit=10`, { headers: headers() })
+      .then(r => r.ok ? r.json() : { conversations: [] })
+      .then(d => setConvos(d.conversations || []))
+      .catch(() => {})
+  }, [])
+  if (convos.length === 0) return null
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Recent MCP Conversations</h2>
+      <div className="border border-gray-700 rounded-lg divide-y divide-gray-700">
+        {convos.map((c: any, i: number) => (
+          <div key={i} className="px-4 py-2 flex items-center justify-between">
+            <div>
+              <span className="text-xs font-mono text-gray-400">{c.method || 'message'}</span>
+              <span className="text-xs text-gray-500 ml-2">{c.content_summary || ''}</span>
+            </div>
+            <span className="text-xs text-gray-600">{c.created_at ? new Date(c.created_at).toLocaleString() : ''}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
