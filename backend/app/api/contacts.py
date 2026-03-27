@@ -583,6 +583,42 @@ async def list_contacts(
         for row in cat_result.all():
             reply_cat_map[row[0]] = (row[1], row[2])
 
+    # For contacts without email but with inbound activities, derive reply type from activity text
+    from app.models.contact import ContactActivity
+    no_email_replied_ids = [c.id for c in contacts if c.status == "replied" and (not c.email or c.email not in reply_cat_map)]
+    activity_cat_map: dict[int, str] = {}
+    if no_email_replied_ids:
+        act_result = await session.execute(
+            select(
+                ContactActivity.contact_id,
+                ContactActivity.body,
+            )
+            .distinct(ContactActivity.contact_id)
+            .where(
+                ContactActivity.contact_id.in_(no_email_replied_ids),
+                ContactActivity.direction == "inbound",
+            )
+            .order_by(ContactActivity.contact_id, desc(ContactActivity.activity_at))
+        )
+        import re
+        for row in act_result.all():
+            body = (row[1] or "").lower()
+            if re.search(r"(not interested|no thanks|not relevant|decline)", body):
+                cat = "not_interested"
+            elif re.search(r"(out of office|ooo|vacation|currently away)", body):
+                cat = "out_of_office"
+            elif re.search(r"(unsubscribe|remove me|stop)", body):
+                cat = "unsubscribe"
+            elif re.search(r"(wrong person|not the right)", body):
+                cat = "wrong_person"
+            elif re.search(r"(schedule|call|meet|calendar|calendly|zoom)", body):
+                cat = "meeting_request"
+            elif re.search(r"(interested|tell me more|send info|sounds good)", body):
+                cat = "interested"
+            else:
+                cat = "other"
+            activity_cat_map[row[0]] = cat
+
     # Build response
     contact_responses = []
     for contact in contacts:
@@ -593,6 +629,8 @@ async def list_contacts(
         if cat_info:
             response.latest_reply_category = cat_info[0]
             response.latest_reply_confidence = cat_info[1]
+        elif contact.id in activity_cat_map:
+            response.latest_reply_category = activity_cat_map[contact.id]
         contact_responses.append(response)
     
     total_pages = (total + page_size - 1) // page_size
