@@ -229,10 +229,12 @@ MERGE TAGS: {{{{first_name}}}}, {{{{company}}}}, {{{{city}}}} (double curly brac
 FORMAT: Body must use <br> for line breaks and <br><br> between paragraphs (SmartLead renders HTML)
 
 Return ONLY a JSON array of 4 objects:
-[{{"step": 1, "day": 0, "subject": "...", "body": "..."}}, ...]
+[{{"step": 1, "day": 0, "subject": "...", "subject_b": "...", "body": "..."}}, ...]
 
-Email 2-4 subjects should be EMPTY string "" (keeps reply thread in inbox).
-Only Email 1 has a subject with {{{{first_name}}}}."""
+A/B TESTING:
+- Email 1: "subject" uses {{{{first_name}}}}, "subject_b" uses {{{{company}}}} — SmartLead splits 50/50
+- Emails 2-4: "subject" and "subject_b" both EMPTY string "" (reply thread)
+- Body is the same for both variants (only subject differs)"""
 
         # Try Gemini 2.5 Pro first (best for style matching)
         try:
@@ -241,6 +243,7 @@ Only Email 1 has a subject with {{{{first_name}}}}."""
             if gemini_key:
                 result = await self._call_gemini(gemini_key, prompt)
                 if result:
+                    result = self._ensure_ab_variants(result)
                     return result
                 logger.warning("Gemini failed, falling back to GPT-4o-mini")
         except Exception as e:
@@ -264,10 +267,37 @@ Only Email 1 has a subject with {{{{first_name}}}}."""
                 )
                 data = resp.json()
                 content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                return self._parse_json_steps(content)
+                result = self._parse_json_steps(content)
+                if result:
+                    result = self._ensure_ab_variants(result)
+                return result
         except Exception as e:
             logger.error(f"AI sequence generation failed: {e}")
         return None
+
+    def _ensure_ab_variants(self, steps: list) -> list:
+        """Ensure Email 1 has A/B subject variants for testing.
+
+        If the AI didn't generate subject_b, create one automatically:
+        - If subject has {{first_name}} → variant B uses {{company}}
+        - If subject has {{company}} → variant B uses {{first_name}}
+        """
+        if not steps:
+            return steps
+
+        first = steps[0]
+        subject_a = first.get("subject", "")
+
+        if not first.get("subject_b") and subject_a:
+            if "{{first_name}}" in subject_a:
+                first["subject_b"] = subject_a.replace("{{first_name}}", "{{company}}")
+            elif "{{company}}" in subject_a:
+                first["subject_b"] = subject_a.replace("{{company}}", "{{first_name}}")
+            else:
+                # Neither tag — add {{first_name}} variant
+                first["subject_b"] = f"{{{{first_name}}}} - {subject_a}"
+
+        return steps
 
     async def _call_gemini(self, api_key: str, prompt: str) -> Optional[list]:
         """Call Gemini 2.5 Pro for sequence generation."""
