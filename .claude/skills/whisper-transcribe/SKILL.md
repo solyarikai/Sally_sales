@@ -45,22 +45,22 @@ description: >-
 Ничего делать не нужно, переходи к Шагу 3.
 
 ### YouTube видео
+Сначала проверь и установи `yt-dlp` если нужно:
+```bash
+which yt-dlp || brew install yt-dlp
+```
+Затем скачай аудио:
 ```bash
 yt-dlp -f "bestaudio" -x --audio-format mp3 -o "/tmp/%(id)s.%(ext)s" "<URL>"
 ```
 Результат: `/tmp/<video_id>.mp3`
 
 ### YouTube плейлист / канал
-Сначала получи список видео:
+Проверь `yt-dlp` как выше, затем получи список видео:
 ```bash
 yt-dlp --flat-playlist --print "%(url)s\t%(title)s" "<URL>"
 ```
 Затем для каждого видео скачай аудио как выше. Сообщай прогресс: `Видео 1/N: <название>...`
-
-Если `yt-dlp` не установлен:
-```
-Для YouTube нужен yt-dlp. Установи: brew install yt-dlp
-```
 
 ---
 
