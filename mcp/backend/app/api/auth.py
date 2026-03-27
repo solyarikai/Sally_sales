@@ -16,12 +16,18 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 class SignupRequest(BaseModel):
     email: str
     name: str
+    password: str = "qweqweqwe"
 
 
 class SignupResponse(BaseModel):
     user_id: int
     api_token: str  # shown ONCE
     message: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 
 @router.post("/signup", response_model=SignupResponse)
@@ -33,8 +39,12 @@ async def signup(req: SignupRequest, session: AsyncSession = Depends(get_session
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email already registered")
 
+    # Hash password
+    import bcrypt
+    password_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt()).decode()
+
     # Create user
-    user = MCPUser(email=req.email, name=req.name)
+    user = MCPUser(email=req.email, name=req.name, password_hash=password_hash)
     session.add(user)
     await session.flush()
 
@@ -58,6 +68,43 @@ async def signup(req: SignupRequest, session: AsyncSession = Depends(get_session
         api_token=raw_token,
         message="Account created. Save your API token — it won't be shown again.",
     )
+
+
+@router.post("/login")
+async def login(req: LoginRequest, session: AsyncSession = Depends(get_session)):
+    """Login with email + password. Returns a fresh API token."""
+    import bcrypt
+
+    result = await session.execute(
+        select(MCPUser).where(MCPUser.email == req.email)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Check password (if user has one)
+    if user.password_hash:
+        if not bcrypt.checkpw(req.password.encode(), user.password_hash.encode()):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+    else:
+        # Legacy account without password — set it now
+        user.password_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt()).decode()
+
+    # Generate fresh API token
+    raw_token, prefix, hashed = generate_api_token()
+    token = MCPApiToken(
+        user_id=user.id,
+        token_prefix=prefix,
+        token_hash=hashed,
+        name="login",
+    )
+    session.add(token)
+
+    return {
+        "user_id": user.id,
+        "api_token": raw_token,
+        "message": "Logged in. Token generated.",
+    }
 
 
 class MeResponse(BaseModel):

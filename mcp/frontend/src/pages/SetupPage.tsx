@@ -9,9 +9,10 @@ const inputStyle: React.CSSProperties = {
 
 export default function SetupPage() {
   const [token, setToken] = useState(localStorage.getItem('mcp_token') || '')
-  const [mode, setMode] = useState<'choose' | 'signup' | 'login'>('choose')
+  const [mode, setMode] = useState<'choose' | 'signup' | 'login' | 'login_password'>('choose')
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
   const [existingToken, setExistingToken] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'info' | 'error' | 'success'>('info')
@@ -40,13 +41,26 @@ export default function SetupPage() {
     if (!email || !name) { setMsg('Email and name required', 'error'); return }
     const res = await fetch(`${API}/auth/signup`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name }),
+      body: JSON.stringify({ email, name, password: password || 'qweqweqwe' }),
     })
     const data = await res.json()
     if (data.api_token) {
       setToken(data.api_token); localStorage.setItem('mcp_token', data.api_token)
-      setMsg(`Account created! Save your token: ${data.api_token}`, 'success')
+      setMsg(`Account created!`, 'success')
     } else { setMsg(data.detail || 'Signup failed', 'error') }
+  }
+
+  const loginWithPassword = async () => {
+    if (!email || !password) { setMsg('Email and password required', 'error'); return }
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    const data = await res.json()
+    if (data.api_token) {
+      setToken(data.api_token); localStorage.setItem('mcp_token', data.api_token)
+      setMsg(`Welcome back!`, 'success')
+    } else { setMsg(data.detail || 'Login failed', 'error') }
   }
 
   const loginWithToken = async () => {
@@ -94,15 +108,28 @@ export default function SetupPage() {
           <>
             {mode === 'choose' && (
               <div style={{ display: 'flex', gap: 12 }}>
-                <button onClick={() => setMode('signup')} style={{ padding: '10px 20px', borderRadius: 6, fontWeight: 500, background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer' }}>New Account</button>
-                <button onClick={() => setMode('login')} style={{ padding: '10px 20px', borderRadius: 6, fontWeight: 500, background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)', cursor: 'pointer' }}>I Have a Token</button>
+                <button onClick={() => setMode('login_password')} style={{ padding: '10px 20px', borderRadius: 6, fontWeight: 500, background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer' }}>Log In</button>
+                <button onClick={() => setMode('signup')} style={{ padding: '10px 20px', borderRadius: 6, fontWeight: 500, background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)', cursor: 'pointer' }}>New Account</button>
+                <button onClick={() => setMode('login')} style={{ padding: '10px 20px', borderRadius: 6, fontWeight: 500, background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>I Have a Token</button>
+              </div>
+            )}
+
+            {mode === 'login_password' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input style={inputStyle} placeholder="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                <input style={inputStyle} placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && loginWithPassword()} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={loginWithPassword} style={{ padding: '8px 16px', borderRadius: 6, background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer' }}>Log In</button>
+                  <button onClick={() => setMode('choose')} style={{ padding: '8px 12px', fontSize: 13, background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>Back</button>
+                </div>
               </div>
             )}
 
             {mode === 'signup' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input style={inputStyle} placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+                <input style={inputStyle} placeholder="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
                 <input style={inputStyle} placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
+                <input style={inputStyle} placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={signup} style={{ padding: '8px 16px', borderRadius: 6, background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer' }}>Sign Up</button>
                   <button onClick={() => setMode('choose')} style={{ padding: '8px 12px', fontSize: 13, background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>Back</button>

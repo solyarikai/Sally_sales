@@ -11,6 +11,7 @@ class MCPUser(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=True)  # bcrypt hash, nullable for legacy accounts
     is_active = Column(Boolean, server_default="true")
     active_project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL", use_alter=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
