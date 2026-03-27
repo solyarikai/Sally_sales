@@ -693,35 +693,29 @@ async def sync_all_calendly_projects() -> dict:
         if not projects:
             return {"total_synced": 0, "projects_processed": 0}
 
-        # Pick first available token — all share the same Calendly org
-        token = None
-        first_project = None
+        # Sync each project separately — they may use different Calendly orgs/tokens
         for project in projects:
             config = project.calendly_config or {}
-            for m in config.get("members", []):
-                if m.get("pat_token"):
-                    token = m["pat_token"]
-                    first_project = project
-                    break
-            if token:
-                break
+            has_token = any(m.get("pat_token") for m in config.get("members", []))
+            if not has_token:
+                continue
 
-        if not token:
-            return {"total_synced": 0, "projects_processed": 0}
+            try:
+                sync_result = await sync_calendly_events_for_project(
+                    project.id, project.name, config, session
+                )
+                total_synced += sync_result["synced"]
+                projects_processed += 1
 
-        # Single sync call — contact-first matching handles cross-project routing
-        sync_result = await sync_calendly_events_for_project(
-            first_project.id, first_project.name,
-            first_project.calendly_config, session
-        )
-        total_synced = sync_result["synced"]
-        projects_processed = len(projects)
-
-        if sync_result["synced"] > 0:
-            logger.info(
-                f"[CALENDLY SYNC] Single-pass sync: {sync_result['synced']} new, "
-                f"{sync_result['skipped']} skipped"
-            )
+                if sync_result["errors"]:
+                    logger.warning(f"[CALENDLY SYNC] {project.name}: {sync_result['errors']}")
+                if sync_result["synced"] > 0:
+                    logger.info(
+                        f"[CALENDLY SYNC] {project.name}: {sync_result['synced']} new, "
+                        f"{sync_result['skipped']} skipped"
+                    )
+            except Exception as e:
+                logger.error(f"[CALENDLY SYNC] {project.name} failed: {e}")
 
     return {"total_synced": total_synced, "projects_processed": projects_processed}
 
