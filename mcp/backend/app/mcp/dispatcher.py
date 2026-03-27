@@ -1315,22 +1315,33 @@ async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
         # Fallback to main backend proxy — scope by campaign_filters
         project = await _resolve_project(project_name, user, session)
         campaign_filter = _get_campaign_name_filter(project)
-        params = {"include_all": "true", "received_since": "all"}
+        # /counts doesn't support campaign_name_contains, so fetch replies and aggregate
+        params = {"received_since": "all", "page_size": 100, "group_by_contact": "true"}
         if campaign_filter:
             params["campaign_name_contains"] = campaign_filter
-        data = await _call_replies_api("replies/counts", params)
+        data = await _call_replies_api("replies/", params)
         if "error" in data:
             return data
 
-        counts = data.get("categories", data.get("category_counts", data))
-        total = data.get("total", sum(v for v in counts.values() if isinstance(v, int)))
+        replies = data.get("replies", [])
+        total = data.get("total", len(replies))
+        # Aggregate categories
+        cats = {}
+        for r in replies:
+            cat = r.get("category", "other")
+            cats[cat] = cats.get(cat, 0) + 1
+        warm = cats.get("interested", 0) + cats.get("meeting_request", 0)
         return {
             "project": project_name,
             "total_replies": total,
-            "categories": counts,
+            "categories": cats,
+            "warm_leads": warm,
             "campaign_filter": campaign_filter,
-            "message": f"Reply summary for '{project_name}' (campaigns matching '{campaign_filter}'): {total} total replies.",
-            "_links": {"replies_ui": f"{UI_BASE}/tasks?project={project_name}"},
+            "message": f"Reply summary for '{project_name}' (campaigns matching '{campaign_filter}'): {total} total replies, {warm} warm.",
+            "_links": {
+                "replies_ui": f"{UI_BASE}/tasks?project={project_name}",
+                "warm_replies": f"{UI_BASE}/crm?reply_category=interested&project={project_name}",
+            },
         }
 
     if tool_name == "replies_list":
