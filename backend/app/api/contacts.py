@@ -583,41 +583,63 @@ async def list_contacts(
         for row in cat_result.all():
             reply_cat_map[row[0]] = (row[1], row[2])
 
-    # For contacts without email but with inbound activities, derive reply type from activity text
-    from app.models.contact import ContactActivity
+    # For contacts without email or not in reply_cat_map, try noemail-{id}@local in processed_replies
     no_email_replied_ids = [c.id for c in contacts if c.status == "replied" and (not c.email or c.email not in reply_cat_map)]
     activity_cat_map: dict[int, str] = {}
     if no_email_replied_ids:
-        act_result = await session.execute(
+        noemail_keys = [f"noemail-{cid}@local" for cid in no_email_replied_ids]
+        noemail_sub = (
             select(
-                ContactActivity.contact_id,
-                ContactActivity.body,
+                ProcessedReply.lead_email,
+                ProcessedReply.category,
             )
-            .distinct(ContactActivity.contact_id)
-            .where(
-                ContactActivity.contact_id.in_(no_email_replied_ids),
-                ContactActivity.direction == "inbound",
+            .distinct(ProcessedReply.lead_email)
+            .where(ProcessedReply.lead_email.in_(noemail_keys))
+            .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at))
+        ).subquery()
+        noemail_result = await session.execute(select(noemail_sub))
+        for row in noemail_result.all():
+            # Extract contact id from lead_email pattern noemail-{id}@local
+            try:
+                cid = int(row[0].split("-")[1].split("@")[0])
+                activity_cat_map[cid] = row[1]
+            except (ValueError, IndexError):
+                pass
+
+        # Fallback: derive from activity text for remaining contacts
+        from app.models.contact import ContactActivity
+        remaining_ids = [cid for cid in no_email_replied_ids if cid not in activity_cat_map]
+        if remaining_ids:
+            act_result = await session.execute(
+                select(
+                    ContactActivity.contact_id,
+                    ContactActivity.body,
+                )
+                .distinct(ContactActivity.contact_id)
+                .where(
+                    ContactActivity.contact_id.in_(remaining_ids),
+                    ContactActivity.direction == "inbound",
+                )
+                .order_by(ContactActivity.contact_id, desc(ContactActivity.activity_at))
             )
-            .order_by(ContactActivity.contact_id, desc(ContactActivity.activity_at))
-        )
-        import re
-        for row in act_result.all():
-            body = (row[1] or "").lower()
-            if re.search(r"(not interested|no thanks|not relevant|decline)", body):
-                cat = "not_interested"
-            elif re.search(r"(out of office|ooo|vacation|currently away)", body):
-                cat = "out_of_office"
-            elif re.search(r"(unsubscribe|remove me|stop)", body):
-                cat = "unsubscribe"
-            elif re.search(r"(wrong person|not the right)", body):
-                cat = "wrong_person"
-            elif re.search(r"(schedule|call|meet|calendar|calendly|zoom)", body):
-                cat = "meeting_request"
-            elif re.search(r"(interested|tell me more|send info|sounds good)", body):
-                cat = "interested"
-            else:
-                cat = "other"
-            activity_cat_map[row[0]] = cat
+            import re
+            for row in act_result.all():
+                body = (row[1] or "").lower()
+                if re.search(r"(not interested|no thanks|not relevant|decline)", body):
+                    cat = "not_interested"
+                elif re.search(r"(out of office|ooo|vacation|currently away)", body):
+                    cat = "out_of_office"
+                elif re.search(r"(unsubscribe|remove me|stop)", body):
+                    cat = "unsubscribe"
+                elif re.search(r"(wrong person|not the right)", body):
+                    cat = "wrong_person"
+                elif re.search(r"(schedule|call|meet|calendar|calendly|zoom)", body):
+                    cat = "meeting_request"
+                elif re.search(r"(interested|tell me more|send info|sounds good)", body):
+                    cat = "interested"
+                else:
+                    cat = "other"
+                activity_cat_map[row[0]] = cat
 
     # Build response
     contact_responses = []
