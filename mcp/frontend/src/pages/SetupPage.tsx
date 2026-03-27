@@ -1,200 +1,155 @@
 import { useState, useEffect } from 'react'
 
 const API = '/api'
+const ALL_SERVICES = ['smartlead', 'apollo', 'openai', 'gemini']
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)',
-  borderRadius: 6, padding: '8px 12px', color: 'var(--text)', outline: 'none', fontSize: 14,
+  width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
+  borderRadius: 8, padding: '10px 14px', color: 'var(--text)', outline: 'none', fontSize: 14,
+  boxSizing: 'border-box' as const,
 }
 
 export default function SetupPage() {
-  const [token, setToken] = useState(localStorage.getItem('mcp_token') || '')
-  const [mode, setMode] = useState<'choose' | 'signup' | 'login' | 'login_password'>('choose')
-  const [email, setEmail] = useState('')
-  const [name, setName] = useState('')
-  const [password, setPassword] = useState('')
-  const [existingToken, setExistingToken] = useState('')
-  const [message, setMessage] = useState('')
-  const [messageType, setMessageType] = useState<'info' | 'error' | 'success'>('info')
-  const [integrations, setIntegrations] = useState<any[]>([])
-
-  const [intName, setIntName] = useState('smartlead')
-  const [intKey, setIntKey] = useState('')
-  const [intResult, setIntResult] = useState('')
-
+  const [token] = useState(localStorage.getItem('mcp_token') || '')
   const [userName, setUserName] = useState('')
+  const [userEmail, setUserEmail] = useState('')
+  const [integrations, setIntegrations] = useState<any[]>([])
+  const [editingService, setEditingService] = useState<string | null>(null)
+  const [newKey, setNewKey] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [result, setResult] = useState('')
 
   useEffect(() => {
-    if (token) {
-      fetch(`${API}/auth/me`, { headers: { 'X-MCP-Token': token } })
-        .then(r => { if (!r.ok) throw new Error('Invalid token'); return r.json() })
-        .then(d => { setUserName(d.name); loadIntegrations() })
-        .catch(() => { setToken(''); localStorage.removeItem('mcp_token'); setMsg('Token expired or invalid', 'error') })
-    }
+    if (!token) return
+    fetch(`${API}/auth/me`, { headers: { 'X-MCP-Token': token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) { setUserName(d.name); setUserEmail(d.email) } })
+    loadIntegrations()
   }, [token])
 
-  const setMsg = (text: string, type: 'info' | 'error' | 'success' = 'info') => {
-    setMessage(text); setMessageType(type)
+  const loadIntegrations = () => {
+    if (!token) return
+    fetch(`${API}/setup/integrations`, { headers: { 'X-MCP-Token': token } })
+      .then(r => r.ok ? r.json() : [])
+      .then(setIntegrations)
   }
 
-  const signup = async () => {
-    if (!email || !name) { setMsg('Email and name required', 'error'); return }
-    const res = await fetch(`${API}/auth/signup`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name, password: password || 'qweqweqwe' }),
-    })
-    const data = await res.json()
-    if (data.api_token) {
-      setToken(data.api_token); localStorage.setItem('mcp_token', data.api_token)
-      setMsg(`Account created!`, 'success')
-    } else { setMsg(data.detail || 'Signup failed', 'error') }
-  }
-
-  const loginWithPassword = async () => {
-    if (!email || !password) { setMsg('Email and password required', 'error'); return }
-    const res = await fetch(`${API}/auth/login`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    const data = await res.json()
-    if (data.api_token) {
-      setToken(data.api_token); localStorage.setItem('mcp_token', data.api_token)
-      setMsg(`Welcome back!`, 'success')
-    } else { setMsg(data.detail || 'Login failed', 'error') }
-  }
-
-  const loginWithToken = async () => {
-    if (!existingToken.startsWith('mcp_')) { setMsg('Token must start with mcp_', 'error'); return }
-    const res = await fetch(`${API}/auth/me`, { headers: { 'X-MCP-Token': existingToken } })
-    if (res.ok) {
-      const data = await res.json()
-      setToken(existingToken); localStorage.setItem('mcp_token', existingToken)
-      setUserName(data.name); setMsg(`Welcome back, ${data.name}!`, 'success')
-    } else { setMsg('Invalid token', 'error') }
-  }
-
-  const loadIntegrations = async () => {
-    const t = token || existingToken; if (!t) return
-    const res = await fetch(`${API}/setup/integrations`, { headers: { 'X-MCP-Token': t } })
-    if (res.ok) setIntegrations(await res.json())
-  }
-
-  const connectIntegration = async () => {
-    if (!intKey) { setIntResult('Enter an API key'); return }
-    setIntResult('Connecting...')
+  const saveKey = async (service: string) => {
+    if (!newKey) return
+    setSaving(true); setResult('')
     const res = await fetch(`${API}/setup/integrations`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-MCP-Token': token },
-      body: JSON.stringify({ integration_name: intName, api_key: intKey }),
+      body: JSON.stringify({ integration_name: service, api_key: newKey }),
     })
     const data = await res.json()
-    setIntResult(data.message || JSON.stringify(data)); setIntKey(''); loadIntegrations()
+    setResult(data.message || JSON.stringify(data))
+    setSaving(false); setNewKey(''); setEditingService(null)
+    loadIntegrations()
   }
 
   const logout = () => {
-    setToken(''); setUserName(''); setIntegrations([]); setMode('choose'); setMessage('')
     localStorage.removeItem('mcp_token')
+    window.location.href = '/'
   }
 
-  const msgColor = messageType === 'error' ? '#ef4444' : messageType === 'success' ? '#22c55e' : '#eab308'
+  // Build service list: all services with their connection status
+  const serviceMap = new Map(integrations.map((i: any) => [i.name, i]))
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', padding: 32, display: 'flex', flexDirection: 'column', gap: 32 }}>
+    <div style={{ maxWidth: 600, margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: 32 }}>
 
-      {/* Account Section */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600 }}>Account</h2>
-
-        {!token ? (
-          <>
-            {mode === 'choose' && (
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button onClick={() => setMode('login_password')} style={{ padding: '10px 20px', borderRadius: 6, fontWeight: 500, background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer' }}>Log In</button>
-                <button onClick={() => setMode('signup')} style={{ padding: '10px 20px', borderRadius: 6, fontWeight: 500, background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)', cursor: 'pointer' }}>New Account</button>
-                <button onClick={() => setMode('login')} style={{ padding: '10px 20px', borderRadius: 6, fontWeight: 500, background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>I Have a Token</button>
-              </div>
-            )}
-
-            {mode === 'login_password' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input style={inputStyle} placeholder="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-                <input style={inputStyle} placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && loginWithPassword()} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={loginWithPassword} style={{ padding: '8px 16px', borderRadius: 6, background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer' }}>Log In</button>
-                  <button onClick={() => setMode('choose')} style={{ padding: '8px 12px', fontSize: 13, background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>Back</button>
-                </div>
-              </div>
-            )}
-
-            {mode === 'signup' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input style={inputStyle} placeholder="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-                <input style={inputStyle} placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
-                <input style={inputStyle} placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={signup} style={{ padding: '8px 16px', borderRadius: 6, background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer' }}>Sign Up</button>
-                  <button onClick={() => setMode('choose')} style={{ padding: '8px 12px', fontSize: 13, background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>Back</button>
-                </div>
-              </div>
-            )}
-
-            {mode === 'login' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 13 }} placeholder="mcp_a1b2c3d4..." value={existingToken} onChange={e => setExistingToken(e.target.value)} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={loginWithToken} style={{ padding: '8px 16px', borderRadius: 6, background: '#16a34a', color: 'white', border: 'none', cursor: 'pointer' }}>Connect</button>
-                  <button onClick={() => setMode('choose')} style={{ padding: '8px 12px', fontSize: 13, background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>Back</button>
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
-            <div>
-              <div style={{ fontWeight: 500 }}>{userName || 'Loading...'}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 4 }}>{token.slice(0, 20)}...</div>
-            </div>
-            <button onClick={logout} style={{ fontSize: 13, color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>Logout</button>
-          </div>
-        )}
-
-        {message && <div style={{ fontSize: 13, color: msgColor }}>{message}</div>}
+      {/* Account */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px' }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 16 }}>{userName || 'Loading...'}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{userEmail}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 6, opacity: 0.6 }}>{token.slice(0, 24)}...</div>
+        </div>
+        <button onClick={logout} style={{ fontSize: 13, color: '#ef4444', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>Logout</button>
       </div>
 
-      {/* Integrations Section */}
-      {token && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 600 }}>Integrations</h2>
-            <button onClick={loadIntegrations} style={{ fontSize: 13, color: '#3b82f6', background: 'transparent', border: 'none', cursor: 'pointer' }}>Refresh</button>
-          </div>
-
-          {integrations.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {integrations.map((i: any) => (
-                <div key={i.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0', fontSize: 14 }}>
-                  <span style={{ fontSize: 16, color: i.connected ? '#22c55e' : 'var(--text-muted)' }}>{i.connected ? '●' : '○'}</span>
-                  <span style={{ fontWeight: 500, width: 96 }}>{i.name}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>{i.info}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>Connect a service</div>
-            <select style={inputStyle} value={intName} onChange={e => setIntName(e.target.value)}>
-              <option value="smartlead">SmartLead</option>
-              <option value="apollo">Apollo</option>
-              <option value="findymail">FindyMail</option>
-              <option value="openai">OpenAI</option>
-              <option value="gemini">Gemini</option>
-            </select>
-            <input style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 13 }} placeholder="API Key" type="password" value={intKey} onChange={e => setIntKey(e.target.value)} />
-            <button onClick={connectIntegration} style={{ width: '100%', padding: '10px', borderRadius: 6, fontSize: 13, background: '#16a34a', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 500 }}>Test & Connect</button>
-            {intResult && <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>{intResult}</div>}
-          </div>
+      {/* API Keys */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>API Keys</h2>
+          <button onClick={loadIntegrations} style={{ fontSize: 12, color: '#3b82f6', background: 'transparent', border: 'none', cursor: 'pointer' }}>Refresh</button>
         </div>
-      )}
+
+        <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+          {ALL_SERVICES.map((service, idx) => {
+            const info = serviceMap.get(service)
+            const connected = info?.connected
+            const isEditing = editingService === service
+
+            return (
+              <div key={service} style={{
+                padding: '14px 20px',
+                borderTop: idx > 0 ? '1px solid var(--border)' : 'none',
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}>
+                {/* Status dot */}
+                <div style={{
+                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                  background: connected ? '#22c55e' : 'var(--border)',
+                }} />
+
+                {/* Service name + status */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, textTransform: 'capitalize' }}>{service}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
+                    {connected ? (info?.info || 'Connected') : 'Not connected'}
+                  </div>
+                </div>
+
+                {/* Action */}
+                {isEditing ? (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input
+                      style={{ ...inputStyle, width: 220, fontSize: 12, padding: '6px 10px', fontFamily: 'monospace' }}
+                      placeholder="Paste API key"
+                      type="password"
+                      value={newKey}
+                      onChange={e => setNewKey(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && saveKey(service)}
+                      autoFocus
+                    />
+                    <button onClick={() => saveKey(service)} disabled={saving} style={{
+                      fontSize: 12, padding: '6px 12px', borderRadius: 6,
+                      background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer',
+                      opacity: saving ? 0.5 : 1,
+                    }}>{saving ? '...' : 'Save'}</button>
+                    <button onClick={() => { setEditingService(null); setNewKey('') }} style={{
+                      fontSize: 12, padding: '6px 8px', background: 'transparent', border: 'none',
+                      color: 'var(--text-muted)', cursor: 'pointer',
+                    }}>Cancel</button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setEditingService(service); setResult('') }} style={{
+                    fontSize: 12, padding: '5px 12px', borderRadius: 6,
+                    background: 'transparent', border: '1px solid var(--border)',
+                    color: 'var(--text-secondary)', cursor: 'pointer',
+                  }}>
+                    {connected ? 'Update' : 'Connect'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {result && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>{result}</div>}
+      </div>
+
+      {/* MCP Connection Info */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Connect via Claude Code</div>
+        <code style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+          claude mcp add leadgen --transport sse http://46.62.210.24:8002/mcp/sse
+        </code>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+          Then paste your token: <code style={{ fontSize: 11, background: 'var(--bg)', padding: '2px 6px', borderRadius: 3 }}>{token.slice(0, 24)}...</code>
+        </div>
+      </div>
     </div>
   )
 }
