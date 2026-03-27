@@ -62,6 +62,7 @@ SOFIA_DIR_FM = Path(__file__).parent.parent
 CSV_OUTPUT_DIR_FM = SOFIA_DIR_FM / "output" / "OnSocial"
 CSV_LEADS_DIR = CSV_OUTPUT_DIR_FM / "Leads"
 CSV_IMPORT_DIR_FM = CSV_OUTPUT_DIR_FM / "Import"
+CSV_GETSALES_DIR = SOFIA_DIR_FM / "get_sales_hub"
 PROJECT_CODE_FM = "OS"
 
 def _date_tag_fm() -> str:
