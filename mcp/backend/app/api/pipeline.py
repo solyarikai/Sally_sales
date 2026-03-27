@@ -590,11 +590,23 @@ async def list_runs(
         return []
     result = await session.execute(query)
     runs = result.scalars().all()
+
+    # Get project names for all runs
+    project_ids = {r.project_id for r in runs}
+    project_names = {}
+    if project_ids:
+        pn_result = await session.execute(
+            select(Project.id, Project.name).where(Project.id.in_(project_ids))
+        )
+        project_names = {pid: pname for pid, pname in pn_result.all()}
+
     return [
         {"id": r.id, "status": r.status, "phase": r.current_phase,
          "source_type": r.source_type, "new_companies": r.new_companies_count,
          "credits_used": r.credits_used or 0,
          "target_rate": f"{(r.target_rate or 0)*100:.0f}%" if r.target_rate else None,
+         "project_id": r.project_id,
+         "project_name": project_names.get(r.project_id, ""),
          "created_at": str(r.created_at)}
         for r in runs
     ]
