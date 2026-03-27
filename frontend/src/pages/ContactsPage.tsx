@@ -43,7 +43,6 @@ const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
   not_interested:      { dot: '#ef4444', label: 'Not Interested' },
   ooo:                 { dot: '#fbbf24', label: 'Out of Office' },
   unsubscribed:        { dot: '#f87171', label: 'Unsubscribed' },
-  warm:                { dot: '#f59e0b', label: 'Warm' },
   calendly_sent:       { dot: '#fb923c', label: 'Calendly Sent' },
   negotiating_meeting: { dot: '#f97316', label: 'Negotiating Meeting' },
   meeting_booked:      { dot: '#f97316', label: 'Meeting Booked' },
