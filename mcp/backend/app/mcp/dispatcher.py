@@ -263,6 +263,27 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         source_type = args["source_type"]
         filters = args.get("filters", {})
 
+        # ── AUTO-DISCOVER filters via probe if keywords missing ──
+        if "api" in source_type and not filters.get("q_organization_keyword_tags"):
+            query = args.get("query") or project.target_segments
+            if query:
+                try:
+                    ctx_probe = UserServiceContext(user.id, session)
+                    apollo_probe = await ctx_probe.get_apollo_service()
+                    openai_key = await ctx_probe.get_key("openai")
+                    if not openai_key:
+                        from app.config import settings as _s
+                        openai_key = _s.OPENAI_API_KEY
+                    from app.services.filter_intelligence import suggest_filters
+                    suggestion = await suggest_filters(query, apollo_probe, openai_key, args.get("target_count", 10))
+                    if suggestion.get("suggested_filters"):
+                        sf = suggestion["suggested_filters"]
+                        filters.setdefault("q_organization_keyword_tags", sf.get("q_organization_keyword_tags"))
+                        filters.setdefault("organization_locations", sf.get("organization_locations"))
+                        filters.setdefault("organization_num_employees_ranges", sf.get("organization_num_employees_ranges"))
+                except Exception as e:
+                    logger.warning(f"Auto-filter discovery failed: {e}")
+
         # ── Auto-calculate pages from target_count BEFORE validation ──
         if "api" in source_type:
             target_count = args.get("target_count") or filters.pop("target_count", None)

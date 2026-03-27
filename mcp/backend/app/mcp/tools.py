@@ -93,17 +93,18 @@ The response shows: project name, ICP, active campaigns, and which companies are
     # ── Pipeline (9) ──
     {
         "name": "tam_gather",
-        "description": """Phase 1: Gather companies from a source. IMPORTANT: Before calling this tool, you MUST have these essential filters clarified with the user. If any are missing, ASK the user first — do NOT guess or use defaults silently.
+        "description": """Phase 1: Gather companies from a source.
 
-ESSENTIAL FILTERS (must be explicit):
-- locations: Which countries/cities to search
-- keywords/industry: What type of companies
-- employee_count_min / employee_count_max: Company size range (e.g. 10-200)
-- max_pages: How many pages to fetch (controls credit spend, 1 credit/page for Apollo API)
+For Apollo API source: if the user gives you a natural language description instead of explicit filters,
+FIRST call suggest_apollo_filters to auto-discover optimal keywords, THEN call tam_gather with the result.
 
-EXAMPLE: User says "find SaaS companies in Germany" → You MUST ask: "What company size? (e.g. 10-50, 50-200, 200-1000) And how many pages max? (each page = 25 companies, 1 Apollo credit)"
+User says "find IT consulting in London, about 10 targets" → you:
+1. Call suggest_apollo_filters(query="IT consulting in London", target_count=10)
+2. Take the suggested_filters from the response
+3. Call tam_gather(project_id=X, source_type="apollo.companies.api", filters=suggested_filters, target_count=10)
 
-Only for manual/CSV/sheets sources can you skip size and page filters.""",
+The user only needs to tell you: WHAT companies, WHERE, and HOW MANY targets.
+You figure out the Apollo filters automatically. Never show filter details to the user.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -113,20 +114,21 @@ Only for manual/CSV/sheets sources can you skip size and page filters.""",
                     "enum": ["apollo.companies.api", "apollo.people.emulator", "apollo.companies.emulator",
                              "clay.companies.emulator", "clay.people.emulator",
                              "google_sheets.companies.manual", "csv.companies.manual", "manual.companies.manual"],
-                    "description": "Source to gather from. Apollo API costs 1 credit/page. Emulators are free. Manual/CSV/Sheets are free.",
+                    "description": "Source to gather from.",
                 },
+                "target_count": {"type": "integer", "description": "How many TARGET companies the user wants. System auto-calculates pages needed."},
                 "filters": {
                     "type": "object",
-                    "description": "Source-specific filters",
+                    "description": "Apollo filters — use output from suggest_apollo_filters",
                     "properties": {
-                        "q_organization_keyword_tags": {"type": "array", "items": {"type": "string"}, "description": "REQUIRED for Apollo. Industry keywords (e.g. ['SaaS', 'fintech'])"},
-                        "organization_locations": {"type": "array", "items": {"type": "string"}, "description": "REQUIRED for Apollo. Countries or cities (e.g. ['Germany', 'United Kingdom'])"},
-                        "organization_num_employees_ranges": {"type": "array", "items": {"type": "string"}, "description": "REQUIRED for Apollo. Size ranges in 'min,max' format (e.g. ['11,50', '51,200'])"},
-                        "max_pages": {"type": "integer", "description": "REQUIRED for Apollo. Max pages to fetch (1 credit each). Default: 4. Each page = 25 companies."},
-                        "per_page": {"type": "integer", "description": "Results per page (default: 25, max: 100)"},
-                        "organization_latest_funding_stage_cd": {"type": "array", "items": {"type": "string"}, "description": "Optional. Funding stages (e.g. ['seed', 'series_a', 'series_b'])"},
-                        "domains": {"type": "array", "items": {"type": "string"}, "description": "For manual source: list of domains"},
-                        "sheet_url": {"type": "string", "description": "For Google Sheets source: sheet URL"},
+                        "q_organization_keyword_tags": {"type": "array", "items": {"type": "string"}},
+                        "organization_locations": {"type": "array", "items": {"type": "string"}},
+                        "organization_num_employees_ranges": {"type": "array", "items": {"type": "string"}},
+                        "max_pages": {"type": "integer"},
+                        "per_page": {"type": "integer"},
+                        "organization_latest_funding_stage_cd": {"type": "array", "items": {"type": "string"}},
+                        "domains": {"type": "array", "items": {"type": "string"}},
+                        "sheet_url": {"type": "string"},
                     },
                 },
             },
