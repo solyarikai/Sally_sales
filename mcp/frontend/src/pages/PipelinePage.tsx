@@ -55,14 +55,24 @@ function ColHeader({ col, sortCol, sortDir, toggleSort, filterValue, onFilter, o
   )
 }
 
+// ── Copy helper ──
+function CopyBtn({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
+      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: copied ? 'var(--success)' : 'var(--text-muted)', padding: '0 4px' }}
+      title="Copy">{copied ? '✓' : '⧉'}</button>
+  )
+}
+
 // ── Company detail modal ──
 function CompanyModal({ company, onClose }: { company: any; onClose: () => void }) {
-  const [tab, setTab] = useState<'details'|'analysis'|'scrape'|'source'>('details')
+  const [tab, setTab] = useState<'analysis'|'details'|'scrape'|'source'>('analysis')
   const [detail, setDetail] = useState<any>(null)
+  const [scrapeExpanded, setScrapeExpanded] = useState(false)
 
   useEffect(() => {
-    // Load full detail
-    fetch(`${API}/pipeline/companies/${company.id}`).then(r => r.ok ? r.json() : null).then(setDetail)
+    fetch(`${API}/pipeline/companies/${company.id}`, { headers: authHeaders() }).then(r => r.ok ? r.json() : null).then(setDetail)
   }, [company.id])
 
   const c = detail || company
@@ -78,78 +88,115 @@ function CompanyModal({ company, onClose }: { company: any; onClose: () => void 
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>{c.name || c.domain}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              {c.domain} · <span style={{ color: STATUS_COLORS[c.status] || 'var(--text-muted)' }}>{c.status}</span>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <a href={`https://${c.domain}`} target="_blank" rel="noopener" style={{ color: 'var(--text-link)' }}>{c.domain}</a>
+              · <span style={{ color: STATUS_COLORS[c.status] || 'var(--text-muted)' }}>{c.status}</span>
+              {c.analysis_segment && c.analysis_segment !== 'NOT_A_MATCH' && (
+                <span style={{ padding: '1px 6px', borderRadius: 3, background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontSize: 11, fontWeight: 500 }}>{c.analysis_segment}</span>
+              )}
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs — Analysis first */}
         <div style={{ display: 'flex', gap: 0, padding: '0 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-header)' }}>
-          <Tab k="details" label="Details" />
           <Tab k="analysis" label="Analysis" />
+          <Tab k="details" label="Details" />
           <Tab k="scrape" label="Scrape" />
           <Tab k="source" label="Source" />
         </div>
 
         {/* Content */}
         <div style={{ padding: 20, fontSize: 13 }}>
-          {tab === 'details' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px' }}>
-              {[
-                ['Domain', c.domain], ['Name', c.name], ['Industry', c.industry], ['Keywords', c.keywords],
-                ['Employees', c.employee_count], ['Revenue', c.revenue], ['Founded', c.founded_year],
-                ['Country', c.country], ['City', c.city], ['Phone', c.phone],
-              ].map(([l, v]) => v ? <div key={l as string}><span style={{ color: 'var(--text-muted)' }}>{l}:</span> {v}</div> : null)}
-              {c.linkedin_url && <div><span style={{ color: 'var(--text-muted)' }}>LinkedIn:</span> <a href={c.linkedin_url} target="_blank" style={{ color: 'var(--text-link)' }}>Profile</a></div>}
-              {c.apollo_url && <div><span style={{ color: 'var(--text-muted)' }}>Apollo:</span> <a href={c.apollo_url} target="_blank" style={{ color: 'var(--text-link)' }}>View on Apollo</a></div>}
-              <div><span style={{ color: 'var(--text-muted)' }}>Website:</span> <a href={`https://${c.domain}`} target="_blank" style={{ color: 'var(--text-link)' }}>{c.domain}</a></div>
-              {c.description && <div style={{ gridColumn: '1/-1', color: 'var(--text-secondary)' }}>{c.description}</div>}
-            </div>
-          )}
 
           {tab === 'analysis' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {c.analysis_reasoning ? (
                 <>
-                  <div style={{ display: 'flex', gap: 16 }}>
-                    {c.analysis_segment && <div><span style={{ color: 'var(--text-muted)' }}>Segment:</span> <b>{c.analysis_segment}</b></div>}
-                    {c.analysis_confidence != null && <div><span style={{ color: 'var(--text-muted)' }}>Confidence:</span> <b style={{ color: c.analysis_confidence > 0.7 ? 'var(--success)' : 'var(--warning)' }}>{(c.analysis_confidence*100).toFixed(0)}%</b></div>}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>Reasoning</div>
-                    <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>{c.analysis_reasoning}</div>
-                  </div>
-                  {c.prompt_text && (
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>GPT Prompt Used</div>
-                      <pre style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-card)', padding: 10, borderRadius: 6, overflow: 'auto', maxHeight: 200, whiteSpace: 'pre-wrap' }}>{c.prompt_text}</pre>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    {c.analysis_segment && (
+                      <div style={{ padding: '4px 10px', borderRadius: 6, background: c.analysis_segment === 'NOT_A_MATCH' ? 'var(--bg-card)' : 'rgba(99,102,241,0.12)', color: c.analysis_segment === 'NOT_A_MATCH' ? 'var(--text-muted)' : '#818cf8', fontWeight: 600, fontSize: 13 }}>
+                        {c.analysis_segment}
+                      </div>
+                    )}
+                    {c.analysis_confidence != null && (
+                      <div style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', fontWeight: 600, color: c.analysis_confidence >= 0.8 ? 'var(--success)' : c.analysis_confidence >= 0.5 ? 'var(--warning)' : 'var(--text-muted)' }}>
+                        {(c.analysis_confidence*100).toFixed(0)}% confidence
+                      </div>
+                    )}
+                    <div style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', color: STATUS_COLORS[c.status] || 'var(--text-muted)', fontWeight: 500 }}>
+                      {c.status}
                     </div>
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 4 }}>{c.analysis_reasoning}</div>
+                  {c.prompt_text && (
+                    <details style={{ marginTop: 8 }}>
+                      <summary style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}>GPT prompt used</summary>
+                      <pre style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-card)', padding: 10, borderRadius: 6, overflow: 'auto', maxHeight: 200, whiteSpace: 'pre-wrap', marginTop: 6 }}>{c.prompt_text}</pre>
+                    </details>
                   )}
                 </>
               ) : (
-                <div style={{ color: 'var(--text-muted)', padding: '20px 0' }}>No analysis yet. Run the analyze phase to see GPT reasoning.</div>
+                <div style={{ color: 'var(--text-muted)', padding: '20px 0' }}>Not analyzed yet.</div>
               )}
+            </div>
+          )}
+
+          {tab === 'details' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px' }}>
+              {[
+                ['Industry', c.industry],
+                ['Keywords', Array.isArray(c.keywords) ? c.keywords.join(', ') : c.keywords],
+                ['Employees', c.employee_count],
+                ['Founded', c.founded_year],
+                ['Country', c.country],
+                ['City', c.city],
+                ['Revenue', c.revenue],
+                ['Phone', c.phone],
+              ].map(([l, v]) => v ? <div key={l as string}><span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{l}:</span> <span style={{ fontSize: 13 }}>{v}</span></div> : null)}
+
+              {/* Links with copy buttons */}
+              {c.linkedin_url && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <a href={c.linkedin_url} target="_blank" rel="noopener" style={{ color: 'var(--text-link)', fontSize: 13 }}>{c.linkedin_url.replace('http://www.linkedin.com/company/', '').replace('https://www.linkedin.com/company/', 'linkedin.com/…/')}</a>
+                  <CopyBtn text={c.linkedin_url} />
+                </div>
+              )}
+              {c.apollo_url && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <a href={c.apollo_url} target="_blank" rel="noopener" style={{ color: 'var(--text-link)', fontSize: 13 }}>View on Apollo</a>
+                  <CopyBtn text={c.apollo_url} />
+                </div>
+              )}
+              {c.description && <div style={{ gridColumn: '1/-1', color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>{c.description}</div>}
             </div>
           )}
 
           {tab === 'scrape' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', gap: 16 }}>
-                <div><span style={{ color: 'var(--text-muted)' }}>Status:</span> {c.scrape_status || 'pending'}</div>
-                {c.scrape_text_size && <div><span style={{ color: 'var(--text-muted)' }}>Size:</span> {(c.scrape_text_size / 1024).toFixed(1)}KB</div>}
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
+                <div><span style={{ color: 'var(--text-muted)' }}>Status:</span> <b style={{ color: c.scrape_status === 'success' ? 'var(--success)' : 'var(--danger)' }}>{c.scrape_status || 'pending'}</b></div>
+                {c.scrape_text_size != null && <div><span style={{ color: 'var(--text-muted)' }}>Size:</span> {c.scrape_text_size > 1024 ? (c.scrape_text_size / 1024).toFixed(1) + 'KB' : c.scrape_text_size + 'B'}</div>}
                 {c.scrape_http_code && <div><span style={{ color: 'var(--text-muted)' }}>HTTP:</span> {c.scrape_http_code}</div>}
                 {c.scrape_timestamp && <div><span style={{ color: 'var(--text-muted)' }}>Scraped:</span> {new Date(c.scrape_timestamp).toLocaleString()}</div>}
+                <div><span style={{ color: 'var(--text-muted)' }}>Page:</span> / (root)</div>
               </div>
-              {c.scrape_error && <div style={{ color: 'var(--danger)' }}>Error: {c.scrape_error}</div>}
+              {c.scrape_error && <div style={{ color: 'var(--danger)', fontSize: 12 }}>Error: {c.scrape_error}</div>}
               {c.scrape_text ? (
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>Scraped Text</div>
-                  <pre style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-card)', padding: 10, borderRadius: 6, overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap' }}>{c.scrape_text}</pre>
+                  <pre style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-card)', padding: 10, borderRadius: 6, overflow: 'auto', maxHeight: scrapeExpanded ? 'none' : 300, whiteSpace: 'pre-wrap' }}>
+                    {c.scrape_text}
+                  </pre>
+                  {c.scrape_text.length > 1000 && (
+                    <button onClick={() => setScrapeExpanded(!scrapeExpanded)} style={{ fontSize: 11, color: 'var(--text-link)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4 }}>
+                      {scrapeExpanded ? 'Collapse' : 'View full text'}
+                    </button>
+                  )}
                 </div>
               ) : (
-                <div style={{ color: 'var(--text-muted)' }}>No scrape data. Run the scrape phase first.</div>
+                <div style={{ color: 'var(--text-muted)' }}>No scrape data yet.</div>
               )}
             </div>
           )}
@@ -417,7 +464,7 @@ export default function PipelinePage() {
           <tbody>
             {filtered.map((c: any) => (
               <tr key={c.id} onClick={() => setSelectedCompany(c)} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--btn-hover)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-link)' }}>{c.domain}</td>
+                <td style={{ padding: '7px 8px 7px 0' }}><a href={`https://${c.domain}`} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ color: 'var(--text-link)' }}>{c.domain}</a></td>
                 <td style={{ padding: '7px 8px 7px 0' }}>{c.name || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                 <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)' }}>{c.industry || '—'}</td>
                 <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)', fontSize: 11 }}>{Array.isArray(c.keywords) ? c.keywords.join(', ') : (c.keywords || '—')}</td>
