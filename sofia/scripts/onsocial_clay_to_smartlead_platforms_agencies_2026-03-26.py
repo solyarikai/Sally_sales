@@ -888,15 +888,25 @@ def step5_analyze(run_id: int, prompt_text: str = None, prompt_id: int = PROMPT_
     return {"target_rate": target_rate, "targets_count": targets_count}
 
 
-def step5_reanalyze(run_id: int, prompt_text: str, model: str = "gpt-4o-mini") -> dict:
+def step5_reanalyze(run_id: int, prompt_text: str = None, prompt_id: int = None,
+                     model: str = "gpt-4o-mini") -> dict:
     """Re-run analysis with different prompt (no re-scrape needed)."""
     print(f"\n{'='*60}")
     print(f"STEP 5 (RE-ANALYZE): run #{run_id}")
-    print(f"  New prompt: {prompt_text[:100]}...")
+    if prompt_id:
+        print(f"  Prompt ID: {prompt_id}")
+    else:
+        print(f"  New prompt: {prompt_text[:100]}...")
     print(f"{'='*60}")
 
+    params = {"model": model}
+    if prompt_id:
+        params["prompt_id"] = prompt_id
+    elif prompt_text:
+        params["prompt_text"] = prompt_text
+
     result = api("post", f"/pipeline/gathering/runs/{run_id}/re-analyze",
-                 params={"prompt_text": prompt_text, "model": model})
+                 params=params)
 
     target_rate = result.get("target_rate", 0)
     targets_count = result.get("targets_count", 0)
