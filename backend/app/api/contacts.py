@@ -149,6 +149,11 @@ class ContactResponse(BaseModel):
                 for camp in plat_data.get("campaigns", []):
                     if isinstance(camp, dict):
                         camp_copy = dict(camp)
+                        # Normalize legacy keys (campaign_name/campaign_id → name/id)
+                        if "name" not in camp_copy and "campaign_name" in camp_copy:
+                            camp_copy["name"] = camp_copy.pop("campaign_name")
+                        if "id" not in camp_copy and "campaign_id" in camp_copy:
+                            camp_copy["id"] = camp_copy.pop("campaign_id")
                         camp_copy.setdefault("source", plat_name)
                         result.append(camp_copy)
         self.campaigns = result or None
