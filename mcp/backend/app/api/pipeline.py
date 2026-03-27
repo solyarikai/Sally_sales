@@ -288,33 +288,32 @@ async def get_run_companies(
     if not run:
         raise HTTPException(404, "Run not found")
 
-    # Base: LEFT JOIN with company_scrapes
+    # Get unique company IDs for this run (dedup by domain within project)
+    # First: get company IDs linked to this run, deduplicated
+    unique_dc_ids_q = (
+        select(sa_func.min(DiscoveredCompany.id).label("dc_id"))
+        .where(DiscoveredCompany.project_id == run.project_id)
+        .group_by(DiscoveredCompany.domain)
+    ).subquery()
+
     stmt = (
         select(DiscoveredCompany, CompanyScrape)
+        .join(unique_dc_ids_q, DiscoveredCompany.id == unique_dc_ids_q.c.dc_id)
         .outerjoin(
             CompanyScrape,
             (CompanyScrape.discovered_company_id == DiscoveredCompany.id)
             & (CompanyScrape.is_current == True),
         )
-        .where(DiscoveredCompany.project_id == run.project_id)
     )
-
-    # ALWAYS filter by run_id via CompanySourceLink to avoid cross-run duplicates
-    filter_run_id = iteration if iteration is not None else int(run_id)
-    stmt = stmt.join(
-        CompanySourceLink,
-        CompanySourceLink.discovered_company_id == DiscoveredCompany.id,
-    ).where(CompanySourceLink.gathering_run_id == filter_run_id)
 
     stmt = stmt.order_by(DiscoveredCompany.domain).offset((page - 1) * page_size).limit(page_size)
     result = await session.execute(stmt)
     rows = result.all()
 
-    # Total count — also scoped by run
+    # Total count — deduplicated by domain
     count_stmt = (
-        select(sa_func.count(DiscoveredCompany.id))
-        .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
-        .where(CompanySourceLink.gathering_run_id == filter_run_id)
+        select(sa_func.count(sa_func.distinct(DiscoveredCompany.domain)))
+        .where(DiscoveredCompany.project_id == run.project_id)
     )
     total_companies = (await session.execute(count_stmt)).scalar() or 0
 
