@@ -128,13 +128,6 @@ All pages at http://46.62.210.24:3000 — user-scoped, you only see your data.
 | Apollo enrichment | 1 credit / company |
 | Website scraping | Free |
 | GPT analysis | ~$0.003 / company |
-| FindyMail verification | $0.01 / email (DISABLED for testing) |
 | SmartLead campaign | Free |
 | Test email | Free |
 
-## 10. Test Accounts
-
-| Email | Has campaigns? |
-|-------|---------------|
-| `pn@getsally.io` | Yes — "petr" campaigns in SmartLead |
-| `services@getsally.io` | No — clean new user |
