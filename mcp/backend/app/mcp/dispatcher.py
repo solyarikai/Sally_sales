@@ -1110,4 +1110,185 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         return {"checked": len(domains), "blacklisted": 0, "clean": len(domains),
                 "note": "Blacklist check against user's campaigns — full implementation coming"}
 
+    # ── Reply tools ──
+    if tool_name in ("replies_summary", "replies_list", "replies_followups", "replies_deep_link"):
+        user = await _get_user(token, session)
+        return await _handle_reply_tool(tool_name, args, user, session)
+
     raise ValueError(f"Unknown tool: {tool_name}")
+
+
+async def _resolve_project_id(project_name: str, user, session) -> int | None:
+    """Resolve a project name to project_id. Returns None if not found."""
+    from sqlalchemy import func as sa_func
+    result = await session.execute(
+        select(Project).where(
+            Project.user_id == user.id,
+            sa_func.lower(Project.name) == project_name.lower(),
+        )
+    )
+    project = result.scalar_one_or_none()
+    return project.id if project else None
+
+
+async def _call_replies_api(path: str, params: dict | None = None) -> dict:
+    """Call the main backend replies API via the nginx proxy (mcp-frontend:80)."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(base_url="http://mcp-frontend:80", timeout=15) as client:
+            resp = await client.get(f"/api/{path}", params=params, headers={"X-Company-ID": "1"})
+            if resp.status_code == 200:
+                return resp.json()
+            return {"error": f"API returned {resp.status_code}", "detail": resp.text[:500]}
+    except Exception as e:
+        return {"error": f"Failed to reach replies API: {e}"}
+
+
+async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
+    """Handle all reply-related tool calls."""
+
+    UI_BASE = "http://46.62.210.24:3000"
+
+    if tool_name == "replies_summary":
+        project_name = args["project_name"]
+        project_id = await _resolve_project_id(project_name, user, session)
+        if not project_id:
+            return {"error": f"Project '{project_name}' not found"}
+
+        # Get counts with include_all=true to get all categories
+        data = await _call_replies_api("replies/counts", {
+            "project_id": project_id,
+            "include_all": "true",
+            "received_since": "all",
+        })
+        if "error" in data:
+            return data
+
+        counts = data.get("categories", data)
+        total = data.get("total", sum(v for v in counts.values() if isinstance(v, int)))
+
+        return {
+            "project": project_name,
+            "total_replies": total,
+            "categories": counts,
+            "message": f"Reply summary for '{project_name}': {total} total replies.",
+            "_links": {
+                "replies_ui": f"{UI_BASE}/tasks?project={project_name}",
+            },
+        }
+
+    if tool_name == "replies_list":
+        params: dict = {
+            "received_since": "all",
+            "page_size": 30,
+            "group_by_contact": "true",
+        }
+        project_name = args.get("project_name")
+        if project_name:
+            project_id = await _resolve_project_id(project_name, user, session)
+            if not project_id:
+                return {"error": f"Project '{project_name}' not found"}
+            params["project_id"] = project_id
+
+        if args.get("category"):
+            params["category"] = args["category"]
+        if args.get("search"):
+            params["lead_email"] = args["search"]
+        if args.get("needs_reply") is not None:
+            params["needs_reply"] = str(args["needs_reply"]).lower()
+        if args.get("page"):
+            params["page"] = args["page"]
+
+        data = await _call_replies_api("replies/", params)
+        if "error" in data:
+            return data
+
+        replies = data.get("replies", [])
+        cards = []
+        for r in replies[:30]:
+            cards.append({
+                "id": r.get("id"),
+                "lead_name": r.get("lead_name") or r.get("lead_email", ""),
+                "lead_email": r.get("lead_email", ""),
+                "company": r.get("company_name") or r.get("lead_company", ""),
+                "category": r.get("category", "unknown"),
+                "campaign": r.get("campaign_name", ""),
+                "message_preview": (r.get("email_body") or r.get("reply_text") or "")[:200],
+                "received_at": r.get("received_at", ""),
+                "channel": r.get("channel", "email"),
+            })
+
+        return {
+            "total": data.get("total", len(cards)),
+            "page": data.get("page", args.get("page", 1)),
+            "replies": cards,
+            "message": f"Found {data.get('total', len(cards))} replies" + (f" in category '{args.get('category')}'" if args.get("category") else ""),
+            "_links": {
+                "replies_ui": f"{UI_BASE}/tasks" + (f"?project={project_name}" if project_name else ""),
+            },
+        }
+
+    if tool_name == "replies_followups":
+        params = {
+            "needs_followup": "true",
+            "received_since": "all",
+            "page_size": 30,
+        }
+        project_name = args.get("project_name")
+        if project_name:
+            project_id = await _resolve_project_id(project_name, user, session)
+            if not project_id:
+                return {"error": f"Project '{project_name}' not found"}
+            params["project_id"] = project_id
+        if args.get("page"):
+            params["page"] = args["page"]
+
+        data = await _call_replies_api("replies/", params)
+        if "error" in data:
+            return data
+
+        replies = data.get("replies", [])
+        cards = []
+        for r in replies[:30]:
+            cards.append({
+                "id": r.get("id"),
+                "lead_name": r.get("lead_name") or r.get("lead_email", ""),
+                "lead_email": r.get("lead_email", ""),
+                "company": r.get("company_name") or r.get("lead_company", ""),
+                "category": r.get("category", ""),
+                "campaign": r.get("campaign_name", ""),
+                "approved_at": r.get("approved_at", ""),
+                "received_at": r.get("received_at", ""),
+            })
+
+        return {
+            "total": data.get("total", len(cards)),
+            "replies": cards,
+            "message": f"{data.get('total', len(cards))} leads need follow-up" + (f" for '{project_name}'" if project_name else ""),
+            "_links": {
+                "followups_ui": f"{UI_BASE}/tasks/followups" + (f"?project={project_name}" if project_name else ""),
+            },
+        }
+
+    if tool_name == "replies_deep_link":
+        project_name = args["project_name"]
+        category = args.get("category", "")
+        tab = args.get("tab", "")
+
+        url_parts = [f"{UI_BASE}/tasks"]
+        if tab:
+            url_parts[0] = f"{UI_BASE}/tasks/{tab}"
+
+        query_params = [f"project={project_name}"]
+        if category:
+            query_params.append(f"category={category}")
+
+        url = url_parts[0] + "?" + "&".join(query_params)
+
+        return {
+            "url": url,
+            "message": f"Open replies for '{project_name}' in the browser",
+            "_links": {"open": url},
+        }
+
+    return {"error": f"Unknown reply tool: {tool_name}"}
