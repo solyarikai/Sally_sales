@@ -2,7 +2,7 @@
 
 Official Apollo API credit costs (from Apollo pricing page):
   /mixed_people/api_search     — FREE (partial profile, max 100/page)
-  /mixed_companies/search      — 1 credit / page returned (max 100/page)
+  /mixed_companies/api_search  — 1 credit / page returned (max 100/page)
   /people/match                — 1 credit / net-new email, 1 / firmographic, 5 / phone
   /people/bulk_match           — same as /people/match per result
   /organizations/enrich        — 1 credit / result returned
@@ -96,7 +96,7 @@ class ApolloService:
             payload["organization_num_employees_ranges"] = num_employees_ranges
         if latest_funding_stages:
             payload["organization_latest_funding_stage_cd"] = latest_funding_stages
-        result = await self._api_call("POST", "/mixed_companies/search", payload)
+        result = await self._api_call("POST", "/mixed_companies/api_search", payload)
         if result:
             self.credits_used += 1  # 1 credit per page
         return result

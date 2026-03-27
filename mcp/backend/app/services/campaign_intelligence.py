@@ -126,6 +126,9 @@ class CampaignIntelligenceService:
         if not steps:
             steps = self._generate_steps_template(project)
 
+        # Normalize subject lines — clean names, no special chars
+        steps = self._normalize_subjects(steps)
+
         model = "gpt-4o-mini" if isinstance(steps, list) and len(steps) > 0 and "AI-generated" in str(steps[0].get("body", "")[:1]) == False else "template_v1"
 
         seq = GeneratedSequence(

@@ -150,11 +150,74 @@ Simulate a new user registering and running their first campaign:
 - This background analysis enables the system to answer questions later (see Step 9)
 - Track how long this background analysis takes — log the duration in `testruns2603.md`
 
-**Step 3 — Gathering**
+**Step 3 — Gathering (with Probe-and-Iterate Quality Loop)**
 - Search for: "IT consulting companies in Miami"
 - GEO filter is REQUIRED before initiating the pipeline — the system must collect geographic context (country, city, timezone) from the user's search query. This is mandatory, not optional. The gathered contacts' timezone determines campaign timing (see Step 5).
 - Apollo budget: max 20 credits per test run (companies + people combined)
 - Target: 50 companies, up to 3 people per company (this is a HARD LIMIT — make it a configurable requirement, user can override explicitly if they want more)
+
+**The pipeline MUST use the Probe → Evaluate → Refine loop, NOT blind gathering:**
+
+1. **Probe** (1 credit): GPT generates candidate Apollo filters from user query → small Apollo search (25 results, 1 credit) → extract Apollo's ACTUAL taxonomy (real industries, real keywords, frequency counts)
+2. **Scrape ALL returned websites** from probe results via httpx/Apify — run in parallel batches, as fast as possible until you hit 429 (rate limit), then back off and continue. Don't trust Apollo's vague industry labels alone.
+3. **Evaluate via Opus ONLY** (probing is small volume, quality matters most here — no GPT, only Opus): read REAL website content for ALL probed companies, score relevance against user query. Score = relevant_companies / total_probed.
+   - Score ≥ 0.7 → filters are good, proceed to filter refinement (step 4)
+   - Score < 0.7 → filters are bad, GPT adjusts keywords/industries, RE-PROBE (1 more credit), repeat from step 1
+4. **Max 3 probe iterations** (3 credits worst case) before proceeding
+5. **Refine filters from Opus-confirmed companies:**
+   - Extract Apollo labels (industries, keywords) from ALL Opus-confirmed relevant companies in the probe results — this is FREE, data already in the search response
+   - THEN enrich the top 5 most relevant companies via Apollo enrichment API (5 credits) — enrichment returns DEEPER keyword tags not always present in search results
+   - Merge both label sets, rank by frequency — these become the refined Apollo filters for full gathering
+   - This ensures filters are built ONLY from companies Opus verified as truly matching the user's intent — no noise
+6. Once filters are refined → full gathering with the refined filters
+
+**POST-GATHERING: GPT Analysis + Opus Verification Loop (CRITICAL)**
+
+After gathering returns companies (e.g. ~100), the pipeline enters the analysis + verification loop. This is where quality is enforced. Read `docs/pipeline/TAM_GATHERING_ARCHITECTURE.md`, `easystaff-global/results_analysis_logs/iteration_log.md`, and `easystaff-global/OPUS_VERIFICATION_REPORT.md` for the full pattern.
+
+7. **GPT-4o-mini analyzes ALL gathered companies** (batch: 25/batch, 10 concurrent):
+   - Uses **VIA NEGATIVA** approach: the prompt focuses on EXCLUDING non-targets first, then assigns segment
+   - GPT prompt must list explicit exclusions (aggregators, directories, solo consultants, SaaS products, enterprise IT resellers, etc.)
+   - Each company gets: `is_target`, `confidence`, `segment` (CAPS_LOCKED format: DIGITAL_AGENCY, IT_SERVICES, REAL_ESTATE, etc.), `reasoning`
+   - Segment labeling is MANDATORY — every company must get a CAPS_LOCKED segment name or `NOT_A_MATCH`, exactly as in the main app pipeline (see `company_search_service.py` and `gathering_service.py`)
+
+8. **Opus verifies ALL targets** — not a sample, ALL of them:
+   - Every company GPT marked as `is_target=true` MUST be verified by Opus
+   - Opus reads the scraped website content and independently judges: is this ACTUALLY a target for the user's query?
+   - Opus must split into batches and launch multiple parallel agents if needed — do NOT bottleneck on sequential verification
+   - Opus is the skeptical verifier — it's smarter than GPT-4o-mini, that's WHY it's the judge
+
+9. **Calculate accuracy and iterate**:
+   - Accuracy = Opus-confirmed targets / GPT-claimed targets
+   - The goal: inside 100 companies labeled as targets by GPT, at least 90 are REAL targets confirmed by Opus
+   - If accuracy ≥ 90% → **STOP iterating**. The GPT prompt is now good enough. Use it as-is for all further pipeline runs without Opus re-verification. Opus was only needed to TRAIN the prompt.
+   - If accuracy < 90% → extract false positive PATTERNS from Opus feedback:
+     - Which segments have low accuracy? (e.g. CONSULTING_FIRM at 26%, GAME_STUDIO at 0%)
+     - What types of companies are leaking through? (SaaS products? Solo consultants? Wrong geography?)
+   - Add new exclusions to the GPT prompt based on these patterns (via negativa refinement)
+   - RE-ANALYZE with the improved prompt → Opus re-verifies → repeat
+   - **Max 8 iterations** — EasyStaff example went V1(0%) → V2(76%) → V8(95.1%)
+   - Once ≥90% reached: the refined GPT prompt is saved and reused — GPT handles scale, Opus only comes back if accuracy drifts
+
+10. **Segment accuracy tracking per segment**:
+    - Track accuracy PER SEGMENT, not just overall
+    - Some segments are easy (DIGITAL_AGENCY: 97-100%), some are hard (CONSULTING_FIRM: 26-50%)
+    - Focus exclusion refinement on the worst-performing segments
+
+11. **Segment column in MCP Pipeline UI**:
+    - The pipeline page company table MUST have a "Segment" column showing the CAPS_LOCKED segment label for each company
+    - This is a required column in the test — verify it appears in screenshots
+    - Segment is part of the expected output data for every company in the pipeline
+
+**Reference files for this loop:**
+- `docs/pipeline/TAM_GATHERING_ARCHITECTURE.md` — full architecture
+- `backend/app/services/company_search_service.py` — GPT analysis prompt (via negativa + legacy modes)
+- `backend/app/services/gathering_service.py` — `run_analysis()` and `re_analyze()` functions
+- `mcp/backend/app/services/refinement_engine.py` — refinement loop implementation
+- `easystaff-global/results_analysis_logs/iteration_log.md` — real iteration examples (8 versions)
+- `easystaff-global/OPUS_VERIFICATION_REPORT.md` — Opus verification patterns and FP analysis
+
+Log in `testruns2603.md`: probe iterations (count, score per iteration, filters used), GPT analysis results (targets found, segments breakdown), Opus verification (accuracy per segment, false positive patterns), refinement iterations (count, prompt changes, accuracy progression), final accuracy
 
 **Step 4 — Email Account Selection**
 - When the system asks "which email accounts to use", answer: "Use my email accounts from the campaigns I mentioned before, but only for Eleonora first name, so make sure the signature is for Eleonora"
@@ -177,6 +240,16 @@ Simulate a new user registering and running their first campaign:
 - Cross-check via Opus: are these companies actually IT consulting firms? Are the contacts actually decision-makers?
 - If accuracy is below 90%: write ALL problems to `suck.md` with specific recommendations (change Apollo filters? change GPT-4o-mini prompts? both?)
 - Split company analysis into batches if needed (Opus context is large but not infinite)
+
+**Step 6b — Credits & Cost Tracking**
+- Verify that ALL credit/cost spending is tracked and visible:
+  - **Per pipeline run**: Apollo credits used (companies + people searches), OpenAI/GPT-4o-mini tokens spent (analysis, sequence generation)
+  - **Account-wide totals**: cumulative Apollo credits, OpenAI costs across all pipeline runs — visible in the Setup page (or Account page, decide which fits better)
+  - FindyMail tracking: build the UI column for it but skip actual FindyMail calls for now — use only Apollo verified emails
+  - **FindyMail API key is NOT required** for the pipeline to proceed. The onboarding/setup flow must NOT block on missing FindyMail key. It's optional, will be added later.
+- The pipeline detail page must show credits breakdown for that specific run
+- The setup/account page must show lifetime totals for the whole account
+- Log actual costs from this test run in `testruns2603.md`: how many Apollo credits spent, how many OpenAI tokens consumed, total USD cost estimate
 
 **Step 7 — Email Verification**
 - For simplicity in this test: skip FindyMail, use Apollo verified emails only for contacts

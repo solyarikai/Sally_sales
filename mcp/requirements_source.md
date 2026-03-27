@@ -171,3 +171,25 @@ ALSO AFTER KNOWING USER'S CAMPAINGS THE SYSTEM MUST LAUNCH ANALYS OF CONNECTED C
 WITH THE LINKS IN CRM TO CERRTAIN-WAY FILTERED CONTACTS!
  
 
+
+❯ for the initial evaluation while probing loop
+                                                                                                                                                                                             
+  scrape probe companies websites via apify (the same as after in pipeline) so taht opus can simply aanyluze their website content — or easier ask opus to visit websties and nalyze their
+  content by opus itsel?
+──────────────────────────────
+
+
+
+❯ is looping in the pipeline after probing done clear too? after gpt analyzed fist batch of 100 companies for instance , and received X targets companies , those X MUST BE ANALYZED BY    
+                                                                                                                                                                                             
+  OPUS UNTIL THERE ARE DEFEINITELY TARGET (OPUS MUST SPLIT BY BATCHES AND LAUNCHING MULTIPLE AGENTS IF NECCESSARY), gpt PROMP must focus on exlucding shit VIA NAGATIVA AS IN THE PIPELINE   
+                                                                                                                                                                                             
+  AND ALSO MUST LABEL COMPANIE SEGMENTS AS IN THE MAIN APP PIPELINE , CHECK THIS PART CAREULLY!!!!!!! DESRCBIED IN DOCS/PIPELINE  
+
+
+  ❯ add this segment classification also criteria for expected launch result in data, column with semgnt must be added to the pipeline mcp ui page   
+
+
+                                                                                                                                                                                               
+  ❯ just in probing - for best quality on small volume  - only opus !!!!!!! but for pipelein after gpt as need scalale approach once 90% accruay achieved on 100 targets meaninb that      
+  insisde 100 companies labeld as targets 90 at least are real targets, than you stop iteraeteing prompt via opus and just use it furtehr   
