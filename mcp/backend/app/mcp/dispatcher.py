@@ -45,12 +45,17 @@ async def dispatch_tool(tool_name: str, args: dict, token: Optional[str], reques
                 # Extract credits_spent from result for credit tracking
                 if isinstance(result, dict) and result.get("credits_spent"):
                     log_extra["credits_spent"] = result["credits_spent"]
-                session.add(MCPUsageLog(
-                    user_id=user.id if user else 0,
-                    action="tool_call",
-                    tool_name=tool_name,
-                    extra_data=log_extra,
-                ))
+                # For setup_account, user doesn't exist yet — get ID from result
+                uid = user.id if user else None
+                if not uid and isinstance(result, dict) and result.get("user_id"):
+                    uid = result["user_id"]
+                if uid:
+                    session.add(MCPUsageLog(
+                        user_id=uid,
+                        action="tool_call",
+                        tool_name=tool_name,
+                        extra_data=log_extra,
+                    ))
             except Exception:
                 pass  # Don't fail the tool call because logging failed
 
