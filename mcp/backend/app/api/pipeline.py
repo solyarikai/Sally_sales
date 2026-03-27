@@ -736,6 +736,24 @@ async def send_test_email(
     }
 
 
+@router.get("/reply-analysis-status")
+async def reply_analysis_status(
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Return reply analysis results from background analysis cache."""
+    from app.services.reply_analysis_service import get_cached_analysis
+    if not user:
+        return {}
+    # Check all user's projects for cached analysis
+    user_pids = await _get_user_project_ids(user, session)
+    for pid in user_pids:
+        cached = get_cached_analysis(pid)
+        if cached and cached.get("summary"):
+            return cached["summary"]
+    return {}
+
+
 # ── CRM: all companies across all pipelines ──
 
 @router.get("/crm/companies")
