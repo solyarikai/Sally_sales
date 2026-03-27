@@ -60,10 +60,37 @@ async def suggest_filters(
             "message": "No companies matched. Try different keywords.",
         }
 
-    # Step 3: Extract Apollo's actual taxonomy from probe results
-    taxonomy = _extract_taxonomy(companies)
+    # Step 3: Enrich TOP 3 companies to get their REAL Apollo keywords
+    # (The search endpoint doesn't return keywords — enrichment does)
+    enriched_keywords = Counter()
+    enriched_industries = Counter()
+    enriched_count = 0
+    for comp in companies[:5]:
+        domain = comp.get("domain") or comp.get("primary_domain")
+        if not domain:
+            continue
+        org_data = await apollo_service.enrich_organization(domain)
+        if org_data:
+            enriched_count += 1
+            # Industry
+            ind = org_data.get("industry")
+            if ind:
+                enriched_industries[ind.lower()] += 1
+            for ind_item in (org_data.get("industries") or []):
+                enriched_industries[ind_item.lower()] += 1
+            # Keywords (this is the gold mine — 50-100 per company)
+            for kw in (org_data.get("keywords") or []):
+                kw_clean = kw.lower().strip()
+                if len(kw_clean) > 2 and len(kw_clean) < 50:
+                    enriched_keywords[kw_clean] += 1
 
-    # Step 4: Build refined filters
+    # Step 3b: Extract from search results too (sizes, etc.)
+    taxonomy = _extract_taxonomy(companies)
+    # Merge enriched data into taxonomy
+    taxonomy["keywords"] += enriched_keywords
+    taxonomy["industries"] += enriched_industries
+
+    # Step 4: Build refined filters from REAL Apollo data
     refined = _build_refined_filters(candidate, taxonomy, target_count)
 
     # Calculate pages needed
