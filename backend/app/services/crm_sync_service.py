@@ -846,10 +846,10 @@ class GetSalesClient:
     async def get_conversation_messages(self, conversation_uuid: str, limit: int = 100) -> List[dict]:
         """
         Get all messages in a specific LinkedIn conversation.
-        
+
         Args:
             conversation_uuid: The linkedin_conversation_uuid
-            
+
         Returns: List of messages in the conversation (both sent and received)
         """
         params = {
@@ -857,6 +857,19 @@ class GetSalesClient:
             "limit": limit,
             "order_field": "created_at",
             "order_type": "asc"  # Chronological order
+        }
+        data = await self._get("/flows/api/linkedin-messages", params)
+        if isinstance(data, dict):
+            return data.get("data", [])
+        return data
+
+    async def get_messages_by_lead(self, lead_uuid: str, limit: int = 100) -> List[dict]:
+        """Get all messages for a lead by lead_uuid (fallback when conversation_uuid is missing)."""
+        params = {
+            "filter[lead_uuid]": lead_uuid,
+            "limit": limit,
+            "order_field": "created_at",
+            "order_type": "asc",
         }
         data = await self._get("/flows/api/linkedin-messages", params)
         if isinstance(data, dict):
@@ -3705,12 +3718,13 @@ async def sync_conversation_histories(
                 source = reply.source or "getsales"
                 group_key = (source, reply.campaign_id or "", email_lower)
 
-                # Use proper column for conversation UUID
+                # Use proper column for conversation UUID, fallback to lead_uuid
                 conv_uuid = getattr(reply, "getsales_conversation_uuid", None)
                 if not conv_uuid and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
                     from app.services.reply_processor import extract_getsales_ids
                     conv_uuid = extract_getsales_ids(reply.raw_webhook_data).get("getsales_conversation_uuid")
-                if not conv_uuid:
+                lead_uuid = getattr(reply, "getsales_lead_uuid", None)
+                if not conv_uuid and not lead_uuid:
                     stats["no_lead_id"] += 1
                     continue
 
@@ -3718,7 +3732,10 @@ async def sync_conversation_histories(
                 stats["getsales_checked"] += 1
 
                 try:
-                    messages = await gs_client.get_conversation_messages(conv_uuid)
+                    if conv_uuid:
+                        messages = await gs_client.get_conversation_messages(conv_uuid)
+                    else:
+                        messages = await gs_client.get_messages_by_lead(lead_uuid)
                     if not messages:
                         stats["still_pending"] += 1
                         continue
@@ -3911,17 +3928,21 @@ async def deep_cleanup_needs_reply(session: AsyncSession, batch_limit: int = 200
                 # GetSales: check if thread has outbound after reply
                 if not gs_key:
                     continue
-                # Use proper column for conversation UUID
+                # Use proper column for conversation UUID, fallback to lead_uuid
                 conv_uuid = getattr(reply, "getsales_conversation_uuid", None)
                 if not conv_uuid and reply.raw_webhook_data and isinstance(reply.raw_webhook_data, dict):
                     from app.services.reply_processor import extract_getsales_ids
                     conv_uuid = extract_getsales_ids(reply.raw_webhook_data).get("getsales_conversation_uuid")
-                if not conv_uuid:
+                lead_uuid = getattr(reply, "getsales_lead_uuid", None)
+                if not conv_uuid and not lead_uuid:
                     continue
 
                 gs_client = GetSalesClient(gs_key)
                 try:
-                    messages = await gs_client.get_conversation_messages(conv_uuid)
+                    if conv_uuid:
+                        messages = await gs_client.get_conversation_messages(conv_uuid)
+                    else:
+                        messages = await gs_client.get_messages_by_lead(lead_uuid)
                 finally:
                     await gs_client.close()
 
