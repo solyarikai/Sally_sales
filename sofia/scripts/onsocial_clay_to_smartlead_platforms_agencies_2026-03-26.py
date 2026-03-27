@@ -1506,6 +1506,7 @@ def main():
     p.add_argument("--max-companies", type=int, default=500)
     p.add_argument("--max-findymail", type=int, default=1500)
     p.add_argument("--prompt-file", help="Custom analysis prompt file")
+    p.add_argument("--prompt-id", type=int, default=PROMPT_ID, help="Prompt ID from gathering_prompts (default: PROMPT_ID)")
     p.add_argument("--re-analyze", action="store_true", help="Re-analyze with new prompt")
     p.add_argument("--force", action="store_true")
     p.add_argument("--dry-run", action="store_true")
