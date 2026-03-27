@@ -50,16 +50,31 @@ async def direct_tool_call(
         result = await _dispatch(req.tool_name, req.arguments, token, session)
         latency = int((_time.monotonic() - start) * 1000)
 
-        # Log to conversation history
+        # Log request + response to conversation history
+        session_tag = f"rest-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         try:
+            # Request
             session.add(MCPConversationLog(
                 user_id=user.id,
-                session_id=f"rest-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                session_id=session_tag,
                 direction="client_to_server",
                 method="tools/call",
                 message_type="tool_call",
                 content_summary=f"Tool call: {req.tool_name}({_safe_truncate(req.arguments)})",
                 raw_json={"tool": req.tool_name, "args": req.arguments},
+            ))
+            # Response
+            result_summary = ""
+            if isinstance(result, dict):
+                result_summary = str({k: v for k, v in result.items() if k not in ("_links", "prompt_text")})[:300]
+            session.add(MCPConversationLog(
+                user_id=user.id,
+                session_id=session_tag,
+                direction="server_to_client",
+                method="tools/call",
+                message_type="tool_result",
+                content_summary=f"Result: {result_summary}",
+                raw_json={"tool": req.tool_name, "result": _safe_truncate(result) if isinstance(result, dict) else str(result)[:500]},
             ))
         except Exception:
             pass
@@ -190,17 +205,20 @@ async def get_run_status(
     )
     all_gates = gates_result.scalars().all()
 
-    # Count discovered companies
+    # Count discovered companies — scoped to THIS run via CompanySourceLink
     dc_count = await session.execute(
-        select(DiscoveredCompany.id).where(DiscoveredCompany.project_id == run.project_id)
+        select(sa_func.count(DiscoveredCompany.id))
+        .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+        .where(CompanySourceLink.gathering_run_id == run_id)
     )
-    total_companies = len(dc_count.all())
+    total_companies = dc_count.scalar() or 0
 
-    # Count scrapes
+    # Count scrapes — scoped to this run
     scrape_result = await session.execute(
         select(CompanyScrape.scrape_status)
         .join(DiscoveredCompany, DiscoveredCompany.id == CompanyScrape.discovered_company_id)
-        .where(DiscoveredCompany.project_id == run.project_id)
+        .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+        .where(CompanySourceLink.gathering_run_id == run_id)
     )
     scrapes = scrape_result.all()
     scraped_ok = sum(1 for s in scrapes if s[0] == "success")
@@ -281,26 +299,23 @@ async def get_run_companies(
         .where(DiscoveredCompany.project_id == run.project_id)
     )
 
-    # Filter by specific iteration (gathering_run_id) via CompanySourceLink
-    filter_run_id = iteration or int(run_id)
-    # If "all iterations" not requested, filter to this run's companies
-    if iteration is not None:
-        stmt = stmt.join(
-            CompanySourceLink,
-            CompanySourceLink.discovered_company_id == DiscoveredCompany.id,
-        ).where(CompanySourceLink.gathering_run_id == filter_run_id)
+    # ALWAYS filter by run_id via CompanySourceLink to avoid cross-run duplicates
+    filter_run_id = iteration if iteration is not None else int(run_id)
+    stmt = stmt.join(
+        CompanySourceLink,
+        CompanySourceLink.discovered_company_id == DiscoveredCompany.id,
+    ).where(CompanySourceLink.gathering_run_id == filter_run_id)
 
     stmt = stmt.order_by(DiscoveredCompany.domain).offset((page - 1) * page_size).limit(page_size)
     result = await session.execute(stmt)
     rows = result.all()
 
-    # Total count
-    count_stmt = select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.project_id == run.project_id)
-    if iteration is not None:
-        count_stmt = count_stmt.join(
-            CompanySourceLink,
-            CompanySourceLink.discovered_company_id == DiscoveredCompany.id,
-        ).where(CompanySourceLink.gathering_run_id == filter_run_id)
+    # Total count — also scoped by run
+    count_stmt = (
+        select(sa_func.count(DiscoveredCompany.id))
+        .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+        .where(CompanySourceLink.gathering_run_id == filter_run_id)
+    )
     total_companies = (await session.execute(count_stmt)).scalar() or 0
 
     # Count contacts per company
