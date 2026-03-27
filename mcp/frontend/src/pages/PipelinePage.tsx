@@ -292,7 +292,7 @@ export default function PipelinePage() {
               <div onClick={() => { setSelectedIteration('all'); setIterDropOpen(false) }} style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: selectedIteration === 'all' ? 'var(--text)' : 'var(--text-muted)', background: selectedIteration === 'all' ? 'var(--active-bg)' : 'transparent' }}>All iterations</div>
               {iterations.map((it: any) => (
                 <div key={it.id} onClick={() => { setSelectedIteration(String(it.id)); setIterDropOpen(false) }} style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: selectedIteration === String(it.id) ? 'var(--text)' : 'var(--text-muted)', background: selectedIteration === String(it.id) ? 'var(--active-bg)' : 'transparent' }}>
-                  #{it.id} — {it.source_type?.replace('companies.','').replace('.manual','')} — {it.new_companies || 0} companies — {it.created_at ? new Date(it.created_at).toLocaleDateString() : ''}
+                  #{it.id} — {it.new_companies || 0} companies{it.target_count ? ` (${it.target_count} targets)` : ''} — {it.created_at ? new Date(it.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : ''}
                 </div>
               ))}
             </div>
