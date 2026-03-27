@@ -498,4 +498,55 @@ Returns contacts + a CRM link with filters applied so the user can view them in 
             "required": ["domains"],
         },
     },
+
+    # ── Replies (4) ──
+    {
+        "name": "replies_summary",
+        "description": "Get a summary of reply categories for a project. Returns counts per category (interested, meeting_request, question, not_interested, ooo, wrong_person, unsubscribe). Use this when the user asks 'how are my campaigns doing?' or 'what replies did I get?'",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_name": {"type": "string", "description": "Project name to filter replies for"},
+            },
+            "required": ["project_name"],
+        },
+    },
+    {
+        "name": "replies_list",
+        "description": "List replies filtered by category, project, or search. Returns reply cards with lead info, message preview, and category. Use for 'show me warm replies' or 'which leads are interested?'",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string", "description": "Filter by category: interested, meeting_request, question, not_interested, out_of_office, wrong_person, unsubscribe, other"},
+                "project_name": {"type": "string", "description": "Project name to filter replies for"},
+                "search": {"type": "string", "description": "Search by lead name, email, or company"},
+                "needs_reply": {"type": "boolean", "description": "Only show replies that need operator action"},
+                "page": {"type": "integer", "default": 1, "description": "Page number"},
+            },
+        },
+    },
+    {
+        "name": "replies_followups",
+        "description": "List leads that need follow-up. Returns leads where the last message was from us and no reply received within the follow-up window.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_name": {"type": "string", "description": "Project name to filter follow-ups for"},
+                "page": {"type": "integer", "default": 1, "description": "Page number"},
+            },
+        },
+    },
+    {
+        "name": "replies_deep_link",
+        "description": "Generate a deep link URL to view specific replies in the browser UI. Use when the user asks to 'see' or 'open' replies.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_name": {"type": "string", "description": "Project name for the deep link"},
+                "category": {"type": "string", "description": "Optional category filter for the link"},
+                "tab": {"type": "string", "description": "Optional tab name: all, meetings, interested, questions, other, not_interested, ooo, wrong_person, unsubscribe, followups"},
+            },
+            "required": ["project_name"],
+        },
+    },
 ]
