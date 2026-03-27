@@ -4222,6 +4222,64 @@ async def get_contact_history(
             for a in email_activities
         ]
 
+    # Supplement email_history with processed_replies that may be missing
+    # (e.g. SmartLead API didn't return them for archived/old campaigns)
+    if contact and contact.email:
+        from app.models.reply import ProcessedReply
+        pr_result = await session.execute(
+            select(ProcessedReply)
+            .where(
+                and_(
+                    func.lower(ProcessedReply.lead_email) == contact.email.lower(),
+                    ProcessedReply.received_at.isnot(None),
+                )
+            )
+            .order_by(ProcessedReply.received_at.desc())
+        )
+        processed_replies = pr_result.scalars().all()
+
+        if processed_replies:
+            # Build a set of existing message fingerprints to avoid duplicates.
+            # Use (direction, truncated body, rounded timestamp) for matching.
+            existing_fingerprints = set()
+            for msg in email_history:
+                body_snippet = (msg.get("body") or "")[:100].strip().lower()
+                existing_fingerprints.add(("inbound", body_snippet))
+            # Also add fingerprints from local DB activities already in history
+            for a in (a for a in activities if a.channel == "email" and a.direction == "inbound"):
+                body_snippet = (a.body or "")[:100].strip().lower()
+                existing_fingerprints.add(("inbound", body_snippet))
+
+            for pr in processed_replies:
+                body = pr.reply_text or pr.email_body or ""
+                body_clean = _strip_html(body) if "<" in body else body
+                body_snippet = body_clean[:100].strip().lower()
+
+                if ("inbound", body_snippet) in existing_fingerprints:
+                    continue  # already present
+                if not body_clean.strip():
+                    continue  # skip empty
+
+                existing_fingerprints.add(("inbound", body_snippet))
+                email_history.append({
+                    "id": pr.id + 2_000_000_000,  # offset to avoid ID collision
+                    "type": "email_reply",
+                    "direction": "inbound",
+                    "subject": pr.email_subject or "",
+                    "body": body_clean,
+                    "snippet": body_clean[:200] if body_clean else None,
+                    "channel": "email",
+                    "source": "processed_reply",
+                    "campaign": pr.campaign_name,
+                    "timestamp": pr.received_at.isoformat() if pr.received_at else None,
+                })
+
+            # Re-sort by timestamp descending (newest first) after merging
+            email_history.sort(
+                key=lambda m: m.get("timestamp") or "",
+                reverse=True,
+            )
+
     # Fetch inbox links from ProcessedReply for this contact's email
     inbox_links = {}
     if contact and contact.email:
