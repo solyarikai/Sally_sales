@@ -600,11 +600,51 @@ async def list_runs(
         )
         project_names = {pid: pname for pid, pname in pn_result.all()}
 
+    # Get targets count, people count, and segments per run
+    run_ids = [r.id for r in runs]
+    targets_map = {}
+    segments_map = {}
+    people_map = {}
+
+    if run_ids:
+        # Count targets and get segments per project (runs share project companies)
+        for r in runs:
+            tc_result = await session.execute(
+                select(sa_func.count(DiscoveredCompany.id)).where(
+                    DiscoveredCompany.project_id == r.project_id,
+                    DiscoveredCompany.is_target == True,
+                )
+            )
+            targets_map[r.id] = tc_result.scalar() or 0
+
+            # Segments
+            seg_result = await session.execute(
+                select(DiscoveredCompany.analysis_segment, sa_func.count(DiscoveredCompany.id)).where(
+                    DiscoveredCompany.project_id == r.project_id,
+                    DiscoveredCompany.is_target == True,
+                    DiscoveredCompany.analysis_segment.isnot(None),
+                ).group_by(DiscoveredCompany.analysis_segment)
+            )
+            segs = [row[0] for row in seg_result.all() if row[0]]
+            segments_map[r.id] = segs
+
+            # People count
+            from app.models.pipeline import ExtractedContact
+            pc_result = await session.execute(
+                select(sa_func.count(ExtractedContact.id)).where(
+                    ExtractedContact.project_id == r.project_id,
+                )
+            )
+            people_map[r.id] = pc_result.scalar() or 0
+
     return [
         {"id": r.id, "status": r.status, "phase": r.current_phase,
-         "source_type": r.source_type, "new_companies": r.new_companies_count,
+         "source_type": r.source_type,
+         "raw_companies": r.new_companies_count or 0,
+         "targets": targets_map.get(r.id, 0),
+         "people": people_map.get(r.id, 0),
+         "segments": segments_map.get(r.id, []),
          "credits_used": r.credits_used or 0,
-         "target_rate": f"{(r.target_rate or 0)*100:.0f}%" if r.target_rate else None,
          "project_id": r.project_id,
          "project_name": project_names.get(r.project_id, ""),
          "created_at": str(r.created_at)}
