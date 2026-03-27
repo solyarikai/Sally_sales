@@ -11,6 +11,7 @@ from app.models.gathering import GatheringRun
 from app.models.usage import MCPUsageLog
 from app.models.pipeline import ExtractedContact, DiscoveredCompany
 from app.models.campaign import Campaign
+from app.models.project import Project
 from app.auth.dependencies import get_current_user, get_optional_user
 
 logger = logging.getLogger(__name__)
@@ -37,15 +38,24 @@ async def get_account(
         for i in integrations_result.scalars().all()
     ]
 
-    # Apollo credits used (sum from all gathering runs)
-    apollo_credits = (await session.execute(
-        select(func.sum(GatheringRun.credits_used)).where(
-            GatheringRun.triggered_by.like(f"%user:{user.id}%")
-        )
-    )).scalar() or 0
+    # Get user's project IDs for scoping
+    user_projects = await session.execute(
+        select(Project.id).where(Project.user_id == user.id)
+    )
+    project_ids = [pid for (pid,) in user_projects.all()]
 
-    # Filter discovery credits — read actual credits_spent from usage log extra_data
-    # Each suggest_apollo_filters call logs credits_spent in extra_data
+    # ── Apollo credits ──
+
+    # 1. Gathering credits (from GatheringRun.credits_used, scoped to user's projects)
+    gathering_credits = 0
+    if project_ids:
+        gathering_credits = (await session.execute(
+            select(func.coalesce(func.sum(GatheringRun.credits_used), 0)).where(
+                GatheringRun.project_id.in_(project_ids)
+            )
+        )).scalar() or 0
+
+    # 2. Filter discovery credits (from usage log extra_data.credits_spent)
     filter_logs = await session.execute(
         select(MCPUsageLog.extra_data).where(
             MCPUsageLog.user_id == user.id,
@@ -59,39 +69,70 @@ async def get_account(
         if isinstance(extra, dict):
             cs = extra.get("credits_spent", {})
             if isinstance(cs, dict):
-                filter_discovery_credits += cs.get("total", 0)
+                filter_discovery_credits += cs.get("total", 0) or cs.get("total_apollo", 0) or 0
             else:
-                filter_discovery_credits += 6  # fallback estimate
+                filter_discovery_credits += 6  # fallback
         else:
-            filter_discovery_credits += 6  # fallback estimate
+            filter_discovery_credits += 6  # fallback
 
-    # People search credits (bulk_match calls)
-    people_credits = (await session.execute(
-        select(func.count(MCPUsageLog.id)).where(
-            MCPUsageLog.user_id == user.id,
-            MCPUsageLog.tool_name == "enrich_contacts",
-        )
-    )).scalar() or 0
+    total_apollo = gathering_credits + filter_discovery_credits
 
-    # Total tool calls
+    # ── Tool call counts ──
     total_tool_calls = (await session.execute(
         select(func.count(MCPUsageLog.id)).where(MCPUsageLog.user_id == user.id)
     )).scalar() or 0
 
-    # Contacts and companies
-    total_contacts = (await session.execute(
-        select(func.count(ExtractedContact.id)).join(
-            DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id, isouter=True
+    # GPT analysis calls (tam_analyze + tam_re_analyze)
+    analysis_calls = (await session.execute(
+        select(func.count(MCPUsageLog.id)).where(
+            MCPUsageLog.user_id == user.id,
+            MCPUsageLog.tool_name.in_(["tam_analyze", "tam_re_analyze"]),
         )
     )).scalar() or 0
 
-    total_companies = (await session.execute(
-        select(func.count(DiscoveredCompany.id))
-    )).scalar() or 0
+    # ── User-scoped stats ──
+    total_contacts = 0
+    total_companies = 0
+    total_campaigns = 0
+    if project_ids:
+        total_contacts = (await session.execute(
+            select(func.count(ExtractedContact.id)).where(
+                ExtractedContact.project_id.in_(project_ids)
+            )
+        )).scalar() or 0
 
-    total_campaigns = (await session.execute(
-        select(func.count(Campaign.id))
-    )).scalar() or 0
+        total_companies = (await session.execute(
+            select(func.count(DiscoveredCompany.id)).where(
+                DiscoveredCompany.project_id.in_(project_ids)
+            )
+        )).scalar() or 0
+
+        total_campaigns = (await session.execute(
+            select(func.count(Campaign.id)).where(
+                Campaign.project_id.in_(project_ids)
+            )
+        )).scalar() or 0
+
+    # ── Pipeline runs with credits ──
+    pipeline_runs = []
+    if project_ids:
+        runs_result = await session.execute(
+            select(GatheringRun)
+            .where(GatheringRun.project_id.in_(project_ids))
+            .order_by(GatheringRun.created_at.desc())
+            .limit(20)
+        )
+        for run in runs_result.scalars().all():
+            pipeline_runs.append({
+                "id": run.id,
+                "source_type": run.source_type,
+                "phase": run.current_phase,
+                "companies": run.new_companies_count or 0,
+                "targets": int((run.target_rate or 0) * (run.new_companies_count or 0)),
+                "target_rate": f"{(run.target_rate or 0)*100:.0f}%",
+                "credits_used": run.credits_used or 0,
+                "created_at": str(run.created_at) if run.created_at else None,
+            })
 
     return {
         "authenticated": True,
@@ -103,20 +144,19 @@ async def get_account(
         "integrations": integrations,
         "credits": {
             "apollo": {
-                "search_pages": apollo_credits,
+                "gathering": gathering_credits,
                 "filter_discovery": filter_discovery_credits,
                 "filter_discovery_calls": filter_discovery_calls,
-                "people_enrichment": people_credits,
-                "total": apollo_credits + filter_discovery_credits + people_credits,
-                "note": "Search: 1 credit/page (100 companies). Enrich: 1 credit/company. People: 1 credit/email.",
+                "total": total_apollo,
+                "note": "Search: 1 credit/page (100 companies). Enrich: 1 credit/company.",
             },
             "openai": {
+                "analysis_calls": analysis_calls,
                 "tool_calls": total_tool_calls,
                 "note": "GPT-4o-mini: ~$0.003 per company analyzed",
             },
             "mcp": {
                 "tool_calls": total_tool_calls,
-                "note": "MCP platform usage",
             },
         },
         "stats": {
@@ -125,6 +165,7 @@ async def get_account(
             "total_campaigns": total_campaigns,
             "total_tool_calls": total_tool_calls,
         },
+        "pipeline_runs": pipeline_runs,
     }
 
 

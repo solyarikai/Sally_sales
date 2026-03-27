@@ -33,6 +33,7 @@ export default function AccountPage() {
   const stats = account.stats || {}
   const byTool = usage?.by_tool || {}
   const recent = usage?.recent || []
+  const runs = account.pipeline_runs || []
 
   return (
     <div className="max-w-3xl mx-auto p-8 space-y-8 overflow-y-auto" style={{ height: '100%' }}>
@@ -54,13 +55,13 @@ export default function AccountPage() {
           <CreditCard
             label="Apollo"
             value={credits.apollo?.total || 0}
-            detail={`Gathering: ${credits.apollo?.gathering || 0} • Filter discovery: ${credits.apollo?.filter_discovery || 0}`}
+            detail={`Gathering: ${credits.apollo?.gathering || 0} | Discovery: ${credits.apollo?.filter_discovery || 0} (${credits.apollo?.filter_discovery_calls || 0} probes)`}
             color="#6366f1"
           />
           <CreditCard
             label="OpenAI"
-            value={credits.openai?.tool_calls || 0}
-            detail={credits.openai?.note || 'GPT-4o-mini calls'}
+            value={credits.openai?.analysis_calls || 0}
+            detail={`${credits.openai?.analysis_calls || 0} analysis runs | ~$${((credits.openai?.analysis_calls || 0) * 0.05).toFixed(2)}`}
             color="#10b981"
           />
           <CreditCard
@@ -74,7 +75,7 @@ export default function AccountPage() {
 
       {/* Platform Stats */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Platform Stats</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Your Stats</h2>
         <div className="grid grid-cols-4 gap-4">
           <StatBox label="Contacts" value={stats.total_contacts} />
           <StatBox label="Companies" value={stats.total_companies} />
@@ -82,6 +83,56 @@ export default function AccountPage() {
           <StatBox label="Tool Calls" value={stats.total_tool_calls} />
         </div>
       </div>
+
+      {/* Pipeline Runs with Credits */}
+      {runs.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Pipeline Runs</h2>
+          <div className="border border-gray-700 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs uppercase text-gray-500 border-b border-gray-700">
+                  <th className="px-4 py-2 text-left">Run</th>
+                  <th className="px-4 py-2 text-left">Source</th>
+                  <th className="px-4 py-2 text-right">Companies</th>
+                  <th className="px-4 py-2 text-right">Targets</th>
+                  <th className="px-4 py-2 text-right">Credits</th>
+                  <th className="px-4 py-2 text-left">Phase</th>
+                  <th className="px-4 py-2 text-left">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-700">
+                {runs.map((r: any) => (
+                  <tr key={r.id}>
+                    <td className="px-4 py-2">
+                      <a href={`/pipeline/${r.id}`} className="text-blue-400 hover:underline">#{r.id}</a>
+                    </td>
+                    <td className="px-4 py-2 text-gray-400">{r.source_type?.replace('companies.', '').replace('.manual', '')}</td>
+                    <td className="px-4 py-2 text-right">{r.companies}</td>
+                    <td className="px-4 py-2 text-right">
+                      {r.targets > 0 && <span className="text-green-400">{r.targets}</span>}
+                      {r.targets > 0 && <span className="text-gray-500 ml-1">({r.target_rate})</span>}
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono">
+                      {r.credits_used > 0 ? (
+                        <span className="text-yellow-400">{r.credits_used}</span>
+                      ) : (
+                        <span className="text-gray-600">0</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="px-2 py-0.5 rounded text-xs bg-gray-700">{r.phase}</span>
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 text-xs">
+                      {r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Integrations */}
       <div className="space-y-3">

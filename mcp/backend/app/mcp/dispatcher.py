@@ -36,16 +36,20 @@ async def dispatch_tool(tool_name: str, args: dict, token: Optional[str], reques
             result = await _dispatch(tool_name, args, token, session)
             latency = int((_time.monotonic() - start) * 1000)
 
-            # Log usage
+            # Log usage — include credits_spent if present in result
             try:
                 from app.models.usage import MCPUsageLog
                 from app.auth.middleware import verify_token
                 user = await verify_token(session, token) if token else None
+                log_extra = {"args": _safe_truncate(args), "latency_ms": latency}
+                # Extract credits_spent from result for credit tracking
+                if isinstance(result, dict) and result.get("credits_spent"):
+                    log_extra["credits_spent"] = result["credits_spent"]
                 session.add(MCPUsageLog(
                     user_id=user.id if user else 0,
                     action="tool_call",
                     tool_name=tool_name,
-                    extra_data={"args": _safe_truncate(args), "latency_ms": latency},
+                    extra_data=log_extra,
                 ))
             except Exception:
                 pass  # Don't fail the tool call because logging failed
