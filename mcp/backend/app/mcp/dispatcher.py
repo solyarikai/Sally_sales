@@ -203,9 +203,34 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             company = Company(name=f"{user.name}'s Company")
             session.add(company)
             await session.flush()
+
+        # Scrape website to extract value proposition for ICP context
+        website = args.get("website")
+        target_segments = args.get("target_segments") or ""
+        website_context = ""
+        if website:
+            import httpx
+            try:
+                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                    resp = await client.get(website)
+                    if resp.status_code == 200:
+                        import re
+                        html = resp.text
+                        # Strip HTML tags for plain text
+                        text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+                        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+                        text = re.sub(r'<[^>]+>', ' ', text)
+                        text = re.sub(r'\s+', ' ', text).strip()[:2000]
+                        website_context = f"\n\nCompany website ({website}): {text}"
+            except Exception as e:
+                website_context = f"\n\nWebsite scrape failed: {e}"
+
+        if website_context:
+            target_segments = (target_segments + website_context).strip()
+
         project = Project(
             company_id=company.id, user_id=user.id, name=args["name"],
-            target_segments=args.get("target_segments"),
+            target_segments=target_segments or None,
             target_industries=args.get("target_industries"),
             sender_name=args.get("sender_name"),
             sender_company=args.get("sender_company"),
@@ -213,7 +238,12 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         )
         session.add(project)
         await session.flush()
-        return {"project_id": project.id, "name": project.name}
+        return {
+            "project_id": project.id,
+            "name": project.name,
+            "website_scraped": bool(website_context),
+            "message": f"Project '{project.name}' created." + (f" Website {website} scraped for ICP context." if website_context else " Consider providing a website URL for better sequence generation."),
+        }
 
     if tool_name == "list_projects":
         user = await _get_user(token, session)

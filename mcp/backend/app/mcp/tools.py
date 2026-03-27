@@ -54,11 +54,12 @@ The response shows: project name, ICP, active campaigns, and which companies are
     },
     {
         "name": "create_project",
-        "description": "Create a new sales project with ICP definition and sender identity.",
+        "description": "Create a new sales project. BEFORE calling this, you MUST know the user's offer — ask for their company website or a description of what they sell. Without this, sequences will be generic garbage. Scrape the website if provided.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "name": {"type": "string"},
+                "website": {"type": "string", "description": "Company website URL (e.g. 'https://easystaff.io'). REQUIRED — will be scraped to extract value proposition for ICP and sequence generation."},
                 "target_segments": {"type": "string", "description": "ICP description (e.g. 'Series A-B SaaS in DACH, 50-500 emp')"},
                 "target_industries": {"type": "string", "description": "Target industries (e.g. 'SaaS, Fintech, IT Services')"},
                 "sender_name": {"type": "string"},
