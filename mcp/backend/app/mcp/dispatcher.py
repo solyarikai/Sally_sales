@@ -1194,6 +1194,148 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         user = await _get_user(token, session)
         return await _handle_reply_tool(tool_name, args, user, session)
 
+    # ── Feedback & Editing tools ──
+    if tool_name == "edit_sequence_step":
+        user = await _get_user(token, session)
+        from app.models.campaign import GeneratedSequence
+        seq = await session.get(GeneratedSequence, args["sequence_id"])
+        if not seq:
+            raise ValueError("Sequence not found")
+        project = await session.get(Project, seq.project_id)
+        if not project or project.user_id != user.id:
+            raise ValueError("Sequence not found")
+
+        steps = seq.sequence_steps or []
+        step_idx = args["step_number"] - 1
+        if step_idx < 0 or step_idx >= len(steps):
+            raise ValueError(f"Step {args['step_number']} not found (sequence has {len(steps)} steps)")
+
+        old_step = steps[step_idx].copy()
+        if "subject" in args and args["subject"] is not None:
+            steps[step_idx]["subject"] = args["subject"]
+        if "body" in args and args["body"] is not None:
+            steps[step_idx]["body"] = args["body"]
+        seq.sequence_steps = steps
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(seq, "sequence_steps")
+
+        # Push to SmartLead if campaign exists
+        smartlead_pushed = False
+        if seq.pushed_campaign_id:
+            from app.models.campaign import Campaign
+            campaign = await session.get(Campaign, seq.pushed_campaign_id)
+            if campaign and campaign.external_id:
+                from app.services.smartlead_service import SmartLeadService
+                sl = SmartLeadService()
+                if sl.is_configured():
+                    await sl.set_campaign_sequences(int(campaign.external_id), steps)
+                    smartlead_pushed = True
+
+        return {
+            "updated": True,
+            "step": args["step_number"],
+            "old_subject": old_step.get("subject", ""),
+            "new_subject": steps[step_idx].get("subject", ""),
+            "smartlead_synced": smartlead_pushed,
+            "message": f"Email {args['step_number']} updated." + (" Synced to SmartLead." if smartlead_pushed else ""),
+        }
+
+    if tool_name == "edit_campaign_accounts":
+        user = await _get_user(token, session)
+        from app.services.smartlead_service import SmartLeadService
+        sl = SmartLeadService()
+        if not sl.is_configured():
+            raise ValueError("SmartLead not configured")
+        await sl.set_campaign_email_accounts(args["campaign_id"], args["email_account_ids"])
+        return {
+            "updated": True,
+            "campaign_id": args["campaign_id"],
+            "accounts_set": len(args["email_account_ids"]),
+            "message": f"{len(args['email_account_ids'])} email accounts assigned to campaign {args['campaign_id']}.",
+        }
+
+    if tool_name == "override_company_target":
+        user = await _get_user(token, session)
+        company = await session.get(DiscoveredCompany, args["company_id"])
+        if not company:
+            raise ValueError("Company not found")
+        project = await session.get(Project, company.project_id)
+        if not project or project.user_id != user.id:
+            raise ValueError("Company not found")
+
+        old_target = company.is_target
+        company.is_target = args["is_target"]
+        company.analysis_reasoning = (
+            f"[USER OVERRIDE] {args.get('reasoning', 'No reason given')}. "
+            f"Previous: is_target={old_target}, AI: {(company.analysis_reasoning or 'none')[:200]}"
+        )
+        return {
+            "updated": True,
+            "company": company.name or company.domain,
+            "was_target": old_target,
+            "now_target": args["is_target"],
+            "message": f"{'Marked as target' if args['is_target'] else 'Marked as NOT target'}: {company.name or company.domain}",
+        }
+
+    if tool_name == "provide_feedback":
+        user = await _get_user(token, session)
+        project = await session.get(Project, args["project_id"])
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+
+        from app.models.usage import MCPUsageLog
+        from datetime import datetime
+        log = MCPUsageLog(
+            user_id=user.id,
+            tool_name="user_feedback",
+            action=args["feedback_type"],
+            extra_data={
+                "project_id": args["project_id"],
+                "feedback_type": args["feedback_type"],
+                "feedback_text": args["feedback_text"],
+                "context": args.get("context"),
+                "timestamp": str(datetime.utcnow()),
+            },
+        )
+        session.add(log)
+        return {
+            "stored": True,
+            "feedback_type": args["feedback_type"],
+            "message": f"Feedback stored for '{project.name}'. Will be used in future runs — most recent feedback takes priority.",
+        }
+
+    if tool_name == "activate_campaign":
+        user = await _get_user(token, session)
+        if not args.get("user_confirmation"):
+            raise ValueError("SAFETY: user_confirmation required. Quote the user's exact words confirming activation.")
+
+        from app.services.smartlead_service import SmartLeadService
+        sl = SmartLeadService()
+        if not sl.is_configured():
+            raise ValueError("SmartLead not configured")
+        await sl.update_campaign_status(args["campaign_id"], "START")
+
+        from app.models.usage import MCPUsageLog
+        from datetime import datetime
+        log = MCPUsageLog(
+            user_id=user.id,
+            tool_name="activate_campaign",
+            action="campaign_activated",
+            extra_data={
+                "campaign_id": args["campaign_id"],
+                "user_confirmation": args["user_confirmation"],
+                "timestamp": str(datetime.utcnow()),
+            },
+        )
+        session.add(log)
+        return {
+            "activated": True,
+            "campaign_id": args["campaign_id"],
+            "status": "ACTIVE",
+            "message": f"Campaign {args['campaign_id']} is now ACTIVE. Emails will start sending.",
+            "_links": {"smartlead": f"https://app.smartlead.ai/app/email-campaigns-v2/{args['campaign_id']}/analytics"},
+        }
+
     raise ValueError(f"Unknown tool: {tool_name}")
 
 
