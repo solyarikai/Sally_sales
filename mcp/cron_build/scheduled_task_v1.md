@@ -223,23 +223,61 @@ Log in `testruns2603.md`: probe iterations (count, score per iteration, filters 
 - When the system asks "which email accounts to use", answer: "Use my email accounts from the campaigns I mentioned before, but only for Eleonora first name, so make sure the signature is for Eleonora"
 - The system must filter accounts to only Eleonora's, set proper signature
 
-**Step 5 — Campaign Creation in SmartLead**
+**Step 5 — Campaign Creation in SmartLead (CRITICAL KPI — VERIFY EVERY SETTING)**
 - Campaign must be created in SmartLead with:
   - Accounts selected per user's instruction (Eleonora only)
   - **Campaign timing: 9:00 AM to 6:00 PM in the TIMEZONE OF THE GATHERED CONTACTS** — not your local timezone, not UTC. The GEO filter from Step 3 determines this. For "Miami" that's America/New_York (EST/EDT). This is non-negotiable.
-  - **All other campaign settings must match the reference campaign** — see https://app.smartlead.ai/app/email-campaigns-v2/3070919/analytics for the exact settings to replicate. This means delivery optimization, send limits, warmup settings, reply handling, and every other non-timing setting. Copy them exactly from this reference campaign via SmartLead API.
-  - Test email sent to `pn@getsally.io` (SmartLead has a test email API endpoint)
+  - **All settings MUST exactly match reference campaign 3070919** ("Petr ES Australia"). Fetch via API and compare:
+    ```
+    GET /api/v1/campaigns/3070919?api_key=...
+    ```
+  - **Required settings (from reference):**
+    - `track_settings`: `[]` (NO open/click tracking — empty array, not DONT_*)
+    - `min_time_btwn_emails`: 3
+    - `max_leads_per_day`: 1500 (NOT 100)
+    - `stop_lead_settings`: "REPLY_TO_AN_EMAIL"
+    - `send_as_plain_text`: true
+    - `follow_up_percentage`: 40
+    - `enable_ai_esp_matching`: true (AI sender rotation — MUST be enabled)
+    - Schedule: Mon-Fri, 09:00-18:00 in target timezone
+  - Test email sent to `pn@getsally.io` via add-test-lead-and-activate pattern
 - Sequences must be high quality — compare against existing campaigns, think like a top SDR
 - Sequences must have normalized subject lines: first names and company names clean, human-readable, no special characters or encoding artifacts
 
-**Step 6 — Contact Quality Verification**
-- ALL contacts in the newly created SmartLead campaign must be:
-  - C-level or roles relevant to EasyStaff Global's offer (payroll, HR, finance decision-makers)
+**Step 5b — Campaign Settings Verification (MANDATORY — DO NOT SKIP)**
+After creating the campaign, you MUST verify EVERY setting by fetching the campaign from SmartLead API:
+```
+GET /api/v1/campaigns/{NEW_CAMPAIGN_ID}?api_key=...
+```
+Compare each field against reference campaign 3070919. Log the comparison in `testruns2603.md`:
+```
+| Setting              | Reference (3070919) | Test Campaign | Match? |
+|---------------------|--------------------:|:-------------|:-------|
+| track_settings      | []                  | ?             | ?      |
+| max_leads_per_day   | 1500                | ?             | ?      |
+| enable_ai_esp       | true                | ?             | ?      |
+| timezone            | (target geo)        | ?             | ?      |
+| min_time_btwn       | 3                   | ?             | ?      |
+| stop_lead_settings  | REPLY_TO_AN_EMAIL   | ?             | ?      |
+| send_as_plain_text  | true                | ?             | ?      |
+| follow_up_%         | 40                  | ?             | ?      |
+```
+If ANY setting doesn't match → fix it via API and re-verify. Do NOT proceed until all match.
+
+**Step 6 — Contact Quality Verification (REAL CONTACTS IN SMARTLEAD)**
+- ALL contacts uploaded to the SmartLead campaign must be REAL people from REAL target companies:
+  - C-level or roles relevant to EasyStaff Global's offer (payroll, HR, finance decision-makers, founders, CTOs)
   - From companies that FULLY match the user's search prompt ("IT consulting companies in Miami")
-- Verify using scraped website content (it's stored in the database after scraping) — reuse it, don't re-scrape
+  - With verified email addresses (Apollo-verified)
+- **Verify by fetching leads from SmartLead API:**
+  ```
+  GET /api/v1/campaigns/{ID}/leads-export?api_key=...
+  ```
+  Check every lead: email, first_name, last_name, company_name must all be populated (no blanks, no "Test Lead")
 - Cross-check via Opus: are these companies actually IT consulting firms? Are the contacts actually decision-makers?
 - If accuracy is below 90%: write ALL problems to `suck.md` with specific recommendations (change Apollo filters? change GPT-4o-mini prompts? both?)
 - Split company analysis into batches if needed (Opus context is large but not infinite)
+- **Log in `testruns2603.md`**: total leads uploaded, sample of 5 leads (email, name, company, title), accuracy %
 
 **Step 6b — Credits & Cost Tracking**
 - Verify that ALL credit/cost spending is tracked and visible:

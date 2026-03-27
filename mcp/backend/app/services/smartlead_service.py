@@ -102,16 +102,25 @@ class SmartLeadService:
             "start_hour": start_hour,
             "end_hour": end_hour,
             "min_time_btw_emails": 3,
-            "max_new_leads_per_day": 100,
+            "max_new_leads_per_day": 1500,
         })
 
     async def set_campaign_settings(self, campaign_id: int) -> Optional[Dict[str, Any]]:
-        """Set campaign delivery settings — matching production campaigns."""
+        """Set campaign delivery settings — EXACT copy of reference campaign 3070919.
+
+        Reference: Petr ES Australia (production, ACTIVE, proven settings)
+        - track_settings: [] (NO tracking — no open/click tracking)
+        - stop on reply
+        - plain text
+        - 40% follow-up
+        - AI ESP matching enabled
+        """
         return await self._api_call("POST", f"/campaigns/{campaign_id}/settings", {
-            "track_settings": ["DONT_TRACK_EMAIL_OPEN", "DONT_TRACK_LINK_CLICK"],
+            "track_settings": [],
             "stop_lead_settings": "REPLY_TO_AN_EMAIL",
             "send_as_plain_text": True,
             "follow_up_percentage": 40,
+            "enable_ai_esp_matching": True,
         })
 
     async def set_campaign_email_accounts(self, campaign_id: int, account_ids: List[int]) -> Optional[Dict[str, Any]]:
