@@ -1,26 +1,14 @@
 """MCP Tool definitions — 26 tools for the LeadGen pipeline."""
 
 TOOLS = [
-    # ── Account (4) ──
-    {
-        "name": "setup_account",
-        "description": "Create a new account OR login to existing one. Just provide email + name. If the email is already registered, it logs you in and generates a fresh token. No password needed — authentication is token-based.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "email": {"type": "string", "description": "Your email address"},
-                "name": {"type": "string", "description": "Your name"},
-            },
-            "required": ["email", "name"],
-        },
-    },
+    # ── Account (3) ──
     {
         "name": "login",
-        "description": "Login with an existing API token. Use this if you already have a token from a previous session.",
+        "description": "Authenticate with your API token. Get your token by signing up at http://46.62.210.24:3000/setup — then paste it here. Every session starts with this.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "token": {"type": "string", "description": "Your MCP API token (starts with mcp_)"},
+                "token": {"type": "string", "description": "Your MCP API token (starts with mcp_). Get one at http://46.62.210.24:3000/setup"},
             },
             "required": ["token"],
         },

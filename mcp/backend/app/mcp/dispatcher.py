@@ -89,47 +89,16 @@ def _safe_truncate(obj, max_len=5000) -> dict:
 
 async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -> Any:
 
-    # ── Account tools (no auth needed for signup/login) ──
-    if tool_name == "setup_account":
-        from app.auth.middleware import generate_api_token
-        email = args["email"]
-        name = args["name"]
-        existing = await session.execute(select(MCPUser).where(MCPUser.email == email))
-        existing_user = existing.scalar_one_or_none()
-        if existing_user:
-            # Already registered — auto-login this session
-            from app.mcp.server import _session_tokens
-            # Generate a fresh token for them
-            raw_token, prefix, hashed = generate_api_token()
-            from app.models.user import MCPApiToken
-            session.add(MCPApiToken(user_id=existing_user.id, token_prefix=prefix, token_hash=hashed))
-            _session_tokens["_latest"] = raw_token
-            return {"user_id": existing_user.id, "api_token": raw_token,
-                    "message": f"Welcome back, {existing_user.name}! New token generated. Session authenticated."}
-        user = MCPUser(email=email, name=name)
-        session.add(user)
-        await session.flush()
-        company = Company(name=f"{name}'s Company")
-        session.add(company)
-        await session.flush()
-        raw_token, prefix, hashed = generate_api_token()
-        from app.models.user import MCPApiToken
-        session.add(MCPApiToken(user_id=user.id, token_prefix=prefix, token_hash=hashed))
-        # Auto-authenticate this session
-        from app.mcp.server import _session_tokens
-        _session_tokens["_latest"] = raw_token
-        return {"user_id": user.id, "api_token": raw_token, "message": "Account created. Session authenticated. Save token for future sessions."}
-
+    # ── Login (no auth needed — this IS the auth) ──
     if tool_name == "login":
-        # Login with existing token — authenticates the current MCP session
         token_val = args.get("token", "")
         if not token_val.startswith("mcp_"):
-            raise ValueError("Token must start with mcp_")
+            raise ValueError("Token must start with mcp_. Sign up at http://46.62.210.24:3000/setup to get one.")
         user = await _get_user(token_val, session)
         from app.mcp.server import _session_tokens
         _session_tokens["_latest"] = token_val
         return {"user_id": user.id, "name": user.name, "email": user.email,
-                "message": f"Logged in as {user.name}. Session authenticated."}
+                "message": f"Logged in as {user.name}. All tools ready."}
 
     if tool_name == "configure_integration":
         user = await _get_user(token, session)
