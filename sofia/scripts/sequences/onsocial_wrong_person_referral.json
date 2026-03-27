@@ -1,0 +1,20 @@
+[
+  {
+    "seq_number": 1,
+    "seq_delay_details": {"delay_in_days": 0},
+    "subject": "{{colleague_name}} suggested I reach out",
+    "email_body": "Hey {{first_name}},\n\nI was in touch with {{colleague_name}} about influencer data at {{company_name}} — they pointed me to you as the right person.\n\nWe give agencies direct access to 450M+ creator profiles across Instagram, TikTok, YouTube and 7 other networks — unified, no scraping required.\n\nWorth a 15-min call?\n\n{{sender_name}}"
+  },
+  {
+    "seq_number": 2,
+    "seq_delay_details": {"delay_in_days": 3},
+    "subject": "Re: {{colleague_name}} suggested I reach out",
+    "email_body": "Hey {{first_name}},\n\nFollowing up quickly — the thing most agencies tell us saves them the most time is being able to pull real audience data on any creator across platforms without waiting on a vendor.\n\nIf that's relevant to what {{company_name}} is doing right now, happy to show it live.\n\n{{sender_name}}"
+  },
+  {
+    "seq_number": 3,
+    "seq_delay_details": {"delay_in_days": 5},
+    "subject": "Re: {{colleague_name}} suggested I reach out",
+    "email_body": "Hey {{first_name}},\n\nLast note from me — if influencer data isn't a priority right now, no problem at all.\n\nFeel free to ping me whenever the timing works.\n\n{{sender_name}}"
+  }
+]

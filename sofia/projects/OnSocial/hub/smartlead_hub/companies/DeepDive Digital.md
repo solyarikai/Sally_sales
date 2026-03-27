@@ -1,0 +1,18 @@
+# DeepDive Digital
+
+**Лидов:** 1  
+**Кампаний:** 1
+
+## Кампании
+
+- **c-OnSocial_INDIA #C** — 1 лид(ов)
+
+## Статусы лидов
+
+- `INPROGRESS` — 1
+
+## Контакты
+
+| Имя | Email | Должность | Кампания | Статус |
+|-----|-------|-----------|----------|--------|
+| Naman Bhutra | naman@deepdivedigital.in | — | c-OnSocial_INDIA #C | `INPROGRESS` |
