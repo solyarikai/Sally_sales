@@ -148,21 +148,34 @@ export default function App() {
 // Pipeline runs list
 function PipelineRunsPage() {
   const [runs, setRuns] = useState<any[]>([])
+  const { project } = useProject()
   useEffect(() => {
     const t = localStorage.getItem('mcp_token')
     fetch('/api/pipeline/runs', { headers: t ? { 'X-MCP-Token': t } : {} }).then(r => r.json()).then(setRuns).catch(() => {})
   }, [])
+
+  // Filter by selected project (top-left dropdown)
+  const filtered = project ? runs.filter(r => r.project_id === project.id) : runs
+
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
       <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 12 }}>Pipeline Runs</div>
-      {runs.length === 0 ? <div style={{ color: 'var(--text-muted)', padding: '40px 0', textAlign: 'center' }}>No runs yet.</div> : (
+      {filtered.length === 0 ? <div style={{ color: 'var(--text-muted)', padding: '40px 0', textAlign: 'center' }}>{runs.length > 0 ? 'No runs for this project.' : 'No runs yet.'}</div> : (
         <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
           <thead><tr style={{ textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)' }}>
-            <th style={{ paddingBottom: 8 }}>Run</th><th style={{ paddingBottom: 8 }}>Source</th><th style={{ paddingBottom: 8 }}>Companies</th><th style={{ paddingBottom: 8 }}>Target Rate</th><th style={{ paddingBottom: 8 }}>Credits</th><th style={{ paddingBottom: 8 }}>Phase</th><th style={{ paddingBottom: 8 }}>Created</th>
+            <th style={{ paddingBottom: 8 }}>Run</th>
+            <th style={{ paddingBottom: 8 }}>Project</th>
+            <th style={{ paddingBottom: 8 }}>Source</th>
+            <th style={{ paddingBottom: 8 }}>Companies</th>
+            <th style={{ paddingBottom: 8 }}>Target Rate</th>
+            <th style={{ paddingBottom: 8 }}>Credits</th>
+            <th style={{ paddingBottom: 8 }}>Phase</th>
+            <th style={{ paddingBottom: 8 }}>Created</th>
           </tr></thead>
-          <tbody>{runs.map((r: any) => (
+          <tbody>{filtered.map((r: any) => (
             <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
               <td style={{ padding: '8px 12px 8px 0' }}><Link to={`/pipeline/${r.id}`} style={{ color: 'var(--text-link)' }}>#{r.id}</Link></td>
+              <td style={{ padding: '8px 12px 8px 0', fontSize: 12, color: 'var(--text-secondary)' }}>{r.project_name || '—'}</td>
               <td style={{ padding: '8px 12px 8px 0' }}>{r.source_type?.replace('companies.', '').replace('.manual', '')}</td>
               <td style={{ padding: '8px 12px 8px 0', color: 'var(--success)' }}>{r.new_companies || 0}</td>
               <td style={{ padding: '8px 12px 8px 0', color: r.target_rate ? 'var(--success)' : 'var(--text-muted)' }}>{r.target_rate || '—'}</td>
