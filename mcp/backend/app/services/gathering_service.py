@@ -560,7 +560,7 @@ Rules:
         try:
             from app.models.usage import MCPUsageLog
             prompt_log = MCPUsageLog(
-                user_id=run.project_id,  # project as context
+                user_id=project.user_id if project else 1,  # actual user, not project_id
                 tool_name="analysis_prompt",
                 action="via_negativa_analysis",
                 extra_data={
