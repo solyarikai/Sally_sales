@@ -336,6 +336,23 @@ Call this BEFORE god_push_to_smartlead to let the user choose which accounts to 
             },
         },
     },
+    {
+        "name": "send_test_email",
+        "description": """Send a test email via SmartLead's native API. Uses the user's email as recipient.
+Auto-resolves sending account and lead for variable substitution.
+
+Call this after god_push_to_smartlead to let the user preview the email in their inbox.
+Also called automatically when a campaign is created.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {"type": "integer", "description": "SmartLead campaign ID (external_id)"},
+                "test_email": {"type": "string", "description": "Override recipient email (defaults to user's email)"},
+                "sequence_number": {"type": "integer", "default": 1, "description": "Which sequence step to test (1, 2, 3...)"},
+            },
+            "required": ["campaign_id"],
+        },
+    },
 
     # ── Filter Intelligence (1) ──
     {

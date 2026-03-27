@@ -735,6 +735,19 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
         smartlead_url = f"https://app.smartlead.ai/app/email-campaigns-v2/{campaign_id}/analytics"
 
+        # 7. Auto-send test email to the user's own email
+        test_email_result = None
+        try:
+            test_email_result = await svc.send_test_email(
+                campaign_id=campaign_id,
+                test_email=user.email,
+                sequence_number=1,
+            )
+            logger.info(f"Test email sent to {user.email} for campaign {campaign_id}: {test_email_result}")
+        except Exception as e:
+            logger.warning(f"Auto test email failed for campaign {campaign_id}: {e}")
+            test_email_result = {"ok": False, "error": str(e)}
+
         return {
             "pushed": True,
             "smartlead_campaign_id": campaign_id,
@@ -749,12 +762,31 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 "max_daily": 100,
                 "email_accounts": len(email_account_ids),
             },
-            "message": f"Campaign '{seq.campaign_name}' created as DRAFT with production settings.\n"
-                       f"Schedule: Mon-Fri 9:00-18:00 {timezone}\n"
-                       f"Email accounts: {len(email_account_ids)} assigned\n"
-                       f"Next: add leads in SmartLead, then activate.",
+            "test_email": test_email_result,
+            "message": (
+                f"Campaign '{seq.campaign_name}' created as DRAFT with production settings.\n"
+                f"Schedule: Mon-Fri 9:00-18:00 {timezone}\n"
+                f"Email accounts: {len(email_account_ids)} assigned\n"
+                + (f"Test email sent to {user.email} — check your inbox!\n" if test_email_result and test_email_result.get("ok") else
+                   f"Test email failed: {test_email_result.get('error', 'unknown') if test_email_result else 'skipped'}\n")
+                + f"Next: review the test email, add leads, then activate."
+            ),
             "_links": {"smartlead": smartlead_url},
         }
+
+    if tool_name == "send_test_email":
+        user = await _get_user(token, session)
+        ctx = UserServiceContext(user.id, session)
+        svc = await ctx.get_smartlead_service()
+        if not svc.is_configured():
+            raise ValueError("SmartLead not connected")
+        test_email = args.get("test_email") or user.email
+        result = await svc.send_test_email(
+            campaign_id=args["campaign_id"],
+            test_email=test_email,
+            sequence_number=args.get("sequence_number", 1),
+        )
+        return {**result, "sent_to": test_email}
 
     if tool_name in ("god_score_campaigns", "god_extract_patterns"):
         user = await _get_user(token, session)
