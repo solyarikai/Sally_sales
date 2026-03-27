@@ -3631,54 +3631,66 @@ async def sync_conversation_histories(
                             gr.approval_status = "auto_resolved"
                             gr.approved_at = outbound_time or datetime.utcnow()
                             session.add(gr)
-
-                    # Create missing outbound ContactActivity records
-                    reply_received = reply.received_at
-                    contact_result = await session.execute(
-                        select(Contact).where(
-                            func.lower(Contact.email) == email_lower,
-                            Contact.deleted_at.is_(None),
-                        )
-                    )
-                    contact = contact_result.scalar_one_or_none()
-
-                    if contact:
-                        for msg in history:
-                            if msg.get("type") != "REPLY" and msg.get("time"):
-                                try:
-                                    msg_time = datetime.fromisoformat(
-                                        msg["time"].replace("Z", "+00:00").replace("+00:00", "")
-                                    )
-                                except (ValueError, TypeError):
-                                    continue
-
-                                if reply_received and msg_time > reply_received:
-                                    existing = await session.execute(
-                                        select(ContactActivity.id).where(
-                                            and_(
-                                                ContactActivity.contact_id == contact.id,
-                                                ContactActivity.direction == "outbound",
-                                                ContactActivity.source_id == msg.get("message_id", ""),
-                                            )
-                                        )
-                                    )
-                                    if not existing.first():
-                                        activity = ContactActivity(
-                                            contact_id=contact.id,
-                                            company_id=contact.company_id,
-                                            activity_type="email_sent",
-                                            channel="email",
-                                            direction="outbound",
-                                            source="smartlead_sync",
-                                            source_id=msg.get("message_id", ""),
-                                            subject=msg.get("email_subject"),
-                                            body=(msg.get("email_body", "") or "")[:500],
-                                            activity_at=msg_time,
-                                        )
-                                        session.add(activity)
-                                        stats["activities_created"] += 1
                 else:
                     stats["still_pending"] += 1
+
+                # Create missing ContactActivity records for ALL messages
+                # (both outbound and inbound) so we have a full local copy
+                # even after SmartLead archives the campaign.
+                # Runs for both resolved and still-pending conversations.
+                contact_result = await session.execute(
+                    select(Contact).where(
+                        func.lower(Contact.email) == email_lower,
+                        Contact.deleted_at.is_(None),
+                    )
+                )
+                contact = contact_result.scalar_one_or_none()
+
+                if contact:
+                    for msg in history:
+                        if not msg.get("time"):
+                            continue
+                        try:
+                            msg_time = datetime.fromisoformat(
+                                msg["time"].replace("Z", "+00:00").replace("+00:00", "")
+                            )
+                        except (ValueError, TypeError):
+                            continue
+
+                        is_reply = msg.get("type") == "REPLY"
+                        direction = "inbound" if is_reply else "outbound"
+                        activity_type = "email_reply" if is_reply else "email_sent"
+                        msg_id = msg.get("message_id", "")
+
+                        # Skip if already exists (dedup by contact + source_id)
+                        if msg_id:
+                            existing = await session.execute(
+                                select(ContactActivity.id).where(
+                                    and_(
+                                        ContactActivity.contact_id == contact.id,
+                                        ContactActivity.source_id == msg_id,
+                                    )
+                                )
+                            )
+                            if existing.first():
+                                continue
+
+                        activity = ContactActivity(
+                            contact_id=contact.id,
+                            company_id=contact.company_id,
+                            activity_type=activity_type,
+                            channel="email",
+                            direction=direction,
+                            source="smartlead_sync",
+                            source_id=msg_id,
+                            subject=msg.get("email_subject"),
+                            body=(msg.get("email_body", "") or "")[:500],
+                            snippet=((msg.get("email_body", "") or "")[:200]).strip() or None,
+                            activity_at=msg_time,
+                            extra_data={"campaign_name": reply.campaign_name} if reply.campaign_name else None,
+                        )
+                        session.add(activity)
+                        stats["activities_created"] += 1
 
             except Exception as e:
                 logger.error(f"sync_conversation_histories: error checking SmartLead lead {reply.lead_email}: {e}")
