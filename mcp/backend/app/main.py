@@ -103,23 +103,25 @@ class MCPApp:
                     _session_tokens["_latest"] = token
 
                 # Intercept request body for conversation logging
-                body_parts = []
+                body_chunks = []
                 async def logging_receive():
                     msg = await receive()
-                    if msg.get("type") == "http.request":
-                        body_parts.append(msg.get("body", b""))
+                    if msg.get("type") in ("http.request", "http.disconnect"):
+                        body = msg.get("body", b"")
+                        if body:
+                            body_chunks.append(body)
                     return msg
 
-                await sse_transport.handle_post_message(scope, logging_receive, send)
-
-                # Log the message asynchronously (don't block the response)
-                if body_parts:
-                    import asyncio
-                    asyncio.create_task(
-                        _log_conversation_message(
-                            b"".join(body_parts), token, session_id
+                try:
+                    await sse_transport.handle_post_message(scope, logging_receive, send)
+                finally:
+                    # Log after response is sent (async, non-blocking)
+                    if body_chunks:
+                        import asyncio
+                        full_body = b"".join(body_chunks)
+                        asyncio.create_task(
+                            _log_conversation_message(full_body, token, session_id)
                         )
-                    )
             else:
                 await send({"type": "http.response.start", "status": 404, "headers": []})
                 await send({"type": "http.response.body", "body": b"Not found"})
