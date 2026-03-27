@@ -92,18 +92,40 @@ The response shows: project name, ICP, active campaigns, and which companies are
         },
     },
 
-    # ── Pipeline (9) ──
+    # ── Intent Parsing ──
+    {
+        "name": "parse_gathering_intent",
+        "description": """ALWAYS call this BEFORE tam_gather. Parses user's natural language query into structured segments.
+
+Handles:
+- Multi-segment queries: "IT consulting and media production" → 2 pipelines
+- Geo extraction: "companies in Miami" → geo context
+- Competitor exclusion: if user's website is known, auto-excludes competitors
+- Segment labeling: generates CAPS_LOCKED labels matching user's terminology
+
+If pipelines_needed > 1, call tam_gather SEPARATELY for each segment.
+
+Example: "find IT consulting and media production companies in Miami"
+→ {segments: [{label: "IT_CONSULTING", ...}, {label: "MEDIA_PRODUCTION", ...}], pipelines_needed: 2}
+→ You call tam_gather twice, once per segment""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "User's raw gathering query"},
+                "project_id": {"type": "integer", "description": "Project ID (to get user's offer for competitor exclusion)"},
+            },
+            "required": ["query", "project_id"],
+        },
+    },
+    # ── Pipeline ──
     {
         "name": "tam_gather",
         "description": """Phase 1: Gather companies from a source.
 
-For Apollo API source: if the user gives you a natural language description instead of explicit filters,
-FIRST call suggest_apollo_filters to auto-discover optimal keywords, THEN call tam_gather with the result.
+BEFORE calling this, ALWAYS call parse_gathering_intent first to get structured segments.
+Then call tam_gather once per segment.
 
-User says "find IT consulting in London, about 10 targets" → you:
-1. Call suggest_apollo_filters(query="IT consulting in London", target_count=10)
-2. Take the suggested_filters from the response
-3. Call tam_gather(project_id=X, source_type="apollo.companies.api", filters=suggested_filters, target_count=10)
+For Apollo API source: use filters from parse_gathering_intent or suggest_apollo_filters.
 
 The user only needs to tell you: WHAT companies, WHERE, and HOW MANY targets.
 You figure out the Apollo filters automatically. Never show filter details to the user.""",
