@@ -541,6 +541,49 @@ The generated sequence for "Fashion Brands Italy" MUST:
 
 ---
 
+## PHASE 4c: SECOND PROJECT FOR USER 2 (MULTI-PROJECT FLOW)
+
+This tests the MCP's ability to handle a user creating a SECOND project after their first one.
+User 2 (petru4o144@gmail.com) already has "Fashion Brands Italy" from Phase 4b. Now they want a completely different project.
+
+**Scenario**: User says "I also need to find social influencer platforms in UK for https://onsocial.ai/"
+
+**Expected MCP behaviour:**
+1. Recognize this is a NEW project request (different ICP, different company, different geo)
+2. Create a new project — blind scrape https://onsocial.ai/ to discover the offer
+3. Ask: "Do you have existing SmartLead campaigns for this project?" → User says NO
+4. Proceed directly to gathering (no blacklist import needed — no campaigns)
+5. The user should now have TWO projects visible: "Fashion Brands Italy" AND the new OnSocial project
+6. Each project's pipeline must be independent — different companies, different filters
+
+**Steps:**
+1. Create project with ONLY the website URL: `{"name": "OnSocial UK Influencers", "website": "https://onsocial.ai/"}`
+2. Verify blind offer discovery — what did the system extract? Compare against ground truth
+3. Verify User 2 now sees TWO projects (Fashion Brands Italy + OnSocial UK Influencers)
+4. Verify projects are independent — different target_segments, different scraped contexts
+5. Run gathering: "social influencer platforms in UK" (Apollo search)
+6. Verify pipeline runs are project-scoped — OnSocial pipeline doesn't mix with Fashion pipeline
+7. Create campaign with GOD_SEQUENCE — sequence must reference OnSocial's actual offer (NOT fashion resale, NOT payroll)
+
+**Blind offer discovery test:**
+- Provide ONLY `https://onsocial.ai/` — no description
+- System must discover what OnSocial does independently
+- Compare against ground truth: `mcp/test_ground_truth/offers/onsocial.json`
+- Grade: core offer, target audience, key metrics
+
+**Screenshots:**
+- `test_user2_two_projects.png` — projects page showing BOTH projects for User 2
+- `test_user2_onsocial_pipeline.png` — OnSocial pipeline with gathered companies
+- `test_user2_project_switch.png` — verify switching between projects works
+
+**Key test points:**
+- MCP handles multi-project users correctly
+- No SmartLead campaigns = no blacklist step, go straight to gathering
+- Different projects = different ICPs = different sequences
+- User's project list grows as they add projects
+
+---
+
 ### HARD RULES — NON-NEGOTIABLE
 
 #### RULE 1: ALL TESTING MUST USE REAL MCP CONNECTION
