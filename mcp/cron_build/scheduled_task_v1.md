@@ -494,12 +494,12 @@ If the background reply analysis cache is empty (first run), the tools fall back
 **This is a MANDATORY test.** After completing Phase 4 with pn@getsally.io, run the SAME flow with a DIFFERENT user to verify user-scoping works.
 
 **Second test user:**
-- Email: `petru4o144@gmail.com`
+- Email: `services@getsally.io`
 - Password: `qweqweqwe`
 - Scenario: New user with NO existing SmartLead campaigns, wants to find "fashion brands in Italy"
 
 **Steps:**
-1. Register `petru4o144@gmail.com` as a new MCP account (password: `qweqweqwe`)
+1. Register `services@getsally.io` as a new MCP account (password: `qweqweqwe`)
 2. Connect SmartLead + Apollo using the same shared API keys
 3. **Provide company context (BLIND — URL ONLY)**: "My company website is https://thefashionpeople.com/"
    - The MCP MUST scrape the website and extract the value proposition INDEPENDENTLY
@@ -511,8 +511,8 @@ If the background reply analysis cache is empty (first run), the tools fall back
 5. Run gathering: "fashion brands in Italy" (Apollo search)
 6. Verify: this user sees ONLY their project — NOT the pn@getsally.io projects
 7. Create campaign with GOD_SEQUENCE — sequence MUST reference fashion staffing offer, NOT generic "we help companies"
-8. Upload contacts, send test email to `petru4o144@gmail.com`
-9. Verify: `petru4o144@gmail.com` receives the test email
+8. Upload contacts, send test email to `services@getsally.io`
+9. Verify: `services@getsally.io` receives the test email
 10. Switch back to pn@getsally.io and verify their data is unchanged
 
 **Sequence Quality Check for User 2:**
@@ -544,7 +544,7 @@ The generated sequence for "Fashion Brands Italy" MUST:
 ## PHASE 4c: SECOND PROJECT FOR USER 2 (MULTI-PROJECT FLOW)
 
 This tests the MCP's ability to handle a user creating a SECOND project after their first one.
-User 2 (petru4o144@gmail.com) already has "Fashion Brands Italy" from Phase 4b. Now they want a completely different project.
+User 2 (services@getsally.io) already has "Fashion Brands Italy" from Phase 4b. Now they want a completely different project.
 
 **Scenario**: User says "I also need to find social influencer platforms in UK for https://onsocial.ai/"
 

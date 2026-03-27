@@ -99,23 +99,30 @@ class SmartLeadService:
                 "email_body": step.get("body", ""),
             }
 
-            # A/B variant support
+            formatted.append(entry)
+
+        # Push sequences first (without variants — SmartLead doesn't accept inline variants)
+        result = await self._api_call("POST", f"/campaigns/{campaign_id}/sequences", {"sequences": formatted})
+
+        # Then add A/B variants via separate API call for steps that have subject_b
+        for i, step in enumerate(sequences):
             if step.get("subject_b") or step.get("body_b"):
-                entry["sequence_variants"] = [
-                    {
-                        "variant_label": "A",
-                        "subject": step.get("subject", ""),
-                        "email_body": step.get("body", ""),
-                    },
-                    {
+                seq_id = None
+                # Fetch sequence IDs to add variant
+                seqs_data = await self.get_campaign_sequences(campaign_id)
+                if seqs_data:
+                    for s in seqs_data:
+                        if s.get("seq_number") == step.get("step", i + 1):
+                            seq_id = s.get("id")
+                            break
+                if seq_id:
+                    await self._api_call("POST", f"/campaigns/{campaign_id}/sequences/{seq_id}/variants", {
                         "variant_label": "B",
                         "subject": step.get("subject_b", step.get("subject", "")),
                         "email_body": step.get("body_b", step.get("body", "")),
-                    },
-                ]
+                    })
 
-            formatted.append(entry)
-        return await self._api_call("POST", f"/campaigns/{campaign_id}/sequences", {"sequences": formatted})
+        return result
 
     async def set_campaign_schedule(self, campaign_id: int, timezone: str, start_hour: str = "09:00", end_hour: str = "18:00") -> Optional[Dict[str, Any]]:
         """Set campaign sending schedule — 9-6 business hours in target timezone."""

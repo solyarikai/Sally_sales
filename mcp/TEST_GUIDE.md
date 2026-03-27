@@ -91,4 +91,4 @@ Tell the MCP: "Find IT consulting companies in Miami"
 | Email | Password | Role |
 |-------|----------|------|
 | `pn@getsally.io` | `qweqweqwe` | Admin (has "petr" campaigns) |
-| `petru4o144@gmail.com` | `qweqweqwe` | New user (no campaigns) |
+| `services@getsally.io` | `qweqweqwe` | New user (no campaigns) |
