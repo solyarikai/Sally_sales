@@ -146,6 +146,7 @@ TITLES = {
 # ── CLAY FILTER CONFIGS ──────────────────────────────────────────────────────
 
 CLAY_FILTERS = {
+    # ── Legacy configs (runs 154-158) ─────────────────────────────
     "platforms_tier12": {
         "segment": "INFLUENCER_PLATFORMS",
         "filters": {
@@ -224,6 +225,333 @@ CLAY_FILTERS = {
             "max_results": 2000,
         },
     },
+
+    # ── v4.1: Per-region configs (7 regions × 2 segments = 14) ────
+
+    # ── 1. MENA (HIGH PRIORITY — 10x conversion) ─────────────────
+    "platforms_mena": {
+        "segment": "INFLUENCER_PLATFORMS",
+        "filters": {
+            "icp_text": (
+                "SaaS companies building products for influencer marketing and creator economy. "
+                "Platforms for influencer discovery, audience analytics, creator marketplaces, "
+                "social listening, UGC platforms, creator data APIs, brand monitoring tools, "
+                "social commerce, live shopping platforms, creator monetization tools. "
+                "Company keywords: influencer marketing platform, creator analytics, creator marketplace, "
+                "influencer platform, social media analytics, UGC platform, creator economy, "
+                "audience analytics, influencer API, social listening, brand monitoring, creator data, "
+                "influencer discovery, creator tools, influencer intelligence, audience intelligence, social data. "
+                "Examples: ArabyAds, Sociata, Vamp, Tagger, CreatorIQ. "
+                "NOT: recruitment, PR, generic SMM, web design, SEO/PPC, consulting, fintech. "
+                "Must have own technology product (platform/SaaS/API)."
+            ),
+            "industries": ["Computer Software", "Internet", "Marketing and Advertising", "Information Technology and Services", "Online Media"],
+            "country_names": ["United Arab Emirates", "Saudi Arabia", "Egypt", "Turkey", "Israel"],
+            "minimum_member_count": 5,
+            "maximum_member_count": 5000,
+            "max_results": 2000,
+        },
+    },
+    "agencies_mena": {
+        "segment": "IM_FIRST_AGENCIES",
+        "filters": {
+            "icp_text": (
+                "Agencies where influencer marketing is the CORE business, not a side service. "
+                "Specialize in influencer campaigns, creator management, TikTok/Instagram/YouTube campaigns. "
+                "Company keywords: influencer marketing agency, influencer agency, creator agency, "
+                "influencer management, creator campaigns, influencer marketing, creator partnerships, "
+                "TikTok agency, influencer talent, creator talent, influencer strategy, UGC agency. "
+                "Examples: ArabyAds, Sociata, Vamp, ITP Media Group. "
+                "NOT: PR, generic digital agencies, SEO/PPC, marketing holdings (WPP, Omnicom, HAVAS, Publicis, Mindshare), "
+                "freelancers, web studios, consulting. "
+                "Must have influencer/creator marketing as core. 10-500 employees."
+            ),
+            "industries": ["Marketing and Advertising"],
+            "country_names": ["United Arab Emirates", "Saudi Arabia", "Egypt", "Turkey", "Israel"],
+            "minimum_member_count": 10,
+            "maximum_member_count": 500,
+            "max_results": 2000,
+        },
+    },
+
+    # ── 2. India (HIGH PRIORITY — agencies 100% warm) ─────────────
+    "platforms_india": {
+        "segment": "INFLUENCER_PLATFORMS",
+        "filters": {
+            "icp_text": (
+                "SaaS companies building products for influencer marketing and creator economy. "
+                "Platforms for influencer discovery, audience analytics, creator marketplaces, "
+                "social listening, UGC platforms, creator data APIs, brand monitoring, "
+                "social commerce, creator monetization, live shopping platforms. "
+                "Company keywords: influencer marketing platform, creator analytics, creator marketplace, "
+                "influencer platform, social media analytics, UGC platform, creator economy, "
+                "audience analytics, influencer API, social listening, creator data, "
+                "influencer discovery, influencer intelligence, audience intelligence. "
+                "Examples: Phyllo, KlugKlug, Qoruz, Atisfyre, Winkl, Plixxo, Chtrbox. "
+                "NOT: recruitment, PR, generic SMM, web design, SEO/PPC, consulting, fintech, e-commerce brands. "
+                "Must have own technology product (platform/SaaS/API)."
+            ),
+            "industries": ["Computer Software", "Internet", "Marketing and Advertising", "Information Technology and Services", "Online Media"],
+            "country_names": ["India"],
+            "minimum_member_count": 5,
+            "maximum_member_count": 5000,
+            "max_results": 2000,
+        },
+    },
+    "agencies_india": {
+        "segment": "IM_FIRST_AGENCIES",
+        "filters": {
+            "icp_text": (
+                "Agencies where influencer marketing is the CORE business, not a side service. "
+                "Specialize in influencer campaigns, creator management, TikTok/Instagram/YouTube campaigns. "
+                "Company keywords: influencer marketing agency, influencer agency, creator agency, "
+                "influencer management, creator campaigns, influencer marketing, creator partnerships, "
+                "TikTok agency, influencer talent, creator talent, influencer strategy, UGC agency. "
+                "Examples: Qoruz, Tonic Worldwide, Chtrbox, Plixxo, Winkl, Grynow, WhizCo. "
+                "NOT: PR, generic digital agencies, SEO/PPC, marketing holdings, "
+                "freelancers, IT outsourcing, web development, consulting. "
+                "Must have influencer/creator marketing as core. 10-500 employees."
+            ),
+            "industries": ["Marketing and Advertising"],
+            "country_names": ["India"],
+            "minimum_member_count": 10,
+            "maximum_member_count": 500,
+            "max_results": 2000,
+        },
+    },
+
+    # ── 3. US/Canada (HIGH PRIORITY — flagship) ──────────────────
+    "platforms_us": {
+        "segment": "INFLUENCER_PLATFORMS",
+        "filters": {
+            "icp_text": (
+                "SaaS companies building products for influencer marketing and creator economy. "
+                "Platforms for influencer discovery, audience analytics, creator marketplaces, "
+                "social listening, UGC platforms, creator data APIs, brand monitoring tools, "
+                "social commerce, live shopping, creator monetization, affiliate-influencer platforms. "
+                "Company keywords: influencer marketing platform, creator analytics, creator marketplace, "
+                "influencer platform, social media analytics, UGC platform, creator economy, "
+                "audience analytics, influencer API, social listening, brand monitoring, creator data, "
+                "influencer discovery, creator tools, influencer intelligence, audience intelligence, "
+                "social data, affiliate marketing platform, creator commerce, creator storefront. "
+                "Examples: Modash, Captiv8, Lefty, The Shelf, impact.com, GRIN, Aspire, CreatorIQ. "
+                "NOT: recruitment, PR, generic SMM, web design, SEO/PPC, consulting, fintech. "
+                "Must have own technology product (platform/SaaS/API)."
+            ),
+            "industries": ["Computer Software", "Internet", "Marketing and Advertising", "Information Technology and Services", "Online Media"],
+            "country_names": ["United States", "Canada"],
+            "minimum_member_count": 5,
+            "maximum_member_count": 5000,
+            "max_results": 5000,
+        },
+    },
+    "agencies_us": {
+        "segment": "IM_FIRST_AGENCIES",
+        "filters": {
+            "icp_text": (
+                "Agencies where influencer marketing is the CORE business, not a side service. "
+                "Specialize in influencer campaigns, creator management, TikTok/Instagram/YouTube campaigns. "
+                "Company keywords: influencer marketing agency, influencer agency, creator agency, "
+                "influencer management, creator campaigns, influencer marketing, creator partnerships, "
+                "TikTok agency, influencer talent, creator talent, influencer strategy, UGC agency. "
+                "Examples: Viral Nation, Obviously, Socially Powerful, NeoReach, Open Influence. "
+                "NOT: PR, generic digital agencies, SEO/PPC, marketing holdings (WPP, Omnicom, HAVAS, Publicis, Mindshare), "
+                "freelancers, web studios, consulting. "
+                "Must have influencer/creator marketing as core. 10-500 employees."
+            ),
+            "industries": ["Marketing and Advertising"],
+            "country_names": ["United States", "Canada"],
+            "minimum_member_count": 10,
+            "maximum_member_count": 500,
+            "max_results": 5000,
+        },
+    },
+
+    # ── 4. UK (MEDIUM PRIORITY) ──────────────────────────────────
+    "platforms_uk": {
+        "segment": "INFLUENCER_PLATFORMS",
+        "filters": {
+            "icp_text": (
+                "SaaS companies building products for influencer marketing and creator economy. "
+                "Platforms for influencer discovery, audience analytics, creator marketplaces, "
+                "social listening, UGC platforms, creator data APIs, brand monitoring tools, "
+                "social commerce, creator monetization tools. "
+                "Company keywords: influencer marketing platform, creator analytics, creator marketplace, "
+                "influencer platform, social media analytics, UGC platform, creator economy, "
+                "audience analytics, influencer API, social listening, brand monitoring, creator data, "
+                "influencer discovery, creator tools, influencer intelligence, audience intelligence. "
+                "Examples: Whalar, Billion Dollar Boy, Traackr, Influencity. "
+                "NOT: recruitment, PR, generic SMM, web design, SEO/PPC, consulting, fintech. "
+                "Must have own technology product (platform/SaaS/API)."
+            ),
+            "industries": ["Computer Software", "Internet", "Marketing and Advertising", "Information Technology and Services", "Online Media"],
+            "country_names": ["United Kingdom"],
+            "minimum_member_count": 5,
+            "maximum_member_count": 5000,
+            "max_results": 2000,
+        },
+    },
+    "agencies_uk": {
+        "segment": "IM_FIRST_AGENCIES",
+        "filters": {
+            "icp_text": (
+                "Agencies where influencer marketing is the CORE business, not a side service. "
+                "Specialize in influencer campaigns, creator management, TikTok/Instagram/YouTube campaigns. "
+                "Company keywords: influencer marketing agency, influencer agency, creator agency, "
+                "influencer management, creator campaigns, influencer marketing, creator partnerships, "
+                "TikTok agency, influencer talent, creator talent, influencer strategy, UGC agency. "
+                "Examples: Whalar, Billion Dollar Boy, Socially Powerful, Goat Agency, Brighter Click. "
+                "NOT: PR, generic digital agencies, SEO/PPC, marketing holdings (WPP, Omnicom, HAVAS, Publicis), "
+                "freelancers, web studios, consulting. "
+                "Must have influencer/creator marketing as core. 10-500 employees."
+            ),
+            "industries": ["Marketing and Advertising"],
+            "country_names": ["United Kingdom"],
+            "minimum_member_count": 10,
+            "maximum_member_count": 500,
+            "max_results": 2000,
+        },
+    },
+
+    # ── 5. LATAM (MEDIUM PRIORITY) ───────────────────────────────
+    "platforms_latam": {
+        "segment": "INFLUENCER_PLATFORMS",
+        "filters": {
+            "icp_text": (
+                "SaaS companies building products for influencer marketing and creator economy. "
+                "Platforms for influencer discovery, audience analytics, creator marketplaces, "
+                "social listening, UGC platforms, creator data APIs, brand monitoring tools, "
+                "social commerce, creator monetization tools. "
+                "Company keywords: influencer marketing platform, creator analytics, creator marketplace, "
+                "influencer platform, social media analytics, UGC platform, creator economy, "
+                "audience analytics, influencer API, social listening, creator data, "
+                "influencer discovery, influencer intelligence, audience intelligence. "
+                "Examples: Modash, Captiv8, Squid (now part of Locaweb). "
+                "NOT: recruitment, PR, generic SMM, web design, SEO/PPC, consulting, fintech. "
+                "Must have own technology product (platform/SaaS/API)."
+            ),
+            "industries": ["Computer Software", "Internet", "Marketing and Advertising", "Information Technology and Services", "Online Media"],
+            "country_names": ["Brazil", "Mexico", "Colombia", "Argentina"],
+            "minimum_member_count": 5,
+            "maximum_member_count": 5000,
+            "max_results": 2000,
+        },
+    },
+    "agencies_latam": {
+        "segment": "IM_FIRST_AGENCIES",
+        "filters": {
+            "icp_text": (
+                "Agencies where influencer marketing is the CORE business, not a side service. "
+                "Specialize in influencer campaigns, creator management, TikTok/Instagram/YouTube campaigns. "
+                "Company keywords: influencer marketing agency, influencer agency, creator agency, "
+                "influencer management, creator campaigns, influencer marketing, creator partnerships, "
+                "TikTok agency, influencer talent, creator talent, influencer strategy, UGC agency, "
+                "agencia de influencers, marketing de influenciadores. "
+                "Examples: Viral Nation, Captiv8, SAMY Alliance, Buzzmonitor. "
+                "NOT: PR, generic digital agencies, SEO/PPC, marketing holdings, "
+                "freelancers, web studios, consulting. "
+                "Must have influencer/creator marketing as core. 10-500 employees."
+            ),
+            "industries": ["Marketing and Advertising"],
+            "country_names": ["Brazil", "Mexico", "Colombia", "Argentina"],
+            "minimum_member_count": 10,
+            "maximum_member_count": 500,
+            "max_results": 2000,
+        },
+    },
+
+    # ── 6. Europe (LOW PRIORITY — 0% reply solo, but v4 copy is different) ──
+    "platforms_europe": {
+        "segment": "INFLUENCER_PLATFORMS",
+        "filters": {
+            "icp_text": (
+                "SaaS companies building products for influencer marketing and creator economy. "
+                "Platforms for influencer discovery, audience analytics, creator marketplaces, "
+                "social listening, UGC platforms, creator data APIs, brand monitoring tools, "
+                "social commerce, creator monetization tools. "
+                "Company keywords: influencer marketing platform, creator analytics, creator marketplace, "
+                "influencer platform, social media analytics, UGC platform, creator economy, "
+                "audience analytics, influencer API, social listening, brand monitoring, creator data, "
+                "influencer discovery, creator tools, influencer intelligence, audience intelligence. "
+                "Examples: Kolsquare, Skeepers, Favikon, Zalando (creator tools), Intermate, SAMY Alliance. "
+                "NOT: recruitment, PR, generic SMM, web design, SEO/PPC, consulting, fintech. "
+                "Must have own technology product (platform/SaaS/API)."
+            ),
+            "industries": ["Computer Software", "Internet", "Marketing and Advertising", "Information Technology and Services", "Online Media"],
+            "country_names": ["Germany", "France", "Netherlands", "Spain", "Italy", "Sweden", "Denmark", "Belgium"],
+            "minimum_member_count": 5,
+            "maximum_member_count": 5000,
+            "max_results": 3000,
+        },
+    },
+    "agencies_europe": {
+        "segment": "IM_FIRST_AGENCIES",
+        "filters": {
+            "icp_text": (
+                "Agencies where influencer marketing is the CORE business, not a side service. "
+                "Specialize in influencer campaigns, creator management, TikTok/Instagram/YouTube campaigns. "
+                "Company keywords: influencer marketing agency, influencer agency, creator agency, "
+                "influencer management, creator campaigns, influencer marketing, creator partnerships, "
+                "TikTok agency, influencer talent, creator talent, influencer strategy, UGC agency, "
+                "Influencer-Agentur, agence influenceurs, agencia influencers. "
+                "Examples: Intermate, Ykone, SAMY Alliance, Linkster, Gocomo, Kolsquare. "
+                "NOT: PR, generic digital agencies, SEO/PPC, marketing holdings (WPP, Omnicom, HAVAS, Publicis), "
+                "freelancers, web studios, consulting. "
+                "Must have influencer/creator marketing as core. 10-500 employees."
+            ),
+            "industries": ["Marketing and Advertising"],
+            "country_names": ["Germany", "France", "Netherlands", "Spain", "Italy", "Sweden", "Denmark", "Belgium"],
+            "minimum_member_count": 10,
+            "maximum_member_count": 500,
+            "max_results": 3000,
+        },
+    },
+
+    # ── 7. Australia (LOW PRIORITY — small market, test) ──────────
+    "platforms_australia": {
+        "segment": "INFLUENCER_PLATFORMS",
+        "filters": {
+            "icp_text": (
+                "SaaS companies building products for influencer marketing and creator economy. "
+                "Platforms for influencer discovery, audience analytics, creator marketplaces, "
+                "social listening, UGC platforms, creator data APIs, brand monitoring tools, "
+                "social commerce, creator monetization tools. "
+                "Company keywords: influencer marketing platform, creator analytics, creator marketplace, "
+                "influencer platform, social media analytics, UGC platform, creator economy, "
+                "audience analytics, influencer API, social listening, creator data, "
+                "influencer discovery, influencer intelligence, audience intelligence. "
+                "Examples: TRIBEGroup, Vamp, Hypetap. "
+                "NOT: recruitment, PR, generic SMM, web design, SEO/PPC, consulting, fintech. "
+                "Must have own technology product (platform/SaaS/API)."
+            ),
+            "industries": ["Computer Software", "Internet", "Marketing and Advertising", "Information Technology and Services", "Online Media"],
+            "country_names": ["Australia"],
+            "minimum_member_count": 5,
+            "maximum_member_count": 5000,
+            "max_results": 1000,
+        },
+    },
+    "agencies_australia": {
+        "segment": "IM_FIRST_AGENCIES",
+        "filters": {
+            "icp_text": (
+                "Agencies where influencer marketing is the CORE business, not a side service. "
+                "Specialize in influencer campaigns, creator management, TikTok/Instagram/YouTube campaigns. "
+                "Company keywords: influencer marketing agency, influencer agency, creator agency, "
+                "influencer management, creator campaigns, influencer marketing, creator partnerships, "
+                "TikTok agency, influencer talent, creator talent, influencer strategy, UGC agency. "
+                "Examples: TRIBEGroup, Vamp, The Influence Agency, Hypetap. "
+                "NOT: PR, generic digital agencies, SEO/PPC, marketing holdings, "
+                "freelancers, web studios, consulting. "
+                "Must have influencer/creator marketing as core. 10-500 employees."
+            ),
+            "industries": ["Marketing and Advertising"],
+            "country_names": ["Australia"],
+            "minimum_member_count": 10,
+            "maximum_member_count": 500,
+            "max_results": 1000,
+        },
+    },
 }
 
 # ── CLASSIFICATION PROMPT ─────────────────────────────────────────────────────
@@ -298,15 +626,82 @@ def load_json(path: Path):
 def save_json(path: Path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-def save_csv(path: Path, rows: list[dict]):
+def save_csv(path: Path, rows: list[dict], sheet_name: str = None):
+    """Save CSV locally and optionally to Google Sheets.
+
+    If sheet_name is provided, the local file is renamed to match the sheet name
+    (with | and — replaced for filesystem safety). Both local and Sheets get
+    identical names per convention: [PROJECT] | [TYPE] | [SEGMENT] — [DATE].
+    """
     if not rows:
         return
+
+    # If sheet_name given, use it as local filename too
+    if sheet_name:
+        safe_name = sheet_name.replace(" | ", "_").replace(" — ", "_").replace(" ", "_").replace("/", "-")
+        path = path.parent / f"{safe_name}.csv"
+
     fieldnames = list(rows[0].keys())
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
     print(f"  → CSV: {path.name} ({len(rows)} rows)")
+
+    if sheet_name:
+        _upload_to_sheets(fieldnames, rows, sheet_name)
+
+
+def _upload_to_sheets(headers: list[str], rows: list[dict], sheet_name: str):
+    """Upload data to Google Sheets via backend API."""
+    data = [headers] + [[str(row.get(h, "")) for h in headers] for row in rows]
+    try:
+        result = httpx.post(
+            f"{BACKEND_BASE}/api/google-sheets/create",
+            headers=BACKEND_HEADERS,
+            json={"title": sheet_name, "data": data, "share_with": ["pn@getsally.io"]},
+            timeout=60,
+        )
+        if result.status_code == 200:
+            url = result.json().get("url", result.json().get("sheet_id", ""))
+            print(f"  → Sheet: {sheet_name} — {url}")
+        else:
+            # Fallback: direct call via subprocess (when running on Hetzner)
+            _upload_to_sheets_direct(data, sheet_name)
+    except Exception:
+        _upload_to_sheets_direct(data, sheet_name)
+
+
+def _upload_to_sheets_direct(data: list[list], sheet_name: str):
+    """Fallback: upload via google_sheets_service directly (requires backend in path)."""
+    try:
+        import subprocess
+        script = f'''
+import sys, csv, json
+sys.path.insert(0, "/app")
+import os; os.environ.setdefault("DATABASE_URL", os.environ.get("DATABASE_URL", ""))
+from app.services.google_sheets_service import google_sheets_service
+data = json.loads(sys.stdin.read())
+sid = google_sheets_service.create_and_populate(title="{sheet_name}", data=data["data"], share_with=["pn@getsally.io"])
+print(sid if isinstance(sid, str) else "")
+'''
+        payload = json.dumps({"data": data})
+        result = subprocess.run(
+            ["docker", "exec", "-i", "leadgen-backend", "python3", "-c", script],
+            input=payload, capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            out = result.stdout.strip()
+            # Extract sheet ID from URL if needed
+            if "spreadsheets/d/" in out:
+                sheet_id = out.split("spreadsheets/d/")[1].split("/")[0]
+            else:
+                sheet_id = out
+            print(f"  → Sheet: {sheet_name} — https://docs.google.com/spreadsheets/d/{sheet_id}")
+        else:
+            print(f"  ⚠ Sheet upload failed: {result.stderr[:200]}")
+    except Exception as e:
+        print(f"  ⚠ Sheet upload skipped: {e}")
 
 def normalize_company(name: str) -> str:
     for suffix in [" Inc", " Inc.", " LLC", " Ltd", " Ltd.", " GmbH", " Corp", " Corp.", " S.A.", " S.L."]:
@@ -320,13 +715,15 @@ def ts() -> str:
 def tag() -> str:
     return datetime.now().strftime("%b%d")
 
-def api(method: str, path: str, **kwargs) -> dict:
+def api(method: str, path: str, raise_on_error: bool = True, **kwargs) -> dict:
     """Call backend API."""
     url = f"{BACKEND_BASE}/api{path}"
     r = getattr(httpx, method)(url, headers=BACKEND_HEADERS, timeout=300, **kwargs)
     if r.status_code >= 400:
-        print(f"  API ERROR {r.status_code}: {r.text[:500]}")
-        sys.exit(1)
+        if raise_on_error:
+            print(f"  API ERROR {r.status_code}: {r.text[:500]}")
+            sys.exit(1)
+        return {"_error": r.status_code, "_detail": r.text[:500]}
     return r.json()
 
 def get_social_proof(country: str, segment: str) -> str:
@@ -571,14 +968,47 @@ def step9_export_targets(project_id: int, force: bool = False) -> list[dict]:
     print(f"  Exported: {len(targets)} targets")
     for seg, cnt in sorted(segments.items()):
         print(f"    {seg}: {cnt}")
+
+    # Save per-segment CSVs (local + Google Sheets)
+    today = datetime.now().strftime("%Y-%m-%d")
+    seg_map = {"INFLUENCER_PLATFORMS": "INFPLAT", "IM_FIRST_AGENCIES": "IMAGENCY"}
+    platforms = [t for t in targets if _is_platforms_segment(t.get("segment", ""))]
+    agencies = [t for t in targets if _is_agencies_segment(t.get("segment", ""))]
+
+    if platforms:
+        save_csv(CSV_DIR / f"targets_INFPLAT_{tag()}.csv", platforms,
+                 sheet_name=f"OS | Targets | INFPLAT — {today}")
+    if agencies:
+        save_csv(CSV_DIR / f"targets_IMAGENCY_{tag()}.csv", agencies,
+                 sheet_name=f"OS | Targets | IMAGENCY — {today}")
+
     return targets
+
+
+def _is_platforms_segment(seg: str) -> bool:
+    seg_upper = seg.upper()
+    return any(kw in seg_upper for kw in [
+        "PLATFORM", "SAAS", "UGC", "ANALYTICS", "CREATOR_ECON",
+        "MARKETPLACE", "COMMERCE", "LINK_IN_BIO", "NIL_MANAGEMENT",
+        "MICRO-INFLUENCER", "MICRO_INFLUENCER", "INFLUENCER_PLATFORMS",
+    ])
+
+
+def _is_agencies_segment(seg: str) -> bool:
+    seg_upper = seg.upper()
+    return any(kw in seg_upper for kw in [
+        "IM_FIRST", "IMAGENC", "INFLUENCER_MARKETING_AGENCY",
+        "MCN", "TALENT_MANAGEMENT", "CREATOR_MANAGEMENT",
+        "CREATOR_MARKETING_AGENCY", "CREATOR_NETWORK",
+        "B2B_INFLUENCER", "AFFILIATE_PERF",
+    ])
 
 
 def _export_targets_db(project_id: int) -> list[dict]:
     """Fallback: export via psql on Hetzner."""
     import subprocess
     sql = (
-        f"SELECT domain, name, country, employee_count, analysis_segment, analysis_confidence "
+        f"SELECT domain, name, matched_segment, confidence, latest_analysis_segment "
         f"FROM discovered_companies WHERE project_id={project_id} AND is_target=true"
     )
     cmd = f'docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -F \'|\' -c "{sql}"'
@@ -589,14 +1019,14 @@ def _export_targets_db(project_id: int) -> list[dict]:
             if not line.strip():
                 continue
             parts = line.split("|")
-            if len(parts) >= 5:
+            if len(parts) >= 4:
+                segment = (parts[4].strip() if len(parts) > 4 and parts[4].strip()
+                           else parts[2].strip())
                 targets.append({
                     "domain": parts[0].strip(),
                     "company_name": parts[1].strip(),
-                    "country": parts[2].strip(),
-                    "employees": parts[3].strip(),
-                    "segment": parts[4].strip(),
-                    "confidence": parts[5].strip() if len(parts) > 5 else "",
+                    "segment": segment,
+                    "confidence": parts[3].strip(),
                 })
         return targets
     except Exception as e:
@@ -605,42 +1035,67 @@ def _export_targets_db(project_id: int) -> list[dict]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 10: APOLLO PEOPLE SEARCH
+# STEP 10: APOLLO PEOPLE IMPORT (from manual Apollo People Search CSV)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def search_people(domain: str, titles: list[str]) -> list[dict]:
-    try:
-        r = httpx.post(
-            f"{APOLLO_BASE}/mixed_people/api_search",
-            headers={"Content-Type": "application/json", "X-Api-Key": APOLLO_API_KEY},
-            json={
-                "q_organization_domains": domain,
-                "person_titles": titles,
-                "person_seniorities": SENIORITIES,
-                "page": 1, "per_page": 25,
-            },
-            timeout=30,
-        )
-        if r.status_code == 200:
-            data = r.json()
-            people = data.get("people", [])
-            # api_search returns obfuscated data — extract what we can
-            # Full names need bulk_match (paid). We get: first_name, title, org, linkedin
-            return people
-        elif r.status_code == 429:
-            print(f"  Rate limit — waiting 60s...")
-            time.sleep(60)
-            return search_people(domain, titles)
-        return []
-    except Exception as e:
-        print(f"  ERROR search {domain}: {e}")
-        return []
+# Apollo People CSV column mapping (standard Apollo export)
+APOLLO_CSV_COLUMNS = {
+    "first_name": ["First Name", "first_name"],
+    "last_name": ["Last Name", "last_name"],
+    "email": ["Email", "email", "Email Address"],
+    "title": ["Title", "title", "Job Title"],
+    "company_name": ["Company", "company", "Company Name", "Organization Name"],
+    "domain": ["Website", "website", "Company Domain", "domain", "Domain"],
+    "linkedin_url": ["Person Linkedin Url", "LinkedIn URL", "linkedin_url", "LinkedIn", "Person LinkedIn URL"],
+    "country": ["Country", "country", "Person Country"],
+    "employees": ["# Employees", "employees", "Number of Employees", "Company Size"],
+}
 
 
-def step10_people_search(targets: list[dict], max_companies: int = 500,
-                         force: bool = False) -> list[dict]:
+def _normalize_domain(raw: str) -> str:
+    """Extract bare domain from URL or email."""
+    d = raw.strip().lower()
+    for prefix in ["https://", "http://", "www."]:
+        if d.startswith(prefix):
+            d = d[len(prefix):]
+    d = d.rstrip("/").split("/")[0]
+    return d
+
+
+def _map_csv_row(row: dict, targets_by_domain: dict) -> dict:
+    """Map an Apollo CSV row to our contact format."""
+    def _get(field: str) -> str:
+        for col in APOLLO_CSV_COLUMNS.get(field, [field]):
+            if col in row and row[col]:
+                return row[col].strip()
+        return ""
+
+    domain = _normalize_domain(_get("domain") or _get("email").split("@")[-1] if "@" in _get("email") else "")
+    target = targets_by_domain.get(domain, {})
+    segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
+
+    return {
+        "first_name": _get("first_name"),
+        "last_name": _get("last_name"),
+        "email": _get("email"),
+        "title": _get("title"),
+        "company_name": normalize_company(_get("company_name") or target.get("company_name", domain)),
+        "domain": domain,
+        "segment": segment,
+        "linkedin_url": _get("linkedin_url"),
+        "country": _get("country") or target.get("country", ""),
+        "employees": _get("employees") or target.get("employees", ""),
+        "social_proof": get_social_proof(_get("country") or target.get("country", ""), segment),
+    }
+
+
+def step10_import_apollo_csv(csv_path: str, targets: list[dict],
+                              force: bool = False,
+                              segment_override: str = None) -> list[dict]:
+    """Import contacts from a manual Apollo People Search CSV export."""
     print(f"\n{'='*60}")
-    print(f"STEP 10: Apollo People Search")
+    seg_label = f" ({segment_override})" if segment_override else ""
+    print(f"STEP 10: Import Apollo People CSV{seg_label}")
     print(f"{'='*60}")
 
     if CONTACTS_FILE.exists() and not force:
@@ -648,69 +1103,76 @@ def step10_people_search(targets: list[dict], max_companies: int = 500,
         print(f"  Loaded from cache: {len(contacts)} contacts")
         return contacts
 
-    if not APOLLO_API_KEY:
-        print("  ERROR: APOLLO_API_KEY not set")
+    csv_file = Path(csv_path)
+    if not csv_file.exists():
+        print(f"  ERROR: CSV not found: {csv_path}")
+        print(f"  Export from Apollo People Search UI and provide path via --apollo-csv")
         sys.exit(1)
 
-    cache = load_json(CONTACTS_CACHE) or {}
+    # Build domain→target lookup from targets
+    targets_by_domain = {}
+    for t in targets:
+        d = t.get("domain", "").strip().lower()
+        if d:
+            targets_by_domain[d] = t
+
+    # Read CSV
+    with csv_file.open("r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        raw_rows = list(reader)
+    print(f"  CSV rows: {len(raw_rows)}")
+    if raw_rows:
+        print(f"  Columns: {', '.join(raw_rows[0].keys())}")
+
+    # Map and filter
     all_contacts = []
-    processed = 0
-
-    for i, t in enumerate(targets[:max_companies], 1):
-        domain = t.get("domain", "").strip()
-        if not domain:
+    skipped_no_name = 0
+    skipped_no_domain = 0
+    for row in raw_rows:
+        contact = _map_csv_row(row, targets_by_domain)
+        if segment_override:
+            contact["segment"] = segment_override
+            contact["social_proof"] = get_social_proof(contact["country"], segment_override)
+        if not contact["first_name"]:
+            skipped_no_name += 1
             continue
-        segment = t.get("segment", t.get("analysis_segment", "UNKNOWN"))
-        company_name = normalize_company(t.get("company_name", t.get("name", domain)))
-        country = t.get("country", "")
-        titles = TITLES.get(segment, TITLES["INFLUENCER_PLATFORMS"])
-
-        if domain in cache:
-            all_contacts.extend(cache[domain])
+        if not contact["domain"]:
+            skipped_no_domain += 1
             continue
+        all_contacts.append(contact)
 
-        print(f"  [{i}/{min(max_companies, len(targets))}] {domain} ({segment})")
-        people = search_people(domain, titles)
-        if not people:
-            cache[domain] = []
-            processed += 1
-            if processed % 50 == 0:
-                save_json(CONTACTS_CACHE, cache)
-            time.sleep(0.3)
-            continue
+    # Dedupe by linkedin_url or (first_name + last_name + domain)
+    seen = set()
+    deduped = []
+    for c in all_contacts:
+        key = c["linkedin_url"] or f"{c['first_name']}|{c['last_name']}|{c['domain']}"
+        if key not in seen:
+            seen.add(key)
+            deduped.append(c)
+    all_contacts = deduped
 
-        domain_contacts = []
-        for person in people[:MAX_CONTACTS_PER_COMPANY]:
-            contact = {
-                "first_name": person.get("first_name", ""),
-                "last_name": person.get("last_name", ""),
-                "email": person.get("email", "") or "",
-                "title": person.get("title", ""),
-                "company_name": company_name,
-                "domain": domain,
-                "segment": segment,
-                "linkedin_url": person.get("linkedin_url", "") or "",
-                "country": country,
-                "employees": t.get("employees", t.get("employee_count", "")),
-                "social_proof": get_social_proof(country, segment),
-            }
-            domain_contacts.append(contact)
-            all_contacts.append(contact)
-            status = "✓" if contact["email"] else "○"
-            print(f"    {status} {contact['first_name']} {contact['last_name']} ({contact['title']})")
-
-        cache[domain] = domain_contacts
-        processed += 1
-        if processed % 50 == 0:
-            save_json(CONTACTS_CACHE, cache)
-        time.sleep(0.3)
-
-    save_json(CONTACTS_CACHE, cache)
     save_json(CONTACTS_FILE, all_contacts)
 
     with_email = sum(1 for c in all_contacts if c["email"])
-    print(f"\n  Total: {len(all_contacts)} contacts ({with_email} with email)")
-    save_csv(CSV_DIR / f"apollo_contacts_{tag()}.csv", all_contacts)
+    with_li = sum(1 for c in all_contacts if c["linkedin_url"])
+    segments = {}
+    for c in all_contacts:
+        seg = c.get("segment", "UNKNOWN")
+        segments[seg] = segments.get(seg, 0) + 1
+
+    print(f"\n  Imported: {len(all_contacts)} contacts")
+    print(f"  With email: {with_email}, with LinkedIn: {with_li}")
+    if skipped_no_name:
+        print(f"  Skipped (no name): {skipped_no_name}")
+    if skipped_no_domain:
+        print(f"  Skipped (no domain): {skipped_no_domain}")
+    print(f"  Segments:")
+    for seg, cnt in sorted(segments.items(), key=lambda x: -x[1]):
+        print(f"    {seg}: {cnt}")
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    save_csv(CSV_DIR / f"apollo_contacts_{tag()}.csv", all_contacts,
+             sheet_name=f"OS | Import | Apollo People — {today}")
     return all_contacts
 
 
@@ -815,8 +1277,15 @@ async def step11_findymail(contacts: list[dict], max_contacts: int = 1500,
 
     with_email = [c for c in all_enriched if c.get("email", "").strip()]
     without_email = [c for c in all_enriched if not c.get("email") and c.get("linkedin_url")]
-    save_csv(CSV_DIR / f"with_email_{tag()}.csv", with_email)
-    save_csv(CSV_DIR / f"without_email_{tag()}.csv", without_email)
+    today = datetime.now().strftime("%Y-%m-%d")
+    save_csv(CSV_DIR / f"with_email_{tag()}.csv", with_email,
+             sheet_name=f"OS | Leads | Verified Emails — {today}")
+    save_csv(CSV_DIR / f"without_email_{tag()}.csv", without_email,
+             sheet_name=f"OS | Leads | No Email (LinkedIn only) — {today}")
+
+    # Auto-export GetSales-ready CSV for contacts without email
+    if without_email:
+        _export_getsales(without_email, today)
 
     print(f"\n  Done in {time.time()-t0:.0f}s. With email: {len(with_email)}, without: {len(without_email)}")
     return all_enriched
@@ -941,10 +1410,11 @@ STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
 def main():
     p = argparse.ArgumentParser(description="OnSocial Clay→SmartLead (Platforms + Agencies)")
     p.add_argument("--project-id", type=int, default=PROJECT_ID)
-    p.add_argument("--segment", choices=["platforms_tier12", "platforms_tier34",
-                                          "agencies_tier12", "agencies_tier34"])
+    p.add_argument("--segment", choices=list(CLAY_FILTERS.keys()))
     p.add_argument("--from-step", choices=STEPS, default="start")
     p.add_argument("--run-id", type=int, help="Resume existing run")
+    p.add_argument("--apollo-csv", help="Path to Apollo People CSV (single file, or platforms file)")
+    p.add_argument("--apollo-csv-agencies", help="Path to Apollo People CSV for IM_FIRST_AGENCIES segment")
     p.add_argument("--max-companies", type=int, default=500)
     p.add_argument("--max-findymail", type=int, default=1500)
     p.add_argument("--prompt-file", help="Custom analysis prompt file")
@@ -991,24 +1461,65 @@ def main():
             print("ERROR: --segment required for start")
             sys.exit(1)
         run_id = step0_start(args.segment, args.project_id)
-        # Wait for Clay to finish gathering
+        # Wait for Clay to finish gathering (resilient to connection errors)
         print("\n  Waiting for Clay gathering to complete...")
+        conn_errors = 0
         while True:
-            time.sleep(10)
-            r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
-                          headers=BACKEND_HEADERS, timeout=30)
-            phase = r.json().get("current_phase", "")
-            if phase != "gather":
-                print(f"  Phase: {phase}")
-                break
-            print("  ..still gathering")
+            time.sleep(15)
+            try:
+                r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                              headers=BACKEND_HEADERS, timeout=30)
+                phase = r.json().get("current_phase", "")
+                conn_errors = 0  # reset on success
+                if phase != "gather":
+                    print(f"  Phase: {phase}")
+                    break
+                print("  ..still gathering")
+            except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException) as e:
+                conn_errors += 1
+                print(f"  ..connection error ({conn_errors}/10): {type(e).__name__}")
+                if conn_errors >= 10:
+                    print("  Too many connection errors. Run may still be processing.")
+                    print(f"  Resume later: --from-step blacklist --run-id {run_id}")
+                    sys.exit(1)
+                time.sleep(15)  # extra wait for backend restart
 
     if "blacklist" in steps and run_id:
-        cp1 = step2_blacklist(run_id)
-        if cp1.get("gate_id"):
-            print("\n  >>> Claude Code will review CP1 and decide <<<")
-            print("  Pausing. Run with --from-step prefilter --run-id", run_id, "after approval.")
-            return
+        # Backend auto-runs blacklist after gather. Check if already at CP1.
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        current_phase = run_info.get("current_phase", "")
+        if current_phase == "awaiting_scope_ok":
+            print(f"\n  Run #{run_id} already at CP1 (blacklist done automatically)")
+            # Find pending gate
+            gates_resp = api("get", f"/pipeline/gathering/approval-gates?project_id={args.project_id}",
+                             raise_on_error=False)
+            gates_list = gates_resp if isinstance(gates_resp, list) else gates_resp.get("items", [])
+            pending = [g for g in gates_list
+                       if g.get("gathering_run_id") == run_id and g.get("status") == "pending"]
+            if pending:
+                gate = pending[0]
+                gate_id = gate["id"]
+                scope = gate.get("scope", {})
+                save_state(run_id, "awaiting_scope_ok", gate_id=gate_id)
+                print(f"\n  ★ CHECKPOINT 1 — gate #{gate_id}")
+                print(f"  Scope: {json.dumps(scope, indent=2)[:1000]}")
+                raw = run_info.get("raw_results_count", 0)
+                new = run_info.get("new_companies_count", 0)
+                passed = scope.get("passed", 0)
+                print(f"  Raw results: {raw}, New: {new}, Passed blacklist: {passed}")
+                if passed == 0 and raw == 0:
+                    print(f"\n  ⚠ Clay returned 0 companies. Consider cancelling this run.")
+                print("\n  >>> Claude Code will review CP1 and decide <<<")
+                print(f"  Pausing. Run with --from-step prefilter --run-id {run_id} after approval.")
+                return
+        elif current_phase not in ("gathered", "gather"):
+            print(f"\n  Run #{run_id} at phase '{current_phase}' — skipping blacklist step")
+        else:
+            cp1 = step2_blacklist(run_id)
+            if cp1.get("gate_id"):
+                print("\n  >>> Claude Code will review CP1 and decide <<<")
+                print(f"  Pausing. Run with --from-step prefilter --run-id {run_id} after approval.")
+                return
 
     if "prefilter" in steps and run_id:
         step3_prefilter(run_id)
@@ -1038,7 +1549,30 @@ def main():
         targets = load_json(TARGETS_FILE) or []
 
     if "people" in steps:
-        contacts = step10_people_search(targets, max_companies=args.max_companies, force=args.force)
+        if args.apollo_csv:
+            # Support two CSVs by segment
+            all_contacts = []
+            if args.apollo_csv:
+                seg_override = "INFLUENCER_PLATFORMS" if args.apollo_csv_agencies else None
+                c1 = step10_import_apollo_csv(args.apollo_csv, targets, force=args.force,
+                                               segment_override=seg_override)
+                all_contacts.extend(c1)
+            if args.apollo_csv_agencies:
+                c2 = step10_import_apollo_csv(args.apollo_csv_agencies, targets, force=True,
+                                               segment_override="IM_FIRST_AGENCIES")
+                all_contacts.extend(c2)
+            if args.apollo_csv_agencies:
+                # Merge and re-save
+                save_json(CONTACTS_FILE, all_contacts)
+                print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
+            contacts = all_contacts
+        else:
+            print("\n  ERROR: --apollo-csv required for people step")
+            print("  Export contacts from Apollo People Search UI, then:")
+            print(f"    python3 {Path(__file__).name} --from-step people \\")
+            print(f"      --apollo-csv platforms_export.csv \\")
+            print(f"      --apollo-csv-agencies agencies_export.csv")
+            sys.exit(1)
     else:
         contacts = load_json(CONTACTS_FILE) or load_json(ENRICHED_FILE) or []
 
