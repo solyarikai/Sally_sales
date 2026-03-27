@@ -20,6 +20,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 
+async def _get_user_project_ids(user, session) -> list[int]:
+    """Get all project IDs owned by this user."""
+    result = await session.execute(
+        select(Project.id).where(Project.user_id == user.id, Project.is_active == True)
+    )
+    return [pid for (pid,) in result.all()]
+
+
 class ProjectCreateRequest(BaseModel):
     name: str
     target_segments: Optional[str] = None
@@ -70,11 +78,17 @@ async def list_projects(
 @router.get("/runs/{run_id}")
 async def get_run_status(
     run_id: int,
+    user: MCPUser = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ):
     run = await session.get(GatheringRun, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
+    # User-scope: verify run belongs to user's project
+    if user:
+        project = await session.get(Project, run.project_id)
+        if project and project.user_id != user.id:
+            raise HTTPException(404, "Run not found")
 
     # Get project name
     project = await session.get(Project, run.project_id)
@@ -216,14 +230,17 @@ async def get_run_companies(
 @router.get("/companies/{company_id}")
 async def get_company_detail(
     company_id: int,
+    user: MCPUser = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """Full detail for a single company — includes full scrape text, full reasoning, raw source_data."""
+    """Full detail for a single company — user-scoped."""
     company = await session.get(DiscoveredCompany, company_id)
     if not company:
         raise HTTPException(404, "Company not found")
-
-    # Also keep the run-scoped version
+    if user:
+        project = await session.get(Project, company.project_id)
+        if project and project.user_id != user.id:
+            raise HTTPException(404, "Company not found")
     return await _get_company_detail(company, session)
 
 
@@ -231,12 +248,17 @@ async def get_company_detail(
 async def get_run_company_detail(
     run_id: int,
     company_id: int,
+    user: MCPUser = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """Full detail for a single company scoped to a run."""
+    """Full detail for a single company scoped to a run — user-scoped."""
     run = await session.get(GatheringRun, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
+    if user:
+        project = await session.get(Project, run.project_id)
+        if project and project.user_id != user.id:
+            raise HTTPException(404, "Run not found")
 
     company = await session.get(DiscoveredCompany, company_id)
     if not company or company.project_id != run.project_id:
@@ -339,10 +361,13 @@ async def list_iterations(
 async def get_usage_logs(
     run_id: Optional[int] = Query(None),
     limit: int = Query(100, le=500),
+    user: MCPUser = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """Return MCP usage logs, optionally filtered by run_id in metadata."""
+    """Return MCP usage logs — user-scoped."""
     query = select(MCPUsageLog).order_by(MCPUsageLog.created_at.desc())
+    if user:
+        query = query.where(MCPUsageLog.user_id == user.id)
 
     if run_id is not None:
         # Filter logs where extra_data contains the run_id
@@ -716,9 +741,14 @@ async def send_test_email(
 async def crm_companies(
     project_id: int = None,
     is_target: bool = None,
+    user: MCPUser = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ):
     query = select(DiscoveredCompany).order_by(DiscoveredCompany.domain)
+    # User-scope: only show companies from user's projects
+    if user:
+        user_pids = await _get_user_project_ids(user, session)
+        query = query.where(DiscoveredCompany.project_id.in_(user_pids))
     if project_id:
         query = query.where(DiscoveredCompany.project_id == project_id)
     if is_target is not None:
@@ -733,6 +763,7 @@ async def crm_contacts(
     project_id: int = None,
     pipeline: int = None,
     search: str = None,
+    user: MCPUser = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ):
     """CRM contacts view — people extracted from pipeline. Filter by pipeline run ID."""
@@ -744,6 +775,11 @@ async def crm_contacts(
         .outerjoin(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
         .order_by(ExtractedContact.created_at.desc())
     )
+
+    # User-scope
+    if user:
+        user_pids = await _get_user_project_ids(user, session)
+        stmt = stmt.where(ExtractedContact.project_id.in_(user_pids))
 
     if project_id:
         stmt = stmt.where(ExtractedContact.project_id == project_id)
