@@ -43,3 +43,4 @@ screenshots/
 # Local folders
 projects/
 poetry/
+.claude/hueta/

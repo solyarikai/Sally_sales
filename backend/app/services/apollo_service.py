@@ -324,7 +324,7 @@ class ApolloService:
         per_page: int = 100,
     ) -> Optional[Dict[str, Any]]:
         """
-        Search for organizations via Apollo /mixed_companies/search endpoint.
+        Search for organizations via Apollo /mixed_companies/api_search endpoint.
 
         Args:
             keyword_tags: keyword array e.g. ["family office", "wealth management"]
@@ -353,7 +353,7 @@ class ApolloService:
         if latest_funding_stages:
             payload["organization_latest_funding_stage_cd"] = latest_funding_stages
 
-        return await self._api_call("POST", "/mixed_companies/search", payload)
+        return await self._api_call("POST", "/mixed_companies/api_search", payload)
 
     async def search_organizations_all_pages(
         self,

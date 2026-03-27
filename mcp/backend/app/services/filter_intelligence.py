@@ -11,7 +11,7 @@ Approach: Probe + Scrape + Return to Agent
 The AGENT is the evaluator, not GPT. The backend just provides data.
 
 Apollo credit costs:
-  /mixed_companies/search    — 1 credit / page (up to 100 companies)
+  /mixed_companies/api_search — 1 credit / page (up to 100 companies)
   /organizations/enrich      — 1 credit / result
   /people/bulk_match         — 1 credit / net-new email
 """
