@@ -367,11 +367,19 @@ async def list_iterations(
         # Get project name
         project = await session.get(Project, r.project_id)
 
+        # Count ACTUAL companies linked to this run (not the stale field)
+        actual_count_result = await session.execute(
+            select(sa_func.count(CompanySourceLink.id))
+            .where(CompanySourceLink.gathering_run_id == r.id)
+        )
+        actual_companies = actual_count_result.scalar() or 0
+
         iterations.append({
             "id": r.id,
             "source_type": r.source_type,
             "filters": r.filters,
-            "new_companies_count": r.new_companies_count,
+            "new_companies": actual_companies,
+            "new_companies_count": actual_companies,
             "current_phase": r.current_phase,
             "status": r.status,
             "target_count": target_count,
@@ -607,40 +615,51 @@ async def list_runs(
     people_map = {}
 
     if run_ids:
-        # Count targets and get segments per project (runs share project companies)
         for r in runs:
+            # Count companies linked to THIS run (not all project companies)
+            raw_result = await session.execute(
+                select(sa_func.count(CompanySourceLink.id))
+                .where(CompanySourceLink.gathering_run_id == r.id)
+            )
+            raw_map = raw_result.scalar() or 0
+
+            # Targets linked to THIS run
             tc_result = await session.execute(
-                select(sa_func.count(DiscoveredCompany.id)).where(
-                    DiscoveredCompany.project_id == r.project_id,
-                    DiscoveredCompany.is_target == True,
-                )
+                select(sa_func.count(DiscoveredCompany.id))
+                .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                .where(CompanySourceLink.gathering_run_id == r.id, DiscoveredCompany.is_target == True)
             )
             targets_map[r.id] = tc_result.scalar() or 0
 
-            # Segments
+            # Segments for THIS run's targets
             seg_result = await session.execute(
-                select(DiscoveredCompany.analysis_segment, sa_func.count(DiscoveredCompany.id)).where(
-                    DiscoveredCompany.project_id == r.project_id,
+                select(DiscoveredCompany.analysis_segment, sa_func.count(DiscoveredCompany.id))
+                .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                .where(
+                    CompanySourceLink.gathering_run_id == r.id,
                     DiscoveredCompany.is_target == True,
                     DiscoveredCompany.analysis_segment.isnot(None),
                 ).group_by(DiscoveredCompany.analysis_segment)
             )
-            segs = [row[0] for row in seg_result.all() if row[0]]
-            segments_map[r.id] = segs
+            segments_map[r.id] = [row[0] for row in seg_result.all() if row[0]]
 
-            # People count
+            # People count for THIS run
             from app.models.pipeline import ExtractedContact
             pc_result = await session.execute(
-                select(sa_func.count(ExtractedContact.id)).where(
-                    ExtractedContact.project_id == r.project_id,
-                )
+                select(sa_func.count(ExtractedContact.id))
+                .join(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
+                .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                .where(CompanySourceLink.gathering_run_id == r.id)
             )
             people_map[r.id] = pc_result.scalar() or 0
+
+            # Store raw count
+            people_map[('raw', r.id)] = raw_map
 
     return [
         {"id": r.id, "status": r.status, "phase": r.current_phase,
          "source_type": r.source_type,
-         "raw_companies": r.new_companies_count or 0,
+         "raw_companies": people_map.get(('raw', r.id), r.new_companies_count or 0),
          "targets": targets_map.get(r.id, 0),
          "people": people_map.get(r.id, 0),
          "segments": segments_map.get(r.id, []),
