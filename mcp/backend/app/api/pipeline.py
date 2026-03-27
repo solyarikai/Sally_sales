@@ -288,22 +288,27 @@ async def get_run_companies(
     if not run:
         raise HTTPException(404, "Run not found")
 
-    # Get unique company IDs for this run (dedup by domain within project)
-    # First: get company IDs linked to this run, deduplicated
+    # Get unique company IDs (dedup by domain) + latest scrape per company
     unique_dc_ids_q = (
         select(sa_func.min(DiscoveredCompany.id).label("dc_id"))
         .where(DiscoveredCompany.project_id == run.project_id)
         .group_by(DiscoveredCompany.domain)
     ).subquery()
 
+    latest_scrape_q = (
+        select(
+            CompanyScrape.discovered_company_id,
+            sa_func.max(CompanyScrape.id).label("scrape_id"),
+        )
+        .where(CompanyScrape.is_current == True)
+        .group_by(CompanyScrape.discovered_company_id)
+    ).subquery()
+
     stmt = (
         select(DiscoveredCompany, CompanyScrape)
         .join(unique_dc_ids_q, DiscoveredCompany.id == unique_dc_ids_q.c.dc_id)
-        .outerjoin(
-            CompanyScrape,
-            (CompanyScrape.discovered_company_id == DiscoveredCompany.id)
-            & (CompanyScrape.is_current == True),
-        )
+        .outerjoin(latest_scrape_q, latest_scrape_q.c.discovered_company_id == DiscoveredCompany.id)
+        .outerjoin(CompanyScrape, CompanyScrape.id == latest_scrape_q.c.scrape_id)
     )
 
     stmt = stmt.order_by(DiscoveredCompany.domain).offset((page - 1) * page_size).limit(page_size)
