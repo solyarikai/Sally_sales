@@ -1193,7 +1193,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
     # ── Feedback & Editing tools ──
     if tool_name == "edit_sequence_step":
         user = await _get_user(token, session)
-        from app.models.campaign import GeneratedSequence
         seq = await session.get(GeneratedSequence, args["sequence_id"])
         if not seq:
             raise ValueError("Sequence not found")
