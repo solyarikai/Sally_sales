@@ -322,7 +322,7 @@ export default function PipelinePage() {
     { key: 'analysis_confidence', label: 'Conf.', filterType: 'text' as const },
     { key: 'analysis_reasoning', label: 'Analysis', filterType: 'text' as const },
     { key: 'status', label: 'Status', filterType: 'dropdown' as const },
-    ...(hasTargets ? [{ key: 'contacts_status', label: 'People', filterType: 'dropdown' as const }] : []),
+    { key: 'contacts_count', label: 'People', filterType: 'text' as const },
   ]
 
   if (!run && loading) return <div style={{ padding: 24, color: 'var(--text-muted)' }}>Loading...</div>
@@ -490,6 +490,14 @@ export default function PipelinePage() {
                 <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.analysis_reasoning || c.analysis_short || '—'}</td>
                 <td style={{ padding: '7px 0' }}>
                   <span style={{ color: STATUS_COLORS[c.status] || 'var(--text-muted)', fontWeight: c.status === 'target' || c.status === 'verified' ? 600 : 400 }}>{c.status}</span>
+                </td>
+                <td style={{ padding: '7px 8px 7px 0', fontSize: 12 }}>
+                  {(c.contacts_count || 0) > 0 ? (
+                    <a href={`/crm?domain=${c.domain}`} target="_blank" rel="noopener" onClick={e => e.stopPropagation()}
+                      style={{ color: c.status === 'blacklisted' ? 'var(--text-muted)' : 'var(--text-link)', fontWeight: 500 }}>
+                      {c.contacts_count}
+                    </a>
+                  ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                 </td>
               </tr>
             ))}
