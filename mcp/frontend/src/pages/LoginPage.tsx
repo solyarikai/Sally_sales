@@ -28,12 +28,12 @@ export default function LoginPage() {
   }
 
   const handleSignup = async () => {
-    if (!email || !name || !password) { setError('All fields required'); return }
+    if (!email || !password) { setError('Email and password required'); return }
     setLoading(true); setError('')
     try {
       const res = await fetch(`${API}/auth/signup`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, password }),
+        body: JSON.stringify({ email, name: name || email.split('@')[0], password }),
       })
       const data = await res.json()
       if (data.api_token) {
@@ -95,17 +95,6 @@ export default function LoginPage() {
               color: 'var(--text, #333)', outline: 'none', boxSizing: 'border-box',
             }}
           />
-          {tab === 'signup' && (
-            <input
-              placeholder="Full name" value={name}
-              onChange={e => setName(e.target.value)}
-              style={{
-                width: '100%', padding: '12px 14px', borderRadius: 8, fontSize: 14,
-                border: '1px solid var(--border, #e5e5e5)', background: 'var(--bg, #f9f9f9)',
-                color: 'var(--text, #333)', outline: 'none', boxSizing: 'border-box',
-              }}
-            />
-          )}
           <input
             type="password" placeholder="Password" value={password}
             onChange={e => setPassword(e.target.value)}
