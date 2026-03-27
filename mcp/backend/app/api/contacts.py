@@ -118,14 +118,16 @@ async def list_contacts(
         .outerjoin(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
     )
 
-    # User-scope: only show contacts from user's projects
-    if user:
-        user_projects = await session.execute(select(Project.id).where(Project.user_id == user.id))
-        pids = [pid for (pid,) in user_projects.all()]
-        if pids:
-            query = query.where(ExtractedContact.project_id.in_(pids))
-        else:
-            return {"contacts": [], "total": 0, "page": page, "page_size": page_size, "total_pages": 0}
+    # REQUIRE auth — no anonymous access to contacts
+    if not user:
+        return {"contacts": [], "total": 0, "page": page, "page_size": page_size, "total_pages": 0}
+
+    user_projects = await session.execute(select(Project.id).where(Project.user_id == user.id))
+    pids = [pid for (pid,) in user_projects.all()]
+    if pids:
+        query = query.where(ExtractedContact.project_id.in_(pids))
+    else:
+        return {"contacts": [], "total": 0, "page": page, "page_size": page_size, "total_pages": 0}
 
     # Filters
     if project_id:
@@ -215,11 +217,10 @@ async def contact_stats(
     user: MCPUser = Depends(get_optional_user),
 ):
     """Contact statistics — same contract as main app."""
-    # User-scope
-    user_pids = None
-    if user:
-        up = await session.execute(select(Project.id).where(Project.user_id == user.id))
-        user_pids = [pid for (pid,) in up.all()]
+    if not user:
+        return {"total": 0, "by_status": {}, "by_segment": {}, "by_source": {}, "by_project": {}}
+    up = await session.execute(select(Project.id).where(Project.user_id == user.id))
+    user_pids = [pid for (pid,) in up.all()]
 
     q = select(func.count(ExtractedContact.id))
     if project_id:
@@ -254,9 +255,9 @@ async def contact_filters(
     user: MCPUser = Depends(get_optional_user),
 ):
     """Available filter options — same contract as main app."""
-    user_filter = Project.is_active == True
-    if user:
-        user_filter = (Project.user_id == user.id) & (Project.is_active == True)
+    if not user:
+        return {"statuses": [], "sources": [], "segments": [], "geos": [], "projects": []}
+    user_filter = (Project.user_id == user.id) & (Project.is_active == True)
 
     sources_r = await session.execute(
         select(ExtractedContact.email_source).distinct().where(ExtractedContact.email_source != None)
@@ -281,9 +282,9 @@ async def project_names(
     user: MCPUser = Depends(get_optional_user),
 ):
     """Project names for dropdown — same contract as main app."""
-    q = select(Project.id, Project.name).where(Project.is_active == True)
-    if user:
-        q = q.where(Project.user_id == user.id)
+    if not user:
+        return []
+    q = select(Project.id, Project.name).where(Project.is_active == True, Project.user_id == user.id)
     result = await session.execute(q)
     return [{"id": pid, "name": pname} for pid, pname in result.all()]
 
@@ -294,9 +295,9 @@ async def project_list(
     user: MCPUser = Depends(get_optional_user),
 ):
     """Full project list — same contract as main app."""
-    q = select(Project).where(Project.is_active == True)
-    if user:
-        q = q.where(Project.user_id == user.id)
+    if not user:
+        return []
+    q = select(Project).where(Project.is_active == True, Project.user_id == user.id)
     result = await session.execute(q)
     projects = result.scalars().all()
     return [
@@ -319,14 +320,15 @@ async def list_campaigns(
     user: MCPUser = Depends(get_optional_user),
 ):
     """Campaign list for CRM filters — wrapped in {campaigns:[]} as main app expects."""
+    if not user:
+        return {"campaigns": []}
     q = select(Campaign).order_by(Campaign.name)
-    if user:
-        up = await session.execute(select(Project.id).where(Project.user_id == user.id))
-        pids = [pid for (pid,) in up.all()]
-        if pids:
-            q = q.where(Campaign.project_id.in_(pids))
-        else:
-            return {"campaigns": []}
+    up = await session.execute(select(Project.id).where(Project.user_id == user.id))
+    pids = [pid for (pid,) in up.all()]
+    if pids:
+        q = q.where(Campaign.project_id.in_(pids))
+    else:
+        return {"campaigns": []}
     result = await session.execute(q)
     campaigns = result.scalars().all()
     return {

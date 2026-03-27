@@ -66,7 +66,14 @@ function ProjectSelector() {
   )
 }
 
+import { Navigate } from 'react-router-dom'
 import { useTheme as useThemeStore } from './hooks/useTheme'
+
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const token = localStorage.getItem('mcp_token')
+  if (!token) return <Navigate to="/setup" replace />
+  return <>{children}</>
+}
 
 export default function App() {
   const { isDark: dark, toggle: toggleTheme } = useThemeStore()
@@ -110,17 +117,19 @@ export default function App() {
             </header>
             <div className="mcp-content-area" style={{ flex: 1, overflow: 'hidden', height: 'calc(100vh - 48px)' }}>
               <Routes>
-                <Route path="/" element={<PipelineRunsPage />} />
                 <Route path="/setup" element={<SetupPage />} />
-                <Route path="/pipeline" element={<PipelineRunsPage />} />
-                <Route path="/pipeline/:runId" element={<PipelinePage />} />
-                <Route path="/pipeline/:runId/prompts" element={<PromptsPage />} />
-                <Route path="/crm" element={<CRMPage />} />
-                <Route path="/tasks" element={<TasksPage />} />
-                <Route path="/tasks/:tab" element={<TasksPage />} />
-                <Route path="/projects" element={<ProjectsPage />} />
-                <Route path="/learning" element={<LearningPage />} />
-                <Route path="/account" element={<AccountPage />} />
+                <Route path="/*" element={<AuthGuard><Routes>
+                  <Route path="/" element={<PipelineRunsPage />} />
+                  <Route path="/pipeline" element={<PipelineRunsPage />} />
+                  <Route path="/pipeline/:runId" element={<PipelinePage />} />
+                  <Route path="/pipeline/:runId/prompts" element={<PromptsPage />} />
+                  <Route path="/crm" element={<CRMPage />} />
+                  <Route path="/tasks" element={<TasksPage />} />
+                  <Route path="/tasks/:tab" element={<TasksPage />} />
+                  <Route path="/projects" element={<ProjectsPage />} />
+                  <Route path="/learning" element={<LearningPage />} />
+                  <Route path="/account" element={<AccountPage />} />
+                </Routes></AuthGuard>} />
               </Routes>
             </div>
           </div>

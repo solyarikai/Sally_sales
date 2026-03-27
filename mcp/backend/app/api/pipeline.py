@@ -578,16 +578,16 @@ async def list_runs(
     session: AsyncSession = Depends(get_session),
     user: MCPUser = Depends(get_optional_user),
 ):
+    if not user:
+        return []
     query = select(GatheringRun).order_by(GatheringRun.created_at.desc()).limit(20)
-    # User-scope: only show runs from user's projects
-    if user:
-        from app.models.project import Project
-        user_projects = await session.execute(select(Project.id).where(Project.user_id == user.id))
-        pids = [pid for (pid,) in user_projects.all()]
-        if pids:
-            query = query.where(GatheringRun.project_id.in_(pids))
-        else:
-            return []
+    from app.models.project import Project
+    user_projects = await session.execute(select(Project.id).where(Project.user_id == user.id))
+    pids = [pid for (pid,) in user_projects.all()]
+    if pids:
+        query = query.where(GatheringRun.project_id.in_(pids))
+    else:
+        return []
     result = await session.execute(query)
     runs = result.scalars().all()
     return [
