@@ -164,9 +164,17 @@ Simulate a new user registering and running their first campaign:
 - Obtain MCP API token
 - Log in `testruns2603.md`: previous account soft-deleted at {timestamp}, SmartLead campaigns removed (links preserved in log), new account created at {timestamp}
 
-**Step 2 — Project Setup & Telegram Notifications**
+**Step 2 — Project Setup & Knowledge Context (CRITICAL)**
 - Tell the MCP: "Take 'petr' including campaigns as my EasyStaff-Global project setup"
 - The system must: detect SmartLead campaigns matching "petr", import contacts as blacklist, create the EasyStaff-Global project
+- **KNOWLEDGE REQUIREMENT**: Before the pipeline can generate sequences or analyze companies, the system MUST know the user's offer. The MCP must:
+  1. Ask the user: "What is your company's website?" (or "What do you offer?")
+  2. Scrape the website to extract: company description, value proposition, target audience, pricing model
+  3. Store this in the project's knowledge (target_segments, sender_company, or a dedicated knowledge field)
+  4. Use this context for: ICP definition, GPT analysis prompts, sequence generation
+  - Without this context, sequences will be generic garbage (no specific value prop, no case study numbers)
+  - For test user 1 (pn@getsally.io): website = easystaff.io (already known from reference campaigns)
+  - For test user 2 (petru4o144@gmail.com): website = https://thefashionpeople.com/ (fashion staffing)
 - The system should ask which company the user is launching outreach from — add this to the required onboarding questions
 - The user provides the company website — the MCP scrapes the website, extracts context, and uses it to build the project ICP
 - The system must ask the user to connect their Telegram account to receive notifications on replies. This is part of the onboarding flow — reply notifications go to Telegram so the operator doesn't miss warm leads.
@@ -290,7 +298,35 @@ The generated sequence is the FINAL output of the entire pipeline. A shitty sequ
 9. **Reply-thread subjects**: Emails 2-4 have EMPTY subject "" (keeps reply thread in inbox)
 10. **A/B ready**: Email 1 subject includes `{{first_name}}`
 
-**Verification**: After pushing sequence to SmartLead, fetch it back via API and verify EACH checklist point. Log pass/fail in `testruns2603.md`. If ANY point fails → regenerate with better prompt and re-push.
+**Verification**: After pushing sequence to SmartLead, fetch it back via API:
+```
+GET /api/v1/campaigns/{NEW_ID}/sequences?api_key=...
+```
+Then verify EACH checklist point against the actual sequence text. Log pass/fail in `testruns2603.md`:
+```
+| Checklist Point        | Pass/Fail | Evidence |
+|------------------------|-----------|----------|
+| {{first_name}} in subj | ?         | Subject: "..." |
+| {{city}} geo case      | ?         | Body contains: "..." |
+| Specific numbers       | ?         | "$X", "Y%", etc. |
+| ...                    |           |          |
+```
+If ANY point fails → regenerate with better prompt and re-push. Do NOT ship a sequence that fails the checklist.
+
+**Sequence Comparison Against Reference (3070919)**:
+After verification, compare the generated sequence structure against reference:
+- Email 1: Does it have a hook + case study like reference? (reference: "Recently helped a {{city}} agency...")
+- Email 2: Does it have bullet benefits like reference? (reference: 4 dash-bullets)
+- Email 3: Does it have transparent pricing like reference? (reference: "from 3% or flat $39")
+- Email 4: Is it ultra-short like reference? (reference: 2 lines + "Sent from my iPhone")
+Log the comparison. The sequence doesn't need to be identical but MUST match the structural quality.
+
+**CRITICAL — Context-Dependent Sequences**:
+- The sequence MUST reference the user's actual offer, NOT a generic template
+- For EasyStaff-Global: contractor payments, payroll, Deel/Upwork competitor
+- For Fashion Brands Italy: fashion staffing from https://thefashionpeople.com/
+- If the system doesn't know the offer → it MUST ask before generating the sequence
+- A sequence that says "we help companies streamline their operations" = FAIL (too generic)
 
 **Model**: Use Gemini 2.5 Pro (falls back to GPT-4o-mini). Gemini is PROVEN better for style matching in this codebase (see A/B test results in MEMORY).
 
@@ -438,19 +474,34 @@ If the background reply analysis cache is empty (first run), the tools fall back
 - Scenario: New user with NO existing SmartLead campaigns, wants to find "fashion brands in Italy"
 
 **Steps:**
-1. Register `petru4o144@gmail.com` as a new MCP account
+1. Register `petru4o144@gmail.com` as a new MCP account (password: `qweqweqwe`)
 2. Connect SmartLead + Apollo using the same shared API keys
-3. Create project: "Fashion Brands Italy"
-4. Run gathering: "fashion brands in Italy" (Apollo search)
-5. Verify: this user sees ONLY their project — NOT the pn@getsally.io projects
-6. Create campaign, upload contacts, send test email to `petru4o144@gmail.com`
-7. Verify: `petru4o144@gmail.com` receives the test email
-8. Switch back to pn@getsally.io and verify their data is unchanged
+3. **Provide company context**: "My company is The Fashion People (https://thefashionpeople.com/). We provide fashion staffing and recruitment services."
+   - The MCP MUST scrape the website and extract the value proposition before proceeding
+   - Store in project knowledge: company description, target audience, services offered
+4. Create project: "Fashion Brands Italy" with ICP from scraped website
+5. Run gathering: "fashion brands in Italy" (Apollo search)
+6. Verify: this user sees ONLY their project — NOT the pn@getsally.io projects
+7. Create campaign with GOD_SEQUENCE — sequence MUST reference fashion staffing offer, NOT generic "we help companies"
+8. Upload contacts, send test email to `petru4o144@gmail.com`
+9. Verify: `petru4o144@gmail.com` receives the test email
+10. Switch back to pn@getsally.io and verify their data is unchanged
+
+**Sequence Quality Check for User 2:**
+The generated sequence for "Fashion Brands Italy" MUST:
+- Reference fashion/staffing/recruitment (not generic B2B)
+- Use {{first_name}}, {{company}}, {{city}} merge tags
+- Have geo case study: "Recently helped a {{city}} fashion brand..." (with numbers)
+- NOT be a copy of the EasyStaff sequence (different ICP = different offer)
+- Pass the same 10-point GOD_SEQUENCE checklist as User 1
 
 **Screenshots (minimum):**
 - `test_user2_setup.png` — second user's setup page (clean, no projects)
 - `test_user2_projects.png` — only "Fashion Brands Italy" visible (NOT EasyStaff-Global)
 - `test_user2_pipeline.png` — only their pipeline runs visible
+- `test_user2_pipeline_campaign_link.png` — pipeline page showing SmartLead campaign link
+- `test_user2_crm.png` — CRM with contacts from Fashion Brands pipeline
+- `test_user2_learning.png` — Learning page showing this user's data only
 - `test_user1_unchanged.png` — pn@getsally.io still sees only their data
 
 **CRITICAL USER-SCOPING CHECKS:**
@@ -474,17 +525,21 @@ If the background reply analysis cache is empty (first run), the tools fall back
 - Open the Hetzner-hosted frontend in a REAL browser (use browser MCP / Puppeteer)
 - Take a REAL screenshot at EVERY step and save to `mcp/tmp/` directory (create it if it doesn't exist)
 - Screenshot naming: `mcp/tmp/test_{step}_{description}_{timestamp}.png`
-- Required screenshots (minimum):
+- Required screenshots — EVERY page must be screenshotted and verified:
   - `test_setup_page.png` — setup/login page after registration
-  - `test_project_created.png` — project page after EasyStaff-Global creation
-  - `test_pipeline_running.png` — pipeline page during gathering
-  - `test_pipeline_complete.png` — pipeline page after all phases
+  - `test_project_created.png` — project page with expandable card (campaigns + runs visible)
+  - `test_pipeline_running.png` — pipeline page during gathering (loading spinner visible)
+  - `test_pipeline_complete.png` — pipeline page after all phases (companies table populated)
+  - `test_pipeline_campaign_link.png` — pipeline page showing SmartLead campaign link (purple badge) + "View in CRM" button
+  - `test_pipeline_csv_export.png` — verify CSV export button exists in toolbar
+  - `test_pipeline_company_modal.png` — click a company row → modal with 4 tabs (Details/Analysis/Scrape/Source)
   - `test_crm_contacts.png` — CRM page showing gathered contacts
+  - `test_crm_pipeline_filter.png` — CRM filtered by ?pipeline={runId}
   - `test_campaign_created.png` — SmartLead campaign confirmation
-  - `test_deep_links.png` — verify deep links resolve to correct pages
-  - `test_replies_page.png` — Tasks/Replies page showing campaign replies are tracked
+  - `test_replies_page.png` — Tasks/Replies page showing campaign replies
   - `test_crm_warm_filter.png` — CRM filtered to warm replies via deep link
-  - `test_crm_followups.png` — CRM showing leads that need follow-ups
+  - `test_learning_page.png` — Learning page with tool usage, pipeline accuracy, reply analysis section
+  - `test_contact_conversation.png` — click a contact in CRM → conversation tab shows planned sequence steps
 - Verify in EACH screenshot: page renders correctly, data appears in tables, filters work, no console errors, no blank sections
 - If ANY page is broken, blank, or shows errors — log in `suck.md`, fix it, re-screenshot to confirm fix
 
