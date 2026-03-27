@@ -1,23 +1,87 @@
 """Pipeline REST API — read-only endpoints for frontend, auth-required for writes."""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func as sa_func, outerjoin
 
 from app.db import get_session
-from app.models.user import MCPUser
+from app.models.user import MCPUser, MCPApiToken
 from app.models.project import Project, Company
 from app.models.gathering import GatheringRun, ApprovalGate, CompanyScrape, CompanySourceLink
 from app.models.pipeline import DiscoveredCompany
 from app.models.campaign import GeneratedSequence, Campaign
-from app.models.usage import MCPUsageLog
+from app.models.usage import MCPUsageLog, MCPConversationLog
 from app.auth.dependencies import get_current_user, get_optional_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
+
+
+class ToolCallRequest(BaseModel):
+    tool_name: str
+    arguments: dict = {}
+
+
+@router.post("/tool-call")
+async def direct_tool_call(
+    req: ToolCallRequest,
+    request: Request,
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Direct REST tool call — same as MCP protocol but synchronous.
+
+    Logs to conversation history + usage logs.
+    Use for testing and for non-SSE clients.
+    """
+    from app.mcp.dispatcher import _dispatch, _safe_truncate
+    import time as _time
+    from datetime import datetime
+
+    # Extract raw token from request header (needed by _dispatch internals)
+    token = request.headers.get("X-MCP-Token") or request.headers.get("Authorization", "").replace("Bearer ", "")
+
+    start = _time.monotonic()
+
+    try:
+        result = await _dispatch(req.tool_name, req.arguments, None, session)
+        latency = int((_time.monotonic() - start) * 1000)
+
+        # Log to conversation history
+        try:
+            session.add(MCPConversationLog(
+                user_id=user.id,
+                session_id=f"rest-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                direction="client_to_server",
+                method="tools/call",
+                message_type="tool_call",
+                content_summary=f"Tool call: {req.tool_name}({_safe_truncate(req.arguments)})",
+                raw_json={"tool": req.tool_name, "args": req.arguments},
+            ))
+        except Exception:
+            pass
+
+        # Log usage
+        try:
+            log_extra = {"args": _safe_truncate(req.arguments), "latency_ms": latency}
+            session.add(MCPUsageLog(
+                user_id=user.id,
+                tool_name=req.tool_name,
+                action="tool_call",
+                extra_data=log_extra,
+            ))
+        except Exception:
+            pass
+
+        await session.commit()
+        return {"result": result}
+
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(400, str(e))
 
 
 async def _get_user_project_ids(user, session) -> list[int]:
