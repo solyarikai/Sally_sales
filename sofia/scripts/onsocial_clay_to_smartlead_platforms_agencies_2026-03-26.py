@@ -843,7 +843,7 @@ def step4_scrape(run_id: int) -> dict:
 # STEP 5: ANALYZE (GPT) → CP2  — with re-analyze loop
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step5_analyze(run_id: int, prompt_text: str = None, prompt_id: int = PROMPT_ID,
+def step5_analyze(run_id: int, prompt_text: str = None, prompt_id: int = None,
                    model: str = "gpt-4o-mini") -> dict:
     """Run GPT analysis. Uses prompt_id by default (tracks metrics in gathering_prompts).
     Falls back to prompt_text if prompt_id is None."""
