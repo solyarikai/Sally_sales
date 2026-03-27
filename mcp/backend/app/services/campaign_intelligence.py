@@ -148,60 +148,158 @@ class CampaignIntelligenceService:
 
         return seq
 
+    # GOD_SEQUENCE checklist — every email must pass these before shipping
+    SEQUENCE_CHECKLIST = """
+MANDATORY CHECKLIST (every email must satisfy):
+☐ Personalization: {{first_name}} in subject OR body of EVERY email
+☐ Geo case study: {{city}} used in at least 1 email for geo-specific social proof
+☐ Specific numbers: at least 2 emails must have real $ amounts, percentages, or quantities
+☐ Competitor positioning: at least 1 email mentions competitor alternatives (Deel, Upwork, etc.)
+☐ Distinct intent per email — no two emails can have the same purpose:
+  - Email 1: Hook + value prop + geo case study with numbers
+  - Email 2: Competitor comparison + bullet-point benefits (3-5 bullets)
+  - Email 3: Transparent pricing + social proof numbers
+  - Email 4: Ultra-short (2-3 lines), channel switch (LinkedIn/Telegram), casual tone
+  - Email 5: Breakup — brief, respectful, no pressure (optional: "Sent from my iPhone" style)
+☐ Subject lines: at least 2 must include {{first_name}}
+☐ A/B subjects: Email 1 subject MUST use {{first_name}}, Email 3 subject MUST use {{company}}
+☐ NO "I hope this message finds you well" or any variant — instant delete trigger
+☐ NO identical closings — vary between: sender name only, "Sent from my iPhone", question ending, no closing
+☐ HTML formatting: use <br><br> between paragraphs (SmartLead renders HTML)
+☐ Each email ≤ 120 words (short = higher reply rate)
+☐ Merge tags: {{first_name}}, {{company}}, {{city}} — double curly braces, these are SmartLead tags
+"""
+
+    # Reference: "Petr ES Australia" campaign (3070919) — proven 4% reply rate
+    REFERENCE_SEQUENCE = """
+REFERENCE SEQUENCE (study this structure, adapt for the target ICP):
+
+Email 1 — Subject: "{{first_name}} - paying freelancers abroad?"
+Body: Hi {{first_name}},<br><br>We at Easystaff help companies pay freelancers globally with fees under 1% - zero fees for your freelancers.<br><br>You can pay contractors via cards, PayPal, and USDT wallets - all paperwork handled by us.<br><br>Recently helped a {{city}} agency switch from Deel to paying 50 contractors across 8 countries, saving them $4,000/month on platform fees and exchange rates.<br><br>Would you like to calculate the cost benefit for your case?<br><br>{{sender_name}}<br>BDM, Easystaff<br>Trusted by 5,000+ teams worldwide
+
+Email 2 — Subject: (empty = reply thread)
+Body: Hi {{first_name}},<br><br>Following up. Many companies we talk to are moving off Upwork or are frustrated with Deel's inflexibility.<br><br>We offer a better way:<br>- Cut out the middleman: Save the 10-20% freelance marketplace fees<br>- No annual contracts: Pay only for what you use<br>- Same-day payouts to any country, real human support (no bots)<br>- One compliant B2B invoice for all freelancer payments<br><br>Open to a quick demo call this week?
+
+Email 3 — Subject: (empty = reply thread)
+Body: Hi {{first_name}},<br><br>Just making sure my emails are getting through.<br><br>Our pricing is transparent: from 3% or a flat $39 per task. Free withdrawals for freelancers. Mass payouts via Excel upload.<br><br>For 50+ contractors/month, we offer custom rates below any competitor.<br><br>Can I send you a 2-minute walkthrough video?
+
+Email 4 — Subject: (empty = reply thread)
+Body: Would it be easier to connect on LinkedIn or Telegram?<br><br>If you already have a payment solution, happy to compare - many clients switch after seeing the total cost difference.<br><br>Sent from my iPhone
+
+KEY PATTERNS TO REPLICATE:
+- Email 1: {{city}}-based case study with exact $ savings
+- Email 2: Competitor names (Upwork, Deel) + bullet benefits
+- Email 3: Exact pricing ($39, 3%, custom rates)
+- Email 4: Ultra-short, no greeting, casual, channel switch
+- Reply-thread subjects (empty subject = keeps thread)
+- Numbers everywhere: $4,000, 50 contractors, 8 countries, 5,000+ teams, 10-20%, $39
+"""
+
     async def _generate_steps_ai(self, project, context: str, instructions: Optional[str] = None) -> Optional[list]:
-        """Generate sequence steps with GPT-4o-mini."""
+        """Generate sequence with Gemini 2.5 Pro using GOD_SEQUENCE structure.
+
+        Falls back to GPT-4o-mini if Gemini unavailable.
+        """
+        import httpx, json
+
+        sender = project.sender_name or "Team"
+        company = project.sender_company or "our company"
+        position = project.sender_position or "BDM"
+
+        prompt = f"""Generate a 4-step cold email sequence for B2B outreach.
+
+TARGET ICP & CONTEXT:
+{context}
+{f'Additional instructions: {instructions}' if instructions else ''}
+
+SENDER: {sender}, {position} at {company}
+
+{self.REFERENCE_SEQUENCE}
+
+{self.SEQUENCE_CHECKLIST}
+
+ADAPT the reference sequence for the target ICP above. Keep the STRUCTURE and TECHNIQUES but change:
+- The value proposition to match what {company} actually offers to this ICP
+- The case study numbers to be plausible for this industry/geo
+- The competitor names to whatever this ICP currently uses
+- The pricing to match {company}'s offering
+
+TIMING: Day 0, 3, 4, 7 (4 emails, not 5 — last one is breakup)
+MERGE TAGS: {{{{first_name}}}}, {{{{company}}}}, {{{{city}}}} (double curly braces — SmartLead format)
+FORMAT: Body must use <br> for line breaks and <br><br> between paragraphs (SmartLead renders HTML)
+
+Return ONLY a JSON array of 4 objects:
+[{{"step": 1, "day": 0, "subject": "...", "body": "..."}}, ...]
+
+Email 2-4 subjects should be EMPTY string "" (keeps reply thread in inbox).
+Only Email 1 has a subject with {{{{first_name}}}}."""
+
+        # Try Gemini 2.5 Pro first (best for style matching)
+        try:
+            from app.config import settings
+            gemini_key = self._gemini_key or getattr(settings, "GEMINI_API_KEY", None)
+            if gemini_key:
+                result = await self._call_gemini(gemini_key, prompt)
+                if result:
+                    return result
+                logger.warning("Gemini failed, falling back to GPT-4o-mini")
+        except Exception as e:
+            logger.warning(f"Gemini unavailable: {e}")
+
+        # Fallback to GPT-4o-mini
         try:
             from app.config import settings
             openai_key = self._openai_key or settings.OPENAI_API_KEY
             if not openai_key:
                 return None
 
-            import httpx, json
-
-            sender = project.sender_name or "Team"
-            company = project.sender_company or "our company"
-
-            prompt = f"""Generate a 5-step cold email sequence for B2B outreach.
-
-Context:
-{context}
-{f'Instructions: {instructions}' if instructions else ''}
-
-Sender: {sender} from {company}
-
-Requirements:
-- 5 steps on days 0, 3, 4, 7, 7
-- Use {{{{first_name}}}} and {{{{company}}}} as merge tags (double curly braces)
-- Step 1: opening email, short, personal
-- Step 2: follow-up, add value
-- Step 3: different angle or social proof
-- Step 4: brief, respect their time
-- Step 5: breakup email, last chance
-- Each subject must be under 60 chars, human-readable, no asterisks or special chars
-- Sign off as {sender}
-
-Return ONLY a JSON array of 5 objects: {{"step": N, "day": N, "subject": "...", "body": "..."}}"""
-
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(timeout=45) as client:
                 resp = await client.post(
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
                     json={"model": "gpt-4o-mini", "messages": [
-                        {"role": "system", "content": "You write cold email sequences. Return ONLY valid JSON array."},
+                        {"role": "system", "content": "You are a top-tier SDR who writes cold email sequences that get 4%+ reply rates. Return ONLY valid JSON array. Study the reference sequence structure exactly."},
                         {"role": "user", "content": prompt},
-                    ], "max_tokens": 2000, "temperature": 0.7},
+                    ], "max_tokens": 3000, "temperature": 0.5},
                 )
                 data = resp.json()
                 content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                # Parse JSON
-                clean = content.strip()
-                if clean.startswith("```"):
-                    clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
-                steps = json.loads(clean)
-                if isinstance(steps, list) and len(steps) >= 3:
-                    return steps
+                return self._parse_json_steps(content)
         except Exception as e:
             logger.error(f"AI sequence generation failed: {e}")
+        return None
+
+    async def _call_gemini(self, api_key: str, prompt: str) -> Optional[list]:
+        """Call Gemini 2.5 Pro for sequence generation."""
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                resp = await client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={api_key}",
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 4000},
+                    },
+                )
+                data = resp.json()
+                text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                return self._parse_json_steps(text)
+        except Exception as e:
+            logger.error(f"Gemini API call failed: {e}")
+            return None
+
+    def _parse_json_steps(self, content: str) -> Optional[list]:
+        """Parse JSON steps from AI response."""
+        import json
+        clean = content.strip()
+        if clean.startswith("```"):
+            clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
+        try:
+            steps = json.loads(clean)
+            if isinstance(steps, list) and len(steps) >= 3:
+                return steps
+        except Exception:
+            pass
         return None
 
     def _normalize_subjects(self, steps: list) -> list:

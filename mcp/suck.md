@@ -220,3 +220,36 @@ Format:
 - **Fix**: what was changed
 - **Prevention**: how to avoid in future
 ```
+
+## Sequence Generation SUCKS — 2026-03-27T09:15:00Z
+
+### 16. Sequence is generic garbage with zero personalization
+- **Error**: Generated sequence has NO personalization beyond {{first_name}} and {{company}}. No {{city}} geo personalization, no industry-specific value prop, no case study with numbers, no competitive positioning
+- **Location**: `mcp/backend/app/services/campaign_intelligence.py:_generate_steps_ai()`
+- **Cause**: GPT-4o-mini prompt is generic "write a cold email sequence" — no checklist, no structure constraints, no reference examples injected
+- **What reference campaign does RIGHT** (3070919 "Petr ES Australia"):
+  - Subject uses `{{first_name}}` — personalized
+  - Body uses `{{city}}` for geo-specific case study: "Recently helped a {{city}} agency switch from Deel..."
+  - Specific numbers: "$4,000/month savings", "50 contractors across 8 countries", "fees under 1%"
+  - Competitive positioning: "moving off Upwork", "frustrated with Deel's inflexibility"
+  - Each email has distinct intent: (1) value prop + case study, (2) competitor comparison + bullet benefits, (3) transparent pricing + social proof, (4) channel switch (LinkedIn/Telegram) + ultra-short
+  - NO "I hope this message finds you well" nonsense
+  - NO "Best, Eleonora" on every email (email 4 has "Sent from my iPhone")
+- **What our sequence does WRONG**:
+  - "Quick hello from EasyStaff!" — spam subject, zero personalization
+  - "I hope this message finds you well!" — instant delete trigger
+  - NO geo personalization (no {{city}} usage)
+  - NO specific numbers (no $ amounts, no percentages)
+  - NO competitor mentions (no Deel, no Upwork comparison)
+  - NO case study (just vague "we've helped IT consulting firms")
+  - All 5 emails end with "Best, Eleonora" — robotic
+  - Subject lines don't use {{first_name}} — no inbox personalization
+  - Body is one undifferentiated wall of text
+  - SmartLead shows it as single paragraph (no line breaks in HTML)
+- **Fix**:
+  1. Use Gemini 2.5 Pro instead of GPT-4o-mini for sequence generation (A/B tested, Gemini >> GPT-4o-mini for style matching)
+  2. Inject reference campaign as GOD_SEQUENCE example in the prompt
+  3. Add mandatory checklist: personalization tags, geo case study, specific numbers, competitor positioning, distinct intent per email, varied closings
+  4. Generate A/B subject variants (one with {{first_name}}, one with {{company}})
+  5. Enforce proper HTML formatting (line breaks between paragraphs)
+- **Prevention**: Sequence generation prompt must include a structural checklist that the model validates against before returning

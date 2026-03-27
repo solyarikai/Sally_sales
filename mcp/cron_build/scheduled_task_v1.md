@@ -241,8 +241,29 @@ Log in `testruns2603.md`: probe iterations (count, score per iteration, filters 
     - `enable_ai_esp_matching`: true (AI sender rotation — MUST be enabled)
     - Schedule: Mon-Fri, 09:00-18:00 in target timezone
   - Test email sent to `pn@getsally.io` via add-test-lead-and-activate pattern
-- Sequences must be high quality — compare against existing campaigns, think like a top SDR
-- Sequences must have normalized subject lines: first names and company names clean, human-readable, no special characters or encoding artifacts
+
+**Sequence Quality — GOD_SEQUENCE Checklist (MANDATORY — VERIFY EACH POINT)**
+
+The generated sequence is the FINAL output of the entire pipeline. A shitty sequence = wasted pipeline. Every sequence MUST pass this checklist:
+
+1. **Personalization**: `{{first_name}}` used in Email 1 subject. `{{city}}` used in at least 1 email body for geo-specific case study
+2. **Specific numbers**: At least 2 emails have real $ amounts, percentages, or quantities (e.g. "$4,000/month savings", "50 contractors", "fees under 1%")
+3. **Competitor positioning**: At least 1 email names competitor alternatives relevant to the ICP
+4. **Distinct intent per email** — study reference campaign 3070919:
+   - Email 1: Hook + value prop + {{city}} geo case study with numbers
+   - Email 2: Competitor comparison + 3-5 bullet benefits
+   - Email 3: Transparent pricing + social proof
+   - Email 4: Ultra-short (2-3 lines), channel switch, casual tone (e.g. "Sent from my iPhone")
+5. **NO spam triggers**: No "I hope this message finds you well", no "Quick hello", no generic openers
+6. **Varied closings**: NOT every email ends with "Best, [Name]" — mix sender name, question ending, casual sign-off
+7. **HTML formatting**: Body uses `<br><br>` between paragraphs (SmartLead renders HTML — no wall-of-text)
+8. **Short emails**: Each email ≤ 120 words
+9. **Reply-thread subjects**: Emails 2-4 have EMPTY subject "" (keeps reply thread in inbox)
+10. **A/B ready**: Email 1 subject includes `{{first_name}}`
+
+**Verification**: After pushing sequence to SmartLead, fetch it back via API and verify EACH checklist point. Log pass/fail in `testruns2603.md`. If ANY point fails → regenerate with better prompt and re-push.
+
+**Model**: Use Gemini 2.5 Pro (falls back to GPT-4o-mini). Gemini is PROVEN better for style matching in this codebase (see A/B test results in MEMORY).
 
 **Step 5b — Campaign Settings Verification (MANDATORY — DO NOT SKIP)**
 After creating the campaign, you MUST verify EVERY setting by fetching the campaign from SmartLead API:
