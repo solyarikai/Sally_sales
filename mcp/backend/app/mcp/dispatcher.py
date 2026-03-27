@@ -1119,7 +1119,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             from app.services.reply_analysis_service import start_reply_analysis_background
             # Pass OpenAI key for Tier 3 AI classification
             openai_key = None
-            from app.models.integration import MCPIntegrationSetting
             from app.services.encryption import decrypt_value
             openai_setting = await session.execute(
                 select(MCPIntegrationSetting).where(
