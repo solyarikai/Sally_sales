@@ -341,12 +341,20 @@ async def list_campaigns(
 async def get_contact(
     contact_id: int,
     session: AsyncSession = Depends(get_session),
+    user: MCPUser = Depends(get_optional_user),
 ):
-    """Single contact detail."""
+    """Single contact detail — user-scoped."""
     contact = await session.get(ExtractedContact, contact_id)
     if not contact:
         from fastapi import HTTPException
         raise HTTPException(404, "Contact not found")
+
+    # User-scope check
+    if user and contact.project_id:
+        project = await session.get(Project, contact.project_id)
+        if project and project.user_id != user.id:
+            from fastapi import HTTPException
+            raise HTTPException(404, "Contact not found")
 
     company = None
     if contact.discovered_company_id:
