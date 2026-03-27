@@ -239,41 +239,47 @@ class SmartLeadService:
         """Start/pause/stop a campaign. Status: START, PAUSE, STOP."""
         return await self._api_call("POST", f"/campaigns/{campaign_id}/status", {"status": status})
 
-    async def add_test_lead_and_activate(
+    async def send_test_email(
         self,
         campaign_id: int,
         test_email: str = "pn@getsally.io",
-        sample_custom_fields: Optional[Dict] = None,
+        sequence_number: int = 1,
+        email_account_id: Optional[int] = None,
+        lead_id: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Add a test lead to campaign and activate it so SmartLead sends the email.
+        """Send a test email via SmartLead's native API.
 
-        This mirrors the existing platform's battle-tested approach:
-        instead of using SmartLead's buggy /send-test-email API,
-        we add the user as a real lead and let SmartLead send normally.
+        Required params: leadId (for variable substitution), sequenceNumber,
+        selectedEmailAccountId (which sending account), customEmailAddress (recipient).
+
+        If email_account_id not provided, auto-picks the first account on the campaign.
+        If lead_id not provided, auto-picks the first lead in the campaign.
         """
-        # Build test lead with sample custom fields for proper variable substitution
-        test_lead = {
-            "email": test_email,
-            "first_name": "Test",
-            "last_name": "Lead",
-            "company_name": "TEST - DELETE",
-        }
-        if sample_custom_fields:
-            # Copy custom fields from a real lead so merge tags resolve
-            test_lead["custom_fields"] = {
-                **sample_custom_fields,
-                "is_test_lead": "true",
-            }
-        else:
-            test_lead["custom_fields"] = {"is_test_lead": "true"}
+        # Auto-resolve email account if not provided
+        if not email_account_id:
+            accounts = await self.get_campaign_email_accounts(campaign_id)
+            if accounts:
+                email_account_id = accounts[0].get("id")
+            if not email_account_id:
+                return {"ok": False, "error": "No email accounts on this campaign"}
 
-        result = await self.add_leads_to_campaign(campaign_id, [test_lead])
-        if not result:
-            return {"ok": False, "error": "Failed to add test lead to campaign"}
+        # Auto-resolve lead if not provided
+        if not lead_id:
+            leads = await self.get_campaign_leads_with_status(campaign_id, limit=1)
+            if leads:
+                lead_obj = leads[0].get("lead", leads[0])
+                lead_id = lead_obj.get("id")
+            if not lead_id:
+                return {"ok": False, "error": "No leads in this campaign for variable substitution"}
 
-        # Activate the campaign so SmartLead sends
-        status_result = await self.update_campaign_status(campaign_id, "START")
-        if not status_result:
-            return {"ok": False, "error": "Test lead added but failed to activate campaign", "lead_added": True}
+        result = await self._api_call("POST", f"/campaigns/{campaign_id}/send-test-email", {
+            "leadId": lead_id,
+            "sequenceNumber": sequence_number,
+            "selectedEmailAccountId": email_account_id,
+            "customEmailAddress": test_email,
+        })
 
-        return {"ok": True, "test_email": test_email, "campaign_activated": True}
+        if result and result.get("status") == "success":
+            return {"ok": True, "message_id": result.get("messageId"), "test_email": test_email,
+                    "from_account_id": email_account_id, "lead_id": lead_id}
+        return {"ok": False, "error": str(result), "test_email": test_email}
