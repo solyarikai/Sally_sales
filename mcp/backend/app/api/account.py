@@ -203,3 +203,45 @@ async def get_usage(
         "by_tool": by_tool,
         "recent": recent_logs,
     }
+
+
+@router.get("/conversations")
+async def get_conversations(
+    user: MCPUser = Depends(get_optional_user),
+    session_id: str = None,
+    limit: int = 50,
+    session: AsyncSession = Depends(get_session),
+):
+    """Full conversation log — every message between user's Claude agent and MCP."""
+    if not user:
+        return {"authenticated": False}
+
+    from app.models.usage import MCPConversationLog
+    q = (
+        select(MCPConversationLog)
+        .where(MCPConversationLog.user_id == user.id)
+        .order_by(MCPConversationLog.created_at.desc())
+        .limit(limit)
+    )
+    if session_id:
+        q = q.where(MCPConversationLog.session_id == session_id)
+
+    result = await session.execute(q)
+    logs = result.scalars().all()
+
+    return {
+        "conversations": [
+            {
+                "id": log.id,
+                "direction": log.direction,
+                "method": log.method,
+                "message_type": log.message_type,
+                "summary": log.content_summary,
+                "raw": log.raw_json,
+                "session_id": log.session_id,
+                "at": str(log.created_at),
+            }
+            for log in logs
+        ],
+        "total": len(logs),
+    }

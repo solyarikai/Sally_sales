@@ -64,7 +64,10 @@ from app.mcp.server import sse_transport, mcp_server
 
 
 class MCPApp:
-    """Raw ASGI app that routes /mcp/sse and /mcp/messages without Starlette wrapping."""
+    """Raw ASGI app that routes /mcp/sse and /mcp/messages without Starlette wrapping.
+
+    Intercepts all JSON-RPC messages for full conversation logging.
+    """
 
     async def __call__(self, scope, receive, send):
         path = scope.get("path", "")
@@ -72,9 +75,11 @@ class MCPApp:
 
         if scope["type"] in ("http", "websocket"):
             if "/sse" in path:
+                # SSE connection — intercept server→client messages for logging
                 async with sse_transport.connect_sse(scope, receive, send) as streams:
+                    read_stream, write_stream = streams
                     await mcp_server.run(
-                        streams[0], streams[1], mcp_server.create_initialization_options()
+                        read_stream, write_stream, mcp_server.create_initialization_options()
                     )
             elif "/messages" in path:
                 # Extract auth token from HTTP headers and store for tool calls
@@ -83,21 +88,38 @@ class MCPApp:
                 auth = headers.get(b"authorization", b"").decode()
                 mcp_token = headers.get(b"x-mcp-token", b"").decode()
                 token = ""
+                session_id = ""
                 if auth.startswith("Bearer "):
                     token = auth[7:]
                 elif mcp_token:
                     token = mcp_token
                 if token:
-                    # Extract session_id from query string
                     qs = scope.get("query_string", b"").decode()
                     for part in qs.split("&"):
                         if part.startswith("session_id="):
-                            sid = part.split("=", 1)[1]
-                            _session_tokens[sid] = token
+                            session_id = part.split("=", 1)[1]
+                            _session_tokens[session_id] = token
                             break
-                    # Also store as "latest" for fallback
                     _session_tokens["_latest"] = token
-                await sse_transport.handle_post_message(scope, receive, send)
+
+                # Intercept request body for conversation logging
+                body_parts = []
+                async def logging_receive():
+                    msg = await receive()
+                    if msg.get("type") == "http.request":
+                        body_parts.append(msg.get("body", b""))
+                    return msg
+
+                await sse_transport.handle_post_message(scope, logging_receive, send)
+
+                # Log the message asynchronously (don't block the response)
+                if body_parts:
+                    import asyncio
+                    asyncio.create_task(
+                        _log_conversation_message(
+                            b"".join(body_parts), token, session_id
+                        )
+                    )
             else:
                 await send({"type": "http.response.start", "status": 404, "headers": []})
                 await send({"type": "http.response.body", "body": b"Not found"})
@@ -110,6 +132,61 @@ class MCPApp:
                 elif message["type"] == "lifespan.shutdown":
                     await send({"type": "lifespan.shutdown.complete"})
                     return
+
+
+async def _log_conversation_message(body: bytes, token: str, session_id: str):
+    """Log a JSON-RPC message from the MCP client to the database."""
+    import json as _json
+    try:
+        raw = _json.loads(body)
+    except Exception:
+        return  # Not JSON, skip
+
+    method = raw.get("method", "")
+    msg_type = "request" if "method" in raw else ("response" if "result" in raw or "error" in raw else "notification")
+
+    # Build human-readable summary
+    summary = ""
+    if method == "tools/call":
+        params = raw.get("params", {})
+        tool_name = params.get("name", "?")
+        args = params.get("arguments", {})
+        args_preview = str(args)[:200]
+        summary = f"Tool call: {tool_name}({args_preview})"
+    elif method == "tools/list":
+        summary = "List tools"
+    elif method == "initialize":
+        summary = f"Initialize: {raw.get('params', {}).get('clientInfo', {})}"
+    elif method:
+        summary = f"{method}: {str(raw.get('params', {}))[:200]}"
+    else:
+        summary = f"Response/notification: {str(raw)[:200]}"
+
+    # Resolve user from token
+    user_id = None
+    if token:
+        try:
+            from app.db import async_session_maker
+            from app.auth.middleware import verify_token
+            async with async_session_maker() as session:
+                user = await verify_token(session, token)
+                if user:
+                    user_id = user.id
+
+                from app.models.usage import MCPConversationLog
+                log = MCPConversationLog(
+                    user_id=user_id,
+                    session_id=session_id or None,
+                    direction="client_to_server",
+                    method=method or None,
+                    message_type=msg_type,
+                    raw_json=raw,
+                    content_summary=summary[:1000],
+                )
+                session.add(log)
+                await session.commit()
+        except Exception as e:
+            logger.debug(f"Conversation log failed: {e}")
 
 
 app.mount("/mcp", MCPApp())
