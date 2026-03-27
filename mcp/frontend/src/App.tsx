@@ -4,6 +4,7 @@ import SetupPage from './pages/SetupPage'
 import PipelinePage from './pages/PipelinePage'
 import PromptsPage from './pages/PromptsPage'
 import AccountPage from './pages/AccountPage'
+import ProjectsPage from './pages/ProjectsPage'
 
 // REUSED from main app via @main alias — fix once, fixed everywhere
 import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
@@ -114,6 +115,7 @@ export default function App() {
                 <Route path="/crm" element={<CRMPage />} />
                 <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/tasks/:tab" element={<TasksPage />} />
+                <Route path="/projects" element={<ProjectsPage />} />
                 <Route path="/account" element={<AccountPage />} />
               </Routes>
             </div>
@@ -138,13 +140,15 @@ function PipelineRunsPage() {
       {runs.length === 0 ? <div style={{ color: 'var(--text-muted)', padding: '40px 0', textAlign: 'center' }}>No runs yet.</div> : (
         <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
           <thead><tr style={{ textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)' }}>
-            <th style={{ paddingBottom: 8 }}>Run</th><th style={{ paddingBottom: 8 }}>Source</th><th style={{ paddingBottom: 8 }}>Companies</th><th style={{ paddingBottom: 8 }}>Phase</th><th style={{ paddingBottom: 8 }}>Created</th>
+            <th style={{ paddingBottom: 8 }}>Run</th><th style={{ paddingBottom: 8 }}>Source</th><th style={{ paddingBottom: 8 }}>Companies</th><th style={{ paddingBottom: 8 }}>Target Rate</th><th style={{ paddingBottom: 8 }}>Credits</th><th style={{ paddingBottom: 8 }}>Phase</th><th style={{ paddingBottom: 8 }}>Created</th>
           </tr></thead>
           <tbody>{runs.map((r: any) => (
             <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
               <td style={{ padding: '8px 12px 8px 0' }}><Link to={`/pipeline/${r.id}`} style={{ color: 'var(--text-link)' }}>#{r.id}</Link></td>
               <td style={{ padding: '8px 12px 8px 0' }}>{r.source_type?.replace('companies.', '').replace('.manual', '')}</td>
               <td style={{ padding: '8px 12px 8px 0', color: 'var(--success)' }}>{r.new_companies || 0}</td>
+              <td style={{ padding: '8px 12px 8px 0', color: r.target_rate ? 'var(--success)' : 'var(--text-muted)' }}>{r.target_rate || '—'}</td>
+              <td style={{ padding: '8px 12px 8px 0', color: 'var(--text-secondary)' }}>{r.credits_used || 0}</td>
               <td style={{ padding: '8px 12px 8px 0' }}><span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 11, background: 'var(--active-bg)' }}>{r.phase}</span></td>
               <td style={{ padding: '8px 0', color: 'var(--text-muted)' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</td>
             </tr>
