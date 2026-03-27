@@ -832,16 +832,29 @@ def step4_scrape(run_id: int) -> dict:
 # STEP 5: ANALYZE (GPT) → CP2  — with re-analyze loop
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step5_analyze(run_id: int, prompt_text: str, model: str = "gpt-4o-mini") -> dict:
-    """Run GPT analysis. Returns gate info for CP2."""
+def step5_analyze(run_id: int, prompt_text: str = None, prompt_id: int = PROMPT_ID,
+                   model: str = "gpt-4o-mini") -> dict:
+    """Run GPT analysis. Uses prompt_id by default (tracks metrics in gathering_prompts).
+    Falls back to prompt_text if prompt_id is None."""
     print(f"\n{'='*60}")
     print(f"STEP 5: Analyze (run #{run_id})")
     print(f"  Model: {model}")
-    print(f"  Prompt: {prompt_text[:100]}...")
+    if prompt_id:
+        print(f"  Prompt ID: {prompt_id}")
+    else:
+        print(f"  Prompt: {prompt_text[:100]}...")
     print(f"{'='*60}")
 
+    params = {"model": model}
+    if prompt_id:
+        params["prompt_id"] = prompt_id
+    elif prompt_text:
+        params["prompt_text"] = prompt_text
+    else:
+        params["prompt_text"] = DEFAULT_ANALYSIS_PROMPT
+
     result = api("post", f"/pipeline/gathering/runs/{run_id}/analyze",
-                 params={"prompt_text": prompt_text, "model": model})
+                 params=params)
 
     target_rate = result.get("target_rate", 0)
     targets_count = result.get("targets_count", 0)
