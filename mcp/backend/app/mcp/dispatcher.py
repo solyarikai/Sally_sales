@@ -1180,6 +1180,43 @@ async def _resolve_project_id(project_name: str, user, session) -> int | None:
     return project.id if project else None
 
 
+async def _resolve_project(project_name: str, user, session):
+    """Resolve project name to full Project object."""
+    from sqlalchemy import func as sa_func
+    result = await session.execute(
+        select(Project).where(
+            Project.user_id == user.id,
+            sa_func.lower(Project.name) == project_name.lower(),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+def _get_campaign_name_filter(project) -> str | None:
+    """Extract a campaign name substring filter from project's campaign_filters.
+
+    The project stores campaign_filters as a list of campaign names (e.g. ["petr", "Petr ES"]).
+    For the main backend query, we find the shortest common substring that matches all.
+    Usually this is the search term the user used (e.g. "petr").
+    """
+    if not project or not project.campaign_filters:
+        return None
+    filters = project.campaign_filters
+    if isinstance(filters, list) and filters:
+        # Find shortest filter — it's the most general match
+        str_filters = [f for f in filters if isinstance(f, str) and len(f) > 2]
+        if str_filters:
+            return min(str_filters, key=len)
+    if isinstance(filters, dict):
+        # Rules-based: check prefixes, contains
+        prefixes = filters.get("prefixes", [])
+        contains = filters.get("contains", [])
+        candidates = prefixes + contains
+        if candidates:
+            return min(candidates, key=len)
+    return None
+
+
 async def _call_replies_api(path: str, params: dict | None = None) -> dict:
     """Call the main backend replies API via the nginx proxy (mcp-frontend:80)."""
     import httpx
@@ -1244,22 +1281,24 @@ async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
                 },
             }
 
-        # Fallback to main backend proxy
-        data = await _call_replies_api("replies/counts", {
-            "project_id": project_id,
-            "include_all": "true",
-            "received_since": "all",
-        })
+        # Fallback to main backend proxy — scope by campaign_filters
+        project = await _resolve_project(project_name, user, session)
+        campaign_filter = _get_campaign_name_filter(project)
+        params = {"include_all": "true", "received_since": "all"}
+        if campaign_filter:
+            params["campaign_name_contains"] = campaign_filter
+        data = await _call_replies_api("replies/counts", params)
         if "error" in data:
             return data
 
-        counts = data.get("categories", data)
+        counts = data.get("categories", data.get("category_counts", data))
         total = data.get("total", sum(v for v in counts.values() if isinstance(v, int)))
         return {
             "project": project_name,
             "total_replies": total,
             "categories": counts,
-            "message": f"Reply summary for '{project_name}': {total} total replies.",
+            "campaign_filter": campaign_filter,
+            "message": f"Reply summary for '{project_name}' (campaigns matching '{campaign_filter}'): {total} total replies.",
             "_links": {"replies_ui": f"{UI_BASE}/tasks?project={project_name}"},
         }
 
@@ -1317,10 +1356,13 @@ async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
                     },
                 }
 
-        # Fallback to main backend
+        # Fallback to main backend — scope by campaign_filters
         params: dict = {"received_since": "all", "page_size": 30, "group_by_contact": "true"}
-        if project_name and project_id:
-            params["project_id"] = project_id
+        if project_name:
+            project = await _resolve_project(project_name, user, session)
+            campaign_filter = _get_campaign_name_filter(project)
+            if campaign_filter:
+                params["campaign_name_contains"] = campaign_filter
         if category_filter:
             params["category"] = category_filter
         if search_filter:
@@ -1386,10 +1428,13 @@ async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
                     },
                 }
 
-        # Fallback
+        # Fallback — scope by campaign_filters
         params = {"needs_followup": "true", "received_since": "all", "page_size": 30}
-        if project_name and project_id:
-            params["project_id"] = project_id
+        if project_name:
+            project = await _resolve_project(project_name, user, session)
+            campaign_filter = _get_campaign_name_filter(project)
+            if campaign_filter:
+                params["campaign_name_contains"] = campaign_filter
         data = await _call_replies_api("replies/", params)
         if "error" in data:
             return data

@@ -221,6 +221,20 @@ Format:
 - **Prevention**: how to avoid in future
 ```
 
+## USER-SCOPING VIOLATION — 2026-03-27T10:00:00Z
+
+### 17. Reply tools returned ALL 38K replies instead of user's campaigns only
+- **Error**: Reply summary/list/followups showed 38,330 replies across ALL campaigns in the entire system instead of only the user's ~13 "petr" campaigns (~130 replies)
+- **Location**: `mcp/backend/app/mcp/dispatcher.py` — `_handle_reply_tool()` fallback paths
+- **Cause**: When querying the main backend via proxy, the code passed `project_id` from MCP's DB — but that ID doesn't exist in the main backend (separate databases). So the main backend returned EVERYTHING.
+- **Fix**: Replace `project_id` filter with `campaign_name_contains` filter. The project's `campaign_filters` list contains campaign name patterns (e.g. "petr"). Pass the shortest pattern as `campaign_name_contains` to scope results.
+- **Prevention**: **ABSOLUTE RULE — ALL DATA MUST BE USER-SCOPED:**
+  - NEVER pass MCP project_id to the main backend — different databases, IDs don't match
+  - ALWAYS scope by campaign_name_contains or campaign_names from the project's campaign_filters
+  - ALWAYS verify reply counts make sense (13 campaigns × ~10 replies = ~130, NOT 38,000)
+  - When testing reply tools, check: "Does this reply count match the number of campaigns × expected reply rate?"
+  - ANY tool returning data from campaigns the user didn't connect = SECURITY/PRIVACY VIOLATION
+
 ## Sequence Generation SUCKS — 2026-03-27T09:15:00Z
 
 ### 16. Sequence is generic garbage with zero personalization
