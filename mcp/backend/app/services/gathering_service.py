@@ -352,6 +352,39 @@ class GatheringService:
         project = await session.get(Project, run.project_id)
         icp_text = prompt_text or (project.target_segments if project else None) or "General B2B companies"
 
+        # Get user feedback on targets/analysis (most recent = highest priority)
+        user_feedback_section = ""
+        try:
+            from app.models.usage import MCPUsageLog
+            feedback_result = await session.execute(
+                select(MCPUsageLog).where(
+                    MCPUsageLog.tool_name == "user_feedback",
+                    MCPUsageLog.action.in_(["targets", "analysis", "filters"]),
+                    MCPUsageLog.extra_data["project_id"].as_integer() == run.project_id,
+                ).order_by(MCPUsageLog.created_at.desc()).limit(5)
+            )
+            feedback_logs = feedback_result.scalars().all()
+            if feedback_logs:
+                fb_parts = [f"- {log.extra_data.get('feedback_text', '')}" for log in feedback_logs]
+                user_feedback_section = "\n\nUSER FEEDBACK (HIGHEST PRIORITY — follow these over default rules):\n" + "\n".join(fb_parts)
+
+            # Also get user overrides on specific companies (learning from corrections)
+            override_result = await session.execute(
+                select(DiscoveredCompany).where(
+                    DiscoveredCompany.project_id == run.project_id,
+                    DiscoveredCompany.analysis_reasoning.ilike("%[USER OVERRIDE]%"),
+                ).limit(10)
+            )
+            overrides = override_result.scalars().all()
+            if overrides:
+                override_parts = []
+                for o in overrides:
+                    status = "IS a target" if o.is_target else "is NOT a target"
+                    override_parts.append(f"- {o.name or o.domain} {status}: {o.analysis_reasoning[:200]}")
+                user_feedback_section += "\n\nUSER CORRECTIONS (learn from these — similar companies should be treated the same way):\n" + "\n".join(override_parts)
+        except Exception as e:
+            logger.debug(f"Failed to load user feedback: {e}")
+
         via_negativa_system = f"""{icp_text}
 
 Analyze the company website below using VIA NEGATIVA — focus on what RULES IT OUT.
@@ -365,6 +398,7 @@ Exclusion criteria (reject if ANY apply):
 - Company is too large (enterprise/multinational) if targeting SMB
 
 If NONE of these exclusions apply → the company survives. Label it as target.
+{user_feedback_section}
 
 Respond ONLY with valid JSON:
 {{
