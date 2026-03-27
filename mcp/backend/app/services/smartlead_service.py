@@ -243,7 +243,13 @@ class SmartLeadService:
         return await self._api_call("POST", f"/campaigns/{campaign_id}/leads", {"lead_list": formatted})
 
     async def update_campaign_status(self, campaign_id: int, status: str = "START") -> Optional[Dict[str, Any]]:
-        """Start/pause/stop a campaign. Status: START, PAUSE, STOP."""
+        """Start/pause/stop a campaign. Status: START, PAUSE, STOP.
+
+        SAFETY: Campaign activation (START) requires explicit user approval.
+        MCP creates campaigns as DRAFT only. This method exists for when
+        the user explicitly asks to activate after reviewing the sequence.
+        """
+        logger.info(f"Campaign {campaign_id} status change: {status} (requires user approval for START)")
         return await self._api_call("POST", f"/campaigns/{campaign_id}/status", {"status": status})
 
     async def send_test_email(

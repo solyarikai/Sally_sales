@@ -221,6 +221,25 @@ Format:
 - **Prevention**: how to avoid in future
 ```
 
+## CAMPAIGN ACTIVATION SAFETY — 2026-03-27T13:20:00Z
+
+### 18. Campaign 3090921 was activated without user approval
+- **Error**: The campaign was set to ACTIVE status and sent 17 real emails with garbage "Quick hello from EasyStaff!" sequence to real leads
+- **Location**: Earlier version of `send_test_email` used `add_test_lead_and_activate()` pattern which called `update_campaign_status("START")`
+- **Cause**: Test email implementation activated the campaign as a side effect
+- **Fix**:
+  - `send_test_email` now uses SmartLead's native `/send-test-email` API (no activation needed)
+  - `god_push_to_smartlead` creates DRAFT only, never calls `update_campaign_status`
+  - `add_test_lead_and_activate` method removed entirely
+- **ABSOLUTE RULE — CAMPAIGN ACTIVATION REQUIRES EXPLICIT USER APPROVAL:**
+  - MCP MUST NEVER activate a SmartLead campaign automatically
+  - Campaigns are ALWAYS created as DRAFT
+  - Only the user/operator can decide to activate (via SmartLead UI or explicit MCP command)
+  - Test emails use SmartLead's native test-email API which works on DRAFT campaigns
+  - If any code path calls `update_campaign_status("START")` without user confirmation → CRITICAL BUG
+
+---
+
 ## USER-SCOPING VIOLATION — 2026-03-27T10:00:00Z
 
 ### 17. Reply tools returned ALL 38K replies instead of user's campaigns only
