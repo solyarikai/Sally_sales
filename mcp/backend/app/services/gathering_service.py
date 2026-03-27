@@ -299,6 +299,9 @@ class GatheringService:
 
     # ── Phase 5: Analyze ──
 
+    ANALYSIS_BATCH_SIZE = 25
+    ANALYSIS_CONCURRENCY = 10
+
     async def analyze(
         self, session: AsyncSession, run: GatheringRun,
         prompt_text: Optional[str] = None,
@@ -306,7 +309,12 @@ class GatheringService:
         target_accuracy: float = 0.9,
         openai_key: Optional[str] = None,
     ) -> ApprovalGate:
-        """AI analysis with GPT-4o-mini to identify target companies."""
+        """AI analysis with GPT-4o-mini — via negativa, segment labeling, batched.
+
+        GPT does the cheap analysis ($0.003/company).
+        The AGENT (Opus in Claude Code) reviews results at Checkpoint 2
+        and re-analyzes if accuracy < 90%.
+        """
         self._check_phase(run, "analyze")
 
         # Get companies with scraped text
@@ -324,18 +332,69 @@ class GatheringService:
 
         targets_found = 0
         total_analyzed = 0
+        skipped_no_text = 0
+        target_list = []
+        borderline_rejections = []
 
-        # Build ICP prompt
-        icp_prompt = prompt_text or "Analyze if this company matches the target ICP."
+        # Build ICP prompt — via negativa style
+        from app.models.project import Project
+        project = await session.get(Project, run.project_id)
+        icp_text = prompt_text or (project.target_segments if project else None) or "General B2B companies"
 
-        # Analyze each company with GPT-4o-mini
-        if openai_key:
-            import httpx
-            for dc, scrape in rows:
-                company_text = f"Company: {dc.name or dc.domain}\nDomain: {dc.domain}\nIndustry: {dc.industry or 'Unknown'}\nCountry: {dc.country or 'Unknown'}\nEmployees: {dc.employee_count or 'Unknown'}"
-                if scrape and scrape.clean_text:
-                    company_text += f"\nWebsite content:\n{scrape.clean_text[:3000]}"
+        via_negativa_system = f"""{icp_text}
 
+Analyze the company website below using VIA NEGATIVA — focus on what RULES IT OUT.
+
+Exclusion criteria (reject if ANY apply):
+- Company is a freelancer/solo consultant (no real team)
+- Website is a placeholder, parked domain, or under construction
+- Company is in a completely unrelated industry (e.g., restaurant, retail, personal blog)
+- Company has shut down or is clearly inactive
+- Website is not in a relevant language for the target market
+- Company is too large (enterprise/multinational) if targeting SMB
+
+If NONE of these exclusions apply → the company survives. Label it as target.
+
+Respond ONLY with valid JSON:
+{{
+  "is_target": true,
+  "confidence": 0.85,
+  "segment": "IT_OUTSOURCING",
+  "reasoning": "1-2 sentence explanation of WHY target or WHY excluded"
+}}
+
+Rules:
+- confidence 0.8+: clear match, no exclusions triggered
+- confidence 0.5-0.79: likely match but some uncertainty
+- confidence <0.5: exclusion triggered → is_target: false
+- segment: short CAPS_LOCKED label (e.g. IT_OUTSOURCING, SAAS_COMPANY, AGENCY, ECOMMERCE, NOT_A_MATCH)
+- is_target: true only if confidence >= 0.6"""
+
+        if not openai_key:
+            logger.warning("No OpenAI key — skipping GPT analysis")
+            gate = self._create_checkpoint2_gate(session, run, 0, 0, 0, [], [], icp_text)
+            return gate
+
+        # Process in batches with concurrency
+        import asyncio
+        import httpx
+        import json as _json
+
+        semaphore = asyncio.Semaphore(self.ANALYSIS_CONCURRENCY)
+
+        async def analyze_one(dc: DiscoveredCompany, scrape_text: Optional[str]) -> Dict:
+            """Analyze a single company with GPT-4o-mini."""
+            company_text = f"Company: {dc.name or dc.domain}\nDomain: {dc.domain}"
+            if dc.industry:
+                company_text += f"\nIndustry: {dc.industry}"
+            if dc.country:
+                company_text += f"\nCountry: {dc.country}"
+            if dc.employee_count:
+                company_text += f"\nEmployees: {dc.employee_count}"
+            if scrape_text:
+                company_text += f"\n\nWebsite content:\n{scrape_text[:3000]}"
+
+            async with semaphore:
                 try:
                     async with httpx.AsyncClient(timeout=30) as client:
                         resp = await client.post(
@@ -344,8 +403,8 @@ class GatheringService:
                             json={
                                 "model": "gpt-4o-mini",
                                 "messages": [
-                                    {"role": "system", "content": f"You analyze companies against an ICP (Ideal Customer Profile). Respond ONLY with valid JSON: {{\"is_target\": true/false, \"confidence\": 0.0-1.0, \"segment\": \"brief category\", \"reasoning\": \"1-2 sentence explanation\"}}"},
-                                    {"role": "user", "content": f"ICP: {icp_prompt}\n\n{company_text}\n\nIs this company a target? JSON only:"},
+                                    {"role": "system", "content": via_negativa_system},
+                                    {"role": "user", "content": company_text},
                                 ],
                                 "max_tokens": 200,
                                 "temperature": 0.1,
@@ -353,32 +412,106 @@ class GatheringService:
                         )
                         data = resp.json()
                         content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-
-                        # Parse GPT response
-                        import json as _json
-                        try:
-                            # Strip markdown code blocks if present
-                            clean = content.strip()
-                            if clean.startswith("```"):
-                                clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
-                            parsed = _json.loads(clean)
-                            dc.is_target = parsed.get("is_target", False)
-                            dc.analysis_confidence = parsed.get("confidence", 0.5)
-                            dc.analysis_segment = parsed.get("segment", "")
-                            dc.analysis_reasoning = parsed.get("reasoning", "")
-                            total_analyzed += 1
-                            if dc.is_target:
-                                targets_found += 1
-                        except _json.JSONDecodeError:
-                            dc.analysis_reasoning = f"GPT response parse error: {content[:200]}"
-                            total_analyzed += 1
-
+                        clean = content.strip()
+                        if clean.startswith("```"):
+                            clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
+                        parsed = _json.loads(clean)
+                        return {"dc_id": dc.id, "domain": dc.domain, "name": dc.name, **parsed}
+                except _json.JSONDecodeError:
+                    return {"dc_id": dc.id, "domain": dc.domain, "name": dc.name,
+                            "is_target": False, "confidence": 0, "segment": "PARSE_ERROR",
+                            "reasoning": f"GPT response parse error: {content[:200]}"}
                 except Exception as e:
-                    logger.error(f"GPT analysis failed for {dc.domain}: {e}")
-                    dc.analysis_reasoning = f"Analysis error: {str(e)[:100]}"
+                    return {"dc_id": dc.id, "domain": dc.domain, "name": dc.name,
+                            "is_target": False, "confidence": 0, "segment": "ERROR",
+                            "reasoning": f"Analysis error: {str(e)[:100]}"}
+
+        # Build work items
+        work_items = []
+        dc_map = {}
+        for dc, scrape in rows:
+            scrape_text = scrape.clean_text if scrape and scrape.clean_text else None
+            if not scrape_text:
+                skipped_no_text += 1
+                continue
+            work_items.append((dc, scrape_text))
+            dc_map[dc.id] = dc
+
+        # Process in batches of 25
+        for batch_start in range(0, len(work_items), self.ANALYSIS_BATCH_SIZE):
+            batch = work_items[batch_start:batch_start + self.ANALYSIS_BATCH_SIZE]
+            tasks = [analyze_one(dc, text) for dc, text in batch]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for r in results:
+                if isinstance(r, Exception):
                     total_analyzed += 1
-        else:
-            logger.warning("No OpenAI key — skipping GPT analysis")
+                    continue
+                if not isinstance(r, dict):
+                    total_analyzed += 1
+                    continue
+
+                dc = dc_map.get(r["dc_id"])
+                if not dc:
+                    continue
+
+                dc.is_target = r.get("is_target", False)
+                dc.analysis_confidence = r.get("confidence", 0)
+                dc.analysis_segment = r.get("segment", "")
+                dc.analysis_reasoning = r.get("reasoning", "")
+                total_analyzed += 1
+
+                if dc.is_target:
+                    targets_found += 1
+                    target_list.append({
+                        "domain": dc.domain, "name": dc.name,
+                        "confidence": dc.analysis_confidence,
+                        "segment": dc.analysis_segment,
+                        "reasoning": dc.analysis_reasoning,
+                    })
+                elif 0.4 <= r.get("confidence", 0) <= 0.6:
+                    borderline_rejections.append({
+                        "domain": dc.domain, "name": dc.name,
+                        "confidence": r.get("confidence", 0),
+                        "segment": r.get("segment", ""),
+                        "reasoning": r.get("reasoning", ""),
+                    })
+
+            # Flush after each batch
+            await session.flush()
+            logger.info(f"Analysis batch {batch_start//self.ANALYSIS_BATCH_SIZE + 1}: "
+                        f"{targets_found} targets / {total_analyzed} analyzed")
+
+        # Sort target list by confidence DESC
+        target_list.sort(key=lambda x: -x.get("confidence", 0))
+        borderline_rejections.sort(key=lambda x: -x.get("confidence", 0))
+
+        gate = self._create_checkpoint2_gate(
+            session, run, targets_found, total_analyzed, skipped_no_text,
+            target_list, borderline_rejections, icp_text,
+        )
+
+        run.target_rate = targets_found / total_analyzed if total_analyzed > 0 else 0
+        run.avg_analysis_confidence = (
+            sum(t["confidence"] for t in target_list) / len(target_list)
+            if target_list else 0
+        )
+        self._advance_phase(run, "awaiting_targets_ok")
+        await session.flush()
+        return gate
+
+    def _create_checkpoint2_gate(
+        self, session, run, targets_found, total_analyzed, skipped_no_text,
+        target_list, borderline_rejections, prompt_text,
+    ) -> ApprovalGate:
+        """Create Checkpoint 2 gate with full target list for agent QA."""
+        avg_conf = sum(t["confidence"] for t in target_list) / len(target_list) if target_list else 0
+
+        # Segment distribution
+        segment_counts = {}
+        for t in target_list:
+            seg = t.get("segment", "UNKNOWN")
+            segment_counts[seg] = segment_counts.get(seg, 0) + 1
 
         gate = ApprovalGate(
             project_id=run.project_id,
@@ -389,15 +522,16 @@ class GatheringService:
                 "run_id": run.id,
                 "targets_found": targets_found,
                 "total_analyzed": total_analyzed,
-                "target_rate": f"{targets_found/total_analyzed*100:.0f}%" if total_analyzed > 0 else "0%",
-                "auto_refine": auto_refine,
-                "prompt_text": prompt_text[:200] if prompt_text else None,
+                "skipped_no_scraped_text": skipped_no_text,
+                "target_rate": f"{targets_found/max(total_analyzed,1)*100:.0f}%",
+                "avg_confidence": round(avg_conf, 2),
+                "segment_distribution": segment_counts,
+                "target_list": target_list[:100],  # Top 100 targets for agent review
+                "borderline_rejections": borderline_rejections[:20],  # Borderline for agent override
+                "prompt_text": prompt_text[:500] if prompt_text else None,
             },
         )
         session.add(gate)
-        run.target_rate = targets_found / total_analyzed if total_analyzed > 0 else 0
-        self._advance_phase(run, "awaiting_targets_ok")
-        await session.flush()
         return gate
 
     # ── Phase 6: Prepare Verification ──
