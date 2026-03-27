@@ -204,7 +204,8 @@ async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
 
 
 async def enrich(input_csv: Path, emails_csv: Path, with_email_csv: Path,
-                 progress_file: Path, max_contacts: int) -> list[dict]:
+                 progress_file: Path, max_contacts: int,
+                 seg_label: str = "", date_tag: str = "") -> list[dict]:
     done: dict = {}
     if progress_file.exists():
         done = json.loads(progress_file.read_text())
