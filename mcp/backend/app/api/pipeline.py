@@ -615,6 +615,89 @@ async def create_campaign(
     return result
 
 
+class SendTestEmailRequest(BaseModel):
+    sequence_number: int = 1
+
+
+@router.post("/runs/{run_id}/send-test-email")
+async def send_test_email(
+    run_id: int,
+    req: SendTestEmailRequest = SendTestEmailRequest(),
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Send a test email for a pipeline run's SmartLead campaign.
+
+    Finds the campaign created from this run, picks the test lead (pn@getsally.io)
+    or the first lead, and sends the specified sequence step as a test.
+    """
+    from app.services.smartlead_service import SmartLeadService
+
+    run = await session.get(GatheringRun, run_id)
+    if not run:
+        raise HTTPException(404, "Run not found")
+
+    # Find the generated sequence that was pushed for this run
+    seq_result = await session.execute(
+        select(GeneratedSequence).where(
+            GeneratedSequence.project_id == run.project_id,
+            GeneratedSequence.pushed_campaign_id.isnot(None),
+        ).order_by(GeneratedSequence.pushed_at.desc()).limit(1)
+    )
+    seq = seq_result.scalar_one_or_none()
+
+    if not seq or not seq.pushed_campaign_id:
+        raise HTTPException(400, "No SmartLead campaign found for this run. Create a campaign first.")
+
+    # Get the SmartLead campaign ID (external_id)
+    campaign = await session.get(Campaign, seq.pushed_campaign_id)
+    if not campaign or not campaign.external_id:
+        raise HTTPException(400, "Campaign has no SmartLead ID")
+
+    smartlead_campaign_id = int(campaign.external_id)
+    sl = SmartLeadService()
+
+    if not sl.is_configured():
+        raise HTTPException(500, "SmartLead API key not configured")
+
+    # Get leads from the campaign — prefer pn@getsally.io (test lead)
+    leads = await sl.get_campaign_leads_with_status(smartlead_campaign_id, limit=100)
+    if not leads:
+        raise HTTPException(400, "Campaign has no leads. Add leads first.")
+
+    test_lead = None
+    for lead in leads:
+        lead_obj = lead.get("lead", lead)
+        if lead_obj.get("email", "").lower() == "pn@getsally.io":
+            test_lead = lead_obj
+            break
+    if not test_lead:
+        # Fall back to first lead
+        first = leads[0]
+        test_lead = first.get("lead", first)
+
+    lead_id = test_lead.get("id")
+    lead_email = test_lead.get("email")
+    if not lead_id:
+        raise HTTPException(400, "Could not determine lead ID")
+
+    # Send the test email
+    result = await sl.send_test_email(
+        campaign_id=smartlead_campaign_id,
+        lead_id=lead_id,
+        sequence_number=req.sequence_number,
+    )
+
+    return {
+        "campaign_name": campaign.name,
+        "smartlead_campaign_id": smartlead_campaign_id,
+        "lead_email": lead_email,
+        "lead_id": lead_id,
+        "sequence_number": req.sequence_number,
+        **result,
+    }
+
+
 # ── CRM: all companies across all pipelines ──
 
 @router.get("/crm/companies")
