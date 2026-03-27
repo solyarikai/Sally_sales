@@ -96,6 +96,7 @@ export default function App() {
               <ProjectSelector />
               <nav style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <NavLink to="/pipeline">Pipeline</NavLink>
+                <NavLink to="/projects">Projects</NavLink>
                 <NavLink to="/crm">CRM</NavLink>
                 <NavLink to="/tasks">Tasks</NavLink>
                 <NavLink to="/setup">Setup</NavLink>
