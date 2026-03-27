@@ -337,6 +337,13 @@ export default function PipelinePage() {
           </Link>
         )}
 
+        {/* SmartLead campaign link — appears when campaign created */}
+        {run?.campaign?.smartlead_url && (
+          <a href={run.campaign.smartlead_url} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: 'rgba(99,102,241,0.15)', color: '#6366f1', textDecoration: 'none', fontWeight: 500, border: '1px solid rgba(99,102,241,0.3)' }}>
+            📬 {run.campaign.name || 'SmartLead Campaign'}
+          </a>
+        )}
+
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <button onClick={() => setShowFilters(!showFilters)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showFilters ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Apollo Filters</button>
           <button onClick={() => setShowPromptHistory(!showPromptHistory)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showPromptHistory ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Prompt History</button>

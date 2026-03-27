@@ -102,12 +102,33 @@ async def get_run_status(
     scraped_ok = sum(1 for s in scrapes if s[0] == "success")
     scraped_err = sum(1 for s in scrapes if s[0] != "success")
 
+    # Find SmartLead campaign created from this pipeline
+    campaign_info = None
+    seq_result = await session.execute(
+        select(GeneratedSequence).where(
+            GeneratedSequence.project_id == run.project_id,
+            GeneratedSequence.pushed_campaign_id.isnot(None),
+        ).order_by(GeneratedSequence.pushed_at.desc()).limit(1)
+    )
+    seq = seq_result.scalar_one_or_none()
+    if seq and seq.pushed_campaign_id:
+        campaign = await session.get(Campaign, seq.pushed_campaign_id)
+        if campaign and campaign.external_id:
+            campaign_info = {
+                "id": campaign.id,
+                "name": campaign.name,
+                "smartlead_id": campaign.external_id,
+                "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{campaign.external_id}/analytics",
+                "status": campaign.status,
+            }
+
     return {
         "id": run.id,
         "status": run.status,
         "current_phase": run.current_phase,
         "source_type": run.source_type,
         "filters": run.filters,
+        "project_id": run.project_id,
         "project_name": project.name if project else "Unknown",
         "new_companies": run.new_companies_count,
         "duplicates": run.duplicate_count,
@@ -118,6 +139,7 @@ async def get_run_status(
         "target_rate": run.target_rate,
         "credits_used": run.credits_used,
         "created_at": str(run.created_at) if run.created_at else None,
+        "campaign": campaign_info,
         "gates": [
             {
                 "gate_id": g.id,
