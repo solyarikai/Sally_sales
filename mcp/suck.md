@@ -255,6 +255,20 @@ Format:
   3. Pass to via negativa prompt: "Label matching companies as IT_CONSULTING"
   4. Multi-segment queries → multiple pipeline runs
 
+### 23. Duplicate companies in pipeline view — 2026-03-27T18:30:00Z
+- **Error**: agnos.io 2x, arcee.ai 3x, avalith.net 3x in pipeline/14 — same company shown multiple times
+- **Cause**: Multiple gathering runs (12,13,14,15,16) share project_id=18. The company list query fetches ALL companies for the project, not per-run. Each run that gathered the same domain created a separate DiscoveredCompany row (dedup is per-run, not per-project for re-analysis).
+- **Fix needed**: Pipeline detail page should filter companies by run_id via CompanySourceLink, not by project_id. OR dedup companies across runs within the same project.
+
+### 24. Prompts page shows 0 companies/targets — 2026-03-27T18:30:00Z
+- **Error**: Prompts page entries have Companies=0, Targets=0, prompt body shows "..."
+- **Cause**: The prompts API returns data from MCPUsageLog where extra_data has the info, but the frontend doesn't extract the right fields.
+
+### 25. Conversations only show "→ MCP" — no user messages or responses
+- **Error**: Only tool call direction logged. No user natural language messages. No MCP responses.
+- **Cause**: REST /tool-call endpoint only logs the request, not the response. And it can't log what the user typed to Claude — that happens in the agent, not in MCP.
+- **Fix**: Log tool call responses too. For user messages, the agent (Claude Code) must send a "user_message" tool call that stores the user's text.
+
 ## CAMPAIGN ACTIVATION SAFETY — 2026-03-27T13:20:00Z
 
 ### 18. Campaign 3090921 was activated without user approval
