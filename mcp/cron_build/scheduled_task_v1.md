@@ -395,7 +395,43 @@ This step is a NON-NEGOTIABLE regression test. You MUST execute ALL 5 queries be
 - Duration: {ms}
 - Data quality: {count of results, are deep links correct}
 
-If the background reply analysis cache is empty (first run), the tools fall back to the main backend proxy which has 38,330+ real replies. Both paths must work.
+If the background reply analysis cache is empty (first run), the tools fall back to the main backend proxy. Replies MUST be scoped to the project's campaigns only (e.g. ~119 replies for "petr" campaigns, NOT 38K from all campaigns).
+
+---
+
+## PHASE 4b: SECOND USER TEST (USER-SCOPING VERIFICATION)
+
+**This is a MANDATORY test.** After completing Phase 4 with pn@getsally.io, run the SAME flow with a DIFFERENT user to verify user-scoping works.
+
+**Second test user:**
+- Email: `petru4o144@gmail.com`
+- Password: `qweqweqwe`
+- Scenario: New user with NO existing SmartLead campaigns, wants to find "fashion brands in Italy"
+
+**Steps:**
+1. Register `petru4o144@gmail.com` as a new MCP account
+2. Connect SmartLead + Apollo using the same shared API keys
+3. Create project: "Fashion Brands Italy"
+4. Run gathering: "fashion brands in Italy" (Apollo search)
+5. Verify: this user sees ONLY their project — NOT the pn@getsally.io projects
+6. Create campaign, upload contacts, send test email to `petru4o144@gmail.com`
+7. Verify: `petru4o144@gmail.com` receives the test email
+8. Switch back to pn@getsally.io and verify their data is unchanged
+
+**Screenshots (minimum):**
+- `test_user2_setup.png` — second user's setup page (clean, no projects)
+- `test_user2_projects.png` — only "Fashion Brands Italy" visible (NOT EasyStaff-Global)
+- `test_user2_pipeline.png` — only their pipeline runs visible
+- `test_user1_unchanged.png` — pn@getsally.io still sees only their data
+
+**CRITICAL USER-SCOPING CHECKS:**
+- User 2 MUST NOT see User 1's projects
+- User 2 MUST NOT see User 1's pipeline runs
+- User 2 MUST NOT see User 1's contacts in CRM
+- User 2's reply tools MUST NOT return User 1's replies
+- Violating ANY of these = CRITICAL BUG → log in suck.md and fix immediately
+
+---
 
 ### HARD RULES — NON-NEGOTIABLE
 
