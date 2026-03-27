@@ -133,7 +133,10 @@ Do you know all apollo industries and keywords? You better add a separate backgr
 
 For this spefic example good examples are on the screenshot  KEYWORDS_EXAMPLE.PNG BUT DON’T HARDCODE THIS EXAMPLE OR MAKE BIAS TOWARDS IT. USE THIS PROMPT-FILTERS PAIR AS TEST SET TO TEST YOUR DIFFERENT APPROACHES!!! AND USE THE BEST APPRAOCH WITH THE LOWEST ERROR = DIFF FROM THE EXAMPLE FILTERS SET. BUT THE SYSTEM MUST KNOW NOTHING SPECIFIC ABOUT THIS INPUT = ABOU LOGIC OF HOW IT CONSULTING BUSINESSSES MUST BE FOUND. THE APPROACH MUST WORK GENERALLY, MUST BE HIGH-LEVEL, MUSTN’T CONTAIN AND HARDCODE OR BIAS, DO YOU UNDERSSTAND WHAT I MEAN?
 
+
 HOW TO ACHIEVE IT? ACT AS GOD , WRITE YOUR PLAN TO apollo_filters suddir of mcp dir
+
+❯ user mustn't be engaged into this shit, i mean he shouldn't be botheread with helping to select best apollo filters for his case, it must be our superfeeture to make users life easiers do you understand?   
 
 
 ———

@@ -263,6 +263,14 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         source_type = args["source_type"]
         filters = args.get("filters", {})
 
+        # ── REUSE filters from a previous run ──
+        reuse_run_id = args.get("reuse_run_id")
+        if reuse_run_id and not filters.get("q_organization_keyword_tags"):
+            prev_run = await session.get(GatheringRun, reuse_run_id)
+            if prev_run and prev_run.filters:
+                filters = dict(prev_run.filters)  # Copy previous filters
+                # Keep user's target_count override if provided
+
         # ── AUTO-DISCOVER filters via probe if keywords missing ──
         if "api" in source_type and not filters.get("q_organization_keyword_tags"):
             query = args.get("query") or project.target_segments

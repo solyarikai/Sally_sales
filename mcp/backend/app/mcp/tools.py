@@ -131,6 +131,8 @@ You figure out the Apollo filters automatically. Never show filter details to th
                         "sheet_url": {"type": "string"},
                     },
                 },
+                "query": {"type": "string", "description": "Natural language query — triggers auto-filter discovery if no keywords provided"},
+                "reuse_run_id": {"type": "integer", "description": "Reuse filters from a previous run. User says 'same filters, more targets'"},
             },
             "required": ["project_id", "source_type", "filters"],
         },

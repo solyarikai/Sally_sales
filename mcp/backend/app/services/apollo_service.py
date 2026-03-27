@@ -152,6 +152,17 @@ class ApolloService:
             })
         return results
 
+    async def enrich_organization(self, domain: str) -> Optional[Dict[str, Any]]:
+        """Get FULL company data by domain — includes keywords, industry, employees.
+        WARNING: costs 1 credit per call."""
+        if not self.api_key:
+            return None
+        data = await self._api_call("POST", "/organizations/enrich", {"domain": domain})
+        if data and data.get("organization"):
+            self.credits_used += 1
+            return data["organization"]
+        return None
+
     async def test_connection(self) -> bool:
         if not self.api_key:
             return False
