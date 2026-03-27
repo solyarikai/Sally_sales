@@ -39,14 +39,10 @@ These keys are needed for the full pipeline. Connect them via `configure_integra
 | Service | Key | What It Does |
 |---------|-----|-------------|
 | **SmartLead** | `eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5` | Campaign management, email sending, lead import |
-| **Apollo** | Same as main platform (ask admin) | Company search (1 credit/page of 100), org enrichment (1 credit/company) |
-| **OpenAI** | Same as main platform (ask admin) | GPT-4o-mini for analysis ($0.003/company), filter generation, sequence writing |
-
-Optional:
-| Service | What It Does |
-|---------|-------------|
-| **FindyMail** | Email verification ($0.01/email) — only at Checkpoint 3 |
-| **Gemini** | Alternative model for sequence generation |
+| **Apollo** | `9yIx2mZegixXHeDf6mWVqA` | Company search (1 credit/page of 100), org enrichment (1 credit/company) |
+| **OpenAI** | `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` | GPT-4o-mini for analysis ($0.003/company), filter generation, sequence writing |
+| **FindyMail** | `dSxRrqArQIsG2E5zba36HLTy0pBk1bGZra5ZDtykea70c139` | Email verification ($0.01/email) — only at Checkpoint 3 |
+| **Gemini** | `AIzaSyDAQhKyQcca249QVhOXY2nyZ5pNF-N5Y9o` | Alternative model for sequence generation |
 
 ## 3. First Session — Account + Integrations
 
