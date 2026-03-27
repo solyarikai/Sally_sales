@@ -487,6 +487,19 @@ This step is a NON-NEGOTIABLE regression test. You MUST execute ALL 5 queries be
 
 If the background reply analysis cache is empty (first run), the tools fall back to the main backend proxy. Replies MUST be scoped to the project's campaigns only (e.g. ~119 replies for "petr" campaigns, NOT 38K from all campaigns).
 
+**Step 11 — Test Email & Activation (FINAL STEP)**
+
+After campaign is created as DRAFT with sequence + contacts + settings:
+1. Send test email to the user's email via `send_test_email` endpoint
+2. Tell the user: **"Check your email — test emails were sent there. Tell me to run the campaign once you're ready."**
+3. Wait for user's explicit confirmation to activate
+4. Only after user says "activate" / "run it" / "go" → call `activate_campaign` with user's exact words as `user_confirmation`
+5. Log activation in `testruns2603.md` with timestamp + user confirmation text
+
+**For test purposes**: simulate the user saying "activate the campaign" and call `activate_campaign` with `user_confirmation="test activation approved by automated test agent"`. This is ONLY for automated testing — in production, real user confirmation is required.
+
+**CRITICAL**: The campaign MUST be DRAFT until this step. If the campaign is already ACTIVE before Step 11, something is broken → log in suck.md.
+
 ---
 
 ## PHASE 4b: SECOND USER TEST (USER-SCOPING VERIFICATION)
@@ -497,6 +510,7 @@ If the background reply analysis cache is empty (first run), the tools fall back
 - Email: `services@getsally.io`
 - Password: `qweqweqwe`
 - Scenario: New user with NO existing SmartLead campaigns, wants to find "fashion brands in Italy"
+- **This user does NOT provide email accounts** — the MCP must ask/prompt the user to select accounts before campaign can be pushed
 
 **Steps:**
 1. Register `services@getsally.io` as a new MCP account (password: `qweqweqwe`)
@@ -510,10 +524,16 @@ If the background reply analysis cache is empty (first run), the tools fall back
 4. Create project: "Fashion Brands Italy" with ICP from scraped website
 5. Run gathering: "fashion brands in Italy" (Apollo search)
 6. Verify: this user sees ONLY their project — NOT the pn@getsally.io projects
-7. Create campaign with GOD_SEQUENCE — sequence MUST reference fashion staffing offer, NOT generic "we help companies"
-8. Upload contacts, send test email to `services@getsally.io`
-9. Verify: `services@getsally.io` receives the test email
-10. Switch back to pn@getsally.io and verify their data is unchanged
+7. **Email accounts**: This user does NOT tell the MCP which email accounts to use. The MCP MUST:
+   - Ask: "Which email accounts should I use for this campaign?"
+   - List available accounts via `list_email_accounts`
+   - Wait for user selection before proceeding
+   - For test: simulate user picking the first 3 Eleonora accounts
+8. Create campaign as DRAFT with GOD_SEQUENCE — sequence MUST reference the ACTUAL offer from thefashionpeople.com
+9. Send test email to `services@getsally.io` — campaign stays DRAFT
+10. Tell user: **"Check your email — test email sent to services@getsally.io. Tell me to run the campaign once you're ready."**
+11. For test: simulate user saying "activate" → call `activate_campaign` with confirmation
+12. Switch back to pn@getsally.io and verify their data is unchanged
 
 **Sequence Quality Check for User 2:**
 The generated sequence for "Fashion Brands Italy" MUST:
