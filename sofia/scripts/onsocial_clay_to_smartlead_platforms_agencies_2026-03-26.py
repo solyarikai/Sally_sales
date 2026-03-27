@@ -1500,6 +1500,136 @@ def step12_upload(contacts: list[dict]):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# MODE 3: LOOKALIKE — reverse engineer filters from example companies
+# ══════════════════════════════════════════════════════════════════════════════
+
+def mode3_lookalike(examples: list[str], project_id: int = PROJECT_ID) -> dict:
+    """Build Clay filters by analyzing example companies from DB.
+    Returns {"segment": ..., "filters": {...}} ready for step0_start."""
+    print(f"\n{'='*60}")
+    print(f"MODE 3: Lookalike — {len(examples)} examples")
+    print(f"{'='*60}")
+
+    # Query DB for these companies
+    domains_sql = "','".join(d.strip().lower() for d in examples)
+    result = api("get", f"/pipeline/gathering/targets/",
+                 params={"project_id": project_id}, raise_on_error=False)
+
+    # Fallback: query DB directly via psql
+    import subprocess
+    sql = (f"SELECT domain, name, matched_segment, country, employee_count "
+           f"FROM discovered_companies WHERE project_id={project_id} "
+           f"AND lower(domain) IN ('{domains_sql}')")
+    r = subprocess.run(
+        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+         "-d", "leadgen", "-t", "-A", "-F", "|", "-c", sql],
+        capture_output=True, text=True, timeout=15,
+    )
+
+    companies = []
+    for line in r.stdout.strip().split("\n"):
+        if not line.strip():
+            continue
+        parts = line.split("|")
+        if len(parts) >= 3:
+            companies.append({
+                "domain": parts[0].strip(),
+                "name": parts[1].strip(),
+                "segment": parts[2].strip(),
+                "country": parts[3].strip() if len(parts) > 3 else "",
+                "employees": parts[4].strip() if len(parts) > 4 else "",
+            })
+
+    found_domains = {c["domain"].lower() for c in companies}
+    missing = [d for d in examples if d.strip().lower() not in found_domains]
+    if missing:
+        print(f"  ⚠ Not found in DB: {', '.join(missing)}")
+
+    if not companies:
+        print("  ERROR: No example companies found in DB. Use --mode structured instead.")
+        sys.exit(1)
+
+    # Extract patterns
+    from collections import Counter
+    segments = Counter(c["segment"] for c in companies if c["segment"])
+    countries = Counter(c["country"] for c in companies if c["country"])
+
+    dominant_segment = segments.most_common(1)[0][0] if segments else "INFLUENCER_PLATFORMS"
+    top_countries = [c for c, _ in countries.most_common(5)] if countries else []
+
+    # Build employee range from examples
+    emp_values = []
+    for c in companies:
+        try:
+            emp_values.append(int(c["employees"]))
+        except (ValueError, TypeError):
+            pass
+    min_emp = min(emp_values) // 2 if emp_values else 5
+    max_emp = max(emp_values) * 2 if emp_values else 5000
+
+    # Build icp_text from example names
+    example_names = ", ".join(c["name"] for c in companies[:5])
+    icp_text = (
+        f"Companies similar to: {example_names}. "
+        f"Find companies in the same space — similar products, services, size, and market. "
+        f"Industry focus: {dominant_segment.replace('_', ' ').lower()}. "
+    )
+
+    filters = {
+        "icp_text": icp_text,
+        "industries": ["Computer Software", "Internet", "Marketing and Advertising",
+                        "Information Technology and Services", "Online Media"],
+        "minimum_member_count": max(min_emp, 5),
+        "maximum_member_count": min(max_emp, 5000),
+        "max_results": 5000,
+    }
+    if top_countries:
+        filters["country_names"] = top_countries
+
+    print(f"\n  Dominant segment: {dominant_segment}")
+    print(f"  Countries: {', '.join(top_countries) if top_countries else 'global'}")
+    print(f"  Employees: {filters['minimum_member_count']}-{filters['maximum_member_count']}")
+    print(f"  ICP text: {icp_text[:100]}...")
+
+    return {"segment": dominant_segment, "filters": filters}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MODE 4: EXPAND — clone a previous run with overrides
+# ══════════════════════════════════════════════════════════════════════════════
+
+def mode4_expand(base_run_id: int, overrides: dict) -> dict:
+    """Clone filters from an existing run, apply JSON overrides.
+    Returns {"segment": ..., "filters": {...}} ready for step0_start."""
+    print(f"\n{'='*60}")
+    print(f"MODE 4: Expand — base run #{base_run_id}")
+    print(f"{'='*60}")
+
+    run = api("get", f"/pipeline/gathering/runs/{base_run_id}")
+    base_filters = run.get("filters", {})
+    notes = run.get("notes", "")
+
+    if not base_filters:
+        print(f"  ERROR: Run #{base_run_id} has no filters")
+        sys.exit(1)
+
+    # Apply overrides
+    new_filters = {**base_filters, **overrides}
+
+    # Detect segment from base run's notes or filters
+    segment = "INFLUENCER_PLATFORMS"
+    if "agencies" in notes.lower() or "IM_FIRST" in str(base_filters.get("icp_text", "")):
+        segment = "IM_FIRST_AGENCIES"
+
+    print(f"  Base notes: {notes}")
+    print(f"  Overrides: {json.dumps(overrides, indent=2)}")
+    changed = [k for k in overrides if base_filters.get(k) != overrides[k]]
+    print(f"  Changed fields: {', '.join(changed)}")
+
+    return {"segment": segment, "filters": new_filters}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -1509,7 +1639,20 @@ STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
 def main():
     p = argparse.ArgumentParser(description="OnSocial Clay→SmartLead (Platforms + Agencies)")
     p.add_argument("--project-id", type=int, default=PROJECT_ID)
-    p.add_argument("--segment", choices=list(CLAY_FILTERS.keys()))
+    p.add_argument("--mode", choices=["natural", "structured", "lookalike", "expand"],
+                   default="structured", help="Input mode for filter generation")
+    p.add_argument("--segment", choices=list(CLAY_FILTERS.keys()),
+                   help="Mode 2 (structured): config key from CLAY_FILTERS")
+    p.add_argument("--input", dest="input_text",
+                   help="Mode 1 (natural): description of what to search")
+    p.add_argument("--filters", type=json.loads,
+                   help="Mode 1 (natural): JSON filters generated by Claude")
+    p.add_argument("--examples",
+                   help="Mode 3 (lookalike): comma-separated example domains")
+    p.add_argument("--base-run", type=int,
+                   help="Mode 4 (expand): run ID to clone filters from")
+    p.add_argument("--override", type=json.loads, default={},
+                   help="Mode 4 (expand): JSON overrides for cloned filters")
     p.add_argument("--from-step", choices=STEPS, default="start")
     p.add_argument("--run-id", type=int, help="Resume existing run")
     p.add_argument("--apollo-csv", help="Path to Apollo People CSV (single file, or platforms file)")
@@ -1525,6 +1668,7 @@ def main():
 
     print(f"OnSocial v4 Pipeline — {ts()}")
     print(f"State: {STATE_DIR}")
+    print(f"Mode: {args.mode}")
 
     prompt_text = DEFAULT_ANALYSIS_PROMPT
     prompt_id = args.prompt_id
@@ -1545,26 +1689,85 @@ def main():
         step5_reanalyze(run_id, prompt_text=prompt_text, prompt_id=prompt_id)
         return
 
+    # ── Resolve filters based on mode ──────────────────────────────────────
+    mode_config = None  # {"segment": ..., "filters": {...}}
+
+    if args.mode == "natural":
+        # Mode 1: Claude generates filters in conversation, passes as --filters JSON
+        if not args.filters:
+            print("ERROR: --filters JSON required for --mode natural")
+            print("  Claude Code generates these filters during conversation.")
+            sys.exit(1)
+        segment = "INFLUENCER_PLATFORMS"
+        if any(kw in json.dumps(args.filters).lower() for kw in ["agency", "agencies", "im_first", "mcn", "talent"]):
+            segment = "IM_FIRST_AGENCIES"
+        mode_config = {"segment": segment, "filters": args.filters}
+        if args.input_text:
+            print(f"  Input: {args.input_text}")
+
+    elif args.mode == "structured":
+        # Mode 2: existing CLAY_FILTERS config
+        if not args.segment:
+            print("ERROR: --segment required for --mode structured")
+            sys.exit(1)
+        config = CLAY_FILTERS[args.segment]
+        mode_config = {"segment": config["segment"], "filters": config["filters"]}
+
+    elif args.mode == "lookalike":
+        # Mode 3: reverse engineer from example domains
+        if not args.examples:
+            print("ERROR: --examples required for --mode lookalike")
+            print("  Example: --examples 'impact.com,modash.io,captiv8.com'")
+            sys.exit(1)
+        examples = [d.strip() for d in args.examples.split(",") if d.strip()]
+        mode_config = mode3_lookalike(examples, args.project_id)
+
+    elif args.mode == "expand":
+        # Mode 4: clone a run with overrides
+        if not args.base_run:
+            print("ERROR: --base-run required for --mode expand")
+            print("  Example: --base-run 198 --override '{\"country_names\": [\"Singapore\"]}'")
+            sys.exit(1)
+        mode_config = mode4_expand(args.base_run, args.override)
+
     steps = STEPS[STEPS.index(args.from_step):]
 
     if args.dry_run:
-        config = CLAY_FILTERS.get(args.segment, {})
-        filters = config.get("filters", {})
+        filters = mode_config["filters"] if mode_config else {}
         print(f"\n  DRY RUN — no API calls")
-        print(f"  Segment: {args.segment} ({config.get('segment', '?')})")
-        print(f"  Countries: {', '.join(filters.get('country_names', []))}")
+        print(f"  Mode: {args.mode}")
+        print(f"  Segment: {mode_config.get('segment', '?') if mode_config else '?'}")
+        print(f"  Countries: {', '.join(filters.get('country_names', ['global']))}")
         print(f"  Max results: {filters.get('max_results', '?')}")
         print(f"  Employees: {filters.get('minimum_member_count', '?')}-{filters.get('maximum_member_count', '?')}")
+        print(f"  ICP text: {filters.get('icp_text', '?')[:120]}...")
         print(f"  Steps: {' → '.join(steps)}")
-        print(f"  Prompt: {prompt_text[:80]}...")
         return
 
     # Steps 0-8: Backend API
     if "start" in steps:
-        if not args.segment:
-            print("ERROR: --segment required for start")
+        if not mode_config:
+            print("ERROR: no filters resolved. Specify --segment, --filters, --examples, or --base-run")
             sys.exit(1)
-        run_id = step0_start(args.segment, args.project_id)
+        # Start gathering with resolved filters
+        notes_prefix = {"natural": "mode1", "structured": "mode2",
+                        "lookalike": "mode3", "expand": "mode4"}[args.mode]
+        input_desc = args.input_text or args.segment or args.examples or f"expand#{args.base_run}"
+        run_notes = f"v4.2 {notes_prefix} — {input_desc}"
+
+        result = api("post", "/pipeline/gathering/start", json={
+            "project_id": args.project_id,
+            "source_type": "clay.companies.emulator",
+            "filters": mode_config["filters"],
+            "triggered_by": "operator",
+            "input_mode": args.mode,
+            "input_text": args.input_text,
+            "notes": run_notes,
+        })
+        run_id = result["id"]
+        print(f"\n  Run created: #{run_id}")
+        print(f"  Status: {result['status']} / {result['current_phase']}")
+        save_state(run_id, "started", config_key=args.mode)
         # Wait for Clay to finish gathering (resilient to connection errors)
         print("\n  Waiting for Clay gathering to complete...")
         conn_errors = 0
