@@ -154,15 +154,35 @@ This is the core of the task. You must test the FULL user journey through a REAL
 
 Simulate a new user registering and running their first campaign:
 
-**Step 1 — Fresh Registration (CLEAN SLATE EVERY RUN)**
-- EVERY test run starts with a clean account. This is mandatory.
-- Before creating a new account:
-  1. **Soft-delete the previous test account** — do NOT hard-delete. Mark as `is_deleted=true` (or equivalent). The new account must NOT see any data from previous test runs — clean scope, as if a brand new user.
-  2. **Keep all data in the database** — `discovered_companies`, `company_scrapes`, `company_source_links`, `gathering_runs`, `approval_gates` from ALL previous test runs must stay in the DB. These cost real Apollo credits. They are invisible to the new test account but queryable by us directly via SQL. If asked "what was gathered during test run N?", the data is there.
-  3. **Log SmartLead campaign links BEFORE removing** — write the SmartLead campaign URL (`https://app.smartlead.ai/app/email-campaigns-v2/{id}/analytics`) to `testruns2603.md` and `build_log.md` for each test campaign created. Then DELETE the SmartLead test campaign via API — otherwise test emails will hit the operator's real inbox.
-- Register fresh as `pn@getsally.io` with a new account
-- Obtain MCP API token
-- Log in `testruns2603.md`: previous account soft-deleted at {timestamp}, SmartLead campaigns removed (links preserved in log), new account created at {timestamp}
+**Step 1 — Registration & Auth (BROWSER + MCP)**
+
+**AUTH ARCHITECTURE:**
+- **UI** = normal web app with login/signup (email + password). User sees their API token after login.
+- **MCP** = only needs the API token (pasted into Claude Desktop config). No password, no session.
+- **Unauthorized** = any page except /setup redirects to /setup automatically (AuthGuard).
+
+**Browser Auth Test (Puppeteer — MANDATORY screenshots):**
+1. Open http://46.62.210.24:3000/ in Puppeteer
+2. Verify: automatically redirected to /setup (unauthorized → redirect)
+3. Screenshot: `test_auth_redirect.png` — must show Setup page with "Log In" button
+4. Click "New Account" → fill email + name + password → submit
+5. Screenshot: `test_auth_signup.png` — must show success message + API token displayed
+6. Copy the token → navigate to /pipeline → verify page loads (authorized)
+7. Screenshot: `test_auth_pipeline.png` — must show pipeline page with data
+8. Click "Logout" → verify redirected back to /setup
+9. Click "Log In" → fill email + password → submit
+10. Screenshot: `test_auth_login.png` — must show success, pipeline accessible again
+
+**For returning users (pn@getsally.io):**
+- Use POST /api/auth/login with email + password → get fresh token
+- Or use "Log In" button in UI
+
+**CLEAN SLATE:**
+- Soft-delete previous test account (NOT hard-delete)
+- Keep all gathering data in DB (cost real Apollo credits)
+- Log SmartLead campaign links BEFORE removing test campaigns
+- Register fresh, obtain token via UI or API
+- Log in `testruns2603.md`: timestamps for all auth actions
 
 **Step 2 — Project Setup & Knowledge Context (CRITICAL)**
 - Tell the MCP: "Take 'petr' including campaigns as my EasyStaff-Global project setup"
