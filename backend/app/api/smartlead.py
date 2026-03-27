@@ -356,7 +356,7 @@ async def receive_webhook(
             contact.last_reply_at = event_time
             contact.mark_replied("email", at=event_time)
             if contact.status in (None, "", "new", "contacted", "lead"):
-                contact.status = "warm"
+                contact.status = "replied"
         
         if actual_event_type == "EMAIL_BOUNCED":
             contact.status = "bounced"

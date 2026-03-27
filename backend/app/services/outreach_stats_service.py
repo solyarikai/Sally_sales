@@ -154,7 +154,7 @@ class OutreachStatsService:
                     Contact.project_id == project_id,
                     Contact.deleted_at.is_(None),
                     Contact.source.ilike("%smartlead%"),
-                    Contact.status.in_(["interested", "meeting_request", "positive", "qualified"]),
+                    Contact.status.in_(["replied", "negotiating_meeting", "qualified"]),
                 )
             )
         )

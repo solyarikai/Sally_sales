@@ -1416,7 +1416,7 @@ class CRMSyncService:
                 from app.services.status_machine import transition_status, normalize_status
                 current_norm = normalize_status(existing.status)
                 if current_norm in ("to_be_sent", "sent"):
-                    new_st, ok, _ = transition_status(existing.status, "interested")
+                    new_st, ok, _ = transition_status(existing.status, "replied")
                     if ok:
                         existing.status = new_st
             if "smartlead" not in (existing.source or ""):
@@ -3206,7 +3206,7 @@ class CRMSyncService:
                             # Update contact — use status machine for forward-only transition
                             contact.mark_replied("linkedin", at=activity.activity_at)
                             from app.services.status_machine import transition_status, derive_external_status
-                            new_st, ok, _msg = transition_status(contact.status, "interested")
+                            new_st, ok, _msg = transition_status(contact.status, "replied")
                             if ok:
                                 contact.status = new_st
 
@@ -3293,6 +3293,18 @@ class CRMSyncService:
                                 raw_data=msg,
                                 session=session,
                             )
+
+                            # Update contact status from AI classification result
+                            # (the hardcoded "interested" above is just a safe default;
+                            #  the real status comes from AI classification)
+                            if _pr and _pr.category:
+                                from app.services.status_machine import status_from_ai_category
+                                ai_target = status_from_ai_category(_pr.category)
+                                if ai_target != contact.status:
+                                    ai_st, ai_ok, _ai_msg = transition_status(contact.status, ai_target)
+                                    if ai_ok:
+                                        contact.status = ai_st
+                                        logger.info(f"[GETSALES] Updated status from AI classification: {ai_target} for {lead_email}")
 
                             # Derive client-facing external status using actual classification
                             if _pr and contact.project_id:
