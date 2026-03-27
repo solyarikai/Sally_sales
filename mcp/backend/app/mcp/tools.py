@@ -451,6 +451,7 @@ Returns contacts + a CRM link with filters applied so the user can view them in 
             "properties": {
                 "search": {"type": "string", "description": "Search campaigns by name (optional)"},
             },
+            "required": [],
         },
     },
     {
