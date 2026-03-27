@@ -99,6 +99,73 @@ def normalize_company(name: str) -> str:
     return name.strip()
 
 
+# ── GetSales Export ──────────────────────────────────────────────────────────
+
+GETSALES_HEADERS = [
+    "system_uuid", "pipeline_stage", "full_name", "first_name", "last_name",
+    "position", "headline", "about", "linkedin_id", "sales_navigator_id",
+    "linkedin_nickname", "linkedin_url", "facebook_nickname", "twitter_nickname",
+    "work_email", "personal_email", "work_phone", "personal_phone",
+    "connections_number", "followers_number", "primary_language",
+    "has_open_profile", "has_verified_profile", "has_premium",
+    "location_country", "location_state", "location_city",
+    "active_flows", "list_name", "tags",
+    "company_name", "company_industry", "company_linkedin_id", "company_domain",
+    "company_linkedin_url", "company_employees_range", "company_headquarter",
+    "cf_location", "cf_competitor_client",
+    "cf_message1", "cf_message2", "cf_message3",
+    "cf_personalization", "cf_compersonalization", "cf_personalization1",
+    "cf_message4", "cf_linkedin_personalization", "cf_subject", "created_at",
+]
+
+
+def _extract_linkedin_nickname(url: str) -> str:
+    m = re.search(r"linkedin\.com/in/([^/?]+)", url or "")
+    return m.group(1) if m else ""
+
+
+def export_getsales_csv(without_email: list[dict], seg_label: str, date_tag: str) -> Path | None:
+    """Convert without-email contacts to GetSales-ready CSV."""
+    if not without_email:
+        return None
+
+    date_folder = datetime.now().strftime("%d_%m")
+    out_dir = CSV_GETSALES_DIR / date_folder
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"GetSales — {seg_label}_without_email — {date_folder.replace('_', '.')}.csv"
+
+    gs_rows = []
+    for r in without_email:
+        name = r.get("Name", "").strip()
+        parts = name.split(" ", 1)
+        first = parts[0] if parts else ""
+        last = parts[1] if len(parts) > 1 else ""
+        li_url = r.get("Profile URL", "").strip()
+        if li_url and not li_url.startswith("http"):
+            li_url = f"https://{li_url}"
+
+        gs = {h: "" for h in GETSALES_HEADERS}
+        gs["full_name"] = name
+        gs["first_name"] = first
+        gs["last_name"] = last
+        gs["position"] = r.get("Title", "").strip()
+        gs["linkedin_nickname"] = _extract_linkedin_nickname(li_url)
+        gs["linkedin_url"] = li_url
+        gs["company_name"] = normalize_company(r.get("Company", ""))
+        gs["cf_location"] = r.get("Location", "").strip()
+        gs["list_name"] = f"{seg_label} Without Email {date_tag}"
+        gs["tags"] = seg_label
+        gs_rows.append(gs)
+
+    with out_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=GETSALES_HEADERS)
+        writer.writeheader()
+        writer.writerows(gs_rows)
+
+    print(f"\n📋 GetSales-ready: {out_path.name} ({len(gs_rows)} contacts)")
+    return out_path
+
+
 # ── Findymail ─────────────────────────────────────────────────────────────────
 
 def fm_headers():
