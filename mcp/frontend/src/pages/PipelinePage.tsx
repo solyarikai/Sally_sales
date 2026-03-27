@@ -181,6 +181,8 @@ export default function PipelinePage() {
   const [usageLogs, setUsageLogs] = useState<any[]>([])
   const [selectedCompany, setSelectedCompany] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [companyPage, setCompanyPage] = useState(1)
+  const [totalCompanies, setTotalCompanies] = useState(0)
 
   // Column filters
   const [filters, setFilters] = useState<Record<string, string>>({})
@@ -196,14 +198,15 @@ export default function PipelinePage() {
     const h = authHeaders()
     const [r1, r2, r3] = await Promise.all([
       runId ? fetch(`${API}/pipeline/runs/${runId}`, {headers: h}).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
-      fetch(`${API}/pipeline/runs/${runId || ''}/companies`, {headers: h}).then(r => r.ok ? r.json() : null),
+      fetch(`${API}/pipeline/runs/${runId || ''}/companies?page=${companyPage}&page_size=${PAGE_SIZE}`, {headers: h}).then(r => r.ok ? r.json() : null),
       fetch(`${API}/pipeline/iterations`, {headers: h}).then(r => r.ok ? r.json() : []),
     ])
     if (r1) setRun(r1)
     if (r2 && r2.companies) {
-      setCompanies(r2.companies)
+      setCompanies(prev => companyPage === 1 ? r2.companies : [...prev, ...r2.companies])
       setHasTargets(r2.has_targets || false)
       setTotalContacts(r2.total_contacts || 0)
+      setTotalCompanies(r2.total_companies || r2.companies.length)
     } else if (Array.isArray(r2)) {
       setCompanies(r2)
     }

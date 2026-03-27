@@ -135,6 +135,8 @@ async def get_run_status(
 @router.get("/runs/{run_id}/companies")
 async def get_run_companies(
     run_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
 ):
     run = await session.get(GatheringRun, run_id)
@@ -151,9 +153,18 @@ async def get_run_companies(
         )
         .where(DiscoveredCompany.project_id == run.project_id)
         .order_by(DiscoveredCompany.domain)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     result = await session.execute(stmt)
     rows = result.all()
+
+    # Total count for pagination
+    total_result = await session.execute(
+        select(sa_func.count(DiscoveredCompany.id))
+        .where(DiscoveredCompany.project_id == run.project_id)
+    )
+    total_companies = total_result.scalar() or 0
 
     # Count contacts per company
     from app.models.pipeline import ExtractedContact
@@ -174,6 +185,9 @@ async def get_run_companies(
         "companies": companies,
         "has_targets": has_targets,
         "total_contacts": sum(contact_counts.values()),
+        "total_companies": total_companies,
+        "page": page,
+        "page_size": page_size,
     }
 
 
