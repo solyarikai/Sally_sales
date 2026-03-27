@@ -132,6 +132,11 @@ class GatheringService:
 
                 run.new_companies_count = new_count
                 run.duplicate_count = dup_count
+
+                # Persist Apollo credits from the service instance
+                if apollo_service and hasattr(apollo_service, 'credits_used'):
+                    run.credits_used = apollo_service.credits_used
+                    logger.info(f"Run {run.id}: {apollo_service.credits_used} Apollo credits used")
             except Exception as e:
                 logger.error(f"Gathering adapter {source_type} failed: {e}")
                 run.error_message = str(e)

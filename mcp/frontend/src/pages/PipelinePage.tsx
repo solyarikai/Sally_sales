@@ -262,6 +262,8 @@ export default function PipelinePage() {
     { key: 'country', label: 'Country', filterType: 'dropdown' as const },
     { key: 'city', label: 'City', filterType: 'text' as const },
     { key: 'scrape_text_preview', label: 'Scraped', filterType: 'text' as const },
+    { key: 'analysis_segment', label: 'Segment', filterType: 'dropdown' as const },
+    { key: 'analysis_confidence', label: 'Conf.', filterType: 'text' as const },
     { key: 'analysis_reasoning', label: 'Analysis', filterType: 'text' as const },
     { key: 'status', label: 'Status', filterType: 'dropdown' as const },
     ...(hasTargets ? [{ key: 'contacts_status', label: 'People', filterType: 'dropdown' as const }] : []),
@@ -308,6 +310,20 @@ export default function PipelinePage() {
 
         {/* Prompts link */}
         {runId && <Link to={`/pipeline/${runId}/prompts`} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)', textDecoration: 'none' }}>Prompts</Link>}
+
+        {/* Credits badge */}
+        {run?.credits_used > 0 && (
+          <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+            {run.credits_used} credits
+          </span>
+        )}
+
+        {/* Target rate badge */}
+        {run?.target_rate > 0 && (
+          <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+            {(run.target_rate * 100).toFixed(0)}% target rate
+          </span>
+        )}
 
         {/* View in CRM — appears when contacts found */}
         {totalContacts > 0 && runId && (
@@ -387,6 +403,16 @@ export default function PipelinePage() {
                    c.scrape_status === 'success' ? <span style={{ color: 'var(--success)' }}>✓ scraped</span> :
                    c.scrape_status === 'error' ? <span style={{ color: 'var(--danger)' }}>error</span> :
                    <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </td>
+                <td style={{ padding: '7px 8px 7px 0', fontSize: 11 }}>
+                  {c.analysis_segment ? (
+                    <span style={{ padding: '1px 5px', borderRadius: 3, background: c.analysis_segment === 'NOT_A_MATCH' ? 'var(--bg)' : 'rgba(99,102,241,0.15)', color: c.analysis_segment === 'NOT_A_MATCH' ? 'var(--text-muted)' : '#818cf8', fontWeight: 500 }}>
+                      {c.analysis_segment}
+                    </span>
+                  ) : '—'}
+                </td>
+                <td style={{ padding: '7px 8px 7px 0', fontSize: 11, fontWeight: 600, color: c.analysis_confidence >= 0.8 ? 'var(--success)' : c.analysis_confidence >= 0.5 ? 'var(--warning)' : 'var(--text-muted)' }}>
+                  {c.analysis_confidence != null ? `${(c.analysis_confidence*100).toFixed(0)}%` : '—'}
                 </td>
                 <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.analysis_reasoning || c.analysis_short || '—'}</td>
                 <td style={{ padding: '7px 0' }}>
