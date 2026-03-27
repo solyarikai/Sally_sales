@@ -82,16 +82,39 @@ class SmartLeadService:
         return await self._api_call("POST", "/campaigns/create", {"name": name})
 
     async def set_campaign_sequences(self, campaign_id: int, sequences: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """Set email sequence steps."""
-        # Format sequences for SmartLead API
+        """Set email sequence steps with A/B variant support.
+
+        Each step can have:
+        - subject/body: variant A (default)
+        - subject_b/body_b: variant B (A/B test)
+
+        SmartLead splits traffic 50/50 between variants automatically.
+        """
         formatted = []
         for i, step in enumerate(sequences):
-            formatted.append({
+            entry = {
                 "seq_number": step.get("step", i + 1),
                 "seq_delay_details": {"delay_in_days": step.get("day", i * 3)},
                 "subject": step.get("subject", ""),
                 "email_body": step.get("body", ""),
-            })
+            }
+
+            # A/B variant support
+            if step.get("subject_b") or step.get("body_b"):
+                entry["sequence_variants"] = [
+                    {
+                        "variant_label": "A",
+                        "subject": step.get("subject", ""),
+                        "email_body": step.get("body", ""),
+                    },
+                    {
+                        "variant_label": "B",
+                        "subject": step.get("subject_b", step.get("subject", "")),
+                        "email_body": step.get("body_b", step.get("body", "")),
+                    },
+                ]
+
+            formatted.append(entry)
         return await self._api_call("POST", f"/campaigns/{campaign_id}/sequences", {"sequences": formatted})
 
     async def set_campaign_schedule(self, campaign_id: int, timezone: str, start_hour: str = "09:00", end_hour: str = "18:00") -> Optional[Dict[str, Any]]:
