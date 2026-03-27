@@ -1532,8 +1532,8 @@ def main():
         prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
         prompt_id = None  # custom file overrides prompt_id
         print(f"Custom prompt loaded: {args.prompt_file}")
-    elif prompt_id:
-        print(f"Using prompt_id={prompt_id} from gathering_prompts")
+    elif not prompt_id:
+        prompt_id = get_latest_prompt_id(args.project_id)
 
     run_id = args.run_id or load_state().get("run_id")
 
