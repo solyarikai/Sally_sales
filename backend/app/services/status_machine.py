@@ -7,14 +7,15 @@ Statuses (in funnel order):
       MEETING_HELD → QUALIFIED | NOT_QUALIFIED
       MEETING_NO_SHOW → SCHEDULED (reschedule) | NOT_INTERESTED
       MEETING_RESCHEDULED → SCHEDULED (new date)
-    NOT_INTERESTED (terminal)
+    NOT_INTERESTED — reachable from ANY status, re-engageable
     OOO → INTERESTED (after follow-up)
     UNSUBSCRIBED (terminal, global blacklist)
 
 Rules:
-  - Forward-only: can't go backwards in the funnel
-  - Terminal statuses: NOT_INTERESTED, NOT_QUALIFIED, UNSUBSCRIBED — no transitions out
-  - OOO is the only exception: can transition to INTERESTED after follow-up
+  - Forward-only for positive stages: can't go backwards in the funnel
+  - Negative statuses (not_interested, ooo) reachable from ANY status
+  - NOT_INTERESTED is NOT terminal — lead can re-engage (→ interested, negotiating_meeting)
+  - Terminal statuses: NOT_QUALIFIED, UNSUBSCRIBED — no transitions out
   - AI classification maps reply categories to the first post-reply status
 """
 import logging
@@ -42,7 +43,8 @@ STATUSES = [
 ]
 
 # Terminal statuses — no transitions out
-TERMINAL = {"not_interested", "not_qualified", "unsubscribed"}
+# not_interested is intentionally NOT terminal: leads can re-engage
+TERMINAL = {"not_qualified", "unsubscribed"}
 
 # Funnel rank for forward-only enforcement
 STATUS_RANK = {
@@ -70,17 +72,18 @@ VALID_TRANSITIONS = {
         "negotiating_meeting",  # direct if reply is meeting request
     },
     "interested": {"negotiating_meeting", "not_interested", "unsubscribed"},
-    "ooo": {"interested", "not_interested", "unsubscribed"},
+    "ooo": {"interested", "not_interested", "unsubscribed", "negotiating_meeting"},
     "negotiating_meeting": {"scheduled", "not_interested", "unsubscribed"},
     "scheduled": {
         "meeting_held", "meeting_no_show", "meeting_rescheduled",
         "not_interested", "unsubscribed",
     },
-    "meeting_held": {"qualified", "not_qualified"},
-    "meeting_no_show": {"scheduled", "not_interested"},
-    "meeting_rescheduled": {"scheduled"},
+    "meeting_held": {"qualified", "not_qualified", "not_interested", "unsubscribed"},
+    "meeting_no_show": {"scheduled", "not_interested", "unsubscribed"},
+    "meeting_rescheduled": {"scheduled", "not_interested", "unsubscribed"},
+    # not_interested is NOT terminal — lead can re-engage
+    "not_interested": {"interested", "negotiating_meeting", "unsubscribed"},
     # Terminal — no transitions out
-    "not_interested": set(),
     "not_qualified": set(),
     "unsubscribed": set(),
     "qualified": set(),
