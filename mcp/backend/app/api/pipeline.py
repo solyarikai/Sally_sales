@@ -263,13 +263,14 @@ async def get_run_companies(
     run_id: int,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    iteration: Optional[int] = Query(None, description="Filter to specific gathering run ID"),
     session: AsyncSession = Depends(get_session),
 ):
     run = await session.get(GatheringRun, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
 
-    # LEFT JOIN with company_scrapes to get scrape info per company
+    # Base: LEFT JOIN with company_scrapes
     stmt = (
         select(DiscoveredCompany, CompanyScrape)
         .outerjoin(
@@ -278,19 +279,29 @@ async def get_run_companies(
             & (CompanyScrape.is_current == True),
         )
         .where(DiscoveredCompany.project_id == run.project_id)
-        .order_by(DiscoveredCompany.domain)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
     )
+
+    # Filter by specific iteration (gathering_run_id) via CompanySourceLink
+    filter_run_id = iteration or int(run_id)
+    # If "all iterations" not requested, filter to this run's companies
+    if iteration is not None:
+        stmt = stmt.join(
+            CompanySourceLink,
+            CompanySourceLink.discovered_company_id == DiscoveredCompany.id,
+        ).where(CompanySourceLink.gathering_run_id == filter_run_id)
+
+    stmt = stmt.order_by(DiscoveredCompany.domain).offset((page - 1) * page_size).limit(page_size)
     result = await session.execute(stmt)
     rows = result.all()
 
-    # Total count for pagination
-    total_result = await session.execute(
-        select(sa_func.count(DiscoveredCompany.id))
-        .where(DiscoveredCompany.project_id == run.project_id)
-    )
-    total_companies = total_result.scalar() or 0
+    # Total count
+    count_stmt = select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.project_id == run.project_id)
+    if iteration is not None:
+        count_stmt = count_stmt.join(
+            CompanySourceLink,
+            CompanySourceLink.discovered_company_id == DiscoveredCompany.id,
+        ).where(CompanySourceLink.gathering_run_id == filter_run_id)
+    total_companies = (await session.execute(count_stmt)).scalar() or 0
 
     # Count contacts per company
     from app.models.pipeline import ExtractedContact

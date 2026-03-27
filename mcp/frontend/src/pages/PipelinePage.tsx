@@ -249,7 +249,7 @@ export default function PipelinePage() {
     const h = authHeaders()
     const [r1, r2, r3] = await Promise.all([
       runId ? fetch(`${API}/pipeline/runs/${runId}`, {headers: h}).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
-      fetch(`${API}/pipeline/runs/${runId || ''}/companies?page=${companyPage}&page_size=${PAGE_SIZE}`, {headers: h}).then(r => r.ok ? r.json() : null),
+      fetch(`${API}/pipeline/runs/${runId || ''}/companies?page=${companyPage}&page_size=${PAGE_SIZE}${selectedIteration !== 'all' ? `&iteration=${selectedIteration}` : ''}`, {headers: h}).then(r => r.ok ? r.json() : null),
       fetch(`${API}/pipeline/iterations`, {headers: h}).then(r => r.ok ? r.json() : []),
     ])
     if (r1) setRun(r1)
@@ -265,8 +265,8 @@ export default function PipelinePage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [runId])
-  useEffect(() => { const t = setInterval(load, 15000); return () => clearInterval(t) }, [runId])
+  useEffect(() => { load() }, [runId, selectedIteration])
+  useEffect(() => { const t = setInterval(load, 15000); return () => clearInterval(t) }, [runId, selectedIteration])
 
   // Load usage logs when panel opens
   useEffect(() => {
