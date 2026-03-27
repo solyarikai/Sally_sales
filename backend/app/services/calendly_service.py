@@ -607,15 +607,29 @@ async def sync_calendly_events_for_project(
                         contact.status = 'meeting_booked'
                         logger.info(f"[CALENDLY SYNC] Updated contact {contact_id} to meeting_booked")
 
-                # Get campaign from contact's platform_state
+                # Get campaign from contact's platform_state + build reminder channel
                 campaign_name = None
+                reminder_channel = contact_info.get("source") if contact_info else None
                 if contact_id:
                     contact_obj = await session.get(Contact, contact_id)
                     if contact_obj and contact_obj.platform_state:
+                        # SmartLead campaign — preferred for email reminders
                         sl_state = contact_obj.platform_state.get("smartlead", {})
                         campaigns = sl_state.get("campaigns", [])
                         if campaigns:
-                            campaign_name = campaigns[0] if isinstance(campaigns[0], str) else campaigns[0].get("name")
+                            camp = campaigns[0]
+                            campaign_name = camp if isinstance(camp, str) else camp.get("name") or camp.get("campaign_name")
+                            camp_id = camp.get("id") or camp.get("campaign_id") if isinstance(camp, dict) else None
+                            if camp_id:
+                                reminder_channel = f"smartlead:{camp_id}"
+                        # Fallback: GetSales
+                        if not reminder_channel or ":" not in (reminder_channel or ""):
+                            gs_state = contact_obj.platform_state.get("getsales", {})
+                            gs_campaigns = gs_state.get("campaigns", [])
+                            if gs_campaigns and isinstance(gs_campaigns[0], dict):
+                                gs_id = gs_campaigns[0].get("id")
+                                if gs_id:
+                                    reminder_channel = f"getsales:{gs_id}"
 
                 # Create meeting with correct project
                 meeting = Meeting(
@@ -636,7 +650,7 @@ async def sync_calendly_events_for_project(
                     host_name=host_name,
                     host_email=host_email,
                     status="scheduled",
-                    channel=contact_info.get("source") if contact_info else None,
+                    channel=reminder_channel,
                     segment=contact_info.get("segment") if contact_info else None,
                     campaign_name=campaign_name,
                 )
