@@ -1621,7 +1621,7 @@ def main():
         step4_scrape(run_id)
 
     if "analyze" in steps and run_id:
-        cp2 = step5_analyze(run_id, prompt_text)
+        cp2 = step5_analyze(run_id, prompt_text=prompt_text, prompt_id=prompt_id)
         if cp2.get("gate_id"):
             print(f"\n  >>> Claude Code will review CP2 (target rate: {cp2.get('target_rate', 0)*100:.1f}%) <<<")
             print(f"  If OK: approve gate, then --from-step verify --run-id {run_id}")
