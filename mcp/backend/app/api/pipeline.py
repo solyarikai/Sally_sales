@@ -513,6 +513,81 @@ async def list_runs(
     ]
 
 
+# ── Gate approval + pipeline actions (auth required) ──
+
+
+class GateApprovalRequest(BaseModel):
+    notes: Optional[str] = None
+
+
+@router.post("/gates/{gate_id}/approve")
+async def approve_gate(
+    gate_id: int,
+    req: GateApprovalRequest = GateApprovalRequest(),
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Approve an approval gate (checkpoint)."""
+    from datetime import datetime, timezone
+    gate = await session.get(ApprovalGate, gate_id)
+    if not gate:
+        raise HTTPException(404, "Gate not found")
+    if gate.status != "pending":
+        raise HTTPException(400, f"Gate already {gate.status}")
+    gate.status = "approved"
+    gate.decided_at = datetime.now(timezone.utc)
+    if req.notes:
+        gate.scope = {**(gate.scope or {}), "approval_notes": req.notes}
+
+    # Advance the run phase
+    run = await session.get(GatheringRun, gate.gathering_run_id)
+    if run:
+        phase_map = {
+            "awaiting_scope_ok": "pre_filter",
+            "awaiting_targets_ok": "prepare_verification",
+            "awaiting_verify_ok": "verified",
+        }
+        if run.current_phase in phase_map:
+            run.current_phase = phase_map[run.current_phase]
+
+    await session.commit()
+    return {"gate_id": gate_id, "status": "approved", "run_phase": run.current_phase if run else None}
+
+
+@router.post("/runs/{run_id}/generate-sequence")
+async def generate_sequence(
+    run_id: int,
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Generate email sequence for a pipeline run."""
+    from app.services.campaign_intelligence import CampaignIntelligenceService
+    run = await session.get(GatheringRun, run_id)
+    if not run:
+        raise HTTPException(404, "Run not found")
+    svc = CampaignIntelligenceService()
+    result = await svc.generate_sequence(session, run_id=run_id, project_id=run.project_id)
+    await session.commit()
+    return result
+
+
+@router.post("/runs/{run_id}/create-campaign")
+async def create_campaign(
+    run_id: int,
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Create SmartLead campaign from pipeline run."""
+    from app.services.campaign_intelligence import CampaignIntelligenceService
+    run = await session.get(GatheringRun, run_id)
+    if not run:
+        raise HTTPException(404, "Run not found")
+    svc = CampaignIntelligenceService()
+    result = await svc.push_to_smartlead(session, run_id=run_id, project_id=run.project_id)
+    await session.commit()
+    return result
+
+
 # ── CRM: all companies across all pipelines ──
 
 @router.get("/crm/companies")
