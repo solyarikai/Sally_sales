@@ -81,7 +81,6 @@ SMARTLEAD_EMAIL_ACCOUNTS = [
 ]
 
 PROJECT_ID = 42
-PROMPT_ID = 42  # gathering_prompts.id for onsocial_classify_v4
 MAX_CONTACTS_PER_COMPANY = 3
 SENIORITIES = ["owner", "founder", "c_suite", "vp", "head", "director"]
 
