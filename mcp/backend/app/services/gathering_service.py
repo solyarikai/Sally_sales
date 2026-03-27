@@ -350,7 +350,15 @@ class GatheringService:
         # Build ICP prompt — via negativa style
         from app.models.project import Project
         project = await session.get(Project, run.project_id)
-        icp_text = prompt_text or (project.target_segments if project else None) or "General B2B companies"
+        # Use ICP text but limit to first 300 chars (avoid dumping entire website scrape into prompt)
+        raw_icp = prompt_text or (project.target_segments if project else None) or "General B2B companies"
+        # If ICP contains website scrape (starts with or contains "Company website"), extract just the segment description
+        if "Company website" in raw_icp and len(raw_icp) > 500:
+            # Split: first part is the real ICP, second is website dump
+            parts = raw_icp.split("Company website", 1)
+            icp_text = parts[0].strip() or "General B2B companies"
+        else:
+            icp_text = raw_icp[:500]
 
         # Get user feedback on targets/analysis (most recent = highest priority)
         user_feedback_section = ""
@@ -400,12 +408,11 @@ class GatheringService:
             elif len(icp_text) < 50:
                 target_segment_label = re.sub(r'[^a-z0-9]+', '_', icp_lower).upper().strip('_')[:30]
 
-        # Build competitor exclusion from project context
+        # Build competitor exclusion — NARROW: only exclude companies offering the EXACT same product
         competitor_exclusion = ""
-        if project and project.sender_company and project.target_segments:
-            offer_snippet = (project.target_segments or "")[:300]
+        if project and project.sender_company:
             competitor_exclusion = f"""
-- Company is a COMPETITOR to {project.sender_company} (offers the same/similar service). {project.sender_company}'s offer: {offer_snippet[:150]}. If the company being analyzed provides the SAME service → NOT a target (you don't sell to competitors)."""
+- Company is a DIRECT COMPETITOR to {project.sender_company} ONLY if they offer the exact same product/service category (e.g. both are payroll platforms, both are CRM tools). Companies in ADJACENT industries are POTENTIAL CUSTOMERS, not competitors. An IT consulting firm is a CUSTOMER for a payroll platform, NOT a competitor."""
 
         via_negativa_system = f"""{icp_text}
 
