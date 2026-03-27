@@ -276,14 +276,17 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             query = args.get("query") or project.target_segments
             if query:
                 try:
+                    from app.config import settings as _s
                     ctx_probe = UserServiceContext(user.id, session)
                     apollo_probe = await ctx_probe.get_apollo_service()
-                    openai_key = await ctx_probe.get_key("openai")
-                    if not openai_key:
-                        from app.config import settings as _s
-                        openai_key = _s.OPENAI_API_KEY
+                    openai_key = await ctx_probe.get_key("openai") or _s.OPENAI_API_KEY
+                    anthropic_key = await ctx_probe.get_key("anthropic") or _s.ANTHROPIC_API_KEY
+                    gemini_key = await ctx_probe.get_key("gemini") or _s.GEMINI_API_KEY
                     from app.services.filter_intelligence import suggest_filters
-                    suggestion = await suggest_filters(query, apollo_probe, openai_key, args.get("target_count", 10))
+                    suggestion = await suggest_filters(
+                        query, apollo_probe, openai_key, anthropic_key, gemini_key,
+                        args.get("target_count", 10),
+                    )
                     if suggestion.get("suggested_filters"):
                         sf = suggestion["suggested_filters"]
                         filters.setdefault("q_organization_keyword_tags", sf.get("q_organization_keyword_tags"))
@@ -731,16 +734,19 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         apollo_svc = await ctx.get_apollo_service()
         if not apollo_svc.is_configured():
             raise ValueError("Apollo not connected. Use configure_integration first.")
-        openai_key = await ctx.get_key("openai")
-        if not openai_key:
-            from app.config import settings
-            openai_key = settings.OPENAI_API_KEY
+        # Collect all AI keys (user's first, system fallback)
+        from app.config import settings as _cfg
+        openai_key = await ctx.get_key("openai") or _cfg.OPENAI_API_KEY
+        anthropic_key = await ctx.get_key("anthropic") or _cfg.ANTHROPIC_API_KEY
+        gemini_key = await ctx.get_key("gemini") or _cfg.GEMINI_API_KEY
 
         from app.services.filter_intelligence import suggest_filters
         result = await suggest_filters(
             query=args["query"],
             apollo_service=apollo_svc,
             openai_key=openai_key,
+            anthropic_key=anthropic_key,
+            gemini_key=gemini_key,
             target_count=args.get("target_count", 10),
         )
         return result
