@@ -277,9 +277,15 @@ class GatheringService:
         errors = 0
 
         if scraper_service:
+            import asyncio as _asyncio
             for dc in companies:
                 url = dc.website_url or f"https://{dc.domain}"
                 scrape_result = await scraper_service.scrape_website(url)
+
+                # Retry once on failure (rate limit backoff)
+                if not scrape_result["success"]:
+                    await _asyncio.sleep(2)
+                    scrape_result = await scraper_service.scrape_website(url)
 
                 scrape_record = CompanyScrape(
                     discovered_company_id=dc.id,
