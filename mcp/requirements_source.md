@@ -113,9 +113,58 @@ also ensure in seuqence subject either company names or person first names ALL N
 
 Test MCP flow again yourself via MCP. So imagine that the user, when you ask a user about, hey, what are your campaigns in Smartly or Get Sales? And you, and users say, hey, my campaigns are all campaigns that include bitter in their name. So measure how long it will take you to get to load all the contacts from these campaigns blacklist. I want to measure this, it's important for UX. Write measurements to performance MD. There will be all performance metrics and so on. And also questions like, which leads need follow-ups, which replies are warm? Provide, while answering these such questions, you should provide the link also to CRM. In CRM, if you copy CRM from the main application, there are columns like reply type and reply type is, yeah, so status replied and reply type is something like including warm replies. So, yeah, analyze it, how better to use and make sure CRM is a component reused from the main, the previous main system and test it all yourself, test in browser CRM view until done.
 
-----------
-   backlog
 
-      add heyreach linkedin outreach tool integration, not only getsales
 
+
+
+
+Add questions in smartlead campaign creation flow: 
+“Which email accounts to use?” And list email accounts used in campaigns that are stated as used before (when user replied to question about previous campaigns for blkaclokistng)for the project user is working right now so that user might tell you which accounts to reuse  also make sure campaign is created with the settings exactly as documented in the pipeline dir, see https://app.smartlead.ai/app/email-campaigns-v2/3070919/analytics for reference. I mean settings not specified to daytime but delivery optimization and others. ALSO CAMPAING TIMING MUST BE FROM 9 TILL 6 FOR THE TIMEZONE OF GATHERED CONTACTS! THERE ARE REUIRQERD GEO FILTER BEFORE INITITEING THE PIPELINE, REMEMBER?
+
+
+——
+
+
+
+
+
+Do you know all apollo industries and keywords? You better add a separate background cron task to extend the list and update it regularly. For example, user asked you to gather “it consulting business in London” — which industries and keywords filter will you apply?  what’s your current suggestion approach??
+
+
+For this spefic example good examples are on the screenshot  KEYWORDS_EXAMPLE.PNG BUT DON’T HARDCODE THIS EXAMPLE OR MAKE BIAS TOWARDS IT. USE THIS PROMPT-FILTERS PAIR AS TEST SET TO TEST YOUR DIFFERENT APPROACHES!!! AND USE THE BEST APPRAOCH WITH THE LOWEST ERROR = DIFF FROM THE EXAMPLE FILTERS SET. BUT THE SYSTEM MUST KNOW NOTHING SPECIFIC ABOUT THIS INPUT = ABOU LOGIC OF HOW IT CONSULTING BUSINESSSES MUST BE FOUND. THE APPROACH MUST WORK GENERALLY, MUST BE HIGH-LEVEL, MUSTN’T CONTAIN AND HARDCODE OR BIAS, DO YOU UNDERSSTAND WHAT I MEAN?
+
+HOW TO ACHIEVE IT? ACT AS GOD , WRITE YOUR PLAN TO apollo_filters suddir of mcp dir
+
+
+———
+
+How many companies will be gathered by default?
+
+———
+
+
+
+
+Flow
+Reread all docs in mcp dir — which pages must be implemented in mcp browser ui? Which must be copied from the original system?
+
+
+AFTER CREATING TEST CAMPAING SEND TEST EMAIL TO THE ACCOUNT OF THE USER, USE pn@getsally.io email for test purposes of sign up and further test email sending, SMARLTEAD HJAS SUCH API ENDPOINT
+
+
+
+
+TEST TEST FLOW FOR IMAGINING I’M REGISTERING AS pn@getsally.io and telling take “petr” including campaigns as my EasyStaff-global project setup 
+
+
+
+ALSO AFTER KNOWING USER'S CAMPAINGS THE SYSTEM MUST LAUNCH ANALYS OF CONNECTED CAMPAINGS REPLIES IN BACKGRPOUND (IN PARALLEL SO THAT BLAKCLIST GATHERING IS HAPPENING NOT IN PARALELL BUT JUST AFTER USER TOLD CAMPAGISN DETECTION RULES BUT REPLIES CLASSIFICAITON IS ON BAKCGROUND)TO PROPERLY  IT LAUNCH YOURSELF IN BACKGROUND - TO FURTHER ANSWER QUESTIONS LIKE Questions examples
+
+1. Which leads needs followups?
+    1. Example dileep@thinkchain.co
+2. Which replies are warm? Provide link in crm to see them
+3. 
+
+WITH THE LINKS IN CRM TO CERRTAIN-WAY FILTERED CONTACTS!
+ 
 

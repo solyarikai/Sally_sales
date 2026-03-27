@@ -695,6 +695,27 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             },
         }
 
+    # ── Filter Intelligence ──
+    if tool_name == "suggest_apollo_filters":
+        user = await _get_user(token, session)
+        ctx = UserServiceContext(user.id, session)
+        apollo_svc = await ctx.get_apollo_service()
+        if not apollo_svc.is_configured():
+            raise ValueError("Apollo not connected. Use configure_integration first.")
+        openai_key = await ctx.get_key("openai")
+        if not openai_key:
+            from app.config import settings
+            openai_key = settings.OPENAI_API_KEY
+
+        from app.services.filter_intelligence import suggest_filters
+        result = await suggest_filters(
+            query=args["query"],
+            apollo_service=apollo_svc,
+            openai_key=openai_key,
+            target_count=args.get("target_count", 10),
+        )
+        return result
+
     if tool_name == "run_full_pipeline":
         user = await _get_user(token, session)
         # Start with gather phase — same as tam_gather

@@ -313,6 +313,30 @@ Call this BEFORE god_push_to_smartlead to let the user choose which accounts to 
         },
     },
 
+    # ── Filter Intelligence (1) ──
+    {
+        "name": "suggest_apollo_filters",
+        "description": """Translate a natural language query into optimal Apollo search filters.
+
+Runs a PROBE search (1 credit, 25 results) to discover Apollo's ACTUAL taxonomy for this segment.
+Returns refined keywords and industries based on REAL data, not guesses.
+
+ALWAYS call this BEFORE tam_gather when using Apollo API source. The probe costs 1 credit but saves
+many wasted credits from wrong filters.
+
+Example: "IT consulting businesses in London" → probes Apollo → discovers real keywords like
+"it services & it consulting", "digital transformation", "software development" that you would
+never guess from the user's query alone.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Natural language description of companies to find"},
+                "target_count": {"type": "integer", "default": 10, "description": "How many target companies the user wants"},
+            },
+            "required": ["query"],
+        },
+    },
+
     # ── Orchestration (2) ──
     {
         "name": "run_full_pipeline",
