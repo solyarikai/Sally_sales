@@ -318,6 +318,10 @@ async def enrich(input_csv: Path, emails_csv: Path, with_email_csv: Path,
         writer.writeheader()
         writer.writerows(without_email)
 
+    # Auto-export GetSales-ready CSV for contacts without email
+    if without_email and seg_label:
+        export_getsales_csv(without_email, seg_label, date_tag or _date_tag_fm())
+
     elapsed = time.time() - t0
     print(f"\n=== Enrichment done ===")
     print(f"Processed: {found + not_found + skipped} / {len(rows)}")
