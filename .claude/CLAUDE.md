@@ -55,6 +55,8 @@ Every time data is saved to a CSV locally, it MUST also be uploaded to Google Sh
 - Backend container: `leadgen-backend` (FastAPI on port 8000)
 - Deploy: `ssh hetzner "cd ~/magnum-opus-project/repo && git pull origin main && docker-compose up --build -d"`
 - Env vars: `set -a && source .env && set +a` before running Python scripts directly
+- **sofia/ scripts are NOT on Hetzner by default.** SCP script + dependencies (sequences/) before running: `scp sofia/scripts/foo.py hetzner:~/magnum-opus-project/repo/sofia/scripts/`
+- Hetzner repo path: `~/magnum-opus-project/repo`
 
 ## Project Structure
 
