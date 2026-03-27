@@ -262,14 +262,54 @@ Log in `testruns2603.md`: probe iterations (count, score per iteration, filters 
 - New replies must be visible in the Tasks page → Replies subpage
 - Confirm the reply processing pipeline is connected: SmartLead webhook → reply classification → ProcessedReply → visible in UI
 
-**Step 10 — Post-Campaign Intelligence Questions**
-- After campaign creation and reply analysis is complete, test the MCP's ability to answer these questions about ALL connected campaigns (not just the new one):
-  1. "Which leads need follow-ups?" (example: dileep@thinkchain.co) — MCP must return specific leads with context
-  2. "Which replies are warm? Provide link in CRM to see them" — MCP must return a CRM deep link with filters pre-set to show warm replies (e.g. `?category=warm&project=EasyStaff-Global`)
-  3. Other analytical questions covering all connected campaigns
-- Every answer must include CRM deep links to the relevant filtered view — not just text, actual clickable links to the CRM with the correct filters applied
-- Track how much time the system needs to answer each question — log durations in `testruns2603.md`
-- If the background reply analysis from Step 2b isn't complete yet, the system must handle this gracefully (show progress, partial results, or wait)
+**Step 10 — Post-Campaign Intelligence Questions (MANDATORY END-TO-END TEST)**
+
+This step is a NON-NEGOTIABLE regression test. You MUST execute ALL 5 queries below via the actual MCP reply tools (replies_summary, replies_list, replies_followups, replies_deep_link) and verify EVERY response contains real data + CRM deep links.
+
+**Test these queries using real MCP tool calls (not direct API curls):**
+
+1. **"Which leads need follow-ups?"**
+   - Call `replies_followups` with project_name="EasyStaff-Global"
+   - Expected: list of leads where category is interested/meeting_request/question AND no operator reply yet
+   - MUST include specific leads with email, company, category, campaign
+   - Example from production data: `dileep@thinkchain.co` → interested, "UAE-Pakistan Petr 16/03 - copy"
+   - Log: count of leads needing followup, response time
+
+2. **"Which replies are warm? Provide link in CRM to see them"**
+   - Call `replies_list` with category="interested"
+   - Then call `replies_deep_link` with category="interested"
+   - Expected: list of warm leads + CRM deep link URL
+   - CRM link format: `http://46.62.210.24:3000/crm?reply_category=interested&project=EasyStaff-Global`
+   - Log: count of warm replies, deep link URL, response time
+
+3. **"How many meeting requests do we have?"**
+   - Call `replies_summary` for full category breakdown
+   - Expected: JSON with category counts (interested, meeting_request, question, not_interested, ooo, etc.)
+   - Log: full breakdown, total count, response time
+
+4. **"Show me replies from campaign X"** (pick any campaign from project's campaign_filters)
+   - Call `replies_list` with search={campaign_name_fragment}
+   - Expected: filtered replies from that specific campaign
+   - Log: count, sample leads, response time
+
+5. **"Generate a CRM link for all questions"**
+   - Call `replies_deep_link` with category="question"
+   - Expected: `http://46.62.210.24:3000/crm?reply_category=question&project=EasyStaff-Global`
+   - Open this URL in Puppeteer and take screenshot to verify it loads
+   - Log: URL generated, screenshot path, response time
+
+**Every answer MUST include:**
+- Actual data (not empty/zero)
+- CRM deep links with correct filters
+- Response time logged
+
+**Track timing for each question** — log in `testruns2603.md`:
+- Query sent at: {timestamp}
+- Response received at: {timestamp}
+- Duration: {ms}
+- Data quality: {count of results, are deep links correct}
+
+If the background reply analysis cache is empty (first run), the tools fall back to the main backend proxy which has 38,330+ real replies. Both paths must work.
 
 ### HARD RULES — NON-NEGOTIABLE
 
