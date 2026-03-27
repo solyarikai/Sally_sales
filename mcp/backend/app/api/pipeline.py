@@ -630,7 +630,7 @@ async def create_campaign(
 
 
 class SendTestEmailRequest(BaseModel):
-    sequence_number: int = 1
+    test_email: str = "pn@getsally.io"
 
 
 @router.post("/runs/{run_id}/send-test-email")
@@ -642,8 +642,9 @@ async def send_test_email(
 ):
     """Send a test email for a pipeline run's SmartLead campaign.
 
-    Finds the campaign created from this run, picks the test lead (pn@getsally.io)
-    or the first lead, and sends the specified sequence step as a test.
+    Uses the same pattern as the existing platform: adds the user as a test
+    lead to the campaign and activates it. SmartLead sends naturally — no
+    reliance on SmartLead's buggy /send-test-email API.
     """
     from app.services.smartlead_service import SmartLeadService
 
@@ -663,7 +664,6 @@ async def send_test_email(
     if not seq or not seq.pushed_campaign_id:
         raise HTTPException(400, "No SmartLead campaign found for this run. Create a campaign first.")
 
-    # Get the SmartLead campaign ID (external_id)
     campaign = await session.get(Campaign, seq.pushed_campaign_id)
     if not campaign or not campaign.external_id:
         raise HTTPException(400, "Campaign has no SmartLead ID")
@@ -674,40 +674,24 @@ async def send_test_email(
     if not sl.is_configured():
         raise HTTPException(500, "SmartLead API key not configured")
 
-    # Get leads from the campaign — prefer pn@getsally.io (test lead)
-    leads = await sl.get_campaign_leads_with_status(smartlead_campaign_id, limit=100)
-    if not leads:
-        raise HTTPException(400, "Campaign has no leads. Add leads first.")
-
-    test_lead = None
-    for lead in leads:
-        lead_obj = lead.get("lead", lead)
-        if lead_obj.get("email", "").lower() == "pn@getsally.io":
-            test_lead = lead_obj
-            break
-    if not test_lead:
-        # Fall back to first lead
+    # Get custom fields from first real lead for proper merge tag substitution
+    sample_custom_fields = None
+    leads = await sl.get_campaign_leads_with_status(smartlead_campaign_id, limit=1)
+    if leads:
         first = leads[0]
-        test_lead = first.get("lead", first)
+        lead_obj = first.get("lead", first)
+        sample_custom_fields = lead_obj.get("custom_fields")
 
-    lead_id = test_lead.get("id")
-    lead_email = test_lead.get("email")
-    if not lead_id:
-        raise HTTPException(400, "Could not determine lead ID")
-
-    # Send the test email
-    result = await sl.send_test_email(
+    # Add test lead + activate campaign (battle-tested pattern from main platform)
+    result = await sl.add_test_lead_and_activate(
         campaign_id=smartlead_campaign_id,
-        lead_id=lead_id,
-        sequence_number=req.sequence_number,
+        test_email=req.test_email,
+        sample_custom_fields=sample_custom_fields,
     )
 
     return {
         "campaign_name": campaign.name,
         "smartlead_campaign_id": smartlead_campaign_id,
-        "lead_email": lead_email,
-        "lead_id": lead_id,
-        "sequence_number": req.sequence_number,
         **result,
     }
 

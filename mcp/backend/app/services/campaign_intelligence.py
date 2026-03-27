@@ -204,6 +204,22 @@ Return ONLY a JSON array of 5 objects: {{"step": N, "day": N, "subject": "...", 
             logger.error(f"AI sequence generation failed: {e}")
         return None
 
+    def _normalize_subjects(self, steps: list) -> list:
+        """Clean subject lines — strip special chars, asterisks, excess punctuation."""
+        import re
+        for step in steps:
+            subj = step.get("subject", "")
+            if not subj:
+                continue
+            # Remove asterisks, backticks, brackets used for emphasis
+            subj = re.sub(r'[*`\[\]]', '', subj)
+            # Collapse multiple spaces
+            subj = re.sub(r'\s{2,}', ' ', subj)
+            # Remove leading/trailing punctuation (except ?)
+            subj = subj.strip(' -–—:;,.')
+            step["subject"] = subj
+        return steps
+
     def _generate_steps_template(self, project) -> list:
         """Fallback template sequence."""
         sender = project.sender_name or "Team"
