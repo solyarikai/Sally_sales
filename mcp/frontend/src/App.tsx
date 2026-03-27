@@ -165,23 +165,37 @@ function PipelineRunsPage() {
           <thead><tr style={{ textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)' }}>
             <th style={{ paddingBottom: 8 }}>Run</th>
             <th style={{ paddingBottom: 8 }}>Project</th>
+            <th style={{ paddingBottom: 8 }}>Segment</th>
             <th style={{ paddingBottom: 8 }}>Source</th>
-            <th style={{ paddingBottom: 8 }}>Companies</th>
-            <th style={{ paddingBottom: 8 }}>Target Rate</th>
+            <th style={{ paddingBottom: 8 }}>Raw</th>
+            <th style={{ paddingBottom: 8 }}>Targets</th>
+            <th style={{ paddingBottom: 8 }}>People</th>
             <th style={{ paddingBottom: 8 }}>Credits</th>
             <th style={{ paddingBottom: 8 }}>Phase</th>
             <th style={{ paddingBottom: 8 }}>Created</th>
           </tr></thead>
           <tbody>{filtered.map((r: any) => (
             <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
-              <td style={{ padding: '8px 12px 8px 0' }}><Link to={`/pipeline/${r.id}`} style={{ color: 'var(--text-link)' }}>#{r.id}</Link></td>
-              <td style={{ padding: '8px 12px 8px 0', fontSize: 12, color: 'var(--text-secondary)' }}>{r.project_name || '—'}</td>
-              <td style={{ padding: '8px 12px 8px 0' }}>{r.source_type?.replace('companies.', '').replace('.manual', '')}</td>
-              <td style={{ padding: '8px 12px 8px 0', color: 'var(--success)' }}>{r.new_companies || 0}</td>
-              <td style={{ padding: '8px 12px 8px 0', color: r.target_rate ? 'var(--success)' : 'var(--text-muted)' }}>{r.target_rate || '—'}</td>
-              <td style={{ padding: '8px 12px 8px 0', color: 'var(--text-secondary)' }}>{r.credits_used || 0}</td>
-              <td style={{ padding: '8px 12px 8px 0' }}><span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 11, background: 'var(--active-bg)' }}>{r.phase}</span></td>
-              <td style={{ padding: '8px 0', color: 'var(--text-muted)' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</td>
+              <td style={{ padding: '8px 8px 8px 0' }}><Link to={`/pipeline/${r.id}`} style={{ color: 'var(--text-link)' }}>#{r.id}</Link></td>
+              <td style={{ padding: '8px 8px 8px 0', fontSize: 12, color: 'var(--text-secondary)' }}>{r.project_name || '—'}</td>
+              <td style={{ padding: '8px 8px 8px 0', fontSize: 11 }}>
+                {(r.segments || []).length > 0 ? r.segments.map((s: string) => (
+                  <span key={s} style={{ padding: '1px 5px', borderRadius: 3, background: 'rgba(99,102,241,0.12)', color: '#818cf8', marginRight: 3, display: 'inline-block', marginBottom: 2 }}>{s}</span>
+                )) : '—'}
+              </td>
+              <td style={{ padding: '8px 8px 8px 0', fontSize: 12 }}>{r.source_type?.replace('companies.', '').replace('.manual', '').replace('apollo.', '')}</td>
+              <td style={{ padding: '8px 8px 8px 0' }}>
+                {r.raw_companies > 0 ? <Link to={`/pipeline/${r.id}`} style={{ color: 'var(--text-link)' }}>{r.raw_companies}</Link> : <span style={{ color: 'var(--text-muted)' }}>0</span>}
+              </td>
+              <td style={{ padding: '8px 8px 8px 0' }}>
+                {r.targets > 0 ? <Link to={`/pipeline/${r.id}?status=target`} style={{ color: 'var(--success)', fontWeight: 600 }}>{r.targets}</Link> : <span style={{ color: 'var(--text-muted)' }}>0</span>}
+              </td>
+              <td style={{ padding: '8px 8px 8px 0' }}>
+                {r.people > 0 ? <Link to={`/crm?pipeline=${r.id}`} style={{ color: 'var(--text-link)' }}>{r.people}</Link> : <span style={{ color: 'var(--text-muted)' }}>0</span>}
+              </td>
+              <td style={{ padding: '8px 8px 8px 0', color: 'var(--text-secondary)', fontSize: 12 }}>{r.credits_used || 0}</td>
+              <td style={{ padding: '8px 8px 8px 0' }}><span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 11, background: 'var(--active-bg)' }}>{r.phase}</span></td>
+              <td style={{ padding: '8px 0', color: 'var(--text-muted)', fontSize: 12 }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</td>
             </tr>
           ))}</tbody>
         </table>
