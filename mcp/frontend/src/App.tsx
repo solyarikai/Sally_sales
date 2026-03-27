@@ -3,6 +3,7 @@ import { useState, useEffect, createContext, useContext, useRef } from 'react'
 import SetupPage from './pages/SetupPage'
 import PipelinePage from './pages/PipelinePage'
 import PromptsPage from './pages/PromptsPage'
+import AccountPage from './pages/AccountPage'
 
 // REUSED from main app via @main alias — fix once, fixed everywhere
 import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
@@ -97,6 +98,7 @@ export default function App() {
                 <NavLink to="/crm">CRM</NavLink>
                 <NavLink to="/tasks">Tasks</NavLink>
                 <NavLink to="/setup">Setup</NavLink>
+                <NavLink to="/account">Account</NavLink>
               </nav>
               <div style={{ marginLeft: 'auto' }}>
                 <button onClick={toggleTheme} style={{ padding: '4px 8px', borderRadius: 4, fontSize: 12, border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--text-muted)' }}>{dark ? '☀' : '☾'}</button>
@@ -112,6 +114,7 @@ export default function App() {
                 <Route path="/crm" element={<CRMPage />} />
                 <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/tasks/:tab" element={<TasksPage />} />
+                <Route path="/account" element={<AccountPage />} />
               </Routes>
             </div>
           </div>

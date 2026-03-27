@@ -55,6 +55,10 @@ app.include_router(contacts_router, prefix="/api")
 from app.api.replies import router as replies_router
 app.include_router(replies_router, prefix="/api")
 
+# Account API — credits, usage, API keys
+from app.api.account import router as account_router
+app.include_router(account_router, prefix="/api")
+
 # ── MCP SSE (official SDK) ──
 from app.mcp.server import sse_transport, mcp_server
 

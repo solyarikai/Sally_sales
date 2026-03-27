@@ -1,4 +1,14 @@
-"""Apollo Service — adapted for MCP with per-user API keys."""
+"""Apollo Service — adapted for MCP with per-user API keys.
+
+Official Apollo API credit costs (from Apollo pricing page):
+  /mixed_people/api_search     — FREE (partial profile, max 100/page)
+  /mixed_companies/search      — 1 credit / page returned (max 100/page)
+  /people/match                — 1 credit / net-new email, 1 / firmographic, 5 / phone
+  /people/bulk_match           — same as /people/match per result
+  /organizations/enrich        — 1 credit / result returned
+  /organizations/bulk_enrich   — 1 credit / company returned (max 10/page)
+  /organizations/{id}/job_postings — 1 credit / result (max 10,000/page)
+"""
 import asyncio
 import logging
 import time
@@ -86,7 +96,10 @@ class ApolloService:
             payload["organization_num_employees_ranges"] = num_employees_ranges
         if latest_funding_stages:
             payload["organization_latest_funding_stage_cd"] = latest_funding_stages
-        return await self._api_call("POST", "/mixed_companies/search", payload)
+        result = await self._api_call("POST", "/mixed_companies/search", payload)
+        if result:
+            self.credits_used += 1  # 1 credit per page
+        return result
 
     async def search_organizations_all_pages(
         self, keyword_tags: List[str], locations: Optional[List[str]] = None,
